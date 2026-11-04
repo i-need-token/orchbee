@@ -1163,7 +1163,7 @@ target.
 | RetryableAttachUnavailable, attachable target equals active                                                        | An explicit selection admits a fresh marker and generation; the executor skips Detach when cleanup left no viewer and otherwise first detaches the parked focus's live siblings. A refused Attach is never retried automatically; only a lost focused viewer re-attaches on its own, as [panel lifecycle](native-panel-lifecycle.md) bounds it.                                                                        |
 | RetryableAttachUnavailable, target differs                                                                         | Atomically admit a marker/generation, first detach the parked focus's live siblings or skip Detach when no viewer exists, and dispatch by that target's retained provenance exactly as for SelectedWithoutAttachment.                                                                                                                                                                                                  |
 | Ready, Agent-board reattach admission: target equals the desired Tab and recorded dead-target-pane evidence exists | Mint a fresh marker and generation for the same desired Tab through the ordinary switch pipeline — every viewer in that Tab detaches and re-attaches under the new anchor generation (the accepted cost; the Server's terminals are not restarted) — then the jump lands on the exact target Panel. Without recorded dead-target evidence this admission does not exist; ordinary same-target selection stays a no-op. |
-| SelectedWithoutAttachment, target differs                                                                          | Atomically admit the same marker/generation transition. The executor skips Detach because no viewer exists, then dispatches by the **target's** retained provenance: Started/BindingOnly performs normal Attach setup; Pending/unavailable/failed/outcome-unknown settles SelectedWithoutAttachment without Attach.                                                                                                    |
+| SelectedWithoutAttachment, target differs                                                                          | Atomically admit the same marker/generation transition. The executor first detaches the live siblings under the selection's anchor, or skips Detach when no viewer exists, then dispatches by the **target's** retained provenance: Started/BindingOnly performs normal Attach setup; Pending/unavailable/failed/outcome-unknown settles SelectedWithoutAttachment without Attach.                                     |
 | SelectedWithoutAttachment, target is the selected non-attachable Tab                                               | No-op; no marker or generation.                                                                                                                                                                                                                                                                                                                                                                                        |
 | Creating, CreateCommittedNeedDetach, ProjectionUnavailable, Starting, or Retired                                   | Reject effectful selection. Only the recovery actions explicitly named below remain available.                                                                                                                                                                                                                                                                                                                         |
 | Queue/generation full                                                                                              | Preserve selection and attachment state; report local busy.                                                                                                                                                                                                                                                                                                                                                            |
@@ -1424,10 +1424,12 @@ together without Attach, input replay or a fresh generation. The owner-minted re
 publishes those exact pane incarnations into the mailbox in the same desired-install transaction,
 so ordinary Poll and input admission can resume without a new reconcile. Already departing panes
 remain departing. A missing or unfinished pane proof, such as a frame proof that a Resize
-accepted before the Switch cleared, prevents restoration, and abandonment of any captured pane
-invalidates the anchor. Unpreservable old Poll/causal abandonment, or viewer cleanup or replacement
-invalidates that proof. The anchor follows those facts; an admission-time clone cannot roll them
-back. A Resize acknowledged while the Switch is in flight does not. A controlling pane whose
+acknowledged before the Switch cleared, or a controller mode that changed while the Switch was in
+flight, as when the Host refused a Resize admitted before it, prevents restoration; the Switch then
+parks its origin as described below. Abandonment of any captured pane invalidates the anchor.
+Unpreservable old Poll/causal abandonment, or viewer cleanup or replacement invalidates that
+proof. The anchor follows those facts; an admission-time clone cannot roll them back. A Resize
+acknowledged while the Switch is in flight does not. A controlling pane whose
 Resize the Host has not yet acknowledged at its observed geometry is retained with its geometry
 unknown. The executor runs a Resize admitted before the Switch ahead of it, so that
 acknowledgement, for the old focus or a sibling alike, settles while the Switch is in flight: it
@@ -1442,7 +1444,26 @@ while it still has no viewer/controller, except an unbound selection or a retrya
 live siblings uses the same exact whole-anchor projection proof described below; a retryable one
 restores still retryable. A partly completed Switch never creates a stable anchor;
 in particular, a second marker can have no anchor after the first marker's not-yet-Ready viewer was
-cleaned up. Current Unavailable without a valid anchor retires, without a repair Poll or setup.
+cleaned up, or after the first marker's cleanup detached the origin's viewers.
+
+A refused Switch never retires the Client. This covers a definite Denied or Unavailable result, a
+candidate the action menu no longer accepts and a snapshot that removes the context. Without a
+usable anchor, the Switch parks its origin. The origin is the selection active at admission. A
+Switch admitted while another one awaits its snapshot inherits that one's origin, and one admitted
+while an installed selection is still attaching returns to that selection. When viewers remain
+under the origin's anchor, the Switch first detaches all of them through the exact old cleanup an
+expired Switch uses, and their records drop. That cleanup is not an expiry: its detach may land any
+time within the total reserve. The origin is then selected without a viewer in the same
+desired-install transaction that returns the mailbox to it, with no pane incarnations. Its focus
+record is revived or freshly minted. An attachable focus
+without a definite attach fault parks as a lost viewer, so the bounded automatic re-attach of
+[native panel lifecycle](native-panel-lifecycle.md) recovers it after its pause; a definite fault
+keeps its parked state, and a focus that never attaches is selected without attachment. The
+origin's siblings attach again through reconcile once an observation recreates their records. A
+snapshot that removed the context also owes the publication read on this path. Real protocol
+violations on either path still retire, as do an expired Switch and an Available candidate that
+does not project.
+
 Superseded results only settle their old flight. Exact restoration may return desired to the old
 allocated key, while the allocation cursor never rewinds and the intent generation remains burned.
 Timely Unavailable placement ends its transport budget, so exact UI settlement may occur later;

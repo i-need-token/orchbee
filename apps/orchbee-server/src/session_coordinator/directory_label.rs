@@ -3,8 +3,8 @@
 use super::SessionCoordinator;
 use orchbee_server::same_directory;
 use orchbee_workbench_protocol::{
-    PanelNode, PresentationBinding, Snapshot, WorkbenchDirectoryPath, WorkbenchWorkspaceId,
-    Workspace,
+    CurrentDirectoryPanel, PanelNode, PresentationBinding, Snapshot, WorkbenchDirectoryPath,
+    WorkbenchWorkspaceId, Workspace,
 };
 use std::collections::BTreeMap;
 
@@ -31,6 +31,42 @@ pub(super) fn first_terminal<'a>(
             PanelNode::Split { children, .. } => node = &children.first()?.node,
         }
     }
+}
+
+/// The terminal a Client shows in one Panel of the Workspace, `None` while that Presentation is
+/// unbound. `Err` when the Workspace has no such Panel or the Panel no such Presentation.
+pub(super) fn displayed_terminal<'a>(
+    snapshot: &'a Snapshot,
+    workspace: &Workspace,
+    target: &CurrentDirectoryPanel,
+) -> Result<Option<&'a PresentationBinding>, ()> {
+    fn find<'a>(
+        node: &'a PanelNode,
+        target: &CurrentDirectoryPanel,
+    ) -> Option<Option<&'a PresentationBinding>> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } => (panel_id == &target.panel_id).then(|| {
+                std::iter::once(primary_presentation)
+                    .chain(child_presentations)
+                    .find(|presentation| presentation.presentation_id == target.presentation_id)
+                    .map(|presentation| presentation.binding.as_ref())
+            })?,
+            PanelNode::Split { children, .. } => {
+                children.iter().find_map(|child| find(&child.node, target))
+            }
+        }
+    }
+    snapshot
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == workspace.terminal_context_id)
+        .and_then(|context| context.tabs.iter().find_map(|tab| find(&tab.root, target)))
+        .ok_or(())
 }
 
 impl SessionCoordinator {
@@ -68,3 +104,6 @@ impl SessionCoordinator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

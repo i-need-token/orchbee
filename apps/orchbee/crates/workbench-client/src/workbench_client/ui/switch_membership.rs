@@ -6,8 +6,8 @@ use super::{
     Arc, CarrierFailure, CommandMailbox, MutationResult, PaneKey, RefreshDecision,
     RefreshSettlement, UiReply, WorkbenchClientUi,
 };
-use crate::workbench_client::mailbox::DesiredInstall;
-use crate::workbench_state::{MembershipCleanup, MembershipInstallDecision};
+use crate::workbench_client::mailbox::{DesiredInstall, UiReplyTransaction};
+use crate::workbench_state::{MembershipCleanup, MembershipInstallDecision, WorkbenchClientState};
 use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 
 #[cfg(test)]
@@ -177,23 +177,29 @@ impl WorkbenchClientUi {
                     membership_decision(decision)
                 }
             } else {
-                match state.prepare_switch_restore(&marker, &retained_projections) {
+                let restored = match state.prepare_switch_restore(&marker, &retained_projections) {
                     Ok(canonical) => {
                         let desired = transaction.prepare_desired_install(
                             DesiredInstall::RestoreSwitch(canonical.restoration().clone()),
                         )?;
                         canonical.commit();
                         desired.commit();
-                        if context_removed {
-                            state.owe_publication_read();
-                        }
-                        RefreshDecision::Continue
+                        true
                     }
-                    Err(_) => {
-                        state.retire(CarrierFailure::AuthorityDivergence);
-                        failure_after_reply = Some(CarrierFailure::AuthorityDivergence);
-                        RefreshDecision::Retire
-                    }
+                    Err(_) => false,
+                };
+                if context_removed {
+                    state.owe_publication_read();
+                }
+                // A refused Switch never retires the Client. Without a usable restore point, the
+                // viewers under its origin's anchor are detached first, and the origin then parks.
+                if restored {
+                    RefreshDecision::Continue
+                } else if state.has_attachments() {
+                    RefreshDecision::Cleanup(state.stage_switch_refusal_cleanup(&marker)?)
+                } else {
+                    park_refused_switch(state, transaction, &marker)?;
+                    RefreshDecision::Continue
                 }
             };
             Ok(UiReply::Switch(RefreshSettlement::new(
@@ -255,6 +261,21 @@ impl WorkbenchClientUi {
             Err(error) => self.handle_event_error(error),
         }
     }
+}
+
+/// Parks the origin of a refused Switch that cannot be restored, in the same mailbox transaction
+/// that returns the desired key to it.
+pub(super) fn park_refused_switch(
+    state: &mut WorkbenchClientState,
+    transaction: &mut UiReplyTransaction<'_>,
+    marker: &PaneKey,
+) -> Result<(), CarrierFailure> {
+    let park = state.prepare_switch_park(marker)?;
+    let desired = transaction
+        .prepare_desired_install(DesiredInstall::RestoreSwitch(park.restoration().clone()))?;
+    park.commit();
+    desired.commit();
+    Ok(())
 }
 
 pub(super) fn membership_decision(decision: MembershipInstallDecision) -> RefreshDecision {

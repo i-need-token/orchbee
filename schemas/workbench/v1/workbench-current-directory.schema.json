@@ -3,6 +3,22 @@
 	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-current-directory.schema.json",
 	"title": "Workspace current directory read",
 	"$comment": "Rust and TypeScript additionally enforce the 4096-byte UTF-8 directory limit and the 26 KiB result budget.",
+	"$defs": {
+		"panel": {
+			"$comment": "Absent, the read is about the Workspace's first terminal. Present, it names a Panel of the Workspace and the Presentation the asking Client shows in it.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["panelId", "presentationId"],
+			"properties": {
+				"panelId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"presentationId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				}
+			}
+		}
+	},
 	"oneOf": [
 		{
 			"type": "object",
@@ -23,6 +39,9 @@
 				},
 				"workspaceId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"panel": {
+					"$ref": "#/$defs/panel"
 				}
 			}
 		},
@@ -45,6 +64,9 @@
 				},
 				"workspaceId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+				},
+				"panel": {
+					"$ref": "#/$defs/panel"
 				},
 				"outcome": {
 					"oneOf": [

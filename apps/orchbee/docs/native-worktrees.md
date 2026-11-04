@@ -150,16 +150,17 @@ It never holds the UI lock during IPC. Shutdown stops admission, wakes I/O and j
 Slow Git work remains Server-owned and does not occupy the ordinary terminal Viewer FIFO.
 No preparation attaches, borrows or releases a Viewer: the Server samples the terminal itself.
 
-`Ctrl+B W` and `Ctrl+B O` run Git where the Server's `workbench.current-directory` answer for the
-focused Workspace says its first terminal stands, the read the Web and Desktop Clients make before
-their Workspace menu's discovery, and resolve it the same way. An answer other than the Workspace's
-own directory (compared by `same_directory_spelling`), or any answer for a Workspace without one, is
+`Ctrl+B W` and `Ctrl+B O` run Git where the terminal the focused Panel shows stands, a displayed
+child terminal included, so a person who changed directory there gets that repository. They ask the
+Server's `workbench.current-directory` with that Panel and Presentation; without a focused Panel
+they ask for the Workspace, whose first terminal answers, as a sidebar row does. They resolve the
+answer as the Web and Desktop Clients resolve theirs. An answer other than the Workspace's own
+directory (compared by `same_directory_spelling`), or any answer for a Workspace without one, is
 the `workspace-directory` source; an answer naming that directory is the `workspace` source. When
 the Server gives no answer, only a Workspace with its own directory has a source, the `workspace`
-source; a Workspace without one reports the source unavailable, as the GUI offers it nothing. The
-answer concerns the Workspace's first terminal, not the focused Panel, because the read names only
-a Workspace. Shortcuts never use the `Directory` source, so a Worktree created from an ungrouped
-Workspace without a directory lands in a new Project with it, as in the GUI.
+source; a Workspace without one reports the source unavailable, as the GUI offers it nothing.
+Shortcuts never use the `Directory` source, so a Worktree created from an ungrouped Workspace
+without a directory lands in a new Project with it, as in the GUI.
 
 Configured destinations use one pure policy shared with CLI; unconfigured destinations remain
 Worker-owned. The generated branch is also used when deriving a configured default destination.

@@ -154,8 +154,8 @@ pub use agent_integration::{
 };
 mod current_directory;
 pub use current_directory::{
-    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryRequest,
-    CurrentDirectoryResult, MAXIMUM_CURRENT_DIRECTORY_BYTES,
+    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,
+    CurrentDirectoryRequest, CurrentDirectoryResult, MAXIMUM_CURRENT_DIRECTORY_BYTES,
 };
 mod workspace_git;
 mod workspace_metadata;

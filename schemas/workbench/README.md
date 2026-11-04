@@ -768,7 +768,9 @@ Public configuration check, failure, Session configuration and catalog documents
 [`workbench-current-directory.schema.json`](v1/workbench-current-directory.schema.json)
 owns `workbench.current-directory` and its `.result`, OBWP kinds 65/66. Identities and the
 observed directory reuse the [Workbench definitions](v1/workbench.schema.json); failures are
-denied/not-found/unavailable. The [shared corpus](v1/workbench-current-directory-conformance-v1.json)
+denied/not-found/unavailable. An optional `panel` names a Panel and the Presentation the asking
+Client shows in it; absent, the read is about the Workspace's first terminal. It is never `null`,
+and the result echoes it. The [shared corpus](v1/workbench-current-directory-conformance-v1.json)
 checks closed shapes, identities and directory syntax; the bindings also enforce the 4,096-byte
 directory and 26 KiB result limits. The
 [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads) owns which

@@ -26,12 +26,15 @@ under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creati
 
 ## Creation defaults and result ownership
 
-Read-only preparation captures the exact initiating context, revision and token. The directory is
-the current directory of the focused Workspace's first terminal: the primary terminal of the first
-Tab's leading Panel, so a `cd` there moves the default. Preparation asks the Server once with the
-[current-directory read](../../orchbee-server/README.md#workspace-current-directory-reads), which
-samples that terminal and otherwise answers the Workspace's recorded directory; the Client attaches
-no Viewer of its own. When the Server refuses the read or no longer finds the Workspace, the
+Read-only preparation captures the exact initiating context, revision and token. Started from the
+focused context, by a key or command, the directory is the current directory of the terminal the
+focused Panel shows, a displayed child terminal included, so a `cd` there moves the default. Started
+from a Project row without a chosen folder, or without a focused Panel, it is the current directory
+of the focused Workspace's first terminal: the primary terminal of the first Tab's leading Panel.
+Preparation asks the Server once with the
+[current-directory read](../../orchbee-server/README.md#workspace-current-directory-reads), naming
+that Panel and Presentation when there is one; the Server samples that terminal and otherwise
+answers the Workspace's recorded directory. The Client attaches no Viewer of its own. When the Server refuses the read or no longer finds the Workspace, the
 directory is the focused Workspace's recorded directory in the captured snapshot. Without one,
 including an empty Session, it is the directory the Client was launched from. A failed exchange
 fails preparation like any other carrier failure. A missing or invalid directory refuses

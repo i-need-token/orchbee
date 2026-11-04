@@ -13,31 +13,44 @@ use crate::workbench_state::workspace_setup::SetupToken;
 use crate::workbench_state::workspace_setup::quick::QuickPreparation;
 use crate::workbench_state::{CarrierFailure, OperationDeadlines};
 use orchbee_workbench_protocol::{
-    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryResult, Directory,
-    ProtocolVersion, Snapshot, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
-    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, WorkerId, Workspace, read_workbench_request, write_workbench_response,
+    CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,
+    CurrentDirectoryResult, Directory, ProtocolVersion, Snapshot, TerminalContext,
+    WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
+    Workspace, read_workbench_request, write_workbench_response,
 };
 use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
 
-fn quick(baseline: ClientContextTabs) -> QuickPreparation {
+fn quick(baseline: ClientContextTabs, panel: Option<CurrentDirectoryPanel>) -> QuickPreparation {
     QuickPreparation {
         review_directory: false,
         target: None,
         generation: 1,
         token: SetupToken::for_test(1),
         baseline,
+        panel,
         deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
     }
 }
 
-/// Prepares the default for `baseline` against a Server that answers one read of the focused
-/// Workspace with `outcome` and then expects nothing more.
+/// Prepares the default for `baseline` without a focused Panel against a Server that answers its
+/// one read with `outcome`.
 fn prepare(
     baseline: ClientContextTabs,
     snapshot: Snapshot,
     outcome: CurrentDirectoryOutcome,
+) -> TestResult<Result<Option<WorkbenchDirectoryPath>, CarrierFailure>> {
+    prepare_from(baseline, snapshot, None, move |_| outcome.clone())
+}
+
+/// Prepares the default for `baseline` focused on `panel` against a Server that answers one read
+/// of the focused Workspace by the Panel it names and then expects nothing more.
+fn prepare_from(
+    baseline: ClientContextTabs,
+    snapshot: Snapshot,
+    panel: Option<CurrentDirectoryPanel>,
+    answer: impl Fn(Option<&CurrentDirectoryPanel>) -> CurrentDirectoryOutcome + Send + 'static,
 ) -> TestResult<Result<Option<WorkbenchDirectoryPath>, CarrierFailure>> {
     let ClientContextLocation::Workspace { workspace_id, .. } = baseline.location().clone() else {
         return Err("a focused Workspace is expected".into());
@@ -53,6 +66,7 @@ fn prepare(
         if request.session_id != session_id || request.workspace_id != workspace_id {
             return Err(io::Error::other("the focused Workspace is read"));
         }
+        let outcome = answer(request.panel.as_ref());
         write_workbench_response(
             &mut stream,
             &WorkbenchResponse::CurrentDirectory(CurrentDirectoryResult {
@@ -60,6 +74,7 @@ fn prepare(
                 request_id: request.request_id,
                 session_id: request.session_id,
                 workspace_id: request.workspace_id,
+                panel: request.panel,
                 outcome,
             }),
         )
@@ -77,12 +92,46 @@ fn prepare(
         Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
     );
     let prepared = executor.prepare_quick_cwd(
-        &quick(baseline),
+        &quick(baseline, panel),
         &WorkbenchSnapshotOutcome::Available { snapshot },
     );
     drop(executor);
     server.finish()?;
     Ok(prepared)
+}
+
+/// A person who changed directory in a Panel other than the Workspace's first terminal and starts a
+/// Quick Workspace there gets that Panel's directory.
+#[test]
+fn quick_workspace_follows_the_focused_panel() -> TestResult {
+    let snapshot = snapshot(2, 1);
+    let baseline = project_preferred_workspace(&snapshot).unwrap();
+    let panel = baseline.tabs().get(1).and_then(|tab| tab.panel(0)).unwrap();
+    let shown = CurrentDirectoryPanel {
+        panel_id: panel.panel_id().clone(),
+        presentation_id: panel.primary().presentation_id().clone(),
+    };
+    let there = WorkbenchDirectoryPath::parse("C:/second")?;
+    let (second, first) = (
+        CurrentDirectoryOutcome::Observed {
+            directory: there.clone(),
+        },
+        CurrentDirectoryOutcome::Observed {
+            directory: WorkbenchDirectoryPath::parse("C:/first")?,
+        },
+    );
+    let expected = shown.clone();
+    assert_eq!(
+        prepare_from(baseline, snapshot, Some(shown), move |panel| {
+            if panel == Some(&expected) {
+                second.clone()
+            } else {
+                first.clone()
+            }
+        })?,
+        Ok(Some(there))
+    );
+    Ok(())
 }
 
 #[test]

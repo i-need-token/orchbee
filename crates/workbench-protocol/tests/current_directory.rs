@@ -18,12 +18,16 @@ fn current_directory_shared_corpus_and_closed_values() {
     }
 }
 #[test]
-fn current_directory_distinct_carriers_and_exact_workspace_correlation() {
+fn current_directory_distinct_carriers_and_exact_target_correlation() {
     let request = CurrentDirectoryRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
         session_id: SessionId::parse(&format!("{:032x}", 2)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
+        panel: Some(CurrentDirectoryPanel {
+            panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 5)).unwrap(),
+            presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 6)).unwrap(),
+        }),
     };
     let mut bytes = Vec::new();
     write_workbench_request(
@@ -47,6 +51,7 @@ fn current_directory_distinct_carriers_and_exact_workspace_correlation() {
         request_id: request.request_id.clone(),
         session_id: request.session_id.clone(),
         workspace_id: request.workspace_id.clone(),
+        panel: request.panel.clone(),
         outcome: CurrentDirectoryOutcome::Observed { directory },
     };
     assert!(result.answers(&request));
@@ -61,6 +66,12 @@ fn current_directory_distinct_carriers_and_exact_workspace_correlation() {
         read_workbench_response(&mut bytes.as_slice()).unwrap(),
         WorkbenchResponse::CurrentDirectory(result.clone())
     );
+    // An answer about the Workspace, or about another Panel, does not answer a Panel's read.
+    let workspace_answer = CurrentDirectoryResult {
+        panel: None,
+        ..result.clone()
+    };
+    assert!(!workspace_answer.answers(&request));
     result.workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 4)).unwrap();
     assert!(!result.answers(&request));
 }

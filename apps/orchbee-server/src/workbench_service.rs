@@ -684,6 +684,7 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 request_id: request.request_id,
                 session_id: request.session_id,
                 workspace_id: request.workspace_id,
+                panel: request.panel,
                 outcome: orchbee_workbench_protocol::CurrentDirectoryOutcome::Failed {
                     reason: if denied {
                         orchbee_workbench_protocol::CurrentDirectoryFailure::Denied

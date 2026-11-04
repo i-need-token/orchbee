@@ -1002,9 +1002,14 @@ load and deployed-cohort behavior require separate observation.
 `workbench.current-directory` (OBWP 65/66) is a read-granted query of where a Workspace is
 working, asked by the TUI and the Web and Desktop Server Clients before New Workspace and before
 Worktree discovery, from the sidebar or a shortcut, so every Client reads Git in the same directory. A request
-naming another Session answers `denied` and a missing Workspace `not-found`. Otherwise the Server
-finds the Workspace's first terminal, the primary terminal of its first Tab's leading Panel, among
-the current unfenced observation targets, then releases the Session lock before sampling. The
+naming another Session answers `denied` and a missing Workspace `not-found`. Without `panel` the
+Server reads the Workspace's first terminal, the primary terminal of its first Tab's leading Panel.
+With `panel` it reads the terminal the asking Client shows in that Panel: the named Presentation,
+primary or child, of a Panel in any of the Workspace's Tabs. A Panel the Workspace does not hold, or
+a Presentation that Panel does not hold, answers `not-found`; an unbound Presentation, like a
+Workspace without terminals, leaves the Workspace's own directory to answer. The Server finds that
+terminal among the current unfenced observation targets, then releases the Session lock before
+sampling. The
 Windows process observer samples that terminal on demand through the same temporary Viewer and
 sole pending-cleanup owner as its periodic samples: a valid terminal-reported directory, otherwise
 the root process directory, never a child's. The answer drops a trailing separator except at a

@@ -138,10 +138,11 @@ minute. Close work, an armed close confirmation, a pending Refresh, or any other
 defers the attempt without spending it, and the deferral shows no busy notice. Like any switch
 from the parked pane, the re-attach first detaches the live siblings under the old anchor, which
 then attach again under the new one; a refusal before that cleanup restores their exact
-projections and leaves the pane parked. A terminal that ended settles through the switch's own
-snapshot and attach: when that snapshot no longer holds the Panel, the switch lands on the Tab's
-surviving leaf, and a failed attach parks as an ordinary attach fault and is not retried
-automatically. A reselection still retries at once.
+projections and leaves the pane parked, or, when it cannot restore them, detaches them and parks
+the pane again while they attach again through reconcile. A terminal that ended settles through
+the switch's own snapshot and attach: when that snapshot no longer holds the Panel, the switch
+lands on the Tab's surviving leaf, and a failed attach parks as an ordinary attach fault and is not
+retried automatically. A reselection still retries at once.
 
 Zoom is a Client-local per-Tab flag, and it belongs to the leaf it draws: the focus in the selected
 Tab, the remembered Panel in a background Tab. Focus moving inside the Tab carries the zoom along.

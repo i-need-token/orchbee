@@ -13,6 +13,40 @@
 			}
 		},
 		{
+			"name": "panel-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"panel": {
+					"panelId": "00000000000000000000000000000004",
+					"presentationId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "panel-observed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"panel": {
+					"panelId": "00000000000000000000000000000004",
+					"presentationId": "00000000000000000000000000000005"
+				},
+				"outcome": {
+					"kind": "observed",
+					"directory": "C:\\Users\\me\\项目 space"
+				}
+			}
+		},
+		{
 			"name": "observed-windows",
 			"direction": "response",
 			"document": {
@@ -70,6 +104,71 @@
 				"sessionId": "00000000000000000000000000000002",
 				"workspaceId": "00000000000000000000000000000003",
 				"terminalId": "00000000000000000000000000000004"
+			}
+		},
+		{
+			"name": "null-panel-request",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"panel": null
+			}
+		},
+		{
+			"name": "panel-without-presentation-request",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"panel": {
+					"panelId": "00000000000000000000000000000004"
+				}
+			}
+		},
+		{
+			"name": "panel-extra-field-request",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"panel": {
+					"panelId": "00000000000000000000000000000004",
+					"presentationId": "00000000000000000000000000000005",
+					"tabId": "00000000000000000000000000000006"
+				}
+			}
+		},
+		{
+			"name": "zero-panel-response",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.current-directory.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"panel": {
+					"panelId": "00000000000000000000000000000000",
+					"presentationId": "00000000000000000000000000000005"
+				},
+				"outcome": {
+					"kind": "observed",
+					"directory": "C:\\Users\\me\\项目 space"
+				}
 			}
 		},
 		{

@@ -1,4 +1,4 @@
-//! Where the Server says the focused Workspace is working, read under the ordinary refresh lease.
+//! Where the Server says the focused Panel's terminal stands, read under the ordinary refresh lease.
 use super::{
     CarrierFailure, ClientExecutor, CommandLease, EventDeadline, MutationResult, Result,
     WorkbenchSnapshotOutcome, WorkerEvent, closed, event,
@@ -61,9 +61,18 @@ impl ClientExecutor {
         else {
             return Ok(None);
         };
+        // The terminal the focused Panel shows, as a person who just changed directory there
+        // expects; a Workspace without a focused Panel reads its first terminal.
+        let panel = p.origin.member.as_ref().map(|member| {
+            orchbee_workbench_protocol::CurrentDirectoryPanel {
+                panel_id: member.panel.clone(),
+                presentation_id: member.presentation.clone(),
+            }
+        });
         let observed = self.read_current_directory(
             p.origin.cache.session_id(),
             workspace_id,
+            panel,
             p.deadlines.forward_cutoff(),
         )?;
         Ok(p.origin.source(observed))

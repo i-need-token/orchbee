@@ -491,6 +491,7 @@ impl SessionCoordinator {
         &mut self,
         session_id: &orchbee_workbench_protocol::SessionId,
         workspace_id: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+        panel: Option<&orchbee_workbench_protocol::CurrentDirectoryPanel>,
     ) -> Result<
         (
             Option<ProcessObservationTarget>,
@@ -512,8 +513,12 @@ impl SessionCoordinator {
             .navigation
             .workspace_directory(workspace_id)
             .map(|directory| directory.path.clone());
-        let Some(binding) = super::directory_label::first_terminal(snapshot, workspace).cloned()
-        else {
+        let binding = match panel {
+            Some(panel) => super::directory_label::displayed_terminal(snapshot, workspace, panel)
+                .map_err(|()| Failure::NotFound)?,
+            None => super::directory_label::first_terminal(snapshot, workspace),
+        };
+        let Some(binding) = binding.cloned() else {
             return Ok((None, primary));
         };
         // A registration that cannot be read leaves the Workspace's own directory to answer.

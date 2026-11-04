@@ -5,8 +5,14 @@ use super::super::{
 use super::*;
 use crate::local_client::test_support::server::adjustable_operation_clock;
 use crate::workbench_client::mailbox::{CommandLease, EventDeadline, UiWaitKey};
-use crate::workbench_state::{ControllerMode, FrameIdentity};
-use std::sync::atomic::AtomicU64;
+use crate::workbench_state::{ControllerMode, FrameIdentity, PaneFault};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+fn controlling(id: u32) -> ControllerMode {
+    ControllerMode::Controlling(
+        orchbee_client_server_protocol::ControllerId::parse(&format!("{id:032x}")).unwrap(),
+    )
+}
 
 fn ready() -> (
     WorkbenchClientUi,
@@ -325,7 +331,7 @@ fn land_switch(
     assert_eq!(
         mailbox.is_closed(),
         None,
-        "a removed target Panel never costs the Client"
+        "a Switch that lands never costs the Client"
     );
     let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
         panic!("Switch reply")
@@ -617,11 +623,6 @@ fn a_switch_refused_while_resizes_await_the_host_restores_and_resends_them() {
     use super::super::tests::publication_hint::{
         attach_split_peer_with_mode, ready_split_ui_with_mode,
     };
-    let controlling = |id: u32| {
-        ControllerMode::Controlling(
-            orchbee_client_server_protocol::ControllerId::parse(&format!("{id:032x}")).unwrap(),
-        )
-    };
     let (mut ui, mailbox, clock, _elapsed) = ready_split_ui_with_mode(controlling(8));
     attach_split_peer_with_mode(&mut ui, &mailbox, &clock, controlling(9));
     let state = ui.state.as_ref().unwrap();
@@ -738,6 +739,331 @@ fn a_switch_refused_while_resizes_await_the_host_restores_and_resends_them() {
     assert_eq!(resizes, [(focus, grown[0].2), (peer, grown[1].2)]);
     assert_eq!(mailbox.is_closed(), None);
     assert!(ui.state.as_ref().unwrap().invariant_holds());
+}
+
+fn next_resize(mailbox: &CommandMailbox) -> CommandLease {
+    loop {
+        let lease = mailbox.try_recv().unwrap().expect("a queued Resize");
+        if matches!(lease.record(), QueuedCommand::Resize(_)) {
+            return lease;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    }
+}
+
+/// Refuses the leased Switch whose restore point is unusable. A refused Switch never costs the
+/// Client: the viewers left under the origin's anchor are detached, and the origin is selected
+/// again without a viewer.
+fn refuse_unrestorable_switch(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &Arc<CommandMailbox>,
+    clock: &LocalOperationClock,
+    lease: CommandLease,
+    origin: &PaneKey,
+    viewers_left: bool,
+) {
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        panic!("Switch lease")
+    };
+    let target = marker.target().clone();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, &target, clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Unavailable {
+                    reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                },
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a refused Switch never costs the Client"
+    );
+    let UiReply::Switch(mut settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap()
+    else {
+        panic!("Switch reply")
+    };
+    if viewers_left {
+        let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+            panic!("the viewers the restore cannot vouch for are detached")
+        };
+        assert_eq!(cleanup.old(), origin.anchor());
+        let permit = mailbox
+            .authorize_switch_cleanup(&lease, cleanup, cleanup.old(), clock)
+            .unwrap()
+            .expect("the Switch owns its cleanup");
+        assert!(mailbox.answer_switch_cleanup(permit, true).unwrap());
+        let wait = detached(mailbox, clock, cleanup);
+        ui.tick();
+        assert_eq!(
+            mailbox.is_closed(),
+            None,
+            "a refused Switch never costs the Client"
+        );
+        let UiReply::Switch(parked) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+            panic!("Switch reply")
+        };
+        settlement = parked;
+    }
+    assert!(matches!(settlement.decision(), RefreshDecision::Continue));
+    assert_eq!(settlement.desired(), Some(origin));
+    mailbox.finish_lease(lease).unwrap();
+    let state = ui.state.as_ref().unwrap();
+    assert!(
+        state.focus_parked(),
+        "the origin is selected without a viewer"
+    );
+    assert!(state.invariant_holds());
+}
+
+/// A parked focus that had a viewer waits as a lost one: after its pause, the Client re-attaches
+/// that same panel on its own.
+fn parked_focus_reattaches(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &CommandMailbox,
+    elapsed: &AtomicU64,
+    origin: &PaneKey,
+) {
+    assert!(ui.state.as_ref().unwrap().focused_viewer_lost());
+    elapsed.fetch_add(1_000, Ordering::SeqCst);
+    ui.tick();
+    let reattach = loop {
+        let lease = mailbox
+            .try_recv()
+            .unwrap()
+            .expect("the parked focus re-attaches on its own");
+        if let QueuedCommand::Switch(marker) = lease.record() {
+            break marker.target().selected().key().clone();
+        }
+        mailbox.finish_lease(lease).unwrap();
+    };
+    assert_eq!(reattach.anchor().tab_id(), origin.anchor().tab_id());
+    assert_eq!(reattach.panel(), origin.panel());
+    assert_eq!(mailbox.is_closed(), None);
+    assert!(!ui.retirement_requested());
+}
+
+/// The Host acknowledged a Resize, so the focus has no frame proof until a frame at the new size
+/// is drawn. A Switch that starts in that gap and is refused cannot restore it.
+#[test]
+fn a_switch_refused_before_a_resized_frame_parks_and_reattaches_the_focus() {
+    let (mut ui, mailbox, clock, elapsed) = super::super::test_support::controlling_ui();
+    let focus = super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
+    ui.observe_geometry(Geometry::new(100, 30, 8, 16).unwrap());
+    let lease = next_resize(&mailbox);
+    let QueuedCommand::Resize(resize) = lease.record() else {
+        unreachable!("next_resize answers a Resize")
+    };
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SetupConfigured {
+                key: resize.key().clone(),
+                mode: controlling(8),
+                applied_geometry: Some(*resize.value()),
+            },
+            EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = leased_switch(&mailbox);
+    refuse_unrestorable_switch(&mut ui, &mailbox, &clock, lease, focus.pane(), true);
+    parked_focus_reattaches(&mut ui, &mailbox, &elapsed, focus.pane());
+}
+
+/// A Resize admitted before a Switch runs ahead of it. When the Host refuses it because another
+/// Client took control, the focus becomes view-only while the Switch is in flight, so a refused
+/// Switch cannot restore the controlling pane it captured.
+#[test]
+fn a_switch_refused_after_the_focus_lost_control_parks_and_reattaches_the_focus() {
+    let (mut ui, mailbox, clock, elapsed) = super::super::test_support::controlling_ui();
+    let focus = super::super::test_support::install_projection(&mut ui, Some((0, false, 24)), 0);
+    ui.observe_geometry(Geometry::new(100, 30, 8, 16).unwrap());
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = next_resize(&mailbox);
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ControlLost,
+            },
+            clock.now() + crate::workbench_state::OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "losing control never costs the Client"
+    );
+    mailbox.finish_lease(lease).unwrap();
+    let lease = leased_switch(&mailbox);
+    refuse_unrestorable_switch(&mut ui, &mailbox, &clock, lease, focus.pane(), true);
+    parked_focus_reattaches(&mut ui, &mailbox, &elapsed, focus.pane());
+}
+
+/// A Switch admitted while an earlier one cleans up its origin is left without an anchor once that
+/// cleanup lands. Refused, it parks the origin with no viewer left to detach.
+#[test]
+fn a_second_switch_refused_after_the_first_cleaned_up_parks_and_reattaches_the_origin() {
+    let (mut ui, mailbox, clock, elapsed) = ready();
+    let origin = ui.state.as_ref().unwrap().desired().unwrap().clone();
+    let (lease, cleanup) = stage(&mut ui, &mailbox, &clock);
+    let permit = mailbox
+        .authorize_switch_cleanup(&lease, &cleanup, cleanup.old(), &clock)
+        .unwrap()
+        .unwrap();
+    assert!(mailbox.answer_switch_cleanup(permit, true).unwrap());
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(1)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let wait = detached(&mailbox, &clock, &cleanup);
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    let lease = leased_switch(&mailbox);
+    refuse_unrestorable_switch(&mut ui, &mailbox, &clock, lease, &origin, false);
+    parked_focus_reattaches(&mut ui, &mailbox, &elapsed, &origin);
+}
+
+/// A split Tab whose first leaf failed to launch, beside a live leaf. The Client leaves for the
+/// second Tab and comes straight back, so the Switch back lands on the failed leaf, which has no
+/// viewer of its own, and the live leaf then attaches through reconcile.
+fn launch_failed_focus_beside_a_live_sibling() -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    orchbee_workbench_protocol::Snapshot,
+    PaneKey,
+) {
+    use orchbee_workbench_protocol::PanelNode;
+    let mut snapshot = super::super::tests::publication_hint::split_snapshot(1);
+    let PanelNode::Split { children, .. } = &mut snapshot.terminal_contexts[0].tabs[0].root else {
+        unreachable!("the split fixture")
+    };
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut children[0].node
+    else {
+        unreachable!("the split fixture")
+    };
+    primary_presentation.launch_failure =
+        Some(orchbee_workbench_protocol::PresentationLaunchFailure {
+            executable: None,
+            reason:
+                orchbee_workbench_protocol::WorkbenchTerminalFailureReason::TerminalCreateFailed,
+        });
+    let (mut ui, mailbox, clock, _elapsed) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(snapshot.clone());
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = leased_switch(&mailbox);
+    land_switch(&mut ui, &mailbox, &clock, lease, snapshot.clone());
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(1)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = leased_switch(&mailbox);
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        panic!("Switch lease")
+    };
+    let target = marker.target().clone();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, &target, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot.clone(),
+                },
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    assert!(matches!(
+        settlement.decision(),
+        RefreshDecision::SettledWithoutAttachment
+    ));
+    mailbox.finish_lease(lease).unwrap();
+    super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
+    let state = ui.state.as_ref().unwrap();
+    assert!(state.focus_parked() && !state.selected_is_unbound());
+    let origin = state.desired().unwrap().clone();
+    (ui, mailbox, clock, snapshot, origin)
+}
+
+/// A Switch from a focused leaf that failed to launch first detaches the live sibling under its
+/// anchor, as a Switch from any selection without its own viewer does.
+#[test]
+fn a_switch_from_a_launch_failed_leaf_detaches_its_live_sibling_and_lands() {
+    let (mut ui, mailbox, clock, snapshot, origin) = launch_failed_focus_beside_a_live_sibling();
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = leased_switch(&mailbox);
+    let landed = land_switch(&mut ui, &mailbox, &clock, lease, snapshot);
+    assert_ne!(landed.anchor().tab_id(), origin.anchor().tab_id());
+}
+
+/// The same Switch refused cannot restore the sibling beside a leaf that never attaches. It
+/// detaches the sibling, parks the failed leaf, and the sibling attaches again once observed.
+#[test]
+fn a_switch_refused_from_a_launch_failed_leaf_parks_it_and_reattaches_its_sibling() {
+    let (mut ui, mailbox, clock, _snapshot, origin) = launch_failed_focus_beside_a_live_sibling();
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = leased_switch(&mailbox);
+    refuse_unrestorable_switch(&mut ui, &mailbox, &clock, lease, &origin, true);
+    let state = ui.state.as_ref().unwrap();
+    let peer = state.cache().tabs()[0].panel(1).unwrap().panel_id().clone();
+    let sibling = PaneKey::new(origin.anchor().clone(), peer.clone());
+    let geometry = Geometry::new(80, 24, 8, 16).unwrap();
+    ui.observe_panes(&[(origin.panel().clone(), 0, geometry), (peer, 1, geometry)]);
+    let mut reconciled = false;
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        reconciled |= matches!(lease.record(), QueuedCommand::ReconcilePanes(marker)
+            if marker.targets().iter().any(|target| target.pane_ref().pane() == &sibling));
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert!(reconciled, "the sibling attaches again through reconcile");
+    assert_eq!(mailbox.is_closed(), None);
+    assert!(!ui.retirement_requested());
 }
 
 #[test]

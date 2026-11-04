@@ -36,10 +36,10 @@ impl Origin {
             ..self.clone()
         })
     }
-    /// The source the Server's `workbench.current-directory` answer for this Workspace names, as
-    /// the Web and Desktop Clients resolve it: Git runs where the first terminal stands when that
-    /// differs from the Workspace's own directory, else in the Workspace itself. Without an answer
-    /// only a Workspace with a directory has a source.
+    /// The source the Server's `workbench.current-directory` answer for the focused Panel names, as
+    /// the Web and Desktop Clients resolve it: Git runs where that terminal stands when that differs
+    /// from the Workspace's own directory, else in the Workspace itself. Without an answer only a
+    /// Workspace with a directory has a source.
     pub(crate) fn source(
         &self,
         observed: Option<WorkbenchDirectoryPath>,
@@ -95,15 +95,7 @@ impl WorkbenchClientState {
         if self.worktree_refusal().is_some() {
             return None;
         }
-        let member = self.active().and_then(|active| {
-            let tab = self.cache().tabs().get(active.index())?;
-            let panel = tab.panel(active.panel_index())?;
-            Some(ClientMemberTarget {
-                tab: tab.tab_id().clone(),
-                panel: panel.panel_id().clone(),
-                presentation: self.selected_presentation(panel).presentation_id().clone(),
-            })
-        });
+        let member = self.focused_member();
         let primary = self.active().and_then(|active| {
             self.cache()
                 .tabs()

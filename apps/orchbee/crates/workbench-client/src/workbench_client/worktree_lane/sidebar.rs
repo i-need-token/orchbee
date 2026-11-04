@@ -38,6 +38,8 @@ fn current_directory(
                 request_id,
                 session_id: addressed.cache.session_id().clone(),
                 workspace_id: workspace_id.clone(),
+                // A sidebar row names a Workspace, not a Panel: its first terminal answers.
+                panel: None,
             },
             deadline.min(clock.now() + Duration::from_secs(5)),
             Some(wake.as_local_io()),

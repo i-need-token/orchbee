@@ -6,8 +6,9 @@ use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 impl ClientExecutor {
     /// A folder chosen in the menu, else where the Server says the focused Workspace is working:
-    /// the current directory of its first terminal, else its own directory. Without either, the
-    /// directory this Client was launched from.
+    /// the current directory of the terminal the focused Panel shows, or of its first terminal when
+    /// a menu row chose the target, else its own directory. Without either, the directory this
+    /// Client was launched from.
     pub(super) fn prepare_quick_cwd(
         &mut self,
         preparation: &QuickPreparation,
@@ -37,6 +38,7 @@ impl ClientExecutor {
             && let Some(directory) = self.read_current_directory(
                 preparation.baseline.session_id(),
                 workspace_id,
+                preparation.panel.clone(),
                 preparation.deadlines.forward_cutoff(),
             )?
         {

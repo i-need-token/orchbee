@@ -1,5 +1,6 @@
-//! Answers where a Workspace is working: the directory its first terminal is in when the read
-//! arrives, sampled on the process observer, otherwise the Workspace's own directory.
+//! Answers where a Workspace is working: the directory its first terminal, or the terminal a named
+//! Panel shows, is in when the read arrives, sampled on the process observer, otherwise the
+//! Workspace's own directory.
 use super::LocalTerminalService;
 use orchbee_workbench_protocol::{
     CurrentDirectoryFailure as Failure, CurrentDirectoryOutcome as Outcome,
@@ -20,6 +21,7 @@ impl LocalTerminalService {
             request_id: request.request_id,
             session_id: request.session_id,
             workspace_id: request.workspace_id,
+            panel: request.panel,
             outcome,
         }
     }
@@ -32,7 +34,11 @@ impl LocalTerminalService {
         // with this block.
         let (target, primary) = {
             let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-            coordinator.current_directory_sources(&request.session_id, &request.workspace_id)?
+            coordinator.current_directory_sources(
+                &request.session_id,
+                &request.workspace_id,
+                request.panel.as_ref(),
+            )?
         };
         target
             .and_then(|target| self.request_current_directory(target))

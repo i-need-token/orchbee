@@ -3,10 +3,21 @@ use super::{
     AttachTarget, AttachmentKey, ClientPhase, CreateTerminalProvenance, OperationDeadlines,
     PaneRef, WorkbenchClientState, WorkbenchPanelId,
 };
-use crate::workbench_projection::{ClientPanel, ClientPresentation};
+use crate::workbench_projection::{ClientMemberTarget, ClientPanel, ClientPresentation};
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 impl WorkbenchClientState {
+    /// The focused Panel and the Presentation this Client shows in it.
+    pub(crate) fn focused_member(&self) -> Option<ClientMemberTarget> {
+        let active = self.active()?;
+        let tab = self.cache().tabs().get(active.index())?;
+        let panel = tab.panel(active.panel_index())?;
+        Some(ClientMemberTarget {
+            tab: tab.tab_id().clone(),
+            panel: panel.panel_id().clone(),
+            presentation: self.selected_presentation(panel).presentation_id().clone(),
+        })
+    }
     pub(crate) fn selected_presentation<'a>(
         &self,
         panel: &'a ClientPanel,

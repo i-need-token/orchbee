@@ -4,9 +4,9 @@
 
 use super::{
     AttachTarget, CarrierFailure, ClientPhase, ControllerMode, ExistingAttachment,
-    FrameAcknowledgement, FrameIdentity, Geometry, PaneKey, PaneProjection, PaneRecord, PaneRef,
-    PreparedMembershipCandidate, ReadyAttachment, SelectedTab, SwitchSetup, WorkbenchClientState,
-    WorkbenchSnapshotOutcome,
+    FrameAcknowledgement, FrameIdentity, Geometry, MembershipCleanup, PaneFault, PaneKey,
+    PaneProjection, PaneRecord, PaneRef, PreparedMembershipCandidate, ReadyAttachment, SelectedTab,
+    SwitchSetup, WorkbenchClientState, WorkbenchSnapshotOutcome,
 };
 
 /// This record exists only between Switch intent admission and candidate installation.
@@ -14,6 +14,11 @@ use super::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct SwitchMembership {
     anchor: Option<StableAnchor>,
+    /// The selection a refused Switch returns to, restorable or not.
+    origin: SelectedTab,
+    /// A refused Switch that cannot restore its anchor parks the origin once the viewers under
+    /// that anchor are detached.
+    parks_origin: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -225,6 +230,55 @@ impl PreparedSwitchRestore<'_> {
     }
 }
 
+pub(crate) struct PreparedSwitchPark<'state> {
+    state: &'state mut WorkbenchClientState,
+    authority: SwitchRestoreKey,
+    origin: SelectedTab,
+}
+
+impl PreparedSwitchPark<'_> {
+    pub(crate) const fn restoration(&self) -> &SwitchRestoreKey {
+        &self.authority
+    }
+
+    /// Returns to the origin without a viewer. The focus record is revived, or freshly minted
+    /// when the cleanup dropped it; the origin's other records stay departing until an
+    /// observation revives them. A definite attach fault is kept.
+    pub(crate) fn commit(self) {
+        let state = self.state;
+        let origin = self.origin;
+        state.desired = Some(origin.key.clone());
+        for record in &mut state.panes {
+            if record.key == origin.key {
+                record.departing = false;
+            } else if !record.departing {
+                record.departing = true;
+                if let Some(attachment) = &mut record.attachment {
+                    attachment.withdraw_projection();
+                }
+            }
+        }
+        state.install_unattached_pane(&origin);
+        let attachable = match state.pane_record_mut(&origin.key) {
+            Some(record) if record.attachable() => {
+                if matches!(
+                    record.fault,
+                    None | Some(PaneFault::ControlLost | PaneFault::ViewerLost)
+                ) {
+                    record.fault = Some(PaneFault::ViewerLost);
+                }
+                true
+            }
+            _ => false,
+        };
+        state.phase = if attachable {
+            ClientPhase::RetryableAttachUnavailable(origin)
+        } else {
+            ClientPhase::SelectedWithoutAttachment(origin)
+        };
+    }
+}
+
 impl WorkbenchClientState {
     /// Every live projection under the selection's anchor. A selection that lost its viewer
     /// leaves out its own record, which a restore revives without a projection.
@@ -335,13 +389,22 @@ impl WorkbenchClientState {
                     })
             }),
             // A selection without its own viewer may still own live siblings under its anchor,
-            // which the Switch cleans up first: an unbound member, or a lost focused viewer.
-            ClientPhase::SelectedWithoutAttachment(selected) if self.selected_is_unbound() => {
-                self.attached_sibling(selected)
-            }
-            ClientPhase::RetryableAttachUnavailable(selected) => self.attached_sibling(selected),
-            ClientPhase::SelectedWithoutAttachment(_) => None,
+            // which the Switch cleans up first: an unbound member, a member that failed to
+            // launch, or a lost focused viewer.
+            ClientPhase::SelectedWithoutAttachment(selected)
+            | ClientPhase::RetryableAttachUnavailable(selected) => self.attached_sibling(selected),
             _ => return false,
+        };
+        // A Switch admitted over another one returns where that one would: to its origin before
+        // its candidate installed, and to the installed target after.
+        let Some(origin) = (match &self.phase {
+            ClientPhase::Switching(setup) => Some(setup.membership.as_ref().map_or_else(
+                || setup.target.selected.clone(),
+                |membership| membership.origin.clone(),
+            )),
+            _ => self.active().cloned(),
+        }) else {
+            return false;
         };
         self.remember_current_navigation();
         self.depart_all_panes();
@@ -352,9 +415,78 @@ impl WorkbenchClientState {
             previous,
             mode: None,
             accepted_geometry: None,
-            membership: Some(SwitchMembership { anchor }),
+            membership: Some(SwitchMembership {
+                anchor,
+                origin,
+                parks_origin: false,
+            }),
         });
         true
+    }
+
+    /// A refused Switch whose anchor cannot be restored detaches every viewer under that anchor
+    /// before it parks the origin, as an expired Switch does before it retires.
+    pub(crate) fn stage_switch_refusal_cleanup(
+        &mut self,
+        marker: &PaneKey,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        let cleanup = self.stage_switch_expiry_cleanup(marker)?;
+        let ClientPhase::Switching(setup) = &mut self.phase else {
+            return Err(CarrierFailure::Protocol);
+        };
+        setup
+            .membership
+            .as_mut()
+            .ok_or(CarrierFailure::Protocol)?
+            .parks_origin = true;
+        Ok(cleanup)
+    }
+
+    pub(crate) fn switch_parks_origin(&self, marker: &PaneKey) -> bool {
+        self.switch_marker_is_current(marker)
+            && matches!(&self.phase, ClientPhase::Switching(setup)
+                if setup.membership.as_ref().is_some_and(|membership| membership.parks_origin))
+    }
+
+    /// Parks the origin of a refused Switch that cannot be restored, once no viewer is left.
+    /// A focus that had a viewer waits as a lost one, so the Client re-attaches it after a pause;
+    /// its siblings attach again as any parked focus's do.
+    pub(crate) fn prepare_switch_park(
+        &mut self,
+        marker: &PaneKey,
+    ) -> Result<PreparedSwitchPark<'_>, CarrierFailure> {
+        if !self.invariant_holds()
+            || !self.switch_marker_is_current(marker)
+            || self.pending_membership.is_some()
+            || self.has_attachments()
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        let ClientPhase::Switching(setup) = &self.phase else {
+            return Err(CarrierFailure::Protocol);
+        };
+        let origin = setup
+            .membership
+            .as_ref()
+            .map(|membership| membership.origin.clone())
+            .ok_or(CarrierFailure::Protocol)?;
+        if origin.key.anchor().generation() >= marker.anchor().generation()
+            || self.cache.tabs().get(origin.index).is_none_or(|tab| {
+                tab.tab_id() != origin.key.anchor().tab_id()
+                    || origin.panel_index >= tab.panel_count()
+            })
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        Ok(PreparedSwitchPark {
+            state: self,
+            authority: SwitchRestoreKey {
+                marker: marker.clone(),
+                restored: origin.key.clone(),
+                panes: Box::default(),
+            },
+            origin,
+        })
     }
 
     /// Called only for an actual abandoned old event/causal result or an exact proof-changing result.

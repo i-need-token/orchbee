@@ -56,6 +56,16 @@ impl WorkbenchClientUi {
                         state.desired().cloned(),
                     )));
                 }
+                // A refused Switch parks its origin once the viewers it could not restore are
+                // gone, whenever that detach lands.
+                if state.switch_parks_origin(marker) {
+                    state.settle_switch_membership_cleanup(&cleanup, true)?;
+                    super::switch_membership::park_refused_switch(state, transaction, marker)?;
+                    return Ok(UiReply::Switch(RefreshSettlement::new(
+                        RefreshDecision::Continue,
+                        state.desired().cloned(),
+                    )));
+                }
                 if transaction.observed_at() >= cleanup.deadlines().forward_cutoff() {
                     state.settle_switch_membership_cleanup(&cleanup, true)?;
                     state.retire(CarrierFailure::Deadline);

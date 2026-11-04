@@ -262,8 +262,10 @@ Configuration publication additionally carries separate required 32 KiB
 `CurrentDirectoryRequest`/`CurrentDirectoryResult` add the closed `workbench.current-directory`
 and `workbench.current-directory.result` directions, OBWP kinds 65/66. An outcome is `observed`
 with a `WorkbenchDirectoryPath`, or `failed` with `denied`, `not-found` or `unavailable`. The
-26 KiB pre-allocation limit holds the longest directory with every byte escaped. Exact
-request/Session/Workspace correlation is mandatory, and the read changes no Workbench state. The
+26 KiB pre-allocation limit holds the longest directory with every byte escaped. An optional
+`CurrentDirectoryPanel` names a Panel and the Presentation the asking Client shows in it; absent, the
+read is about the Workspace's first terminal, and present, it is never `null`. Exact
+request/Session/Workspace/Panel correlation is mandatory, and the read changes no Workbench state. The
 [schema and shared corpus](../../schemas/workbench/README.md#workspace-current-directory-reads)
 cover both Rust and TypeScript; the [Server](../../apps/orchbee-server/README.md#workspace-current-directory-reads)
 owns which directory answers.

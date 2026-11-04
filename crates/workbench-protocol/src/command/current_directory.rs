@@ -1,8 +1,9 @@
-//! Reads where a Workspace is working: the directory its first terminal is in when the request
-//! arrives, otherwise the Workspace's own directory. The read changes no Workbench state.
+//! Reads where a Workspace is working: the directory its first terminal, or the terminal a named
+//! Panel shows, is in when the request arrives, otherwise the Workspace's own directory. The read
+//! changes no Workbench state.
 use crate::{
-    MAXIMUM_DIRECTORY_PATH_BYTES, ProtocolVersion, SessionId, WorkbenchDirectoryPath,
-    WorkbenchRequestId, WorkbenchWorkspaceId,
+    MAXIMUM_DIRECTORY_PATH_BYTES, ProtocolVersion, SessionId, TerminalPresentationId,
+    WorkbenchDirectoryPath, WorkbenchPanelId, WorkbenchRequestId, WorkbenchWorkspaceId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +17,29 @@ pub struct CurrentDirectoryRequest {
     pub request_id: WorkbenchRequestId,
     pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
+    /// Absent, the read is about the Workspace's first terminal.
+    #[serde(
+        default,
+        deserialize_with = "present_panel",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub panel: Option<CurrentDirectoryPanel>,
+}
+
+/// A Panel of the Workspace and the Presentation the asking Client shows in it, which is a child
+/// terminal while one is displayed. Which Presentation a Panel shows is the Client's choice, so
+/// the Client names it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CurrentDirectoryPanel {
+    pub panel_id: WorkbenchPanelId,
+    pub presentation_id: TerminalPresentationId,
+}
+
+fn present_panel<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<CurrentDirectoryPanel>, D::Error> {
+    CurrentDirectoryPanel::deserialize(d).map(Some)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -45,6 +69,12 @@ pub struct CurrentDirectoryResult {
     pub request_id: WorkbenchRequestId,
     pub session_id: SessionId,
     pub workspace_id: WorkbenchWorkspaceId,
+    #[serde(
+        default,
+        deserialize_with = "present_panel",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub panel: Option<CurrentDirectoryPanel>,
     pub outcome: CurrentDirectoryOutcome,
 }
 
@@ -54,5 +84,6 @@ impl CurrentDirectoryResult {
             && self.request_id == request.request_id
             && self.session_id == request.session_id
             && self.workspace_id == request.workspace_id
+            && self.panel == request.panel
     }
 }

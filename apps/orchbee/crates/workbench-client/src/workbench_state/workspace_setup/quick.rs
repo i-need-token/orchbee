@@ -353,6 +353,9 @@ pub(crate) struct QuickPreparation {
     pub(crate) generation: u64,
     pub(crate) token: SetupToken,
     pub(crate) baseline: ClientContextTabs,
+    /// The focused Panel's shown Presentation when no menu row chose the target, so the default
+    /// follows a `cd` in that Panel; otherwise the Workspace's first terminal answers.
+    pub(crate) panel: Option<orchbee_workbench_protocol::CurrentDirectoryPanel>,
     pub(crate) deadlines: OperationDeadlines,
 }
 
@@ -433,12 +436,21 @@ impl WorkbenchClientState {
             return None;
         }
         let token = SetupToken(self.setup.last_token.checked_add(1)?);
+        let panel = request
+            .is_none()
+            .then(|| self.focused_member())
+            .flatten()
+            .map(|member| orchbee_workbench_protocol::CurrentDirectoryPanel {
+                panel_id: member.panel,
+                presentation_id: member.presentation,
+            });
         let preparation = QuickPreparation {
             review_directory,
             target: request.map(|request| request.target),
             generation,
             token,
             baseline: self.cache.clone(),
+            panel,
             deadlines,
         };
         if !self.start_pending_refresh(generation) {

@@ -38,6 +38,7 @@ fn directory_reply(
             request_id: request.request_id,
             session_id: request.session_id,
             workspace_id: request.workspace_id,
+            panel: request.panel,
             outcome,
         }),
     )
