@@ -116,7 +116,9 @@ locally. For the focused pane this is allowed only in structurally quiescent `Re
 no refresh or an existing publication refresh; a setup, mutation, explicit refresh, armed
 panel-close confirmation or recovery keeps the existing retirement boundary. The existing
 `ViewerLost` fault parks the exact
-selection. Live siblings keep polling and may settle their previously admitted controlling resizes.
+selection. Pane reconcile never attaches the focused pane, so a reconcile planned before the loss
+settled cannot replace that fault. Live siblings keep polling and may settle their previously
+admitted controlling resizes.
 While that exact focused fault remains, each pushed publication hint drains through the existing
 debt, including after an early unchanged or refused read; idle time issues no read. Canonical
 removal then uses the existing sibling cleanup and membership installation to select a survivor or

@@ -3127,7 +3127,7 @@ impl ClientExecutor {
         let Some(step) = pending.pop_front() else {
             return Ok(());
         };
-        let progress = self.run_reconcile_step(lease, &marker, &step)?;
+        let progress = self.run_reconcile_step(lease, &marker, &step, desired.as_ref())?;
         let deferred = match progress {
             ReconcileProgress::Done => false,
             ReconcileProgress::Retry => {
@@ -3196,12 +3196,14 @@ impl ClientExecutor {
     /// attachments so interleaved changes between executions stay correct:
     /// an evaporated disposal or an already-converged target is consumed
     /// without a wire action; an attach blocked by a half-installed zombie
-    /// rotates behind the disposal step that still owns it.
+    /// rotates behind the disposal step that still owns it; and the `focus`
+    /// pane is never attached here (see the Attach arm).
     fn run_reconcile_step(
         &mut self,
         lease: &CommandLease,
         marker: &ReconcileMarker,
         step: &ReconcileStep,
+        focus: Option<&PaneKey>,
     ) -> Result<ReconcileProgress> {
         let total = marker.deadlines().total();
         match step {
@@ -3263,6 +3265,18 @@ impl ClientExecutor {
                         // its Detach step owns the disposal — rotate.
                         Ok(ReconcileProgress::Retry)
                     };
+                }
+                // Only its own setup — startup, a switch or a refresh
+                // recovery — attaches the focus pane; the Client state never
+                // installs a reconcile-attached focus. An unheld focus is
+                // parked, typically on the viewer loss this executor just
+                // disposed, and this snapshot predates the UI settling it. An
+                // attach here would retire the Client: an attachment the state
+                // cannot install at once, or a refusal later, because it
+                // replaces the parked loss that membership repair requires
+                // when the Panel's removal lands.
+                if focus == Some(target.pane_ref().pane()) {
+                    return Ok(ReconcileProgress::Done);
                 }
                 match self.attach_reconcile_pane(lease, marker, target) {
                     Ok(()) => Ok(ReconcileProgress::Done),

@@ -7,8 +7,9 @@ use super::{
 };
 use crate::workbench_client::mailbox::{QueuedCommand, Tagged, WorkerEvent};
 use crate::workbench_state::{
-    CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, PaneFault, PaneRef,
-    PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult, RefreshDecision,
+    CarrierFailure, ClientNotice, ClientPhaseKind, ControllerMode, OperationDeadlines, PaneFault,
+    PaneRef, PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult,
+    ReconcileTarget, RefreshDecision,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlUnavailableReason, ControllerId, Geometry, ServerMessage,
@@ -682,6 +683,185 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
         harness.ui.state().cache().revision(),
         WorkbenchRevision::new(2)
     );
+    assert_eq!(harness.ui.state().tab(0).unwrap().panel_count(), 1);
+    assert_eq!(
+        harness.ui.state().desired().unwrap().panel(),
+        left.pane().panel()
+    );
+    assert!(harness.ui.state().invariant_holds());
+    harness.finish()
+}
+
+/// A pane reconcile admitted while the focus was still live names the focus
+/// among its targets and can run after the focus Poll disposed the lost
+/// viewer. Attaching the focus from it would replace the parked loss — with
+/// an attach fault on refusal, or an attachment the state never installs —
+/// and the canonical removal would then retire the Client.
+#[test]
+fn panel_close_runtime_loss_keeps_a_stale_reconcile_off_the_lost_focus() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut after = vec![WireKind::Obcs; 6];
+    after.extend([
+        WireKind::Workbench, // Close
+        WireKind::Obcs,      // viewer Poll confirms runtime loss
+        // The stale reconcile runs here; an Attach for the lost focus would
+        // take the next scripted exchange instead of the removal read.
+        WireKind::Workbench, // canonical removal
+    ]);
+    after.extend([WireKind::Obcs; 6]); // sibling cleanup, then fresh attachment
+    let mut harness = Harness::start(steps(&after), geometry)?;
+    drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let left = harness.ui.state().focus_pane_ref().unwrap();
+    let (right_panel, right_viewer, _) =
+        drive_reconcile_peer_first_frame(&mut harness, geometry, PeerAcquire::Controlling)?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::FeedbackAccepted { .. }
+    ));
+    harness.ui.move_panel_focus_to_pane(&right_panel)?;
+    let right = harness.ui.state().focus_pane_ref().unwrap();
+    let operation = harness.ui.admit_panel(PanelRequestKind::Close)?;
+    harness
+        .mailbox
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(right.clone(), ())))
+        .map_err(|error| test_error(&format!("closed pane poll: {error:?}")))?;
+    let targets = [&left, &right]
+        .into_iter()
+        .map(|pane| {
+            harness
+                .ui
+                .state()
+                .pane_record(pane.pane())
+                .map(ReconcileTarget::new)
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| test_error("both panes must keep their records"))?;
+    let deadlines = OperationDeadlines::from_sample(harness.ui.clock_now())
+        .ok_or_else(|| test_error("reconcile deadlines"))?;
+    harness
+        .mailbox
+        .try_enqueue_reconcile(right.pane().anchor().clone(), targets, deadlines)
+        .map_err(|error| test_error(&format!("stale reconcile: {error:?}")))?;
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::PanelCloseAccepted {
+            close_request_id: operation.request_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
+            tab_id: operation.target().tab_id().clone(),
+            panel_id: operation.panel_id().clone(),
+            accepted_revision: WorkbenchRevision::new(1),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Continue)
+    ));
+    let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the focus viewer must keep its queued Poll"));
+    };
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: right_viewer,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                poll.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                },
+            ),
+        ))?;
+    let failed = harness.ui.take_next()?;
+    assert!(
+        matches!(failed.event(), WorkerEvent::PaneFailed { key, fault: PaneFault::ViewerLost } if key == &right)
+    );
+    assert!(matches!(
+        harness.ui.settle_taken(failed, FrameCut::None)?,
+        UiEvent::PaneFailed
+    ));
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        ClientPhaseKind::RetryableAttachUnavailable
+    );
+
+    let mailbox = Arc::clone(&harness.mailbox);
+    let state = harness.ui.state_mut();
+    state.note_publication_hint();
+    mailbox
+        .try_enqueue_refresh_for(
+            state,
+            Instant::now() + crate::workbench_state::OPERATION_TOTAL,
+            |state, generation| {
+                state
+                    .start_publication_drain(generation)
+                    .then_some(())
+                    .ok_or("publication admission")
+            },
+            |_state, _result| {},
+        )
+        .map_err(|error| test_error(&format!("publication refresh: {error:?}")))?;
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(1, 2),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("membership must clean up the live sibling"));
+    };
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the survivor must receive a fresh attachment"));
+    };
+    assert!(
+        matches!(attach.action(), TerminalViewerAction::AttachBinding { terminal_id, .. }
+        if terminal_id == &ObcsTerminalId::parse(&id(1_004))?)
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { .. }
+    ));
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(harness.ui.state().phase_kind(), ClientPhaseKind::Ready);
     assert_eq!(harness.ui.state().tab(0).unwrap().panel_count(), 1);
     assert_eq!(
         harness.ui.state().desired().unwrap().panel(),
