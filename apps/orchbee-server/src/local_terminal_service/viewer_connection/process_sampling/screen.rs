@@ -68,15 +68,19 @@ fn process(
     };
     routing::process_record(viewer, id, &record).ok().flatten()
 }
+/// The wait after each empty poll. A snapshot asked for a moment ago usually lands within a few
+/// milliseconds, so the first polls follow closely; the whole schedule still waits as long as
+/// eight polls ten milliseconds apart did.
+const EMPTY_POLL_BACKOFF_MILLISECONDS: [u64; 8] = [1, 2, 4, 8, 16, 16, 16, 17];
 fn frame(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,
     stop: &AtomicBool,
 ) -> Option<TerminalTextFrame> {
-    for _ in 0..8 {
+    for backoff in EMPTY_POLL_BACKOFF_MILLISECONDS {
         let (_, outcome) = request(viewer, template, stop, WorkerAction::Poll)?;
         match outcome {
-            WorkerOutcome::Empty => std::thread::sleep(Duration::from_millis(10)),
+            WorkerOutcome::Empty => std::thread::sleep(Duration::from_millis(backoff)),
             WorkerOutcome::Record(record) => {
                 if !routing::valid_poll_record(viewer, &record) {
                     return None;
