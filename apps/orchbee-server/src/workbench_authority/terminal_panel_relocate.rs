@@ -324,7 +324,8 @@ impl WorkbenchAuthority {
         }))
     }
 
-    fn pending_terminal_covers_tab(
+    /// Whether an unsettled terminal create or split still owes this Tab a member.
+    pub(super) fn pending_terminal_covers_tab(
         &self,
         context: &WorkbenchTerminalContextId,
         tab: &WorkbenchTabId,

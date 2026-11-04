@@ -799,6 +799,19 @@ impl WorkbenchAuthority {
         })
     }
 
+    /// Whether an open Close covers any part of this Tab: its own, one of its Panels' or its
+    /// Workspace's.
+    pub(super) fn open_close_covers_tab(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+        tab_id: &WorkbenchTabId,
+    ) -> bool {
+        self.ledger.values().any(|entry| {
+            matches!(entry, RetainedRequest::TabClose(record)
+                if !record.is_finished() && record.overlaps_tab_scope(context_id, tab_id, None))
+        })
+    }
+
     /// Whether an open Context Close fences structural admission anywhere in
     /// this Terminal Context — `tab.create` appends membership the captured
     /// re-proof never saw, so it refuses `terminal-busy` until publication.

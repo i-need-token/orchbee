@@ -27,6 +27,8 @@ pub(crate) use editor_popup::EditorPopupLaunch;
 mod exit_close;
 mod tab_close;
 pub(crate) use tab_close::IdleCloseMember;
+mod tab_set_close;
+pub(crate) use tab_set_close::TabSetCloseStart;
 mod tab_create;
 #[cfg(test)]
 pub(crate) use tab_create::PendingTerminalTabCreate;

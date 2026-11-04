@@ -649,6 +649,27 @@ impl WorkbenchAuthority {
         grant: Option<&WorkbenchGrant>,
         command: WorkbenchCommand,
     ) -> WorkbenchTabCloseBegin<'_> {
+        self.begin_terminal_tab_close_with_set(grant, command, None)
+    }
+
+    /// Internal Tab set capability: the claimed set's next unsubmitted member, unchanged since the
+    /// set froze it, is required.
+    pub fn begin_tab_set_member_close(
+        &mut self,
+        grant: Option<&WorkbenchGrant>,
+        command: WorkbenchCommand,
+        operation_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        index: usize,
+    ) -> WorkbenchTabCloseBegin<'_> {
+        self.begin_terminal_tab_close_with_set(grant, command, Some((operation_id, index)))
+    }
+
+    fn begin_terminal_tab_close_with_set(
+        &mut self,
+        grant: Option<&WorkbenchGrant>,
+        command: WorkbenchCommand,
+        set: Option<(&orchbee_workbench_protocol::WorkbenchRequestId, usize)>,
+    ) -> WorkbenchTabCloseBegin<'_> {
         let authorized = matches!(
             &command.action,
             WorkbenchAction::TabClose { .. }
@@ -724,6 +745,15 @@ impl WorkbenchAuthority {
         };
         if let Some(reason) = rejection {
             return WorkbenchTabCloseBegin::Ready(self.retain_rejection(command, reason));
+        }
+        if let Some((operation_id, index)) = set
+            && (panel_id.is_some()
+                || !self.tab_set_member_matches(operation_id, index, &terminal_context_id, &tab_id))
+        {
+            return WorkbenchTabCloseBegin::Ready(result(
+                &command,
+                WorkbenchCommandOutcome::Denied {},
+            ));
         }
         let membership = match self.presentation_membership(&terminal_context_id) {
             Ok(membership) => membership,

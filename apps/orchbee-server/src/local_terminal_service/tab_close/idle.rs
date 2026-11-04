@@ -11,15 +11,18 @@ use orchbee_capability_node_protocol::{
     LifecycleTargetObservation, LifecycleTerminalPhase, TerminalLifecycleOutcome,
 };
 use orchbee_server::{WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget};
-use orchbee_workbench_protocol::{WorkbenchAction, WorkbenchCommand, WorkbenchCommandResult};
+use orchbee_workbench_protocol::{
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId,
+};
 use std::time::{Duration, Instant};
 
 const MAXIMUM_INSPECTION_PAGES: usize = 32;
 /// How long a conditional Tab or Panel Close reads before it decides with what it has. This
 /// matches the Worker's own bound on one process sample, so a slow answer still arrives.
-const LEAF_EVIDENCE_BUDGET: Duration = Duration::from_secs(1);
-/// A Workspace reads every Tab's terminals in turn, so its read has longer to finish.
-const WORKSPACE_EVIDENCE_BUDGET: Duration = Duration::from_secs(4);
+pub(in crate::local_terminal_service) const LEAF_EVIDENCE_BUDGET: Duration = Duration::from_secs(1);
+/// A Workspace or a Tab set reads every Tab's terminals in turn, so its read has longer to finish.
+pub(in crate::local_terminal_service) const WORKSPACE_EVIDENCE_BUDGET: Duration =
+    Duration::from_secs(4);
 
 impl LocalTerminalService {
     /// The Server decides whether closing one Workspace, Tab or Panel asks first. The Host
@@ -64,7 +67,13 @@ impl LocalTerminalService {
                 Err(result) => return Some(result),
             }
         };
-        let proof = self.idle_proof(&command, members, handle.as_ref(), deadline, read);
+        let proof = self.idle_proof(
+            &command.request_id,
+            members,
+            handle.as_ref(),
+            deadline,
+            read,
+        );
         let result = {
             let workers = self.workers.lock().ok();
             let handle = workers
@@ -96,10 +105,11 @@ impl LocalTerminalService {
     }
 
     /// One proof entry per member. A runtime stays unproven, and the close asks, unless the
-    /// inventory shows it ended or its read shows nothing beyond an idle shell.
-    fn idle_proof(
+    /// inventory shows it ended or its read shows nothing beyond an idle shell. `close_id` names
+    /// the Close, or the Tab set, whose read-only inventory walks these are.
+    pub(in crate::local_terminal_service) fn idle_proof(
         &self,
-        command: &WorkbenchCommand,
+        close_id: &WorkbenchRequestId,
         members: Vec<IdleCloseMember>,
         handle: Option<&WorkerRequestHandle>,
         deadline: Instant,
@@ -119,7 +129,7 @@ impl LocalTerminalService {
                 .then(|| {
                     self.inspect_close_target(
                         handle?,
-                        command,
+                        close_id,
                         target,
                         deadline,
                         &mut remaining_pages,
@@ -169,7 +179,7 @@ impl LocalTerminalService {
     fn inspect_close_target(
         &self,
         handle: &WorkerRequestHandle,
-        command: &WorkbenchCommand,
+        close_id: &WorkbenchRequestId,
         target: WorkbenchTabCloseRuntimeTarget,
         deadline: Instant,
         remaining_pages: &mut usize,
@@ -183,12 +193,11 @@ impl LocalTerminalService {
                 return None;
             }
             *remaining_pages -= 1;
-            let request = self.coordinator.lock().ok()?.prepare_close_inspection(
-                target,
-                &command.request_id,
-                cursor,
-                expiry,
-            )?;
+            let request = self
+                .coordinator
+                .lock()
+                .ok()?
+                .prepare_close_inspection(target, close_id, cursor, expiry)?;
             let result = handle.submit_lifecycle(request).ok()?.wait().ok()?;
             if result.request() != request || Instant::now() >= deadline {
                 return None;

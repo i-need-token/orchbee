@@ -111,7 +111,7 @@ impl SessionCoordinator {
 
     /// One member's current runtime and, while it runs, the viewer target its evidence is read
     /// through.
-    fn idle_close_member(
+    pub(super) fn idle_close_member(
         terminals: &TerminalCoordinator,
         session_id: &orchbee_workbench_protocol::SessionId,
         binding: &orchbee_workbench_protocol::PresentationBinding,
@@ -206,7 +206,36 @@ impl SessionCoordinator {
         owner_available: bool,
         now: Instant,
     ) -> Option<WorkbenchCommandResult> {
-        self.execute_terminal_tab_close_with_proof(command, worker, owner_available, now, None)
+        self.execute_terminal_tab_close_with_proof(
+            command,
+            worker,
+            owner_available,
+            now,
+            None,
+            None,
+        )
+    }
+
+    /// Admission of one Tab set member's own Close under the set's claimed `token` of operation
+    /// and member index. A conditional child counts `proof` only for the exact runtime it was
+    /// read from.
+    pub(crate) fn execute_tab_set_member_close(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+        token: (&WorkbenchRequestId, usize),
+        proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
+    ) -> Option<WorkbenchCommandResult> {
+        self.execute_terminal_tab_close_with_proof(
+            command,
+            worker,
+            owner_available,
+            now,
+            proof,
+            Some(token),
+        )
     }
 
     /// Final admission of a conditional Tab or Panel Close. Each member's proof counts only for
@@ -225,6 +254,7 @@ impl SessionCoordinator {
             owner_available,
             now,
             Some(proof),
+            None,
         )
     }
 
@@ -235,6 +265,7 @@ impl SessionCoordinator {
         owner_available: bool,
         now: Instant,
         idle_proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
+        set: Option<(&WorkbenchRequestId, usize)>,
     ) -> Option<WorkbenchCommandResult> {
         let conditional = matches!(
             command.action,
@@ -249,7 +280,13 @@ impl SessionCoordinator {
         let workbench = workbench.as_mut()?;
         let grant =
             WorkbenchGrant::read_only(workbench.session_id().clone()).with_terminal_lifecycle();
-        let admission = match workbench.begin_terminal_tab_close(Some(&grant), command) {
+        let begin = match set {
+            Some((operation_id, index)) => {
+                workbench.begin_tab_set_member_close(Some(&grant), command, operation_id, index)
+            }
+            None => workbench.begin_terminal_tab_close(Some(&grant), command),
+        };
+        let admission = match begin {
             WorkbenchTabCloseBegin::Ready(result) => return Some(result),
             WorkbenchTabCloseBegin::Admitted(admission) => admission,
         };
@@ -642,7 +679,7 @@ impl SessionCoordinator {
 
 /// Replaces each currently resolved runtime with the proof gathered from that exact runtime. A
 /// member whose runtime changed since keeps its plain resolution, and the conditional gate asks.
-fn apply_idle_proof(
+pub(super) fn apply_idle_proof(
     runtimes: &mut [WorkbenchTabCloseMemberRuntime],
     proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
 ) {

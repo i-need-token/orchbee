@@ -52,6 +52,7 @@ mod projection;
 mod send;
 mod tab_close;
 mod tab_create;
+mod tab_set_close;
 mod viewer_connection;
 pub(crate) use viewer_connection::LocalTerminalConnection;
 mod current_directory;
@@ -90,6 +91,7 @@ pub(crate) struct LocalTerminalService {
     close_maintenance: close_maintenance::CloseMaintenance,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
+    tab_set_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: Mutex<SessionCoordinator>,
@@ -137,6 +139,10 @@ impl LocalTerminalService {
             group_close_maintenance: operation_maintenance::OperationMaintenance::new(
                 "orchbee-workspace-group-close",
                 Self::workspace_group_close_turn,
+            ),
+            tab_set_maintenance: operation_maintenance::OperationMaintenance::new(
+                "orchbee-tab-set-close",
+                Self::tab_set_close_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
             workers,
@@ -369,6 +375,18 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
 }
 fn placement(handle: Option<&WorkerRequestHandle>) -> Option<WorkerPlacement> {
     handle.and_then(WorkerPlacement::of)
+}
+/// The Worker incarnation a retained operation was admitted under, in Workbench terms.
+fn worker_identity(
+    handle: Option<&WorkerRequestHandle>,
+) -> Option<(orchbee_workbench_protocol::WorkerId, NonZeroU64)> {
+    let handle = handle?;
+    let id = orchbee_workbench_protocol::WorkerId::parse(&format!(
+        "{:032x}",
+        u128::from_be_bytes(handle.worker_id().as_bytes())
+    ))
+    .ok()?;
+    Some((id, handle.generation()))
 }
 fn lease_expiry() -> Option<LeaseExpiresAtUnixMilliseconds> {
     let now = u64::try_from(

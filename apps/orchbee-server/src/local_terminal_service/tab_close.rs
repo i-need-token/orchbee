@@ -22,7 +22,7 @@ use crate::{
 // Inert candidate failure yields at this cadence; it never renews the retained attempt.
 const CANDIDATE_RETRY: Duration = Duration::from_millis(250);
 pub(in crate::local_terminal_service) mod evidence;
-mod idle;
+pub(in crate::local_terminal_service) mod idle;
 
 #[cfg(test)]
 mod tests;

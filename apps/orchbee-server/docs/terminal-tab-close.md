@@ -723,6 +723,58 @@ last Tab.
 
 Ordinary Workspace Close rejects a known main-checkout Workspace with associated group members using `workspace-group-close-required`. It retains the same rejection/replay rules. The separate [Project close-all owner](../../orchbee/docs/windows-worktrees.md#project-close-all) freezes scopes and delegates each child to this lifecycle. Its internal admission token must match the retained operation, claimed attempt, exact canonical member and closed predecessor prefix; the wire action contains no bypass flag. Child Close remains the sole authority for terminal disposal, generation-fenced resume and canonical removal. Aggregate group reads carry compact child observations, while existing Workspace Close reads retain full terminal membership.
 
+## Tab set close
+
+`workbench.tab-set-close` (OBWP 67/68) closes several Tabs of one terminal context as one retained
+Server operation: "Close other Tabs", a Tab group and a selected set. `start` names the context,
+1–256 distinct Tabs in its current order, the expected revision and a condition, `if-idle` or
+`confirmed`; `read` observes the operation by its ID. The [wire schema](../../../schemas/workbench/v1/workbench-tab-set-close.schema.json)
+owns the bytes.
+
+Admission runs under the registry → Session gates with the ordinary lifecycle grant. It requires
+the current revision, the context and every named Tab in canonical order (`tab-order-mismatch`
+otherwise). A member is `busy` while a Close covers any part of it (its own, one of its Panels' or
+its Workspace's), a terminal create or split into it is unsettled, another pending set owns it, or
+its Workspace belongs to a pending group Close. At most 64 sets are retained: the oldest settled
+set gives way, a pending one never does (`capacity`). Admission freezes each member's display label
+and its complete ordered bound Presentations, and records the Worker incarnation. A repeated Start
+with equal context, members, condition and expected revision observes the existing set; any change
+under the same operation ID is a `conflict`.
+
+An `if-idle` Start decides like a conditional [Workspace Close](#conditional-idle-admission): the
+gates capture every member's runtimes and reserve nothing, then one four-second budget and 32-page
+allowance cover every member's inventory walk and the read of every live member, outside the
+gates. Final admission repeats every guard and counts each proof only for the exact runtime it was
+read from. When any member asks, the answer is `confirmation-required`: nothing is retained or
+closed, and the operation ID stays free. A `confirmed` Start is admitted at once.
+
+One owner thread, `orchbee-tab-set-close`, runs pending sets in admission order, each for at most
+120 seconds, one member at a time. A member whose Tab is already gone is recorded `absent` and
+counts as done. A member whose bound Presentations differ from the frozen ones stops the set with
+`source-changed`, as does a replaced Worker; a missing Worker stops it with `worker-unavailable`.
+Otherwise the set submits the member's own `tab.close`, or for an `if-idle` set its own
+`tab.close-if-idle` after a fresh one-second read of that member, under an internal token: the
+claimed set, the exact member index, every earlier member done and the member unchanged. No wire
+action carries a bypass. A child joins a Close of that Tab that is already open. A child that asks
+stops the set with `child-busy`; any other refusal with `child-admission`. The set reads the child
+every 50 ms and publishes its request ID, attempt generation and status. A Closed child moves the
+set on; an unknown outcome stops it with `outcome-unknown`, and a blocked child or one awaiting a
+resumable publication with `child-blocked`.
+
+Earlier members stay closed and later ones are never submitted. The failed member's own Close stays
+retained and continues only through its own Tab Close Resume; a set has no Resume. An ended set
+releases the members it never submitted. After Start no Client cancels a set, and a Client that
+exits ends only its own observation. Windows managed stop stops this owner after the group Close
+owner and before Close maintenance freezes; every set it reaches fails `session-stopping`.
+Publication only moves forward: a child keeps its identity, its generation never falls, `absent`
+and a Closed child are final, and `closed` requires every member done.
+
+The [authority tests](../src/workbench_authority/tab_set_close/tests.rs) cover admission guards,
+replay and conflict, monotone publication and the child token; the
+[owner tests](../src/local_terminal_service/tab_close/tests/tab_set.rs) cover the if-idle decision,
+ordered children, an absent member, blocked and unknown children, the deadline, Session stop and a
+Worker change.
+
 ## Complete Presentation membership
 
 Panel, Tab and Workspace Close capture all bound Presentations in canonical Tab/tree order, with

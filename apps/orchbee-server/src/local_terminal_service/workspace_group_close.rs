@@ -1,18 +1,14 @@
 //! Windows group Close transport and retained continuation; reads never start maintenance.
-use super::LocalTerminalService;
-use crate::worker_obcn_carrier::WorkerRequestHandle;
+use super::{LocalTerminalService, worker_identity};
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchWorkspaceGroupCloseRequest, WorkbenchWorkspaceGroupCloseResult,
-    WorkerId, WorkspaceGroupCloseAction as Action, WorkspaceGroupCloseOutcome as Outcome,
+    WorkspaceGroupCloseAction as Action, WorkspaceGroupCloseOutcome as Outcome,
     WorkspaceGroupCloseUnavailable as Unavailable,
 };
+use std::sync::{Arc, atomic::AtomicBool};
 #[cfg(windows)]
 use std::{io, time::Instant};
-use std::{
-    num::NonZeroU64,
-    sync::{Arc, atomic::AtomicBool},
-};
 mod driver;
 impl LocalTerminalService {
     pub(crate) fn execute_workspace_group_close(
@@ -95,13 +91,4 @@ impl LocalTerminalService {
             let _published = authority.publish_workspace_group_close(&plan, status);
         }
     }
-}
-fn worker_identity(handle: Option<&WorkerRequestHandle>) -> Option<(WorkerId, NonZeroU64)> {
-    let handle = handle?;
-    let id = WorkerId::parse(&format!(
-        "{:032x}",
-        u128::from_be_bytes(handle.worker_id().as_bytes())
-    ))
-    .ok()?;
-    Some((id, handle.generation()))
 }

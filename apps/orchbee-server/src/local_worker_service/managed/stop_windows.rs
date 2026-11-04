@@ -185,6 +185,11 @@ fn settle(
         .terminals
         .stop_workspace_groups_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    // A Tab set waits on its members' Closes, so it stops before Close maintenance freezes them.
+    owners
+        .terminals
+        .stop_tab_sets_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     owners
         .terminals
         .stop_close_before(deadline)

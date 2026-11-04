@@ -280,8 +280,10 @@ impl WorkbenchService {
                         .execute_workspace_group_close(request.clone()),
                 ));
             }
-            WorkbenchRequest::TabSetClose(_) => {
-                return WorkbenchExecution::Response(unavailable_or_denied(request, false));
+            WorkbenchRequest::TabSetClose(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::TabSetClose(
+                    self.terminals.execute_tab_set_close(request.clone()),
+                ));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(
