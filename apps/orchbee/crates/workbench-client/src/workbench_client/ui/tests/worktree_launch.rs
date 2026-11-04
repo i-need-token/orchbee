@@ -34,7 +34,7 @@ fn ready_with_project(mode: WorktreeMode, with_project: bool) -> WorkbenchClient
         })
     ));
     let mut listing = discovery();
-    listing.worker = p.primary.as_ref().unwrap().worker_id().clone();
+    listing.worker = p.origin.primary_binding().unwrap().worker_id().clone();
     assert!(
         ui.worktrees
             .launcher
@@ -368,7 +368,7 @@ fn reading_the_repository_is_stated_only_until_the_checkout_picker_is_drawn() {
         ));
         assert_eq!(ui.view().status(locale, 80).text, reading);
         let mut listing = discovery();
-        listing.worker = p.primary.as_ref().unwrap().worker_id().clone();
+        listing.worker = p.origin.primary_binding().unwrap().worker_id().clone();
         assert!(
             ui.worktrees
                 .launcher

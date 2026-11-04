@@ -34,7 +34,6 @@ mod native_settings;
 mod notifications;
 mod onboarding;
 mod pane_canvas;
-mod primary_directory;
 mod sidebar_width;
 mod startup_directory;
 mod startup_preference;

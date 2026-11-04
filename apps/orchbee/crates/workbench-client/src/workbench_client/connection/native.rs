@@ -53,8 +53,8 @@ mod switch_membership;
 mod tab_close;
 pub(in crate::workbench_client) use status_recovery::{RecoveryShutdown, run_status_recovery};
 mod control_takeover;
+mod current_directory;
 mod quick_workspace;
-mod source_directory;
 mod startup_directory;
 mod tab_move;
 mod tab_rename;
@@ -241,8 +241,6 @@ impl SetupTarget {
 struct AttachedTerminal {
     key: PaneRef,
     attachment_id: orchbee_client_server_protocol::ViewerId,
-    host_epoch: orchbee_client_server_protocol::HostEpoch,
-    host_terminal_id: orchbee_client_server_protocol::HostTerminalId,
     /// `Some` while the setup pipeline is unfinished — including a reconcile
     /// setup that yielded on `ServerBusy`, which leaves the half-installed
     /// viewer parked for the next reconcile pass to dispose and re-attach.
@@ -532,8 +530,6 @@ impl ClientExecutor {
         self.attachments.push(AttachedTerminal {
             key: target.key.clone(),
             attachment_id: attachment_id.clone(),
-            host_epoch: host_epoch.clone(),
-            host_terminal_id: host_terminal_id.clone(),
             setup: Some(target.clone()),
             announced: false,
             mode: None,

@@ -1,4 +1,4 @@
-//! Canonical Workspace directory or exact primary root cwd under the ordinary refresh lease.
+//! Where the Server says the focused Workspace is working, read under the ordinary refresh lease.
 use super::{
     CarrierFailure, ClientExecutor, CommandLease, EventDeadline, MutationResult, Result,
     WorkbenchSnapshotOutcome, WorkerEvent, closed, event,
@@ -40,7 +40,7 @@ impl ClientExecutor {
             .map_err(event)?;
         self.finish_refresh(lease, marker, &wait)
     }
-    fn prepare_worktree_source(
+    pub(super) fn prepare_worktree_source(
         &mut self,
         p: &Preparation,
         outcome: &WorkbenchSnapshotOutcome,
@@ -56,32 +56,16 @@ impl ClientExecutor {
         {
             return Ok(None);
         }
-        if p.origin.cache.directory().is_some() {
-            let crate::workbench_projection::ClientContextLocation::Workspace {
-                workspace_id, ..
-            } = p.origin.cache.location()
-            else {
-                return Err(CarrierFailure::Protocol);
-            };
-            return Ok(Some(WorktreeSource::Workspace {
-                workspace_id: workspace_id.clone(),
-            }));
-        }
-        let Some(binding) = &p.primary else {
+        let crate::workbench_projection::ClientContextLocation::Workspace { workspace_id, .. } =
+            p.origin.cache.location()
+        else {
             return Ok(None);
         };
-        match self.read_source_root(
-            &p.origin.cache,
-            p.primary_pane.as_ref(),
-            p.deadlines,
-            binding,
-        )? {
-            super::source_directory::RootDirectory::Available(Some(path)) => {
-                Ok(Some(WorktreeSource::Directory { path }))
-            }
-            _ => Ok(None),
-        }
+        let observed = self.read_current_directory(
+            p.origin.cache.session_id(),
+            workspace_id,
+            p.deadlines.forward_cutoff(),
+        )?;
+        Ok(p.origin.source(observed))
     }
 }
-#[cfg(test)]
-mod tests;

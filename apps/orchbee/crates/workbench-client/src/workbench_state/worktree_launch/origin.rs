@@ -1,10 +1,14 @@
-//! Exact native origin and primary source sampling facts, independent of Git execution.
+//! Exact native origin and the source the Server's current-directory answer names, independent
+//! of Git execution.
 use super::{WorktreeMode, WorktreeToken};
-use crate::workbench_projection::{ClientContextTabs, ClientMemberTarget, ClientTerminalBinding};
+use crate::workbench_projection::{
+    ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientTerminalBinding,
+};
 use crate::workbench_state::{
     ClientNotice, ClientPhaseKind, OperationDeadlines, PaneRef, WorkbenchClientState,
 };
 use orchbee_client_server_protocol::Geometry;
+use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorktreeSource, same_directory_spelling};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Origin {
     pub(crate) cache: ClientContextTabs,
@@ -32,7 +36,32 @@ impl Origin {
             ..self.clone()
         })
     }
-    pub(super) fn primary_binding(&self) -> Option<&ClientTerminalBinding> {
+    /// The source the Server's `workbench.current-directory` answer for this Workspace names, as
+    /// the Web and Desktop Clients resolve it: Git runs where the first terminal stands when that
+    /// differs from the Workspace's own directory, else in the Workspace itself. Without an answer
+    /// only a Workspace with a directory has a source.
+    pub(crate) fn source(
+        &self,
+        observed: Option<WorkbenchDirectoryPath>,
+    ) -> Option<WorktreeSource> {
+        let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location() else {
+            return None;
+        };
+        let workspace_id = workspace_id.clone();
+        let directory = self.cache.directory();
+        match observed {
+            Some(path)
+                if directory.is_none_or(|directory| {
+                    !same_directory_spelling(directory.path.as_str(), path.as_str())
+                }) =>
+            {
+                Some(WorktreeSource::WorkspaceDirectory { workspace_id, path })
+            }
+            Some(_) => Some(WorktreeSource::Workspace { workspace_id }),
+            None => directory.map(|_| WorktreeSource::Workspace { workspace_id }),
+        }
+    }
+    pub(crate) fn primary_binding(&self) -> Option<&ClientTerminalBinding> {
         let member = self.member.as_ref()?;
         let tab = self.cache.tabs().get(self.cache.tab_index(&member.tab)?)?;
         tab.panel(tab.panel_index(&member.panel)?)?
@@ -46,8 +75,6 @@ pub(crate) struct Preparation {
     pub(crate) token: WorktreeToken,
     pub(crate) mode: WorktreeMode,
     pub(crate) origin: Origin,
-    pub(crate) primary: Option<ClientTerminalBinding>,
-    pub(crate) primary_pane: Option<PaneRef>,
     pub(crate) deadlines: OperationDeadlines,
 }
 impl WorkbenchClientState {
@@ -104,26 +131,11 @@ impl WorkbenchClientState {
         token: WorktreeToken,
         deadlines: OperationDeadlines,
     ) -> Option<Preparation> {
-        let origin = self.worktree_origin()?;
-        let primary = self
-            .active()
-            .and_then(|active| {
-                self.cache()
-                    .tabs()
-                    .get(active.index())?
-                    .panel(active.panel_index())?
-                    .primary()
-                    .binding()
-            })
-            .cloned();
-        let primary_pane = origin.primary_pane.clone();
         Some(Preparation {
             generation,
             token,
             mode,
-            origin,
-            primary,
-            primary_pane,
+            origin: self.worktree_origin()?,
             deadlines,
         })
     }

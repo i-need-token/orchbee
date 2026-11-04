@@ -159,8 +159,6 @@ fn exercise(cut: Cut) -> TestResult {
         executor.attachments.push(AttachedTerminal {
             key: pane,
             attachment_id: viewer,
-            host_epoch: HostEpoch::parse(&"04".repeat(16)).unwrap(),
-            host_terminal_id: HostTerminalId::parse(&"02".repeat(16)).unwrap(),
             setup: None,
             announced: true,
             mode: Some(ControllerMode::ReadOnly),

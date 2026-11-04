@@ -998,7 +998,7 @@ load and deployed-cohort behavior require separate observation.
 
 `workbench.current-directory` (OBWP 65/66) is a read-granted query of where a Workspace is
 working, asked by the TUI and the Web and Desktop Server Clients before New Workspace and before
-sidebar Worktree discovery, so every Client reads Git in the same directory. A request
+Worktree discovery, from the sidebar or a shortcut, so every Client reads Git in the same directory. A request
 naming another Session answers `denied` and a missing Workspace `not-found`. Otherwise the Server
 finds the Workspace's first terminal, the primary terminal of its first Tab's leading Panel, among
 the current unfenced observation targets, then releases the Session lock before sampling. The

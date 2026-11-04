@@ -4,9 +4,9 @@ use crate::workbench_projection::project_preferred_workspace;
 use crate::workbench_state::OperationDeadlines;
 use crate::workbench_state::tests::{ready_with_cache, snapshot};
 use orchbee_workbench_protocol::{
-    Project, Snapshot, WorktreeCheckoutFacts, WorktreeEntry, WorktreeEntryText, WorktreeGitEffect,
-    WorktreeProgress, WorktreeQuerySource, WorktreeReference, WorktreeSelector,
-    WorktreeWorkspaceDisposition,
+    Project, Snapshot, WorkbenchWorkspaceId, WorktreeCheckoutFacts, WorktreeEntry,
+    WorktreeEntryText, WorktreeGitEffect, WorktreeProgress, WorktreeQuerySource, WorktreeReference,
+    WorktreeSelector, WorktreeWorkspaceDisposition,
 };
 use std::time::Instant;
 
@@ -113,6 +113,50 @@ fn pending(project: Option<WorkbenchProjectId>) -> WorkbenchWorktreeOutcome {
                 restoration: None,
             },
         }),
+    }
+}
+/// A shortcut lists where the Server says the focused Workspace's terminal stands; that listing
+/// becomes the draft, and a listing that names another Workspace is a changed source.
+#[test]
+fn a_shortcut_listing_where_the_terminal_stands_becomes_the_draft() {
+    let other = WorkbenchWorkspaceId::parse(&format!("{:032x}", 999)).unwrap();
+    for matching in [true, false] {
+        let snapshot = canonical(0, 1);
+        let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+        let p = state
+            .worktree_preparation(
+                WorktreeMode::Create,
+                1,
+                WorktreeToken(0),
+                OperationDeadlines::from_sample(Instant::now()).unwrap(),
+            )
+            .unwrap();
+        let ClientContextLocation::Workspace { workspace_id, .. } =
+            p.origin.cache.location().clone()
+        else {
+            panic!("the fixture focuses a Workspace");
+        };
+        let mut launcher = Launcher::default();
+        assert!(launcher.open(p));
+        let p = launcher.preparation().unwrap().clone();
+        assert!(launcher.prepared(
+            &p,
+            Some(WorktreeSource::WorkspaceDirectory {
+                workspace_id: workspace_id.clone(),
+                path: path("C:/repo"),
+            })
+        ));
+        let mut listing = discovery();
+        listing.source.workspace_id = Some(if matching {
+            workspace_id
+        } else {
+            other.clone()
+        });
+        assert!(launcher.discovered(launcher.token().unwrap(), Ok(listing)));
+        assert_eq!(matches!(launcher.phase, Phase::Draft(_)), matching);
+        if !matching {
+            assert_eq!(launcher.notice, WorktreeNotice::SourceChanged);
+        }
     }
 }
 #[test]

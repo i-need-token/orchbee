@@ -1,12 +1,8 @@
 //! Quick Workspace directory defaults under the ordinary bounded refresh lease.
-use super::{CarrierFailure, ClientExecutor, Result, WorkbenchSnapshotOutcome, closed};
+use super::{CarrierFailure, ClientExecutor, Result, WorkbenchSnapshotOutcome};
 use crate::client_context::ClientContextLocation;
-use crate::local_client::workbench::CurrentDirectoryError;
 use crate::workbench_state::workspace_setup::quick::QuickPreparation;
-use orchbee_workbench_protocol::{
-    CurrentDirectoryOutcome, CurrentDirectoryRequest, ProtocolVersion, WorkbenchDirectoryPath,
-    WorkbenchWorkspaceId,
-};
+use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 impl ClientExecutor {
     /// A folder chosen in the menu, else where the Server says the focused Workspace is working:
@@ -38,7 +34,11 @@ impl ClientExecutor {
         }
         if let ClientContextLocation::Workspace { workspace_id, .. } =
             preparation.baseline.location()
-            && let Some(directory) = self.read_current_directory(preparation, workspace_id)?
+            && let Some(directory) = self.read_current_directory(
+                preparation.baseline.session_id(),
+                workspace_id,
+                preparation.deadlines.forward_cutoff(),
+            )?
         {
             return Ok(Some(directory));
         }
@@ -46,45 +46,6 @@ impl ClientExecutor {
             return Ok(Some(directory.path.clone()));
         }
         launch_directory().map_err(|_| CarrierFailure::Transport)
-    }
-
-    fn read_current_directory(
-        &mut self,
-        preparation: &QuickPreparation,
-        workspace_id: &WorkbenchWorkspaceId,
-    ) -> Result<Option<WorkbenchDirectoryPath>> {
-        let deadline = preparation.deadlines.forward_cutoff();
-        self.ensure_before(deadline)?;
-        let request_id = self
-            .mailbox
-            .allocate_workbench_request_id()
-            .map_err(closed)?;
-        let result = self
-            .client
-            .current_directory(
-                CurrentDirectoryRequest {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                    session_id: preparation.baseline.session_id().clone(),
-                    workspace_id: workspace_id.clone(),
-                },
-                deadline,
-                None,
-            )
-            .map_err(|error| match error {
-                CurrentDirectoryError::Unavailable | CurrentDirectoryError::Transport => {
-                    CarrierFailure::Transport
-                }
-                CurrentDirectoryError::Encoding | CurrentDirectoryError::Protocol => {
-                    CarrierFailure::Protocol
-                }
-                CurrentDirectoryError::Timeout => CarrierFailure::Deadline,
-            })?;
-        // A Workspace closed since the snapshot leaves the directories that snapshot recorded.
-        Ok(match result.outcome {
-            CurrentDirectoryOutcome::Observed { directory } => Some(directory),
-            CurrentDirectoryOutcome::Failed { .. } => None,
-        })
     }
 }
 

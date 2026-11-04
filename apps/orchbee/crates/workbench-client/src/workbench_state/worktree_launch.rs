@@ -4,6 +4,7 @@ pub(crate) mod addressed;
 mod draft;
 mod origin;
 mod removal;
+use crate::client_context::ClientContextLocation;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use draft::Draft;
 pub(crate) use draft::{WorktreeEdit, WorktreeStage};
@@ -770,8 +771,17 @@ impl Discovery {
                         d.path == self.source.requested_path && d.worker_id == self.worker
                     })
             }
-            // Only the sidebar's addressed source names a Workspace and a directory together.
-            WorktreeSource::WorkspaceDirectory { .. } => false,
+            // Git ran where the Server said the Workspace's first terminal stands, on the Worker
+            // that holds the Workspace's own directory when it has one, as the Server requires.
+            WorktreeSource::WorkspaceDirectory { workspace_id, path } => {
+                path == &self.source.requested_path
+                    && self.source.workspace_id.as_ref() == Some(workspace_id)
+                    && matches!(origin.cache.location(), ClientContextLocation::Workspace { workspace_id: expected, .. } if expected == workspace_id)
+                    && origin
+                        .cache
+                        .directory()
+                        .is_none_or(|d| d.worker_id == self.worker)
+            }
             WorktreeSource::Directory { path } => {
                 path == &self.source.requested_path
                     && self.source.workspace_id.is_none()

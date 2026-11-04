@@ -7,7 +7,6 @@ mod panel;
 mod presentations;
 mod quick_workspace;
 mod setup;
-pub(in crate::workbench_client::connection::native) mod source_root;
 mod startup_directory;
 mod startup_preference;
 mod switch_membership;
@@ -15,6 +14,7 @@ mod tab_move;
 mod viewport;
 mod workspace_close;
 mod workspace_setup;
+mod worktree_source;
 
 use self::setup::*;
 use super::*;

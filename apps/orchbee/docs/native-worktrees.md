@@ -137,19 +137,29 @@ releases its local receipt; the Server's existing retention limit is unchanged.
 
 ## Model and ownership
 
-| Record       | Contract                                                                                                                                                          |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Exact origin context/member, primary directory, primary root cwd or Server current directory, canonical snapshot, bounded Git listing, geometry and configuration |
-| Data         | Opening token, immutable target/Start plan, retained operation ID, fenced attempt and known checkout/Workspace result; local focus permission is separate         |
-| Outputs      | Read-only preparation, one Worktree Start, explicitly confirmed Resume, bounded reads and optional exact terminal entry                                           |
-| Shared owner | Server coordinates Git facts, current Project membership, Workspace launch/removal and retained operation status                                                  |
-| Client owner | The initiating Client owns capture, observation and revocable entry permission                                                                                    |
+| Record       | Contract                                                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Exact origin context/member, primary directory, Server current directory, canonical snapshot, bounded Git listing, geometry and configuration             |
+| Data         | Opening token, immutable target/Start plan, retained operation ID, fenced attempt and known checkout/Workspace result; local focus permission is separate |
+| Outputs      | Read-only preparation, one Worktree Start, explicitly confirmed Resume, bounded reads and optional exact terminal entry                                   |
+| Shared owner | Server coordinates Git facts, current Project membership, Workspace launch/removal and retained operation status                                          |
+| Client owner | The initiating Client owns capture, observation and revocable entry permission                                                                            |
 
 The app-private lane uses its own authenticated Workbench Client and a wakeable bounded worker.
 It never holds the UI lock during IPC. Shutdown stops admission, wakes I/O and joins its thread.
 Slow Git work remains Server-owned and does not occupy the ordinary terminal Viewer FIFO.
-Only exact root-cwd preparation uses that FIFO and its existing deadline and cleanup rules.
-A borrowed primary Viewer is never detached; a temporary Viewer is released before preparation settles.
+No preparation attaches, borrows or releases a Viewer: the Server samples the terminal itself.
+
+`Ctrl+B W` and `Ctrl+B O` run Git where the Server's `workbench.current-directory` answer for the
+focused Workspace says its first terminal stands, the read the Web and Desktop Clients make before
+their Workspace menu's discovery, and resolve it the same way. An answer other than the Workspace's
+own directory (compared by `same_directory_spelling`), or any answer for a Workspace without one, is
+the `workspace-directory` source; an answer naming that directory is the `workspace` source. When
+the Server gives no answer, only a Workspace with its own directory has a source, the `workspace`
+source; a Workspace without one reports the source unavailable, as the GUI offers it nothing. The
+answer concerns the Workspace's first terminal, not the focused Panel, because the read names only
+a Workspace. Shortcuts never use the `Directory` source, so a Worktree created from an ungrouped
+Workspace without a directory lands in a new Project with it, as in the GUI.
 
 Configured destinations use one pure policy shared with CLI; unconfigured destinations remain
 Worker-owned. The generated branch is also used when deriving a configured default destination.
@@ -209,8 +219,7 @@ source change at Start. Sidebar preparation uses
 the existing background Worktree lane's own authenticated Session: it reads the Server's answer after
 a scope snapshot and checks the scope again after Git. It attaches no Viewer and never borrows the
 interactive Viewer or its controller. Every failure path retires that auxiliary Session within the
-original bounded budget and cleanup reserve. Ordinary shortcut preparation retains its existing
-borrowed/temporary Viewer policy. Discovery and creation must
+original bounded budget and cleanup reserve. Discovery and creation must
 revalidate the addressed proof, and the chosen source/directory appears in the existing launch form
 before effect. The pure source model tests cover empty/noncurrent/multiple-repository grouping,
 first terminal versus child/later terminal, answered versus refused reads and source drift. Git
