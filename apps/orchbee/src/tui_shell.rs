@@ -37,6 +37,7 @@ use crate::{
     tui_backend::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter},
     tui_layout::terminal_geometry,
     tui_pointer::HitMapBuilder,
+    workbench_client::NavigationHold,
 };
 
 const EVENT_POLL_INTERVAL_MILLISECONDS: u16 = 50;
@@ -1082,7 +1083,12 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         crate::tui_composition::project_capture(client_capture_claims(view), native_claims)
     };
     let allow_defer = capture_owner.is_none() && view.permits_navigation_hold();
-    if surface.prepare_draw(terminal.get_frame().area(), allow_defer) {
+    let hold = surface.prepare_draw(
+        terminal.get_frame().area(),
+        view.sidebar_surface(),
+        allow_defer,
+    );
+    if hold == NavigationHold::Frame {
         // Pixels remain from the last successful frame, but its targets cannot authorize
         // actions against the newly selected terminal. No draw receipt is minted here.
         dispatcher.invalidate_hit_map(surface);
@@ -1121,6 +1127,19 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         .is_none()
         .then(|| dispatcher.sidebar_reorder_preview())
         .flatten();
+    let panel_held = hold == NavigationHold::Panel;
+    if panel_held
+        && (resize != crate::tui_layout::ResizeProjection::Canonical
+            || preview.is_some()
+            || tab_drag.is_some()
+            || sidebar_reorder.is_some())
+    {
+        // A gesture preview reshapes or covers the Panel it would keep; hold the whole frame.
+        dispatcher.invalidate_hit_map(surface);
+        return Ok(false);
+    }
+    // The held Panel keeps its pixels, images included, until the next terminal's first frame.
+    let graphics = graphics.filter(|_| !panel_held);
     if let Some(measurement) = &mut frame_measurement {
         measurement.buffer_started();
     }
@@ -1179,6 +1198,11 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
                     || sidebar_reorder.is_some(),
             );
         }
+        if panel_held {
+            let panel =
+                crate::tui_layout::project_shell_areas(frame.area(), view.sidebar_surface()).panel;
+            hold_panel(frame.buffer_mut(), panel);
+        }
         if let Some(measurement) = &mut frame_measurement {
             measurement.buffer_prepared();
         }
@@ -1191,6 +1215,12 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         // cannot authorize interaction; this loop exits before another input.
         dispatcher.invalidate_hit_map(surface);
         return Err(LoopFailure::Terminal(error));
+    }
+    if panel_held {
+        // As for a held frame: the Panel's targets would act on a terminal it does not show yet,
+        // and no draw receipt is minted until that terminal's first frame.
+        dispatcher.invalidate_hit_map(surface);
+        return Ok(false);
     }
     if notification_painted {
         // Settle sound only after the card and its matching hit shield were
@@ -1218,6 +1248,14 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         .deliver_terminal_effect(&mut || mode(ModeRequest::Bell))
         .map_err(LoopFailure::Input)?;
     Ok(pointer_projection_redraw)
+}
+
+/// Leaves every Panel cell as the terminal already shows it, so the flush redraws only the chrome
+/// around it. The next full frame differs in each of these cells and repaints the whole Panel.
+fn hold_panel(buffer: &mut ratatui::buffer::Buffer, panel: Rect) {
+    for position in panel.intersection(buffer.area).positions() {
+        buffer[position].set_diff_option(ratatui::buffer::CellDiffOption::Skip);
+    }
 }
 
 fn render_machine_surface(
@@ -1444,8 +1482,13 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         self.tick()
     }
     fn after_draw(&mut self) {}
-    fn prepare_draw(&mut self, _viewport: Rect, _allow_defer: bool) -> bool {
-        false
+    fn prepare_draw(
+        &mut self,
+        _viewport: Rect,
+        _sidebar: crate::client_view::SidebarSurface,
+        _allow_defer: bool,
+    ) -> NavigationHold {
+        NavigationHold::None
     }
     fn deliver_terminal_effect(
         &mut self,
@@ -1568,8 +1611,13 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn after_draw(&mut self) {
         self.after_draw()
     }
-    fn prepare_draw(&mut self, viewport: Rect, allow_defer: bool) -> bool {
-        self.prepare_draw(viewport, allow_defer)
+    fn prepare_draw(
+        &mut self,
+        viewport: Rect,
+        sidebar: crate::client_view::SidebarSurface,
+        allow_defer: bool,
+    ) -> NavigationHold {
+        self.prepare_draw(viewport, sidebar, allow_defer)
     }
     fn deliver_terminal_effect(
         &mut self,

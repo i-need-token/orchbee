@@ -653,10 +653,10 @@ impl WorkbenchClientUi {
     }
 
     /// Moves the selection off a Tab whose close the Server accepted, onto the survivor its
-    /// removal would select, so the Panel leaves with the strip entry. It waits for one completed
-    /// draw without that Tab, since the switch keeps the last frame until the next Tab's first
-    /// one. The move is the Client's own: a refused admission reports nothing and a later tick
-    /// tries again while the close is on its way.
+    /// removal would select, in the tick that applies the acceptance. The draw that leaves the Tab
+    /// out of the strip already shows the new selection, while the Panel keeps the closing Tab's
+    /// last frame until the next Tab's first one. The move is the Client's own: a refused
+    /// admission reports nothing and a later tick tries again while the close is on its way.
     pub(super) fn follow_leaving_selection(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
         let Some(index) = self
             .state
@@ -732,20 +732,12 @@ impl WorkbenchClientUi {
             self.copy_mode.record_crop(crop);
         }
         if let Some(state) = &mut self.state {
-            let strip_awaited = state.leaving_selection_awaits_draw();
             state.acknowledge_close_draw(
                 receipt.prompt.and_then(ModalPresentation::into_presented),
                 receipt.status,
             );
             if matches!(receipt.prompt, Some(ModalPresentation::NotPresented)) {
                 let _ = state.settle_close_confirmation_not_presented();
-            }
-            // The strip has now left the accepted Tab out; the next tick moves the selection.
-            if strip_awaited
-                && state.leaving_selection_successor().is_some()
-                && let Some(mailbox) = &self.mailbox
-            {
-                mailbox.wake_ui();
             }
         }
         self.after_panel_close_draw(receipt.panel_prompt);

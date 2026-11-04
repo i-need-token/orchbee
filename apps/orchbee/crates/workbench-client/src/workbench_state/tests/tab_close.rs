@@ -615,12 +615,6 @@ fn navigation_skips_a_leaving_tab_and_an_accepted_close_moves_the_selection() {
     state
         .settle_close_exchange(&operation, &CloseResult::Accepted(accepted))
         .unwrap();
-    // It also waits for a draw that left the Tab out of the strip, because the switch keeps the
-    // last frame until the next Tab's first one.
-    assert!(state.leaving_selection_awaits_draw());
-    assert_eq!(state.leaving_selection_successor(), None);
-    state.acknowledge_close_draw(None, None);
-    assert!(!state.leaving_selection_awaits_draw());
     assert_eq!(state.leaving_selection_successor(), Some(1));
     assert!(!state.view().last_tab_leaving());
 }

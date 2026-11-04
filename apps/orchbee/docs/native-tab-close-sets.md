@@ -104,26 +104,25 @@ adds no notice and no count. From the draw after its close is submitted, or acce
 decided it unasked, while that close is progressing normally, the Client treats the Tab as gone
 instead of waiting for the Server's publication to remove it from the canonical list: the strip
 leaves it out, next, previous and numbered Tab selection skip it and count positions without it, and
-nothing selects it. Once the Server accepts the close of the selected Tab and a completed draw has
-left it out of the strip, the selection moves to the next Tab still shown, else the previous one,
-the survivor the removal itself selects, so the Panel follows the strip entry while the terminal
-ends in the background. The selection waits for that draw because a selection change keeps the
-last frame until the next Tab's first one, which would otherwise hold the strip too. The last Tab
-leaves the empty Workbench in the Panel at once. While several Tabs close as one sequence the
-selection stays,
-because a focus change stops the sequence. A refused, blocked, unknown or unobserved close shows the
-Tab again with its report, and the selection stays where it moved; a Tab of a set leaves as its own
-close is submitted. Until 1 second after submission, or after the user asked for a close the Server
-accepted unasked, an unreported close also withholds the selected Tab's connection and exit cues;
-the Panel title still says how its terminal ended. On a debug build a confirmed close shows the
-next Tab 40 to 60 ms after it starts. A close the Server decides unasked waits for its answer, 15
-to 35 ms after the user asks: the Tab, background or selected, then leaves the strip in the next
-draw, by 45 ms, and the Panel of a selected Tab moves to the next Tab when that Tab's first frame
-arrives, about 80 to 105 ms after the ask. A PowerShell Tab at its prompt leaves the canonical list
-0.1 to 0.15 seconds after its close starts, but a slower shell or a busy machine
-would flash the 200 ms delay of other pending indications. Past the delay `{label} · Closing`
-appears, as when a program running in the shell keeps the console after Terminate ends the shell
-and the close waits out the five-second grace.
+nothing selects it. Once the Server accepts the close of the selected Tab, the selection moves in
+the same tick to the next Tab still shown, else the previous one, the survivor the removal itself
+selects, while the terminal ends in the background. The draw that leaves the Tab out of the strip
+already shows that selection; the Panel keeps the closing Tab's last frame until the next Tab's
+first one, as the [navigation hold](native-terminal-viewport.md#direct-sidebar-switching)
+describes. The last Tab leaves the empty Workbench in the Panel at once. While several Tabs close
+as one sequence the selection stays, because a focus change stops the sequence. A refused, blocked,
+unknown or unobserved close shows the Tab again with its report, and the selection stays where it
+moved; a Tab of a set leaves as its own close is submitted. Until 1 second after submission, or
+after the user asked for a close the Server accepted unasked, an unreported close also withholds
+the selected Tab's connection and exit cues; the Panel title still says how its terminal ended. On a
+debug build a confirmed close shows the next Tab 40 to 60 ms after it starts. A close the Server
+decides unasked waits for its answer, 15 to 35 ms after the user asks: the Tab, background or
+selected, then leaves the strip in the next draw, by 45 ms, and the Panel of a selected Tab moves to
+the next Tab when that Tab's first frame arrives, about 90 to 110 ms after the ask. A PowerShell Tab
+at its prompt leaves the canonical list 0.1 to 0.15 seconds after its close starts, but a slower
+shell or a busy machine would flash the 200 ms delay of other pending indications. Past the delay
+`{label} · Closing` appears, as when a program running in the shell keeps the console after
+Terminate ends the shell and the close waits out the five-second grace.
 
 Status reads of a retained close are 250 ms apart, except that a Workbench publication lets the
 next one go at once: the Server publishes a closed Tab as it finishes, and the close set holds

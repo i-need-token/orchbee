@@ -144,7 +144,11 @@ fn strip_paging_requires_the_painted_source_and_follows_its_pointer_selection() 
         ui.page_drawn_tab_strip(&source.drawn, &page);
         ui.follow_drawn_tab_strip(painted, &source.tabs[4].id);
         ui.apply_client_action(ClientAction::SelectTab(5));
-        ui.prepare_draw(ratatui::layout::Rect::new(0, 0, 80, 24), false);
+        ui.prepare_draw(
+            ratatui::layout::Rect::new(0, 0, 80, 24),
+            crate::client_view::SidebarSurface::Hidden,
+            false,
+        );
         assert_eq!(ui.view().tab_strip_start(), exact.then_some(page));
     }
 }

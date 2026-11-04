@@ -327,13 +327,17 @@ through the existing projection path. Cross-machine and explicit-picker selectio
 During Tab or Workspace navigation, `ui/navigation_draw.rs` retains the last flushed shell while
 the newly selected Tab is attaching without a live frame. The shell does not paint the temporary
 automatic Tab name or connection placeholder; the first staged live frame replaces the old shell
-in one draw. The previous hit map is invalidated and the existing first-frame input gate remains
-in force. Non-frame poll replies continue settling during this hold, without acknowledging any
-unpainted frame. Resize, capturing surfaces, notifications, one-shot notices, stable unavailability
-and failures render normally; the existing attachment deadline bounds the wait. The gate keeps
-no type-ahead buffer: a later frame cannot become the owner of keys already dispatched. Typing
-before the selected terminal admits input is not sent, and its input-unavailable notice ends the
-hold so the refusal is visible when it happens.
+in one draw. When the retained Panel shows a Tab that is leaving with its accepted close, the
+first draw of the wait instead paints the shell around the Panel area and keeps that area as it
+was, images included, so the strip leaves the Tab out and shows the new selection at once; later
+draws of the wait keep the whole shell, and a changed sidebar or a gesture preview keeps it from
+the start. The retained Panel loses only its cursor. The previous hit map is invalidated and the
+existing first-frame input gate remains in force. Non-frame poll replies continue settling during
+this hold, without acknowledging any unpainted frame. Resize, capturing surfaces, notifications,
+one-shot notices, stable unavailability and failures render normally; the existing attachment
+deadline bounds the wait. The gate keeps no type-ahead buffer: a later frame cannot become the
+owner of keys already dispatched. Typing before the selected terminal admits input is not sent,
+and its input-unavailable notice ends the hold so the refusal is visible when it happens.
 Once the first live frame is visible, its pending draw acknowledgement alone does not display a
 connection status footer.
 

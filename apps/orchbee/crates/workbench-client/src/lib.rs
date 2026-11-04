@@ -142,7 +142,7 @@ pub mod application {
 
     pub mod client_view {
         pub use crate::client_view::{
-            Bindings, ClientView, KeyCode, KeyKind, Modifiers, Notice, Overlay,
+            Bindings, ClientView, KeyCode, KeyKind, Modifiers, Notice, Overlay, SidebarSurface,
             format_configuration_binding,
         };
     }
@@ -421,8 +421,9 @@ pub mod application {
     pub mod workbench_client {
         pub use crate::workbench_client::{
             ClientContextLocation, ClientContextTarget, ClientMemberTarget, ClientStartupTarget,
-            ContextNavigationAdmission, DisplayPhase, DrawReceipt, RetainedFrameBank,
-            StartupDirectory, TerminalStatus, UiWakeup, WorkbenchClient, WorkbenchClientView,
+            ContextNavigationAdmission, DisplayPhase, DrawReceipt, NavigationHold,
+            RetainedFrameBank, StartupDirectory, TerminalStatus, UiWakeup, WorkbenchClient,
+            WorkbenchClientView,
         };
     }
 

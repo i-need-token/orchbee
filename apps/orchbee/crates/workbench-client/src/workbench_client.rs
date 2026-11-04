@@ -74,8 +74,8 @@ pub(crate) use ui::{
     DisplayRetirement, LaunchProfile, SetupCaptureContext, WorkspaceCloseStatus,
 };
 pub use ui::{
-    CaptureContext, DisplayPhase, DrawReceipt, RetainedFrameBank, WorkbenchClientView,
-    notification_available,
+    CaptureContext, DisplayPhase, DrawReceipt, NavigationHold, RetainedFrameBank,
+    WorkbenchClientView, notification_available,
 };
 pub(crate) use ui::{
     CaptureReadiness, ClientTabView, CloseConfirmationView, PanelCloseConfirmationView,
@@ -357,9 +357,14 @@ impl WorkbenchClient {
         }
     }
 
-    pub fn prepare_draw(&mut self, viewport: ratatui::layout::Rect, allow_defer: bool) -> bool {
+    pub fn prepare_draw(
+        &mut self,
+        viewport: ratatui::layout::Rect,
+        sidebar: crate::client_view::SidebarSurface,
+        allow_defer: bool,
+    ) -> NavigationHold {
         match &mut self.backend {
-            ClientBackend::Native(native) => native.prepare_draw(viewport, allow_defer),
+            ClientBackend::Native(native) => native.prepare_draw(viewport, sidebar, allow_defer),
         }
     }
 

@@ -118,6 +118,7 @@ pub(crate) use super::input::WorktreeCaptureContext;
 pub(crate) use super::input::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use super::input::{RenameDraftToken, RenameEdit};
 pub use input_capture::notification_available;
+pub use navigation_draw::NavigationHold;
 pub(crate) use panel_close::{PanelCloseConfirmationToken, PanelCloseConfirmationView};
 #[cfg(any(test, feature = "test-support"))]
 pub use tab_close::CloseConfirmationToken;
@@ -1907,8 +1908,7 @@ impl WorkbenchClientUi {
             changed |= self.replay_held_intent();
             // A lost focused viewer re-attaches before a background read can take the slot.
             changed |= self.drive_viewer_recovery(&mailbox);
-            // So does the selection leaving a Tab whose close the Server accepted, once the strip
-            // has been drawn without it.
+            // So does the selection leaving a Tab whose close the Server accepted.
             changed |= self.follow_leaving_selection(&mailbox);
             if self
                 .publications
