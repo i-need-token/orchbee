@@ -573,6 +573,14 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
                 std::env::consts::EXE_SUFFIX
             ))
         });
+    if !binary.is_file() {
+        return Err(format!(
+            "real Host process witness requires `pnpm --filter @orchbee/terminal-host build` or \
+             ORCHBEE_TERMINAL_HOST_TEST_BINARY: {}",
+            binary.display()
+        )
+        .into());
+    }
     let mut child = HostChild(
         Command::new(binary)
             .args(["serve", "--runtime-directory"])
