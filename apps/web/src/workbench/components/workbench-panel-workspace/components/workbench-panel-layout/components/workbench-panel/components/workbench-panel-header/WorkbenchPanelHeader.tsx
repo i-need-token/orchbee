@@ -31,6 +31,8 @@ interface WorkbenchPanelHeaderProps {
 export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
 	const isChildTerminalActive = panel.activeChildPresentationId !== null;
+	// As the TUI moves a Panel whichever terminal it shows, only a lone Panel has nowhere to go.
+	const canDrag = view.panelCount > 1;
 	const closeShortcut = view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal);
 	const splitTookFocus = React.useRef(false);
 	const panelMenuEntries = buildWorkbenchPanelMenuEntries({
@@ -51,12 +53,11 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 	const header = (
 		<header
 			className={styles['root']}
-			data-drag-enabled={!isChildTerminalActive || undefined}
+			data-drag-enabled={canDrag || undefined}
 			data-slot='workbench-panel-header'
 			onPointerDown={
-				isChildTerminalActive
-					? undefined
-					: (event) => {
+				canDrag
+					? (event) => {
 							if (event.button !== 0) return;
 							const target = event.target;
 							if (
@@ -69,6 +70,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 							}
 							view.startPanelDrag(panel.id, event);
 						}
+					: undefined
 			}
 		>
 			<div className={styles['left']} data-slot='workbench-panel-header-leading'>

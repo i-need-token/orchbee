@@ -594,7 +594,6 @@ export function useWorkbenchPanelWorkspace({
 			const sourceElement = event.currentTarget.closest('[data-slot="workbench-panel"]');
 			if (
 				panel === null ||
-				panel.activeChildPresentationId !== null ||
 				!(sourceElement instanceof HTMLElement) ||
 				!(workspaceElement instanceof HTMLElement)
 			) {

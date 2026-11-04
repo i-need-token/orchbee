@@ -1926,7 +1926,8 @@ beside the Server path. These choices stand unless review changes them:
   asks by the impact of all its terminals, naming the one it shows. The last Panel's Close also
   closes its Tab and says so; it still sends `panel.close`, which the Server answers by closing the
   Tab. The GUI no longer creates child terminals, while the child strip and selection stay for
-  those another Client creates.
+  those another Client creates. A Panel showing a child terminal drags like any other, as the
+  TUI's Move panel takes it whichever terminal it shows.
 - **GUI-only capabilities are deleted (decision 6).** Broadcast input, the image preview card and
   its tokens, file drop, Ghostty configuration import, the cross-window Tab drag runtime with the
   Tab model's transfer methods, and the workspace Tabs primitive left with their tests, Stories,
