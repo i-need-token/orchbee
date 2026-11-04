@@ -249,17 +249,26 @@ export function createSnapshotRuntime(
 	return new WorkbenchProjectWorkspaceRuntime({ initialClientView, initialPublication });
 }
 
-/** Adopts what the Server publishes next, as the window does. */
+/**
+ * Adopts what the Server publishes next, as the window does, leaving out `withheldTabIds` as a
+ * window leaves out a Tab whose close it follows.
+ */
 export function publishSnapshot(
 	runtime: WorkbenchProjectWorkspaceRuntime,
 	snapshot: WorkbenchSnapshot,
+	withheldTabIds: readonly string[] = [],
 ): void {
-	runtime.applyPublishedWorkbench(snapshotPublication(snapshot));
+	runtime.applyPublishedWorkbench(snapshotPublication(snapshot, withheldTabIds));
 }
 
-/** What a window projects from `snapshot` for its stores to hold. */
-export function snapshotPublication(snapshot: WorkbenchSnapshot): WorkbenchPublication {
-	return projectServerSnapshot(snapshot, FIXTURE_INTL);
+/** What a window projects from `snapshot` for its stores to hold, without `withheldTabIds`. */
+export function snapshotPublication(
+	snapshot: WorkbenchSnapshot,
+	withheldTabIds: readonly string[] = [],
+): WorkbenchPublication {
+	return projectServerSnapshot(snapshot, FIXTURE_INTL, undefined, (_context, tabId) =>
+		withheldTabIds.includes(tabId),
+	);
 }
 
 /** The open Workspace's context, which a test that opened one takes as present. */

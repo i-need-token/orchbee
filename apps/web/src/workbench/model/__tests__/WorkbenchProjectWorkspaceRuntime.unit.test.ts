@@ -15,6 +15,7 @@ import {
 	snapshotContext,
 	snapshotDirectory,
 	snapshotPanel,
+	snapshotPresentation,
 	snapshotSplit,
 	snapshotTab,
 	snapshotWorkspace,
@@ -193,6 +194,50 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(
 			activeTerminalContext(runtime).panelWorkspaceStore.getSnapshot().tabs[0]?.panelFocusHistory,
 		).toEqual(focusOrder);
+	});
+
+	it('lets a Tab that returns after publications withheld it take up its focused and maximized Panel and shown child', () => {
+		const splitTab = snapshotTab(
+			1,
+			snapshotSplit(
+				1,
+				'horizontal',
+				snapshotPanel(1),
+				snapshotPanel(2, snapshotPresentation(2), [snapshotPresentation(5)]),
+			),
+		);
+		const snapshot = (revision: number) =>
+			oneWorkspaceSnapshot(revision, [splitTab, snapshotTab(3)]);
+		const runtime = createSnapshotRuntime(snapshot(1));
+		const store = activeTerminalContext(runtime).panelWorkspaceStore;
+		const secondPanel = { panelId: fixturePanelId(2), tabId: fixtureTabId(1) };
+		store.transition({ ...secondPanel, type: 'panel-focused' });
+		store.transition({
+			...secondPanel,
+			childPresentationId: presentation(5),
+			type: 'child-terminal-activated',
+		});
+		store.transition({ ...secondPanel, type: 'panel-maximization-toggled' });
+		const tabView = () =>
+			runtime
+				.getClientView()
+				.terminalContexts[0]?.panelWorkspace.tabs.find((tab) => tab.tabId === fixtureTabId(1));
+		const chosen = tabView();
+		expect(chosen).toMatchObject({
+			focusedPanelId: fixturePanelId(2),
+			maximizedPanelId: fixturePanelId(2),
+			panels: [
+				{ panelId: fixturePanelId(1) },
+				{ activeChildPresentationId: fixturePresentationId(5), panelId: fixturePanelId(2) },
+			],
+		});
+
+		publishSnapshot(runtime, snapshot(2), [fixtureTabId(1)]);
+		publishSnapshot(runtime, snapshot(3), [fixtureTabId(1)]);
+		expect(tabView()).toBeUndefined();
+		publishSnapshot(runtime, snapshot(4));
+
+		expect(tabView()).toEqual(chosen);
 	});
 
 	it('crosses the Action commit point before applying a transition', () => {
