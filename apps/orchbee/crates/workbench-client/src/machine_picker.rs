@@ -292,6 +292,11 @@ pub struct Picker {
     /// A sidebar drag's live order over the native topology it moves.
     reorder_preview:
         Option<crate::machine_spaces::navigation_projection::SidebarNavigationProjection>,
+    /// The entry a sidebar drag holds. A held Workspace shows as current, its Agent rows and
+    /// disclosure tucked away.
+    reorder_held: Option<SidebarTarget>,
+    /// The Workspace a finished drag switched to, shown as current until that switch settles.
+    held_switch: Option<SidebarTarget>,
     editing_query: bool,
     current_member: Option<ClientMemberTarget>,
     pending_navigation: Option<Navigation>,
@@ -352,6 +357,8 @@ impl Default for Picker {
             native_navigation: None,
             space_projection: None,
             reorder_preview: None,
+            reorder_held: None,
+            held_switch: None,
             editing_query: false,
             current_member: None,
             pending_navigation: None,
@@ -678,6 +685,7 @@ impl Picker {
     }
     fn begin_selection(&mut self, origin: SelectionOrigin) -> bool {
         self.cancel_selection();
+        self.held_switch = None;
         let Some(generation) = self.selection_generation.checked_add(1) else {
             self.error = Some("failed");
             return false;

@@ -2,7 +2,12 @@ use super::*;
 use crate::{
     tui_hit_map::sidebar_reorder::Placement as SidebarDropPlacement, tui_theme::ColorLevel,
 };
-use ratatui::{Terminal, backend::TestBackend, style::Color, widgets::Block};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    style::{Color, Modifier, Style},
+    widgets::Block,
+};
 
 fn row_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
     let mut text = String::new();
@@ -27,7 +32,6 @@ fn drag_feedback_replaces_the_complete_previous_notice_and_footer() {
                 let hint = locale
                     .sidebar_reorder_hint(Some((destination.0.into(), destination.1.as_str())));
                 let preview = SidebarReorderDraw {
-                    grabbed: None,
                     destination: Some(destination),
                     footer,
                     workspace: true,
@@ -89,7 +93,6 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let row_width = width.min(30);
                 let draw = SidebarReorderDraw {
-                    grabbed: Some(Rect::new(0, 0, row_width, 1)),
                     destination: Some((
                         SidebarDropPlacement::Before,
                         "项目😀e\u{301}\u{1b}[31m a long identity".into(),
@@ -113,13 +116,14 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
                     })
                     .unwrap();
                 let buffer = terminal.backend().buffer();
+                // The sidebar paints the move and the held entry in place; the preview restyles
+                // no list line.
                 for x in 0..row_width {
-                    assert_eq!(buffer[(x, 0)].fg, foreground);
-                    assert_eq!(buffer[(x, 1)].fg, foreground);
-                    assert_eq!(buffer[(x, 0)].bg, theme.color(Role::SurfaceChrome));
-                    assert!(buffer[(x, 0)].modifier.contains(Modifier::DIM));
-                    // The sidebar paints the move in place, so no line marks a destination.
-                    assert!(buffer[(x, 1)].modifier.is_empty());
+                    for y in [0, 1] {
+                        assert_eq!(buffer[(x, y)].fg, foreground);
+                        assert_eq!(buffer[(x, y)].bg, theme.color(Role::SurfaceChrome));
+                        assert!(buffer[(x, y)].modifier.is_empty());
+                    }
                 }
                 assert!(
                     buffer

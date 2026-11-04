@@ -1,5 +1,7 @@
 //! Workspace projection and identity-checked input over complete read-only checkpoints.
-use super::{Choice, Mode, Picker, Row, Selection, SelectionOrigin, SidebarRow, SidebarWindow};
+use super::{
+    Choice, Mode, Picker, Row, Selection, SelectionOrigin, SidebarRow, SidebarTarget, SidebarWindow,
+};
 use orchbee_workbench_protocol::MetadataState;
 use std::time::{Duration, Instant};
 
@@ -99,15 +101,17 @@ impl Picker {
     }
 
     /// Shows a sidebar drag's order, its canonical baseline with the move it shows, in place of
-    /// the native one; `None` restores the native order. The window keeps its top row index while
-    /// rows move under the pointer.
+    /// the native one, around the entry it holds; `None` restores the native order. The window
+    /// keeps its top row index while rows move under the pointer.
     pub(crate) fn preview_sidebar_reorder(
         &mut self,
         order: Option<crate::machine_spaces::navigation_projection::SidebarNavigationProjection>,
+        held: Option<SidebarTarget>,
     ) -> bool {
-        if self.reorder_preview == order {
+        if self.reorder_preview == order && self.reorder_held == held {
             return false;
         }
+        self.reorder_held = held;
         if order.is_some() {
             self.spaces.hold();
         }
@@ -120,6 +124,33 @@ impl Picker {
             self.spaces.release();
         }
         true
+    }
+
+    /// The Workspace a drag holds becomes current once the drag ends, dropped or cancelled. The
+    /// sidebar keeps showing it as current until the switch settles, so the fill never returns
+    /// to the previous Workspace in between.
+    pub(crate) fn switch_to_held_workspace(&mut self, held: &SidebarTarget) -> bool {
+        let Some(selection) = held.selection() else {
+            return false;
+        };
+        if !self.activate_sidebar_workspace(&selection) {
+            return false;
+        }
+        self.held_switch = Some(held.clone());
+        true
+    }
+
+    /// The Workspace the sidebar shows as current in place of the displayed one: the one a drag
+    /// holds, then the one a finished drag is still switching to.
+    pub(crate) fn sidebar_current_override(&self) -> Option<&SidebarTarget> {
+        self.reorder_held
+            .as_ref()
+            .filter(|held| matches!(held, SidebarTarget::Context { .. }))
+            .or_else(|| {
+                self.held_switch
+                    .as_ref()
+                    .filter(|_| self.direct_selection_pending())
+            })
     }
 
     /// A new foreground Workspace intent returns the viewport to following its current target.

@@ -619,6 +619,7 @@ pub(super) fn context_identity<'a>(
 
 fn append_context<'a>(
     navigation: &SidebarNavigation,
+    held: Option<&SidebarTarget>,
     agent_children: &std::collections::BTreeMap<ContextIdentity<'a>, Vec<&'a Row>>,
     entries: &mut Vec<SidebarRow<'a>>,
     row: &'a Row,
@@ -635,7 +636,8 @@ fn append_context<'a>(
         row,
         has_agents: children.is_some_and(|children| !children.is_empty()),
     });
-    if navigation.collapsed_agents.contains(&target) {
+    // A held Workspace moves as its one row; its Agents return when the drag ends.
+    if navigation.collapsed_agents.contains(&target) || held == Some(&target) {
         return;
     }
     if let Some(children) = children {
@@ -744,7 +746,13 @@ impl Picker {
                     && let Some(rows) = children.get(&(session_id.as_str(), project_id.as_str()))
                 {
                     for row in rows {
-                        append_context(&self.navigation, &agent_children, &mut entries, row);
+                        append_context(
+                            &self.navigation,
+                            self.reorder_held.as_ref(),
+                            &agent_children,
+                            &mut entries,
+                            row,
+                        );
                     }
                 }
             }
@@ -776,7 +784,13 @@ impl Picker {
                         .as_ref()
                         .is_some_and(|context| &context.target.session_id == session_id)
                 }) {
-                    append_context(&self.navigation, &agent_children, &mut entries, row);
+                    append_context(
+                        &self.navigation,
+                        self.reorder_held.as_ref(),
+                        &agent_children,
+                        &mut entries,
+                        row,
+                    );
                 }
             }
         }
@@ -813,7 +827,9 @@ impl Picker {
                     parent: self.sidebar_parent(&target),
                     disclosure: match row {
                         SidebarRow::Project { .. } | SidebarRow::Recents { .. } => true,
-                        SidebarRow::Context { has_agents, .. } => has_agents,
+                        SidebarRow::Context { has_agents, .. } => {
+                            has_agents && self.reorder_held.as_ref() != Some(&target)
+                        }
                         SidebarRow::Agent { .. } => false,
                     },
                     create: menu && matches!(&target, SidebarTarget::Project { .. }),
@@ -1055,6 +1071,7 @@ impl Picker {
         self.sidebar_target_exists(target)
             && self.sidebar_context_has_agents(target)
             && !self.navigation.collapsed_agents.contains(target)
+            && self.reorder_held.as_ref() != Some(target)
     }
     fn sidebar_context_visible(&self, target: &SidebarTarget) -> bool {
         matches!(target, SidebarTarget::Context { .. })

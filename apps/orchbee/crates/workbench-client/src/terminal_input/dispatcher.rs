@@ -534,8 +534,10 @@ impl InputDispatcher {
     /// no drag shows it. Running after the native observation lets an admitted drop hand its order
     /// to the pending-move projection without passing through the old one.
     pub fn show_sidebar_reorder(&self, view: &mut ClientView) -> bool {
-        view.machines
-            .preview_sidebar_reorder(self.pointer.sidebar_reorder_order())
+        view.machines.preview_sidebar_reorder(
+            self.pointer.sidebar_reorder_order(),
+            self.pointer.sidebar_reorder_held(),
+        )
     }
 
     pub fn resize_projection(&self) -> crate::tui_layout::ResizeProjection {
@@ -1341,10 +1343,32 @@ impl InputDispatcher {
         let fenced = self.packet_fenced();
         let pointer = matches!(item.kind, DecodedKind::Mouse(_));
         let outcome = self.route_item(view, port, now, item, after_layout, mode)?;
+        self.switch_to_held_workspace(view, port, now, after_layout)?;
         if !fenced && self.packet_fenced() {
             self.fenced_chords.fence_raised(pointer);
         }
         Ok(outcome)
+    }
+
+    /// A drag the person ended, by a release or Escape, leaves the Workspace it held current, as
+    /// a click on that row would. The sidebar stays open for further organizing.
+    fn switch_to_held_workspace<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
+    ) -> Result<(), Error> {
+        let Some(held) = self.pointer.take_sidebar_reorder_switch() else {
+            return Ok(());
+        };
+        if view.machines.switch_to_held_workspace(&held) {
+            view.machines.leave_sidebar_navigation();
+            self.machine_packet = true;
+            self.reconcile(view, port, now);
+            after_layout(view, port)?;
+        }
+        Ok(())
     }
 
     /// Routes one decoded item through the ownership order: an open
@@ -1696,7 +1720,7 @@ impl InputDispatcher {
                 && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
             {
                 self.pointer.cancel_tab_drag();
-                self.pointer.cancel_sidebar_reorder();
+                self.pointer.escape_sidebar_reorder();
                 self.menu_packet = true;
             }
             self.keys.capture_pending();

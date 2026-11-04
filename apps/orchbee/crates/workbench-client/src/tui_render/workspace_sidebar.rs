@@ -1015,6 +1015,15 @@ fn current_row(view: &ClientView, row: &SidebarRow<'_>) -> bool {
     }
 }
 
+/// The row filled as current: the displayed Workspace, or in its place the Workspace a drag holds
+/// and then the one a finished drag is still switching to.
+fn shown_current(view: &ClientView, row: &SidebarRow<'_>) -> bool {
+    match view.machines.sidebar_current_override() {
+        Some(held) => matches!(row, SidebarRow::Context { .. }) && row.target() == *held,
+        None => current_row(view, row),
+    }
+}
+
 /// Project and Recents headings open the groups every Workspace belongs to.
 fn starts_group(rows: &[SidebarRow<'_>], index: usize) -> bool {
     matches!(
@@ -1150,7 +1159,7 @@ pub(super) fn render(
                     && !row.target().is_group()
                     && creation_target_matches(view, row, preview)
             }
-            None => current_row(view, row),
+            None => shown_current(view, row),
         })
         .collect();
     if area.height < 2 {

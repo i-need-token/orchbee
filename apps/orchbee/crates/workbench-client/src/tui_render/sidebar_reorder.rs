@@ -1,5 +1,9 @@
-//! Transient feedback for a sidebar drag. The sidebar already paints the move in place; this marks
-//! the held entry, the bottom drop area and the localized result.
+//! Transient feedback for a sidebar drag. The sidebar already paints the move in place, with a held
+//! Workspace filled as current; this adds the bottom drop target and the localized result.
+use super::controls::{
+    ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
+    InteractionState, NavigationState, OperationState, PointerPresentation, render_action,
+};
 use crate::{
     localization::Locale,
     terminal_text::{sanitize_terminal_text, truncate_display},
@@ -9,7 +13,6 @@ use crate::{
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Modifier, Style},
     widgets::{Clear, Paragraph},
 };
 
@@ -19,39 +22,53 @@ pub fn render_sidebar_reorder_preview(
     locale: Locale,
     theme: &Theme,
 ) {
-    let viewport = frame.area();
     let emphasis = theme
         .style(Role::SurfaceSelection)
         .patch(theme.style(Role::TextPrimary));
-    // The held entry stays legible in its identity colors; dimming it reads as the placeholder of
-    // a lifted row and survives collapsed colors.
-    if let Some(area) = preview.grabbed {
-        frame.buffer_mut().set_style(
-            area.intersection(viewport),
-            Style::new().add_modifier(Modifier::DIM),
+    // The whole footer accepts the drop, yet only one row shows it: a sidebar action, hovered
+    // while the pointer is on the footer. A blank row keeps it apart from the last group when the
+    // footer has room for one.
+    let footer = preview.footer.intersection(frame.area());
+    if !footer.is_empty() {
+        let row = Rect::new(
+            footer.x,
+            footer.y + u16::from(footer.height > 1),
+            footer.width,
+            1,
+        );
+        let active = preview.destination.as_ref().is_some_and(|(placement, _)| {
+            matches!(placement, Placement::Ungrouped | Placement::End)
+        });
+        let state = InteractionState::new(
+            FocusState::Unfocused,
+            if active {
+                PointerPresentation::Hovered
+            } else {
+                PointerPresentation::Rest
+            },
+            NavigationState::None,
+            CurrentState::NotCurrent,
+            CheckedState::Unchecked,
+            Availability::Enabled,
+            OperationState::Idle,
+        );
+        // Paragraph paints text and styles, but does not erase the range row it may replace.
+        frame.render_widget(Clear, row);
+        frame
+            .buffer_mut()
+            .set_style(row, theme.style(Role::SurfaceChrome));
+        let _ = render_action(
+            frame,
+            row,
+            ActionSpec::new(
+                locale.sidebar_drop_zone(preview.workspace),
+                ActionKind::Secondary,
+                ControlSurface::Chrome,
+                state,
+            ),
+            theme,
         );
     }
-    let footer = preview.footer.intersection(frame.area());
-    let footer_active = preview
-        .destination
-        .as_ref()
-        .is_some_and(|(placement, _)| matches!(placement, Placement::Ungrouped | Placement::End));
-    frame.render_widget(Clear, footer);
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            &format!("[ {} ]", locale.sidebar_drop_zone(preview.workspace)),
-            usize::from(footer.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(if footer_active {
-            emphasis.add_modifier(Modifier::BOLD)
-        } else {
-            theme
-                .style(Role::SurfaceChrome)
-                .patch(theme.style(Role::TextSecondary))
-        }),
-        footer,
-    );
     let area = frame.area();
     if area.height > 0 {
         let status = Rect::new(area.x, area.bottom() - 1, area.width, 1);

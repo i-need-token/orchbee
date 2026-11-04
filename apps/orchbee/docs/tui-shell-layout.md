@@ -278,8 +278,10 @@ existing keyboard route remains available.
 Project and Workspace primary rows support primary-button dragging; disclosure and Create remain
 independent controls. The Recents heading is neither a drag source nor a drop destination. Movement of two columns or one row latches a drag, even if the pointer returns
 to its origin. While dragging, the held entry moves to its destination in the list itself, across
-Projects too, and the other rows close up around it; it is dimmed where it now stands, and the
-localized status names the actual before/after/into result. On a Workspace entry, its Agent rows
+Projects too, and the other rows close up around it. Nothing dims: a held Workspace takes the
+current fill where it now stands, in place of the displayed Workspace, and its Agent rows and
+disclosure fold away until the drag ends; a held Project keeps its look. The localized status names
+the actual before/after/into result. On a Workspace entry, its Agent rows
 included, the pointer places the held Workspace before that entry from the entry's upper half and
 after it from the lower half; on a one-line entry the side away from the held entry decides.
 Grouping follows the destination Workspace. A Project heading with no other Workspace shown under it
@@ -287,8 +289,10 @@ takes the Workspace in; otherwise the heading is the Project's top edge: from ab
 becomes its first, from below it follows the Workspace shown just above the heading. Projects
 reorder on other Project headers as complete groups, by the same one-line rule. The held entry, gaps
 and rows that are no entry keep the shown destination, so a pointer resting where the move put the
-entry never makes it oscillate. A bottom footer drop area appears only during dragging: No Project
-moves a Workspace out of its group; End of Projects appends a Project. Outside the list, and on a
+entry never makes it oscillate. During dragging, every free row below the list accepts a drop,
+and one sidebar action row names it, a blank row below the last group when there is room: No
+Project moves a Workspace out of its group; End of Projects appends a Project. It shows hovered
+while the pointer is on the free rows. Outside the list, and on a
 destination that changes nothing, the canonical order shows; an invalid destination keeps the shown
 one. The window keeps its top row index while rows move under the pointer. Holding at the list edge
 scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains
@@ -312,6 +316,10 @@ drag's order before it records its targets, so a destination always resolves aga
 screen. One `navigation.configure` changes
 membership/order through the existing serialized setup and known-receipt recovery lane; current
 terminal and keyboard focus remain unchanged. No operation is automatically rebased or resubmitted.
+When the person ends a Workspace drag, by a release anywhere or Escape, that Workspace becomes
+current through the ordinary sidebar selection, as a click on it would, and the sidebar keeps its
+fill until the switch settles. The sidebar stays open. Other endings leave the displayed Workspace
+current.
 
 An admitted drop immediately displays its reversible order through the active Client navigation
 projection, which takes over from the drag's order before the next frame, so a release never shows

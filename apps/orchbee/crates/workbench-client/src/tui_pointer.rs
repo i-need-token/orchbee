@@ -486,6 +486,8 @@ pub struct PointerState {
     menu_rest: menu_rest::State,
     /// A published frame moved or ended a sidebar drag whose order is still on screen.
     sidebar_reorder_redraw: bool,
+    /// The Workspace a drag the person ended held, which becomes current.
+    sidebar_reorder_switch: Option<crate::machine_picker::SidebarTarget>,
 }
 
 impl PointerState {

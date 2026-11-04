@@ -359,16 +359,22 @@ impl SidebarReorder {
         })
     }
 
+    /// The entry a latched drag holds.
+    fn held(&self) -> Option<SidebarTarget> {
+        self.dragging.then(|| self.target.target().clone())
+    }
+
+    /// The Workspace a latched drag holds; it stays current however the person ends the drag.
+    fn held_workspace(&self) -> Option<SidebarTarget> {
+        self.held()
+            .filter(|_| matches!(self.item, Item::Workspace(_)))
+    }
+
     fn preview(&self, map: &FrameHitMap) -> Option<SidebarReorderDraw> {
         if !self.frames(map) {
             return None;
         }
         Some(SidebarReorderDraw {
-            grabbed: self
-                .entries(map)
-                .into_iter()
-                .find(|entry| entry.item == self.item)
-                .map(|entry| entry.block),
             destination: self
                 .shown
                 .as_ref()
@@ -485,6 +491,24 @@ impl PointerState {
         };
         drag.order()
     }
+    /// The entry a drag holds while it shows its order.
+    pub(crate) fn sidebar_reorder_held(&self) -> Option<SidebarTarget> {
+        let Gesture::SidebarReorder(drag) = &self.gesture else {
+            return None;
+        };
+        drag.held()
+    }
+    /// Escape ends a drag as the person's own cancel: its held Workspace stays current.
+    pub(crate) fn escape_sidebar_reorder(&mut self) -> bool {
+        if let Gesture::SidebarReorder(drag) = &self.gesture {
+            self.sidebar_reorder_switch = drag.held_workspace();
+        }
+        self.cancel_sidebar_reorder()
+    }
+    /// The Workspace to make current after the person ended a drag that held it.
+    pub(crate) fn take_sidebar_reorder_switch(&mut self) -> Option<SidebarTarget> {
+        self.sidebar_reorder_switch.take()
+    }
 
     pub(crate) fn cancel_sidebar_reorder(&mut self) -> bool {
         if !self.sidebar_reorder_captured() {
@@ -585,6 +609,7 @@ impl PointerState {
         }
         let map = self.map.as_ref().expect("alive drag has an admitted frame");
         if release {
+            self.sidebar_reorder_switch = drag.held_workspace();
             if drag.dragging {
                 // A release where the last motion left the pointer commits the move shown there;
                 // a terminal that reports it elsewhere first moves the destination to it.

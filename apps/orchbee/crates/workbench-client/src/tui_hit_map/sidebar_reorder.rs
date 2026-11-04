@@ -16,8 +16,6 @@ pub(crate) struct SidebarReorderPaint {
 
 /// What a sidebar drag adds over a frame that already shows its move in place.
 pub struct SidebarReorderDraw {
-    /// Every line of the held entry where the move puts it.
-    pub(crate) grabbed: Option<Rect>,
     /// The shown move as the status line names it.
     pub(crate) destination: Option<(Placement, String)>,
     pub(crate) footer: Rect,

@@ -245,8 +245,10 @@ fn paint(view: &ClientView, lines: u16) -> FrameHitMap {
 }
 /// One shell frame: the drag's order reaches the sidebar, which paints and publishes.
 fn repaint(pointer: &mut PointerState, view: &mut ClientView, lines: u16) -> FrameHitMap {
-    view.machines
-        .preview_sidebar_reorder(pointer.sidebar_reorder_order());
+    view.machines.preview_sidebar_reorder(
+        pointer.sidebar_reorder_order(),
+        pointer.sidebar_reorder_held(),
+    );
     let map = paint(view, lines);
     pointer.publish(map.clone());
     map
@@ -272,6 +274,19 @@ fn row(map: &FrameHitMap, item: Item) -> Rect {
             (target.part() == SidebarPart::Primary
                 && Item::from_target(target.target()).as_ref() == Some(&item))
             .then_some(region.rect)
+        })
+        .unwrap()
+}
+fn sidebar_target(map: &FrameHitMap, item: Item) -> SidebarTarget {
+    map.regions
+        .iter()
+        .find_map(|region| {
+            let InteractionTarget::Sidebar(target) = region.interaction.as_ref()?.target() else {
+                return None;
+            };
+            (target.part() == SidebarPart::Primary
+                && Item::from_target(target.target()).as_ref() == Some(&item))
+            .then(|| target.target().clone())
         })
         .unwrap()
 }
@@ -813,17 +828,10 @@ fn a_drag_moves_the_held_row_live_and_its_release_submits_the_order_shown() {
         MouseAction::Motion,
         lower,
     );
-    assert!(
-        !view
-            .machines
-            .preview_sidebar_reorder(pointer.sidebar_reorder_order())
-    );
-    let preview = pointer
-        .sidebar_reorder_preview()
-        .unwrap()
-        .resolve(&map)
-        .unwrap();
-    assert_eq!(preview.grabbed, Some(row(&map, w(0))));
+    assert!(!view.machines.preview_sidebar_reorder(
+        pointer.sidebar_reorder_order(),
+        pointer.sidebar_reorder_held(),
+    ));
 
     // Onto the next Project's heading from above: the held row becomes its first Workspace.
     let heading = row(&map, p2.clone());
@@ -853,11 +861,10 @@ fn a_drag_moves_the_held_row_live_and_its_release_submits_the_order_shown() {
         MouseAction::Motion,
         heading,
     );
-    assert!(
-        !view
-            .machines
-            .preview_sidebar_reorder(pointer.sidebar_reorder_order())
-    );
+    assert!(!view.machines.preview_sidebar_reorder(
+        pointer.sidebar_reorder_order(),
+        pointer.sidebar_reorder_held(),
+    ));
 
     send(
         &mut pointer,
@@ -894,6 +901,7 @@ fn escape_or_a_release_outside_the_list_restores_the_canonical_order() {
     for outside in [false, true] {
         let (mut pointer, mut view, mut port, map) = fixture();
         let canonical = shown(&view);
+        let held = sidebar_target(&map, Item::Workspace(workspace(0)));
         let origin = row(&map, Item::Workspace(workspace(0)));
         let target = row(&map, Item::Project(project(2)));
         send(
@@ -912,6 +920,8 @@ fn escape_or_a_release_outside_the_list_restores_the_canonical_order() {
         );
         repaint(&mut pointer, &mut view, 1);
         assert_ne!(shown(&view), canonical);
+        // The held Workspace shows as current from the moment the drag latches.
+        assert_eq!(view.machines.sidebar_current_override(), Some(&held));
         if outside {
             let beyond = Rect { x: 40, ..target };
             send(
@@ -936,12 +946,18 @@ fn escape_or_a_release_outside_the_list_restores_the_canonical_order() {
             );
         } else {
             // The route Escape takes through the dispatcher.
-            assert!(pointer.cancel_sidebar_reorder());
+            assert!(pointer.escape_sidebar_reorder());
         }
         repaint(&mut pointer, &mut view, 1);
         assert_eq!(shown(&view), canonical);
         assert!(port.writes.is_empty());
         assert!(!pointer.sidebar_reorder_captured());
+        // However the person ends it, the held Workspace stays current: the dispatcher switches
+        // to it, and the sidebar keeps it filled until that switch settles.
+        assert_eq!(pointer.take_sidebar_reorder_switch(), Some(held.clone()));
+        assert!(view.machines.switch_to_held_workspace(&held));
+        assert_eq!(view.machines.request, held.selection());
+        assert_eq!(view.machines.sidebar_current_override(), Some(&held));
     }
 }
 
