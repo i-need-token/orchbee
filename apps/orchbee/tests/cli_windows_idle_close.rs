@@ -1,13 +1,15 @@
 //! Closing a Tab or Panel of a real PowerShell: the CLI, Server, Worker and Zig Host under test and
 //! a TUI Client running in a terminal of a second Session, driven like a person does. A shell at its
 //! prompt closes without a confirmation from every route; a program running in it still asks, also
-//! in a Tab this Client has no viewer of and in a Presentation it does not show.
+//! in a Tab this Client has no viewer of and in a Presentation it does not show. A set of such Tabs
+//! closes unasked, and one running program among them makes the whole set ask once.
 #![cfg(windows)]
 
 #[allow(dead_code)]
 #[path = "support/windows_tui_session.rs"]
 mod session;
 
+use serde_json::Value;
 use session::{Control, Fixture, Tui, system_program};
 use std::{
     thread,
@@ -18,6 +20,8 @@ const COLUMNS: u16 = 112;
 const ROWS: u16 = 32;
 const TAB_DIALOG: &str = "Close Tab?";
 const PANEL_DIALOG: &str = "Close Panel?";
+const SET_DIALOG: &str = "Close 3 Tabs?";
+const CLOSE_OTHERS: &str = "Close 3 other Tabs";
 /// How long a pointer button stays down.
 const HOLD: Duration = Duration::from_millis(80);
 /// Bounds how long a shell, a program's output or a close may take to show.
@@ -189,8 +193,8 @@ impl Driver {
         self.click(column, row);
     }
 
-    /// The labels of the Workspace's Tabs, as the Server holds them.
-    fn tab_labels(&self, workspace: &str) -> Vec<String> {
+    /// The Workspace's Tabs, as the Server holds them.
+    fn tabs(&self, workspace: &str) -> Vec<Value> {
         let read = self.fixture.run(&["api", "snapshot"]);
         assert_eq!(read.code, Some(0), "{read}");
         let snapshot = &read.document["result"]["snapshot"];
@@ -209,9 +213,37 @@ impl Driver {
             .unwrap_or_else(|| panic!("no context {context}: {snapshot}"))["tabs"]
             .as_array()
             .unwrap()
+            .clone()
+    }
+
+    /// The labels of the Workspace's Tabs, as the Server holds them.
+    fn tab_labels(&self, workspace: &str) -> Vec<String> {
+        self.tabs(workspace)
             .iter()
             .map(|tab| tab["label"].as_str().unwrap_or_default().to_owned())
             .collect()
+    }
+
+    /// Waits until this Client selects the Workspace's Tab named `label`.
+    fn await_selected(&self, workspace: &str, label: &str) {
+        let tab = self
+            .tabs(workspace)
+            .into_iter()
+            .find(|tab| tab["label"] == label)
+            .unwrap_or_else(|| panic!("no Tab {label} in {workspace}"))["tabId"]
+            .clone();
+        let deadline = Instant::now() + LANDING;
+        loop {
+            let selection = self.fixture.client(&self.tui.client)["view"]["selection"].clone();
+            if selection["tabId"] == tab {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the selection never reached {label}: {selection}"
+            );
+            thread::sleep(POLL);
+        }
     }
 
     /// Waits until the Server follows the Workspace's first terminal to `directory`.
@@ -268,17 +300,26 @@ impl Driver {
         driver
     }
 
-    /// Closes the other Tabs of `second` from its menu and requires every one of them to go,
-    /// through the completed form, without the sequence ever reporting that it stopped.
+    /// Closes the other Tabs of `second` from its menu. Every one of them sits at its prompt, so
+    /// the set closes them without asking.
     fn close_others_of_second_completes(&mut self) {
-        self.choose_in_tab_menu("second", "Close 3 other Tabs");
-        self.await_screen("the set's confirmation", |screen| {
-            screen.contains("Close 3 Tabs?")
-        });
-        self.control.input(b"\r");
+        self.choose_in_tab_menu("second", CLOSE_OTHERS);
+        self.await_set_finished();
+    }
+
+    /// Requires the running set to close every other Tab of `second` through its completed form,
+    /// without presenting a confirmation or ever reporting that it stopped, and the selection to
+    /// land on `second`, the one Tab left outside the set.
+    fn await_set_finished(&self) {
         let deadline = Instant::now() + LANDING;
         loop {
             let screen = self.screen();
+            for dialog in [SET_DIALOG, TAB_DIALOG] {
+                assert!(
+                    !screen.contains(dialog),
+                    "the set presented {dialog}:\n{screen}"
+                );
+            }
             assert!(
                 !screen.contains("Closing stopped"),
                 "the set stopped partway:\n{screen}"
@@ -293,6 +334,7 @@ impl Driver {
             thread::sleep(POLL);
         }
         assert_eq!(self.tab_labels(FOLLOWED), ["second"]);
+        self.await_selected(FOLLOWED, "second");
         self.await_screen("the completed form to clear", |screen| {
             !screen.contains("3 Tabs closed")
         });
@@ -307,8 +349,8 @@ fn strip_lacks(label: &'static str) -> impl Fn(&str) -> bool {
     move |screen| !screen.lines().next().unwrap().contains(label)
 }
 
-/// The retest's report: Tab 2's menu with Tab 4 selected, so the set closes the first terminal,
-/// then a background Tab, then the selected one.
+/// The retest's report: Tab 2's menu with Tab 4 selected. The set closes the first terminal and
+/// then the other two, and the selection moves back to Tab 2.
 #[test]
 fn closing_the_other_tabs_finishes_when_the_first_terminal_is_among_them() {
     let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-first-");
@@ -321,32 +363,32 @@ fn closing_the_other_tabs_finishes_when_the_first_terminal_is_among_them() {
     driver.finish();
 }
 
-/// An outside rename mid-set stops what is left, reports it at this width, and leaves no report
-/// behind. The rename goes out right after the first close starts and lands well before the last.
+/// A program running in one of the other Tabs makes the whole set ask once. Cancelled, the set
+/// leaves every Tab open; confirmed, it closes them all, the running program too, and finishes.
 #[test]
-fn an_outside_change_stops_the_other_tabs_closing_and_its_report_clears() {
-    let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-outside-");
-    driver.choose_in_tab_menu("second", "Close 3 other Tabs");
+fn a_program_running_in_one_of_the_other_tabs_makes_the_set_ask_once() {
+    let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-busy-");
+    driver.run_in_focus("ping -t 127.0.0.1", "Reply from");
+    driver.choose_in_tab_menu("second", CLOSE_OTHERS);
+    driver.assert_asks_and_cancel("the set over a running program", SET_DIALOG);
+    assert_eq!(
+        driver.tab_labels(FOLLOWED)[1..],
+        ["second", "third", "fourth"]
+    );
+
+    driver.choose_in_tab_menu("second", CLOSE_OTHERS);
     driver.await_screen("the set's confirmation", |screen| {
-        screen.contains("Close 3 Tabs?")
+        screen.contains(SET_DIALOG)
     });
     driver.control.input(b"\r");
-    let renamed = driver
-        .fixture
-        .run(&["workspace", "rename", FOLLOWED, "--label", "renamed"]);
-    assert_eq!(renamed.code, Some(0), "{renamed}");
-    driver.await_screen("the stopped set's report", |screen| {
-        screen.contains("Closing stopped: ") && screen.contains(" still open")
+    driver.await_screen("the answered confirmation", |screen| {
+        !screen.contains(SET_DIALOG)
     });
-    assert!(driver.tab_labels("renamed").contains(&"fourth".to_owned()));
-    driver.await_screen("the report to clear", |screen| {
-        !screen.contains("Closing stopped")
-    });
-    assert!(driver.tab_labels("renamed").contains(&"fourth".to_owned()));
+    driver.await_set_finished();
     driver.finish();
 }
 
-/// The same set closing the selected first Tab first, which moves the selection before the rest.
+/// The same set with its first member selected, so the selection moves on to Tab 2.
 #[test]
 fn closing_the_other_tabs_finishes_when_the_selected_first_terminal_is_among_them() {
     let mut driver = Driver::start_with_first_terminal_apart("orchbee-set-selected-");
