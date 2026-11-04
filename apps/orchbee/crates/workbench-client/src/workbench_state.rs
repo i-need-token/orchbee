@@ -20,7 +20,6 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use crate::workbench_projection::project_preferred_workspace;
 mod close_impact;
-pub(crate) use close_impact::CloseTerminal;
 mod context_removal;
 mod context_selection;
 pub(crate) mod control_takeover;

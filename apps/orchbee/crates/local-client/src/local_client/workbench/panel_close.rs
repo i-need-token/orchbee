@@ -1,6 +1,7 @@
-//! Submits a captured Panel close and validates the returned scope and accepted close identity
-//! while preserving non-submission and uncertain-delivery distinctions. It does not infer
-//! physical disposal from acceptance or decide confirmation policy.
+//! Submits a captured Panel close, or the conditional one the Server may answer with a required
+//! confirmation, and validates the returned scope and accepted close identity while preserving
+//! non-submission and uncertain-delivery distinctions. It does not infer physical disposal from
+//! acceptance or decide confirmation policy.
 
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
@@ -16,7 +17,10 @@ pub struct WorkbenchPanelCloseRequest(WorkbenchCommand);
 impl TryFrom<WorkbenchCommand> for WorkbenchPanelCloseRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
-        if matches!(command.action, WorkbenchAction::PanelClose { .. }) {
+        if matches!(
+            command.action,
+            WorkbenchAction::PanelClose { .. } | WorkbenchAction::PanelCloseIfIdle { .. }
+        ) {
             Ok(Self(command))
         } else {
             Err(command)
@@ -166,13 +170,18 @@ fn classify_command_result(
             received: result.request_id,
         });
     }
-    let WorkbenchAction::PanelClose {
-        terminal_context_id: expected_context,
-        tab_id: expected_tab,
-        panel_id: expected_panel,
-    } = &command.action
-    else {
-        unreachable!("opaque request admits only panel.close")
+    let (expected_context, expected_tab, expected_panel, conditional) = match &command.action {
+        WorkbenchAction::PanelClose {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } => (terminal_context_id, tab_id, panel_id, false),
+        WorkbenchAction::PanelCloseIfIdle {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } => (terminal_context_id, tab_id, panel_id, true),
+        _ => unreachable!("opaque request admits only panel.close and panel.close-if-idle"),
     };
     match result.outcome {
         WorkbenchCommandOutcome::PanelCloseAccepted {
@@ -223,18 +232,23 @@ fn classify_command_result(
         WorkbenchCommandOutcome::Denied {} => Ok(WorkbenchPanelCloseSubmission::DefinitePrecommit(
             WorkbenchPanelClosePrecommit::Denied,
         )),
+        // Only a conditional close may come back asking for confirmation, and only at the
+        // revision it was admitted against.
         WorkbenchCommandOutcome::Rejected { revision, reason }
-            if matches!(
-                reason,
-                WorkbenchRejectionReason::SessionMismatch
-                    | WorkbenchRejectionReason::RevisionMismatch
-                    | WorkbenchRejectionReason::TerminalContextUnavailable
-                    | WorkbenchRejectionReason::TabUnavailable
-                    | WorkbenchRejectionReason::PanelUnavailable
-                    | WorkbenchRejectionReason::ResourceLimit
-                    | WorkbenchRejectionReason::RevisionExhausted
-                    | WorkbenchRejectionReason::RequestIdentityConflict
-            ) =>
+            if (conditional
+                && reason == WorkbenchRejectionReason::ConfirmationRequired
+                && revision == command.expected_revision)
+                || matches!(
+                    reason,
+                    WorkbenchRejectionReason::SessionMismatch
+                        | WorkbenchRejectionReason::RevisionMismatch
+                        | WorkbenchRejectionReason::TerminalContextUnavailable
+                        | WorkbenchRejectionReason::TabUnavailable
+                        | WorkbenchRejectionReason::PanelUnavailable
+                        | WorkbenchRejectionReason::ResourceLimit
+                        | WorkbenchRejectionReason::RevisionExhausted
+                        | WorkbenchRejectionReason::RequestIdentityConflict
+                ) =>
         {
             Ok(WorkbenchPanelCloseSubmission::DefinitePrecommit(
                 WorkbenchPanelClosePrecommit::Rejected { revision, reason },

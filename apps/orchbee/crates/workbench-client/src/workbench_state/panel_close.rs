@@ -88,9 +88,6 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(crate) fn tab_id(&self) -> &'a WorkbenchTabId {
         &self.confirmation.selection.target.tab_id
     }
-    pub(crate) fn panel_id(&self) -> &'a WorkbenchPanelId {
-        &self.confirmation.selection.target.panel_id
-    }
     pub(crate) const fn panel_position(&self) -> usize {
         self.confirmation.selection.panel_position
     }
@@ -240,16 +237,6 @@ impl WorkbenchClientState {
         self.panel_close.cancel_confirmation();
     }
 
-    /// Admits the open confirmation of `token` without presenting it: the caller proved that the
-    /// Panel's terminal is a shell at its prompt, so closing it loses nothing.
-    pub(crate) fn admit_unconfirmed_panel_close(
-        &mut self,
-        token: PanelCloseConfirmationToken,
-    ) -> bool {
-        self.panel_close.acknowledge_draw(Some(token));
-        self.panel_close.confirmed_selection(token).is_ok()
-    }
-
     pub(crate) fn acknowledge_panel_close_draw(
         &mut self,
         prompt: Option<PanelCloseConfirmationToken>,
@@ -338,6 +325,52 @@ impl WorkbenchClientState {
             .ok_or(PanelCloseStateError::Busy)
     }
 
+    /// Plans the conditional close of the armed confirmation `token`, which stays hidden while the
+    /// Server decides whether closing the Panel asks first.
+    pub(crate) fn plan_panel_close_if_idle(
+        &self,
+        token: PanelCloseConfirmationToken,
+        request_id: WorkbenchRequestId,
+        deadline: Instant,
+    ) -> Result<PanelOperation, PanelCloseStateError> {
+        if self.pending_panel().is_some() {
+            return Err(PanelCloseStateError::Busy);
+        }
+        let selection = self
+            .panel_close
+            .confirmation
+            .as_ref()
+            .filter(|prompt| prompt.token == token)
+            .map(|prompt| &prompt.selection)
+            .ok_or(PanelCloseStateError::StaleConfirmation)?;
+        if !self.panel_close_selection_matches(selection) {
+            return Err(PanelCloseStateError::StaleConfirmation);
+        }
+        self.plan_panel(request_id, PanelRequestKind::CloseIfIdle, deadline)
+            .ok_or(PanelCloseStateError::Busy)
+    }
+
+    /// Begins the conditional close planned from the armed confirmation, which stays armed, and
+    /// hidden, until the Server answers.
+    pub(crate) fn begin_panel_close_if_idle(
+        &mut self,
+        operation: &PanelOperation,
+    ) -> Result<(), PanelCloseStateError> {
+        let selection = self
+            .panel_close
+            .confirmation
+            .as_ref()
+            .map(|prompt| &prompt.selection)
+            .ok_or(PanelCloseStateError::StaleConfirmation)?;
+        if !self.panel_close_selection_matches(selection)
+            || !matches!(operation.intent(), PanelIntent::CloseIfIdle)
+            || !self.begin_panel(operation.clone())
+        {
+            return Err(PanelCloseStateError::StaleConfirmation);
+        }
+        Ok(())
+    }
+
     /// The confirmation can only ever begin a `PanelIntent::Close`; `begin_panel`
     /// re-plans the operation and refuses any drift since the frozen selection.
     pub(crate) fn begin_panel_close_exchange(
@@ -357,6 +390,13 @@ impl WorkbenchClientState {
 impl<'a> super::WorkbenchClientView<'a> {
     pub(crate) fn panel_close_confirmation(&self) -> Option<PanelCloseConfirmationView<'a>> {
         self.state.panel_close.confirmation()
+    }
+    /// Whether the Server is deciding if the armed Panel close needs asking; its confirmation
+    /// stays hidden until the answer.
+    pub(crate) fn panel_close_deciding(&self) -> bool {
+        self.state
+            .pending_panel()
+            .is_some_and(|operation| matches!(operation.intent(), PanelIntent::CloseIfIdle))
     }
     /// What the armed Panel close ends, from the attachments `settled` reports as Host-settled.
     pub(crate) fn panel_close_impact(

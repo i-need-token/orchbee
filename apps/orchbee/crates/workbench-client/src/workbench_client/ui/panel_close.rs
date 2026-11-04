@@ -52,10 +52,10 @@ impl<'a> PanelCloseConfirmationView<'a> {
 
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn panel_close_confirmation(&self) -> Option<PanelCloseConfirmationView<'a>> {
-        if self.close_probing {
+        let state = self.state.as_ref()?;
+        if state.panel_close_deciding() {
             return None;
         }
-        let state = self.state.as_ref()?;
         let inner = state.panel_close_confirmation()?;
         let impact = state.panel_close_impact(&|pane| self.pane_settled(pane))?;
         let tab = self.tab_by_id(inner.tab_id());
@@ -103,7 +103,7 @@ impl WorkbenchClientUi {
         {
             return ClientActionDisposition::KeepNavigator;
         }
-        // A Panel whose terminal is a shell at its prompt closes without the confirmation.
+        // The Server decides whether closing the Panel asks first.
         if let Some(token) = state
             .view()
             .panel_close_confirmation()

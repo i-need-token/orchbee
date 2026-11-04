@@ -421,7 +421,7 @@ fn intent_tag(intent: &PanelIntent) -> IntentTag {
     match intent {
         PanelIntent::Split { .. } => IntentTag::Split,
         PanelIntent::Move { .. } => IntentTag::Move,
-        PanelIntent::Close => IntentTag::Close,
+        PanelIntent::Close | PanelIntent::CloseIfIdle => IntentTag::Close,
     }
 }
 
@@ -2295,7 +2295,7 @@ fn commit_edit(
                 None,
             ))
         }
-        PanelIntent::Close => Err("close has no commit"),
+        PanelIntent::Close | PanelIntent::CloseIfIdle => Err("close has no commit"),
     }
 }
 
@@ -2376,7 +2376,9 @@ fn settle_class_legal(
         PanelSettleClass::Unchanged | PanelSettleClass::TabUnavailableGone => {
             matches!(intent, PanelIntent::Move { .. })
         }
-        PanelSettleClass::CloseAccepted => matches!(intent, PanelIntent::Close),
+        PanelSettleClass::CloseAccepted => {
+            matches!(intent, PanelIntent::Close | PanelIntent::CloseIfIdle)
+        }
         _ => true,
     }
 }
@@ -2831,7 +2833,7 @@ fn apply_panel_result(
                         return Err("move merge did not relocate the leaf");
                     }
                 }
-                PanelIntent::Close => return Err("close committed"),
+                PanelIntent::Close | PanelIntent::CloseIfIdle => return Err("close committed"),
             }
             trace.delivered_tabs = trace.server_tabs.clone();
             trace.coverage.panel_merges += 1;

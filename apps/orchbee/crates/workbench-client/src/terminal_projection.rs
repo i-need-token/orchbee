@@ -97,13 +97,6 @@ impl TerminalProjection {
         self.end = Some(end);
         Ok(true)
     }
-    /// What the shell in this terminal reports about itself, by its latest frame.
-    pub(crate) fn shell_report(&self) -> ShellReport {
-        self.frame
-            .as_deref()
-            .map_or(ShellReport::Silent, ShellReport::of)
-    }
-
     pub fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_deref()
     }
@@ -327,67 +320,6 @@ impl TerminalProjection {
         Ok(())
     }
 }
-/// What a shell's own integration says about the terminal's foreground. Neither fact below is
-/// certain to exist: a console host may drop the reader's private markers, as the system ConHost
-/// does while the bundled ConPTY delivers them, and a shell may mark nothing at all.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ShellReport {
-    /// Its reader is waiting for input.
-    AtPrompt,
-    /// It started a command that has not finished, or its cursor left the prompt it marked.
-    Running,
-    /// Nothing that can decide: no integration, a screen that holds no mark, or a full-screen view.
-    Silent,
-}
-
-impl ShellReport {
-    /// The reader's correlated markers answer first. Otherwise the OSC 133 marks on the screen
-    /// rows do: every console host lets them through, and a prompt redrawn after a clear erases its
-    /// marks, so an unmarked screen never reads as a running command.
-    fn of(frame: &TerminalTextFrame) -> Self {
-        if let Some(observation) = &frame.command_observation {
-            if observation.ready {
-                return Self::AtPrompt;
-            }
-            if observation
-                .command
-                .is_some_and(|command| !command.completed)
-            {
-                return Self::Running;
-            }
-        }
-        if frame.alternate_screen {
-            return Self::Silent;
-        }
-        // Only the prompt class is the shell's mark. The terminal also stamps the continuation class
-        // on rows a prompt's state reached, blank rows and program output among them, and a repaint
-        // decides which keep it, so that class says nothing about where the shell is.
-        let marked = |row: &TerminalTextRow| row.prompt_class == ROW_PROMPT;
-        // Input longer than the row wraps onto rows of the same logical line.
-        let mut line = usize::from(frame.cursor.row);
-        while line > 0
-            && frame
-                .rows
-                .get(line)
-                .is_some_and(|row| !marked(row) && row.flags & ROW_WRAP_CONTINUATION != 0)
-        {
-            line -= 1;
-        }
-        if frame.rows.get(line).is_some_and(marked) {
-            Self::AtPrompt
-        } else if frame.rows.iter().take(line).any(marked) {
-            Self::Running
-        } else {
-            Self::Silent
-        }
-    }
-}
-
-/// The frame row flag of a row continuing the wrapped row above it.
-const ROW_WRAP_CONTINUATION: u8 = 2;
-/// The `TerminalTextRow::prompt_class` of a row holding a marked prompt.
-const ROW_PROMPT: u8 = 1;
-
 const fn reject(operation: Operation, stage: Stage) -> ProjectionRejection {
     ProjectionRejection::new(operation, stage)
 }

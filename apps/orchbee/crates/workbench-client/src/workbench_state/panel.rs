@@ -27,9 +27,16 @@ use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PanelRequestKind {
-    Split { direction: PanelDirection },
+    Split {
+        direction: PanelDirection,
+    },
     Close,
-    Move { direction: PanelDirection },
+    /// The close the Server admits only when nothing runs in the Panel, and otherwise answers that
+    /// the user must confirm.
+    CloseIfIdle,
+    Move {
+        direction: PanelDirection,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -40,6 +47,7 @@ pub(crate) enum PanelIntent {
         geometry: WorkbenchTerminalGeometry,
     },
     Close,
+    CloseIfIdle,
     Move {
         target_panel_id: WorkbenchPanelId,
         direction: WorkbenchPanelSplitDirection,
@@ -217,7 +225,7 @@ impl PendingPanelCommit {
                     .commit
                     .new_panel_id()
                     .is_some_and(|panel_id| tab.panel_index(panel_id).is_none()),
-                PanelIntent::Close => false,
+                PanelIntent::Close | PanelIntent::CloseIfIdle => false,
             }
     }
 
@@ -417,6 +425,8 @@ impl PreparedPanel {
 
 enum PreparedPanelResult {
     NotApplied,
+    /// The Server asks before this conditional close: the armed confirmation presents.
+    ConfirmationRequired,
     Unchanged,
     CloseAccepted,
     Committed {
@@ -509,6 +519,7 @@ impl WorkbenchClientState {
                 .ok()?,
             },
             PanelRequestKind::Close => PanelIntent::Close,
+            PanelRequestKind::CloseIfIdle => PanelIntent::CloseIfIdle,
             PanelRequestKind::Move { direction } => {
                 let target = tab
                     .panel_focus_target(active.panel_index(), direction)
@@ -552,6 +563,12 @@ impl WorkbenchClientState {
         result: PanelResult,
     ) -> PreparedPanel {
         let result = match result {
+            PanelResult::Precommit(PanelPrecommit::Rejected {
+                reason: WorkbenchRejectionReason::ConfirmationRequired,
+                ..
+            }) if operation.intent == PanelIntent::CloseIfIdle => {
+                PreparedPanelResult::ConfirmationRequired
+            }
             PanelResult::NotSubmitted | PanelResult::Precommit(_) => {
                 PreparedPanelResult::NotApplied
             }
@@ -680,9 +697,17 @@ impl WorkbenchClientState {
             self.retire(CarrierFailure::Protocol);
             return PanelDecision::Retire;
         }
+        // A conditional close that went ahead or was refused withdraws its armed confirmation.
+        if prepared.operation.intent == PanelIntent::CloseIfIdle
+            && !matches!(prepared.result, PreparedPanelResult::ConfirmationRequired)
+        {
+            self.cancel_panel_close_confirmation();
+        }
         match prepared.result {
             PreparedPanelResult::NotApplied => self.notice = Some(ClientNotice::PanelNotApplied),
-            PreparedPanelResult::Unchanged => self.notice = None,
+            PreparedPanelResult::Unchanged | PreparedPanelResult::ConfirmationRequired => {
+                self.notice = None;
+            }
             PreparedPanelResult::CloseAccepted => {
                 self.notice = None;
                 self.note_publication_hint();

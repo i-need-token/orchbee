@@ -9,7 +9,7 @@ pub(super) use crate::primary_directory::RootDirectory;
 use crate::primary_directory::decode_root;
 
 impl ClientExecutor {
-    pub(super) fn source_viewer(
+    fn source_viewer(
         &mut self,
         action: TerminalViewerAction,
         deadline: Instant,

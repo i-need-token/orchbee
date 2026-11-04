@@ -20,7 +20,7 @@ use orchbee_terminal_protocol::{
 
 /// One admitted process sample of `attachment_id`. `Ok(None)` is an admitted Server or Host
 /// refusal, never absence.
-pub(crate) fn decode_process_info(
+fn decode_process_info(
     response: TerminalViewerOutcome,
     attachment_id: &orchbee_client_server_protocol::ViewerId,
     host_epoch: &orchbee_client_server_protocol::HostEpoch,

@@ -319,8 +319,6 @@ pub struct WorkbenchClientView<'a> {
     command_notice: Option<WorkbenchClientNotice>,
     notice_context: Option<&'a NoticeContext>,
     popup: Option<&'a crate::independent_popup::Driver>,
-    /// A Tab or Panel close stays hidden while its terminals are sampled for idleness.
-    close_probing: bool,
 }
 
 pub(crate) use crate::localization::LaunchFailure;
@@ -1204,7 +1202,6 @@ impl<'a> WorkbenchClientView<'a> {
             command_notice: None,
             notice_context: None,
             popup: None,
-            close_probing: false,
         }
     }
 
@@ -1244,7 +1241,6 @@ impl<'a> WorkbenchClientView<'a> {
             command_notice: None,
             notice_context: None,
             popup: None,
-            close_probing: false,
         }
     }
 }
@@ -1367,7 +1363,9 @@ pub(super) struct WorkbenchClientUi {
     copy_query: crate::terminal_copy_query::lane::Driver,
     popup: crate::independent_popup::Driver,
     command_notice: super::command_notice::CommandNotice,
-    idle_close: idle_close::IdleClose,
+    /// Whether closing one Tab or Panel first asks the Server if it may close unasked. Harnesses
+    /// that script every Server exchange present each confirmation instead.
+    idle_close: bool,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -1474,11 +1472,11 @@ impl WorkbenchClientUi {
             .confirming_every_close()
     }
 
-    /// Presents every Tab and Panel close confirmation without sampling its terminals, for
-    /// harnesses that script each Host exchange.
+    /// Presents every Tab and Panel close confirmation without asking the Server first, for
+    /// harnesses that script each Server exchange.
     #[cfg(any(test, feature = "test-support"))]
     pub(super) fn confirming_every_close(mut self) -> Self {
-        self.idle_close = idle_close::IdleClose::new(false);
+        self.idle_close = false;
         self
     }
     pub(super) fn with_capabilities(
@@ -1515,7 +1513,7 @@ impl WorkbenchClientUi {
             copy_query: crate::terminal_copy_query::lane::Driver::new(clock.clone()),
             popup: crate::independent_popup::Driver::new(clock.clone()),
             command_notice: super::command_notice::CommandNotice::default(),
-            idle_close: idle_close::IdleClose::new(true),
+            idle_close: true,
             agent_index: crate::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -1599,7 +1597,6 @@ impl WorkbenchClientUi {
             command_notice,
             notice_context: self.command_notice.context(),
             popup: Some(&self.popup),
-            close_probing: self.idle_close.probing(),
             worktree: Some(&self.worktrees.launcher),
             menu: Some(&self.menus),
             settings: Some(&self.settings),
@@ -1943,7 +1940,6 @@ impl WorkbenchClientUi {
                     changed = true;
                 }
                 changed |= self.drive_worktree();
-                changed |= self.drive_idle_close();
                 changed |= self.drive_action_menu();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
@@ -3736,15 +3732,6 @@ impl WorkbenchClientUi {
             {
                 return self.apply_selection_outcome(mailbox, key, command, outcome);
             }
-            if let WorkerEvent::CloseProbeOutcome {
-                probe,
-                binding,
-                sample,
-                report,
-            } = event
-            {
-                return self.apply_idle_close_probe(&binding, probe, sample, report);
-            }
             // Viewport outcomes are fire-and-forget publications: a stale
             // incarnation's outcome (or one for a core that already retired)
             // drops silently — unlike pane facts it never diverges
@@ -3936,8 +3923,7 @@ impl WorkbenchClientUi {
                 | WorkerEvent::SwitchSnapshotResult { .. }
                 | WorkerEvent::MembershipCleanupSkipped { .. }
                 | WorkerEvent::ViewportOutcome { .. }
-                | WorkerEvent::SelectionOutcome { .. }
-                | WorkerEvent::CloseProbeOutcome { .. } => {
+                | WorkerEvent::SelectionOutcome { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
                 WorkerEvent::SwitchForwardExpired { .. } => return Err(CarrierFailure::Protocol),

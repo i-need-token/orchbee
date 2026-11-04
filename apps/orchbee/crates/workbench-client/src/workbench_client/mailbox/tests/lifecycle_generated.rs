@@ -3467,7 +3467,7 @@ impl Trace {
                     PanelRequestKind::Move { .. } => {
                         WorkbenchCommandUnavailableReason::TerminalBusy
                     }
-                    PanelRequestKind::Close => {
+                    PanelRequestKind::Close | PanelRequestKind::CloseIfIdle => {
                         WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable
                     }
                 },
@@ -4793,7 +4793,7 @@ fn outcome_table(kind: PanelRequestKind) -> &'static [OutcomeClass] {
     match kind {
         PanelRequestKind::Split { .. } => &SPLIT,
         PanelRequestKind::Move { .. } => &MOVE,
-        PanelRequestKind::Close => &CLOSE,
+        PanelRequestKind::Close | PanelRequestKind::CloseIfIdle => &CLOSE,
     }
 }
 
@@ -4813,7 +4813,7 @@ const fn kind_index(kind: PanelRequestKind) -> usize {
     match kind {
         PanelRequestKind::Split { .. } => 0,
         PanelRequestKind::Move { .. } => 1,
-        PanelRequestKind::Close => 2,
+        PanelRequestKind::Close | PanelRequestKind::CloseIfIdle => 2,
     }
 }
 
@@ -4981,7 +4981,7 @@ impl Authority {
                     target_panel_id: target_panel_id.clone(),
                 }))
             }
-            PanelIntent::Close => violation("panel close has no commit"),
+            PanelIntent::Close | PanelIntent::CloseIfIdle => violation("panel close has no commit"),
         }
     }
 

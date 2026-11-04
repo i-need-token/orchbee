@@ -219,6 +219,20 @@ impl CloseState {
         }
     }
 
+    /// Follows `capture` from its first Close, submitted as `operation`.
+    pub(super) fn begin_first_set(&mut self, capture: CloseSetCapture, operation: &CloseOperation) {
+        self.set = Some(CloseSetRun {
+            source: Arc::clone(&capture.source),
+            focus: capture.focus.clone(),
+            marked: capture.marked.clone(),
+            capture,
+            completed: 0,
+            deadline: operation.deadline(),
+            step: Step::Waiting(operation.key().clone()),
+            summary: SettledSummary::Pending,
+        });
+    }
+
     // CloseState has already checked the primary/alias identity, generation and monotone facts.
     pub(super) fn observe_set_result(&mut self, operation: &CloseOperation, result: &CloseResult) {
         let Some(set) = &mut self.set else {
@@ -443,39 +457,21 @@ impl WorkbenchClientState {
             && !self.rename_draft_blocks_structure()
     }
 
+    /// The first Close of a frozen set, ordinary or the conditional one of a single Tab.
     pub(super) fn plan_first_close_set(
         &self,
         capture: &CloseSetCapture,
         request: WorkbenchRequestId,
         deadline: Instant,
+        kind: CloseOperationKind,
     ) -> Result<CloseOperation, CloseStateError> {
         if !self.close_set_capture_current(capture) {
             return Err(CloseStateError::StaleConfirmation);
         }
-        Ok(CloseOperation::new(
-            request,
-            capture.first.clone(),
-            CloseOperationKind::Close,
-            deadline,
+        Ok(
+            CloseOperation::new(request, capture.first.clone(), kind, deadline)
+                .with_set_source(Arc::clone(&capture.source)),
         )
-        .with_set_source(Arc::clone(&capture.source)))
-    }
-
-    pub(super) fn begin_first_close_set(
-        &mut self,
-        capture: CloseSetCapture,
-        operation: &CloseOperation,
-    ) {
-        self.close.set = Some(CloseSetRun {
-            source: Arc::clone(&capture.source),
-            focus: capture.focus.clone(),
-            marked: capture.marked.clone(),
-            capture,
-            completed: 0,
-            deadline: operation.deadline(),
-            step: Step::Waiting(operation.key().clone()),
-            summary: SettledSummary::Pending,
-        });
     }
 
     /// Check the old local premises before the membership owner changes them. Checking only

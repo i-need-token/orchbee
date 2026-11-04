@@ -17,7 +17,7 @@ use orchbee_agent_observation_protocol::{
     ShellRoot, classify_shell_root, is_console_host,
 };
 use orchbee_local_ipc::LocalIo;
-use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessConsole, TerminalProcessInfo};
+use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
 use orchbee_workbench_protocol::{Snapshot, WorkbenchPanelId};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -592,45 +592,7 @@ fn same_reservation(a: &AgentLaunchReservation, b: &AgentLaunchReservation) -> b
         && a.binding == b.binding
 }
 
-/// What one process sample proves about the foreground of a terminal a close would end.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CloseSample {
-    /// A recognized interactive shell, and nothing else holds or may hold its console.
-    ShellOnly,
-    /// Another program holds the console, or the root is not an interactive shell.
-    Program,
-    /// The sample cannot tell: it reached its row limit, its root is unreadable, or a row's console
-    /// is not observable.
-    Unknown,
-}
-
-/// Reads a sample the way the Host's close gate reads its process observation: only a member that
-/// holds the Terminal console is a foreground program. A detached or console-less member does not
-/// hold it, unlike the stricter rule that admits an Agent start.
-pub(crate) fn close_sample(sample: &TerminalProcessInfo) -> CloseSample {
-    if sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS {
-        return CloseSample::Unknown;
-    }
-    match root_shell(sample, &agent_start_runtime::interpret(sample)) {
-        ShellRoot::Interactive => {}
-        ShellRoot::Other => return CloseSample::Program,
-        ShellRoot::Unreadable => return CloseSample::Unknown,
-    }
-    let mut verdict = CloseSample::ShellOnly;
-    for row in &sample.processes {
-        if row.pid == sample.root_pid || row.image.as_deref().is_some_and(is_console_host) {
-            continue;
-        }
-        match row.console {
-            TerminalProcessConsole::Attached => return CloseSample::Program,
-            TerminalProcessConsole::Unknown => verdict = CloseSample::Unknown,
-            TerminalProcessConsole::Detached | TerminalProcessConsole::None => {}
-        }
-    }
-    verdict
-}
-
-/// How the sample's root reads as an interactive shell, by the rule every close and start owner shares.
+/// How the sample's root reads as an interactive shell, by the rule the Server's close shares.
 fn root_shell(
     sample: &TerminalProcessInfo,
     interpreted: &[crate::agent_runtime::processes::Process<'_>],

@@ -45,7 +45,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-mod close_probe;
 mod close_reconciliation;
 mod membership;
 mod panel;
@@ -891,10 +890,6 @@ impl ClientExecutor {
                     QueuedCommand::Selection(tagged) => {
                         let deadline = self.client.next_operation_deadline();
                         settle_ready_flow(self.run_selection(&lease, tagged, deadline))
-                    }
-                    QueuedCommand::CloseProbe(probe) => {
-                        let deadline = self.client.next_operation_deadline();
-                        settle_ready_flow(self.run_close_probe(&lease, probe, deadline))
                     }
                     QueuedCommand::Switch(marker) => {
                         self.run_switch(&lease, marker.target().clone())

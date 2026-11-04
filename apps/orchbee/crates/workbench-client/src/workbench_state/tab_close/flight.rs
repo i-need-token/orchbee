@@ -2,12 +2,15 @@
 //! and result evidence across connection-task retirement. It schedules observations without
 //! issuing Server effects or inferring disposal from a lost response.
 
-use super::{CloseFlightKey, CloseIntent, CloseSelection, CloseState, CloseStateError};
+use super::{
+    CloseConfirmation, CloseConfirmationToken, CloseFlightKey, CloseIntent, CloseSelection,
+    CloseState, CloseStateError,
+};
 use crate::exchange_values::workbench::{WorkbenchTabCloseAccepted, WorkbenchTabClosePrecommit};
 use crate::workbench_state::{AttachmentKey, ClientNotice, ClientPhase, WorkbenchClientState};
 use orchbee_workbench_protocol::{
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseReadOutcome,
-    WorkbenchTabCloseResumeOutcome,
+    WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseResumeOutcome,
 };
 use std::time::{Duration, Instant};
 
@@ -22,6 +25,13 @@ pub(crate) enum CloseReadMode {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum CloseOperationKind {
     Close,
+    /// The first Close of one Tab, which the Server admits only when nothing runs in it and
+    /// otherwise answers that the user must confirm. Nothing is retained before it accepts, so the
+    /// Tab leaves only then; `asked_at` is when the user asked, which the pending delay of an
+    /// accepted close counts from.
+    CloseIfIdle {
+        asked_at: Instant,
+    },
     Read {
         expected_operation: Option<WorkbenchRequestId>,
         mode: CloseReadMode,
@@ -176,6 +186,9 @@ impl CloseState {
         operation: &CloseOperation,
         result: &CloseResult,
     ) -> Result<(), CloseStateError> {
+        if let CloseOperationKind::CloseIfIdle { asked_at } = operation.kind() {
+            return self.apply_close_if_idle(operation, *asked_at, result);
+        }
         let target = operation.key().target();
         let index = self
             .record_index(target)
@@ -294,19 +307,92 @@ impl CloseState {
             (
                 CloseOperationKind::Close | CloseOperationKind::Resume { .. },
                 CloseResult::Ambiguous,
-            ) => {
-                let token = self.token().map(super::CloseStatusToken);
-                let record = &mut self.records[index];
-                record.uncertain = true;
-                record.uncertain_exchange = Some(operation.clone());
-                record.unavailable = true;
-                record.displayed = false;
-                record.status_token = token;
-            }
+            ) => self.retain_uncertain(index, operation),
             _ => return Err(CloseStateError::OperationMismatch),
         }
         Ok(())
     }
+
+    /// The exchange may have reached the Server, so its close is followed by reads and never sent
+    /// again.
+    fn retain_uncertain(&mut self, index: usize, operation: &CloseOperation) {
+        let token = self.token().map(super::CloseStatusToken);
+        let record = &mut self.records[index];
+        record.uncertain = true;
+        record.uncertain_exchange = Some(operation.clone());
+        record.unavailable = true;
+        record.displayed = false;
+        record.status_token = token;
+    }
+
+    /// Settles a Close the Server could admit unasked. Accepted, it is retained as a confirmed
+    /// Close is, so only now does the Tab leave; a required confirmation presents the armed one;
+    /// any other refusal withdraws it. An unknown outcome is followed like any other and never
+    /// asked again, since asking could close the Tab twice.
+    fn apply_close_if_idle(
+        &mut self,
+        operation: &CloseOperation,
+        asked_at: Instant,
+        result: &CloseResult,
+    ) -> Result<(), CloseStateError> {
+        if confirmation_required(operation, result) {
+            return Ok(());
+        }
+        let target = operation.key().target();
+        let armed = self
+            .confirmation
+            .as_ref()
+            .is_some_and(|prompt| prompt.intent.selection() == operation.selection());
+        match result {
+            CloseResult::NotSubmitted | CloseResult::Precommit(_) => {}
+            CloseResult::Accepted(receipt) => {
+                self.retain_submission(operation.selection().clone(), asked_at)?;
+                self.record_acceptance(target, receipt)?;
+                let index = self
+                    .record_index(target)
+                    .ok_or(CloseStateError::UnknownTarget)?;
+                self.records[index].initial_read_pending = self.records[index].status.is_none();
+                // One Tab closed from its button or a menu is followed as the set it opened.
+                if armed
+                    && let Some(CloseConfirmation {
+                        intent: CloseIntent::Set(capture),
+                        ..
+                    }) = self.confirmation.take()
+                {
+                    self.begin_first_set(*capture, operation);
+                }
+            }
+            CloseResult::Ambiguous => {
+                self.retain_submission(operation.selection().clone(), asked_at)?;
+                let index = self
+                    .record_index(target)
+                    .ok_or(CloseStateError::UnknownTarget)?;
+                self.retain_uncertain(index, operation);
+            }
+            CloseResult::Read(_) | CloseResult::Resume(_) | CloseResult::ObservationUnavailable => {
+                return Err(CloseStateError::OperationMismatch);
+            }
+        }
+        if armed {
+            self.cancel_confirmation();
+        }
+        Ok(())
+    }
+}
+
+/// Whether the Server answered a conditional Close that the user must confirm it, which refuses
+/// nothing: the armed confirmation presents.
+fn confirmation_required(operation: &CloseOperation, result: &CloseResult) -> bool {
+    matches!(
+        (operation.kind(), result),
+        (
+            CloseOperationKind::CloseIfIdle { .. },
+            CloseResult::Precommit(WorkbenchTabClosePrecommit::Rejected {
+                reason: WorkbenchRejectionReason::ConfirmationRequired,
+                ..
+            })
+        )
+    )
 }
 
 impl WorkbenchClientState {
@@ -368,9 +454,9 @@ impl WorkbenchClientState {
         if let Some(queued) = self.close.pending.take() {
             let result = if missing && queued_proof.as_ref() != Some(queued.key()) {
                 match queued.kind() {
-                    CloseOperationKind::Close | CloseOperationKind::Resume { .. } => {
-                        CloseResult::Ambiguous
-                    }
+                    CloseOperationKind::Close
+                    | CloseOperationKind::CloseIfIdle { .. }
+                    | CloseOperationKind::Resume { .. } => CloseResult::Ambiguous,
                     CloseOperationKind::Read { .. } => CloseResult::ObservationUnavailable,
                 }
             } else {
@@ -408,7 +494,12 @@ impl WorkbenchClientState {
             return Err(CloseStateError::StaleConfirmation);
         }
         if let CloseIntent::Set(capture) = &intent {
-            return self.plan_first_close_set(capture, request_id, deadline);
+            return self.plan_first_close_set(
+                capture,
+                request_id,
+                deadline,
+                CloseOperationKind::Close,
+            );
         }
         let (selection, kind) = match intent {
             CloseIntent::Close(selection)
@@ -433,6 +524,45 @@ impl WorkbenchClientState {
             }
         };
         Ok(CloseOperation::new(request_id, selection, kind, deadline))
+    }
+
+    /// Plans the conditional Close of the armed confirmation `token`, which stays hidden while the
+    /// Server decides. Only a first Close of exactly one Tab qualifies, whichever route opened it;
+    /// a set of several Tabs and a Resume always present.
+    pub(crate) fn plan_close_if_idle(
+        &self,
+        token: CloseConfirmationToken,
+        request_id: WorkbenchRequestId,
+        deadline: Instant,
+        asked_at: Instant,
+    ) -> Result<CloseOperation, CloseStateError> {
+        if self.close.pending.is_some()
+            || !matches!(self.close.carrier, super::CloseCarrier::Client)
+        {
+            return Err(CloseStateError::Busy);
+        }
+        let prompt = self
+            .close
+            .confirmation
+            .as_ref()
+            .filter(|prompt| prompt.token == token)
+            .ok_or(CloseStateError::StaleConfirmation)?;
+        if !self.close_confirmation_current(prompt) {
+            return Err(CloseStateError::StaleConfirmation);
+        }
+        let kind = CloseOperationKind::CloseIfIdle { asked_at };
+        match &prompt.intent {
+            CloseIntent::Close(selection) => Ok(CloseOperation::new(
+                request_id,
+                selection.clone(),
+                kind,
+                deadline,
+            )),
+            CloseIntent::Set(capture) if capture.count() == 1 => {
+                self.plan_first_close_set(capture, request_id, deadline, kind)
+            }
+            CloseIntent::Set(_) | CloseIntent::Resume { .. } => Err(CloseStateError::NotDisplayed),
+        }
     }
 
     pub(crate) fn plan_close_read(
@@ -489,14 +619,32 @@ impl WorkbenchClientState {
                 }
                 self.close
                     .retain_submission(operation.selection().clone(), admitted_at)?;
-                if let Some(super::CloseConfirmation {
+                if let Some(CloseConfirmation {
                     intent: CloseIntent::Set(capture),
                     ..
-                }) = self.close.confirmation.as_ref()
+                }) = self.close.confirmation.take()
                 {
-                    self.begin_first_close_set((**capture).clone(), operation);
+                    self.close.begin_first_set(*capture, operation);
                 }
                 self.close.cancel_confirmation();
+            }
+            CloseOperationKind::CloseIfIdle { asked_at } => {
+                let token = self
+                    .close
+                    .confirmation
+                    .as_ref()
+                    .map(|prompt| prompt.token)
+                    .ok_or(CloseStateError::StaleConfirmation)?;
+                if self.plan_close_if_idle(
+                    token,
+                    operation.key().request_id().clone(),
+                    operation.deadline(),
+                    *asked_at,
+                )? != *operation
+                {
+                    return Err(CloseStateError::StaleConfirmation);
+                }
+                // The confirmation stays armed, and hidden, until the Server answers.
             }
             CloseOperationKind::Read { mode, .. } => {
                 if self.plan_close_read(
@@ -546,7 +694,7 @@ impl WorkbenchClientState {
         let refused_start = matches!(
             result,
             CloseResult::NotSubmitted | CloseResult::Precommit(_)
-        );
+        ) && !confirmation_required(operation, result);
         let refused_resume = matches!(
             result,
             CloseResult::Resume(

@@ -75,7 +75,7 @@ impl ClientExecutor {
         let target = operation.key().target();
         let request_id = operation.key().request_id().clone();
         let result = match operation.kind() {
-            CloseOperationKind::Close => {
+            kind @ (CloseOperationKind::Close | CloseOperationKind::CloseIfIdle { .. }) => {
                 let mut expected_revision = operation.selection().base_revision();
                 if let Some(source) = operation.set_source() {
                     let read_id = self
@@ -97,15 +97,25 @@ impl ClientExecutor {
                     expected_revision = snapshot.revision;
                     self.ensure_before(cutoff)?;
                 }
+                let terminal_context_id = target.terminal_context_id().clone();
+                let tab_id = target.tab_id().clone();
+                let action = if matches!(kind, CloseOperationKind::CloseIfIdle { .. }) {
+                    WorkbenchAction::TabCloseIfIdle {
+                        terminal_context_id,
+                        tab_id,
+                    }
+                } else {
+                    WorkbenchAction::TabClose {
+                        terminal_context_id,
+                        tab_id,
+                    }
+                };
                 let request = WorkbenchTabCloseRequest::try_from(WorkbenchCommand {
                     protocol_version: ProtocolVersion,
                     request_id,
                     session_id: target.session_id().clone(),
                     expected_revision,
-                    action: WorkbenchAction::TabClose {
-                        terminal_context_id: target.terminal_context_id().clone(),
-                        tab_id: target.tab_id().clone(),
-                    },
+                    action,
                 })
                 .map_err(|_command| CarrierFailure::Protocol)?;
                 match self.client.submit_workbench_tab_close(request, cutoff) {

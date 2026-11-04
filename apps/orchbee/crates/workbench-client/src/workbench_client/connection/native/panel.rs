@@ -104,16 +104,27 @@ impl ClientExecutor {
                     }
                 }
             }
-            PanelIntent::Close => {
-                let request =
-                    WorkbenchPanelCloseRequest::try_from(command(WorkbenchAction::PanelClose {
-                        terminal_context_id: baseline
-                            .terminal_context_id()
-                            .ok_or(CarrierFailure::Protocol)?
-                            .clone(),
-                        tab_id: operation.target().tab_id().clone(),
-                        panel_id: operation.panel_id().clone(),
-                    }))
+            intent @ (PanelIntent::Close | PanelIntent::CloseIfIdle) => {
+                let terminal_context_id = baseline
+                    .terminal_context_id()
+                    .ok_or(CarrierFailure::Protocol)?
+                    .clone();
+                let tab_id = operation.target().tab_id().clone();
+                let panel_id = operation.panel_id().clone();
+                let action = if matches!(intent, PanelIntent::CloseIfIdle) {
+                    WorkbenchAction::PanelCloseIfIdle {
+                        terminal_context_id,
+                        tab_id,
+                        panel_id,
+                    }
+                } else {
+                    WorkbenchAction::PanelClose {
+                        terminal_context_id,
+                        tab_id,
+                        panel_id,
+                    }
+                };
+                let request = WorkbenchPanelCloseRequest::try_from(command(action))
                     .map_err(|_command| CarrierFailure::Protocol)?;
                 match self.client.submit_workbench_panel_close(request, cutoff) {
                     WorkbenchPanelCloseSubmission::DefinitelyNotSubmitted(reason) => {

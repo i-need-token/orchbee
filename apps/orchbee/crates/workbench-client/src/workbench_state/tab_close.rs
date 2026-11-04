@@ -358,13 +358,6 @@ impl<'a> CloseConfirmationView<'a> {
     pub(crate) const fn token(&self) -> CloseConfirmationToken {
         self.confirmation.token
     }
-    /// The one Tab this confirmation closes for the first time, whichever route opened it.
-    pub(crate) fn sole_tab_id(&self) -> Option<&'a WorkbenchTabId> {
-        match (self.kind(), self.tab_ids()) {
-            (CloseConfirmationKind::Close, [tab]) => Some(tab),
-            _ => None,
-        }
-    }
     /// The exact Tabs this confirmation closes.
     fn tab_ids(&self) -> &'a [WorkbenchTabId] {
         match &self.confirmation.intent {
@@ -561,24 +554,6 @@ impl CloseState {
 
     pub(crate) fn cancel_confirmation(&mut self) {
         self.confirmation = None;
-    }
-
-    /// Admits the open Close of `token` without a draw. Only a first Close of exactly one Tab
-    /// qualifies, whichever route opened it; a set of several Tabs or a Resume always presents.
-    fn admit_unconfirmed(&mut self, token: CloseConfirmationToken) -> bool {
-        let Some(confirmation) = self.confirmation.as_mut().filter(|confirmation| {
-            confirmation.token == token
-                && match &confirmation.intent {
-                    CloseIntent::Close(_) => true,
-                    CloseIntent::Set(capture) => capture.tabs().len() == 1,
-                    CloseIntent::Resume { .. } => false,
-                }
-        }) else {
-            return false;
-        };
-        confirmation.shown = true;
-        confirmation.presentation.presented();
-        true
     }
 
     pub(crate) fn confirmation(&self) -> Option<CloseConfirmationView<'_>> {
@@ -1046,11 +1021,6 @@ impl super::WorkbenchClientState {
         self.close.cancel_confirmation();
     }
 
-    /// Admits the open Close of `token` without presenting it: the caller found no program running
-    /// in any terminal of the Tab, so closing it loses no running work.
-    pub(crate) fn admit_unconfirmed_close(&mut self, token: CloseConfirmationToken) -> bool {
-        self.close.admit_unconfirmed(token)
-    }
     pub(crate) fn invalidate_close_display(&mut self) {
         self.close.invalidate_display();
     }
@@ -1192,6 +1162,13 @@ impl<'a> super::WorkbenchClientView<'a> {
     }
     pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
         self.state.close.confirmation()
+    }
+    /// Whether the Server is deciding if the armed Close needs asking; its confirmation stays
+    /// hidden until the answer.
+    pub(crate) fn close_deciding(&self) -> bool {
+        self.state.close.pending.as_ref().is_some_and(|operation| {
+            matches!(operation.kind(), CloseOperationKind::CloseIfIdle { .. })
+        })
     }
     /// What `confirmation` ends, from the attachments `settled` reports as Host-settled. A Resume
     /// whose Server status proved disposal has no running terminal left.

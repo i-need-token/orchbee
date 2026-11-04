@@ -55,8 +55,8 @@ The warning names only running work when nothing counted has ended, only discard
 when everything has ended, and otherwise the number of running terminals together with the
 discarded retained output. A close that presents a confirmation still warns about that retained
 output, which it discards for every connected Client; a close of only ended terminals runs no
-program and closes unasked under [Idle close](#idle-close). Workspace Close keeps the Server's
-conditional idle admission.
+program, and the Server closes it unasked under [Idle close](#idle-close), as it does a Workspace
+Close.
 
 The count is taken at each complete draw. A settlement arriving under an open prompt changes the
 next draw without changing its token or targets. An ended terminal never runs again: a new process
@@ -68,76 +68,49 @@ last complete draw; that draw can only overstate running work.
 
 A close that ends no running program does not ask. This covers every route to one Tab, the key, its
 `[x]`, and a Tab menu or group action that resolves to one Tab, and the Panel route. A set of several
-Tabs, a Resume and a ReadOnly Client always present the confirmation.
+Tabs, a Resume and a ReadOnly Client always present the confirmation and send nothing conditional.
 
-Each route still arms the confirmation; `workbench_client/ui/idle_close.rs` keeps it hidden while it
-reads the terminals the close would end: every Presentation of the target, so a Presentation the
-Panel does not show counts, except one that has ended by the facts under [Close
-impact](#close-impact). When nothing is left to read, the close runs at once. Two independent facts
-decide each terminal:
+The Server decides, by the rules of its
+[conditional Tab and Panel Close](../../orchbee-server/docs/terminal-tab-close.md#tab-and-panel).
+Each route still arms the confirmation; `workbench_client/ui/idle_close.rs` keeps it hidden and
+sends `tab.close-if-idle` or `panel.close-if-idle` as the close's first exchange,
+`CloseOperationKind::CloseIfIdle` or `PanelIntent::CloseIfIdle`. Accepted, the close goes on as a
+confirmed one: a Tab close is retained only now, so the Tab leaves the strip only once the Server has
+accepted it, and a Panel close applies as the ordinary one. `confirmation-required` presents the
+armed confirmation, and confirming it sends the ordinary close under a new request ID. Any other
+refusal drops the confirmation and reports as the ordinary close does. An unknown outcome is
+followed by status reads and never sent again, and no confirmation follows it, since confirming
+could close the Tab twice.
 
-- **The shell's report.** `TerminalProjection::shell_report` reads the terminal's latest frame. The
-  managed PowerShell reader marks its prompt and each command through private markers, carried as
-  `TerminalCommandObservation`: `ready` means the reader is waiting for input, and a command without
-  a completion means it is still running. Those markers reach the Host only through the ConPTY the
-  product bundles; the system ConHost drops them. Every console host passes OSC 133, so the frame's
-  row marks answer next: a cursor on a row of the prompt class, or on the wrapped rows of its input,
-  is at the prompt, and a cursor below such a row left it. The continuation class carries no fact:
-  the terminal also leaves it on blank rows and program output. A screen with no mark, such as
-  `cmd`, a shell whose reader the Worker's integration does not recognize, a prompt PSReadLine
-  redrew after a clear, or a full-screen view, reports nothing.
-- **One process sample.** `agent_start::close_sample` follows the Host's own close gate: only a Job
-  member attached to the Terminal's console is a foreground program. The root must be `cmd`,
-  `powershell` or `pwsh` started with only interactive switches or the Worker's fixed initialization;
-  `conhost` and `openconsole` do not count, nor do detached or console-less members, so a hidden
-  helper a profile started does not make a shell busy. A sample at its row limit, an unreadable root
-  or a member whose console cannot be observed cannot answer. Agent start keeps its stricter rule.
-
-The terminal runs a program when its shell reports a running command or its sample finds one; the
-confirmation then presents at once. A shell reporting its prompt closes even when its sample is
-refused, unavailable or late, because an unknown fact on a waiting shell is not a running program. A
-shell reporting nothing is judged by its sample alone and asks when that cannot answer. Reads get
-1 second, the Worker's bound on one sample; at that point, the terminals still unread close only if
-each one reports its prompt. Every read publishes an outcome, so the budget is reached only by a
-read that is really slow.
-
-A terminal shown in a pane is read through its live Viewer, and its report comes from that pane's
-frames. Any other terminal, in a background Tab or a hidden Presentation, is read through a temporary
-Viewer that attaches, takes its first frame and a sample, and detaches, because a Client Connection
-may attach to a Terminal only once.
-
-When every terminal runs nothing, the state admits the armed confirmation without a draw and the
-ordinary confirmed close runs, reporting as [Close status](#close-status) describes. A shell on
-another platform has no process sample and presents the confirmation unless its
-shell reports its prompt. The Host's `TerminalCloseActivity` stays with `WorkspaceCloseIfIdle`:
-accepted input latches it to unknown, so it cannot answer for a shell a person typed into. A program
-the sample cannot see and the shell does not report still closes unasked: `pause` in `cmd`, or under
-the system ConHost a cmdlet whose output scrolled its own prompt off the screen.
-Harnesses that script every Host exchange build the UI with `confirming_every_close`. The [real
+The hidden confirmation still owns input, so `Esc` cancels it: a later `confirmation-required` then
+presents nothing, but an accepted close goes on. A close the Client cannot send at once, because
+another close exchange is in flight or the mailbox refuses it, presents the confirmation instead.
+Harnesses that script every Server exchange build the UI with `confirming_every_close`. The [real
 process witness](../tests/cli_windows_idle_close.rs) drives a real PowerShell through each route,
 under the system ConHost by default and the product's ConPTY with `ORCHBEE_TEST_CONPTY_DIR`, and the
-[decision witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers
-the unknown and late facts a real run cannot force.
+[route witness](../crates/workbench-client/src/workbench_client/ui/tests/idle_close.rs) covers which
+closes ask the Server and which present at once.
 
 ## Close status
 
 A close of one Tab behaves the same from every route. The Tab leaving reports a normal close, so it
-adds no notice and no count. From the draw after its close is submitted, while that close is
-progressing normally, the Client treats the Tab as gone instead of waiting for the Server's
-publication to remove it from the canonical list: the strip leaves it out, next, previous and
-numbered Tab selection skip it and count positions without it, and nothing selects it. Once the
-Server accepts the close of the selected Tab, the selection moves to the next Tab still shown, else
-the previous one, the survivor the removal itself selects, so the Panel goes with the strip entry
-while the terminal ends in the background. The last Tab leaves the empty Workbench in the Panel at
-once. While several Tabs close as one sequence the selection stays, because a focus change stops
-the sequence. A refused, blocked, unknown or unobserved close shows the Tab again with its report,
-and the selection stays where it moved; a Tab of a set leaves as its own close is submitted. Until
-1 second after submission an unreported close also withholds the selected Tab's connection and exit
-cues; the Panel title still says how its terminal ended. On a debug build the Panel shows the next
-Tab 40 to 60 ms after the close starts, and a PowerShell Tab at its prompt leaves the canonical list
-0.1 to 0.15 seconds after it, but a slower shell or a busy machine would flash the 200 ms delay of
-other pending indications. Past the delay `{label} · Closing` appears, as when a program running in
-the shell keeps the console after Terminate ends the shell and the close waits out the five-second
+adds no notice and no count. From the draw after its close is submitted, or accepted when the Server
+decided it unasked, while that close is progressing normally, the Client treats the Tab as gone
+instead of waiting for the Server's publication to remove it from the canonical list: the strip
+leaves it out, next, previous and numbered Tab selection skip it and count positions without it, and
+nothing selects it. Once the Server accepts the close of the selected Tab, the selection moves to
+the next Tab still shown, else the previous one, the survivor the removal itself selects, so the
+Panel goes with the strip entry while the terminal ends in the background. The last Tab leaves the
+empty Workbench in the Panel at once. While several Tabs close as one sequence the selection stays,
+because a focus change stops the sequence. A refused, blocked, unknown or unobserved close shows the
+Tab again with its report, and the selection stays where it moved; a Tab of a set leaves as its own
+close is submitted. Until 1 second after submission, or after the user asked for a close the Server
+accepted unasked, an unreported close also withholds the selected Tab's connection and exit cues;
+the Panel title still says how its terminal ended. On a debug build the Panel shows the next Tab 40
+to 60 ms after the close starts, and a PowerShell Tab at its prompt leaves the canonical list 0.1 to
+0.15 seconds after it, but a slower shell or a busy machine would flash the 200 ms delay of other
+pending indications. Past the delay `{label} · Closing` appears, as when a program running in the
+shell keeps the console after Terminate ends the shell and the close waits out the five-second
 grace.
 
 Status reads of a retained close are 250 ms apart, except that a Workbench publication lets the

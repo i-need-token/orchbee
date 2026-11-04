@@ -1,6 +1,7 @@
-//! Submits an exact retained Tab close and validates correlation, scope, generation, and
-//! action-compatible acceptance or failure. It does not remove UI membership, decide physical
-//! disposal, or automatically resume an unknown close.
+//! Submits an exact retained Tab close, or the conditional one the Server may answer with a
+//! required confirmation, and validates correlation, scope, generation, and action-compatible
+//! acceptance or failure. It does not remove UI membership, decide physical disposal, or
+//! automatically resume an unknown close.
 
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
@@ -22,7 +23,10 @@ pub struct WorkbenchTabCloseRequest(WorkbenchCommand);
 impl TryFrom<WorkbenchCommand> for WorkbenchTabCloseRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
-        if matches!(command.action, WorkbenchAction::TabClose { .. }) {
+        if matches!(
+            command.action,
+            WorkbenchAction::TabClose { .. } | WorkbenchAction::TabCloseIfIdle { .. }
+        ) {
             Ok(Self(command))
         } else {
             Err(command)
@@ -174,12 +178,16 @@ fn classify_command_result(
         return Err(WorkbenchTabCloseFailure::UnexpectedResponse);
     };
     validate_correlation(&command.request_id, &result.request_id)?;
-    let WorkbenchAction::TabClose {
-        terminal_context_id: expected_context,
-        tab_id: expected_tab,
-    } = &command.action
-    else {
-        unreachable!("opaque request admits only tab.close")
+    let (expected_context, expected_tab, conditional) = match &command.action {
+        WorkbenchAction::TabClose {
+            terminal_context_id,
+            tab_id,
+        } => (terminal_context_id, tab_id, false),
+        WorkbenchAction::TabCloseIfIdle {
+            terminal_context_id,
+            tab_id,
+        } => (terminal_context_id, tab_id, true),
+        _ => unreachable!("opaque request admits only tab.close and tab.close-if-idle"),
     };
     match result.outcome {
         WorkbenchCommandOutcome::TabCloseAccepted {
@@ -216,17 +224,22 @@ fn classify_command_result(
         WorkbenchCommandOutcome::Denied {} => Ok(WorkbenchTabCloseSubmission::DefinitePrecommit(
             WorkbenchTabClosePrecommit::Denied,
         )),
+        // Only a conditional close may come back asking for confirmation, and only at the
+        // revision it was admitted against.
         WorkbenchCommandOutcome::Rejected { revision, reason }
-            if matches!(
-                reason,
-                WorkbenchRejectionReason::SessionMismatch
-                    | WorkbenchRejectionReason::RevisionMismatch
-                    | WorkbenchRejectionReason::TerminalContextUnavailable
-                    | WorkbenchRejectionReason::TabUnavailable
-                    | WorkbenchRejectionReason::ResourceLimit
-                    | WorkbenchRejectionReason::RevisionExhausted
-                    | WorkbenchRejectionReason::RequestIdentityConflict
-            ) =>
+            if (conditional
+                && reason == WorkbenchRejectionReason::ConfirmationRequired
+                && revision == command.expected_revision)
+                || matches!(
+                    reason,
+                    WorkbenchRejectionReason::SessionMismatch
+                        | WorkbenchRejectionReason::RevisionMismatch
+                        | WorkbenchRejectionReason::TerminalContextUnavailable
+                        | WorkbenchRejectionReason::TabUnavailable
+                        | WorkbenchRejectionReason::ResourceLimit
+                        | WorkbenchRejectionReason::RevisionExhausted
+                        | WorkbenchRejectionReason::RequestIdentityConflict
+                ) =>
         {
             Ok(WorkbenchTabCloseSubmission::DefinitePrecommit(
                 WorkbenchTabClosePrecommit::Rejected { revision, reason },

@@ -282,10 +282,10 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.close_set_status()
     }
     pub(crate) fn close_confirmation(&self) -> Option<CloseConfirmationView<'a>> {
-        if self.close_probing {
+        let state = self.state.as_ref()?;
+        if state.close_deciding() {
             return None;
         }
-        let state = self.state.as_ref()?;
         let inner = state.close_confirmation()?;
         let impact = state.close_impact(&inner, &|pane| self.pane_settled(pane));
         let tab = self.tab_by_id(inner.target_tab_id());
@@ -543,7 +543,7 @@ impl WorkbenchClientUi {
         {
             return ClientActionDisposition::KeepNavigator;
         }
-        // A Tab with no program running in any terminal closes without the confirmation.
+        // The Server decides whether closing the Tab asks first.
         if let Some(token) = state
             .view()
             .close_confirmation()
