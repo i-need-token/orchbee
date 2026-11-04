@@ -24,6 +24,7 @@ pub struct AgentAttentionDraw {
     paint: Option<AttentionPaint>,
     physical: Option<physical::PhysicalPaint>,
     pub(super) panes: Vec<PaintedPane>,
+    pub(super) focused_pane: Option<PaneRef>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -84,19 +85,26 @@ impl AgentAttention {
             .edit_completed(|binding| pane.matches(binding));
     }
 
-    pub(super) fn edited_completions(
+    pub(super) fn completion_presentations(
         &self,
     ) -> Vec<(
         orchbee_agent_observation_protocol::AgentLaunchBinding,
         orchbee_workbench_protocol::WorkbenchRevision,
+        bool,
     )> {
-        self.physical.state.edited_completions()
+        self.physical.state.completion_presentations()
     }
 
     pub(super) fn completion_edited(&self, pane: &PaintedPane) -> bool {
         self.physical
             .state
             .completion_edited(|binding| pane.matches(binding))
+    }
+
+    pub(super) fn completion_pending(&self, pane: &PaintedPane) -> bool {
+        self.physical
+            .state
+            .completion_pending(|binding| pane.matches(binding))
     }
 
     pub(super) fn agent_in_terminal(
@@ -130,9 +138,9 @@ impl AgentAttention {
         }
     }
 
-    /// Explicit focus marks the selected Tab's current known versions seen, even unfocused.
+    /// Explicit focus marks the selected presentation's current known versions seen, even unfocused.
     /// This consumes only the current snapshots; no deferred acknowledgement survives this call.
-    pub(super) fn acknowledge_focused_tab(&mut self, presentations: &BTreeSet<&str>) {
+    pub(super) fn acknowledge_focused_presentations(&mut self, presentations: &BTreeSet<&str>) {
         if let Some(paint) = self.state.paint(presentations) {
             self.redraw |= self
                 .state
@@ -143,9 +151,12 @@ impl AgentAttention {
             .state
             .paint(|binding| presentations.contains(binding.presentation_id.as_str()))
         {
-            self.redraw |= self.physical.acknowledge(&paint, None, |binding| {
-                presentations.contains(binding.presentation_id.as_str())
-            });
+            self.redraw |= self.physical.acknowledge(
+                &paint,
+                None,
+                |binding| presentations.contains(binding.presentation_id.as_str()),
+                |_| true,
+            );
         }
     }
 
@@ -389,7 +400,11 @@ impl AgentAttention {
             .max(self.physical.state.unseen_in(presentation))
     }
 
-    pub(super) fn paint(&self, panes: Vec<PaintedPane>) -> Option<AgentAttentionDraw> {
+    pub(super) fn paint(
+        &self,
+        panes: Vec<PaintedPane>,
+        focused_pane: Option<PaneRef>,
+    ) -> Option<AgentAttentionDraw> {
         let presentations: BTreeSet<_> = panes
             .iter()
             .map(|pane| pane.presentation.as_str())
@@ -403,6 +418,7 @@ impl AgentAttention {
             paint,
             physical,
             panes,
+            focused_pane,
         })
     }
 
@@ -411,16 +427,26 @@ impl AgentAttention {
         draw: &AgentAttentionDraw,
         focused: Option<bool>,
         visible: &[PaintedPane],
+        focused_pane: Option<&PaneRef>,
     ) {
         if let Some(paint) = &draw.paint {
             self.redraw |= self.state.acknowledge(paint, focused, |presentation| {
-                visible.iter().any(|pane| pane.presentation == presentation)
+                visible.iter().any(|pane| {
+                    pane.presentation == presentation && Some(&pane.pane) == focused_pane
+                })
             });
         }
         if let Some(paint) = &draw.physical {
-            self.redraw |= self.physical.acknowledge(paint, focused, |binding| {
-                visible.iter().any(|pane| pane.matches(binding))
-            });
+            self.redraw |= self.physical.acknowledge(
+                paint,
+                focused,
+                |binding| visible.iter().any(|pane| pane.matches(binding)),
+                |binding| {
+                    visible
+                        .iter()
+                        .any(|pane| pane.matches(binding) && Some(&pane.pane) == focused_pane)
+                },
+            );
         }
     }
 }

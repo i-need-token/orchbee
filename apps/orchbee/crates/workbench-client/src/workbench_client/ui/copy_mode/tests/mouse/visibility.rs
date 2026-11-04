@@ -289,10 +289,16 @@ fn search_and_toolbar_repeat_paint_the_actual_tail_match_above_the_full_shell_fo
                             .admitted_copy_source(&port.ui.projections[0].key)
                             .unwrap();
                         let ordinary_crop = port.ui.view().pane_live_view(&panel);
-                        let bookmark = port.ui.projections[0]
-                            .viewport
-                            .as_ref()
-                            .and_then(|viewport| viewport.position());
+                        let bookmark =
+                            port.ui.projections[0]
+                                .viewport
+                                .as_ref()
+                                .and_then(|viewport| match viewport.surface() {
+                                    crate::terminal_viewport::ViewportSurface::Window(window) => {
+                                        Some((window.route.start_row, window.route.total_rows))
+                                    }
+                                    _ => None,
+                                });
                         let first = TerminalTextPoint {
                             row: u32::try_from(source.rows.start_row).unwrap() + 2,
                             col: 4,
@@ -380,7 +386,11 @@ fn search_and_toolbar_repeat_paint_the_actual_tail_match_above_the_full_shell_fo
                             port.ui.projections[0]
                                 .viewport
                                 .as_ref()
-                                .and_then(|viewport| viewport.position()),
+                                .and_then(|viewport| match viewport.surface() {
+                                    crate::terminal_viewport::ViewportSurface::Window(window) =>
+                                        Some((window.route.start_row, window.route.total_rows)),
+                                    _ => None,
+                                }),
                             bookmark
                         );
                         assert!(

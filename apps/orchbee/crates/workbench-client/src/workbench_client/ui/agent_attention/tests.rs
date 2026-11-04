@@ -596,7 +596,7 @@ fn agent_focus_refuses_replacement_and_requires_the_matching_live_frame() {
 }
 
 #[test]
-fn ordinary_panel_focus_marks_only_current_versions_in_the_requested_tab() {
+fn ordinary_panel_focus_marks_only_the_focused_panel_current_version() {
     use crate::workbench_client::agent_attention::PhysicalRound;
     use crate::workbench_client::ui::tests::publication_hint::ready_split_ui;
     use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
@@ -630,11 +630,20 @@ fn ordinary_panel_focus_marks_only_current_versions_in_the_requested_tab() {
     }))
     .unwrap();
     ui.finish_focus(&command).unwrap();
-    assert!(
-        states[..states.len() - 1]
-            .iter()
-            .all(|state| physical_seen(&ui, state))
-    );
+    let focused = ui.view().focus_panel_id().unwrap().clone();
+    let tab = ui.view().tab(0).unwrap();
+    let focused_presentation = (0..tab.panel_count())
+        .filter_map(|index| tab.panel(index))
+        .find(|panel| panel.panel_id() == &focused)
+        .unwrap()
+        .presentation_id()
+        .clone();
+    for state in &states {
+        assert_eq!(
+            physical_seen(&ui, state),
+            state.binding.presentation_id.as_str() == focused_presentation.as_str()
+        );
+    }
     assert!(!physical_seen(&ui, &outside));
     for state in &mut states {
         state.sequence = WorkbenchRevision::new(2);

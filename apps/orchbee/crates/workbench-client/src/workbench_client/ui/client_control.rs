@@ -248,14 +248,17 @@ impl WorkbenchClientUi {
             .ok_or(Reason::TargetUnavailable)?;
         let presentations: Vec<_> = (0..tab.panel_count())
             .filter_map(|index| tab.panel(index))
-            .flat_map(|panel| {
-                panel
-                    .presentations()
-                    .map(|member| member.presentation_id().as_str().to_owned())
+            .filter(|panel| self.view().focus_panel_id() == Some(panel.panel_id()))
+            .map(|panel| {
+                self.view()
+                    .selected_presentation(panel)
+                    .presentation_id()
+                    .as_str()
+                    .to_owned()
             })
             .collect();
         self.attention
-            .acknowledge_focused_tab(&presentations.iter().map(String::as_str).collect());
+            .acknowledge_focused_presentations(&presentations.iter().map(String::as_str).collect());
         Ok(())
     }
 

@@ -502,10 +502,7 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
                         super::super::viewport::render(
                             surface,
                             area,
-                            ViewportSurface::Window {
-                                window: &window,
-                                position: None,
-                            },
+                            ViewportSurface::Window { window: &window },
                             None,
                             false,
                             Locale::EnUs,

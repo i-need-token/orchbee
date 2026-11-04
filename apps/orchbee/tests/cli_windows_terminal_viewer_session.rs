@@ -20,6 +20,9 @@
 #[path = "support/windows_tui_session.rs"]
 mod session;
 
+#[path = "cli_windows_terminal_viewer_session/focus_control.rs"]
+mod focus_control;
+
 use session::{Control, Fixture, OBSERVATION};
 use std::{
     thread,

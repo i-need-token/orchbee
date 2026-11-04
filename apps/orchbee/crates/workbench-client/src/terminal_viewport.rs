@@ -818,17 +818,6 @@ impl TerminalViewport {
             && self.committed_window().is_none()
     }
 
-    /// The visible position for the indicator: `start_row` and `total_rows`
-    /// of the currently painted window — only while that window still
-    /// passes the live generation/columns validation the painter relies on.
-    pub(crate) fn position(&self) -> Option<(u64, u64)> {
-        if self.recovering() {
-            return None;
-        }
-        let window = self.current_window()?;
-        Some((window.route.start_row, window.route.total_rows))
-    }
-
     /// A drag may retain its known range while a read waits, but never cross
     /// recovery, changed generation/range, attachment, or terminal geometry.
     pub(crate) fn admits_scrollbar(

@@ -74,6 +74,30 @@ fn poll_snapshot(
 }
 
 #[test]
+fn focus_activation_queues_one_transfer_and_focus_loss_cancels_unsubmitted_intent() {
+    let (mut ui, mailbox, _, _) = ready_ui();
+    ui.observe_focus(false);
+    assert!(!ui.drive_focus_control());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    ui.observe_focus(true);
+    ui.observe_focus(false);
+    assert!(!ui.drive_focus_control());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    ui.observe_focus(true);
+    assert!(ui.drive_focus_control());
+    assert!(
+        !ui.drive_focus_control(),
+        "one activation submits only once"
+    );
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(
+        matches!(lease.record(), QueuedCommand::Refresh(marker) if marker.takeover().is_some())
+    );
+    assert!(!ui.forward(b"never replay blocked input"));
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn takeover_rearmed_snapshot_restores_typing_paste_and_control_without_reselection_or_replay() {
     let (mut ui, mailbox, clock, _) = ready_ui();
     let route = inspect_terminal_frame_route(SNAPSHOT).unwrap();

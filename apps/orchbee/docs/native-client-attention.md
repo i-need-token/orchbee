@@ -31,16 +31,16 @@ A background read lane drains retained changes and obtains a coherent session li
 | Later coherent round                                    | Fold each session's semantic transitions, preserving unrelated acknowledgements; publish aligned metadata and versions together. |
 | Transport/read failure                                  | Retain display data as unavailable; disable acknowledgements until coherent evidence returns.                                    |
 | Invalid cursor or retention reset                       | Invalidate continuity and acknowledgements; recover a new coherent baseline conservatively unseen.                               |
-| Complete successful paint                               | Acknowledge only exact versions on concrete visible pane presentations, with a matching Client snapshot token.                   |
+| Complete successful paint                               | Acknowledge only exact versions on the focused Panel's concrete visible presentation, with a matching Client snapshot token.     |
 | Failed, stale, overlaid, zero-sized or scrollback paint | No acknowledgement.                                                                                                              |
 | Known outer focus loss                                  | No acknowledgement even if output is painted.                                                                                    |
 
-When outer focus is unknown, a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; hidden zoom siblings and Agent board summaries do not count as viewed panes. All actually visible panes may acknowledge, independently in each Client. Query consumers must distinguish unavailable observation from seen or unseen.
+When outer focus is unknown, a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; hidden zoom siblings and Agent board summaries do not count as viewed panes. Only the focused Panel and its selected presentation may acknowledge, independently in each Client; visible split siblings stay unread. Query consumers must distinguish unavailable observation from seen or unseen.
 
 The renderer returns bounded concrete paint proofs; a receipt for an earlier snapshot cannot acknowledge a newer event. Acknowledgement may request one follow-up redraw to remove the unseen indicator, without starting an unbounded redraw loop. Evidence covers two independent Clients, rapid intervening transitions, metadata-only changes, resets, focus loss, stale receipts, hidden/overlaid panes and reader shutdown. The Client query below exposes this observation without acknowledging it.
 
 Explicit `agent focus` has a separate command effect: after validated navigation and draw it marks
-the selected Tab's current known Agent versions seen, including zoom-hidden primary panes and
+the focused Panel's selected presentation versions seen, including
 known outer focus loss. It does not weaken ordinary paint gates or make read-only attention
 acknowledge. [Agent navigation](native-agent-navigation.md#agent-identity-and-explicit-acknowledgement)
 owns identity checks, interruption and the post-draw boundary.
@@ -133,3 +133,24 @@ observation, cannot suppress a later sequence, and another Client's paint cannot
 Baseline, reset, unavailable and replacement rounds provide no notification transition. See
 [Windows CLI notifications](windows-notifications.md#automatic-physical-agent-notifications) for
 the trigger matrix, delay, configuration, sink and correctness contract.
+
+## Completion presentation
+
+For one physical Agent, a Client-observed working-to-idle transition keeps a completed display
+until terminal input acknowledges that exact binding and semantic version. Focus and reading clear
+unread independently and do not consume completion. New work, blocked/error/unknown status, Agent
+replacement, or physical replacement clears the prior completion. Explicit Done keeps its existing
+input acknowledgement rule. Initial idle without observed work remains idle.
+
+The native attention owner and machine/sidebar projection share the deterministic
+`agent_completion::Completion` transition. The shell joins Client completion and input acknowledgements
+to exact sidebar versions, including when the two observation lanes settle at different times.
+An input acknowledgement cannot regress to pending for that same version. Source observations,
+semantic sequences, notification transitions and CLI idle/succeeded conditions remain unchanged;
+a completed display is not provider-success evidence. A Client that never observed a transient
+working state cannot infer it from an idle baseline alone.
+
+Controlled physical-attention and machine-projection traces cover observation, viewing, input,
+replacement and version fencing. The real-process split witness in
+`tests/cli_windows_terminal_viewer_session/focus_control.rs` also checks that the Server still reports
+Idle while the Client retains completed presentation and clears it only after input.

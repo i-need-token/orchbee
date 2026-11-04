@@ -163,12 +163,7 @@ const fn link_notice(notice: crate::terminal_link_activation::Notice) -> Workben
 /// out stale row data.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ViewportSurface<'a> {
-    Window {
-        window: &'a ViewportWindow,
-        /// `(start_row, total_rows)` re-validated at the same instant the
-        /// window was fenced — the only honest position source.
-        position: Option<(u64, u64)>,
-    },
+    Window { window: &'a ViewportWindow },
     Entering,
     AwaitingWindow,
     Recovering,
@@ -880,10 +875,9 @@ impl<'a> WorkbenchClientView<'a> {
         }
         let viewport = projection.viewport.as_ref()?;
         Some(match viewport.surface() {
-            terminal_viewport::ViewportSurface::Window(window) => ViewportSurface::Window {
-                window,
-                position: viewport.position(),
-            },
+            terminal_viewport::ViewportSurface::Window(window) => {
+                ViewportSurface::Window { window }
+            }
             terminal_viewport::ViewportSurface::Entering => ViewportSurface::Entering,
             terminal_viewport::ViewportSurface::AwaitingWindow => ViewportSurface::AwaitingWindow,
             terminal_viewport::ViewportSurface::Recovering => ViewportSurface::Recovering,
@@ -1040,10 +1034,7 @@ impl<'a> WorkbenchClientView<'a> {
                 .ok()?;
         let (screen, rows) = match self.pane_viewport(panel_id).or_else(|| {
             self.pane_tail_window(panel_id)
-                .map(|(window, _)| ViewportSurface::Window {
-                    window,
-                    position: None,
-                })
+                .map(|(window, _)| ViewportSurface::Window { window })
         }) {
             Some(ViewportSurface::Window { window, .. }) => (
                 TerminalScreen::Primary,
@@ -1347,6 +1338,7 @@ pub(super) struct WorkbenchClientUi {
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     outer_focused: Option<bool>,
+    focus_control: control_takeover::FocusControl,
     state: Option<WorkbenchClientState>,
     board: crate::agent_board::AgentBoard,
     /// The Board's read lane; its answers settle into `board`.
@@ -1519,6 +1511,7 @@ impl WorkbenchClientUi {
             clock,
             state: None,
             outer_focused: None,
+            focus_control: control_takeover::FocusControl::default(),
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
             normal_exits: super::normal_exit_hold::NormalExitHolds::default(),
@@ -1910,6 +1903,11 @@ impl WorkbenchClientUi {
             changed |= self.drive_viewer_recovery(&mailbox);
             // So does the selection leaving a Tab whose close the Server accepted.
             changed |= self.follow_leaving_selection(&mailbox);
+            if crate::tui_composition::project_capture(client_capture, self.capture_claims())
+                .is_none()
+            {
+                changed |= self.drive_focus_control();
+            }
             if self
                 .publications
                 .as_ref()
@@ -2046,6 +2044,7 @@ impl WorkbenchClientUi {
                 state.cancel_duplicate_sequence();
             }
             self.outer_focused = focused;
+            self.focus_control.activate(focused == Some(true));
             self.attention.focus_changed();
         }
     }

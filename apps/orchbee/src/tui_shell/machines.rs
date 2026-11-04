@@ -390,7 +390,7 @@ impl Manager {
             change.redraw |= view.machines.observe_agent_attention(&snapshots);
             change.redraw |= view
                 .machines
-                .observe_agent_edits(&native.edited_completions());
+                .observe_agent_completions(&native.completion_presentations());
         }
         change.redraw |= view.machines.drive_agent_navigation(now);
         if !self.selection_current(view) {

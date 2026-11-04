@@ -12,12 +12,95 @@ use crate::workbench_state::{CarrierFailure, ClientNotice, OperationDeadlines, R
 use orchbee_client_server_protocol::RequestId;
 use std::sync::Arc;
 
+/// A focus activation admits at most one transfer. Failure never rearms it; a later host or
+/// pane focus change is a new activation. Readiness may defer admission, never replay input.
+#[derive(Default)]
+pub(super) struct FocusControl {
+    pane: Option<crate::workbench_state::PaneRef>,
+    pending: Option<FocusActivation>,
+    activated: bool,
+}
+
+enum FocusActivation {
+    Initial,
+    Return,
+}
+
+impl FocusControl {
+    pub(super) fn activate(&mut self, focused: bool) {
+        self.pending = focused.then_some(if self.activated {
+            FocusActivation::Return
+        } else {
+            FocusActivation::Initial
+        });
+        self.activated |= focused;
+    }
+}
+
 impl WorkbenchClientView<'_> {
     pub(crate) fn takeover_status(&self) -> Option<(TakeoverStatus, &RequestId)> {
         self.state.as_ref()?.takeover_status()
     }
 }
 impl WorkbenchClientUi {
+    pub(super) fn drive_focus_control(&mut self) -> bool {
+        let pane = self.state.as_ref().and_then(|state| state.focus_pane_ref());
+        if pane != self.focus_control.pane {
+            self.focus_control.pane = pane;
+            // Selecting an already controlled pane needs no barrier. In particular a fresh
+            // startup grant must not fence the first click or its selection/drag continuation.
+            if self.outer_focused == Some(true)
+                && self.state.as_ref().is_some_and(|state| {
+                    matches!(
+                        state.controller_mode(),
+                        Some(crate::workbench_state::ControllerMode::ReadOnly)
+                    )
+                })
+            {
+                self.focus_control
+                    .pending
+                    .get_or_insert(FocusActivation::Return);
+            }
+        }
+        if matches!(self.focus_control.pending, Some(FocusActivation::Initial))
+            && self.state.as_ref().is_some_and(|state| {
+                matches!(
+                    state.controller_mode(),
+                    Some(crate::workbench_state::ControllerMode::Controlling(_))
+                )
+            })
+        {
+            self.focus_control.pending = None;
+        }
+        if self.focus_control.pending.is_none()
+            || self.outer_focused == Some(false)
+            || self.modal_owns_input()
+            || self.action_menu_active()
+            || self.focus_viewport_non_live()
+        {
+            return false;
+        }
+        let view = self.view();
+        if view
+            .focus_panel_id()
+            .is_some_and(|panel| view.settled_end(panel).is_some())
+        {
+            self.focus_control.pending = None;
+            return false;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            return false;
+        };
+        let (Some(mailbox), Some(state)) = (&self.mailbox, &mut self.state) else {
+            return false;
+        };
+        if mailbox.try_enqueue_takeover_for(state, deadlines, &self.clock) {
+            self.focus_control.pending = None;
+            return true;
+        }
+        false
+    }
+
     pub(super) fn request_takeover(&mut self) -> ClientActionDisposition {
         // An ended terminal accepts no controller; its retained exit fact stays visible
         // instead of a refusal the Server would certainly return.
@@ -35,6 +118,7 @@ impl WorkbenchClientUi {
             return ClientActionDisposition::KeepNavigator;
         };
         if mailbox.try_enqueue_takeover_for(state, deadlines, &self.clock) {
+            self.focus_control.pending = None;
             ClientActionDisposition::DismissNavigator
         } else {
             state.set_notice(ClientNotice::LocalBusy);

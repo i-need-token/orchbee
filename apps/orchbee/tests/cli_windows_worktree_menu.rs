@@ -30,8 +30,65 @@ const OPERATION: Duration = Duration::from_secs(60);
 const LINKED_BRANCH: &str = "feature-linked";
 const NEW_WORKTREE: &str = "New Worktree…";
 const OPEN_WORKTREE: &str = "Open Worktree ▸";
-/// The short reason on the frame's edge for a directory outside Git.
-const NOT_IN_GIT: &str = "Not in Git";
+
+#[test]
+fn a_plain_workspace_first_menu_hides_git_actions_and_moves_between_new_projects() {
+    let fixture = Fixture::new("orchbee-workspace-project-menu-", &["plain"]);
+    let created = fixture.workspace_in("plain-source", "plain");
+    let workspace = created["workspaceId"].as_str().unwrap();
+    let contexts = snapshot(&fixture)["terminalContexts"].clone();
+    let tui = fixture.start_tui(COLUMNS, ROWS);
+    fixture.settle_ready(&tui.client);
+    let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
+    control.input(b"\x1b[I");
+    let mut previous = Value::Null;
+    for label in ["first-project", "second-project"] {
+        open_menu(&fixture, &tui, &mut control, "plain-source");
+        no_worktree_rows(&fixture, &tui);
+        choose(&fixture, &tui, &mut control, "Move to Project", |screen| {
+            screen.contains("New Project…")
+        });
+        choose(&fixture, &tui, &mut control, "New Project…", |screen| {
+            !screen.contains("Move to Project") && screen.contains("New Project")
+        });
+        control.input(format!("{label}\r").as_bytes());
+        let deadline = Instant::now() + DISCOVERY;
+        loop {
+            let project = record(&fixture, workspace)["projectId"].clone();
+            if project.is_string() && project != previous {
+                previous = project;
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "New Project did not move Workspace:\n{}",
+                fixture.screen(&tui.terminal)
+            );
+            thread::sleep(Duration::from_millis(100));
+        }
+        fixture.settle_ready(&tui.client);
+        assert_eq!(
+            snapshot(&fixture)["terminalContexts"],
+            contexts,
+            "grouping preserves every terminal"
+        );
+    }
+    open_menu(&fixture, &tui, &mut control, "plain-source");
+    choose(&fixture, &tui, &mut control, "Move to Project", |screen| {
+        screen.contains("New Project…")
+    });
+    choose(&fixture, &tui, &mut control, "New Project…", |screen| {
+        !screen.contains("Move to Project") && screen.contains("New Project")
+    });
+    control.input(b"\x1b");
+    fixture.settle_ready(&tui.client);
+    assert_eq!(
+        record(&fixture, workspace)["projectId"],
+        previous,
+        "cancel preserves membership"
+    );
+    control.release();
+}
 
 #[test]
 fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add() {
@@ -51,7 +108,7 @@ fn worktree_rows_of_an_ungrouped_workspace_group_it_with_every_worktree_they_add
     let mut known = workspace_ids(&fixture);
     open_menu(&fixture, &tui, &mut control, "source");
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
     let opened = added(&fixture, &tui, &known);
@@ -103,7 +160,7 @@ fn a_first_terminal_in_a_subdirectory_groups_its_workspace_with_the_worktree() {
     open_menu(&fixture, &tui, &mut control, "source");
     // One movement report, as a terminal sends for a real pointer. The row may still wait for Git.
     rest_on(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
     let opened = added(&fixture, &tui, &known);
@@ -125,24 +182,18 @@ fn a_directory_change_under_the_open_menu_keeps_it_and_asks_git_again() {
     control.input(b"\x1b[I");
 
     open_menu(&fixture, &tui, &mut control, "source");
-    let opened = MenuRead::first(&fixture, &tui);
-    worktree_rows_are(&opened, false);
-    let height = opened.height();
-    // Spans Git's answer about the folder.
-    let watch = Instant::now() + Duration::from_secs(3);
-    while Instant::now() < watch {
-        let read = MenuRead::first(&fixture, &tui);
-        worktree_rows_are(&read, false);
-        assert_eq!(read.height(), height, "{}", read.text());
-    }
+    no_worktree_rows(&fixture, &tui);
     let command = format!("cd \"{}\"", fixture.path("repo"));
     enter(&fixture, &terminal_of(&fixture, &created), &command);
     stands_in(&fixture, source, "repo");
     let deadline = Instant::now() + DISCOVERY;
     loop {
         let read = MenuRead::first(&fixture, &tui);
-        assert_eq!(read.height(), height, "{}", read.text());
-        if read.enabled(NEW_WORKTREE) && read.enabled(OPEN_WORKTREE) {
+        if read.row(NEW_WORKTREE).is_some()
+            && read.row(OPEN_WORKTREE).is_some()
+            && read.enabled(NEW_WORKTREE)
+            && read.enabled(OPEN_WORKTREE)
+        {
             break;
         }
         assert!(
@@ -153,7 +204,7 @@ fn a_directory_change_under_the_open_menu_keeps_it_and_asks_git_again() {
         thread::sleep(Duration::from_millis(100));
     }
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     control.release();
 }
@@ -206,8 +257,7 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
 }
 
 /// A Workspace that left its repository for a folder outside Git shows nothing Git said about the
-/// repository: its menu's Worktree rows are disabled from the first paint and say why, and choosing
-/// them does nothing. The next menu there has no Worktree rows at all.
+/// repository: its first open menu removes Git-only actions after discovery, as do later menus.
 #[test]
 fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
     let fixture = Fixture::new("orchbee-worktree-left-", &["repo", "plain"]);
@@ -233,67 +283,12 @@ fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
     let checkouts = checkouts(&fixture);
 
     open_menu(&fixture, &tui, &mut control, "source");
-    let opened = MenuRead::first(&fixture, &tui);
-    worktree_rows_are(&opened, false);
-    let height = opened.height();
-    // Spans Git's answer about the folder.
-    let watch = Instant::now() + Duration::from_secs(3);
-    while Instant::now() < watch {
-        let read = MenuRead::first(&fixture, &tui);
-        worktree_rows_are(&read, false);
-        assert_eq!(read.height(), height, "{}", read.text());
-    }
-
-    // The first key reveals the first row; the third reaches New Worktree….
-    control.input(b"\x1b[B\x1b[B\x1b[B");
-    let deadline = Instant::now() + DISCOVERY;
-    loop {
-        let screen = fixture.screen(&tui.terminal);
-        if screen
-            .lines()
-            .any(|line| line.contains('└') && line.contains(NOT_IN_GIT))
-        {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "no reason on the edge:\n{screen}"
-        );
-        thread::sleep(Duration::from_millis(100));
-    }
-
-    // Neither the key nor the pointer chooses a row that is disabled.
-    control.input(b"\r");
-    for text in [NEW_WORKTREE, OPEN_WORKTREE] {
-        let screen = fixture.screen(&tui.terminal);
-        let (row, column) = menu_row(&screen, text).unwrap_or_else(|| panic!("{screen}"));
-        control.input(format!("\x1b[<35;{column};{row}M\x1b[<0;{column};{row}M").as_bytes());
-        thread::sleep(HOLD);
-        control.input(format!("\x1b[<0;{column};{row}m").as_bytes());
-    }
-    thread::sleep(Duration::from_secs(2));
-    let read = MenuRead::first(&fixture, &tui);
-    worktree_rows_are(&read, false);
-    assert!(!read.text().contains(LINKED_BRANCH), "{}", read.text());
+    no_worktree_rows(&fixture, &tui);
     assert_eq!(workspace_ids(&fixture), workspaces);
     assert_eq!(self::checkouts(&fixture), checkouts);
-
-    // Without the two rows and their separator from its first paint, through Git's answer.
     close_menu(&fixture, &tui, &mut control);
     open_menu(&fixture, &tui, &mut control, "source");
-    let watch = Instant::now() + Duration::from_secs(3);
-    while Instant::now() < watch {
-        let read = MenuRead::first(&fixture, &tui);
-        for text in [NEW_WORKTREE, OPEN_WORKTREE] {
-            assert!(
-                read.row(text).is_none(),
-                "{text}:
-{}",
-                read.text()
-            );
-        }
-        assert_eq!(read.height(), height - 3, "{}", read.text());
-    }
+    no_worktree_rows(&fixture, &tui);
     control.release();
 }
 
@@ -333,7 +328,7 @@ fn a_menu_on_a_known_repository_stays_enabled_at_one_height_through_a_directory_
     stands_in(&fixture, source, "repo/sub");
     menu_is_steady(&fixture, &tui, Some(height));
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     control.release();
 }
@@ -360,7 +355,7 @@ fn a_directory_the_shell_only_reports_enables_the_rows_and_groups_the_workspace(
     let known = workspace_ids(&fixture);
     open_menu(&fixture, &tui, &mut control, "source");
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
     let opened = added(&fixture, &tui, &known);
@@ -385,10 +380,23 @@ fn opening_a_checkout_another_workspace_holds_groups_that_workspace_too() {
     let mut control = Control::hold(&fixture, &tui.terminal, COLUMNS, ROWS);
     control.input(b"\x1b[I");
 
+    // The same branch label behind the menu must not satisfy the submenu selector.
+    let deadline = Instant::now() + DISCOVERY;
+    while !fixture.screen(&tui.terminal).contains(LINKED_BRANCH) {
+        assert!(
+            Instant::now() < deadline,
+            "the holder branch never appeared"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        menu_row(&fixture.screen(&tui.terminal), LINKED_BRANCH).is_none(),
+        "a branch behind the menu is not a submenu row"
+    );
     let known = workspace_ids(&fixture);
     open_menu(&fixture, &tui, &mut control, "source");
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
     let deadline = Instant::now() + OPERATION;
@@ -429,7 +437,7 @@ fn opening_a_checkout_reuses_the_workspace_shown_there_not_the_one_created_there
     let known = workspace_ids(&fixture);
     open_menu(&fixture, &tui, &mut control, "source");
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
     grouped(&fixture, &source);
@@ -473,7 +481,7 @@ fn opening_a_checkout_every_workspace_left_starts_a_new_workspace_there() {
     let known = workspace_ids(&fixture);
     open_menu(&fixture, &tui, &mut control, "source");
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
-        screen.contains(LINKED_BRANCH)
+        menu_row(screen, LINKED_BRANCH).is_some()
     });
     choose(&fixture, &tui, &mut control, LINKED_BRANCH, menu_closed);
     grouped(&fixture, &source);
@@ -585,9 +593,23 @@ fn shows_branch(fixture: &Fixture, tui: &Tui, expected: bool) {
     }
 }
 
-fn worktree_rows_are(read: &MenuRead, enabled: bool) {
-    for text in [NEW_WORKTREE, OPEN_WORKTREE] {
-        assert_eq!(read.enabled(text), enabled, "{text}:\n{}", read.text());
+/// A current refusal removes Git-only actions without requiring the person to reopen the menu.
+fn no_worktree_rows(fixture: &Fixture, tui: &Tui) {
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let read = MenuRead::first(fixture, tui);
+        if [NEW_WORKTREE, OPEN_WORKTREE]
+            .iter()
+            .all(|text| read.row(text).is_none())
+        {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "non-Git menu kept Git actions:\n{}",
+            read.text()
+        );
+        thread::sleep(Duration::from_millis(100));
     }
 }
 
@@ -619,10 +641,7 @@ fn choose(
             "the menu row {text} never took effect:
 {screen}"
         );
-        if let Some((row, column)) = screen.lines().enumerate().find_map(|(index, line)| {
-            let start = line.find(text)?;
-            Some((index + 1, line[..start].chars().count() + 2))
-        }) {
+        if let Some((row, column)) = menu_row(&screen, text) {
             control.input(format!("[<35;{column};{row}M[<0;{column};{row}M").as_bytes());
             thread::sleep(HOLD);
             control.input(format!("[<0;{column};{row}m").as_bytes());
@@ -796,10 +815,14 @@ fn style_of(line: &str, text: &str) -> String {
     style
 }
 
-/// The one-based row and a column inside the first row that shows `text`.
+/// The one-based row and a column inside a framed menu row that shows `text`. Sidebar branch
+/// labels behind a menu are not evidence of a submenu and must never receive its clicks.
 fn menu_row(screen: &str, text: &str) -> Option<(usize, usize)> {
     screen.lines().enumerate().find_map(|(index, line)| {
         let start = line.find(text)?;
+        if !line[..start].contains('│') || !line[start + text.len()..].contains('│') {
+            return None;
+        }
         Some((index + 1, line[..start].chars().count() + 2))
     })
 }

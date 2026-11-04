@@ -208,7 +208,7 @@ pub(super) fn actions(
 ) -> Vec<MenuAction> {
     let episode = episode.filter(|episode| belongs(entry, episode));
     let ready = episode.and_then(Discovery::recognized);
-    // A menu that opened knowing its source is outside Git has no Worktree rows to offer.
+    // A refusal removes Git-only rows, including from the first menu opened here.
     let outside_git = episode.is_some_and(Discovery::outside_git);
     match entry {
         // Checkouts join the submenu when discovery proves them; New Worktree… waits disabled.
@@ -220,6 +220,10 @@ pub(super) fn actions(
                         && !(outside_git && *action == MenuAction::NewWorktree)
                 })
                 .collect();
+            if !outside_git && !actions.contains(&MenuAction::NewWorktree) {
+                let index = usize::from(actions.first() == Some(&MenuAction::QuickWorkspace));
+                actions.insert(index, MenuAction::NewWorktree);
+            }
             if let Some(ready) = ready {
                 actions.extend(checkout_actions(ready));
             }
@@ -483,8 +487,19 @@ impl WorkbenchClientUi {
         let Some(view) = menu.view() else {
             return false;
         };
-        // The open rows already omit hidden actions; only discovery rows are recomposed.
-        let actions = actions(intent.entry(), view.actions.to_vec(), discovery);
+        // Rebuild Workspace rows from their vocabulary: discovery may add back Git actions
+        // previously omitted by a refusal. Availability still owns capability filtering.
+        let base = if matches!(intent.entry(), MenuTarget::Workspace(_)) {
+            crate::action_menu::WORKSPACE_ACTIONS.to_vec()
+        } else {
+            view.actions.to_vec()
+        };
+        let actions = actions(intent.entry(), base, discovery)
+            .into_iter()
+            .filter(|action| {
+                !intent_availability(intent, state, discovery, action.clone()).is_hidden()
+            })
+            .collect::<Vec<_>>();
         let labels = ChoiceLabels::new(&actions, discovery);
         if actions == view.actions {
             menu.set_labels(|action| labels.label(&action));

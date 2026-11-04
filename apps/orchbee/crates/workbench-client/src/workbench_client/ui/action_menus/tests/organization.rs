@@ -31,6 +31,38 @@ fn choose(
 }
 
 #[test]
+fn new_project_accepts_a_workspace_already_in_a_project_and_preserves_focus() {
+    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
+    let original = Origin::capture(ui.state.as_ref());
+    let target = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .cache()
+        .navigation()
+        .iter()
+        .find(|context| context.project_id.is_some())
+        .unwrap()
+        .location
+        .clone();
+    let action = choose(
+        &mut ui,
+        MenuTarget::WorkspaceProjects(target),
+        MenuAction::CreateWorkspaceProject,
+    );
+    ui.apply_client_action(action);
+    assert_eq!(
+        ui.view().setup_draft().unwrap().stage(),
+        crate::workbench_state::workspace_setup::SetupStage::WorkspaceProjectName
+    );
+    assert_eq!(Origin::capture(ui.state.as_ref()), original);
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "creation waits for a name"
+    );
+}
+
+#[test]
 fn leaving_noncurrent_workspace_submits_exact_organization_without_navigating() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();

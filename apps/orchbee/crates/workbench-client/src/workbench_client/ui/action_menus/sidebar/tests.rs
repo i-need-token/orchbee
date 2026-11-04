@@ -719,55 +719,35 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
     assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
 }
 
-/// Outside Git a menu has no Worktree rows, yet an answer under an open menu never changes its
-/// height: only the next menu follows it, in either direction.
+/// Git-only actions follow the current addressed result, including the first open menu.
 #[test]
-fn a_menu_outside_git_omits_the_worktree_rows_and_an_answer_changes_only_the_next_menu() {
-    use crate::action_menu::MenuUnavailable;
+fn non_git_discovery_removes_worktree_actions_and_a_new_repository_restores_them() {
     let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
     let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
-    let reopen = |ui: &mut WorkbenchClientUi| {
-        for _ in 0..3 {
-            if ui.action_menu_active() {
-                press(ui, KeyCode::Esc);
-            }
-        }
-        assert!(ui.open_action_menu(target.clone(), None, false));
-    };
-    let listed = |ui: &WorkbenchClientUi| ui.view().action_menu().unwrap().actions.to_vec();
     assert!(ui.open_action_menu(target.clone(), None, false));
-    let full = listed(&ui);
-
-    // The first refusal greys the rows where they stand.
+    let stale = draw(&mut ui);
     settle(&mut ui, Err(WorktreeNotice::NotRepository));
-    assert_eq!(listed(&ui), full);
-    for action in &rows {
-        assert_eq!(
-            unavailable(&ui, action),
-            Some(MenuUnavailable::NotGitRepository)
-        );
-    }
-
-    // The next menu leaves them and their separator out, and keeps that while Git is asked again.
-    reopen(&mut ui);
-    let outside: Vec<_> = full.iter().filter(|a| !rows.contains(a)).cloned().collect();
-    assert_eq!(listed(&ui), outside);
-    let view = ui.view();
-    let menu = view.action_menu().unwrap();
-    let separators = (0..menu.result_actions.len())
-        .filter(|&i| menu.result_separator_before(menu.result_actions, i))
-        .count();
-    assert_eq!(separators, 1, "only the close section stays separated");
+    assert!(
+        rows.iter()
+            .all(|row| !ui.view().action_menu().unwrap().actions.contains(row))
+    );
+    assert_ne!(
+        ui.view().action_menu().unwrap().token,
+        stale,
+        "old hit proofs must expire"
+    );
+    press(&mut ui, KeyCode::Esc);
+    assert!(ui.open_action_menu(target, None, false));
+    assert!(
+        rows.iter()
+            .all(|row| !ui.view().action_menu().unwrap().actions.contains(row))
+    );
     let answer = workspace_discovery(&ui);
     settle(&mut ui, Ok(Box::new(answer)));
-    assert_eq!(listed(&ui), outside);
-
-    // That answer brings them back from the next menu on.
-    reopen(&mut ui);
-    assert_eq!(listed(&ui), full);
-    for action in &rows {
-        assert_eq!(unavailable(&ui, action), None);
-    }
+    assert!(
+        rows.iter()
+            .all(|row| ui.view().action_menu().unwrap().actions.contains(row))
+    );
 }
 
 /// A row chosen on an answer the Workspace then left, or that Git no longer repeats, closes the menu

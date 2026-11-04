@@ -269,9 +269,6 @@ pub(super) struct Discovery {
     /// The menu's row showed a branch for this directory or one above it, so New Worktree… stays
     /// enabled until the first answer.
     known_git: bool,
-    /// The menu opened on an answer that the first terminal is outside Git, so it omits the
-    /// Worktree rows. Decided once per menu: an answer under the open menu changes no height.
-    outside_git: bool,
 }
 
 pub(super) enum DiscoveryState {
@@ -305,9 +302,9 @@ impl Discovery {
         self.known_git
     }
 
-    /// Whether the menu omits its Worktree rows, as it opened knowing the source is outside Git.
-    pub(super) const fn outside_git(&self) -> bool {
-        self.outside_git
+    /// A current refusal removes Git-only actions from the open menu too.
+    pub(super) fn outside_git(&self) -> bool {
+        matches!(self.shown(), DiscoveryState::NotGit)
     }
 
     /// The answer about where the first terminal stands now, which an action runs against.
@@ -637,11 +634,6 @@ impl MenuEpisode {
             .iter()
             .find_map(|answer| answer.speaks_for(&source))
             .filter(|earlier| !(known_git && matches!(earlier, DiscoveryState::NotGit)));
-        // A move under the open menu keeps the rows it opened with.
-        let outside_git = moved.as_ref().map_or_else(
-            || matches!(earlier, Some(DiscoveryState::NotGit)),
-            |moved| moved.outside_git,
-        );
         self.discovery = Some(Discovery {
             id,
             source,
@@ -649,7 +641,6 @@ impl MenuEpisode {
             state: DiscoveryState::Waiting,
             earlier,
             known_git,
-            outside_git,
         });
         true
     }

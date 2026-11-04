@@ -2097,10 +2097,7 @@ fn render_tab_strip(
 fn history_stand_in_surface(
     stand_in: Option<&crate::terminal_viewport::ViewportWindow>,
 ) -> Option<crate::workbench_client::ViewportSurface<'_>> {
-    stand_in.map(|window| crate::workbench_client::ViewportSurface::Window {
-        window,
-        position: None,
-    })
+    stand_in.map(|window| crate::workbench_client::ViewportSurface::Window { window })
 }
 
 /// Paints one projected leaf: its own pane's latest frame when the pane's

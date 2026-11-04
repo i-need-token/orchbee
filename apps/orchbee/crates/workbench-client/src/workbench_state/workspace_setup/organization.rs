@@ -107,9 +107,7 @@ impl WorkspaceOrganizationRequest {
 
     pub(crate) fn with_choice(mut self, choice: OrganizationChoice) -> Option<Self> {
         let valid = match (&self.target, &choice) {
-            (OrganizationTarget::Workspace(workspace), OrganizationChoice::NewProject) => {
-                workspace.project_id.is_none()
-            }
+            (OrganizationTarget::Workspace(_), OrganizationChoice::NewProject) => true,
             (OrganizationTarget::Workspace(workspace), OrganizationChoice::SetProject(project)) => {
                 project.as_ref().is_some_and(|id| {
                     self.source

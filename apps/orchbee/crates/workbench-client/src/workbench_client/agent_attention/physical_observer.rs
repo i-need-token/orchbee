@@ -143,9 +143,17 @@ impl PhysicalObserver {
         paint: &super::physical::PhysicalPaint,
         focused: Option<bool>,
         visible: impl FnMut(&AgentLaunchBinding) -> bool,
+        mut focused_presentation: impl FnMut(&AgentLaunchBinding) -> bool,
     ) -> bool {
         let versions = self.state.painted_versions(paint, visible);
-        let acknowledged = self.state.acknowledge_painted_versions(&versions, focused);
+        let focused_versions = versions
+            .iter()
+            .filter(|(binding, _)| focused_presentation(binding))
+            .cloned()
+            .collect::<Vec<_>>();
+        let acknowledged = self
+            .state
+            .acknowledge_painted_versions(&focused_versions, focused);
         let mut changed = !acknowledged.is_empty();
         for (binding, sequence) in versions {
             let identity = AgentNotificationIdentity {

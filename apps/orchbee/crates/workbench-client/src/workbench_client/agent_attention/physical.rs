@@ -1,4 +1,5 @@
 //! Client-owned acknowledgement of complete, creation-qualified physical state checkpoints.
+use crate::agent_completion::Completion;
 use std::collections::BTreeMap;
 
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
@@ -17,7 +18,7 @@ pub(in crate::workbench_client) use crate::workbench_client::agent_read_lane::ph
 struct Entry {
     current: TerminalAgentStateSnapshot,
     seen: bool,
-    completion_edited: bool,
+    completion: Completion,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,11 +45,14 @@ impl PhysicalAttentionState {
         };
         let mut changed = false;
         for entry in self.entries.values_mut() {
-            if entry.current.state == PanelAgentState::Done
-                && !entry.completion_edited
+            if matches!(
+                entry.current.state,
+                PanelAgentState::Idle | PanelAgentState::Done
+            ) && entry.current.agent.is_some()
+                && entry.completion != Completion::Edited
                 && matches(&entry.current.binding)
             {
-                entry.completion_edited = true;
+                entry.completion = Completion::Edited;
                 changed = true;
             }
         }
@@ -58,20 +62,34 @@ impl PhysicalAttentionState {
         changed
     }
 
-    pub(super) fn edited_completions(&self) -> Vec<(AgentLaunchBinding, WorkbenchRevision)> {
+    pub(super) fn completion_presentations(
+        &self,
+    ) -> Vec<(AgentLaunchBinding, WorkbenchRevision, bool)> {
         self.entries
             .values()
-            .filter(|entry| self.readable && entry.completion_edited)
-            .map(|entry| (entry.current.binding.clone(), entry.current.sequence))
+            .filter(|entry| self.readable && entry.completion != Completion::None)
+            .map(|entry| {
+                (
+                    entry.current.binding.clone(),
+                    entry.current.sequence,
+                    entry.completion == Completion::Edited,
+                )
+            })
             .collect()
     }
 
     pub(super) fn completion_edited(&self, matches: impl Fn(&AgentLaunchBinding) -> bool) -> bool {
         self.readable
-            && self
-                .entries
-                .values()
-                .any(|entry| entry.completion_edited && matches(&entry.current.binding))
+            && self.entries.values().any(|entry| {
+                entry.completion == Completion::Edited && matches(&entry.current.binding)
+            })
+    }
+
+    pub(super) fn completion_pending(&self, matches: impl Fn(&AgentLaunchBinding) -> bool) -> bool {
+        self.readable
+            && self.entries.values().any(|entry| {
+                entry.completion == Completion::Pending && matches(&entry.current.binding)
+            })
     }
 
     pub(super) fn agent_in_terminal(
@@ -132,15 +150,21 @@ impl PhysicalAttentionState {
             }
             let seen = first
                 || previous.is_some_and(|old| old.seen && old.current.sequence == current.sequence);
+            let prior = previous.filter(|old| old.current.agent == current.agent);
+            let completion = prior
+                .map_or(Completion::None, |old| old.completion)
+                .observe(
+                    prior.map_or(PanelAgentState::Unknown, |old| old.current.state),
+                    current.state,
+                    prior.is_some_and(|old| old.current.sequence == current.sequence),
+                );
             if entries
                 .insert(
                     id.to_owned(),
                     Entry {
                         current: current.clone(),
                         seen,
-                        completion_edited: previous.is_some_and(|old| {
-                            old.completion_edited && old.current.sequence == current.sequence
-                        }),
+                        completion,
                     },
                 )
                 .is_some()

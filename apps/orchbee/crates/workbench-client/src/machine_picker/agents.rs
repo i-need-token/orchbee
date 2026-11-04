@@ -205,14 +205,17 @@ impl Picker {
         changed && self.project_agent_observations(self.agent_sources.clone())
     }
 
-    pub fn observe_agent_edits(
+    /// Join completion presentation to the exact physical version without rewriting source rows.
+    pub fn observe_agent_completions(
         &mut self,
-        edits: &[(
+        completions: &[(
             orchbee_agent_observation_protocol::AgentLaunchBinding,
             orchbee_workbench_protocol::WorkbenchRevision,
+            bool,
         )],
     ) -> bool {
-        self.agent_attention.observe_edits(&self.current, edits)
+        self.agent_attention
+            .observe_completions(&self.current, completions)
             && self.project_agent_observations(self.agent_sources.clone())
     }
     pub(crate) fn current_agent(

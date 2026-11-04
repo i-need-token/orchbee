@@ -372,13 +372,10 @@ and a clipped wide cell paints blank. History never shows a cursor. Graphics res
 validated at decode but not displayed; this does not complete graphics history. Old-generation or old-column data never paints: the surface accessor re-validates the
 installed window's generation and columns against current facts on every draw. `Entering` keeps
 the last verified live frame under a history badge; `Viewing` without a current window clears to
-the badge; `Recovering` clears to a recovering indicator. The leaf's last row carries a
-localized position readout (`start_row`/`total_rows` of the currently validated window — an
-expired or stale window shows none) on the left and a persistent localized return-to-live hint
-on the right; narrow panes degrade on grapheme boundaries with the hint keeping priority. `Esc`
-returns to live output. The badge rectangle and the entire footer row reset underlying cells
-before painting their semantic styles, so child colors, hidden/reversed attributes and history
-text cannot leak into chrome. A wide glyph crossing the badge's left edge is blanked rather
+the badge; `Recovering` clears to a recovering indicator. The mode badge is the only history chrome over terminal rows; the last row remains retained
+content. `Esc` returns to live output. The badge rectangle resets underlying cells before painting
+its semantic style, so child colors and hidden/reversed attributes cannot leak into chrome.
+A wide glyph crossing the badge's left edge is blanked rather
 than painting half a glyph across the label.
 
 ## Scrollbar interaction

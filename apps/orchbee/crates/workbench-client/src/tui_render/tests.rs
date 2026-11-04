@@ -1151,10 +1151,7 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
                     super::viewport::render_selected(
                         frame,
                         Rect::new(0, 0, width, 3),
-                        ViewportSurface::Window {
-                            window: &window,
-                            position: Some((42, 200)),
-                        },
+                        ViewportSurface::Window { window: &window },
                         None,
                         false,
                         locale,
@@ -1239,18 +1236,17 @@ fn render_viewport(
     buffer_rows(&terminal, width, height)
 }
 
-// A validated window paints its retained rows under the mode badge, with
-// the position readout and the persistent return hint on the bottom line.
+// History preserves retained content through the bottom row while keeping its mode visible.
 #[test]
-fn history_window_paints_rows_position_and_hint() {
-    let window = history_window(&["row-one", "row-two"], 40);
+fn history_window_preserves_rows_with_its_mode_badge() {
+    let window = history_window(
+        &["row-one", "row-two", "3", "4", "5", "6", "7", "last-row"],
+        40,
+    );
     let rows = render_viewport(
         40,
         8,
-        ViewportSurface::Window {
-            window: &window,
-            position: Some((42, 200)),
-        },
+        ViewportSurface::Window { window: &window },
         None,
         Locale::EnUs,
     );
@@ -1260,54 +1256,16 @@ fn history_window_paints_rows_position_and_hint() {
         "badge on the first row: {rows:?}"
     );
     assert!(rows[1].contains("row-two"), "{rows:?}");
-    assert!(rows[7].contains("Row 42 of 200"), "{rows:?}");
-    assert!(rows[7].contains("Esc back to live"), "{rows:?}");
+    assert!(
+        rows[7].contains("last-row"),
+        "history chrome must not cover content: {rows:?}"
+    );
 }
 
 // The bottom line and indicators localize with the session locale.
-#[test]
-fn history_window_bottom_line_localizes() {
-    let window = history_window(&["row"], 40);
-    let rows = render_viewport(
-        40,
-        8,
-        ViewportSurface::Window {
-            window: &window,
-            position: Some((42, 200)),
-        },
-        None,
-        Locale::ZhCn,
-    );
-    let bottom = without_cell_padding(&rows[7]);
-    assert!(bottom.contains("第42行·共200行"), "{rows:?}");
-    assert!(bottom.contains("Esc返回实时"), "{rows:?}");
-    assert!(without_cell_padding(&rows[0]).contains("历史"), "{rows:?}");
-}
 
 // A narrow leaf degrades on grapheme boundaries: the return hint keeps
 // priority while the position truncates first.
-#[test]
-fn history_bottom_line_hint_keeps_priority_when_narrow() {
-    let window = history_window(&["row"], 18);
-    let rows = render_viewport(
-        18,
-        6,
-        ViewportSurface::Window {
-            window: &window,
-            position: Some((42, 200)),
-        },
-        None,
-        Locale::EnUs,
-    );
-    assert!(
-        rows[5].contains("Esc back to live"),
-        "hint survives the position: {rows:?}"
-    );
-    assert!(
-        !rows[5].contains("Row 42"),
-        "the position yields first: {rows:?}"
-    );
-}
 
 // `AwaitingWindow` and `Recovering` clear the leaf and paint their own
 // indicator — no position without a validated window, never stale rows.
@@ -1343,7 +1301,6 @@ fn history_indicators_clear_and_show_without_position() {
             !joined.contains("stale-live-content"),
             "indicator surface left stale content: {rows:?}"
         );
-        assert!(rows[7].contains("Esc back to live"), "{rows:?}");
         assert!(!joined.contains("Row"), "no position shown: {rows:?}");
         let badge = match surface {
             ViewportSurface::AwaitingWindow => "Loading history…",
@@ -1416,7 +1373,6 @@ fn history_entering_keeps_the_live_frame() {
         "live frame preserved: {rows:?}"
     );
     assert!(joined.contains("Loading history…"), "{rows:?}");
-    assert!(rows[7].contains("Esc back to live"), "{rows:?}");
 }
 
 #[test]
@@ -1442,10 +1398,7 @@ fn history_chrome_clears_child_styles_text_and_crossing_wide_cells() {
         super::viewport::render(
             frame,
             Rect::new(0, 0, 40, 3),
-            ViewportSurface::Window {
-                window: &window,
-                position: Some((42, 200)),
-            },
+            ViewportSurface::Window { window: &window },
             None,
             false,
             Locale::EnUs,
@@ -1465,16 +1418,8 @@ fn history_chrome_clears_child_styles_text_and_crossing_wide_cells() {
     for x in 31..40 {
         assert!(!buffer[(x, 0)].modifier.intersects(leaked));
     }
-    for x in 0..40 {
-        assert!(!buffer[(x, 2)].modifier.intersects(leaked));
-    }
-    for x in 14..23 {
-        assert_eq!(buffer[(x, 2)].symbol(), " ");
-    }
     let rows = buffer_rows(&terminal, 40, 3);
     assert!(rows[0].contains("HISTORY"));
-    assert!(rows[2].contains("Row 42 of 200"));
-    assert!(rows[2].contains("Esc back to live"));
 }
 
 #[test]
@@ -1501,10 +1446,7 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
         super::viewport::render(
             frame,
             Rect::new(0, 0, 40, 8),
-            ViewportSurface::Window {
-                window: &window,
-                position: None,
-            },
+            ViewportSurface::Window { window: &window },
             None,
             true,
             Locale::EnUs,
@@ -1532,10 +1474,7 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
     let clipped = render_viewport(
         2,
         4,
-        ViewportSurface::Window {
-            window: &window,
-            position: None,
-        },
+        ViewportSurface::Window { window: &window },
         None,
         Locale::EnUs,
     );

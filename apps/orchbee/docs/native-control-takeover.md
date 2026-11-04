@@ -2,17 +2,26 @@
 
 ## Ownership and interaction
 
-The built-in `Ctrl+B t` action explicitly requests control of the focused,
-attached native pane. Ordinary typing, clicking, selection and Viewer polling never request
-takeover. The Server remains the authority for controller grants through the existing
-OBCS v1 Takeover action; the Client does not select or revoke another Client's identity.
-The terminal, program and Viewer attachments survive the handoff.
+Host focus gain automatically requests control of the focused attached native pane. Selecting a read-only
+pane while the Client is active does the same. The first activation preserves a fresh controlling
+startup grant so that a first click or drag is not fenced by a redundant self-transfer. Repeated
+reports of the same focus state are idempotent. An activation waits for attachment readiness and
+Client capture to clear, then submits at most one transfer through the existing serialized barrier.
+Focus loss cancels an activation not yet submitted. Failure or an unknown result never rearms it;
+a later focus activation is a new intent. The built-in `Ctrl+B t` remains an explicit alternative.
+Ordinary typing and Viewer polling do not request takeover or replay blocked input. The Server
+remains the authority for grants through OBCS v1 Takeover; the Client does not select another
+Client's identity. Terminal, program and Viewer attachments survive the handoff.
+
+The outer terminal emulator owns which window or tab receives focus after a close. Its restored
+focus event admits the same transfer and restores that Client's content geometry. Orchbee does not
+maintain a second operating-system window focus queue.
 
 The successful requester supplies its pane content geometry. The previous controller
 keeps receiving output; its next input or resize rejection changes its displayed mode to
 read-only. A stationary Client's control label can lag until that interaction. The status
 line preserves the known read-only explanation and takeover key when input is blocked.
-Blocked input is discarded and never replayed. A later explicit gesture can transfer control back
+Blocked input is discarded and never replayed. A later focus activation or explicit gesture can transfer control back
 using the same Viewer. Repeating the gesture while still the actual controller preserves
 the verified current grant. An ended terminal accepts no controller: the gesture submits nothing,
 and the status line keeps the retained exit fact and offers a new Tab instead of the takeover key.
@@ -39,15 +48,15 @@ uses the existing serialized refresh barrier, excluding concurrent structural op
 While pending, input and selection of another native context are fenced. The marker has
 one typed purpose; takeover does not pretend to be a Workbench snapshot mutation.
 
-| State     | Evidence and permitted transition                                                    |
-| --------- | ------------------------------------------------------------------------------------ |
-| Idle      | Only an explicit action on a current attached Ready pane can admit an operation.     |
-| Queued    | No submission yet; one original deadline covers queueing and execution.              |
-| Submitted | Missing reply is unknown; no automatic second takeover or reacquisition.             |
-| Granted   | Retain the exact returned controller before allocation, resize or UI settlement.     |
-| Ready     | Resize and projection reactivation are acknowledged; UI awaits drawn frame feedback. |
-| Refused   | Preserve attachment and focus; report that control was not obtained.                 |
-| Unknown   | Preserve operation identity and any known grant; retire the carrier when necessary.  |
+| State     | Evidence and permitted transition                                                           |
+| --------- | ------------------------------------------------------------------------------------------- |
+| Idle      | A focus activation or explicit action on a current attached Ready pane admits an operation. |
+| Queued    | No submission yet; one original deadline covers queueing and execution.                     |
+| Submitted | Missing reply is unknown; no automatic second takeover or reacquisition.                    |
+| Granted   | Retain the exact returned controller before allocation, resize or UI settlement.            |
+| Ready     | Resize and projection reactivation are acknowledged; UI awaits drawn frame feedback.        |
+| Refused   | Preserve attachment and focus; report that control was not obtained.                        |
+| Unknown   | Preserve operation identity and any known grant; retire the carrier when necessary.         |
 
 A known grant cannot regress to unknown or be replaced by another grant in the same
 operation. Loss during delivery retains evidence in both the executor and mailbox until

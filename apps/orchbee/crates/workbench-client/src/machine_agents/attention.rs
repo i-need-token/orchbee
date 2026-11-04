@@ -1,5 +1,6 @@
 //! Endpoint-qualified Client acknowledgements; complete reads never mark changed versions seen.
 use super::checkpoint::{Checkpoint, MAXIMUM_ROWS};
+use crate::agent_completion::Completion;
 use crate::machines::Choice;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
@@ -15,7 +16,7 @@ struct Version {
     agent: String,
     state: PanelAgentState,
     seen: bool,
-    completion_edited: bool,
+    completion: Completion,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Endpoint {
@@ -66,6 +67,12 @@ impl Attention {
             }
             let seen =
                 previous.is_none() || old.is_some_and(|v| v.sequence == row.sequence && v.seen);
+            let prior = old.filter(|v| v.agent == row.target.agent);
+            let completion = prior.map_or(Completion::None, |v| v.completion).observe(
+                prior.map_or(PanelAgentState::Unknown, |v| v.state),
+                row.state,
+                prior.is_some_and(|v| v.sequence == row.sequence),
+            );
             if versions
                 .insert(
                     row.target.member.clone(),
@@ -75,8 +82,7 @@ impl Attention {
                         agent: row.target.agent.clone(),
                         state: row.state,
                         seen,
-                        completion_edited: old
-                            .is_some_and(|v| v.sequence == row.sequence && v.completion_edited),
+                        completion,
                     },
                 )
                 .is_some()
@@ -85,11 +91,7 @@ impl Attention {
             }
             let mut projected = row.clone();
             projected.seen = seen;
-            if row.state == PanelAgentState::Done
-                && old.is_some_and(|v| v.sequence == row.sequence && v.completion_edited)
-            {
-                projected.state = PanelAgentState::Idle;
-            }
+            projected.state = completion.display(row.state);
             rows.push(projected);
         }
         let next = Endpoint {
@@ -146,21 +148,28 @@ impl Attention {
         changed
     }
 
-    pub(crate) fn observe_edits(
+    pub(crate) fn observe_completions(
         &mut self,
         choice: &Choice,
-        edits: &[(AgentLaunchBinding, WorkbenchRevision)],
+        completions: &[(AgentLaunchBinding, WorkbenchRevision, bool)],
     ) -> bool {
         let Some(endpoint) = self.endpoints.iter_mut().find(|e| &e.choice == choice) else {
             return false;
         };
         let mut changed = false;
-        for (binding, sequence) in edits {
+        for (binding, sequence, edited) in completions {
             if let Some(version) = endpoint.versions.values_mut().find(|v| {
-                v.binding == *binding && v.sequence == *sequence && v.state == PanelAgentState::Done
+                v.binding == *binding
+                    && v.sequence == *sequence
+                    && matches!(v.state, PanelAgentState::Idle | PanelAgentState::Done)
             }) {
-                changed |= !version.completion_edited;
-                version.completion_edited = true;
+                let next = if *edited || version.completion == Completion::Edited {
+                    Completion::Edited
+                } else {
+                    Completion::Pending
+                };
+                changed |= version.completion != next;
+                version.completion = next;
             }
         }
         changed

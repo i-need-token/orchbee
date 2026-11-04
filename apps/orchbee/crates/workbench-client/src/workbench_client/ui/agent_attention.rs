@@ -4,15 +4,18 @@ use crate::workbench_client::agent_attention::{AgentAttentionDraw, PaintedPane};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl WorkbenchClientView<'_> {
-    pub fn edited_completions(
+    /// Exact physical versions with a Client completion projection; the boolean records input
+    /// acknowledgement. Consumers never substitute these display facts for observed Agent status.
+    pub fn completion_presentations(
         &self,
     ) -> Vec<(
         orchbee_agent_observation_protocol::AgentLaunchBinding,
         orchbee_workbench_protocol::WorkbenchRevision,
+        bool,
     )> {
         self.attention
             .filter(|_| self.retirement.is_none())
-            .map_or_else(Vec::new, |attention| attention.edited_completions())
+            .map_or_else(Vec::new, |attention| attention.completion_presentations())
     }
 
     pub(crate) fn panel_completion_edited(&self, panel: &WorkbenchPanelId) -> bool {
@@ -24,6 +27,17 @@ impl WorkbenchClientView<'_> {
         };
         self.attention
             .is_some_and(|attention| attention.completion_edited(&pane))
+    }
+
+    pub(crate) fn panel_completion_pending(&self, panel: &WorkbenchPanelId) -> bool {
+        let Some(pane) = self
+            .pane_ref_for_panel(panel)
+            .and_then(|pane| self.bound_attention_pane(&pane))
+        else {
+            return false;
+        };
+        self.attention
+            .is_some_and(|attention| attention.completion_pending(&pane))
     }
 
     pub fn machine_attention_version(&self) -> Option<(u64, usize)> {
@@ -103,7 +117,11 @@ impl WorkbenchClientView<'_> {
         let panes = panes
             .filter_map(|pane| self.painted_attention_pane(pane))
             .collect();
-        self.attention?.paint(panes)
+        self.attention?.paint(
+            panes,
+            self.focus_panel_id()
+                .and_then(|panel| self.pane_ref_for_panel(panel)),
+        )
     }
 
     pub(crate) fn panel_unseen_count(&self, panel: &WorkbenchPanelId) -> usize {
@@ -245,8 +263,13 @@ impl WorkbenchClientUi {
             .filter(|proof| view.painted_attention_pane(&proof.pane).as_ref() == Some(*proof))
             .cloned()
             .collect();
+        let focus = self
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_pane_ref())
+            .filter(|pane| draw.focused_pane.as_ref() == Some(pane));
         self.attention
-            .acknowledge(&draw, self.outer_focused, &visible);
+            .acknowledge(&draw, self.outer_focused, &visible, focus.as_ref());
     }
 }
 

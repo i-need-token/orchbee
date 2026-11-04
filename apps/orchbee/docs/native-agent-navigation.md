@@ -10,7 +10,7 @@ Client control contract. The default total timeout is 30000 ms. Help, completion
 remain offline. There is no new macOS or Linux runtime.
 
 The command changes Client selection and explicitly acknowledges current known versions in the
-selected Tab through the [Client attention owner](native-client-attention.md). This explicit effect
+focused Panel and selected presentation through the [Client attention owner](native-client-attention.md). This explicit effect
 is separate from ordinary visible-paint acknowledgement and its outer-focus gate. Canonical Agent
 lifecycle, semantic status and freshness remain Server observations.
 

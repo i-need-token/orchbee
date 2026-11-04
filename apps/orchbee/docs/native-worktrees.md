@@ -220,7 +220,7 @@ row menu, Open Worktree ▸ opens a linked checkout into a new Project with the 
 Worktree… then joins that Project. It also covers a first terminal in a subdirectory, a directory the
 shell only reports, a directory change under the open menu with its rows staying enabled, a checkout another Workspace holds, a
 Workspace that walked into the checkout beside one that walked out of it, a folder outside Git whose
-next menu omits the Worktree rows, and a checkout every Workspace left. A direct Cargo run needs the Server and Worker built first.
+open menu omits the Worktree rows once Git refuses it, and a checkout every Workspace left. A direct Cargo run needs the Server and Worker built first.
 
 ## Entry and failure
 

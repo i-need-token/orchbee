@@ -30,6 +30,54 @@ fn seen(owner: &PhysicalAttentionState, state: &TerminalAgentStateSnapshot) -> O
 }
 
 #[test]
+fn working_to_idle_completion_is_local_and_reading_does_not_consume_it() {
+    let mut owner = PhysicalAttentionState::default();
+    let mut current = state(1, 1, 1);
+    publish(&mut owner, 1, &[current.clone()]);
+    assert!(
+        !owner.completion_pending(|_| true),
+        "initial idle has no completed work"
+    );
+    current.sequence = WorkbenchRevision::new(2);
+    current.state = PanelAgentState::Working;
+    publish(&mut owner, 2, &[current.clone()]);
+    current.sequence = WorkbenchRevision::new(3);
+    current.state = PanelAgentState::Idle;
+    publish(&mut owner, 3, &[current.clone()]);
+    assert!(owner.completion_pending(|binding| binding == &current.binding));
+    assert_eq!(
+        owner.entries.values().next().unwrap().current.state,
+        PanelAgentState::Idle
+    );
+    assert_eq!(
+        owner.notification_observations().unwrap()[0].state,
+        crate::workbench_client::agent_notifications::AgentNotificationState::Idle
+    );
+    owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true);
+    assert!(
+        owner.completion_pending(|_| true),
+        "focus clears unread, not completion"
+    );
+    assert!(owner.edit_completed(|_| true));
+    publish(&mut owner, 4, &[current.clone()]);
+    assert!(!owner.completion_pending(|_| true));
+    assert!(owner.completion_edited(|_| true));
+    current.sequence = WorkbenchRevision::new(4);
+    current.state = PanelAgentState::Working;
+    publish(&mut owner, 5, &[current.clone()]);
+    assert!(owner.completion_presentations().is_empty());
+    current.sequence = WorkbenchRevision::new(5);
+    current.state = PanelAgentState::Idle;
+    publish(&mut owner, 6, &[current]);
+    assert!(owner.completion_pending(|_| true));
+    publish(&mut owner, 7, &[state(1, 2, 1)]);
+    assert!(
+        owner.completion_presentations().is_empty(),
+        "replacement never inherits completion"
+    );
+}
+
+#[test]
 fn physical_clients_observe_independent_paints_and_preserve_quiet_updates() {
     let (mut a, mut b) = (
         PhysicalAttentionState::default(),
@@ -62,32 +110,36 @@ fn completed_edit_is_local_exact_version_and_independent_from_reading() {
     done.state = PanelAgentState::Done;
     publish(&mut owner, 3, std::slice::from_ref(&done));
     owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true);
-    assert!(owner.edited_completions().is_empty());
+    assert_eq!(
+        owner.completion_presentations(),
+        vec![(done.binding.clone(), done.sequence, false)]
+    );
     assert!(!owner.edit_completed(|binding| binding.host_terminal_id.as_str() == "wrong"));
     assert!(owner.edit_completed(|binding| *binding == done.binding));
     assert_eq!(
-        owner.edited_completions(),
-        vec![(done.binding.clone(), done.sequence)]
+        owner.completion_presentations(),
+        vec![(done.binding.clone(), done.sequence, true)]
     );
     assert_eq!(
         owner.notification_observations().unwrap()[0].state,
         crate::workbench_client::agent_notifications::AgentNotificationState::Done
     );
     publish(&mut owner, 4, std::slice::from_ref(&done));
-    assert_eq!(owner.edited_completions().len(), 1);
+    assert_eq!(owner.completion_presentations().len(), 1);
     done.sequence = WorkbenchRevision::new(5);
     publish(&mut owner, 5, std::slice::from_ref(&done));
-    assert!(
-        owner.edited_completions().is_empty(),
+    assert_eq!(
+        owner.completion_presentations(),
+        vec![(done.binding.clone(), done.sequence, false)],
         "a later completion remains green"
     );
     assert!(owner.edit_completed(|_| true));
     let replacement = state(1, 2, 0);
     publish(&mut owner, 6, &[replacement]);
-    assert!(owner.edited_completions().is_empty());
+    assert!(owner.completion_presentations().is_empty());
     assert!(
-        !owner.edit_completed(|_| true),
-        "idle/working/error are never overwritten"
+        !owner.completion_pending(|_| true),
+        "a replacement never inherits completion"
     );
 }
 

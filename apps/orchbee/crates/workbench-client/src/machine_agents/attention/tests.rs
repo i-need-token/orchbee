@@ -7,6 +7,54 @@ use orchbee_workbench_protocol::{
     PanelMetadataEffective,
 };
 #[test]
+fn completed_projection_preserves_observations_and_late_lanes_cannot_undo_input() {
+    let mut attention = Attention::default();
+    let mut raw = row();
+    let project = |owner: &mut Attention, row: Row| {
+        owner
+            .project(
+                &Choice::Local,
+                &super::super::test_support::checkpoint(vec![row]),
+            )
+            .unwrap()[0]
+            .state
+    };
+    assert_eq!(project(&mut attention, raw.clone()), PanelAgentState::Idle);
+    raw.sequence = WorkbenchRevision::new(2);
+    raw.state = PanelAgentState::Working;
+    assert_eq!(
+        project(&mut attention, raw.clone()),
+        PanelAgentState::Working
+    );
+    raw.sequence = WorkbenchRevision::new(3);
+    raw.state = PanelAgentState::Idle;
+    assert_eq!(project(&mut attention, raw.clone()), PanelAgentState::Done);
+    assert_eq!(raw.state, PanelAgentState::Idle);
+    let edited = [(raw.target.physical.clone(), raw.sequence, true)];
+    assert!(attention.observe_completions(&Choice::Local, &edited));
+    assert_eq!(project(&mut attention, raw.clone()), PanelAgentState::Idle);
+    let pending = [(raw.target.physical.clone(), raw.sequence, false)];
+    assert!(!attention.observe_completions(&Choice::Local, &pending));
+    assert_eq!(project(&mut attention, raw.clone()), PanelAgentState::Idle);
+    let mut late = Attention::default();
+    assert_eq!(project(&mut late, raw.clone()), PanelAgentState::Idle);
+    assert!(late.observe_completions(&Choice::Local, &pending));
+    assert_eq!(project(&mut late, raw.clone()), PanelAgentState::Done);
+    assert!(late.observe_completions(&Choice::Local, &edited));
+    assert_eq!(project(&mut late, raw.clone()), PanelAgentState::Idle);
+    raw.sequence = WorkbenchRevision::new(4);
+    raw.state = PanelAgentState::Working;
+    project(&mut attention, raw.clone());
+    raw.sequence = WorkbenchRevision::new(5);
+    raw.state = PanelAgentState::Idle;
+    assert_eq!(project(&mut attention, raw), PanelAgentState::Done);
+    assert!(
+        !attention.observe_completions(&Choice::Local, &edited),
+        "old input cannot clear a new completion"
+    );
+}
+
+#[test]
 fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() {
     let mut attention = Attention::default();
     let baseline = super::super::test_support::checkpoint(vec![row()]);
@@ -65,8 +113,8 @@ fn completion_edit_projects_idle_without_mutating_observation_or_new_completion(
         attention.project(&Choice::Local, &round).unwrap()[0].state,
         PanelAgentState::Done
     );
-    let edits = [(done.target.physical.clone(), done.sequence)];
-    assert!(attention.observe_edits(&Choice::Local, &edits));
+    let edits = [(done.target.physical.clone(), done.sequence, true)];
+    assert!(attention.observe_completions(&Choice::Local, &edits));
     assert_eq!(
         attention.project(&Choice::Local, &round).unwrap()[0].display_state(),
         orchbee_workbench_protocol::MetadataState::Idle
@@ -78,7 +126,7 @@ fn completion_edit_projects_idle_without_mutating_observation_or_new_completion(
         attention.project(&Choice::Local, &next).unwrap()[0].state,
         PanelAgentState::Done
     );
-    assert!(!attention.observe_edits(&Choice::Local, &edits));
+    assert!(!attention.observe_completions(&Choice::Local, &edits));
 }
 #[test]
 fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {

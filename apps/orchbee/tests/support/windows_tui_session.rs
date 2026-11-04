@@ -254,6 +254,11 @@ impl Fixture {
     /// terminal marks itself as an Orchbee terminal; the launcher clears those marks so the TUI
     /// attaches to the default Session as a top-level Client.
     pub fn start_tui(&self, columns: u16, rows: u16) -> Tui {
+        let existing: Vec<_> = self
+            .clients()
+            .into_iter()
+            .filter_map(|client| client["clientId"].as_str().map(str::to_owned))
+            .collect();
         let launcher = self.root.join("tui.cmd");
         fs::write(
             &launcher,
@@ -305,11 +310,12 @@ impl Fixture {
 
         let deadline = Instant::now() + STARTUP;
         let client = loop {
-            if let Some(client) = self
-                .clients()
-                .into_iter()
-                .find(|client| client["view"]["phase"] == "ready")
-            {
+            if let Some(client) = self.clients().into_iter().find(|client| {
+                client["view"]["phase"] == "ready"
+                    && client["clientId"]
+                        .as_str()
+                        .is_some_and(|id| !existing.iter().any(|old| old == id))
+            }) {
                 break client["clientId"].as_str().unwrap().to_owned();
             }
             assert!(

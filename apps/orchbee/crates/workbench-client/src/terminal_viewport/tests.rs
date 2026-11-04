@@ -150,7 +150,6 @@ fn scrollbar_latest_absolute_intent_survives_old_window_and_ack() {
     ));
     viewport.nav(ViewportNav::OffsetFromBottom(0));
     assert_eq!(drain(&mut viewport), vec![ViewportStep::Recover]);
-    assert!(viewport.position().is_none());
 }
 
 #[test]
@@ -477,7 +476,6 @@ fn t4_anchor_eviction_recovers() {
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
     assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
-    assert!(viewport.position().is_none());
     // No further reads while recovering.
     viewport.nav(ViewportNav::Lines(-1));
     assert!(
@@ -755,7 +753,6 @@ fn ack_rejection_recovers() {
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
     assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
-    assert!(viewport.position().is_none());
 }
 
 // Scrolling to the live tail exits through recovery instead of emitting a
@@ -1105,34 +1102,6 @@ fn intent_budget_rearms_between_intents() {
     );
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert_eq!(effect.notice, Some(ViewportNotice::Recovering));
-}
-
-// `position` reports only the currently validated window: entering has
-// none, a resize-expired window reports none, and recovering reports none.
-#[test]
-fn position_tracks_current_window_only() {
-    let viewport = entering(80, 24);
-    assert_eq!(viewport.position(), None);
-    let mut viewport = viewing(80, 24);
-    assert_eq!(viewport.position(), Some((90, 200)));
-    viewport.resize(120, 30, Instant::now());
-    assert_eq!(viewport.position(), None);
-    // After a committed window is re-established the position returns.
-    viewport.facts(facts_event(2, 1, HistoryAnchorStatus::Valid));
-    let steps = drain(&mut viewport);
-    let request_sequence = match steps.as_slice() {
-        [
-            ViewportStep::Read {
-                request_sequence, ..
-            },
-        ] => *request_sequence,
-        other => panic!("expected post-resize read, got {other:?}"),
-    };
-    viewport.window(
-        window(request_sequence.get(), 1, 40, 200, 120, 30),
-        Instant::now(),
-    );
-    assert_eq!(viewport.position(), Some((40, 200)));
 }
 
 // A resize drops unadmitted wire steps minted under the old geometry —
