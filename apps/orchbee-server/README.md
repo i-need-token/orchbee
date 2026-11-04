@@ -78,9 +78,10 @@ Sidebar deletion can submit `workspace.close-if-idle` or `project.dissolve-if-id
 full fingerprints. The [conditional admission owner](docs/terminal-tab-close.md#conditional-idle-admission)
 proves the whole captured scope under the Session gate, including pending reservations and child
 bindings. A runtime-backed or unresolved scope never becomes empty from Client observations.
-Closing one Tab or Panel submits `tab.close-if-idle` or `panel.close-if-idle`; the Server reads
-each live terminal's own shell report and process sample within one second and asks unless both
-show an idle shell, so every Client follows the same rule.
+Closing a Workspace, Tab or Panel submits `workspace.close-if-idle`, `tab.close-if-idle` or
+`panel.close-if-idle`; for each the Server reads every live terminal's own shell report and process
+sample within one budget and asks unless that evidence shows an idle shell, so every Client and
+every scope follows the same rule.
 Conditional Workspace Close installs the ordinary retained fence; conditional Project dissolution
 removes organization only and preserves member resources. A definite `confirmation-required`
 refusal permits a new reviewed decision, never automatic unconditional resubmission. Existing

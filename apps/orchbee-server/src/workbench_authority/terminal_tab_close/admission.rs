@@ -464,23 +464,19 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         }
-        let unproven = |proof: fn(&WorkbenchTabCloseMemberRuntime) -> bool| {
-            runtimes.iter().any(|runtime| {
-                !matches!(runtime, WorkbenchTabCloseMemberRuntime::Uncreated { .. })
-                    && !proof(runtime)
-            })
-        };
-        let conditional_unproven = match self.command.action {
-            WorkbenchAction::WorkspaceCloseIfIdle { .. } => unproven(|runtime| {
-                matches!(runtime, WorkbenchTabCloseMemberRuntime::IdleRuntime { .. })
-            }),
-            WorkbenchAction::TabCloseIfIdle { .. } | WorkbenchAction::PanelCloseIfIdle { .. } => {
-                unproven(|runtime| {
-                    matches!(runtime, WorkbenchTabCloseMemberRuntime::QuietRuntime { .. })
-                })
-            }
-            _ => false,
-        };
+        // Every conditional scope admits only the Server's own evidence for each runtime.
+        let conditional_unproven = matches!(
+            self.command.action,
+            WorkbenchAction::WorkspaceCloseIfIdle { .. }
+                | WorkbenchAction::TabCloseIfIdle { .. }
+                | WorkbenchAction::PanelCloseIfIdle { .. }
+        ) && runtimes.iter().any(|runtime| {
+            !matches!(
+                runtime,
+                WorkbenchTabCloseMemberRuntime::Uncreated { .. }
+                    | WorkbenchTabCloseMemberRuntime::QuietRuntime { .. }
+            )
+        });
         if conditional_unproven {
             return WorkbenchTabClosePreparation::Ready(
                 self.authority
@@ -539,13 +535,6 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         let mut continuations = Vec::with_capacity(member_count);
         for (member, evidence) in self.members.into_iter().zip(runtimes) {
             let (runtime, continuation) = match evidence {
-                WorkbenchTabCloseMemberRuntime::IdleRuntime {
-                    target,
-                    observed_phase,
-                } => (
-                    Some(target),
-                    CloseContinuation::prepare_if_idle(now, Some(observed_phase)),
-                ),
                 WorkbenchTabCloseMemberRuntime::Runtime {
                     target,
                     observed_phase,

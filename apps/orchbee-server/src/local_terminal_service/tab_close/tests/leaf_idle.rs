@@ -123,7 +123,7 @@ fn a_tab_or_panel_closes_unasked_only_on_the_servers_own_evidence() {
         });
         let mut read = false;
         let result = service
-            .execute_terminal_tab_close_if_idle_with(command.clone(), |targets, deadline| {
+            .execute_close_if_idle_with(command.clone(), |targets, deadline| {
                 read = true;
                 assert_eq!(targets.len(), 1);
                 assert!(
@@ -188,7 +188,7 @@ fn a_tab_or_panel_closes_unasked_only_on_the_servers_own_evidence() {
             "{case:?}"
         );
         assert_eq!(
-            service.execute_terminal_tab_close_if_idle_with(command, |_, _| unreachable!()),
+            service.execute_close_if_idle_with(command, |_, _| unreachable!()),
             Some(result),
             "a retried request replays its answer and reads nothing"
         );
@@ -214,7 +214,7 @@ fn final_admission_counts_evidence_only_for_the_runtime_and_revision_it_was_read
         peer
     });
     let result = service
-        .execute_terminal_tab_close_if_idle_with(command, |_, _| {
+        .execute_close_if_idle_with(command, |_, _| {
             let WorkbenchAction::TabClose {
                 terminal_context_id,
                 tab_id,

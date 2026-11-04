@@ -1,25 +1,35 @@
-//! Framed inventory witnesses exercise whole-scope preflight and final CAS.
+//! A conditional Workspace Close reads every Tab's terminal as a conditional Tab Close reads its
+//! own, decides by the same rule, and rechecks the whole scope at final admission.
 use super::*;
-use orchbee_capability_node_protocol::LifecycleCloseActivity;
+use crate::local_terminal_service::tab_close::evidence::{CloseFacts, ShellReport};
+use orchbee_capability_node_protocol::{LifecycleCloseActivity, LifecycleHostFailure};
 use orchbee_workbench_protocol::WorkbenchRejectionReason;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum LastMember {
-    Idle,
-    Active,
-    Unknown,
-    Missing,
+enum Case {
+    /// Both shells sit at their prompts.
+    Quiet,
+    /// The Host calls both idle, and nothing else is known: no sampler reads them.
+    HostIdleOnly,
+    /// The second shell says nothing and its sample never came.
+    SecondAsks,
+    /// The second terminal ended; only the first is read.
+    SecondEnded,
+    /// The second terminal is missing from its inventory.
+    SecondMissing,
+    /// The Workspace changes while it is inspected.
     Stale,
 }
 
 #[test]
-fn workspace_idle_close_reads_every_tab_and_rechecks_before_any_guarded_signal() {
-    for last in [
-        LastMember::Idle,
-        LastMember::Active,
-        LastMember::Unknown,
-        LastMember::Missing,
-        LastMember::Stale,
+fn a_workspace_closes_unasked_only_on_the_evidence_a_tab_close_reads() {
+    for case in [
+        Case::Quiet,
+        Case::HostIdleOnly,
+        Case::SecondAsks,
+        Case::SecondEnded,
+        Case::SecondMissing,
+        Case::Stale,
     ] {
         let Fixture {
             service,
@@ -41,6 +51,7 @@ fn workspace_idle_close_reads_every_tab_and_rechecks_before_any_guarded_signal()
         service.start_close_maintenance().unwrap();
         let client = Arc::clone(&service);
         let (done, finished) = mpsc::sync_channel(1);
+        let accepted = matches!(case, Case::Quiet | Case::SecondEnded);
         let peer_thread = thread::spawn(move || {
             for index in 0..2 {
                 let request = lifecycle(&mut peer);
@@ -50,9 +61,10 @@ fn workspace_idle_close_reads_every_tab_and_rechecks_before_any_guarded_signal()
                 ));
                 assert_eq!(
                     request.target.terminal_id().as_bytes(),
-                    [u8::try_from(70 + index).unwrap(); 16]
+                    [u8::try_from(70 + index).unwrap(); 16],
+                    "{case:?}: every Tab's inventory is read"
                 );
-                if index == 1 && last == LastMember::Stale {
+                if index == 1 && case == Case::Stale {
                     let rename = command(
                         &client,
                         2400,
@@ -63,20 +75,21 @@ fn workspace_idle_close_reads_every_tab_and_rechecks_before_any_guarded_signal()
                     );
                     navigation(&client, rename);
                 }
-                let activity = if index == 0 || last == LastMember::Idle {
-                    LifecycleCloseActivity::Idle
-                } else if last == LastMember::Active {
-                    LifecycleCloseActivity::Active
+                let phase = if index == 1 && case == Case::SecondEnded {
+                    LifecycleTerminalPhase::Exited {
+                        terminate_requested: false,
+                    }
                 } else {
-                    LifecycleCloseActivity::Unknown
+                    LifecycleTerminalPhase::Running {
+                        terminate_requested: false,
+                    }
                 };
-                let target = (index == 0 || last != LastMember::Missing).then_some(
+                let target = (index == 0 || case != Case::SecondMissing).then_some(
                     LifecycleTargetObservation {
                         revision: 1,
-                        phase: LifecycleTerminalPhase::Running {
-                            terminate_requested: false,
-                        },
-                        close_activity: activity,
+                        phase,
+                        // The Host's own guess never decides; the Server's read does.
+                        close_activity: LifecycleCloseActivity::Idle,
                     },
                 );
                 reply(
@@ -90,45 +103,90 @@ fn workspace_idle_close_reads_every_tab_and_rechecks_before_any_guarded_signal()
                     }),
                 );
             }
-            if last == LastMember::Idle {
+            // An accepted close continues as an ordinary one; its first step is parked here.
+            let step = accepted.then(|| {
                 let request = lifecycle(&mut peer);
-                assert_eq!(
-                    request.action,
-                    TerminalLifecycleAction::TerminateIfIdle,
-                    "the pre-read never grants ordinary termination"
+                let action = request.action;
+                reply(
+                    &mut peer,
+                    request,
+                    TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused),
                 );
-                reply(&mut peer, request, TerminalLifecycleOutcome::HostFailure(orchbee_capability_node_protocol::LifecycleHostFailure::ConfirmationRequired));
-            }
+                action
+            });
             finished.recv_timeout(Duration::from_secs(5)).unwrap();
+            step
         });
-        let result = service.execute_workspace_close(close).unwrap();
-        match last {
-            LastMember::Idle => assert!(matches!(
-                result.outcome,
-                WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
-            )),
-            LastMember::Stale => assert!(matches!(
-                result.outcome,
-                WorkbenchCommandOutcome::Rejected {
-                    reason: WorkbenchRejectionReason::RevisionMismatch,
-                    ..
-                }
-            )),
-            _ => assert!(matches!(
-                result.outcome,
-                WorkbenchCommandOutcome::Rejected {
-                    reason: WorkbenchRejectionReason::ConfirmationRequired,
-                    ..
-                }
-            )),
+        let mut read = None;
+        let result = if case == Case::HostIdleOnly {
+            service.execute_workspace_close(close).unwrap()
+        } else {
+            service
+                .execute_close_if_idle_with(close, |targets, _| {
+                    read = Some(targets.len());
+                    targets
+                        .iter()
+                        .enumerate()
+                        .map(|(index, _)| CloseFacts {
+                            report: Some(if index == 1 && case == Case::SecondAsks {
+                                ShellReport::Silent
+                            } else {
+                                ShellReport::AtPrompt
+                            }),
+                            sample: None,
+                        })
+                        .collect()
+                })
+                .unwrap()
+        };
+        let expected = match case {
+            Case::Quiet | Case::SecondEnded => None,
+            Case::Stale => Some(WorkbenchRejectionReason::RevisionMismatch),
+            Case::HostIdleOnly | Case::SecondAsks | Case::SecondMissing => {
+                Some(WorkbenchRejectionReason::ConfirmationRequired)
+            }
+        };
+        match expected {
+            None => assert!(
+                matches!(
+                    result.outcome,
+                    WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+                ),
+                "{case:?}: {result:?}"
+            ),
+            Some(reason) => {
+                assert!(
+                    matches!(&result.outcome, WorkbenchCommandOutcome::Rejected { reason: actual, .. } if *actual == reason),
+                    "{case:?}: {result:?}"
+                );
+                assert_eq!(
+                    read_snapshot(&service).terminal_contexts,
+                    before.terminal_contexts,
+                    "{case:?}: a refusal removes no member"
+                );
+            }
         }
-        assert_eq!(
-            read_snapshot(&service).terminal_contexts,
-            before.terminal_contexts,
-            "no member is removed during preflight/refusal"
-        );
+        // Live terminals are read together; an ended one needs no read, and a missing one asks
+        // before anything is read.
+        let expected_read = match case {
+            Case::Quiet | Case::SecondAsks | Case::Stale => Some(2),
+            Case::SecondEnded => Some(1),
+            Case::HostIdleOnly | Case::SecondMissing => None,
+        };
+        assert_eq!(read, expected_read, "{case:?}");
         done.send(()).unwrap();
-        peer_thread.join().unwrap();
+        let step = peer_thread.join().unwrap();
+        // No signal waits for the Host's idle guard: the Server's evidence already decided.
+        assert!(
+            step.is_none_or(|action| matches!(
+                action,
+                TerminalLifecycleAction::Terminate | TerminalLifecycleAction::Dispose
+            )),
+            "{case:?}: {step:?}"
+        );
+        if case == Case::Quiet {
+            assert_eq!(step, Some(TerminalLifecycleAction::Terminate));
+        }
         service.stop_close_maintenance();
         worker_thread.join().unwrap();
     }

@@ -44,7 +44,7 @@ fn finish(
 }
 
 #[test]
-fn only_complete_idle_runtime_proofs_admit_unconfirmed_close_for_every_member() {
+fn only_the_servers_own_evidence_for_every_member_admits_an_unconfirmed_close() {
     for unknown in [None, Some(0), Some(1)] {
         let (mut owner, grant) = workspace_fixture(2);
         let close = conditional(&owner, 11800);
@@ -62,7 +62,7 @@ fn only_complete_idle_runtime_proofs_admit_unconfirmed_close_for_every_member() 
                         observed_phase: None,
                     }
                 } else {
-                    WorkbenchTabCloseMemberRuntime::IdleRuntime {
+                    WorkbenchTabCloseMemberRuntime::QuietRuntime {
                         target,
                         observed_phase: LifecycleTerminalPhase::Running {
                             terminate_requested: false,
@@ -93,7 +93,7 @@ fn only_complete_idle_runtime_proofs_admit_unconfirmed_close_for_every_member() 
 }
 
 #[test]
-fn confirmed_close_upgrades_a_late_idle_refusal_but_never_an_unknown_signal() {
+fn confirmed_close_resumes_a_stopped_conditional_close_but_never_an_unknown_signal() {
     for unknown in [false, true] {
         let (mut owner, grant) = workspace_fixture(1);
         let close = conditional(&owner, 11820);
@@ -101,7 +101,7 @@ fn confirmed_close_upgrades_a_late_idle_refusal_but_never_an_unknown_signal() {
         let proofs = primary
             .members()
             .iter()
-            .map(|member| WorkbenchTabCloseMemberRuntime::IdleRuntime {
+            .map(|member| WorkbenchTabCloseMemberRuntime::QuietRuntime {
                 target: runtime(member),
                 observed_phase: LifecycleTerminalPhase::Running {
                     terminate_requested: false,
@@ -118,9 +118,9 @@ fn confirmed_close_upgrades_a_late_idle_refusal_but_never_an_unknown_signal() {
             step_ordinal,
         } = step.next()
         else {
-            panic!("guarded step");
+            panic!("ordinary step");
         };
-        assert_eq!(action, TerminalLifecycleAction::TerminateIfIdle);
+        assert_eq!(action, TerminalLifecycleAction::Terminate);
         let request = step_request(
             &close.request_id,
             step.target().unwrap(),
@@ -140,7 +140,7 @@ fn confirmed_close_upgrades_a_late_idle_refusal_but_never_an_unknown_signal() {
             )
         } else {
             orchbee_capability_node_protocol::TerminalLifecycleOutcome::HostFailure(
-                orchbee_capability_node_protocol::LifecycleHostFailure::ConfirmationRequired,
+                orchbee_capability_node_protocol::LifecycleHostFailure::HostRefused,
             )
         };
         let result =

@@ -39,24 +39,22 @@ Pending and Unknown permit observation only.
 
 The row menu's Close Workspace…, addressed Close and the keyboard shortcut share `WorkspaceCloseIfIdle`; none
 uses a Client idle flag followed by ordinary Close. The Server captures all Tabs, split leaves and
-child Presentations, reads fresh native inventory outside its gates, then revalidates the complete
-scope and exact runtime identities at final admission. Empty/never-created scope and authoritative
-idle or settled runtimes close directly. Active, missing, unavailable or unknown process evidence
-requires the existing fully drawn confirmation with a fresh unconditional request ID. Concurrent
-create/split and revision drift retain ordinary safety fences.
+child Presentations and, outside its gates, reads fresh native inventory and then each live
+terminal's own shell report and process sample, by the same rule as a Tab or Panel close. It then
+revalidates the complete scope and exact runtime identities at final admission. Empty/never-created
+scope, ended runtimes and terminals whose evidence shows only an idle shell close directly. A
+running command, a program holding the console, or missing, unavailable or unknown evidence requires
+the existing fully drawn confirmation with a fresh unconditional request ID. Concurrent create/split
+and revision drift retain ordinary safety fences.
 
-Host dispatch independently guards each unconfirmed termination. Its strict idle evidence requires
-an interactive shell, current prompt semantics and no previously accepted activity-affecting input bytes;
-a single process or a shell foreground group alone is insufficient. After such byte-producing input,
-the live terminal requires confirmation until it is replaced or
-proven settled. A later prompt cannot prove consumption of ConPTY/PSReadLine-buffered commands.
-This conservative boundary also applies after an ordinary command appears to return to its prompt. New interactive PowerShell
-launches receive process-local reader markers that preserve the user's prompt, history and key hooks.
-Older or unsupported shell sessions without reliable prompt markers require confirmation. A program
-starting after inventory can therefore refuse the actual signal. Such late refusal preserves the
-Close operation and any completed members; no implicit Force runs. Repeating Close on its known
-resumable refusal opens explicit confirmation, and the ordinary confirmed command resumes that
-same canonical operation. Unknown/in-flight effects remain fenced.
+New interactive PowerShell launches receive process-local reader markers that preserve the user's
+prompt, history and key hooks; a shell without reliable prompt markers is judged by its process
+sample alone. An accepted conditional Close then runs as the ordinary Close: termination uses no
+Host idle guard, because the Server's evidence already decided, so a program started after the read
+is terminated as an ordinary Close would terminate it. A Host refusal preserves the Close operation
+and any completed members. Repeating Close on its known resumable refusal opens explicit
+confirmation, and the ordinary confirmed command resumes that same canonical operation.
+Unknown/in-flight effects remain fenced.
 Keyboard Close and the Workspace menu's Close Workspace… share this exact-target recovery admission;
 other blocked reasons and nonresumable refusals stay disabled. Menu retry opens a fresh review
 and requires a complete draw and explicit confirmation before another effect.

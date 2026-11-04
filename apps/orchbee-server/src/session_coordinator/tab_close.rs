@@ -26,33 +26,34 @@ use orchbee_workbench_protocol::{
 };
 
 use super::{PostcommitCoordinationError, ProcessObservationTarget, SessionCoordinator};
-use crate::terminal_coordinator::{BindingViewerTarget, WorkerPlacement};
+use crate::terminal_coordinator::{BindingViewerTarget, TerminalCoordinator, WorkerPlacement};
 
-/// One captured member of a conditional Tab or Panel Close, with the viewer target the Server
-/// reads a live runtime through.
+/// One captured member of a conditional Workspace, Tab or Panel Close, with the viewer target the
+/// Server reads a live runtime through.
 pub(crate) type IdleCloseMember = (
     WorkbenchTabCloseMemberRuntime,
     Option<ProcessObservationTarget>,
 );
 
 impl SessionCoordinator {
-    /// Captures every primary/child binding without reserving a Close; ordinary
-    /// admission refusals remain retained by their existing ledger owner.
-    /// The caller drops the Session gate before reading Host inventory, then final
-    /// admission repeats these guards and compares exact runtime incarnations.
+    /// Captures every primary/child binding of a conditional Workspace Close without reserving
+    /// it, exactly as a conditional Tab or Panel Close captures its own members. Ordinary
+    /// admission refusals remain retained by their existing ledger owner; a runtime this owner
+    /// cannot resolve asks first. The caller drops the Session gate before reading anything, then
+    /// final admission repeats these guards and compares exact runtime incarnations.
     pub(crate) fn prepare_workspace_idle_close(
         &mut self,
         command: WorkbenchCommand,
         worker: Option<WorkerPlacement>,
-    ) -> Option<Result<Vec<WorkbenchTabCloseMemberRuntime>, WorkbenchCommandResult>> {
+    ) -> Option<Result<Vec<IdleCloseMember>, WorkbenchCommandResult>> {
         let Self {
             terminals,
             workbench,
             ..
         } = self;
         let workbench = workbench.as_mut()?;
-        let grant =
-            WorkbenchGrant::read_only(workbench.session_id().clone()).with_terminal_lifecycle();
+        let session_id = workbench.session_id().clone();
+        let grant = WorkbenchGrant::read_only(session_id.clone()).with_terminal_lifecycle();
         let admission = match workbench.begin_workspace_close(Some(&grant), command) {
             WorkbenchWorkspaceCloseBegin::Ready(result) => return Some(Err(result)),
             WorkbenchWorkspaceCloseBegin::Admitted(admission) => admission,
@@ -61,13 +62,13 @@ impl SessionCoordinator {
             WorkbenchTabCloseResolution::Ready(result) => return Some(Err(result)),
             WorkbenchTabCloseResolution::Primary(admission) => admission,
         };
-        let runtimes = admission
+        let members = admission
             .members()
             .iter()
-            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .map(|member| Self::idle_close_member(terminals, &session_id, member.binding(), worker))
             .collect::<Result<Vec<_>, _>>();
-        Some(match runtimes {
-            Ok(runtimes) => Ok(runtimes),
+        Some(match members {
+            Ok(members) => Ok(members),
             Err(_) => Err(admission.confirmation_required()),
         })
     }
@@ -100,33 +101,41 @@ impl SessionCoordinator {
         let members = admission
             .members()
             .iter()
-            .map(|member| {
-                let runtime =
-                    Self::terminal_tab_close_runtime(terminals, member.binding(), worker)?;
-                let observation = match &runtime {
-                    WorkbenchTabCloseMemberRuntime::Runtime { target, .. } => {
-                        Some(ProcessObservationTarget {
-                            session_id: session_id.clone(),
-                            binding: member.binding().clone(),
-                            target: BindingViewerTarget {
-                                terminal_id: target.terminal_id(),
-                                identity: target.host_identity(),
-                                worker: WorkerPlacement {
-                                    worker_id: target.worker_id(),
-                                    generation: target.worker_generation(),
-                                },
-                            },
-                        })
-                    }
-                    _ => None,
-                };
-                Ok((runtime, observation))
-            })
-            .collect::<Result<Vec<_>, WorkbenchTabCloseRuntimeUnavailableReason>>();
+            .map(|member| Self::idle_close_member(terminals, &session_id, member.binding(), worker))
+            .collect::<Result<Vec<_>, _>>();
         Some(match members {
             Ok(members) => Ok(members),
             Err(_) => Err(admission.confirmation_required()),
         })
+    }
+
+    /// One member's current runtime and, while it runs, the viewer target its evidence is read
+    /// through.
+    fn idle_close_member(
+        terminals: &TerminalCoordinator,
+        session_id: &orchbee_workbench_protocol::SessionId,
+        binding: &orchbee_workbench_protocol::PresentationBinding,
+        worker: Option<WorkerPlacement>,
+    ) -> Result<IdleCloseMember, WorkbenchTabCloseRuntimeUnavailableReason> {
+        let runtime = Self::terminal_tab_close_runtime(terminals, binding, worker)?;
+        let observation = match &runtime {
+            WorkbenchTabCloseMemberRuntime::Runtime { target, .. } => {
+                Some(ProcessObservationTarget {
+                    session_id: session_id.clone(),
+                    binding: binding.clone(),
+                    target: BindingViewerTarget {
+                        terminal_id: target.terminal_id(),
+                        identity: target.host_identity(),
+                        worker: WorkerPlacement {
+                            worker_id: target.worker_id(),
+                            generation: target.worker_generation(),
+                        },
+                    },
+                })
+            }
+            _ => None,
+        };
+        Ok((runtime, observation))
     }
 
     pub(crate) fn prepare_close_inspection(
@@ -643,8 +652,7 @@ fn apply_idle_proof(
     for (runtime, proof) in runtimes.iter_mut().zip(proof) {
         if matches!((&*runtime, proof), (
             WorkbenchTabCloseMemberRuntime::Runtime { target: current, .. },
-            WorkbenchTabCloseMemberRuntime::IdleRuntime { target: observed, .. }
-                | WorkbenchTabCloseMemberRuntime::QuietRuntime { target: observed, .. }
+            WorkbenchTabCloseMemberRuntime::QuietRuntime { target: observed, .. }
         ) if current == observed)
         {
             *runtime = proof.clone();

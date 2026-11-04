@@ -51,7 +51,7 @@ impl LocalTerminalService {
             orchbee_workbench_protocol::WorkbenchAction::TabCloseIfIdle { .. }
                 | orchbee_workbench_protocol::WorkbenchAction::PanelCloseIfIdle { .. }
         ) {
-            return self.execute_terminal_tab_close_if_idle(command);
+            return self.execute_close_if_idle(command);
         }
         let result = {
             let workers = self.workers.lock().ok();
@@ -114,7 +114,7 @@ impl LocalTerminalService {
             command.action,
             orchbee_workbench_protocol::WorkbenchAction::WorkspaceCloseIfIdle { .. }
         ) {
-            return self.execute_workspace_close_if_idle(command);
+            return self.execute_close_if_idle(command);
         }
         let result = {
             let workers = self.workers.lock().ok();

@@ -109,30 +109,30 @@ row carries the close revision.
 lifecycle grant, replay/conflict, capacity, Session/revision and complete Context membership checks.
 It shares the pending-create/split and overlapping-Close guards. The Session resolves **every bound
 Presentation**, including children under an unbound primary, while holding the coordinator gate.
-An empty bound scope, exact `Uncreated` evidence, or fresh `IdleRuntime` evidence for **every**
-member permits conditional admission. `Uncreated` still requires a settled failed/unavailable Create
+An empty bound scope, or exact `Uncreated` evidence or the Server's own `QuietRuntime` evidence for
+**every** member, permits conditional admission. `Uncreated` still requires a settled failed/unavailable Create
 before Host commit with `Unavailable(None)` runtime identity; missing or ambiguous records never
 establish it. A retained Started result or a Client's attached panes is not live process evidence.
 
-For runtimes, the service drops registry/Session locks before the read-only `InspectInventoryPage`
-walk. Every target pins Worker generation, binding fence and full Host creation/epoch/terminal
-identity. One four-second admission window and 32-page allowance cover the whole scope; slow
-outstanding transport keeps its existing carrier response bound and cannot renew this window.
-Every target requires complete generation-consistent inventory and exactly one match. AwaitingStart,
-Exited and Failed establish no live program; Running requires fresh Host `idle` and no termination
-intent. A live Host can establish idle only before accepted activity-affecting input bytes; accounted OS
-writes and later prompt cycles do not establish shell consumption. After input, even an ordinary
-post-command prompt requires confirmation until replacement or proven settlement. Finishing,
-containment, active, unknown, missing, unsupported and unavailable evidence require confirmation. Final admission repeats ordinary guards and exact runtime matching under the Session gate.
+For runtimes, the service drops registry/Session locks and then gathers the same evidence, and
+decides by the same rule, as a conditional [Tab or Panel Close](#tab-and-panel): each member's
+read-only `InspectInventoryPage` walk, then one on-demand read of every live member through the
+process observer. Every target pins Worker generation, binding fence and full Host
+creation/epoch/terminal identity. Because a Workspace reads every Tab's terminals in turn, one
+four-second budget and 32-page allowance cover its whole scope; slow outstanding transport keeps
+its existing carrier response bound and cannot renew this budget. Every target requires complete
+generation-consistent inventory and exactly one match. The Host's own `closeActivity` guess decides
+nothing, so a scope whose terminals the Server cannot read asks. Final admission repeats ordinary
+guards and exact runtime matching under the Session gate.
 A same-base `confirmation-required` retains no Close credit, fence, publication or runtime effect;
 revision/structural conflicts retain their ordinary precise outcomes.
 
 Accepted conditional Close installs the existing complete reservation/fence before releasing the
-gate. Every actual signal uses Host `TerminateTerminalIfIdle`, which rechecks process/prompt state
-at dispatch; stale inventory never grants unconditional termination. A refusal parks the retained
-operation with `HostRefused`, including partial member results, and conditional Close never escalates
-to Force. Explicit Resume remains guarded. A fresh explicitly confirmed ordinary `workspace.close`
-may upgrade a resumable conditional record, retaining its canonical Close ID and all receipts while
+gate and from then on is the ordinary Close of its scope, as an accepted Tab or Panel Close is: it
+terminates live members without the Host idle guard, because the Server's own evidence already
+decided, escalates to Force after grace, and disposes ended ones. A Host refusal parks the retained
+operation with `HostRefused`, including partial member results. A fresh explicitly confirmed
+ordinary `workspace.close` may upgrade a resumable conditional record, retaining its canonical Close ID and all receipts while
 advancing the attempt once; outstanding or unknown signals cannot be upgraded. Exact request replay
 never grants another attempt, and changing the same request ID's action still conflicts.
 
@@ -160,14 +160,17 @@ distinct and cannot become idle or automatic retry. The finite authority transit
 cover committed-but-unsettled creation at the current revision, dropped uncommitted preparation,
 post-acceptance creation fences, whole-Project and
 child-only scope, retained refusal/replay, grant denial and confirmed-action compatibility. Session
-tests additionally own the mapping from real terminal records to this evidence; parser and
-authority tests alone do not establish current Host process state or real TUI behavior.
+tests additionally own the mapping from real terminal records to this evidence, and the
+[Workspace owner test](../src/local_terminal_service/tab_close/tests/workspace_close/idle.rs) reads
+every Tab of a two-Tab Workspace: a Host `idle` guess alone asks, a quiet scope terminates without
+the guard, an ended member needs no read, and a missing member asks. Parser and authority tests
+alone do not establish current Host process state or real TUI behavior.
 
 This is an admission-predicate refinement of the existing retained Close machine, not a second
 lifecycle owner: accepted conditional Close enters the same reservation and publication transitions.
 The new wire discriminants refine complete request fingerprints, and definite refusal has no effect
 before a separately reviewed unconditional request. Registered replay and Close models retain their
-own abstract scope. Their execution does not by itself prove fresh process/prompt classification, guarded signal admission, or the concrete never-created predicate,
+own abstract scope. Their execution does not by itself prove fresh process/prompt classification or the concrete never-created predicate,
 the complete primary/child/Project-member extractor, concrete pending entries and precommit gate exclusion,
 cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Session
 witnesses above carry those obligations separately; native process and prompt behavior additionally require the Host regressions and real TUI witnesses.

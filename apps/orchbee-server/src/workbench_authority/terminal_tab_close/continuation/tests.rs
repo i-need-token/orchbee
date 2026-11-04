@@ -10,64 +10,6 @@ fn core(now: Instant, phase: Option<LifecycleTerminalPhase>) -> CloseContinuatio
     CloseContinuation::prepare(now, phase).expect("representable test deadline")
 }
 
-#[test]
-fn conditional_close_guards_every_signal_and_never_automatically_forces() {
-    let now = Instant::now();
-    let mut core = CloseContinuation::prepare_if_idle(
-        now,
-        Some(LifecycleTerminalPhase::Running {
-            terminate_requested: false,
-        }),
-    )
-    .unwrap();
-    assert!(matches!(
-        core.next(now),
-        CloseContinuationNext::Lifecycle {
-            action: TerminalLifecycleAction::TerminateIfIdle,
-            ..
-        }
-    ));
-    step(
-        &mut core,
-        now,
-        NonZeroU64::MIN,
-        TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::ConfirmationRequired),
-    );
-    assert!(matches!(
-        core.status(),
-        WorkbenchTabCloseStatus::CleanupBlocked {
-            reason: BlockedReason::HostRefused,
-            resumable: true
-        }
-    ));
-    assert_eq!(core.next(now), CloseContinuationNext::Parked);
-    resume(&mut core, now);
-    assert!(matches!(
-        core.next(now),
-        CloseContinuationNext::Lifecycle {
-            action: TerminalLifecycleAction::TerminateIfIdle,
-            ..
-        }
-    ));
-    step(
-        &mut core,
-        now,
-        NonZeroU64::new(2).unwrap(),
-        TerminalLifecycleOutcome::TerminateAccepted,
-    );
-    assert_eq!(
-        core.next(now + TERMINATE_GRACE),
-        CloseContinuationNext::Parked
-    );
-    assert!(matches!(
-        core.status(),
-        WorkbenchTabCloseStatus::CleanupBlocked {
-            reason: BlockedReason::HostRefused,
-            ..
-        }
-    ));
-}
-
 fn request(
     action: TerminalLifecycleAction,
     ordinal: LifecycleStepOrdinal,

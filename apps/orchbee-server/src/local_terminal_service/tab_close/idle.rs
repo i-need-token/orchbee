@@ -1,146 +1,95 @@
-//! Fresh complete inventory preflight grants only guarded Close admission.
-//! No Session/registry lock spans IPC; no inspection claims Worker Close ownership.
-//!
-//! A conditional Tab or Panel Close also reads each live terminal's own evidence through the
-//! process observer within one budget, then re-enters final admission with that proof.
+//! A conditional Workspace, Tab or Panel Close reads the same evidence and decides by the same rule:
+//! the Host inventory says which runtimes ended, and each live terminal's own evidence, read
+//! through the process observer within one budget, says whether it runs anything beyond an idle
+//! shell. Final admission then re-enters with that proof. No Session/registry lock spans IPC; no
+//! inspection claims Worker Close ownership.
 use super::super::{LocalTerminalService, lease_expiry, placement};
 use super::evidence::CloseFacts;
 use crate::session_coordinator::{IdleCloseMember, ProcessObservationTarget};
 use crate::worker_obcn_carrier::WorkerRequestHandle;
 use orchbee_capability_node_protocol::{
-    LifecycleCloseActivity, LifecycleTargetObservation, LifecycleTerminalPhase,
-    TerminalLifecycleOutcome,
+    LifecycleTargetObservation, LifecycleTerminalPhase, TerminalLifecycleOutcome,
 };
 use orchbee_server::{WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget};
-use orchbee_workbench_protocol::{WorkbenchCommand, WorkbenchCommandResult};
+use orchbee_workbench_protocol::{WorkbenchAction, WorkbenchCommand, WorkbenchCommandResult};
 use std::time::{Duration, Instant};
 
-const INSPECTION_BUDGET: Duration = Duration::from_secs(4);
 const MAXIMUM_INSPECTION_PAGES: usize = 32;
 /// How long a conditional Tab or Panel Close reads before it decides with what it has. This
 /// matches the Worker's own bound on one process sample, so a slow answer still arrives.
 const LEAF_EVIDENCE_BUDGET: Duration = Duration::from_secs(1);
+/// A Workspace reads every Tab's terminals in turn, so its read has longer to finish.
+const WORKSPACE_EVIDENCE_BUDGET: Duration = Duration::from_secs(4);
 
 impl LocalTerminalService {
-    pub(super) fn execute_workspace_close_if_idle(
+    /// The Server decides whether closing one Workspace, Tab or Panel asks first. The Host
+    /// inventory says which runtimes ended; each live one is read, and the scope closes unasked
+    /// only when every member's own evidence shows nothing beyond an idle shell.
+    pub(super) fn execute_close_if_idle(
         &self,
         command: WorkbenchCommand,
     ) -> Option<WorkbenchCommandResult> {
-        let deadline = Instant::now().checked_add(INSPECTION_BUDGET)?;
-        let (mut proof, handle) = {
-            let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
-            let prepared = self
-                .coordinator
-                .lock()
-                .ok()?
-                .prepare_workspace_idle_close(command.clone(), placement(handle.as_ref()))?;
-            let proof = match prepared {
-                Ok(proof) => proof,
-                Err(result) => return Some(result),
-            };
-            (proof, handle)
-        };
-        let mut remaining_pages = MAXIMUM_INSPECTION_PAGES;
-        for member in &mut proof {
-            let WorkbenchTabCloseMemberRuntime::Runtime { target, .. } = member else {
-                continue;
-            };
-            let target = *target;
-            if let Some(observation) = handle
-                .as_ref()
-                .and_then(|handle| {
-                    self.inspect_close_target(
-                        handle,
-                        &command,
-                        target,
-                        deadline,
-                        &mut remaining_pages,
-                    )
-                })
-                .filter(|observation| permits_unconfirmed_close(*observation))
-            {
-                *member = WorkbenchTabCloseMemberRuntime::IdleRuntime {
-                    target,
-                    observed_phase: observation.phase,
-                };
-            } else {
-                // A single unknown member makes the whole scope confirmation-required.
-                break;
-            }
-        }
-        let result = {
-            let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
-            self.coordinator
-                .lock()
-                .ok()?
-                .execute_workspace_close_with_idle_proof(
-                    command,
-                    placement(handle.as_ref()),
-                    self.close_maintenance.available(),
-                    Instant::now(),
-                    &proof,
-                )
-        };
-        self.close_maintenance.notify();
-        result
-    }
-
-    /// The Server decides whether closing one Tab or Panel asks first. The Host inventory says
-    /// which runtimes ended; each live one is read, and closes unasked only when its own evidence
-    /// shows nothing beyond an idle shell.
-    pub(super) fn execute_terminal_tab_close_if_idle(
-        &self,
-        command: WorkbenchCommand,
-    ) -> Option<WorkbenchCommandResult> {
-        self.execute_terminal_tab_close_if_idle_with(command, |targets, deadline| {
+        self.execute_close_if_idle_with(command, |targets, deadline| {
             self.request_close_facts(targets, deadline)
         })
     }
 
     /// `read` returns one entry per live target, in order, holding what was read by `deadline`.
-    pub(super) fn execute_terminal_tab_close_if_idle_with(
+    pub(super) fn execute_close_if_idle_with(
         &self,
         command: WorkbenchCommand,
         read: impl FnOnce(Vec<ProcessObservationTarget>, Instant) -> Vec<CloseFacts>,
     ) -> Option<WorkbenchCommandResult> {
-        let deadline = Instant::now().checked_add(LEAF_EVIDENCE_BUDGET)?;
+        let workspace = matches!(command.action, WorkbenchAction::WorkspaceCloseIfIdle { .. });
+        let budget = if workspace {
+            WORKSPACE_EVIDENCE_BUDGET
+        } else {
+            LEAF_EVIDENCE_BUDGET
+        };
+        let deadline = Instant::now().checked_add(budget)?;
         let (members, handle) = {
             let workers = self.workers.lock().ok();
             let handle = workers
                 .as_ref()
                 .and_then(|workers| workers.request_handle());
-            let prepared = self
-                .coordinator
-                .lock()
-                .ok()?
-                .prepare_terminal_tab_idle_close(command.clone(), placement(handle.as_ref()))?;
+            let mut coordinator = self.coordinator.lock().ok()?;
+            let worker = placement(handle.as_ref());
+            let prepared = if workspace {
+                coordinator.prepare_workspace_idle_close(command.clone(), worker)
+            } else {
+                coordinator.prepare_terminal_tab_idle_close(command.clone(), worker)
+            }?;
             match prepared {
                 Ok(members) => (members, handle),
                 Err(result) => return Some(result),
             }
         };
-        let proof = self.leaf_idle_proof(&command, members, handle.as_ref(), deadline, read);
+        let proof = self.idle_proof(&command, members, handle.as_ref(), deadline, read);
         let result = {
             let workers = self.workers.lock().ok();
             let handle = workers
                 .as_ref()
                 .and_then(|workers| workers.request_handle());
-            self.coordinator
-                .lock()
-                .ok()?
-                .execute_terminal_tab_close_with_idle_proof(
+            let mut coordinator = self.coordinator.lock().ok()?;
+            let worker = placement(handle.as_ref());
+            let available = self.close_maintenance.available();
+            if workspace {
+                coordinator.execute_workspace_close_with_idle_proof(
                     command,
-                    placement(handle.as_ref()),
-                    self.close_maintenance.available(),
+                    worker,
+                    available,
                     Instant::now(),
                     &proof,
                 )
+            } else {
+                coordinator.execute_terminal_tab_close_with_idle_proof(
+                    command,
+                    worker,
+                    available,
+                    Instant::now(),
+                    &proof,
+                )
+            }
         };
         self.close_maintenance.notify();
         result
@@ -148,7 +97,7 @@ impl LocalTerminalService {
 
     /// One proof entry per member. A runtime stays unproven, and the close asks, unless the
     /// inventory shows it ended or its read shows nothing beyond an idle shell.
-    fn leaf_idle_proof(
+    fn idle_proof(
         &self,
         command: &WorkbenchCommand,
         members: Vec<IdleCloseMember>,
@@ -259,21 +208,5 @@ impl LocalTerminalService {
                 return found;
             }
         }
-    }
-}
-
-fn permits_unconfirmed_close(observation: LifecycleTargetObservation) -> bool {
-    match observation.phase {
-        LifecycleTerminalPhase::AwaitingStart
-        | LifecycleTerminalPhase::Exited { .. }
-        | LifecycleTerminalPhase::Failed => true,
-        LifecycleTerminalPhase::Running {
-            terminate_requested: false,
-        } => observation.close_activity == LifecycleCloseActivity::Idle,
-        LifecycleTerminalPhase::Running {
-            terminate_requested: true,
-        }
-        | LifecycleTerminalPhase::Finishing { .. }
-        | LifecycleTerminalPhase::ContainingFailure => false,
     }
 }

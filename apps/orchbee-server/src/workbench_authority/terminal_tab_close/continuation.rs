@@ -138,7 +138,6 @@ pub(super) struct PreparedCloseContinuationResume {
 /// Retained inside the one primary Workbench Close record. Generation, identity,
 /// receipt and ledger capacity belong to that enclosing record, not this value.
 pub(super) struct CloseContinuation {
-    require_idle: bool,
     progress: Progress,
     deadline: Instant,
     submitted_steps: u8,
@@ -156,26 +155,11 @@ pub(super) struct CloseContinuation {
 
 impl CloseContinuation {
     pub(super) fn confirmed(&mut self) {
-        self.require_idle = false;
         if !self.settled_observed
             && matches!(self.progress, Progress::Running(LifecycleStage::Dispose))
         {
             self.progress = Progress::Running(LifecycleStage::Observe);
         }
-    }
-    pub(super) fn prepare_if_idle(
-        now: Instant,
-        phase: Option<LifecycleTerminalPhase>,
-    ) -> Option<Self> {
-        // AwaitingStart may become Running before the Close fence commits.
-        // Re-observe it under the retained operation rather than freezing a
-        // pre-admission no-process sample into unconditional disposal.
-        let mut continuation = Self::prepare(
-            now,
-            phase.filter(|phase| !matches!(phase, LifecycleTerminalPhase::AwaitingStart)),
-        )?;
-        continuation.require_idle = true;
-        Some(continuation)
     }
     pub(super) fn prepare_uncreated(now: Instant) -> Option<Self> {
         let mut continuation = Self::prepare(now, None)?;
@@ -191,7 +175,6 @@ impl CloseContinuation {
         initial_phase: Option<LifecycleTerminalPhase>,
     ) -> Option<Self> {
         Some(Self {
-            require_idle: false,
             progress: Progress::Running(
                 initial_phase.map_or(LifecycleStage::Observe, initial_stage),
             ),
@@ -336,19 +319,12 @@ impl CloseContinuation {
             _ => return CloseContinuationNext::Parked,
         };
         let action = match stage {
-            LifecycleStage::Terminate if self.require_idle => {
-                TerminalLifecycleAction::TerminateIfIdle
-            }
             LifecycleStage::Terminate => TerminalLifecycleAction::Terminate,
             LifecycleStage::Dispose => TerminalLifecycleAction::Dispose,
             LifecycleStage::Grace
                 if !self.settled_observed
                     && self.grace_deadline.is_some_and(|deadline| now >= deadline) =>
             {
-                if self.require_idle {
-                    self.park_lifecycle(BlockedReason::HostRefused, true);
-                    return CloseContinuationNext::Parked;
-                }
                 TerminalLifecycleAction::Force
             }
             LifecycleStage::Observe | LifecycleStage::Grace | LifecycleStage::Outcome => {
