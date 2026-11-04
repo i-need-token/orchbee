@@ -428,12 +428,9 @@ impl WorkbenchClientState {
             pending.cleanup.result == MembershipResultKey::Refresh(generation)
         })
     }
-    /// Selection may be empty while this epoch still owns live sibling viewers.
+    /// A parked focus may hold no viewer while this epoch still owns live sibling viewers.
     pub(super) fn membership_cleanup_ready(&self) -> bool {
-        (matches!(self.phase, ClientPhase::Ready(_))
-            || self.focused_viewer_lost()
-            || (matches!(self.phase, ClientPhase::SelectedWithoutAttachment(_))
-                && self.selected_is_unbound()))
+        (matches!(self.phase, ClientPhase::Ready(_)) || self.focus_parked())
             && self.desired.as_ref().is_some_and(|desired| {
                 self.panes
                     .iter()
@@ -630,7 +627,8 @@ impl WorkbenchClientState {
             })
             .collect();
         // A Switch retains an exact Panel only while its requested Tab survives.
-        // Resolve the ID against this candidate, never reuse its old ordinal.
+        // Resolve the ID against this candidate; a Panel the Server removed first
+        // gets the stand-in leaf a refresh repairs a vanished selection with.
         // A removed Tab keeps the existing fallback to another Tab or Empty.
         let selected_panel = match (&self.phase, selected_index) {
             (
@@ -651,11 +649,11 @@ impl WorkbenchClientState {
                     && candidate.tabs()[index].tab_id()
                         == setup.target.selected.key().anchor().tab_id() =>
             {
-                Some(
-                    candidate.tabs()[index]
-                        .panel_index(setup.target.selected.key().panel())
-                        .ok_or(CarrierFailure::AuthorityDivergence)?,
-                )
+                let tab = &candidate.tabs()[index];
+                let target = &setup.target.selected;
+                Some(tab.panel_index(target.key().panel()).unwrap_or_else(|| {
+                    self.surviving_leaf_index(tab, target.key().panel(), target.panel_index())
+                }))
             }
             _ => None,
         };

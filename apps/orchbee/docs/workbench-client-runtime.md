@@ -1160,8 +1160,8 @@ target.
 | Ready, target is the active Tab                                                                                    | No marker, generation, attachment, projection, or navigator change.                                                                                                                                                                                                                                                                                                                                                    |
 | Switching, target differs from the current desired Tab                                                             | Admit another marker if capacity/generation permit; it supersedes prior setup. Resolution for n/p starts at the current desired Tab.                                                                                                                                                                                                                                                                                   |
 | Switching, target equals current desired Tab                                                                       | No-op; no duplicate marker or generation.                                                                                                                                                                                                                                                                                                                                                                              |
-| RetryableAttachUnavailable, attachable target equals active                                                        | An explicit selection admits a fresh marker and generation; the executor skips Detach when cleanup left no viewer and otherwise first detaches a lost focused viewer's live siblings. A refused Attach is never retried automatically; only a lost focused viewer re-attaches on its own, as [panel lifecycle](native-panel-lifecycle.md) bounds it.                                                                   |
-| RetryableAttachUnavailable, target differs                                                                         | Atomically admit a marker/generation, first detach a lost focused viewer's live siblings or skip Detach when no viewer exists, and dispatch by that target's retained provenance exactly as for SelectedWithoutAttachment.                                                                                                                                                                                             |
+| RetryableAttachUnavailable, attachable target equals active                                                        | An explicit selection admits a fresh marker and generation; the executor skips Detach when cleanup left no viewer and otherwise first detaches the parked focus's live siblings. A refused Attach is never retried automatically; only a lost focused viewer re-attaches on its own, as [panel lifecycle](native-panel-lifecycle.md) bounds it.                                                                        |
+| RetryableAttachUnavailable, target differs                                                                         | Atomically admit a marker/generation, first detach the parked focus's live siblings or skip Detach when no viewer exists, and dispatch by that target's retained provenance exactly as for SelectedWithoutAttachment.                                                                                                                                                                                                  |
 | Ready, Agent-board reattach admission: target equals the desired Tab and recorded dead-target-pane evidence exists | Mint a fresh marker and generation for the same desired Tab through the ordinary switch pipeline — every viewer in that Tab detaches and re-attaches under the new anchor generation (the accepted cost; the Server's terminals are not restarted) — then the jump lands on the exact target Panel. Without recorded dead-target evidence this admission does not exist; ordinary same-target selection stays a no-op. |
 | SelectedWithoutAttachment, target differs                                                                          | Atomically admit the same marker/generation transition. The executor skips Detach because no viewer exists, then dispatches by the **target's** retained provenance: Started/BindingOnly performs normal Attach setup; Pending/unavailable/failed/outcome-unknown settles SelectedWithoutAttachment without Attach.                                                                                                    |
 | SelectedWithoutAttachment, target is the selected non-attachable Tab                                               | No-op; no marker or generation.                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -1402,7 +1402,10 @@ nonempty installation, including a surviving target and a fallback, consumes the
 and atomically publishes cache, selection, desired/work key, cursor and attachment license. Empty
 preserves the consumed cursor without a key, viewer, controller or fabricated Ready proof. The
 membership model owns candidate validation and ordinal choice; the Switch model receives that
-validated choice and checks the concrete key transition, cleanup and setup continuation.
+validated choice and checks the concrete key transition, cleanup and setup continuation. A Switch
+whose target Tab survives keeps its exact Panel. When the Server removed that Panel before the
+snapshot, the Tab's surviving leaf stands in, chosen as a refresh repairs a vanished selection, and
+the new desired key names that leaf; a removed Tab keeps the fallback to another Tab or `Empty`.
 An intent cannot install a projection, accept target setup configuration, publish Ready, or settle
 as an unattached setup. Those paths require the installed candidate. The former direct
 Switch-old-Detached event and its intent-to-Attach continuation have been removed.
@@ -1420,8 +1423,8 @@ prevents restoration, and abandonment of any captured pane invalidates the ancho
 the frame, unmatched latest geometry, unpreservable old Poll/causal abandonment, or viewer cleanup
 or replacement invalidates that proof. The anchor follows those facts; an admission-time clone
 cannot roll them back. A recorded selected-without-attachment or retryable origin may restore only
-while it still has no viewer/controller, except an unbound selection or a lost focused viewer with
-live siblings uses the same exact whole-anchor projection proof described below; a lost one
+while it still has no viewer/controller, except an unbound selection or a retryable focus with
+live siblings uses the same exact whole-anchor projection proof described below; a retryable one
 restores still retryable. A partly completed Switch never creates a stable anchor;
 in particular, a second marker can have no anchor after the first marker's not-yet-Ready viewer was
 cleaned up. Current Unavailable without a valid anchor retires, without a repair Poll or setup.
@@ -2047,15 +2050,17 @@ missing return evidence cannot establish eligibility. Any retained Close/Read re
 unresolved structural mutation, commit, setup or cleanup handoff excludes this entry. Existing
 Close status recovery retains priority and all its facts.
 
-The same correlated `TerminalRuntimeUnavailable` on a structurally quiescent Ready focus is
-pane-local: the lost viewer is disposed and the exact selection is precisely parked for the
-existing publication reconciliation, so it does not establish this retired origin on its own.
-The whole-Client proof still applies while a structural owner is armed — an opened but
-uncommitted panel-close confirmation makes local settlement inadmissible; retirement cancels
-that confirmation, and the origin then retains its original facts (same Poll serial, unreplaced
-Ready, exact selected+desired and still-attached canonical PaneRef, no submitted mutation or
-refresh). A submitted Panel operation and every other structural owner keep their existing
-exclusion.
+The same correlated `TerminalRuntimeUnavailable` on a Ready focus is pane-local when the focus is
+structurally quiescent or its only structural owner is close work: a Tab, Panel or Workspace
+close confirmation, a retained Tab close, or unresolved Workspace close evidence. The lost viewer
+is disposed and the exact selection is precisely parked for the existing publication
+reconciliation, while the close work keeps its premises and completes against the parked focus,
+so the loss does not establish this retired origin on its own. The whole-Client proof still
+applies while another structural owner is armed — an open rename draft makes local settlement
+inadmissible; retirement cancels that draft, and the origin then retains its original facts (same
+Poll serial, unreplaced Ready, exact selected+desired and still-attached canonical PaneRef, no
+submitted mutation or refresh). A submitted Panel operation and every other structural owner keep
+their existing exclusion.
 
 An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
 retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown

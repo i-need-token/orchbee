@@ -95,17 +95,10 @@ impl LocalTerminalConnection<'_> {
         let Some(viewer) = self.viewers[index].as_mut() else {
             unreachable!("selected occupied viewer slot")
         };
-        if self.service.target_lifecycle(viewer.target) == Some(TargetLifecycle::Disposed) {
-            self.viewers[index].take();
-            return if matches!(request.action(), Action::Detach { .. }) {
-                Outcome::Detached {}
-            } else {
-                unavailable(Unavailable::TerminalRuntimeUnavailable)
-            };
-        }
-        if !self.service.viewer_worker_is_current(&viewer.handle) {
-            self.viewers[index].take();
-            return unavailable(Unavailable::TerminalRuntimeUnavailable);
+        if self.service.target_lifecycle(viewer.target) == Some(TargetLifecycle::Disposed)
+            || !self.service.viewer_worker_is_current(&viewer.handle)
+        {
+            return self.release_viewer(index, request.action());
         }
         // A pending frame flight no longer short-circuits Poll: the Worker
         // still holds the frame record until its feedback, while queued
@@ -282,8 +275,7 @@ impl LocalTerminalConnection<'_> {
                 ..template
             }));
         if !self.service.viewer_worker_is_current(&viewer.handle) {
-            self.viewers[index].take();
-            return unavailable(Unavailable::TerminalRuntimeUnavailable);
+            return self.release_viewer(index, request.action());
         }
         match completion {
             Ok(WorkerOperationResult::Viewer(result)) => match result.outcome {
@@ -325,8 +317,7 @@ impl LocalTerminalConnection<'_> {
                     if accepted {
                         Outcome::Record(record)
                     } else {
-                        self.viewers[index].take();
-                        unavailable(Unavailable::TerminalRuntimeUnavailable)
+                        self.release_viewer(index, request.action())
                     }
                 }
                 WorkerOutcome::RowsRejected(reason) => {
@@ -341,8 +332,7 @@ impl LocalTerminalConnection<'_> {
                             reason: rows_rejected_reason(reason),
                         }
                     } else {
-                        self.viewers[index].take();
-                        unavailable(Unavailable::TerminalRuntimeUnavailable)
+                        self.release_viewer(index, request.action())
                     }
                 }
                 WorkerOutcome::FeedbackAccepted => {
@@ -364,8 +354,7 @@ impl LocalTerminalConnection<'_> {
                     ) {
                         Outcome::FeedbackAccepted {}
                     } else {
-                        self.viewers[index].take();
-                        unavailable(Unavailable::TerminalRuntimeUnavailable)
+                        self.release_viewer(index, request.action())
                     }
                 }
                 WorkerOutcome::Detached => {
@@ -395,15 +384,22 @@ impl LocalTerminalConnection<'_> {
                 WorkerOutcome::Rejected(_)
                 | WorkerOutcome::Attached
                 | WorkerOutcome::LifecycleObserved { .. } => {
-                    self.viewers[index].take();
-                    unavailable(Unavailable::TerminalRuntimeUnavailable)
+                    self.release_viewer(index, request.action())
                 }
             },
             Err(WorkerRequestError::Backpressure) => unavailable(Unavailable::ServerBusy),
-            _ => {
-                self.viewers[index].take();
-                unavailable(Unavailable::TerminalRuntimeUnavailable)
-            }
+            _ => self.release_viewer(index, request.action()),
+        }
+    }
+
+    /// The released slot settles a Detach, since a retry would find it absent; any other
+    /// action finds the runtime gone. The slot's Drop owns the remaining Worker cleanup.
+    fn release_viewer(&mut self, index: usize, action: &Action) -> Outcome {
+        self.viewers[index].take();
+        if matches!(action, Action::Detach { .. }) {
+            Outcome::Detached {}
+        } else {
+            unavailable(Unavailable::TerminalRuntimeUnavailable)
         }
     }
 }

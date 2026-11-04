@@ -282,6 +282,167 @@ fn split_refusal_after_a_lost_focused_viewer_restores_the_live_sibling() {
     assert!(ui.view().pane_projection(&peer).unwrap().frame().is_some());
 }
 
+/// Finishes the queued sibling work the executor would run first and leases the next Switch.
+fn leased_switch(mailbox: &CommandMailbox) -> CommandLease {
+    loop {
+        let lease = mailbox.try_recv().unwrap().expect("a queued Switch");
+        if matches!(lease.record(), QueuedCommand::Switch(_)) {
+            return lease;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    }
+}
+
+/// Answers the leased Switch with `snapshot`, runs the cleanup of the old anchor's live viewers
+/// that the install asks for, and returns the pane the Switch attaches.
+fn land_switch(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &Arc<CommandMailbox>,
+    clock: &LocalOperationClock,
+    lease: CommandLease,
+    snapshot: orchbee_workbench_protocol::Snapshot,
+) -> PaneKey {
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        panic!("Switch lease")
+    };
+    let target = marker.target().clone();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, &target, clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Available { snapshot },
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a removed target Panel never costs the Client"
+    );
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+        panic!("the old anchor's live viewers are cleaned up first")
+    };
+    let permit = mailbox
+        .authorize_switch_cleanup(&lease, cleanup, cleanup.old(), clock)
+        .unwrap()
+        .expect("the Switch owns its cleanup");
+    assert!(mailbox.answer_switch_cleanup(permit, true).unwrap());
+    let wait = detached(mailbox, clock, cleanup);
+    ui.tick();
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    let RefreshDecision::AttachRecovered(attach) = settlement.decision() else {
+        panic!("the Switch attaches")
+    };
+    let landed = attach.selected().key().clone();
+    assert_eq!(settlement.desired(), Some(&landed));
+    mailbox.finish_lease(lease).unwrap();
+    assert_eq!(mailbox.is_closed(), None);
+    assert!(!ui.retirement_requested());
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+    landed
+}
+
+/// A lost focus re-attaches through a same-Tab Switch. When the Server removed that Panel before
+/// the Switch read its snapshot, the Switch lands on the surviving leaf.
+#[test]
+fn a_reattach_whose_panel_was_removed_lands_on_the_surviving_leaf() {
+    use crate::workbench_state::{OPERATION_TOTAL, PaneFault};
+    use std::sync::atomic::Ordering;
+    let (mut ui, mailbox, clock, elapsed) = super::super::tests::publication_hint::ready_split_ui();
+    super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
+    let tab = &ui.state.as_ref().unwrap().cache().tabs()[0];
+    let survivor = tab.panel(0).unwrap().panel_id().clone();
+    let removed = tab.panel(1).unwrap().panel_id().clone();
+    ui.apply_client_action(ClientAction::FocusPanel(removed.clone()));
+    let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    assert_eq!(focus.pane().panel(), &removed);
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(ui.state.as_ref().unwrap().focused_viewer_lost());
+    elapsed.fetch_add(300, Ordering::SeqCst);
+    ui.tick();
+    let lease = leased_switch(&mailbox);
+    let landed = land_switch(
+        &mut ui,
+        &mailbox,
+        &clock,
+        lease,
+        super::super::tests::publication_hint::split_survivor_snapshot(2, 0),
+    );
+    assert_eq!(landed.tab_id(), focus.pane().tab_id());
+    assert_eq!(
+        landed.panel(),
+        &survivor,
+        "the surviving leaf takes the focus"
+    );
+}
+
+/// A peer removed the Panel a Tab selection targets before this Client installed that removal:
+/// the Switch lands on the Tab's surviving leaf.
+#[test]
+fn a_tab_switch_whose_panel_was_removed_lands_on_the_surviving_leaf() {
+    use super::super::tests::publication_hint::{split_snapshot, split_survivor_snapshot};
+    // The split Tab comes second, so the Client starts on the single-leaf Tab.
+    fn split_second(
+        mut snapshot: orchbee_workbench_protocol::Snapshot,
+    ) -> orchbee_workbench_protocol::Snapshot {
+        snapshot.terminal_contexts[0].tabs.swap(0, 1);
+        snapshot
+    }
+    let (mut ui, mailbox, clock, _elapsed) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(split_second(split_snapshot(
+            1,
+        )));
+    let tab = &ui.state.as_ref().unwrap().cache().tabs()[1];
+    let tab_id = tab.tab_id().clone();
+    let removed = tab.panel(0).unwrap().panel_id().clone();
+    let survivor = tab.panel(1).unwrap().panel_id().clone();
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = leased_switch(&mailbox);
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        unreachable!("leased_switch answers a Switch")
+    };
+    assert_eq!(marker.target().selected().key().panel(), &removed);
+    let landed = land_switch(
+        &mut ui,
+        &mailbox,
+        &clock,
+        lease,
+        split_second(split_survivor_snapshot(2, 1)),
+    );
+    assert_eq!(landed.tab_id(), &tab_id);
+    assert_eq!(
+        landed.panel(),
+        &survivor,
+        "the surviving leaf takes the focus"
+    );
+}
+
 #[test]
 fn response_before_ui_new_marker_preserves_exact_cleanup_and_never_installs_stale_candidate() {
     let (mut ui, mailbox, clock, _elapsed) = ready();

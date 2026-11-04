@@ -4635,11 +4635,7 @@ impl WorkbenchClientUi {
         let Some(state) = self.state.as_ref() else {
             return;
         };
-        if state.ready().is_none()
-            && !state.focused_viewer_lost()
-            && !(state.phase_kind() == ClientPhaseKind::SelectedWithoutAttachment
-                && state.selected_is_unbound())
-        {
+        if state.ready().is_none() && !state.focus_parked() {
             return;
         }
         let pollable = state.pollable_panes();

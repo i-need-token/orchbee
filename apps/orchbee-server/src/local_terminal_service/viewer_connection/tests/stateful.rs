@@ -75,6 +75,7 @@ const REQUIRED: &[&str] = &[
     "worker-loss",
     "worker-generation-control",
     "worker-generation-poll",
+    "worker-generation-detach",
     "rejected-candidate",
 ];
 
@@ -347,7 +348,20 @@ fn generate(seed: u64) -> Vec<Step> {
         grant: 1123,
         ..Step::new(Kind::Acquire)
     });
+    trace.push(Step {
+        kind: Kind::Attach,
+        connection: 0,
+        viewer: 123,
+        target: targets[8],
+        ..Step::new(Kind::Attach)
+    });
     trace.push(Step::new(Kind::ReplaceWorker));
+    trace.push(Step {
+        kind: Kind::Detach,
+        connection: 0,
+        viewer: 123,
+        ..Step::new(Kind::Detach)
+    });
     trace.push(Step {
         kind: Kind::Control,
         connection: 0,
@@ -431,6 +445,20 @@ fn worker_generation_coverage_requires_a_live_old_route_not_just_an_environment_
             .unwrap()
             .contains("worker-generation-poll")
     );
+}
+#[test]
+fn a_detach_after_a_worker_generation_change_answers_detached() {
+    // The Server releases the old-generation slot either way, so a Client that is
+    // cleaning up a pane must read the same settled answer a retry would get.
+    let trace = [
+        Step::new(Kind::Attach),
+        Step::new(Kind::ReplaceWorker),
+        Step::new(Kind::Detach),
+        Step::new(Kind::Detach),
+    ];
+    let coverage = run(&trace).unwrap();
+    assert!(coverage.contains("worker-generation-detach"));
+    assert!(coverage.contains("absent-detach"));
 }
 #[test]
 fn sibling_interleaving_requires_distinct_viewers_in_one_continuous_connection_window() {

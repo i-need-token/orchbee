@@ -357,8 +357,13 @@ fn run_inner(steps: &[Step]) -> Result<Coverage, Failure> {
                             "unavailable:TerminalRuntimeUnavailable"
                         }
                     } else if oracle.worker_lost {
+                        // The released slot is the Detach result; a retry would find it absent.
                         oracle.viewers.get_mut(&s.viewer).unwrap().live = false;
-                        "unavailable:TerminalRuntimeUnavailable"
+                        if s.kind == Kind::Detach {
+                            "detached"
+                        } else {
+                            "unavailable:TerminalRuntimeUnavailable"
+                        }
                     } else if s.kind == Kind::Detach {
                         effects.extend(oracle.cleanup(v));
                         oracle.viewers.get_mut(&s.viewer).unwrap().live = false;
@@ -567,16 +572,21 @@ fn run_inner(steps: &[Step]) -> Result<Coverage, Failure> {
             && selected
                 .as_ref()
                 .is_some_and(|viewer| !oracle.disposed.contains(&viewer.target))
-            && expected == "unavailable:TerminalRuntimeUnavailable"
-            && matches!(s.kind, Kind::Poll | Kind::Control)
+            && matches!(
+                (s.kind, expected.as_str()),
+                (
+                    Kind::Poll | Kind::Control,
+                    "unavailable:TerminalRuntimeUnavailable"
+                ) | (Kind::Detach, "detached")
+            )
         {
-            // Count only a reached stale-generation route with the expected typed refusal
+            // Count only a reached stale-generation route with the expected typed result
             // and no observed request to the live replacement carrier (checked above).
             oracle.coverage.insert("worker-loss");
-            oracle.coverage.insert(if s.kind == Kind::Control {
-                "worker-generation-control"
-            } else {
-                "worker-generation-poll"
+            oracle.coverage.insert(match s.kind {
+                Kind::Control => "worker-generation-control",
+                Kind::Detach => "worker-generation-detach",
+                _ => "worker-generation-poll",
             });
         }
         // A window belongs to one Connection and requires two distinct successfully

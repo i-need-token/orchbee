@@ -112,17 +112,19 @@ shared HostViewers capacity of 8 applies across all visible panes, and read-only
 acquire control or resize.
 
 A typed viewer `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
-locally. For the focused pane this is allowed only in structurally quiescent `Ready`, with
-no refresh or an existing publication refresh; a setup, mutation, explicit refresh, armed
-panel-close confirmation or recovery keeps the existing retirement boundary. The existing
-`ViewerLost` fault parks the exact
-selection. Pane reconcile never attaches the focused pane, so a reconcile planned before the loss
-settled cannot replace that fault. Live siblings keep polling and may settle their previously
-admitted controlling resizes.
+locally. For the focused pane this is allowed in `Ready` with no refresh or an existing
+publication refresh, when close work is the only structural owner, if any. Close work is a Tab,
+Panel or Workspace close confirmation, a retained Tab close, or unresolved Workspace close
+evidence; it keeps its own premises and completes against the parked focus. A setup, a submitted
+mutation or Workspace close, an explicit refresh, a rename draft or a recovery keeps the existing
+retirement boundary. The existing `ViewerLost` fault parks the exact selection. Pane reconcile never attaches the focused pane, so a reconcile planned before the loss
+settled cannot replace that fault. A parked focus, whether its viewer was lost, its attach failed
+or it never attaches, leaves its siblings working as under `Ready`: reconcile attaches them, and
+they keep polling and resizing.
 While that exact focused fault remains, each pushed publication hint drains through the existing
 debt, including after an early unchanged or refused read; idle time issues no read. Canonical
-removal then uses the existing sibling cleanup and membership installation to select a survivor or
-enter `Empty`. No terminal request is replayed or reported successful on loss; other refusal
+removal of a parked Panel then uses the existing sibling cleanup and membership installation to
+select a survivor or enter `Empty`. No terminal request is replayed or reported successful on loss; other refusal
 reasons and transport/protocol failures retain their existing handling.
 
 A lost viewer does not prove that its terminal ended: a Worker may close a viewer whose terminal
@@ -134,7 +136,8 @@ defers the attempt without spending it, and the deferral shows no busy notice. L
 from the parked pane, the re-attach first detaches the live siblings under the old anchor, which
 then attach again under the new one; a refusal before that cleanup restores their exact
 projections and leaves the pane parked. A terminal that ended settles through the switch's own
-snapshot and attach; a failed attach parks as an ordinary attach fault and is not retried
+snapshot and attach: when that snapshot no longer holds the Panel, the switch lands on the Tab's
+surviving leaf, and a failed attach parks as an ordinary attach fault and is not retried
 automatically. A reselection still retries at once.
 
 Zoom is a Client-local per-Tab flag, and it belongs to the leaf it draws: the focus in the selected

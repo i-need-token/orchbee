@@ -2149,8 +2149,10 @@ impl WorkbenchClientState {
         ));
     }
 
-    /// Only a quiescent focus may park after a typed runtime-loss notice. A
-    /// structural owner keeps its original retirement/recovery contract.
+    /// A focus parks after a typed runtime-loss notice beside close work: a Tab, Panel or
+    /// Workspace close confirmation, a retained Tab close and Workspace close evidence keep their
+    /// own premises and complete against the parked focus. Any other structural owner, and a
+    /// status-only close carrier, keeps its original retirement/recovery contract.
     fn focus_runtime_loss_admissible(&self, key: &PaneRef) -> bool {
         matches!(&self.phase, ClientPhase::Ready(ready)
             if ready.selected.key == *key.pane() && self.desired.as_ref() == Some(key.pane()))
@@ -2159,12 +2161,13 @@ impl WorkbenchClientState {
                 .pending_refresh
                 .as_ref()
                 .is_none_or(|flight| flight.source == RefreshSource::Publication)
-            && !self.mutation_blocks_structure()
+            && !self.setup_blocks_structure()
+            && !self.mutation_in_progress()
+            && self.workspace_close.pending.is_none()
+            && !self.close_status_only()
             && !self.rename_draft_blocks_structure()
             && self.rename_uncertain.is_none()
             && self.pending_membership.is_none()
-            && self.close.permits_retired_membership()
-            && self.panel_close.confirmation().is_none()
             && self
                 .live_pane_record(key)
                 .is_some_and(|record| record.attached() && !record.departing)
@@ -2184,6 +2187,16 @@ impl WorkbenchClientState {
         self.focus_record().is_some_and(|record| {
             !record.attached() && !record.departing && record.fault == Some(PaneFault::ViewerLost)
         })
+    }
+
+    /// The selection is settled without a viewer of its own: a focus parked after a lost
+    /// viewer or a failed attach, or a selection that never attaches. Its siblings under the
+    /// same anchor keep attaching, polling and resizing as they would under `Ready`.
+    pub(crate) fn focus_parked(&self) -> bool {
+        matches!(&self.phase,
+            ClientPhase::RetryableAttachUnavailable(selected)
+            | ClientPhase::SelectedWithoutAttachment(selected)
+                if self.desired.as_ref() == Some(&selected.key))
     }
 
     /// One pane's controller grant ended or was lost: the pane keeps its live
@@ -2346,12 +2359,7 @@ impl WorkbenchClientState {
             && self
                 .live_pane_record(key)
                 .is_some_and(|record| record.mode() == Some(&mode));
-        let lost_focus_background_resize = background_resize
-            && self.focused_viewer_lost()
-            && self
-                .desired
-                .as_ref()
-                .is_some_and(|desired| key.anchor() == desired.anchor());
+        let parked_focus_background = background_live && self.focus_parked();
         let accepted_geometry = match &mut self.phase {
             ClientPhase::Starting(setup) if setup.selected.key == *key.pane() && pane_attached => {
                 setup.mode = Some(mode.clone());
@@ -2404,12 +2412,16 @@ impl WorkbenchClientState {
                 }
                 None
             }
-            // A background pane finishing its reconcile setup while the session
-            // is Ready: the record is live, not the focus, and not departing.
+            // A background pane finishing its reconcile setup or a Resize while the
+            // session is Ready: the record is live, not the focus, and not departing.
             ClientPhase::Ready(_) if background_live => None,
-            // A typed loss of the focus viewer does not revoke a sibling's
-            // previously admitted controlling Resize.
-            ClientPhase::RetryableAttachUnavailable(_) if lost_focus_background_resize => None,
+            // A parked focus leaves its siblings working the same way.
+            ClientPhase::RetryableAttachUnavailable(_)
+            | ClientPhase::SelectedWithoutAttachment(_)
+                if parked_focus_background =>
+            {
+                None
+            }
             // The executor drains earlier accepted Resize leases before Create.
             // Their geometry may precede a newer admission on this same pane.
             ClientPhase::Creating(barrier)
@@ -3417,17 +3429,20 @@ impl WorkbenchClientState {
                 tab.has_replaced_terminals_from(self.cache.tabs().get(active.index)?)
                     .then_some(index)
             }
-            None => {
-                if let Some(index) = self.overlay_return_index(tab, previous.panel_id()) {
-                    return Some(index);
-                }
-                Some(
-                    active
-                        .panel_index()
-                        .min(tab.panel_count().saturating_sub(1)),
-                )
-            }
+            None => Some(self.surviving_leaf_index(tab, previous.panel_id(), active.panel_index())),
         }
+    }
+
+    /// The leaf that stands in for a selected Panel the candidate Tab no longer holds: the
+    /// overlay's return Panel, else the vanished leaf's ordinal clamped to the surviving leaves.
+    fn surviving_leaf_index(
+        &self,
+        tab: &ClientTab,
+        removed: &WorkbenchPanelId,
+        ordinal: usize,
+    ) -> usize {
+        self.overlay_return_index(tab, removed)
+            .unwrap_or_else(|| ordinal.min(tab.panel_count().saturating_sub(1)))
     }
 
     fn merge_projection(&mut self, candidate: ClientContextTabs) -> bool {
@@ -4135,13 +4150,12 @@ impl WorkbenchClientState {
             return false;
         }
         let attachment_shape_valid = match &self.phase {
+            // The attached focus, or a parked focus's live siblings, own the cleanup.
             ClientPhase::ReconcilingMembership(selected) => {
                 Some(&selected.key) == self.desired.as_ref()
-                    && (self.focus_record().is_some_and(|record| record.attached())
-                        || ((self.selected_is_unbound() || self.focus_has_lost_viewer())
-                            && self.panes.iter().any(|record| {
-                                record.key.anchor() == selected.key.anchor() && record.attached()
-                            })))
+                    && self.panes.iter().any(|record| {
+                        record.key.anchor() == selected.key.anchor() && record.attached()
+                    })
             }
             ClientPhase::Empty => {
                 self.cache.tabs().is_empty()

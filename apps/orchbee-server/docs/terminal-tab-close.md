@@ -469,7 +469,8 @@ fence/identity/dispatch preparation. Registry → Session → controllers protec
 and returned-grant installation; Attach also installs under Session after revalidation. Failure leaves
 the candidate owned until all guards are released. Already-admitted Input/Resize retains its actual
 result. Exactly disposed Viewer Detach settles local absence as Detached; Poll/feedback becomes
-TerminalRuntimeUnavailable, with no Worker cleanup request. Closing/Unknown alone permits no such
+TerminalRuntimeUnavailable, with no Worker cleanup request. A Detach after a changed Worker
+generation also answers Detached ([viewer relay](../README.md#local-client-viewer-relay-refinement)). Closing/Unknown alone permits no such
 disposal-derived settlement.
 
 For Server cleanup, the retained canonical request ID and full runtime are the pre-Dispose identity

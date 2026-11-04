@@ -336,26 +336,41 @@ fn focused_viewer_loss_preserves_sibling_geometry_frames_and_selection() {
     );
 }
 
+/// Close work keeps its own premises and completes against a parked focus, so a focused viewer
+/// loss parks beside it; any other structural owner keeps its retirement contract.
 #[test]
-fn focused_viewer_loss_does_not_replace_a_structural_owner() {
-    for owner in [
-        "explicit refresh",
-        "rename",
-        "tab close",
-        "panel close",
-        "create",
-    ] {
+fn focused_viewer_loss_parks_beside_close_work_but_not_another_structural_owner() {
+    for owner in ["tab close", "panel close"] {
         let mut state = ready(2);
         let focus = state.focus_pane_ref().unwrap();
         match owner {
-            "explicit refresh" => assert!(state.start_pending_refresh(7)),
-            "rename" => assert!(state.open_rename_draft().is_some()),
             "tab close" => {
                 state.open_close_confirmation().unwrap();
             }
             "panel close" => {
                 state.open_panel_close_confirmation().unwrap();
             }
+            _ => unreachable!(),
+        }
+        assert!(
+            state.settle_pane_fault(&focus, PaneFault::ViewerLost),
+            "{owner}"
+        );
+        assert!(state.focused_viewer_lost(), "{owner}");
+        assert_eq!(state.focus_pane_ref(), Some(focus), "{owner}");
+        let kept = match owner {
+            "tab close" => state.view().close_confirmation().is_some(),
+            _ => state.view().panel_close_confirmation().is_some(),
+        };
+        assert!(kept, "the close keeps its confirmation: {owner}");
+        assert!(state.invariant_holds());
+    }
+    for owner in ["explicit refresh", "rename", "create"] {
+        let mut state = ready(2);
+        let focus = state.focus_pane_ref().unwrap();
+        match owner {
+            "explicit refresh" => assert!(state.start_pending_refresh(7)),
+            "rename" => assert!(state.open_rename_draft().is_some()),
             "create" => {
                 let operation = create_operation(&state, 2, 20, "3");
                 assert!(state.begin_create(operation));
@@ -383,13 +398,11 @@ fn focused_viewer_loss_does_not_replace_a_structural_owner() {
 }
 
 #[test]
-fn lost_focus_background_resize_rejects_changed_authority() {
+fn a_parked_focus_sibling_configuration_refuses_a_stale_record() {
     for case in [
         "incarnation",
         "anchor",
-        "controller",
         "missing geometry",
-        "read only",
         "departing",
         "detached",
     ] {
@@ -399,7 +412,6 @@ fn lost_focus_background_resize_rejects_changed_authority() {
         let focus = state.focus_pane_ref().unwrap();
         assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
         let mut key = sibling.clone();
-        let mut mode = controlling();
         let mut applied = Some(geometry(90));
         match case {
             "incarnation" => key = PaneRef::new(sibling.pane().clone(), sibling.incarnation() + 1),
@@ -412,28 +424,14 @@ fn lost_focus_background_resize_rejects_changed_authority() {
                     sibling.incarnation(),
                 )
             }
-            "controller" => {
-                mode = ControllerMode::Controlling(ControllerId::parse(&id(999)).unwrap())
-            }
             "missing geometry" => applied = None,
-            "read only" => {
-                mode = ControllerMode::ReadOnly;
-                applied = None;
-                state
-                    .live_pane_record_mut(&sibling)
-                    .unwrap()
-                    .attachment
-                    .as_mut()
-                    .unwrap()
-                    .mode = Some(mode.clone());
-            }
             "departing" => state.live_pane_record_mut(&sibling).unwrap().departing = true,
             "detached" => state.live_pane_record_mut(&sibling).unwrap().attachment = None,
             _ => unreachable!(),
         }
         let before = state.last_accepted_geometry(&sibling);
         assert_eq!(
-            state.settle_setup_configuration_event(&key, mode, applied),
+            state.settle_setup_configuration_event(&key, controlling(), applied),
             None,
             "{case}"
         );

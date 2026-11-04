@@ -451,7 +451,10 @@ rides its own acknowledgement flight rather than settling `FrameApplied`. Event 
 saturation closes only that viewer, and frame plus event bytes are released exactly once on every
 teardown path; a valid kind-53 event for an already-retired viewer is swallowed like a late frame.
 Attach commits before Client publication. Explicit detach releases only the selected viewer and its
-controller; Connection disconnect or failed publication cleans all its viewers. These operations never
+controller; Connection disconnect or failed publication cleans all its viewers. Once Server releases
+a viewer's slot, whether for exact disposal, a changed Worker generation or a failed Worker exchange,
+a Detach of it answers Detached, because a retry would find it absent; any other action on that slot
+answers TerminalRuntimeUnavailable, and the released slot owns its remaining Worker cleanup. These operations never
 terminate or retarget retained terminals. Unknown exchanges are not replayed. Reattachment receives
 a fresh attachment identity and requires a snapshot.
 

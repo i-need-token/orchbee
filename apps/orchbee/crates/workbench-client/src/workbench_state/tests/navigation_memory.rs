@@ -311,6 +311,7 @@ fn navigation_memory_switch_install_resolves_captured_panel_in_new_candidate() {
         let mut snapshot = split_contexts();
         let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
         let panel = focus_second_panel(&mut state);
+        let survivor = state.tab(0).unwrap().panel(0).unwrap().panel_id().clone();
         switch(&mut state, 1, 2);
         let tab = state.tab(0).unwrap().tab_id().clone();
         let target = state
@@ -335,17 +336,8 @@ fn navigation_memory_switch_install_resolves_captured_panel_in_new_candidate() {
         }
         snapshot.revision = WorkbenchRevision::new(2);
         let candidate = state
-            .prepare_switch_candidate(&marker, WorkbenchSnapshotOutcome::Available { snapshot });
-        if remove {
-            assert!(matches!(
-                candidate,
-                Err(CarrierFailure::AuthorityDivergence)
-            ));
-            assert!(state.pending_membership.is_none());
-            assert!(state.has_attachments());
-            continue;
-        }
-        let candidate = candidate.unwrap();
+            .prepare_switch_candidate(&marker, WorkbenchSnapshotOutcome::Available { snapshot })
+            .unwrap();
         let budget = state.switch_deadlines(&marker).unwrap();
         let cleanup = state
             .stage_switch_membership_cleanup(&marker, candidate, budget)
@@ -361,10 +353,12 @@ fn navigation_memory_switch_install_resolves_captured_panel_in_new_candidate() {
         let MembershipInstallDecision::Attach(target) = plan.unwrap().commit() else {
             panic!("attach")
         };
-        assert_eq!(target.selected().key().panel(), &panel);
+        // A captured Panel the candidate removed hands the focus to the surviving leaf.
+        let expected = if remove { &survivor } else { &panel };
+        assert_eq!(target.selected().key().panel(), expected);
         assert_eq!(target.selected().panel_index(), 0);
         settle_ready(&mut state, 6);
-        assert_eq!(state.desired().unwrap().panel(), &panel);
+        assert_eq!(state.desired().unwrap().panel(), expected);
     }
 }
 

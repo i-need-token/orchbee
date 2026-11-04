@@ -68,7 +68,7 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
     let view = ClientView::new(120);
-    let poll = arm_uncommitted_panel_close(&mut workbench_client, &received, &release)?;
+    let poll = arm_rename_draft(&mut workbench_client, &received, &release)?;
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
@@ -97,11 +97,11 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
     Ok(())
 }
 
-/// Joined typed loss on a quiescent Ready focus is pane-local; the old
-/// whole-Client retirement origin is reachable only while a structural owner
-/// is armed. The server therefore proves it has read and correlated the
-/// leased ordinary Poll, then waits until the client reports a real armed
-/// panel-close confirmation before answering `TerminalRuntimeUnavailable`.
+/// Joined typed loss on a quiescent Ready focus, or one beside close work, is
+/// pane-local; the old whole-Client retirement origin is reachable only while
+/// another structural owner is armed. The server therefore proves it has read
+/// and correlated the leased ordinary Poll, then waits until the client reports
+/// a real open rename draft before answering `TerminalRuntimeUnavailable`.
 fn retire_on_poll(
     stream: &mut UnixStream,
     geometry: Geometry,
@@ -133,14 +133,11 @@ fn retire_on_poll(
     Ok(())
 }
 
-/// While the joined ordinary Poll is still leased and unreplied, opens the
-/// real panel-close confirmation through `ClientAction::ClosePanel` and proves
-/// it admitted with one actual draw — an unpresentable first paint would have
-/// refused it, and a submitted close removes it before any Panel request is
-/// queued. The admitted confirmation therefore also witnesses that no Panel
-/// request was submitted. Returns the correlated Poll request id and releases
-/// the server's typed loss.
-fn arm_uncommitted_panel_close(
+/// While the joined ordinary Poll is still leased and unreplied, opens a real
+/// rename draft through `ClientAction::RequestRenameTab`. The draft is local:
+/// nothing reaches the Server until it is submitted. Returns the correlated
+/// Poll request id and releases the server's typed loss.
+fn arm_rename_draft(
     workbench_client: &mut WorkbenchClient,
     poll_sighted: &Receiver<String>,
     release: &SyncSender<()>,
@@ -149,27 +146,10 @@ fn arm_uncommitted_panel_close(
         .recv_timeout(Duration::from_secs(2))
         .map_err(|error| io::Error::other(format!("ordinary Poll handoff: {error}")))?;
     assert_eq!(workbench_client.status(), TerminalStatus::Controlling);
-    workbench_client.apply_client_action((ClientAction::ClosePanel).into());
-    let view = ClientView::new(120);
-    let mut terminal = Terminal::new(TestBackend::new(120, 32))?;
-    let mut receipt = DrawReceipt::default();
-    terminal.draw(|frame| {
-        receipt = render_terminal_shell(
-            frame,
-            &view,
-            Locale::EnUs,
-            Some(workbench_client.view()),
-            &crate::tui_theme::Theme::terminal_native(),
-            &mut crate::tui_hit_map::HitMapBuilder::new(),
-        );
-    })?;
-    workbench_client.after_close_draw(receipt);
+    workbench_client.apply_client_action((ClientAction::RequestRenameTab).into());
     let view = workbench_client.view();
     assert_eq!(view.phase(), DisplayPhase::Ready);
-    assert!(
-        view.panel_close_confirmation().is_some(),
-        "a real draw leaves the uncommitted confirmation armed"
-    );
+    assert!(view.rename_draft().is_some(), "the rename draft is open");
     release.send(())?;
     Ok(poll)
 }
@@ -220,7 +200,7 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    arm_uncommitted_panel_close(&mut workbench_client, &poll_sighted, &release)?;
+    arm_rename_draft(&mut workbench_client, &poll_sighted, &release)?;
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
@@ -276,7 +256,7 @@ fn exit_closes_a_recovery_carrier_before_any_late_snapshot_can_install() -> Test
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    arm_uncommitted_panel_close(&mut workbench_client, &poll_sighted, &release)?;
+    arm_rename_draft(&mut workbench_client, &poll_sighted, &release)?;
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
@@ -544,7 +524,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    arm_uncommitted_panel_close(&mut workbench_client, &poll_sighted, &release)?;
+    arm_rename_draft(&mut workbench_client, &poll_sighted, &release)?;
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
@@ -629,7 +609,7 @@ fn cancelled_connect_closes_late_admission_without_placing_snapshot() -> TestRes
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    arm_uncommitted_panel_close(&mut workbench_client, &poll_sighted, &loss_release)?;
+    arm_rename_draft(&mut workbench_client, &poll_sighted, &loss_release)?;
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));

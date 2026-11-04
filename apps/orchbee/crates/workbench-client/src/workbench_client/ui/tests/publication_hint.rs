@@ -708,6 +708,21 @@ pub(in crate::workbench_client) fn split_snapshot(revision: u64) -> Snapshot {
     baseline
 }
 
+/// `split_snapshot` once the Server removed one of the split's leaves: the `survivor` child
+/// stands alone as the Tab's root.
+pub(in crate::workbench_client) fn split_survivor_snapshot(
+    revision: u64,
+    survivor: usize,
+) -> Snapshot {
+    let mut snapshot = split_snapshot(revision);
+    let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+    let PanelNode::Split { children, .. } = &tab.root else {
+        unreachable!("the split fixture");
+    };
+    tab.root = children[survivor].node.clone();
+    snapshot
+}
+
 /// Builds a UI over one tab split into two horizontal panels that stops right
 /// after the Bootstrap reply: the session is still in its first `Starting`
 /// phase and the focus leaf's own setup pipeline has not converged yet.
