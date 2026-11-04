@@ -58,7 +58,7 @@ function HookProjection({
 	return createElement(
 		'div',
 		null,
-		`${view.activeTab?.tabId}:${view.messages.newChildTerminal}:${view.state.tabs.length}:${
+		`${view.activeTab?.tabId}:${view.messages.returnToPrimary}:${view.state.tabs.length}:${
 			'layoutKey' in view.panelDrag
 		}`,
 	);
@@ -144,7 +144,7 @@ describe('useWorkbenchPanelWorkspace', () => {
 			),
 		);
 
-		expect(markup).toContain(`${fixtureTabId(1)}:新建子终端:1:false`);
+		expect(markup).toContain(`${fixtureTabId(1)}:返回主终端:1:false`);
 	});
 
 	it('keeps the panel drag entry point stable across workspace updates', () => {

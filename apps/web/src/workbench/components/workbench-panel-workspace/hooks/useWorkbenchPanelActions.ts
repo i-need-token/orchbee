@@ -6,7 +6,6 @@ import {
 	type ActionInputFor,
 	type ActionInvocationSource,
 	type ActionOutputFor,
-	type ActionResult,
 	type ActionRuntime,
 	type ActionScope,
 } from '@orchbee/actions';
@@ -85,12 +84,6 @@ interface WorkbenchPanelActions {
 	readonly scope: ActionScope;
 }
 
-function withoutOutput(result: ActionResult<string>): ActionResult<void> {
-	return result.kind === 'completed' || result.kind === 'unchanged'
-		? { kind: result.kind }
-		: result;
-}
-
 export function useWorkbenchPanelActions({
 	activeTab,
 	authority,
@@ -122,24 +115,12 @@ export function useWorkbenchPanelActions({
 		};
 		const findTarget = (panelId: string) =>
 			activeTab === null ? null : findPanel(activeTab.root, panelId);
-		const findCloseTarget = (input: PanelCloseInput) => {
-			if (activeTab?.tabId !== input.tabId) {
-				return null;
-			}
-			const panel = findTarget(input.panelId);
-			return panel?.activeChildPresentationId === input.childPresentationId ? panel : null;
-		};
-		/** A child close ends that terminal alone, and a Panel close ends every one it holds. */
+		const findCloseTarget = (input: PanelCloseInput) =>
+			activeTab?.tabId === input.tabId ? findTarget(input.panelId) : null;
+		/** As in the TUI, a Panel's Close ends every terminal it holds, whichever one it shows. */
 		const closedTerminals = (input: PanelCloseInput): readonly TerminalPresentation[] => {
 			const panel = findCloseTarget(input);
-			if (panel === null) {
-				return [];
-			}
-			return input.childPresentationId === null
-				? [panel.primaryPresentation, ...panel.childPresentations]
-				: panel.childPresentations.filter(
-						(terminal) => terminal.presentationId === input.childPresentationId,
-					);
+			return panel === null ? [] : [panel.primaryPresentation, ...panel.childPresentations];
 		};
 		const closureFor = (input: PanelCloseInput): WorkbenchAuthorityClosure => ({
 			panelId: input.panelId,
@@ -350,10 +331,7 @@ export function useWorkbenchPanelActions({
 										values: terminalCloseWarningValues(terminalCloseImpact(terminals)),
 									},
 									risk: 'destructive',
-									title:
-										input.childPresentationId === null
-											? workbenchMessages.panelCloseTitle
-											: workbenchMessages.panelCloseRunningTitle,
+									title: workbenchMessages.panelCloseTitle,
 									watch: (withdraw) => authority.watchClose(closureFor(input), withdraw),
 								}
 							: null;
@@ -363,18 +341,14 @@ export function useWorkbenchPanelActions({
 						concurrencyKey: () => 'panel-close-confirmation',
 						mode: 'foreground',
 					},
-					getAvailability: (_context, input) => {
-						const panel = findCloseTarget(input);
-						// The Server contract closes a Panel, and has no command for one of its child terminals.
-						return panel === null ||
-							input.childPresentationId !== null ||
-							(input.childPresentationId === null && panelCount < 2)
+					// The Server closes a Tab's last Panel together with its Tab.
+					getAvailability: (_context, input) =>
+						findCloseTarget(input) === null
 							? {
 									kind: 'disabled',
 									reason: workbenchMessages.actionUnavailable,
 								}
-							: { kind: 'enabled' };
-					},
+							: { kind: 'enabled' },
 					handler: {
 						execute: (context, input) => authority.close(context, closureFor(input)),
 					},
@@ -398,28 +372,6 @@ export function useWorkbenchPanelActions({
 					id: PANEL_ACTION_IDS.startResize,
 					input: panelTargetInput,
 					title: workbenchMessages.panelResize,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution,
-					getAvailability: (_context, input) => targetAvailability(input.panelId),
-					handler: {
-						execute: (context, input) =>
-							sharedTabTarget === null
-								? { code: 'active-tab-unavailable', kind: 'blocked' }
-								: createPanelTerminal(context, {
-										...sharedTabTarget,
-										cwd: reportedDirectory(input.panelId),
-										panelId: input.panelId,
-										type: 'child-terminal',
-									}).then(withoutOutput),
-					},
-					id: PANEL_ACTION_IDS.createChildTerminal,
-					input: panelTargetInput,
-					title: workbenchMessages.panelNewChildTerminal,
 				}),
 			),
 			typedRuntime.register(
@@ -517,7 +469,6 @@ export function useWorkbenchPanelActions({
 										cwd: reportedDirectory(input.panelId),
 										direction: input.direction,
 										panelId: input.panelId,
-										type: 'panel-split',
 									}),
 					},
 					id: PANEL_ACTION_IDS.split,

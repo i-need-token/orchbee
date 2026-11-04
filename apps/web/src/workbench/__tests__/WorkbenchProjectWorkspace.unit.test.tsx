@@ -923,7 +923,6 @@ describe('Workbench Project and Workspace management', () => {
 		const menu = await openTerminalMenu();
 		expectActionableMenuItemsToHaveIcons(menu);
 		expect(getActionableMenuPresentation(menu)).toEqual([
-			{ icon: 'terminal', label: 'New child terminal' },
 			{ icon: 'terminal', label: 'Broadcast Input' },
 			{ icon: 'panels', label: 'Split right⌘D' },
 			{ icon: 'panels', label: 'Split below⇧⌘D' },
@@ -941,7 +940,6 @@ describe('Workbench Project and Workspace management', () => {
 			panelId: fixturePanelId(1),
 			tabId: fixtureTabId(1),
 			terminalContextId: fixtureContextId(1),
-			type: 'panel-split',
 		});
 		await waitFor(() =>
 			expect(document.querySelectorAll('[data-slot="workbench-terminal-viewport"]')).toHaveLength(
@@ -950,7 +948,6 @@ describe('Workbench Project and Workspace management', () => {
 		);
 
 		expect(getActionableMenuPresentation(await openTerminalMenu())).toEqual([
-			{ icon: 'terminal', label: 'New child terminal' },
 			{ icon: 'terminal', label: 'Broadcast Input' },
 			{ icon: 'panels', label: 'Split right⌘D' },
 			{ icon: 'panels', label: 'Split below⇧⌘D' },

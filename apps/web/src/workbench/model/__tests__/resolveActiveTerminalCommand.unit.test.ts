@@ -1,4 +1,3 @@
-import { TAB_STRIP_ACTION_IDS } from '@orchbee/tab-strip';
 import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
@@ -29,28 +28,17 @@ const PANEL_3 = fixturePanelId(3);
 const CHILD_ID = terminalPresentationId(fixturePresentationId(2));
 
 describe('resolveActiveTerminalCommand', () => {
-	it('routes one primary terminal through panel close or Tab close by panel count', () => {
-		const single = initialState();
-		expect(resolve(single, 'close')).toMatchObject({
-			actionId: TAB_STRIP_ACTION_IDS.closeTabs,
-			input: { closeSource: 'non-ui', tabIds: [TAB_ID] },
+	it('closes the whole Panel whether it is the last one or shows a child terminal', () => {
+		expect(resolve(initialState(), 'close')).toEqual({
+			actionId: PANEL_ACTION_IDS.close,
+			input: { panelId: PANEL_1, tabId: TAB_ID },
 			kind: 'ready',
 			panelId: PANEL_1,
 		});
-
-		const split = twoPanels();
-		expect(resolve(split, 'close')).toMatchObject({
+		expect(resolve(twoPanels(), 'close')).toMatchObject({
 			actionId: PANEL_ACTION_IDS.close,
-			input: {
-				childPresentationId: null,
-				panelId: PANEL_2,
-				tabId: TAB_ID,
-			},
-			kind: 'ready',
+			input: { panelId: PANEL_2, tabId: TAB_ID },
 		});
-	});
-
-	it('closes an active child terminal before its singleton panel or Tab', () => {
 		const activated = transitionPanelWorkspace(
 			panelState(snapshotPanel(1, snapshotPresentation(1), [snapshotPresentation(2)])),
 			{
@@ -60,15 +48,9 @@ describe('resolveActiveTerminalCommand', () => {
 				type: 'child-terminal-activated',
 			},
 		);
-
 		expect(resolve(activated.state, 'close')).toMatchObject({
 			actionId: PANEL_ACTION_IDS.close,
-			input: {
-				childPresentationId: CHILD_ID,
-				panelId: PANEL_1,
-				tabId: TAB_ID,
-			},
-			kind: 'ready',
+			input: { panelId: PANEL_1, tabId: TAB_ID },
 		});
 	});
 

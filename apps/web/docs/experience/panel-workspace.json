@@ -32,7 +32,7 @@
 				"Split the active terminal into multiple panels and inspect headers, inactive masks, separators, and menu actions.",
 				"Split three Panels into a nested layout, cycle focus forward and backward through canonical leaf order, and inspect both wrap boundaries and terminal-input continuity.",
 				"Split three Panels into a nested layout, focus exact canonical positions with Control+Shift+1 through 3, and confirm a missing position falls through without changing focus.",
-				"Create and select a child terminal, then inspect the return, title, panel options, close, and child-strip presentation.",
+				"Select a child terminal the Server published, then inspect the return, title, panel options, close, and child-strip presentation.",
 				"Focus a primary or child terminal, press Option+Command+Enter, create a Tab in that exact displayed terminal's current directory, and inspect source identity preservation.",
 				"Drag a primary panel header across directional targets and inspect reversible projection and cancellation.",
 				"Split four Panels into a nested layout, then move the active Panel with Shift plus the directional-focus chord and inspect exact leaf exchange without topology or terminal-identity changes.",
@@ -85,6 +85,7 @@
 		"Panel equalization recursively assigns same-axis child weights by descendant Panel units while preserving topology, order, identities, membership, and focus.",
 		"Keyboard resize mode captures one exact Tab and Panel, mutates the nearest matching split axis, preserves a visible branch floor, and closes when its target becomes stale.",
 		"Broadcast input captures every displayed running terminal in one active, non-maximized Tab, requires exact write-readiness revisions, sends FIFO to the immutable snapshot, and stops visibly on invalidation or any non-atomic partial failure without retry, rollback, or replay.",
+		"A Panel's Close ends its primary and every child terminal, whichever one it shows, and closing a Tab's last Panel closes that Tab, as in the TUI.",
 		"Closing a terminal that may still run a program, or a Presentation with no terminal, requires localized confirmation before the Server is asked.",
 		"A close changes the Panel workspace only when a publication carries the Server's result; nothing waits on a local removal.",
 		"Host PTY and process lifecycle remain outside the Panel workspace owner."

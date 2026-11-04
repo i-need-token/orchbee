@@ -19,9 +19,9 @@ interface WorkbenchPanelMenuOptions {
 /**
  * A panel's menu, composed as the TUI's pane menu: Split right and Split below, Maximize only beside
  * another panel and Take control only while another Client holds the panel's size, then the red
- * Close. The GUI's own child terminals and broadcast input lead in a section of their own; the
- * other split directions, resizing and equalizing stay in Search and their shortcuts. Opening the
- * menu focuses its panel, so a row's active-panel shortcut does what the row does.
+ * Close. The GUI's own broadcast input leads in a section of its own; the other split directions,
+ * resizing and equalizing stay in Search and their shortcuts. Opening the menu focuses its panel,
+ * so a row's active-panel shortcut does what the row does.
  */
 export function buildWorkbenchPanelMenuEntries({
 	panelId,
@@ -32,13 +32,6 @@ export function buildWorkbenchPanelMenuEntries({
 }: WorkbenchPanelMenuOptions): readonly WorkbenchActionMenuEntry[] {
 	const isMaximized = view.maximizedPanelId === panelId;
 	return [
-		{
-			icon: 'terminal',
-			id: 'new-child-terminal',
-			kind: 'command',
-			label: view.messages.newChildTerminal,
-			onSelect: () => view.createChildTerminal(panelId, source),
-		},
 		{
 			disabled: !view.canStartBroadcastInput(panelId),
 			icon: 'terminal',

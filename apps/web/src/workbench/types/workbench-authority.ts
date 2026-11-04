@@ -148,19 +148,17 @@ export interface WorkbenchAuthorityTabReceipt {
 	readonly terminalStarted: boolean;
 }
 
-/** A terminal joining a Tab's Panels, committed as one change. */
-export type WorkbenchAuthorityPanelTerminalCreation = WorkbenchAuthorityTabTarget & {
+/** A terminal joining a Tab's Panels by a split, committed as one change. */
+export interface WorkbenchAuthorityPanelTerminalCreation extends WorkbenchAuthorityTabTarget {
 	/** Where the terminal starts. Without one, the authority chooses as it does for any new terminal. */
 	readonly cwd?: string | undefined;
-	/** The Panel that is split, or that gains the child. */
+	readonly direction: WorkbenchAuthorityPanelDirection;
+	/** The Panel that is split. */
 	readonly panelId: string;
-} & (
-		| { readonly type: 'panel-split'; readonly direction: WorkbenchAuthorityPanelDirection }
-		| { readonly type: 'child-terminal' }
-	);
+}
 
 export interface WorkbenchAuthorityPanelTerminalReceipt extends WorkbenchAuthorityTabTarget {
-	/** The new Panel of a split, or the Panel that gained the child. */
+	/** The new Panel of the split. */
 	readonly panelId: string;
 	readonly presentationId: string;
 	/** False when the terminal is still starting, failed, or may not have started. */

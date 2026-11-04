@@ -1,5 +1,3 @@
-import { TAB_STRIP_ACTION_IDS, type TabCloseInput } from '@orchbee/tab-strip';
-
 import {
 	PANEL_ACTION_IDS,
 	type PanelCloseInput,
@@ -158,12 +156,6 @@ export type ActiveTerminalCommandResolution =
 			readonly panelId: string;
 	  }
 	| {
-			readonly actionId: typeof TAB_STRIP_ACTION_IDS.closeTabs;
-			readonly input: TabCloseInput;
-			readonly kind: 'ready';
-			readonly panelId: string;
-	  }
-	| {
 			readonly kind: 'unavailable';
 			readonly reason:
 				| 'active-tab-unavailable'
@@ -187,8 +179,7 @@ export function resolveActiveTerminalCommand({
 		return { kind: 'unavailable', reason: 'active-tab-unavailable' };
 	}
 	const panelId = targetPanelId ?? activeTab.focusedPanelId;
-	const panel = findPanel(activeTab.root, panelId);
-	if (panel === null) {
+	if (findPanel(activeTab.root, panelId) === null) {
 		return { kind: 'unavailable', reason: 'panel-unavailable' };
 	}
 
@@ -205,25 +196,11 @@ export function resolveActiveTerminalCommand({
 						kind: 'ready',
 						panelId,
 					};
+		// As in the TUI, Close ends the whole Panel, and the Server closes a last Panel's Tab with it.
 		case 'close':
-			if (
-				panel.activeChildPresentationId !== null ||
-				collectPanelLeaves(activeTab.root).length > 1
-			) {
-				return {
-					actionId: PANEL_ACTION_IDS.close,
-					input: {
-						childPresentationId: panel.activeChildPresentationId,
-						panelId,
-						tabId: activeTabId,
-					},
-					kind: 'ready',
-					panelId,
-				};
-			}
 			return {
-				actionId: TAB_STRIP_ACTION_IDS.closeTabs,
-				input: { closeSource: 'non-ui', tabIds: [activeTabId] },
+				actionId: PANEL_ACTION_IDS.close,
+				input: { panelId, tabId: activeTabId },
 				kind: 'ready',
 				panelId,
 			};

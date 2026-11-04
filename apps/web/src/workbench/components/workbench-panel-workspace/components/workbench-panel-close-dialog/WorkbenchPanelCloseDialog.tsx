@@ -39,14 +39,15 @@ export function WorkbenchPanelCloseDialog({
 			<AlertDialogContent className={styles['content']}>
 				<AlertDialogHeader className={styles['header']}>
 					<AlertDialogTitle className={styles['title']}>
-						{close?.childTerminal === true
-							? view.messages.closeChildTitle
-							: view.messages.closeTitle}
+						{view.messages.closeTitle}
 					</AlertDialogTitle>
 					{close === null ? null : (
 						<AlertDialogDescription className={styles['description']}>
 							<span className={styles['target']}>{close.target}</span>
 							<span className={styles['line']}>{view.messages.closeTab(close.tabTitle)}</span>
+							{close.dissolvesTab ? (
+								<span className={styles['lastPanel']}>{view.messages.closeLastPanel}</span>
+							) : null}
 							<span className={styles['consequence']}>
 								{view.messages.closeWarning(close.impact)}
 							</span>

@@ -126,7 +126,7 @@ selection is the only application-level concern here; Workbench owns spatial nei
 Directional Panel movement adds Shift to the existing focus chords and uses the current weighted-rectangle neighbor. It swaps leaves while preserving source focus and never wraps at an outer edge.
 
 Commands without an effective binding do not render an empty shortcut affordance. Reset,
-new-child-terminal, split-left, and split-above remain intentionally unbound in this catalog.
+split-left, and split-above remain intentionally unbound in this catalog.
 Adding nullable or user-created bindings for initially unbound commands is outside this model.
 
 ## Workbench dispatch scope
@@ -300,12 +300,11 @@ does not consume the keyboard event.
 | Active target state                                                             | Prepared operation                             |
 | ------------------------------------------------------------------------------- | ---------------------------------------------- |
 | The authority reports that the active Tab's close stopped where it may continue | Resume closing that Tab                        |
-| The displayed terminal is a child terminal                                      | Close that child terminal                      |
-| The displayed terminal is the primary and the active Tab has two or more panels | Close that panel                               |
-| The displayed terminal is the primary and the active Tab has one panel          | Close the active Tab                           |
+| A target panel exists, whichever terminal it shows                              | Close that panel and every terminal it holds   |
 | No valid active Tab or target panel exists                                      | Unavailable; preserve state and event defaults |
 
-The context Action executes the already-registered panel or Tab close Action as a prepared
+Closing a Tab's last panel also closes that Tab, as the Server does for `panel.close`. The context
+Action executes the already-registered panel close Action as a prepared
 invocation. Those owners retain availability, running-process confirmation, cancellation,
 serialization, and the authoritative commit. The context Action reports the lower execution's
 result and never mutates panel or Tab state directly. Confirmation cancellation leaves topology and
@@ -464,7 +463,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host conne
 
 | Claim                                                                                                         | Deterministic evidence                                                                         |
 | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| One valid target produces exactly one child, panel, or Tab close operation                                    | Active-target resolver decision-table tests                                                    |
+| One valid target produces exactly one panel close or Tab close resume operation                               | Active-target resolver decision-table tests                                                    |
 | Confirmation, cancellation, and commit remain owned by the prepared lower Action                              | Workbench Action integration tests with panel and Tab registrations                            |
 | Active Workbench bindings do not depend on a surviving focused descendant                                     | Document-capture lifecycle and Web application integration tests                               |
 | Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it                                | Web application focus and Settings-scope integration trace                                     |

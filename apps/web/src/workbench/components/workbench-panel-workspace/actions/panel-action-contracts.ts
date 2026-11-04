@@ -11,7 +11,6 @@ import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/reso
 export const PANEL_ACTION_IDS = {
 	activateChildTerminal: 'workbench.panel.child-terminal.activate',
 	close: 'workbench.panel.close',
-	createChildTerminal: 'workbench.panel.child-terminal.create',
 	equalize: 'workbench.panel.equalize',
 	focus: 'workbench.panel.focus',
 	move: 'workbench.panel.move',
@@ -30,7 +29,6 @@ export interface PanelTargetInput {
 }
 
 export interface PanelCloseInput extends PanelTargetInput {
-	readonly childPresentationId: TerminalPresentationId | null;
 	readonly tabId: string;
 }
 
@@ -63,7 +61,6 @@ export interface PanelVisualSelectionInput extends PanelTargetInput {
 export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.activateChildTerminal]: ActionSignature<PanelChildTerminalInput>;
 	readonly [PANEL_ACTION_IDS.close]: ActionSignature<PanelCloseInput>;
-	readonly [PANEL_ACTION_IDS.createChildTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.equalize]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.focus]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.move]: ActionSignature<PanelMoveInput>;
@@ -115,29 +112,10 @@ export const panelVisualSelectionInput: ActionInputValidation<PanelVisualSelecti
 
 export const panelCloseInput: ActionInputValidation<PanelCloseInput> = {
 	name: 'PanelCloseInput',
-	parse: (input) => {
-		if (
-			!isRecord(input) ||
-			typeof input['panelId'] !== 'string' ||
-			typeof input['tabId'] !== 'string'
-		) {
-			return { success: false, code: 'expected-panel-close-target' };
-		}
-		const childPresentation =
-			input['childPresentationId'] === null
-				? null
-				: TerminalPresentationIdSchema.safeParse(input['childPresentationId']);
-		return childPresentation === null || childPresentation.success
-			? {
-					success: true,
-					data: {
-						childPresentationId: childPresentation === null ? null : childPresentation.data,
-						panelId: input['panelId'],
-						tabId: input['tabId'],
-					},
-				}
-			: { success: false, code: 'expected-panel-close-target' };
-	},
+	parse: (input) =>
+		isRecord(input) && typeof input['panelId'] === 'string' && typeof input['tabId'] === 'string'
+			? { success: true, data: { panelId: input['panelId'], tabId: input['tabId'] } }
+			: { success: false, code: 'expected-panel-close-target' },
 };
 
 export const panelChildTerminalInput: ActionInputValidation<PanelChildTerminalInput> = {

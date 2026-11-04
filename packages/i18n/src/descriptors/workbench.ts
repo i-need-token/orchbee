@@ -343,12 +343,12 @@ export const workbenchMessages = defineMessages({
 	panelClose: {
 		id: 'workbench.panels.actions.close',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.close'],
-		description: 'Action that closes the displayed terminal or its Workbench panel.',
+		description: 'Action that closes a Workbench panel and every terminal it holds.',
 	},
-	panelCloseRunningTitle: {
-		id: 'workbench.panels.closeRunning.title',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.closeRunning.title'],
-		description: 'Title for the confirmation before closing one child terminal of a Panel.',
+	panelCloseLastPanel: {
+		id: 'workbench.panels.close.lastPanel',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.close.lastPanel'],
+		description: 'Close confirmation line saying that closing the last Panel also closes its Tab.',
 	},
 	panelCloseTab: {
 		id: 'workbench.panels.close.tab',
@@ -697,11 +697,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.panels.actions.more',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.more'],
 		description: 'Accessible label for the Workbench panel options menu.',
-	},
-	panelNewChildTerminal: {
-		id: 'workbench.panels.actions.newChildTerminal',
-		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.newChildTerminal'],
-		description: 'Action that creates a child terminal in the current Workbench panel.',
 	},
 	panelReturnToPrimary: {
 		id: 'workbench.panels.actions.returnToPrimary',

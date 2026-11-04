@@ -143,12 +143,14 @@ afterEach(() => cleanup());
 
 describe('useWorkbenchPanelActions', () => {
 	it.each([
-		{ closeActivity: 'idle' as const, confirmationCount: 0 },
-		{ closeActivity: 'active' as const, confirmationCount: 1 },
-		{ closeActivity: 'unknown' as const, confirmationCount: 1 },
+		{ childActivity: null, closeActivity: 'idle' as const, confirmationCount: 0 },
+		{ childActivity: null, closeActivity: 'active' as const, confirmationCount: 1 },
+		{ childActivity: null, closeActivity: 'unknown' as const, confirmationCount: 1 },
+		// The Panel's Close ends its child terminals too, though only the primary is shown.
+		{ childActivity: 'active' as const, closeActivity: 'idle' as const, confirmationCount: 1 },
 	])(
-		'requests $confirmationCount confirmations when a running terminal is $closeActivity',
-		async ({ closeActivity, confirmationCount }) => {
+		'requests $confirmationCount confirmations when the primary is $closeActivity and a child is $childActivity',
+		async ({ childActivity, closeActivity, confirmationCount }) => {
 			const confirm = vi.fn<() => boolean>(() => true);
 			const runtime = new ActionRuntime({ confirm });
 			const close = vi.fn<AuthorityClose>(() => Promise.resolve({ kind: 'completed' }));
@@ -156,6 +158,10 @@ describe('useWorkbenchPanelActions', () => {
 				...activeTab,
 				root: {
 					...panelLeaf(1),
+					childPresentations:
+						childActivity === null
+							? []
+							: [{ ...panelLeaf(2).primaryPresentation, closeActivity: childActivity }],
 					primaryPresentation: { ...panelLeaf(1).primaryPresentation, closeActivity },
 				},
 			};
@@ -169,7 +175,7 @@ describe('useWorkbenchPanelActions', () => {
 
 			const execution = runtime.execute(
 				PANEL_ACTION_IDS.close,
-				{ childPresentationId: null, panelId: 'panel-1', tabId: 'tab-1' },
+				{ panelId: 'panel-1', tabId: 'tab-1' },
 				{ scope, source: 'button' },
 			);
 
@@ -216,7 +222,7 @@ describe('useWorkbenchPanelActions', () => {
 
 		const execution = runtime.execute(
 			PANEL_ACTION_IDS.close,
-			{ childPresentationId: null, panelId: 'panel-1', tabId: 'tab-1' },
+			{ panelId: 'panel-1', tabId: 'tab-1' },
 			{ scope, source: 'button' },
 		);
 
@@ -375,12 +381,7 @@ describe('useWorkbenchPanelActions', () => {
 								childPresentationId: 'terminal-2',
 								panelId: 'panel-1',
 							},
-							[PANEL_ACTION_IDS.close]: {
-								childPresentationId: null,
-								panelId: 'panel-1',
-								tabId: 'tab-1',
-							},
-							[PANEL_ACTION_IDS.createChildTerminal]: { panelId: 'panel-1' },
+							[PANEL_ACTION_IDS.close]: { panelId: 'panel-1', tabId: 'tab-1' },
 							[PANEL_ACTION_IDS.equalize]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.focus]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.move]: {
@@ -416,18 +417,18 @@ describe('useWorkbenchPanelActions', () => {
 		).toEqual(new Set(Object.values(PANEL_ACTION_IDS)));
 
 		const execution = runtime.execute(
-			PANEL_ACTION_IDS.createChildTerminal,
-			{ panelId: 'panel-1' },
+			PANEL_ACTION_IDS.split,
+			{ direction: 'right', panelId: 'panel-1' },
 			{ scope, source: 'context-menu' },
 		);
 
-		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+		await expect(execution.completion).resolves.toEqual({ kind: 'completed', value: 'panel-1' });
 		expect(createPanelTerminal).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
 			cwd: undefined,
+			direction: 'right',
 			panelId: 'panel-1',
 			tabId: 'tab-1',
 			terminalContextId: 'terminal-context-1',
-			type: 'child-terminal',
 		});
 
 		const swapExecution = runtime.execute(
@@ -444,8 +445,8 @@ describe('useWorkbenchPanelActions', () => {
 		expect(
 			runtime
 				.execute(
-					PANEL_ACTION_IDS.createChildTerminal,
-					{ panelId: 'panel-1' },
+					PANEL_ACTION_IDS.split,
+					{ direction: 'right', panelId: 'panel-1' },
 					{ scope, source: 'context-menu' },
 				)
 				.getSnapshot(),

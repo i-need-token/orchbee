@@ -214,7 +214,7 @@ export function useWorkbenchPanelWorkspace({
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),
 			childPresentationsLabel: intl.formatMessage(workbenchMessages.panelChildTerminalsLabel),
 			close: intl.formatMessage(workbenchMessages.panelClose),
-			closeChildTitle: intl.formatMessage(workbenchMessages.panelCloseRunningTitle),
+			closeLastPanel: intl.formatMessage(workbenchMessages.panelCloseLastPanel),
 			closeTab: (tab) => intl.formatMessage(workbenchMessages.panelCloseTab, { tab }),
 			closeTitle: intl.formatMessage(workbenchMessages.panelCloseTitle),
 			closeWarning: (impact) =>
@@ -224,7 +224,6 @@ export function useWorkbenchPanelWorkspace({
 				),
 			maximize: intl.formatMessage(workbenchMessages.panelMenuMaximize),
 			more: intl.formatMessage(workbenchMessages.panelMore),
-			newChildTerminal: intl.formatMessage(workbenchMessages.panelNewChildTerminal),
 			restore: intl.formatMessage(workbenchMessages.panelMenuRestore),
 			returnToPrimary: intl.formatMessage(workbenchMessages.panelReturnToPrimary),
 			resizeDescription: intl.formatMessage(workbenchMessages.panelResizeDescription),
@@ -557,6 +556,7 @@ export function useWorkbenchPanelWorkspace({
 				const ended = confirmation.description.values?.['ended'];
 				const running = confirmation.description.values?.['running'];
 				if (
+					tab === undefined ||
 					panel === null ||
 					tabTitle === null ||
 					typeof ended !== 'number' ||
@@ -565,7 +565,7 @@ export function useWorkbenchPanelWorkspace({
 					return false;
 				}
 				const close: PendingPanelClose = {
-					childTerminal: panel.activeChildPresentationId !== null,
+					dissolvesTab: collectPanelLeaves(tab.root).length === 1,
 					impact: { ended, running },
 					panelId: panel.id,
 					tabTitle,
@@ -891,13 +891,6 @@ export function useWorkbenchPanelWorkspace({
 		confirmClose: () => {
 			pendingConfirmationRef.current?.(true);
 		},
-		createChildTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
-			executePanelAction(
-				PANEL_ACTION_IDS.createChildTerminal,
-				{ panelId } satisfies PanelTargetInput,
-				source,
-			);
-		},
 		createTerminalTab: (source: ActionInvocationSource = 'programmatic') => {
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.createTerminal,
@@ -925,18 +918,12 @@ export function useWorkbenchPanelWorkspace({
 		releasePanelDragHold,
 		requestClose: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			const tabId = store.getActiveTabId();
-			const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
-			const panel = tab === undefined ? null : findPanel(tab.root, panelId);
-			if (tabId === null || panel === null) {
+			if (tabId === null) {
 				return;
 			}
 			executePanelAction(
 				PANEL_ACTION_IDS.close,
-				{
-					childPresentationId: panel.activeChildPresentationId,
-					panelId,
-					tabId,
-				} satisfies PanelCloseInput,
+				{ panelId, tabId } satisfies PanelCloseInput,
 				source,
 			);
 		},

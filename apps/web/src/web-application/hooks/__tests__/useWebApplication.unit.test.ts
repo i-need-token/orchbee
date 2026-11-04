@@ -290,7 +290,6 @@ describe('useWebApplication', () => {
 		expect(menuShortcut('Split right')).toBe('⌥⌘D');
 		expect(menuShortcut('Paste')).toBe('⇧⌘V');
 		expect(menuShortcut('Close')).toBe('⌘W');
-		expect(menuShortcut('New child terminal')).toBeNull();
 
 		await act(async () => root.unmount());
 		container.remove();

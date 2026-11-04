@@ -16,6 +16,7 @@
 
 .target,
 .line,
+.lastPanel,
 .consequence {
 	display: block;
 	overflow-wrap: anywhere;
@@ -25,8 +26,14 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
+/* The TUI leaves one blank row before its prose. */
+.lastPanel,
 .consequence {
 	margin-block-start: var(--ob-ref-space-2);
+}
+
+.lastPanel + .consequence {
+	margin-block-start: 0;
 }
 
 .footer :global([data-slot='alert-dialog-action']),

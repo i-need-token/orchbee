@@ -1,5 +1,4 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
@@ -37,7 +36,7 @@ export async function createSharedPanelTerminal(
 	if (created.kind === 'unchanged') return { kind: 'unchanged' };
 	if (created.kind !== 'completed') return created;
 	if (created.value === undefined) return { kind: 'completed' };
-	const { panelId, presentationId, tabId, terminalContextId } = created.value;
+	const { panelId, tabId, terminalContextId } = created.value;
 	// A publication replaces the store this Client held when it asked.
 	const store = runtime.getTerminalContext(terminalContextId)?.panelWorkspaceStore;
 	if (
@@ -47,16 +46,7 @@ export async function createSharedPanelTerminal(
 		handover.held() &&
 		workbenchActiveLocationsEqual(origin, runtime.getSnapshot().activeLocation)
 	) {
-		store.transition(
-			creation.type === 'panel-split'
-				? { panelId, tabId, type: 'panel-revealed' }
-				: {
-						childPresentationId: terminalPresentationId(presentationId),
-						panelId,
-						tabId,
-						type: 'child-terminal-activated',
-					},
-		);
+		store.transition({ panelId, tabId, type: 'panel-revealed' });
 		handover.complete();
 	}
 	return { kind: 'completed', value: panelId };

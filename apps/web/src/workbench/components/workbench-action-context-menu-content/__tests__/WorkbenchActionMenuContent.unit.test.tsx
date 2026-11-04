@@ -26,7 +26,7 @@ const entries: readonly WorkbenchActionMenuEntry[] = [
 		icon: 'terminal',
 		id: 'unbound',
 		kind: 'command',
-		label: 'New child terminal',
+		label: 'Split left',
 		onSelect: vi.fn<() => void>(),
 	},
 ];

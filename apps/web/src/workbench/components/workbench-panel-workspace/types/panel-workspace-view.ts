@@ -53,13 +53,12 @@ export interface PanelWorkspaceMessages {
 	readonly cancel: string;
 	readonly childPresentationsLabel: string;
 	readonly close: string;
-	readonly closeChildTitle: string;
+	readonly closeLastPanel: string;
 	readonly closeTab: (tab: string) => string;
 	readonly closeTitle: string;
 	readonly closeWarning: (impact: TerminalCloseImpact) => string;
 	readonly maximize: string;
 	readonly more: string;
-	readonly newChildTerminal: string;
 	readonly restore: string;
 	readonly returnToPrimary: string;
 	readonly resizeDescription: string;
@@ -79,10 +78,10 @@ export interface PanelWorkspaceMessages {
 	readonly visualSelectionSwapTarget: (label: string) => string;
 }
 
-/** A close question as the TUI composes it: the terminal it closes, its Tab, and what it ends. */
+/** A close question as the TUI composes it: the terminal it shows, its Tab, and what it ends. */
 export interface PendingPanelClose {
-	/** Closes the child terminal the Panel shows, not the Panel. */
-	readonly childTerminal: boolean;
+	/** The Panel is its Tab's last, so the Tab closes with it. */
+	readonly dissolvesTab: boolean;
 	readonly impact: TerminalCloseImpact;
 	readonly panelId: string;
 	readonly tabTitle: string;
@@ -130,7 +129,6 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly cancelClose: () => void;
 	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
-	readonly createChildTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
 	readonly enqueueBroadcastInput: (input: WorkbenchTerminalBroadcastInput) => void;

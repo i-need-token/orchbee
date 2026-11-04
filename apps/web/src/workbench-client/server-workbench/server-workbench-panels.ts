@@ -304,38 +304,24 @@ export async function changeServerSplitRatios(
 	return committed === 0 ? { kind: 'unchanged' } : { kind: 'completed' };
 }
 
-/** A new terminal is named by its place, as every Client names it. The Server limits the children. */
+/** A new Panel is named by its place, as every Client names it. */
 export function panelTerminalCreateAction(
 	creation: WorkbenchAuthorityPanelTerminalCreation,
 	snapshot: WorkbenchSnapshot,
 ): ServerWorkbenchAction | null {
-	const { cwd, panelId, tabId, terminalContextId } = creation;
+	const { cwd, direction, panelId, tabId, terminalContextId } = creation;
 	const tab = findTab(snapshot, terminalContextId, tabId);
 	if (tab === undefined) return null;
-	const panels = panelsOf(tab.root);
-	const launch = {
-		geometry: DEFAULT_TERMINAL_GEOMETRY,
+	return readServerWorkbenchAction({
 		...(cwd === undefined ? {} : { options: { cwd } }),
+		direction,
+		geometry: DEFAULT_TERMINAL_GEOMETRY,
+		kind: 'panel.split',
+		label: `${panelsOf(tab.root).length + 1}`,
 		panelId,
 		tabId,
 		terminalContextId,
-	};
-	if (creation.type === 'panel-split') {
-		return readServerWorkbenchAction({
-			...launch,
-			direction: creation.direction,
-			kind: 'panel.split',
-			label: `${panels.length + 1}`,
-		});
-	}
-	const panel = panels.find((candidate) => candidate.panelId === panelId);
-	return panel === undefined
-		? null
-		: readServerWorkbenchAction({
-				...launch,
-				kind: 'panel.create-terminal',
-				target: { kind: 'child', label: `${panel.childPresentations.length + 2}` },
-			});
+	});
 }
 
 export function panelTerminalCreated(
@@ -353,19 +339,6 @@ export function panelTerminalCreated(
 					terminalContextId: outcome.terminalContextId,
 					terminalStarted:
 						outcome.kind === 'panel-split-created' && outcome.terminalOutcome.kind === 'started',
-				},
-			};
-		case 'panel-terminal-created':
-		case 'panel-terminal-pending':
-			return {
-				kind: 'completed',
-				value: {
-					panelId: outcome.panelId,
-					presentationId: outcome.presentationId,
-					tabId: outcome.tabId,
-					terminalContextId: outcome.terminalContextId,
-					terminalStarted:
-						outcome.kind === 'panel-terminal-created' && outcome.terminalOutcome.kind === 'started',
 				},
 			};
 		default:

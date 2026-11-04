@@ -98,8 +98,8 @@ export interface WorkbenchTerminalSurfaceProps {
 	) => ActionDisposable;
 	readonly bindBroadcastInputSink: (sink: WorkbenchTerminalBroadcastInputSink) => ActionDisposable;
 	/**
-	 * Closes the terminal this surface shows as its Panel's Close does, which closes the Tab when
-	 * the terminal is all it holds. A surface that cannot show a terminal offers it.
+	 * Closes this surface's Panel as the Panel's own Close does, which closes the Tab when the Panel
+	 * is its last. A surface that cannot show a terminal offers it.
 	 */
 	readonly closeTerminal: (source: ActionInvocationSource) => void;
 	/** Opens a new Tab as the Workbench's New Tab does. */

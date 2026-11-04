@@ -17,7 +17,6 @@ describe('panel action contracts', () => {
 		expect(PANEL_ACTION_IDS).toEqual({
 			activateChildTerminal: 'workbench.panel.child-terminal.activate',
 			close: 'workbench.panel.close',
-			createChildTerminal: 'workbench.panel.child-terminal.create',
 			equalize: 'workbench.panel.equalize',
 			focus: 'workbench.panel.focus',
 			move: 'workbench.panel.move',
@@ -46,19 +45,9 @@ describe('panel action contracts', () => {
 			success: true,
 			data: { childPresentationId: 'terminal-2', panelId: 'panel-1' },
 		});
-		expect(
-			panelCloseInput.parse({
-				childPresentationId: 'terminal-2',
-				panelId: 'panel-1',
-				tabId: 'tab-1',
-			}),
-		).toEqual({
+		expect(panelCloseInput.parse({ panelId: 'panel-1', tabId: 'tab-1' })).toEqual({
 			success: true,
-			data: {
-				childPresentationId: 'terminal-2',
-				panelId: 'panel-1',
-				tabId: 'tab-1',
-			},
+			data: { panelId: 'panel-1', tabId: 'tab-1' },
 		});
 		expect(panelSplitInput.parse({ direction: 'left', panelId: 'panel-1' })).toMatchObject({
 			success: true,
@@ -88,12 +77,7 @@ describe('panel action contracts', () => {
 
 	it('rejects stale shapes and unsupported directions', () => {
 		expect(panelTargetInput.parse(null)).toMatchObject({ success: false });
-		expect(
-			panelCloseInput.parse({
-				panelId: 'panel-1',
-				tabId: 'tab-1',
-			}),
-		).toMatchObject({ success: false });
+		expect(panelCloseInput.parse({ panelId: 'panel-1' })).toMatchObject({ success: false });
 		expect(
 			panelResizeInput.parse({ adjustment: 'wider', multiplier: 3, panelId: 'panel-1' }),
 		).toMatchObject({ success: false });
