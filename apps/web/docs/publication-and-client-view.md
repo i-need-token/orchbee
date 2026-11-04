@@ -51,8 +51,8 @@ saw, so it changes exactly when the projected context does.
 `applyPublishedWorkbench(publication)` reconciles the current Client View against the publication,
 then rebuilds only the contexts whose fingerprint changed. An unchanged context keeps its live
 `TabModel` and `PanelWorkspaceStore`, so focus, zoom, child selection, and terminal attachments
-survive a grouping-only change. A rebuilt context keeps the natural title, current CWD, and close
-activity this window saw each remaining terminal report, and each Tab's Panel focus history.
+survive a grouping-only change. A rebuilt context keeps the natural title and current CWD this
+window saw each remaining terminal report, and each Tab's Panel focus history.
 
 Applying sends no terminal command: the runtime has no command port, and nothing launches, retries,
 or binds a terminal because of a publication. A publication the runtime cannot apply ends the
