@@ -137,13 +137,13 @@ releases its local receipt; the Server's existing retention limit is unchanged.
 
 ## Model and ownership
 
-| Record       | Contract                                                                                                                                                  |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Exact origin context/member, primary directory or primary root cwd, canonical snapshot, bounded Git listing, geometry and configuration                   |
-| Data         | Opening token, immutable target/Start plan, retained operation ID, fenced attempt and known checkout/Workspace result; local focus permission is separate |
-| Outputs      | Read-only preparation, one Worktree Start, explicitly confirmed Resume, bounded reads and optional exact terminal entry                                   |
-| Shared owner | Server coordinates Git facts, current Project membership, Workspace launch/removal and retained operation status                                          |
-| Client owner | The initiating Client owns capture, observation and revocable entry permission                                                                            |
+| Record       | Contract                                                                                                                                                          |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Exact origin context/member, primary directory, primary root cwd or Server current directory, canonical snapshot, bounded Git listing, geometry and configuration |
+| Data         | Opening token, immutable target/Start plan, retained operation ID, fenced attempt and known checkout/Workspace result; local focus permission is separate         |
+| Outputs      | Read-only preparation, one Worktree Start, explicitly confirmed Resume, bounded reads and optional exact terminal entry                                           |
+| Shared owner | Server coordinates Git facts, current Project membership, Workspace launch/removal and retained operation status                                                  |
+| Client owner | The initiating Client owns capture, observation and revocable entry permission                                                                                    |
 
 The app-private lane uses its own authenticated Workbench Client and a wakeable bounded worker.
 It never holds the UI lock during IPC. Shutdown stops admission, wakes I/O and joins its thread.
@@ -174,13 +174,14 @@ first-terminal rule. Empty Projects have no source. Project has no canonical dir
 contain unrelated repositories; a non-Git or unavailable first source never triggers a search of
 later members or a borrow from the current Client context.
 
-An addressed Workspace stands where its location line says: the first terminal's directory the
-Server follows leads, because a shell that reports its directory, such as PowerShell, leaves its
-process cwd in the launch directory. An admitted root cwd sample comes next, then the canonical
-primary directory. A failed sample or an unbound first terminal costs nothing while one of these is
-known, and an empty Workspace has no sample at all. A directory that names the canonical primary
-directory on the same Worker (compared by `same_directory_spelling`) is the `workspace` source; any other is `workspace-directory`, which runs Git there while
-the Workspace stays the grouping owner. Both keep required-nullable `projectId: null`, and the
+Git reads where the Server's `workbench.current-directory` answer for the first Workspace says its
+first terminal stands, the same read the Web and Desktop Clients make before their discovery. The
+Server samples that terminal on demand, preferring the directory a shell reports over its process
+cwd, and answers the Workspace's canonical primary directory when it has nothing to sample. An
+addressed Workspace whose read is refused keeps its canonical primary directory. An answer that
+names the canonical primary directory on the same Worker (compared by `same_directory_spelling`) is
+the `workspace` source; any other is `workspace-directory`, which runs Git there while the Workspace
+stays the grouping owner. Both keep required-nullable `projectId: null`, and the
 existing Server Alongside owner resolves that Workspace's grouping, so an ungrouped Workspace and the
 Worktree it creates or opens land in one new Project, wherever its first terminal stands. A
 `workspace-directory` source says nothing about the Workspace's own checkout: Remove still addresses
@@ -189,10 +190,10 @@ Remove only while the Workspace stands in its own checkout, so the row never nam
 no longer sees it in. A Client must not copy the Project onto either Start, which the strict wire
 contract rejects.
 
-A Project source keeps the Directory form and may carry the frozen existing Project in Start. Its
-followed directory leads an admitted sample, and it still needs that sample: an admitted explicit
-absent root cwd permits only the member's canonical primary directory, failed, mismatched or
-unavailable samples never mean absence, and an existing unbound first terminal is unavailable.
+A Project source keeps the Directory form and may carry the frozen existing Project in Start. It
+needs its first member's answer, and a refused read never means absence. A first member without any
+terminal reads only its own canonical primary directory, as that Workspace's `workspace` source, and
+an existing unbound first terminal has no source.
 
 These pre-submit choices freeze exact Project identity and ordered members, addressed Workspace,
 Context, first primary binding and directory proof. Membership, order, removal, rebind or source
@@ -205,15 +206,15 @@ after Git refused that exact directory, and a sidebar row that already
 shows a branch for the directory it stands in opens its menu with New Worktree… enabled, under the
 same wait for the first answer. A launch form already open reports the
 source change at Start. Sidebar preparation uses
-the existing background Worktree lane's own authenticated Session and a temporary read-only Viewer,
-released after root samples before and after Git. It never borrows the interactive Viewer or its
-controller. Every failure path detaches or retires that auxiliary Session within the original bounded
-budget and cleanup reserve. Ordinary shortcut preparation retains its existing borrowed/temporary
-Viewer policy. Discovery and creation must
+the existing background Worktree lane's own authenticated Session: it reads the Server's answer after
+a scope snapshot and checks the scope again after Git. It attaches no Viewer and never borrows the
+interactive Viewer or its controller. Every failure path retires that auxiliary Session within the
+original bounded budget and cleanup reserve. Ordinary shortcut preparation retains its existing
+borrowed/temporary Viewer policy. Discovery and creation must
 revalidate the addressed proof, and the chosen source/directory appears in the existing launch form
 before effect. The pure source model tests cover empty/noncurrent/multiple-repository grouping,
-first terminal versus child/later terminal, explicit absence versus unavailable samples and source
-drift. Git classification, actual cwd sampling and real menu interaction require their separate
+first terminal versus child/later terminal, answered versus refused reads and source drift. Git
+classification, the Server's directory sampling and real menu interaction require their separate
 integration evidence. `cli_windows_worktree_menu` runs the CLI, Server, Worker and Zig Host under
 test against a real repository with a TUI Client driven by pointer: from an ungrouped Workspace's
 row menu, Open Worktree ▸ opens a linked checkout into a new Project with the Workspace, and New

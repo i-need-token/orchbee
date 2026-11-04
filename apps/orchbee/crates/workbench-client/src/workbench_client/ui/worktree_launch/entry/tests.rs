@@ -219,9 +219,7 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     assert_ne!(addressed.cache.location(), origin.cache.location());
     let sidebar = addressed::SidebarDiscovery {
         addressed,
-        sample: crate::primary_directory::RootDirectory::Available(Some(
-            WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
-        )),
+        observed: Some(WorkbenchDirectoryPath::parse("C:/repo").unwrap()),
         source: created.source.clone(),
         discovery: created.discovery.clone(),
     };
@@ -336,9 +334,7 @@ fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
     .unwrap();
     let sidebar = addressed::SidebarDiscovery {
         addressed,
-        sample: crate::primary_directory::RootDirectory::Available(Some(
-            WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
-        )),
+        observed: Some(WorkbenchDirectoryPath::parse("C:/repo").unwrap()),
         source: created.source.clone(),
         discovery: created.discovery.clone(),
     };

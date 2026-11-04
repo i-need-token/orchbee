@@ -31,11 +31,7 @@ fn plan() -> Plan {
 fn job(action: Action) -> Job {
     Job {
         action,
-        requests: [id(101), id(102), id(103), id(104), id(105)],
-        viewers: std::array::from_fn(|index| {
-            orchbee_client_server_protocol::RequestId::parse(&format!("{:032x}", 1000 + index))
-                .unwrap()
-        }),
+        requests: [id(101), id(102), id(103), id(104), id(105), id(106)],
         deadline: Instant::now() + Duration::from_secs(3),
         configured_root: Ok(None),
     }

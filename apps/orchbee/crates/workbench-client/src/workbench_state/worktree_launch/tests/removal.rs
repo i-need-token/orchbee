@@ -28,7 +28,7 @@ pub(crate) fn fixture() -> (Launcher, Origin, addressed::SidebarDiscovery) {
         });
     let sidebar = addressed::SidebarDiscovery {
         addressed,
-        sample: crate::primary_directory::RootDirectory::Available(Some(path("C:/repo"))),
+        observed: Some(path("C:/repo")),
         source: WorktreeSource::WorkspaceDirectory {
             workspace_id: workspace.workspace_id.clone(),
             path: path("C:/repo"),

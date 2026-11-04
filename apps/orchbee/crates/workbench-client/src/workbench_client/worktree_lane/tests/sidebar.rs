@@ -1,32 +1,7 @@
 use super::*;
-use crate::primary_directory::tests::process_record;
 use crate::workbench_state::worktree_launch::addressed::SidebarWorktreeTarget;
 use crate::workbench_state::worktree_launch::addressed::tests::fixture;
-use orchbee_client_server_protocol::{
-    ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerResult, read_client_message, write_server_message,
-};
 
-fn viewer_reply(
-    stream: &mut LocalStream,
-    action: TerminalViewerAction,
-    outcome: TerminalViewerOutcome,
-) -> io::Result<()> {
-    let ClientMessage::TerminalViewer(request) =
-        read_client_message(stream).map_err(io::Error::other)?
-    else {
-        panic!("read-only Viewer action");
-    };
-    assert_eq!(request.action(), &action);
-    write_server_message(
-        stream,
-        &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-            request.request_id().clone(),
-            outcome,
-        )),
-    )
-    .map_err(io::Error::other)
-}
 fn snapshot_reply(stream: &mut LocalStream, snapshot: Snapshot) -> io::Result<()> {
     let WorkbenchRequest::SnapshotRead(request) =
         read_workbench_request(stream).map_err(io::Error::other)?
@@ -44,40 +19,29 @@ fn snapshot_reply(stream: &mut LocalStream, snapshot: Snapshot) -> io::Result<()
     .map_err(io::Error::other)
 }
 
-fn attach_reply(
+/// Answers the lane's `workbench.current-directory` read, which must name the first Workspace.
+fn directory_reply(
     stream: &mut LocalStream,
-    addressed: &AddressedWorktreeSource,
-) -> io::Result<orchbee_client_server_protocol::ViewerId> {
-    let primary = addressed.primary.as_ref().unwrap();
-    let viewer = orchbee_client_server_protocol::ViewerId::parse(&"01".repeat(16)).unwrap();
-    viewer_reply(
+    workspace_id: &WorkbenchWorkspaceId,
+    outcome: CurrentDirectoryOutcome,
+) -> io::Result<()> {
+    let WorkbenchRequest::CurrentDirectory(request) =
+        read_workbench_request(stream).map_err(io::Error::other)?
+    else {
+        panic!("the Server's current-directory answer, not a terminal attachment");
+    };
+    assert_eq!(&request.workspace_id, workspace_id);
+    write_workbench_response(
         stream,
-        TerminalViewerAction::AttachBinding {
-            session_id: orchbee_client_server_protocol::SessionId::parse(
-                addressed.cache.session_id().as_str(),
-            )
-            .unwrap(),
-            worker_id: orchbee_client_server_protocol::WorkerId::parse(
-                primary.worker_id().as_str(),
-            )
-            .unwrap(),
-            terminal_id: orchbee_client_server_protocol::TerminalId::parse(
-                primary.terminal_id().as_str(),
-            )
-            .unwrap(),
-        },
-        TerminalViewerOutcome::Attached {
-            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
-                .unwrap(),
-            attachment_id: viewer.clone(),
-            host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16)).unwrap(),
-            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
-                &"02".repeat(16),
-            )
-            .unwrap(),
-        },
-    )?;
-    Ok(viewer)
+        &WorkbenchResponse::CurrentDirectory(CurrentDirectoryResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            session_id: request.session_id,
+            workspace_id: request.workspace_id,
+            outcome,
+        }),
+    )
+    .map_err(io::Error::other)
 }
 
 #[test]
@@ -86,7 +50,7 @@ fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_re
     use crate::workbench_state::worktree_launch::tests::sidebar_fixture;
     let canonical = fixture();
     let (origin, sidebar) = sidebar_fixture();
-    let addressed = sidebar.addressed.clone();
+    let first = sidebar.addressed.first_workspace().unwrap().clone();
     let mut launcher = Launcher::default();
     assert!(launcher.open_sidebar(
         origin.clone(),
@@ -103,22 +67,12 @@ fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_re
             return Ok(());
         }
         snapshot_reply(&mut stream, canonical.clone())?;
-        let viewer = attach_reply(&mut stream, &addressed)?;
-        viewer_reply(
+        directory_reply(
             &mut stream,
-            TerminalViewerAction::ReadProcessInfo {
-                attachment_id: viewer.clone(),
+            &first,
+            CurrentDirectoryOutcome::Observed {
+                directory: WorkbenchDirectoryPath::parse("C:/changed-root").unwrap(),
             },
-            TerminalViewerOutcome::Record(
-                process_record(Some("C:/changed-root"), false).map_err(io::Error::other)?,
-            ),
-        )?;
-        viewer_reply(
-            &mut stream,
-            TerminalViewerAction::Detach {
-                attachment_id: viewer,
-            },
-            TerminalViewerOutcome::Detached {},
         )?;
         assert_eq!(
             stream.read(&mut [0])?,
@@ -144,146 +98,79 @@ fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_re
 }
 
 #[test]
-fn unexpected_attach_reply_retires_the_auxiliary_client_without_borrowing_a_controller() {
-    let canonical = fixture();
-    let addressed = AddressedWorktreeSource::capture(
-        &canonical,
-        &SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone()),
-    )
-    .unwrap();
-    let expected = addressed.clone();
-    let (released_tx, released_rx) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
-        handshake(&mut stream, index as u64 + 1)?;
-        if index == 0 {
-            return Ok(());
-        }
-        snapshot_reply(&mut stream, canonical.clone())?;
-        let primary = expected.primary.as_ref().unwrap();
-        viewer_reply(
-            &mut stream,
-            TerminalViewerAction::AttachBinding {
-                session_id: orchbee_client_server_protocol::SessionId::parse(
-                    expected.cache.session_id().as_str(),
-                )
-                .unwrap(),
-                worker_id: orchbee_client_server_protocol::WorkerId::parse(
-                    primary.worker_id().as_str(),
-                )
-                .unwrap(),
-                terminal_id: orchbee_client_server_protocol::TerminalId::parse(
-                    primary.terminal_id().as_str(),
-                )
-                .unwrap(),
-            },
-            TerminalViewerOutcome::Detached {},
-        )?;
-        assert_eq!(
-            stream.read(&mut [0])?,
-            0,
-            "unknown attach ownership ends this Client Connection before any further request"
-        );
-        released_tx.send(()).unwrap();
-        Ok(())
-    })
-    .unwrap();
-    let mut lane = lane(&server);
-    assert!(lane.submit(job(Action::SidebarQuery {
-        episode: 10,
-        source: Box::new(addressed)
-    })));
-    assert!(matches!(
-        take(&lane),
-        Reply::SidebarQuery {
-            episode: 10,
-            result: Err(WorktreeNotice::SourceUnavailable)
-        }
-    ));
-    released_rx.recv_timeout(Duration::from_secs(1)).unwrap();
-    assert!(
-        lane.idle(),
-        "Client retirement does not turn a read-only failure into a lane panic"
-    );
-    assert!(lane.close());
-    server.finish().unwrap();
-}
-
-#[test]
-fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_viewer() {
-    for fault in 0..4 {
-        let canonical = fixture();
-        let addressed = AddressedWorktreeSource::capture(
-            &canonical,
-            &SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone()),
-        )
-        .unwrap();
+fn sidebar_rows_read_git_where_the_server_answers_without_attaching_to_a_terminal() {
+    use orchbee_workbench_protocol::CurrentDirectoryFailure;
+    let nested = WorkbenchDirectoryPath::parse("C:/first-repository/nested").unwrap();
+    for case in 0..3 {
+        let mut canonical = fixture();
+        let workspace = canonical.navigation.workspaces[1].workspace_id.clone();
+        // The location line still shows the Workspace's own directory; the terminal has moved on.
+        canonical.navigation.workspaces[1].terminal_directory =
+            Some(WorkbenchDirectoryPath::parse("C:/first-repository").unwrap());
+        let target = if case == 2 {
+            SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone())
+        } else {
+            SidebarWorktreeTarget::Workspace(workspace.clone())
+        };
+        let addressed = AddressedWorktreeSource::capture(&canonical, &target).unwrap();
+        assert_eq!(addressed.first_workspace(), Some(&workspace));
+        let directory = addressed.cache.directory().unwrap().clone();
+        let (outcome, source) = match case {
+            0 => (
+                CurrentDirectoryOutcome::Observed {
+                    directory: nested.clone(),
+                },
+                Some(WorktreeSource::WorkspaceDirectory {
+                    workspace_id: workspace.clone(),
+                    path: nested.clone(),
+                }),
+            ),
+            // Without an answer a Workspace reads its own directory, and a Project reads nothing.
+            1 => (
+                CurrentDirectoryOutcome::Failed {
+                    reason: CurrentDirectoryFailure::Unavailable,
+                },
+                Some(WorktreeSource::Workspace {
+                    workspace_id: workspace.clone(),
+                }),
+            ),
+            _ => (
+                CurrentDirectoryOutcome::Failed {
+                    reason: CurrentDirectoryFailure::NotFound,
+                },
+                None,
+            ),
+        };
+        // Git lists the first member's checkout, which the Server associates with it.
+        let member = &canonical.navigation.workspaces[1];
+        let mut entries = discovery().entries;
+        entries[0].checkout.path = WorktreeEntryText::Utf8(directory.path.as_str().into());
+        entries[0].workspaces.push(WorktreeWorkspaceAssociation {
+            workspace_id: workspace.clone(),
+            project_id: member.project_id.clone(),
+            label: WorkbenchLabel::parse(&member.label).unwrap(),
+        });
         let expected = addressed.clone();
         let server_snapshot = canonical.clone();
+        let queried = source.clone();
         let server = FakeServer::start_connections(2, move |index, mut stream| {
             handshake(&mut stream, index as u64 + 1)?;
             if index == 0 {
                 return Ok(());
             }
             snapshot_reply(&mut stream, server_snapshot.clone())?;
-            let primary = expected.primary.as_ref().unwrap();
-            let viewer = orchbee_client_server_protocol::ViewerId::parse(&"01".repeat(16)).unwrap();
-            viewer_reply(
-                &mut stream,
-                TerminalViewerAction::AttachBinding {
-                    session_id: orchbee_client_server_protocol::SessionId::parse(
-                        expected.cache.session_id().as_str(),
-                    )
-                    .unwrap(),
-                    worker_id: orchbee_client_server_protocol::WorkerId::parse(
-                        primary.worker_id().as_str(),
-                    )
-                    .unwrap(),
-                    terminal_id: orchbee_client_server_protocol::TerminalId::parse(
-                        primary.terminal_id().as_str(),
-                    )
-                    .unwrap(),
-                },
-                TerminalViewerOutcome::Attached {
-                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
-                        &"c".repeat(32),
-                    )
-                    .unwrap(),
-                    attachment_id: viewer.clone(),
-                    host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))
-                        .unwrap(),
-                    host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
-                        &"02".repeat(16),
-                    )
-                    .unwrap(),
-                },
-            )?;
-            viewer_reply(
-                &mut stream,
-                TerminalViewerAction::ReadProcessInfo {
-                    attachment_id: viewer.clone(),
-                },
-                TerminalViewerOutcome::Record(
-                    process_record(
-                        Some(if fault == 3 { "relative" } else { "C:/repo" }),
-                        fault == 2,
-                    )
-                    .map_err(io::Error::other)?,
-                ),
-            )?;
-            if fault < 2 {
+            directory_reply(&mut stream, &workspace, outcome.clone())?;
+            if let Some(source) = queried.clone() {
                 let WorkbenchRequest::WorktreeQuery(request) =
                     read_workbench_request(&mut stream).map_err(io::Error::other)?
                 else {
-                    panic!("Git query after admitted root sample");
+                    panic!("Git lists the repository where the Server answered");
                 };
-                assert_eq!(
-                    request.source,
-                    WorktreeSource::Directory {
-                        path: WorkbenchDirectoryPath::parse("C:/repo").unwrap()
-                    }
-                );
-                assert_ne!(expected.cache.directory().unwrap().path.as_str(), "C:/repo");
-                let discovery = discovery();
+                assert_eq!(request.source, source);
+                let requested_path = match &source {
+                    WorktreeSource::WorkspaceDirectory { path, .. } => path.clone(),
+                    _ => directory.path.clone(),
+                };
                 write_workbench_response(
                     &mut stream,
                     &WorkbenchResponse::WorktreeQuery(WorkbenchWorktreeQueryResult {
@@ -292,43 +179,28 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
                         outcome: WorkbenchWorktreeQueryOutcome::Found {
                             session_id: expected.cache.session_id().clone(),
                             workbench_revision: expected.cache.revision(),
-                            worker_id: primary.worker_id().clone(),
-                            source: discovery.source,
-                            entries: discovery.entries,
+                            worker_id: directory.worker_id.clone(),
+                            source: WorktreeQuerySource {
+                                requested_path,
+                                repository_root: directory.path.clone(),
+                                common_directory: WorkbenchDirectoryPath::parse(
+                                    "C:/first-repository/.git",
+                                )
+                                .unwrap(),
+                                checkout_path: directory.path.clone(),
+                                workspace_id: Some(workspace.clone()),
+                            },
+                            entries: entries.clone(),
                         },
                     }),
                 )
                 .map_err(io::Error::other)?;
                 snapshot_reply(&mut stream, server_snapshot.clone())?;
-                viewer_reply(
-                    &mut stream,
-                    TerminalViewerAction::ReadProcessInfo {
-                        attachment_id: viewer.clone(),
-                    },
-                    TerminalViewerOutcome::Record(
-                        process_record(
-                            Some(if fault == 1 {
-                                "C:/changed-root"
-                            } else {
-                                "C:/repo"
-                            }),
-                            false,
-                        )
-                        .map_err(io::Error::other)?,
-                    ),
-                )?;
             }
-            viewer_reply(
-                &mut stream,
-                TerminalViewerAction::Detach {
-                    attachment_id: viewer,
-                },
-                TerminalViewerOutcome::Detached {},
-            )?;
             assert_eq!(
                 stream.read(&mut [0])?,
                 0,
-                "no Control, process start, fallback query or retained Viewer"
+                "no terminal attachment, fallback query or Start"
             );
             Ok(())
         })
@@ -341,19 +213,13 @@ fn addressed_lane_samples_first_root_around_git_and_always_releases_its_own_view
         let Reply::SidebarQuery { episode: 9, result } = take(&lane) else {
             panic!("exact menu episode");
         };
-        match fault {
-            0 => {
+        match source {
+            Some(source) => {
                 let result = result.unwrap();
                 assert!(result.valid(&canonical));
-                assert_eq!(
-                    result.sample,
-                    crate::primary_directory::RootDirectory::Available(Some(
-                        WorkbenchDirectoryPath::parse("C:/repo").unwrap()
-                    ))
-                );
+                assert_eq!(result.source, source);
             }
-            1 => assert_eq!(result.unwrap_err(), WorktreeNotice::SourceChanged),
-            _ => assert_eq!(result.unwrap_err(), WorktreeNotice::SourceUnavailable),
+            None => assert_eq!(result.unwrap_err(), WorktreeNotice::SourceUnavailable),
         }
         assert!(lane.close());
         server.finish().unwrap();
@@ -406,6 +272,14 @@ fn non_git_first_project_member_never_queries_a_later_repository_or_starts_an_op
                 }),
             )
             .map_err(io::Error::other)?;
+            // Without a terminal the Server answers the member's own directory.
+            directory_reply(
+                &mut stream,
+                &expected_workspace,
+                CurrentDirectoryOutcome::Observed {
+                    directory: WorkbenchDirectoryPath::parse("C:/first-repository").unwrap(),
+                },
+            )?;
             let WorkbenchRequest::WorktreeQuery(request) =
                 read_workbench_request(&mut stream).map_err(io::Error::other)?
             else {
@@ -432,7 +306,7 @@ fn non_git_first_project_member_never_queries_a_later_repository_or_starts_an_op
             assert_eq!(
                 stream.read(&mut byte)?,
                 0,
-                "no fallback query, Viewer, or Start after a non-Git first member"
+                "no fallback query or Start after a non-Git first member"
             );
             Ok(())
         })
@@ -453,8 +327,9 @@ fn non_git_first_project_member_never_queries_a_later_repository_or_starts_an_op
         server.finish().unwrap();
     }
 }
+
 #[test]
-fn source_membership_drift_before_sampling_refuses_without_query_or_viewer() {
+fn source_membership_drift_refuses_before_any_directory_read_or_query() {
     let canonical = fixture();
     let addressed = AddressedWorktreeSource::capture(
         &canonical,
@@ -489,7 +364,7 @@ fn source_membership_drift_before_sampling_refuses_without_query_or_viewer() {
         assert_eq!(
             stream.read(&mut byte)?,
             0,
-            "a changed first member retires before any Viewer or Git query"
+            "a changed first member retires before any directory read or Git query"
         );
         Ok(())
     })

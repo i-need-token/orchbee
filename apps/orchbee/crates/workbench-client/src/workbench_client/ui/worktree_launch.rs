@@ -468,31 +468,17 @@ impl WorkbenchClientUi {
         {
             return false;
         }
-        let (Some(a), Some(b), Some(c), Some(d), Some(e)) = (
-            self.worktree_request(),
-            self.worktree_request(),
-            self.worktree_request(),
-            self.worktree_request(),
-            self.worktree_request(),
-        ) else {
-            return false;
-        };
-        let Some(mailbox) = self.mailbox.as_ref() else {
-            return false;
-        };
-        let (Ok(v1), Ok(v2), Ok(v3), Ok(v4)) = (
-            mailbox.allocate_obcs_request_id(),
-            mailbox.allocate_obcs_request_id(),
-            mailbox.allocate_obcs_request_id(),
-            mailbox.allocate_obcs_request_id(),
+        let Ok(requests) = <[WorkbenchRequestId; 6]>::try_from(
+            (0..6)
+                .map_while(|_| self.worktree_request())
+                .collect::<Vec<_>>(),
         ) else {
             return false;
         };
         self.worktrees.lane.as_ref().is_some_and(|lane| {
             lane.submit(Job {
                 action,
-                requests: [a, b, c, d, e],
-                viewers: [v1, v2, v3, v4],
+                requests,
                 deadline,
                 configured_root: self
                     .worktrees

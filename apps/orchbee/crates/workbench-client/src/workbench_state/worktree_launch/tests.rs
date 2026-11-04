@@ -160,7 +160,7 @@ pub(crate) fn sidebar_fixture() -> (Origin, addressed::SidebarDiscovery) {
     discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
     let sidebar = addressed::SidebarDiscovery {
         addressed,
-        sample: crate::primary_directory::RootDirectory::Available(Some(path("C:/repo"))),
+        observed: Some(path("C:/repo")),
         source: WorktreeSource::Directory {
             path: path("C:/repo"),
         },
@@ -199,95 +199,90 @@ fn assert_start_roundtrip(plan: &Plan) {
 }
 
 #[test]
-fn grouped_absent_cwd_and_empty_workspace_fallbacks_keep_required_null_project_at_the_wire_boundary()
- {
-    use crate::primary_directory::RootDirectory;
+fn an_empty_first_member_keeps_required_null_project_at_the_wire_boundary() {
     use orchbee_workbench_protocol::{
         WorkbenchRequest, WorkbenchWorktreeAction, write_workbench_request,
     };
-    for empty in [false, true] {
-        for mode in [WorktreeMode::Create, WorktreeMode::Open] {
-            let mut snapshot = addressed::tests::fixture();
-            if empty {
-                snapshot.terminal_contexts[1].tabs.clear();
-            }
-            let origin = ready_with_cache(project_preferred_workspace(&snapshot).unwrap())
-                .worktree_origin()
-                .unwrap();
-            let addressed = addressed::AddressedWorktreeSource::capture(
-                &snapshot,
-                &addressed::SidebarWorktreeTarget::Project(
-                    snapshot.navigation.projects[0].project_id.clone(),
-                ),
-            )
+    for mode in [WorktreeMode::Create, WorktreeMode::Open] {
+        let mut snapshot = addressed::tests::fixture();
+        snapshot.terminal_contexts[1].tabs.clear();
+        let origin = ready_with_cache(project_preferred_workspace(&snapshot).unwrap())
+            .worktree_origin()
             .unwrap();
-            assert_eq!(addressed.member.is_none(), empty);
-            let sample = RootDirectory::Available(None);
-            let source = addressed.resolve_sample(sample.clone()).unwrap();
-            let WorktreeSource::Workspace { workspace_id } = &source else {
-                panic!("same-Workspace fallback");
-            };
-            let directory = addressed.cache.directory().unwrap();
-            let mut discovery = discovery();
-            discovery.worker = directory.worker_id.clone();
-            discovery.source = WorktreeQuerySource {
-                requested_path: directory.path.clone(),
-                repository_root: directory.path.clone(),
-                common_directory: path(&format!("{}/.git", directory.path.as_str())),
-                checkout_path: directory.path.clone(),
-                workspace_id: Some(workspace_id.clone()),
-            };
-            let expected_project = addressed.cache.project_id().unwrap().clone();
-            let sidebar = addressed::SidebarDiscovery {
-                addressed,
-                sample,
-                source,
-                discovery,
-            };
-            assert!(sidebar.valid(&snapshot));
-            let mut launcher = Launcher::default();
-            let checkout = path("C:/trees/猫");
-            assert!(launcher.open_sidebar(
-                origin.clone(),
-                sidebar,
-                mode,
-                (mode == WorktreeMode::Open).then_some(&checkout)
-            ));
-            let token = launcher.token().unwrap();
-            launcher.draw(Some(token));
-            let plan = match mode {
-                WorktreeMode::Create => {
-                    launcher.create_with_defaults(request(90), &origin, Locale::EnUs)
-                }
-                WorktreeMode::Open => launcher.confirm(token, request(90), &origin),
-                WorktreeMode::Remove => unreachable!("this witness only iterates launch modes"),
+        let addressed = addressed::AddressedWorktreeSource::capture(
+            &snapshot,
+            &addressed::SidebarWorktreeTarget::Project(
+                snapshot.navigation.projects[0].project_id.clone(),
+            ),
+        )
+        .unwrap();
+        assert!(addressed.member.is_none());
+        let directory = addressed.cache.directory().unwrap();
+        // Without a first terminal the Server answers the member's own directory.
+        let observed = Some(directory.path.clone());
+        let source = addressed.resolve(observed.as_ref()).unwrap();
+        let WorktreeSource::Workspace { workspace_id } = &source else {
+            panic!("same-Workspace fallback");
+        };
+        let mut discovery = discovery();
+        discovery.worker = directory.worker_id.clone();
+        discovery.source = WorktreeQuerySource {
+            requested_path: directory.path.clone(),
+            repository_root: directory.path.clone(),
+            common_directory: path(&format!("{}/.git", directory.path.as_str())),
+            checkout_path: directory.path.clone(),
+            workspace_id: Some(workspace_id.clone()),
+        };
+        let expected_project = addressed.cache.project_id().unwrap().clone();
+        let sidebar = addressed::SidebarDiscovery {
+            addressed,
+            observed,
+            source,
+            discovery,
+        };
+        assert!(sidebar.valid(&snapshot));
+        let mut launcher = Launcher::default();
+        let checkout = path("C:/trees/猫");
+        assert!(launcher.open_sidebar(
+            origin.clone(),
+            sidebar,
+            mode,
+            (mode == WorktreeMode::Open).then_some(&checkout)
+        ));
+        let token = launcher.token().unwrap();
+        launcher.draw(Some(token));
+        let plan = match mode {
+            WorktreeMode::Create => {
+                launcher.create_with_defaults(request(90), &origin, Locale::EnUs)
             }
-            .unwrap();
-            assert!(matches!(plan.source, WorktreeSource::Workspace { .. }));
-            assert!(
-                plan.project.is_none(),
-                "Workspace sources keep Server-owned Alongside grouping"
-            );
-            assert_start_roundtrip(&plan);
-            let mut invalid = start_request(&plan);
-            let WorkbenchWorktreeAction::Start { project_id, .. } = &mut invalid.action else {
-                unreachable!()
-            };
-            *project_id = Some(expected_project);
-            assert!(
-                invalid.validate().is_err(),
-                "explicit Project applies to Directory sources only"
-            );
-            let mut wire = Vec::new();
-            assert!(
-                write_workbench_request(&mut wire, &WorkbenchRequest::WorktreeOperation(invalid))
-                    .is_err()
-            );
-            assert!(
-                wire.is_empty(),
-                "invalid intent cannot submit even a carrier header"
-            );
+            WorktreeMode::Open => launcher.confirm(token, request(90), &origin),
+            WorktreeMode::Remove => unreachable!("this witness only iterates launch modes"),
         }
+        .unwrap();
+        assert!(matches!(plan.source, WorktreeSource::Workspace { .. }));
+        assert!(
+            plan.project.is_none(),
+            "Workspace sources keep Server-owned Alongside grouping"
+        );
+        assert_start_roundtrip(&plan);
+        let mut invalid = start_request(&plan);
+        let WorkbenchWorktreeAction::Start { project_id, .. } = &mut invalid.action else {
+            unreachable!()
+        };
+        *project_id = Some(expected_project);
+        assert!(
+            invalid.validate().is_err(),
+            "explicit Project applies to Directory sources only"
+        );
+        let mut wire = Vec::new();
+        assert!(
+            write_workbench_request(&mut wire, &WorkbenchRequest::WorktreeOperation(invalid))
+                .is_err()
+        );
+        assert!(
+            wire.is_empty(),
+            "invalid intent cannot submit even a carrier header"
+        );
     }
 }
 

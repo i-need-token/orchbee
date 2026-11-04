@@ -28,9 +28,7 @@ fn ready_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
     discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
     let result = SidebarDiscovery {
         addressed,
-        sample: crate::primary_directory::RootDirectory::Available(Some(
-            WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
-        )),
+        observed: Some(WorkbenchDirectoryPath::parse("C:/repo").unwrap()),
         source: orchbee_workbench_protocol::WorktreeSource::Directory {
             path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
         },
@@ -467,11 +465,9 @@ fn workspace_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
     use orchbee_workbench_protocol::{WorktreeEntryText, WorktreeQuerySource, WorktreeSource};
     let addressed = ui.menus.discovery().unwrap().source().clone();
     let directory = addressed.cache.directory().unwrap().clone();
-    // The shell reports its cwd in its own spelling.
-    let sample = crate::primary_directory::RootDirectory::Available(Some(
-        WorkbenchDirectoryPath::parse("c:\\First-Repository\\").unwrap(),
-    ));
-    let source = addressed.resolve_sample(sample.clone()).unwrap();
+    // The Server answers the directory in the shell's own spelling.
+    let observed = Some(WorkbenchDirectoryPath::parse("c:\\First-Repository\\").unwrap());
+    let source = addressed.resolve(observed.as_ref()).unwrap();
     let WorktreeSource::Workspace { workspace_id } = &source else {
         panic!("a cwd in the Workspace's directory is that Workspace: {source:?}");
     };
@@ -487,7 +483,7 @@ fn workspace_discovery(ui: &WorkbenchClientUi) -> SidebarDiscovery {
     discovery.entries[0].checkout.path = WorktreeEntryText::Utf8(directory.path.as_str().into());
     let result = SidebarDiscovery {
         addressed,
-        sample,
+        observed,
         source,
         discovery,
     };
@@ -523,8 +519,9 @@ fn first_terminal_moves(ui: &mut WorkbenchClientUi, label: &str, directory: &str
 fn answer_where_it_stands(ui: &WorkbenchClientUi, entries: usize) -> SidebarDiscovery {
     use orchbee_workbench_protocol::{WorktreeEntryText, WorktreeQuerySource, WorktreeSource};
     let addressed = ui.menus.discovery().unwrap().source().clone();
-    let sample = crate::primary_directory::RootDirectory::Unavailable;
-    let source = addressed.resolve_sample(sample.clone()).unwrap();
+    // The Server answers where the location line says the terminal stands.
+    let observed = addressed.stands_in().cloned();
+    let source = addressed.resolve(observed.as_ref()).unwrap();
     let WorktreeSource::WorkspaceDirectory { workspace_id, path } = &source else {
         panic!("a followed directory outside the Workspace's own: {source:?}");
     };
@@ -541,7 +538,7 @@ fn answer_where_it_stands(ui: &WorkbenchClientUi, entries: usize) -> SidebarDisc
     discovery.entries.truncate(entries);
     let result = SidebarDiscovery {
         addressed,
-        sample,
+        observed,
         source,
         discovery,
     };

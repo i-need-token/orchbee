@@ -46,8 +46,7 @@ pub(super) enum Action {
 }
 pub(super) struct Job {
     pub(crate) action: Action,
-    pub(crate) requests: [WorkbenchRequestId; 5],
-    pub(crate) viewers: [orchbee_client_server_protocol::RequestId; 4],
+    pub(crate) requests: [WorkbenchRequestId; 6],
     pub(crate) deadline: Instant,
     /// `worktrees.directory` from the applied Server configuration snapshot at submission.
     pub(crate) configured_root: ConfiguredRoot,
@@ -248,7 +247,7 @@ fn execute(
     clock: &LocalOperationClock,
     wake: &LocalStream,
 ) -> Reply {
-    let [first, second, third, fourth, fifth] = job.requests;
+    let [first, second, third, fourth, fifth, sixth] = job.requests;
     let root = job.configured_root;
     match job.action {
         Action::SidebarQuery { episode, source } => {
@@ -256,8 +255,7 @@ fn execute(
                 client,
                 sidebar::DiscoveryRequest {
                     addressed: *source,
-                    requests: [first, second, third],
-                    viewers: job.viewers,
+                    requests: [first, second, third, fourth],
                     expected: None,
                     configured_root: root,
                 },
@@ -332,8 +330,7 @@ fn execute(
                     client,
                     sidebar::DiscoveryRequest {
                         addressed: addressed.addressed.clone(),
-                        requests: [first.clone(), second.clone(), third.clone()],
-                        viewers: job.viewers,
+                        requests: [first.clone(), second.clone(), third.clone(), fourth.clone()],
                         expected: Some(addressed.source.clone()),
                         configured_root: root.clone(),
                     },
@@ -425,7 +422,7 @@ fn execute(
                         WorkbenchWorktreeRequest {
                             protocol_version: ProtocolVersion,
                             request_id: if plan.sidebar.is_some() {
-                                fourth.clone()
+                                fifth.clone()
                             } else {
                                 third
                             },
@@ -444,7 +441,7 @@ fn execute(
                 snapshot(
                     client,
                     if plan.sidebar.is_some() {
-                        fifth
+                        sixth
                     } else {
                         fourth
                     },

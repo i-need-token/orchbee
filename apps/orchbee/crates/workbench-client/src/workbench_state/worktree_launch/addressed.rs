@@ -1,6 +1,5 @@
 //! Derived sidebar sources: organization never acquires a canonical directory.
 use super::Discovery;
-use crate::primary_directory::RootDirectory;
 use crate::workbench_projection::{
     ClientContextLocation, ClientContextTabs, ClientMemberTarget, ClientTerminalBinding,
     MenuContextSource, project_native_context_tabs, settled_workspace,
@@ -13,7 +12,8 @@ use orchbee_workbench_protocol::{
 #[derive(Clone, Debug)]
 pub(crate) struct SidebarDiscovery {
     pub(crate) addressed: AddressedWorktreeSource,
-    pub(crate) sample: RootDirectory,
+    /// The Server's current-directory answer the source was resolved from; `None` when it gave none.
+    pub(crate) observed: Option<WorkbenchDirectoryPath>,
     pub(crate) source: WorktreeSource,
     pub(crate) discovery: Discovery,
 }
@@ -39,7 +39,7 @@ impl SidebarDiscovery {
 
     pub(crate) fn valid(&self, snapshot: &Snapshot) -> bool {
         self.addressed.unchanged(snapshot)
-            && self.addressed.resolve_sample(self.sample.clone()).as_ref() == Some(&self.source)
+            && self.addressed.resolve(self.observed.as_ref()).as_ref() == Some(&self.source)
             && self
                 .discovery
                 .matches_addressed(&self.addressed, &self.source)
@@ -77,8 +77,7 @@ pub(crate) struct AddressedWorktreeSource {
     source: MenuContextSource,
     context: TerminalContext,
     /// The first terminal's directory the Server follows, which the sidebar's location line shows.
-    /// It is the root process's reported directory first, and a shell that reports one, such as
-    /// PowerShell, leaves its process cwd in the launch directory.
+    /// A change to it restarts discovery; the directory Git reads is the Server's fresh answer.
     followed: Option<WorkbenchDirectoryPath>,
 }
 
@@ -179,80 +178,64 @@ impl AddressedWorktreeSource {
             && self.primary == current.primary
     }
 
-    /// One source for the first terminal. An addressed Workspace asks Git wherever its location
-    /// line says it stands and stays the owner the Server groups alongside, so a process sample that
-    /// fails costs nothing while its directory is known. A Project source carries its Project and
-    /// needs an admitted sample: it can never select another member, Agent cwd or Client cwd.
-    pub(crate) fn resolve_sample(&self, sample: RootDirectory) -> Option<WorktreeSource> {
+    /// The Workspace whose current directory the Server answers: the addressed Workspace, or a
+    /// Project's first member.
+    pub(crate) fn first_workspace(&self) -> Option<&WorkbenchWorkspaceId> {
+        match self.cache.location() {
+            ClientContextLocation::Workspace { workspace_id, .. } => Some(workspace_id),
+            _ => None,
+        }
+    }
+
+    /// One source from the Server's `workbench.current-directory` answer for the first Workspace,
+    /// `None` when it gave none. The Server answers where the first terminal stands now, else the
+    /// Workspace's own directory, and the Web and Desktop Clients read the same answer. An addressed
+    /// Workspace stays the owner the Server groups alongside. A Project source carries its Project
+    /// in the Directory form and needs a bound first terminal, unless its first member has no
+    /// terminal at all; it never selects another member or the Client's own context.
+    pub(crate) fn resolve(
+        &self,
+        observed: Option<&WorkbenchDirectoryPath>,
+    ) -> Option<WorktreeSource> {
         match &self.target {
             SidebarWorktreeTarget::Workspace(workspace_id) => {
-                self.resolve_workspace(workspace_id, sample)
-            }
-            SidebarWorktreeTarget::Project(_) => self.resolve_project_member(sample),
-        }
-    }
-
-    fn resolve_workspace(
-        &self,
-        workspace_id: &WorkbenchWorkspaceId,
-        sample: RootDirectory,
-    ) -> Option<WorktreeSource> {
-        let sampled = match sample {
-            // An empty Workspace has no process to sample.
-            RootDirectory::Available(Some(_)) if self.primary.is_none() => return None,
-            RootDirectory::Available(path) => path,
-            RootDirectory::Unavailable => None,
-        };
-        let own = |path: &WorkbenchDirectoryPath| {
-            self.cache.directory().is_some_and(|directory| {
-                self.primary
-                    .as_ref()
-                    .is_none_or(|primary| directory.worker_id == *primary.worker_id())
-                    && orchbee_workbench_protocol::same_directory_spelling(
-                        directory.path.as_str(),
-                        path.as_str(),
-                    )
-            })
-        };
-        let workspace_id = workspace_id.clone();
-        match self.followed.clone().or(sampled) {
-            Some(path) if !own(&path) => {
-                Some(WorktreeSource::WorkspaceDirectory { workspace_id, path })
-            }
-            Some(_) => Some(WorktreeSource::Workspace { workspace_id }),
-            None => self
-                .cache
-                .directory()
-                .map(|_| WorktreeSource::Workspace { workspace_id }),
-        }
-    }
-
-    /// Only an admitted absent cwd (or no first terminal at all) permits the member's canonical
-    /// directory.
-    fn resolve_project_member(&self, sample: RootDirectory) -> Option<WorktreeSource> {
-        match sample {
-            RootDirectory::Available(Some(path)) if self.primary.is_some() => {
-                Some(WorktreeSource::Directory {
-                    path: self.followed.clone().unwrap_or(path),
-                })
-            }
-            RootDirectory::Available(None)
-                if self.cache.directory().is_some()
-                    && (self.primary.is_some() || self.member.is_none()) =>
-            {
-                if let Some(path) = self.followed.clone() {
-                    return Some(WorktreeSource::Directory { path });
+                let workspace_id = workspace_id.clone();
+                match observed {
+                    Some(path) if !self.own(path) => Some(WorktreeSource::WorkspaceDirectory {
+                        workspace_id,
+                        path: path.clone(),
+                    }),
+                    Some(_) => Some(WorktreeSource::Workspace { workspace_id }),
+                    None => self
+                        .cache
+                        .directory()
+                        .map(|_| WorktreeSource::Workspace { workspace_id }),
                 }
-                let ClientContextLocation::Workspace { workspace_id, .. } = self.cache.location()
-                else {
-                    return None;
-                };
-                Some(WorktreeSource::Workspace {
-                    workspace_id: workspace_id.clone(),
-                })
             }
-            RootDirectory::Available(_) | RootDirectory::Unavailable => None,
+            SidebarWorktreeTarget::Project(_) => {
+                let path = observed?;
+                if self.primary.is_some() {
+                    return Some(WorktreeSource::Directory { path: path.clone() });
+                }
+                // A first member without any terminal reads its own directory.
+                let workspace_id = self.first_workspace()?.clone();
+                (self.member.is_none() && self.own(path))
+                    .then_some(WorktreeSource::Workspace { workspace_id })
+            }
         }
+    }
+
+    /// Whether `path` names the first Workspace's own directory on its first terminal's Worker.
+    fn own(&self, path: &WorkbenchDirectoryPath) -> bool {
+        self.cache.directory().is_some_and(|directory| {
+            self.primary
+                .as_ref()
+                .is_none_or(|primary| directory.worker_id == *primary.worker_id())
+                && orchbee_workbench_protocol::same_directory_spelling(
+                    directory.path.as_str(),
+                    path.as_str(),
+                )
+        })
     }
 }
 

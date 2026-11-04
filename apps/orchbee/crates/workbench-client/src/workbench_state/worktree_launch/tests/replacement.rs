@@ -65,7 +65,7 @@ fn hidden_worktree_replacement_preserves_recovery_on_invalid_source_choice_or_to
             7 => {
                 sidebar.discovery.worker = WorkerId::parse(&format!("{:032x}", 9999)).unwrap();
             }
-            8 => sidebar.sample = crate::primary_directory::RootDirectory::Unavailable,
+            8 => sidebar.observed = None,
             9 => launcher.last_token = u64::MAX,
             _ => unreachable!(),
         }

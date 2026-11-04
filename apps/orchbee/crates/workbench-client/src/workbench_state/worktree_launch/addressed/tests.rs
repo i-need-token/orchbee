@@ -160,26 +160,19 @@ fn workspace_uses_first_terminal_primary_instead_of_later_tab_or_child_agent() {
 }
 
 #[test]
-fn admitted_cwd_precedes_same_workspace_fallback_and_unavailable_never_becomes_absent() {
+fn a_project_reads_its_first_members_answer_and_nothing_without_one() {
     let value = fixture();
     let source =
         AddressedWorktreeSource::capture(&value, &SidebarWorktreeTarget::Project(project(70)))
             .unwrap();
-    assert_eq!(
-        source.resolve_sample(RootDirectory::Available(Some(path(
-            "C:/first-terminal/cwd"
-        )))),
-        Some(WorktreeSource::Directory {
-            path: path("C:/first-terminal/cwd")
-        })
-    );
-    assert_eq!(
-        source.resolve_sample(RootDirectory::Available(None)),
-        Some(WorktreeSource::Workspace {
-            workspace_id: workspace(80)
-        })
-    );
-    assert_eq!(source.resolve_sample(RootDirectory::Unavailable), None);
+    for answer in ["C:/first-terminal/cwd", "C:/first-repository"] {
+        assert_eq!(
+            source.resolve(Some(&path(answer))),
+            Some(WorktreeSource::Directory { path: path(answer) }),
+            "{answer}"
+        );
+    }
+    assert_eq!(source.resolve(None), None);
     // This model returns one source only. A failed/non-Git query of that
     // source cannot switch to the other member's potentially different repo.
     assert_eq!(
@@ -193,7 +186,8 @@ fn admitted_cwd_precedes_same_workspace_fallback_and_unavailable_never_becomes_a
 }
 
 #[test]
-fn cwd_naming_the_workspace_directory_is_that_workspace_so_the_server_can_group_alongside_it() {
+fn an_answer_naming_the_workspace_directory_is_that_workspace_so_the_server_can_group_alongside_it()
+{
     let mut value = fixture();
     // Ungrouped: the Server's Alongside placement then creates the Project at commit, which a
     // Directory source without a Project would instead leave ungrouped.
@@ -205,20 +199,18 @@ fn cwd_naming_the_workspace_directory_is_that_workspace_so_the_server_can_group_
     let source =
         AddressedWorktreeSource::capture(&value, &SidebarWorktreeTarget::Workspace(workspace(80)))
             .unwrap();
-    for cwd in ["C:/first-repository", "c:\\First-Repository\\"] {
+    for answer in ["C:/first-repository", "c:\\First-Repository\\"] {
         assert_eq!(
-            source.resolve_sample(RootDirectory::Available(Some(path(cwd)))),
+            source.resolve(Some(&path(answer))),
             Some(WorktreeSource::Workspace {
                 workspace_id: workspace(80)
             }),
-            "{cwd}"
+            "{answer}"
         );
     }
-    // Elsewhere Git runs in the admitted cwd, and the Workspace stays the grouping owner.
+    // Elsewhere Git runs where the Server says, and the Workspace stays the grouping owner.
     assert_eq!(
-        source.resolve_sample(RootDirectory::Available(Some(path(
-            "C:/first-repository/nested"
-        )))),
+        source.resolve(Some(&path("C:/first-repository/nested"))),
         Some(WorktreeSource::WorkspaceDirectory {
             workspace_id: workspace(80),
             path: path("C:/first-repository/nested")
@@ -267,82 +259,54 @@ fn source_scope_drift_retires_project_membership_directory_and_terminal_proof() 
 }
 
 #[test]
-fn explicitly_empty_workspace_can_use_only_its_own_directory_without_inventing_a_process_sample() {
+fn a_workspace_reads_git_where_the_server_answers_and_survives_no_answer() {
     let mut value = fixture();
-    value.terminal_contexts[1].tabs.clear();
-    let source =
-        AddressedWorktreeSource::capture(&value, &SidebarWorktreeTarget::Workspace(workspace(80)))
-            .unwrap();
-    assert!(source.primary.is_none());
-    assert!(source.member.is_none());
-    assert_eq!(
-        source.resolve_sample(RootDirectory::Available(None)),
-        Some(WorktreeSource::Workspace {
-            workspace_id: workspace(80)
-        })
-    );
-    assert_eq!(
-        source.resolve_sample(RootDirectory::Available(Some(path("C:/unrelated-cwd")))),
-        None
-    );
-}
-
-#[test]
-fn a_workspace_source_stands_where_its_location_line_says_and_survives_a_failed_sample() {
-    let mut value = fixture();
-    for member in &mut value.navigation.workspaces {
-        if member.workspace_id == workspace(80) {
-            member.automatic_label = true;
-        }
-    }
-    let target = SidebarWorktreeTarget::Workspace(workspace(80));
-    let source = AddressedWorktreeSource::capture(&value, &target).unwrap();
-    // Without a followed directory a sample that fails leaves the Workspace's own directory.
-    assert_eq!(
-        source.resolve_sample(RootDirectory::Unavailable),
-        Some(WorktreeSource::Workspace {
-            workspace_id: workspace(80)
-        })
-    );
-
     let member = value
         .navigation
         .workspaces
         .iter_mut()
         .find(|member| member.workspace_id == workspace(80))
         .unwrap();
-    member.terminal_directory = Some(path("C:/reported"));
-    member.label = "reported".into();
-    let moved = WorktreeSource::WorkspaceDirectory {
-        workspace_id: workspace(80),
-        path: path("C:/reported"),
-    };
-    // A reporting shell's process cwd stays in its launch directory.
-    assert!(!source.unchanged(&value), "discovery asks Git again");
-    assert!(source.current(&value), "yet it is the same Workspace");
+    member.automatic_label = true;
+    member.terminal_directory = Some(path("C:/followed"));
+    member.label = "followed".into();
+    let target = SidebarWorktreeTarget::Workspace(workspace(80));
     let source = AddressedWorktreeSource::capture(&value, &target).unwrap();
-    for sample in [
-        RootDirectory::Available(Some(path("C:/launch"))),
-        RootDirectory::Available(None),
-        RootDirectory::Unavailable,
-    ] {
-        assert_eq!(source.resolve_sample(sample), Some(moved.clone()));
-    }
-
-    // A Project keeps its Directory form and refuses a failed sample.
-    let project = SidebarWorktreeTarget::Project(project(70));
-    let source = AddressedWorktreeSource::capture(&value, &project).unwrap();
+    // The answer is newer than the directory the location line last followed.
     assert_eq!(
-        source.resolve_sample(RootDirectory::Available(Some(path("C:/launch")))),
-        Some(WorktreeSource::Directory {
-            path: path("C:/reported")
+        source.resolve(Some(&path("C:/answered"))),
+        Some(WorktreeSource::WorkspaceDirectory {
+            workspace_id: workspace(80),
+            path: path("C:/answered"),
         })
     );
-    assert_eq!(source.resolve_sample(RootDirectory::Unavailable), None);
+    // Without an answer the Workspace's own directory is left, wherever the line says it stands.
+    assert_eq!(
+        source.resolve(None),
+        Some(WorktreeSource::Workspace {
+            workspace_id: workspace(80)
+        })
+    );
+
+    let mut moved = value.clone();
+    moved
+        .navigation
+        .workspaces
+        .iter_mut()
+        .find(|member| member.workspace_id == workspace(80))
+        .unwrap()
+        .terminal_directory = Some(path("C:/elsewhere"));
+    assert!(!source.unchanged(&moved), "discovery asks again");
+    assert!(source.current(&moved), "yet it is the same Workspace");
+
+    // A Project needs an answer.
+    let project = SidebarWorktreeTarget::Project(project(70));
+    let source = AddressedWorktreeSource::capture(&value, &project).unwrap();
+    assert_eq!(source.resolve(None), None);
 }
 
 #[test]
-fn unbound_first_terminal_is_unavailable_rather_than_an_absent_process_cwd() {
+fn unbound_first_terminal_leaves_a_project_without_a_source() {
     let mut value = fixture();
     let PanelNode::Panel {
         primary_presentation,
@@ -357,6 +321,6 @@ fn unbound_first_terminal_is_unavailable_rather_than_an_absent_process_cwd() {
             .unwrap();
     assert!(source.member.is_some());
     assert!(source.primary.is_none());
-    assert_eq!(source.resolve_sample(RootDirectory::Available(None)), None);
-    assert_eq!(source.resolve_sample(RootDirectory::Unavailable), None);
+    assert_eq!(source.resolve(Some(&path("C:/first-repository"))), None);
+    assert_eq!(source.resolve(None), None);
 }
