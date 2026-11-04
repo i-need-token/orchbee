@@ -85,8 +85,6 @@ type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
 	| 'applyFrame'
 	| 'applyInputCapability'
-	| 'applyImagePreviewContent'
-	| 'applyImagePreviewUnavailable'
 	| 'applyRows'
 	| 'canControlTerminal'
 	| 'canNavigatePrompts'
@@ -1338,16 +1336,6 @@ export async function startProjectedTerminalRenderer(
 			}
 			case 'history-changed':
 				terminal.notifyHistoryChanged(event.data.event);
-				return;
-			case 'image-preview-content':
-				terminal.applyImagePreviewContent(
-					event.data.requestSequence,
-					event.data.content,
-					event.data.mediaType,
-				);
-				return;
-			case 'image-preview-unavailable':
-				terminal.applyImagePreviewUnavailable(event.data.requestSequence);
 				return;
 			case 'link-opened':
 				terminal.notifyLinkOpened(event.data.requestSequence);

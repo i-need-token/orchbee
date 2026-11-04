@@ -5,7 +5,6 @@ import {
 	ProjectedTerminal,
 	type ProjectedTerminalCommand as TerminalSurfaceCommand,
 	type ProjectedTerminalOptions,
-	type TerminalImagePreviewPresentation,
 } from '@orchbee/terminal';
 import type { WorkbenchTerminalActionContextProvider } from '../../../workbench';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
@@ -358,30 +357,12 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 	document.body.appendChild(surface);
 
 	const localText = './images/old.png ./images/final.png';
-	const previewRequests: Extract<TerminalSurfaceCommand, { readonly kind: 'image-preview' }>[] = [];
 	const openedPaths: string[] = [];
-	const previewState: { current: TerminalImagePreviewPresentation } = {
-		current: { kind: 'hidden' },
-	};
 	let localTerminal: ProjectedTerminal;
 	const localPort = {
 		send: (command: TerminalSurfaceCommand): void => {
 			if (command.kind === 'read-rows') {
 				queueMicrotask(() => localTerminal.applyRows(localTerminalRows(command, localText)));
-				return;
-			}
-			if (command.kind === 'image-preview-cancel') return;
-			if (command.kind === 'image-preview') {
-				previewRequests.push(command);
-				if (previewRequests.length === 2) {
-					queueMicrotask(() => {
-						localTerminal.applyImagePreviewContent(
-							command.payload.requestSequence,
-							fixturePngBytes(),
-							'image/png',
-						);
-					});
-				}
 				return;
 			}
 			if (command.kind === 'link-open' && command.payload.target.kind === 'file') {
@@ -403,9 +384,6 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 		projectionBufferTrust: 'local-host',
 		terminalId: localTerminalId,
 	});
-	const previewSubscription = localTerminal.onImagePreviewChange((presentation) => {
-		previewState.current = presentation;
-	});
 	const linkSubscription = localTerminal.onLinkOpenRequest((request) => {
 		localTerminal.openTarget(request.target);
 	});
@@ -414,18 +392,6 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 	await nextPaint();
 	const canvas = localTerminal.canvas;
 	if (canvas === undefined) throw new Error('Local-file witness has no terminal canvas.');
-	const oldPoint = surfaceColumnPoint(canvas, 1);
-	canvas.dispatchEvent(
-		new PointerEvent('pointermove', {
-			bubbles: true,
-			buttons: 0,
-			clientX: oldPoint.x,
-			clientY: oldPoint.y,
-			pointerType: 'mouse',
-		}),
-	);
-	await until(() => previewRequests.length === 1);
-
 	const finalPoint = surfaceColumnPoint(canvas, localText.indexOf('./images/final.png') + 1);
 	canvas.dispatchEvent(
 		new PointerEvent('pointermove', {
@@ -434,25 +400,10 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 			clientX: finalPoint.x,
 			clientY: finalPoint.y,
 			pointerType: 'mouse',
+			...linkModifierFacts(),
 		}),
 	);
-	await until(() => previewRequests.length === 2 && previewState.current.kind === 'visible');
-	const staleRequest = previewRequests[0];
-	if (staleRequest === undefined)
-		throw new Error('Local-file witness lost its stale preview request.');
-	localTerminal.applyImagePreviewContent(
-		staleRequest.payload.requestSequence,
-		fixturePngBytes(),
-		'image/png',
-	);
-	await nextPaint();
-	if (
-		previewState.current.kind !== 'visible' ||
-		!previewState.current.path.endsWith('/images/final.png')
-	) {
-		throw new Error('A stale image-preview completion replaced the latest hover target.');
-	}
-	const finalPresentation = previewState.current;
+	await until(() => canvas.style.cursor === 'pointer');
 	canvas.dispatchEvent(
 		new MouseEvent('click', {
 			bubbles: true,
@@ -463,26 +414,15 @@ async function runLocalFileEffectsWitness(): Promise<void> {
 		}),
 	);
 	await until(() => openedPaths.length === 1);
-	root.dataset['witnessLocalPreviewPath'] = finalPresentation.path;
 	root.dataset['witnessLocalReady'] = 'true';
 	window.addEventListener(
 		'pagehide',
 		() => {
 			linkSubscription.dispose();
-			previewSubscription.dispose();
 			localTerminal.dispose();
 		},
 		{ once: true },
 	);
-}
-
-function fixturePngBytes(): ArrayBuffer {
-	const encoded =
-		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-	const bytes = Uint8Array.from(atob(encoded), (character) => character.codePointAt(0) ?? 0);
-	const content = new ArrayBuffer(bytes.byteLength);
-	new Uint8Array(content).set(bytes);
-	return content;
 }
 
 function localTerminalRows(
@@ -598,7 +538,7 @@ function localTerminalFrame(text: string, frameSequence: bigint): TerminalFrame 
 		sequence: frameSequence,
 		styles: [regularStyle],
 		themeRevision: 0n,
-		title: 'FS-19 FS-20 local file effects witness',
+		title: 'FS-19 local file effects witness',
 	};
 }
 

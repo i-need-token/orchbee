@@ -41,9 +41,6 @@ import { z } from 'zod';
 
 const utf8Encoder = new TextEncoder();
 
-/** @internal Event boundary limit exported only for this package's contract tests. */
-export const MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES = 8 * 1024 * 1024;
-
 const projectedTerminalTargetTextSchema = z
 	.string()
 	.min(1)
@@ -61,15 +58,6 @@ const ProjectedTerminalOpenTargetSchema = z.discriminatedUnion('kind', [
 		line: z.number().int().positive().safe().optional(),
 		path: projectedTerminalTargetTextSchema,
 	}),
-]);
-
-const ProjectedTerminalImagePreviewMediaTypeSchema = z.enum([
-	'image/png',
-	'image/jpeg',
-	'image/gif',
-	'image/webp',
-	'image/avif',
-	'image/bmp',
 ]);
 
 const ProjectedTerminalOutcomeSchema = z
@@ -153,21 +141,6 @@ const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('reset-terminal'), payload: ResetTerminalSchema }),
 	z.strictObject({ kind: z.literal('rows-applied'), payload: RowsAppliedSchema }),
 	z.strictObject({ kind: z.literal('history-observed'), payload: HistoryObservedSchema }),
-	z.strictObject({
-		kind: z.literal('image-preview'),
-		payload: z.strictObject({
-			attachmentId: AttachmentIdSchema,
-			path: projectedTerminalTargetTextSchema,
-			requestSequence: CanonicalUint64TextSchema,
-		}),
-	}),
-	z.strictObject({
-		kind: z.literal('image-preview-cancel'),
-		payload: z.strictObject({
-			attachmentId: AttachmentIdSchema,
-			requestSequence: CanonicalUint64TextSchema,
-		}),
-	}),
 	z.strictObject({ kind: z.literal('selection-command'), payload: SelectionCommandSchema }),
 	z.strictObject({ kind: z.literal('selection-gesture'), payload: SelectionGestureSchema }),
 	z.strictObject({
@@ -245,22 +218,6 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({ frame: ProjectedTerminalFrameBinarySchema, kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
-	z.strictObject({
-		content: z
-			.instanceof(ArrayBuffer)
-			.refine(
-				(value) =>
-					value.byteLength > 0 && value.byteLength <= MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
-				'Image preview content must be non-empty and within the protocol limit.',
-			),
-		kind: z.literal('image-preview-content'),
-		mediaType: ProjectedTerminalImagePreviewMediaTypeSchema,
-		requestSequence: CanonicalUint64TextSchema,
-	}),
-	z.strictObject({
-		kind: z.literal('image-preview-unavailable'),
-		requestSequence: CanonicalUint64TextSchema,
-	}),
 	z.strictObject({ event: ResizeLeaseChangedSchema, kind: z.literal('resize-lease-changed') }),
 	z.strictObject({
 		content: z

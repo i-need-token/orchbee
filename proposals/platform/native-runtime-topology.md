@@ -963,7 +963,7 @@ were re-checked at `66189cf9e`. Delivery is tracked by ORC-201.
    in each Client. A second TypeScript implementation of a workflow is the last resort, and shared
    Rust compiled to WebAssembly is not part of this plan.
 3. **Windows leads.** Each step is proven on Windows first. POSIX Server and Worker capabilities
-   proceed in parallel from step 3 and do not gate Windows steps.
+   are unscheduled while Mac and Linux adaptation is deferred (ORC-328).
 4. **Desktop bundles its complete native cohort.** Desktop ships and activates its own exact Server,
    Worker, and Terminal Host cohort. A CLI of another cohort on the same machine cannot join
    Desktop's Session and reports the required upgrade. Long-running task continuity across cohorts
@@ -1426,10 +1426,10 @@ guides. These choices stand unless review changes them:
   suite is the gap left.
 - **Branches only the retired Main served stay for now.** `@orchbee/workbench-client-protocol`
   still carries the terminal theme transaction, transport-committed selection copy, and the local
-  file and image-preview capability, and the renderer still handles them, though no current
-  transport sends them. The Worktree forms and the Agent observation source in `apps/web` have no
-  provider either. Step 5 decides which return; the rest are pruned. Decision 6 later deleted image
-  preview and file drop, so their branches are among those to prune.
+  file capability, and the renderer still handles them, though no current transport sends them.
+  The Worktree forms and the Agent observation source in `apps/web` have no provider either. Step 5
+  decides which return; the rest are pruned. Decision 6 deleted image preview and file drop with
+  their branches.
 - **Settings shapes live with their controls.** The Agent integration, terminal default, and
   launch-profile shapes that only the Settings controls use moved from
   `@orchbee/desktop-client-protocol` into those controls in `apps/web` without the `Desktop`
@@ -1445,10 +1445,9 @@ guides. These choices stand unless review changes them:
   `@orchbee/terminal-protocol` helpers only Main used are deleted: archive frame materialization,
   frame routing, the default terminal configuration, and the metadata-change schema. No current
   boundary carries those values, so TypeScript no longer checks projected-command bounds (open
-  target UTF-8, clipboard decision, selection command, image-preview request), presentation
-  failure codes and exit or signal exclusivity, or the Desktop settings and Agent integration event
-  bounds. Rust still checks the preference-request fixtures. A transport that brings one back
-  restores its own checks.
+  target UTF-8, clipboard decision, selection command), presentation failure codes and exit or
+  signal exclusivity, or the Desktop settings and Agent integration event bounds. Rust still checks
+  the preference-request fixtures. A transport that brings one back restores its own checks.
 - **Exports only tests use are tagged.** A production symbol whose only consumers are tests,
   Stories, or a conformance generator carries an `@internal` tag that names them, so the strict
   dependency gate ignores it and the full gate still requires the consumer. Tagged now: the
@@ -1931,8 +1930,10 @@ beside the Server path. These choices stand unless review changes them:
 - **GUI-only capabilities are deleted (decision 6).** Broadcast input, the image preview card and
   its tokens, file drop, Ghostty configuration import, the cross-window Tab drag runtime with the
   Tab model's transfer methods, and the workspace Tabs primitive left with their tests, Stories,
-  copy in both locales, experience records, and dependency retentions. The panel menus hold only
-  the TUI's pane composition.
+  copy in both locales, experience records, and dependency retentions. The image preview request
+  flow left `@orchbee/terminal`, the projected-terminal contract, and the renderer as well; the
+  local file capability stays because it gates opening file links. The panel menus hold only the
+  TUI's pane composition.
 - **The empty Agent board starts no Agent (decision 6).** Nothing changed in code.
 
 No step 6 decision remains open.

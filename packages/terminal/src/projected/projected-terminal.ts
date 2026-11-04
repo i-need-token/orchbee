@@ -141,7 +141,6 @@ import { loadTerminalFonts } from '../font-metrics';
 import {
 	detectTerminalRowLinks,
 	isPermittedExternalTerminalTarget,
-	isTerminalImagePreviewTarget,
 	terminalLinkContains,
 } from '../terminal-row-links';
 import type { TerminalOpenTarget } from '../terminal-contracts';
@@ -153,11 +152,6 @@ import {
 } from '../terminal-hints';
 import type { ILink, RendererOptions, SurfacePadding } from '../types';
 import { TerminalHintSession } from './TerminalHintSession';
-import {
-	TerminalImagePreviewController,
-	type TerminalImagePreviewMediaType,
-	type TerminalImagePreviewPresentation,
-} from './TerminalImagePreviewController';
 import {
 	PROJECTED_COMMAND_OUTPUT_PAGE_ROWS,
 	readProjectedLastCommandOutput,
@@ -349,21 +343,6 @@ export type ProjectedTerminalCommand =
 	| { readonly kind: 'reset-terminal'; readonly payload: ResetTerminal }
 	| { readonly kind: 'rows-applied'; readonly payload: RowsApplied }
 	| { readonly kind: 'history-observed'; readonly payload: HistoryObserved }
-	| {
-			readonly kind: 'image-preview';
-			readonly payload: {
-				readonly attachmentId: AttachmentId;
-				readonly path: string;
-				readonly requestSequence: CanonicalUint64Text;
-			};
-	  }
-	| {
-			readonly kind: 'image-preview-cancel';
-			readonly payload: {
-				readonly attachmentId: AttachmentId;
-				readonly requestSequence: CanonicalUint64Text;
-			};
-	  }
 	| { readonly kind: 'selection-command'; readonly payload: SelectionCommand }
 	| { readonly kind: 'selection-gesture'; readonly payload: SelectionGesture }
 	| {
@@ -769,7 +748,6 @@ interface PendingSelectionPointer {
 interface PendingLinkPoint {
 	readonly column: number;
 	readonly control: boolean;
-	readonly finePointer: boolean;
 	readonly generation: bigint;
 	readonly linkEpoch: bigint;
 	readonly meta: boolean;
@@ -941,8 +919,6 @@ export class ProjectedTerminal {
 	readonly #healthEmitter = new EventEmitter<RendererHealthEvent>();
 	readonly #historyEmitter = new EventEmitter<HistoryChanged>();
 	readonly #hostEpoch: HostEpoch;
-	readonly #imagePreviewController: TerminalImagePreviewController | undefined;
-	readonly #imagePreviewEmitter = new EventEmitter<TerminalImagePreviewPresentation>();
 	readonly #inputDispatcher = new OrderedInputDispatcher((error) =>
 		this.#errorEmitter.fire({ error, operation: 'command' }),
 	);
@@ -1152,34 +1128,6 @@ export class ProjectedTerminal {
 		this.#presentationConfiguration = presentationConfigurationFromRendererOptions(
 			options.renderer,
 		);
-		this.#imagePreviewController =
-			options.localFileEffects === true
-				? new TerminalImagePreviewController({
-						cancel: (requestSequence) => {
-							this.#send({
-								kind: 'image-preview-cancel',
-								payload: { attachmentId: this.#attachmentId, requestSequence },
-							});
-						},
-						present: (presentation) => this.#imagePreviewEmitter.fire(presentation),
-						request: (membership) => {
-							const requestSequence = this.#nextSideEffectSequence();
-							const sent = this.#send(
-								{
-									kind: 'image-preview',
-									payload: {
-										attachmentId: this.#attachmentId,
-										path: membership.target.path,
-										requestSequence,
-									},
-								},
-								() => this.#imagePreviewController?.unavailable(requestSequence),
-							);
-							if (!sent) throw new Error('Image preview request could not be sent.');
-							return requestSequence;
-						},
-					})
-				: undefined;
 		if (options.autoActivate === false) {
 			this.#demand = 'paused';
 			this.#presentationPaused = true;
@@ -1322,8 +1270,6 @@ export class ProjectedTerminal {
 	readonly onLiveCropChange: IEvent<boolean> = this.#liveCropEmitter.event;
 	readonly onRendererHealth: IEvent<RendererHealthEvent> = this.#healthEmitter.event;
 	readonly onHistoryChange: IEvent<HistoryChanged> = this.#historyEmitter.event;
-	readonly onImagePreviewChange: IEvent<TerminalImagePreviewPresentation> =
-		this.#imagePreviewEmitter.event;
 	readonly onInjectedInputReadinessChange: IEvent<ProjectedTerminalInjectedInputReadiness> =
 		this.#injectedInputReadinessEmitter.event;
 	readonly onLinkOpenRequest: IEvent<ProjectedTerminalLinkOpenRequest> =
@@ -2559,18 +2505,6 @@ export class ProjectedTerminal {
 		complete?.({ kind: 'completed' });
 	}
 
-	applyImagePreviewContent(
-		requestSequence: CanonicalUint64Text,
-		content: ArrayBuffer,
-		mediaType: TerminalImagePreviewMediaType,
-	): void {
-		this.#imagePreviewController?.complete(requestSequence, { content, mediaType });
-	}
-
-	applyImagePreviewUnavailable(requestSequence: CanonicalUint64Text): void {
-		this.#imagePreviewController?.unavailable(requestSequence);
-	}
-
 	notifyBrokerFailure(failure: ProjectedBrokerFailure): void {
 		if (failure.operation === 'resize') {
 			this.#lastGeometry = undefined;
@@ -2900,7 +2834,6 @@ export class ProjectedTerminal {
 		const point: PendingLinkPoint = {
 			column: request.context.column,
 			control: false,
-			finePointer: false,
 			generation,
 			linkEpoch,
 			meta: false,
@@ -3531,7 +3464,6 @@ export class ProjectedTerminal {
 		this.#searchController?.dispose();
 		this.#searchController = undefined;
 		this.#clearHoveredLink();
-		this.#imagePreviewController?.dispose();
 		for (const complete of this.#copyCompletions.values()) complete({ kind: 'cancelled' });
 		for (const complete of this.#linkCompletions.values()) complete({ kind: 'cancelled' });
 		this.#copyCompletions.clear();
@@ -3608,7 +3540,6 @@ export class ProjectedTerminal {
 		this.#searchController?.dispose();
 		this.#searchController = undefined;
 		this.#clearHoveredLink();
-		this.#imagePreviewController?.dispose();
 		for (const complete of this.#copyCompletions.values()) complete({ kind: 'cancelled' });
 		for (const complete of this.#linkCompletions.values()) complete({ kind: 'cancelled' });
 		this.#copyCompletions.clear();
@@ -3634,7 +3565,6 @@ export class ProjectedTerminal {
 		this.#frameTelemetryEmitter.dispose();
 		this.#healthEmitter.dispose();
 		this.#historyEmitter.dispose();
-		this.#imagePreviewEmitter.dispose();
 		this.#injectedInputReadinessEmitter.dispose();
 		this.#linkOpenEmitter.dispose();
 		this.#metadataEmitter.dispose();
@@ -4652,7 +4582,6 @@ export class ProjectedTerminal {
 		const contextPoint: PendingLinkPoint = {
 			column: point.column,
 			control: false,
-			finePointer: false,
 			generation: this.#historyGeneration,
 			linkEpoch: this.#linkEpoch,
 			meta: false,
@@ -4982,7 +4911,6 @@ export class ProjectedTerminal {
 		const enabled = this.#hoveredLinkIsActive();
 		const metadata = this.metadata;
 		const renderer = this.#renderer;
-		this.#presentHoveredImagePreview(link, point, metadata, renderer);
 		if (metadata !== null && renderer !== undefined) {
 			const visibleStart = this.#historyVisibleStart(metadata);
 			renderer.setHoveredLinkRange(
@@ -4999,67 +4927,12 @@ export class ProjectedTerminal {
 		this.#updateSurfaceMouseCursor();
 	}
 
-	#presentHoveredImagePreview(
-		link: ILink | undefined,
-		point: PendingLinkPoint,
-		metadata: ProjectedTerminalMetadata | null,
-		renderer: WebGPURenderer | undefined,
-	): void {
-		const controller = this.#imagePreviewController;
-		const target = link?.target;
-		const root = this.#root;
-		const canvas = this.#canvas;
-		if (
-			controller === undefined ||
-			target?.kind !== 'file' ||
-			!isTerminalImagePreviewTarget(target) ||
-			!point.finePointer ||
-			!this.#surfaceSelectionOwned() ||
-			!this.#linkPointIsCurrent(point) ||
-			metadata === null ||
-			renderer === undefined ||
-			root === undefined ||
-			canvas === undefined
-		) {
-			controller?.retire();
-			return;
-		}
-
-		const visibleStart = this.#historyVisibleStart(metadata);
-		const viewportRow = Number(point.row - visibleStart);
-		if (viewportRow < 0 || viewportRow >= metadata.rows) {
-			controller.retire();
-			return;
-		}
-		const rootRectangle = root.getBoundingClientRect();
-		const canvasRectangle = canvas.getBoundingClientRect();
-		controller.hover({
-			anchor: {
-				height: renderer.charHeight,
-				left: canvasRectangle.left - rootRectangle.left + point.column * renderer.charWidth,
-				surfaceHeight: rootRectangle.height,
-				surfaceWidth: rootRectangle.width,
-				top: canvasRectangle.top - rootRectangle.top + viewportRow * renderer.charHeight,
-				width: renderer.charWidth,
-			},
-			context: {
-				column: point.column,
-				generation: point.generation.toString(),
-				linkEpoch: point.linkEpoch.toString(),
-				revision: point.revision.toString(),
-				row: point.row.toString(),
-			},
-			target,
-		});
-	}
-
 	#clearHoveredLink(): void {
 		this.#pendingLinkPoint = undefined;
 		this.#linkAbortController?.abort();
 		this.#linkAbortController = undefined;
 		this.#hoveredLink = undefined;
 		this.#hoveredLinkPoint = undefined;
-		this.#imagePreviewController?.retire();
 		this.#renderer?.setHoveredLinkRange(null);
 		this.#updateSurfaceMouseCursor();
 	}
@@ -5675,7 +5548,6 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
-		this.#imagePreviewController?.retire();
 		if (this.#hintSession?.handleKeyDown(event) === true) return;
 		if (!this.#inputAdmissionIsOpen()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
@@ -7227,7 +7099,6 @@ export class ProjectedTerminal {
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
-		this.#imagePreviewController?.retire();
 		this.#setSurfaceMouseModifiers(event);
 		const inputOperationEpoch = this.#inputRepairEpoch;
 		this.#clearApplicationMouseClickSuppression();
@@ -7519,7 +7390,6 @@ export class ProjectedTerminal {
 		this.#queueLinkLookup({
 			column: point.column,
 			control: event.ctrlKey,
-			finePointer: event.pointerType === 'mouse',
 			generation: this.#historyGeneration,
 			linkEpoch: this.#linkEpoch,
 			meta: event.metaKey,

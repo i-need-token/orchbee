@@ -126,8 +126,6 @@ describe('startProjectedTerminalRenderer', () => {
 			userPreferences: memoryUserPreferences(),
 		});
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
-		const applyImagePreviewContent = vi.fn<ProjectedTerminal['applyImagePreviewContent']>();
-		const applyImagePreviewUnavailable = vi.fn<ProjectedTerminal['applyImagePreviewUnavailable']>();
 		const applyInputCapability = vi
 			.fn<ProjectedTerminal['applyInputCapability']>()
 			.mockReturnValue({ kind: 'applied' });
@@ -200,8 +198,6 @@ describe('startProjectedTerminalRenderer', () => {
 					options = nextOptions;
 					return {
 						applyFrame,
-						applyImagePreviewContent,
-						applyImagePreviewUnavailable,
 						applyInputCapability,
 						applyRows,
 						canControlTerminal: true,
@@ -581,17 +577,7 @@ describe('startProjectedTerminalRenderer', () => {
 				kind: 'selection-copy-content',
 				requestSequence: '10',
 			});
-			const imagePreviewContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer;
-			emitTransportMessage({
-				content: imagePreviewContent,
-				kind: 'image-preview-content',
-				mediaType: 'image/png',
-				requestSequence: '11',
-			});
-			emitTransportMessage({ kind: 'image-preview-unavailable', requestSequence: '12' });
 			expect(applyFrame).toHaveBeenCalledOnce();
-			expect(applyImagePreviewContent).toHaveBeenCalledWith('11', imagePreviewContent, 'image/png');
-			expect(applyImagePreviewUnavailable).toHaveBeenCalledWith('12');
 			expect(notifyBell).toHaveBeenCalledWith({
 				attachmentId: bootstrap.attachmentId,
 				sequence: '5',

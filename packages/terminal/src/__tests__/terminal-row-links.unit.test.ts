@@ -2,11 +2,7 @@ import { RowPromptClass, SemanticContent } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { TerminalBufferRenderCell, TerminalBufferRow } from '../buffer-rows';
-import {
-	detectTerminalRowLinks,
-	isPermittedExternalTerminalTarget,
-	isTerminalImagePreviewTarget,
-} from '../terminal-row-links';
+import { detectTerminalRowLinks, isPermittedExternalTerminalTarget } from '../terminal-row-links';
 
 describe('source-neutral terminal row links', () => {
 	it('gives an overlapping OSC 8 target precedence over plain URL detection', () => {
@@ -181,37 +177,6 @@ describe('source-neutral terminal row links', () => {
 				target: { kind: 'file', path: '/tmp/agent shots/result.PNG' },
 			}),
 		]);
-		expect(isTerminalImagePreviewTarget(links[0]?.target)).toBe(true);
-	});
-
-	it('admits only the accepted raster extensions as image-preview candidates', () => {
-		const targets = [
-			'/tmp/a.png',
-			'/tmp/a.JPEG',
-			'/tmp/a.gif',
-			'/tmp/a.webp',
-			'/tmp/a.avif',
-			'/tmp/a.bmp',
-			'/tmp/a.svg',
-			'/tmp/a.heic',
-			'/tmp/a.tiff',
-		].map((path) => ({ kind: 'file' as const, path }));
-
-		expect(targets.map(isTerminalImagePreviewTarget)).toEqual([
-			true,
-			true,
-			true,
-			true,
-			true,
-			true,
-			false,
-			false,
-			false,
-		]);
-		expect(isTerminalImagePreviewTarget({ kind: 'url', url: 'https://example.com/a.png' })).toBe(
-			false,
-		);
-		expect(isTerminalImagePreviewTarget(undefined)).toBe(false);
 	});
 
 	it('maps URLs in implicit narrow ASCII rows', () => {

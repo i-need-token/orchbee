@@ -1325,7 +1325,7 @@ describe('ProjectedTerminal', () => {
 		},
 	);
 
-	it('injects one attachment-local broadcast input at a time and revokes it with capability changes', async () => {
+	it('gates injectInput, which mobile input uses, by readiness revision and input capability', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -14594,7 +14594,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('previews and modifier-opens a current Desktop-local image path', async () => {
+	it('modifier-opens a current Desktop-local file path', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -14613,9 +14613,7 @@ describe('ProjectedTerminal', () => {
 			},
 			terminalId,
 		});
-		const imagePresentations = vi.fn<Parameters<ProjectedTerminal['onImagePreviewChange']>[0]>();
 		const linkRequests = vi.fn<Parameters<ProjectedTerminal['onLinkOpenRequest']>[0]>();
-		terminal.onImagePreviewChange(imagePresentations);
 		terminal.onLinkOpenRequest(linkRequests);
 		await terminal.open(browser.root);
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['/tmp/output.png', '']));
@@ -14623,67 +14621,19 @@ describe('ProjectedTerminal', () => {
 
 		canvas.dispatch(
 			'pointermove',
-			pointerEvent('pointermove', 0, 0, 2, 2, { pointerType: 'mouse' }),
+			pointerEvent('pointermove', 0, 0, 2, 2, { ctrlKey: true, pointerType: 'mouse' }),
 		);
 		await vi.waitFor(() =>
 			expect(commands.some((command) => command.kind === 'read-rows')).toBe(true),
 		);
 		const read = commands.at(-1);
-		if (read?.kind !== 'read-rows') throw new Error('image link lookup did not request rows');
+		if (read?.kind !== 'read-rows') throw new Error('file link lookup did not request rows');
 		expect(
 			terminal.applyRows(
 				renderRowWindow(BigInt(read.payload.requestSequence), 1n, 0n, 2n, ['/tmp/output.png', '']),
 			),
 		).toBe('committed');
-		await vi.waitFor(() =>
-			expect(commands.some((command) => command.kind === 'image-preview')).toBe(true),
-		);
-		const previewRequest = commands
-			.slice()
-			.reverse()
-			.find((command) => command.kind === 'image-preview');
-		if (previewRequest?.kind !== 'image-preview')
-			throw new Error('image preview was not requested');
-		expect(previewRequest.payload.path).toBe('/tmp/output.png');
-
-		const content = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer;
-		terminal.applyImagePreviewContent(previewRequest.payload.requestSequence, content, 'image/png');
-		expect(imagePresentations).toHaveBeenLastCalledWith(
-			expect.objectContaining({
-				content,
-				kind: 'visible',
-				mediaType: 'image/png',
-				path: '/tmp/output.png',
-			}),
-		);
-		canvas.dispatch('wheel', wheelEvent(1, 0));
-		expect(imagePresentations).toHaveBeenLastCalledWith({ kind: 'hidden' });
-
-		canvas.dispatch(
-			'pointermove',
-			pointerEvent('pointermove', 0, 0, 2, 2, { pointerType: 'mouse' }),
-		);
-		await vi.waitFor(() =>
-			expect(commands.filter((command) => command.kind === 'image-preview')).toHaveLength(2),
-		);
-		const currentPreviewRequest = commands
-			.slice()
-			.reverse()
-			.find((command) => command.kind === 'image-preview');
-		if (currentPreviewRequest?.kind !== 'image-preview') {
-			throw new Error('replacement image preview was not requested');
-		}
-		terminal.applyImagePreviewContent(
-			currentPreviewRequest.payload.requestSequence,
-			content,
-			'image/png',
-		);
-		const input = terminal.textarea as unknown as FakeElement;
-		input.dispatch(
-			'keydown',
-			keyboardEvent('keydown', 'ControlLeft', 'Control', 17, { ctrlKey: true }),
-		);
-		expect(imagePresentations).toHaveBeenLastCalledWith({ kind: 'hidden' });
+		await vi.waitFor(() => expect(canvas.style['cursor']).toBe('pointer'));
 
 		canvas.dispatch(
 			'pointerdown',
@@ -14692,7 +14642,6 @@ describe('ProjectedTerminal', () => {
 				pointerType: 'mouse',
 			}),
 		);
-		expect(imagePresentations).toHaveBeenLastCalledWith({ kind: 'hidden' });
 		const preventDefault = vi.fn<() => void>();
 		canvas.dispatch('click', {
 			button: 0,

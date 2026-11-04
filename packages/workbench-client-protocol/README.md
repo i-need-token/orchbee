@@ -145,13 +145,6 @@ targets retain the shared scheme policy; file targets are meaningful only to an 
 broker, which no composition supplies today. Browser, archived, and source-neutral attachments do not acquire local
 application-launch or filesystem-read authority from terminal text.
 
-Image preview is a separate request-bound flow. A capable renderer may request one detected local
-image path and cancel the exact request sequence. The owning local broker replies with either an exact bounded
-`ArrayBuffer` plus one admitted raster media type, or an unavailable result that reveals no file
-detail. The protocol caps preview content at 8 MiB and transports no file handle, directory listing,
-cache key, or persistence instruction. Request identity lets the renderer reject late content after
-hover replacement or attachment retirement; it does not authorize retry or remote file transfer.
-
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. The additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics belong to [`schemas/terminal`](../../schemas/terminal/README.md); `@orchbee/terminal-protocol` is the TypeScript binding.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.

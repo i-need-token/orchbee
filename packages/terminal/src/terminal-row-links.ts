@@ -25,7 +25,6 @@ const SHELL_ESCAPED_PATH_REGEX = new RegExp(
 	'gu',
 );
 const QUOTED_PATH_REGEX = /(["'])([^"'\r\n]+)\1(?::(\d+)(?::(\d+))?)?/gu;
-const IMAGE_PREVIEW_PATH_REGEX = /\.(?:png|jpe?g|gif|webp|avif|bmp)$/iu;
 const TRAILING_PATH_PUNCTUATION = /[.,;!?)\]，。！？）】]+$/u;
 const TRAILING_URL_PUNCTUATION = /[.,;!?)\]]+$/u;
 const URL_REGEX =
@@ -67,13 +66,6 @@ export function terminalLinkContains(link: ILink, column: number, row: number): 
 export function isPermittedExternalTerminalTarget(link: ILink): boolean {
 	const target = link.target;
 	return target?.kind === 'url' && normalizePermittedExternalTerminalUrl(target.url) !== null;
-}
-
-/** True only for the raster path extensions admitted to the optional preview workflow. */
-export function isTerminalImagePreviewTarget(
-	target: TerminalOpenTarget | null | undefined,
-): target is Extract<TerminalOpenTarget, { readonly kind: 'file' }> {
-	return target?.kind === 'file' && IMAGE_PREVIEW_PATH_REGEX.test(target.path);
 }
 
 export function buildLogicalTerminalTexts(

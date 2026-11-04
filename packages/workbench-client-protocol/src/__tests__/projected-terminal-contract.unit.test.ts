@@ -2,7 +2,6 @@ import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-	MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
 	ProjectedAttachmentBootstrapSchema,
 	ProjectedTerminalEventSchema,
 } from '../projected-terminal-contract';
@@ -230,47 +229,6 @@ describe('projected terminal contract', () => {
 				operationId,
 			}),
 		).toMatchObject({ kind: 'terminal-theme-failed', operationId });
-	});
-
-	it('bounds typed image-preview binary results', () => {
-		expect(
-			ProjectedTerminalEventSchema.safeParse({
-				content: new ArrayBuffer(MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES),
-				kind: 'image-preview-content',
-				mediaType: 'image/png',
-				requestSequence: '7',
-			}).success,
-		).toBe(true);
-		expect(
-			ProjectedTerminalEventSchema.safeParse({
-				content: new ArrayBuffer(MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES + 1),
-				kind: 'image-preview-content',
-				mediaType: 'image/png',
-				requestSequence: '7',
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalEventSchema.safeParse({
-				content: new ArrayBuffer(0),
-				kind: 'image-preview-content',
-				mediaType: 'image/png',
-				requestSequence: '7',
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalEventSchema.safeParse({
-				content: new ArrayBuffer(16),
-				kind: 'image-preview-content',
-				mediaType: 'image/svg+xml',
-				requestSequence: '7',
-			}).success,
-		).toBe(false);
-		expect(
-			ProjectedTerminalEventSchema.parse({
-				kind: 'image-preview-unavailable',
-				requestSequence: '7',
-			}),
-		).toEqual({ kind: 'image-preview-unavailable', requestSequence: '7' });
 	});
 
 	it('preserves binary frame payloads without JSON representation', () => {

@@ -1034,10 +1034,6 @@ test('terminal-parity/FS-19-local-file-links', async () => {
 			'data-witness-local-opened-paths',
 			'/fixture/images/final.png',
 		);
-		await expect(root).toHaveAttribute(
-			'data-witness-local-preview-path',
-			'/fixture/images/final.png',
-		);
 	} finally {
 		await page.context().browser()?.close();
 	}

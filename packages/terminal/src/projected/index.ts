@@ -39,11 +39,6 @@ export {
 	type ProjectedRowsResult,
 } from './projected-terminal';
 export type {
-	TerminalImagePreviewAnchor,
-	TerminalImagePreviewMediaType,
-	TerminalImagePreviewPresentation,
-} from './TerminalImagePreviewController';
-export type {
 	ProjectedCommandOutput,
 	ProjectedCommandOutputReadResult,
 } from './projected-command-output';
