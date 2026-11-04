@@ -1,4 +1,4 @@
-import type { WorkbenchAuthorityContext } from '@orchbee/workbench';
+import type { WorkbenchAuthorityContext } from '../../workbench';
 
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 

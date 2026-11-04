@@ -5,19 +5,19 @@
 	"status": "canonical",
 	"name": "Resource Dialog Composition",
 	"description": "Composes an independently owned compact Dialog header and footer around a Workbench resource form with native submission semantics.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["confirm-form", "edit-resource", "manage-resource"],
 	"implementation": [
-		"packages/workbench/src/workbench/components/resource-dialog-footer/ResourceDialogFooter.tsx",
-		"packages/workbench/src/workbench/components/resource-dialog-form/ResourceDialogForm.tsx",
-		"packages/workbench/src/workbench/components/resource-dialog-header/ResourceDialogHeader.tsx"
+		"apps/web/src/workbench/components/resource-dialog-footer/ResourceDialogFooter.tsx",
+		"apps/web/src/workbench/components/resource-dialog-form/ResourceDialogForm.tsx",
+		"apps/web/src/workbench/components/resource-dialog-header/ResourceDialogHeader.tsx"
 	],
 	"stories": [
 		{
 			"exportName": "ProjectWorkspaceNavigation",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-navigation",
 			"states": [
 				"Open Rename from a Project menu and inspect the lightweight compact title that also labels the only field, without a description, and the footer actions.",
 				"Open the simple Project path or Tab title form and compare the same structure with a dense description, a normal-weight field label, and Esc and Enter hints on the actions whose keys remain unambiguous throughout the task."
@@ -40,5 +40,5 @@
 		"Every editable field has a persistent visible compact label, which for a Dialog's only field may be a title that names its value; supporting and error text uses the body role, contextual descriptions appear only when validation or platform limits matter, and placeholders never replace guidance.",
 		"Cancel and submit preserve native form semantics; their buttons expose aria-hidden Kbd hints only while Escape and Enter retain those exact unambiguous meanings throughout the editable task."
 	],
-	"references": ["packages/workbench/docs/project-workspace.md"]
+	"references": ["apps/web/docs/project-workspace.md"]
 }

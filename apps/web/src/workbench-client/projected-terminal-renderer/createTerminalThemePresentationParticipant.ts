@@ -16,7 +16,7 @@ import {
 	type TerminalThemeRevisionEvent,
 	type TerminalThemeRevisionState,
 	type TerminalThemeSnapshot,
-} from '@orchbee/workbench/terminal-presentation';
+} from '../../terminal-presentation';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type {

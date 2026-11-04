@@ -1,4 +1,4 @@
-import type { WorkbenchAgentSource } from '@orchbee/workbench';
+import type { WorkbenchAgentSource } from '../../workbench';
 
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../terminal-interaction-settings';
 

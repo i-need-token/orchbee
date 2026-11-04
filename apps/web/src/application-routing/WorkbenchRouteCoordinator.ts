@@ -5,7 +5,7 @@ import {
 	type WorkbenchNavigationTarget,
 	type WorkbenchProjectCreationReceipt,
 	type WorkbenchProjectWorkspaceRuntime,
-} from '@orchbee/workbench';
+} from '../workbench';
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 
 import {

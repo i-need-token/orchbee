@@ -4,9 +4,9 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	WorkbenchProjectWorkspaceRuntime,
-	type WorkbenchLayoutStorage,
 	type WorkbenchShortcutPlatform,
-} from '@orchbee/workbench';
+} from '../workbench';
+import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
 import { RouterProvider } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

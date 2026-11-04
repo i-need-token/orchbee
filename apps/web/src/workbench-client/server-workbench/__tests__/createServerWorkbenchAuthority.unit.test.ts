@@ -4,7 +4,7 @@ import type {
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
 	WorkbenchAuthorityTabCreation,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import {
 	UserLaunchProfileCatalogSchema,
 	UserLaunchProfileIdSchema,

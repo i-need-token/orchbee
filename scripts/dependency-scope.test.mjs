@@ -11,12 +11,7 @@ import { assessDependencyReports, readRetentionPolicy } from './dependency-reten
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const knipBinary = join(repositoryRoot, 'node_modules/knip/bin/knip.js');
 const configuration = createKnipConfiguration({});
-const fixtureWorkspaces = [
-	'packages/workbench',
-	'packages/tab-strip',
-	'apps/web',
-	'apps/storybook',
-];
+const fixtureWorkspaces = ['packages/ui', 'packages/tab-strip', 'apps/web', 'apps/storybook'];
 
 function write(root, path, source) {
 	const target = join(root, path);
@@ -93,10 +88,10 @@ function withFixture(inspect, additionalWorkspaces = []) {
 				workspaces,
 			}),
 		);
-		writeWorkspace(root, 'packages/workbench', { exports: { '.': './src/index.ts' } });
+		writeWorkspace(root, 'packages/ui', { exports: { '.': './src/index.ts' } });
 		writeWorkspace(root, 'packages/tab-strip', {
 			exports: { '.': './src/index.ts' },
-			dependencies: { '@orchbee/workbench': 'workspace:*' },
+			dependencies: { '@orchbee/ui': 'workspace:*' },
 		});
 		writeWorkspace(root, 'apps/web', {
 			dependencies: { '@orchbee/tab-strip': 'workspace:*' },
@@ -113,7 +108,7 @@ function withFixture(inspect, additionalWorkspaces = []) {
 		});
 		write(
 			root,
-			'packages/workbench/src/index.ts',
+			'packages/ui/src/index.ts',
 			'export const value = 7;\nexport interface RuntimeValue { amount: number }\n',
 		);
 		write(
@@ -129,8 +124,8 @@ function withFixture(inspect, additionalWorkspaces = []) {
 		write(
 			root,
 			'packages/tab-strip/src/runtime.ts',
-			`import { value } from '@orchbee/workbench';
-import type { RuntimeValue } from '@orchbee/workbench';
+			`import { value } from '@orchbee/ui';
+import type { RuntimeValue } from '@orchbee/ui';
 export function computeValue() {
 	const snapshot: RuntimeValue = { amount: value };
 	return snapshot.amount;
@@ -151,7 +146,7 @@ export function computeValue() {
 			'packages/tab-strip/src/__tests__/runtime.unit.test.ts',
 			"import { useTabStripActions } from '../tab-strip/hooks/useTabStripActions';\nvoid useTabStripActions();\n",
 		);
-		for (const workspace of ['packages/workbench', 'packages/tab-strip', 'apps/web']) {
+		for (const workspace of ['packages/ui', 'packages/tab-strip', 'apps/web']) {
 			write(root, `${workspace}/config.ts`, 'export {};\n');
 			write(
 				root,
@@ -164,7 +159,7 @@ export function computeValue() {
 			'apps/storybook/.storybook/main.ts',
 			`export default {
 	stories: [
-		{ directory: '../../../packages/workbench/stories', files: '**/*.stories.@(ts|tsx)' },
+		{ directory: '../../../packages/ui/stories', files: '**/*.stories.@(ts|tsx)' },
 		{ directory: '../../../packages/tab-strip/stories', files: '**/*.stories.@(ts|tsx)' },
 		{ directory: '../../../apps/web/stories', files: '**/*.stories.@(ts|tsx)' },
 	],
@@ -177,13 +172,13 @@ export function computeValue() {
 		write(root, 'apps/storybook/src/__tests__/host.unit.test.ts', "import '../../config';\n");
 		write(
 			root,
-			'packages/workbench/src/__tests__/pendingActionExecution.ts',
+			'apps/web/src/__tests__/pendingActionExecution.ts',
 			'export function pendingActionExecution() { return 7; }\n',
 		);
 		for (const name of ['agent-navigation', 'terminal-navigation']) {
 			write(
 				root,
-				`packages/workbench/src/__tests__/${name}.unit.test.ts`,
+				`apps/web/src/__tests__/${name}.unit.test.ts`,
 				`import { pendingActionExecution } from './pendingActionExecution';
 pendingActionExecution();
 `,
@@ -237,23 +232,20 @@ test('bundled subpaths resolve to their declared sources without hiding private 
 	withFixture((root) => {
 		// Match the real output exclusion and declaration-to-source layout before exercising
 		// the JavaScript subpaths from the owning package manifest.
-		for (const path of ['.gitignore', 'tsconfig.base.json', 'packages/workbench/tsconfig.json']) {
+		for (const path of ['.gitignore', 'tsconfig.base.json', 'packages/ui/tsconfig.json']) {
 			write(root, path, readFileSync(join(repositoryRoot, path), 'utf8'));
 		}
-		const packagePath = 'packages/workbench/package.json';
+		const packagePath = 'packages/ui/package.json';
 		const manifest = JSON.parse(readFileSync(join(root, packagePath), 'utf8'));
 		const actual = JSON.parse(readFileSync(join(repositoryRoot, packagePath), 'utf8'));
-		for (const [subpath, name] of [
-			['document', 'documentValue'],
-			['project-workspace', 'projectWorkspaceValue'],
-		]) {
+		for (const [subpath, name] of [['components', 'componentsValue']]) {
 			const targets = actual.exports[`./${subpath}`];
 			manifest.exports[`./${subpath}`] = targets;
 			for (const [condition, target] of Object.entries(targets)) {
 				let contents = `export const ${name} = 11;\n`;
 				if (condition === 'require') contents = `exports.${name} = 11;\n`;
 				else if (condition === 'types') contents = `export declare const ${name}: number;\n`;
-				write(root, `packages/workbench/${target.slice(2)}`, contents);
+				write(root, `packages/ui/${target.slice(2)}`, contents);
 			}
 		}
 		write(root, packagePath, JSON.stringify(manifest));
@@ -262,36 +254,34 @@ test('bundled subpaths resolve to their declared sources without hiding private 
 			root,
 			consumerPath,
 			`${readFileSync(join(root, consumerPath), 'utf8')}
-import { documentValue } from '@orchbee/workbench/document';
-import { projectWorkspaceValue } from '@orchbee/workbench/project-workspace';
-void documentValue;
-void projectWorkspaceValue;
+import { componentsValue } from '@orchbee/ui/components';
+void componentsValue;
 `,
 		);
 		for (const production of [false, true]) assertIssues(analyze(root, production));
 
-		const source = 'packages/workbench/src/workbench/document/index.ts';
+		const source = 'packages/ui/src/components/index.ts';
 		write(
 			root,
 			source,
-			'export const documentValue = 11;\nexport const unusedDocumentValue = 12;\n',
+			'export const componentsValue = 11;\nexport const unusedComponentsValue = 12;\n',
 		);
 		for (const production of [false, true]) {
-			assertIssues(analyze(root, production), [`exports:${source}:unusedDocumentValue`]);
+			assertIssues(analyze(root, production), [`exports:${source}:unusedComponentsValue`]);
 		}
 
-		write(root, source, 'export const documentValue = 11;\n');
+		write(root, source, 'export const componentsValue = 11;\n');
 		const consumerManifestPath = 'packages/tab-strip/package.json';
 		const consumerManifest = JSON.parse(readFileSync(join(root, consumerManifestPath), 'utf8'));
-		delete consumerManifest.dependencies['@orchbee/workbench'];
+		delete consumerManifest.dependencies['@orchbee/ui'];
 		write(root, consumerManifestPath, JSON.stringify(consumerManifest));
 		const rootManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-		rootManifest.dependencies = { '@orchbee/workbench': 'workspace:*' };
+		rootManifest.dependencies = { '@orchbee/ui': 'workspace:*' };
 		write(root, 'package.json', JSON.stringify(rootManifest));
 		assertIssues(analyze(root));
 		assertIssues(analyze(root, true), [
-			'dependencies:package.json:@orchbee/workbench',
-			`unlisted:${consumerPath}:@orchbee/workbench`,
+			'dependencies:package.json:@orchbee/ui',
+			`unlisted:${consumerPath}:@orchbee/ui`,
 		]);
 	});
 });
@@ -302,14 +292,10 @@ test('runtime value and type consumers stay reachable while orphan test helpers 
 			const valid = analyze(root, production);
 			assertIssues(valid);
 		}
-		write(
-			root,
-			'packages/workbench/src/__tests__/orphan.ts',
-			'export function orphan() { return 9; }\n',
-		);
+		write(root, 'apps/web/src/__tests__/orphan.ts', 'export function orphan() { return 9; }\n');
 		const complete = analyze(root);
 		assertIssues(complete, [
-			'files:packages/workbench/src/__tests__/orphan.ts:packages/workbench/src/__tests__/orphan.ts',
+			'files:apps/web/src/__tests__/orphan.ts:apps/web/src/__tests__/orphan.ts',
 		]);
 		const production = analyze(root, true);
 		assertIssues(production);
@@ -318,7 +304,7 @@ test('runtime value and type consumers stay reachable while orphan test helpers 
 
 test('build scripts may use development dependencies that production source cannot borrow', () => {
 	withFixture((root) => {
-		const path = 'packages/workbench/package.json';
+		const path = 'packages/ui/package.json';
 		const manifest = JSON.parse(readFileSync(join(root, path), 'utf8'));
 		manifest.devDependencies = { 'fixture-dependency': '1.0.0' };
 		manifest.scripts.build = 'node build.mjs';
@@ -326,7 +312,7 @@ test('build scripts may use development dependencies that production source cann
 		writeDependency(root, 'fixture-dependency');
 		write(
 			root,
-			'packages/workbench/build.mjs',
+			'packages/ui/build.mjs',
 			"import { value } from 'fixture-dependency';\nprocess.stdout.write(String(value));\n",
 		);
 		for (const production of [false, true]) {
@@ -335,27 +321,27 @@ test('build scripts may use development dependencies that production source cann
 		}
 		write(
 			root,
-			'packages/workbench/src/index.ts',
+			'packages/ui/src/index.ts',
 			"import { value } from 'fixture-dependency';\nexport { value };\nexport interface RuntimeValue { amount: number }\n",
 		);
 		const production = analyze(root, true);
-		assertIssues(production, ['unlisted:packages/workbench/src/index.ts:fixture-dependency']);
+		assertIssues(production, ['unlisted:packages/ui/src/index.ts:fixture-dependency']);
 	});
 });
 
 test('a test consumer cannot keep an unused production module alive in the strict graph', () => {
 	withFixture((root) => {
-		write(root, 'packages/workbench/src/unused-production.ts', 'export const unused = 9;\n');
+		write(root, 'packages/ui/src/unused-production.ts', 'export const unused = 9;\n');
 		write(
 			root,
-			'packages/workbench/src/__tests__/production.unit.test.ts',
+			'packages/ui/src/__tests__/production.unit.test.ts',
 			"import { unused } from '../unused-production';\nvoid unused;\n",
 		);
 		const complete = analyze(root);
 		assertIssues(complete);
 		const production = analyze(root, true);
 		assertIssues(production, [
-			'files:packages/workbench/src/unused-production.ts:packages/workbench/src/unused-production.ts',
+			'files:packages/ui/src/unused-production.ts:packages/ui/src/unused-production.ts',
 		]);
 	});
 });
@@ -368,7 +354,7 @@ test('strict analysis rejects a runtime dependency borrowed from the workspace r
 		writeDependency(root, 'fixture-dependency');
 		write(
 			root,
-			'packages/workbench/src/index.ts',
+			'packages/ui/src/index.ts',
 			"import { value } from 'fixture-dependency';\nexport { value };\nexport interface RuntimeValue { amount: number }\n",
 		);
 		const complete = analyze(root);
@@ -378,22 +364,22 @@ test('strict analysis rejects a runtime dependency borrowed from the workspace r
 		// dependency is also unused; both diagnostics must survive the workspace boundary.
 		assertIssues(production, [
 			'dependencies:package.json:fixture-dependency',
-			'unlisted:packages/workbench/src/index.ts:fixture-dependency',
+			'unlisted:packages/ui/src/index.ts:fixture-dependency',
 		]);
 	});
 });
 
 test('private entry exports require consumers and a test consumer is insufficient in strict mode', () => {
 	withFixture((root) => {
-		const path = 'packages/workbench/src/index.ts';
+		const path = 'packages/ui/src/index.ts';
 		write(root, path, `${readFileSync(join(root, path), 'utf8')}export const unconsumed = 9;\n`);
-		const unused = ['exports:packages/workbench/src/index.ts:unconsumed'];
+		const unused = ['exports:packages/ui/src/index.ts:unconsumed'];
 		for (const production of [false, true]) {
 			assertIssues(analyze(root, production), unused);
 		}
 		write(
 			root,
-			'packages/workbench/src/__tests__/entry.unit.test.ts',
+			'packages/ui/src/__tests__/entry.unit.test.ts',
 			"import { unconsumed } from '../index';\nvoid unconsumed;\n",
 		);
 		assertIssues(analyze(root));
@@ -403,14 +389,10 @@ test('private entry exports require consumers and a test consumer is insufficien
 
 test('Storybook discovers development exports without keeping a production component alive', () => {
 	withFixture((root) => {
+		write(root, 'packages/ui/src/StoryOnly.tsx', 'export function StoryOnly() { return null; }\n');
 		write(
 			root,
-			'packages/workbench/src/StoryOnly.tsx',
-			'export function StoryOnly() { return null; }\n',
-		);
-		write(
-			root,
-			'packages/workbench/stories/fixture.stories.tsx',
+			'packages/ui/stories/fixture.stories.tsx',
 			`import '../config';
 import { StoryOnly } from '../src/StoryOnly';
 export default { component: StoryOnly };
@@ -419,7 +401,7 @@ export const Default = { render: StoryOnly };
 		);
 		assertIssues(analyze(root));
 		assertIssues(analyze(root, true), [
-			'files:packages/workbench/src/StoryOnly.tsx:packages/workbench/src/StoryOnly.tsx',
+			'files:packages/ui/src/StoryOnly.tsx:packages/ui/src/StoryOnly.tsx',
 		]);
 	});
 });
@@ -687,11 +669,11 @@ test('retention evidence reporter accepts exact fixture diagnostics and rejects 
 			};
 		};
 		assert.equal(assessDependencyReports(run(false), run(true), []).accepted, true);
-		const retainedFile = 'packages/workbench/src/retained-development.ts';
+		const retainedFile = 'packages/ui/src/retained-development.ts';
 		write(root, retainedFile, 'export const retained = 9;\n');
 		write(
 			root,
-			'packages/workbench/src/__tests__/retained-development.unit.test.ts',
+			'packages/ui/src/__tests__/retained-development.unit.test.ts',
 			"import { retained } from '../retained-development';\nvoid retained;\n",
 		);
 		const expected = [{ kind: 'files', file: retainedFile, name: retainedFile }];
@@ -699,14 +681,14 @@ test('retention evidence reporter accepts exact fixture diagnostics and rejects 
 		const strict = run(true);
 		assert.equal(strict.status, 1);
 		assert.equal(assessDependencyReports(full, strict, expected).accepted, true);
-		configured.workspaces['packages/workbench'].entry.push('src/missing-retention-entry.ts');
+		configured.workspaces['packages/ui'].entry.push('src/missing-retention-entry.ts');
 		writeConfiguration(root, configured);
 		const stale = run(false);
 		assert.equal(stale.status, 1);
 		assert.ok(retentionEvidenceEnvelope(stale).configurationHints.length > 0);
 		assert.throws(() => assessDependencyReports(stale, strict, expected), /Full Knip/u);
-		configured.workspaces['packages/workbench'].entry.pop();
-		configured.workspaces['packages/workbench'].ignoreBinaries = ['retention-fixture-unused'];
+		configured.workspaces['packages/ui'].entry.pop();
+		configured.workspaces['packages/ui'].ignoreBinaries = ['retention-fixture-unused'];
 		writeConfiguration(root, configured);
 		const staleStrict = run(true);
 		assert.equal(staleStrict.status, 1);
@@ -716,11 +698,11 @@ test('retention evidence reporter accepts exact fixture diagnostics and rejects 
 			() => assessDependencyReports(full, staleStrict, expected),
 			/configurationHints/u,
 		);
-		delete configured.workspaces['packages/workbench'].ignoreBinaries;
+		delete configured.workspaces['packages/ui'].ignoreBinaries;
 		writeConfiguration(root, configured);
 		write(
 			root,
-			'packages/workbench/src/index.ts',
+			'packages/ui/src/index.ts',
 			'/** @internal */\nexport const value = 7;\nexport interface RuntimeValue { amount: number }\n',
 		);
 		const tagged = run(true);

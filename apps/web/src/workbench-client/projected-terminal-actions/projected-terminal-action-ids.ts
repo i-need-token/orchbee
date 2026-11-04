@@ -3,7 +3,7 @@ import {
 	TERMINAL_ACTION_IDS,
 	type WorkbenchTerminalActionCatalog,
 	type WorkbenchTerminalLinkActionInput,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import { PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS } from '../../projected-terminal-keyboard-shortcuts';
 

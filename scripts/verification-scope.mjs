@@ -26,7 +26,7 @@ const foreignPaths = [
 const sharedContractInputs = [
 	[
 		'schemas/workbench/v1/workbench-action-identities-v1.json',
-		['packages/workbench', 'packages/tab-strip', 'apps/orchbee/crates/workbench-client'],
+		['apps/web', 'packages/tab-strip', 'apps/orchbee/crates/workbench-client'],
 	],
 	[
 		'schemas/workbench/v1/tab-close-targets-conformance-v1.json',

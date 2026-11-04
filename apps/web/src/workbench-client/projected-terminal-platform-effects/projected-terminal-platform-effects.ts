@@ -1,5 +1,5 @@
 import type { ProjectedTerminalSideEffectResult } from '@orchbee/terminal';
-import type { WorkbenchTerminalBellEffect } from '@orchbee/workbench';
+import type { WorkbenchTerminalBellEffect } from '../../workbench';
 
 type ProjectedTerminalClipboardReadResult =
 	| { readonly kind: 'completed'; readonly text: string }

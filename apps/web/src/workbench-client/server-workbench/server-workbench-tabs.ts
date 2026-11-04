@@ -1,5 +1,5 @@
 import type { TabStripArrangementChange } from '@orchbee/tab-strip';
-import type { WorkbenchAuthorityChange, WorkbenchAuthorityTabCreation } from '@orchbee/workbench';
+import type { WorkbenchAuthorityChange, WorkbenchAuthorityTabCreation } from '../../workbench';
 import {
 	WorkbenchLaunchSelectionSchema,
 	type UserLaunchProfile,

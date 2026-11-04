@@ -161,7 +161,7 @@ terminals; Desktop reads it from its Server connection bootstrap. The shared Web
 7 current-directory metadata; it never substitutes the Browser URL hostname, transport peer name, or
 renderer input. Projected frames carry the complete nullable natural title and current-directory
 observation. The protocol transports those values without selecting Tab-title precedence,
-persistence, or URI trust policy; `@orchbee/workbench` owns those decisions.
+persistence, or URI trust policy; `apps/web`'s Workbench owns those decisions.
 
 Projected frame and row-window events accept either an exact `ArrayBuffer` or a bounded `Uint8Array` view so in-process adapters can preserve a validated payload view. The visible payload is bounded by `maxFrameBytes` for frames and `maxRowWindowBytes` for row windows; a view's unrelated backing bytes do not count toward that limit. Before structured-cloning a view into a less-trusted capability, the transport owner must copy its visible bytes into an exact-size `ArrayBuffer`; structured clone carries the complete backing buffer, including bytes outside the view. Receivers still honor the declared byte offset and length, while transport trust and terminal-protocol validation remain separate responsibilities.
 
@@ -183,9 +183,9 @@ structural invariants live in `workbench-shared-project-workspace-contract.ts`; 
 parsing and Workbench transitions apply the same checks, so neither accepts a structure that the
 other rejects.
 
-`@orchbee/workbench` consumes these contracts and retains Client View, document transitions,
+`apps/web`'s Workbench consumes these contracts and retains Client View, document transitions,
 projection, hydration, reconciliation, and terminal-theme revisions. Its
-[shared-document reference](../workbench/docs/shared-workbench-document.md) remains the semantic
+[shared-document reference](../../apps/web/docs/shared-workbench-document.md) remains the semantic
 description of the document shape, presentation intent, and invariants. Applications and protocol
 packages parse stored or transported documents here without importing the React Workbench.
 

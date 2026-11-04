@@ -2,7 +2,7 @@ import {
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
 	type WorkbenchClientView,
-} from '@orchbee/workbench/document';
+} from '../../workbench';
 import { z } from 'zod';
 import {
 	TerminalPresentationIdSchema,

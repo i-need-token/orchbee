@@ -1,4 +1,4 @@
-import type { WorkbenchWorkspaceLocation } from '@orchbee/workbench';
+import type { WorkbenchWorkspaceLocation } from '../../../workbench';
 import { parseWorkbenchResponse, type WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

@@ -8,7 +8,7 @@ import type {
 	WorkbenchAuthorityTabReceipt,
 	WorkbenchConfiguredCommands,
 	WorkbenchProjectCreationReceipt,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
 	type UserLaunchProfileCatalog,

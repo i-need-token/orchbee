@@ -15,7 +15,7 @@ import type {
 	WorkbenchNewProjectFolderParent,
 	WorkbenchNewProjectFolderParentResult,
 	WorkbenchNewProjectFolderResult,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 

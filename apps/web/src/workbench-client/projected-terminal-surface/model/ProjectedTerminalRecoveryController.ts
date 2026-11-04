@@ -7,7 +7,7 @@ import type {
 	WorkbenchTerminalBroadcastInputReadiness,
 	WorkbenchTerminalBroadcastInputResult,
 	WorkbenchTerminalBroadcastInputSink,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 
 import type { ProjectedTerminalControlPresentation } from '../../projected-terminal-actions';
 import type {

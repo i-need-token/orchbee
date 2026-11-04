@@ -808,7 +808,7 @@ the other's source.
 
 - The [action identity registry](v1/workbench-action-identities-v1.json) lists, per owning GUI
   catalog (`workbench`, `tabs`), every GUI-namespace action identity that a native Client reuses.
-  Each `workbench` entry must be a `WORKBENCH_ACTION_IDS` value in `@orchbee/workbench`, and each
+  Each `workbench` entry must be a `WORKBENCH_ACTION_IDS` value in `apps/web`'s Workbench, and each
   `tabs` entry a `TAB_STRIP_ACTION_IDS` value in `@orchbee/tab-strip`. The native action projection
   reuses exactly the registered set; native-only identities keep their own namespace and are not
   registered.

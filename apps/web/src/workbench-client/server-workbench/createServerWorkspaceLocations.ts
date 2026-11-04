@@ -1,7 +1,4 @@
-import type {
-	WorkbenchWorkspaceLocation,
-	WorkbenchWorkspaceLocationSource,
-} from '@orchbee/workbench';
+import type { WorkbenchWorkspaceLocation, WorkbenchWorkspaceLocationSource } from '../../workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
 	type WorkbenchSnapshot,

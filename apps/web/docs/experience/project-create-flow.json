@@ -5,7 +5,7 @@
 	"status": "canonical",
 	"name": "Project Create Flow",
 	"description": "Creates a local Project from shared Folder acquisition or delegates an optional host-owned remote Project enrollment entry such as Desktop SSH.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"acquire-folder",
@@ -15,15 +15,15 @@
 		"create-folder"
 	],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-create-menu/ProjectCreateMenu.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/create-project-dialog/CreateProjectDialog.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/create-project-folder-dialog/CreateProjectFolderDialog.tsx"
+		"apps/web/src/workbench/components/workbench-sidebar/components/project-create-menu/ProjectCreateMenu.tsx",
+		"apps/web/src/workbench/components/workbench-sidebar/components/create-project-dialog/CreateProjectDialog.tsx",
+		"apps/web/src/workbench/components/workbench-sidebar/components/create-project-folder-dialog/CreateProjectFolderDialog.tsx"
 	],
 	"stories": [
 		{
 			"exportName": "SimplifiedChineseSidebar",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--simplified-chinese-sidebar",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--simplified-chinese-sidebar",
 			"states": [
 				"Open the optional Create Project menu, choose Select Folder, and inspect the browser path-entry dialog.",
 				"Inspect the disabled New Folder command without replacing the shared Folder acquisition menu."
@@ -31,8 +31,8 @@
 		},
 		{
 			"exportName": "NativeProjectFolderAcquisition",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--native-project-folder-acquisition",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--native-project-folder-acquisition",
 			"states": [
 				"Open the optional Create Project menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
 				"Choose New Folder, inspect the selected parent and single name, cancel once, then explicitly Create and inspect the resulting Project, Primary Workspace and terminal projection."
@@ -40,8 +40,8 @@
 		},
 		{
 			"exportName": "SshProjectConnection",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--ssh-project-connection",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--ssh-project-connection",
 			"states": [
 				"Open the optional Create Project menu and inspect the host-injected Connect via SSH entry alongside the canonical local Folder choices."
 			]
@@ -66,5 +66,5 @@
 		"Cancellation before Create has no effect; retirement cancels queued uncommitted Actions and suppresses late activation. A committed Folder remains visible in recovery and is never deleted or recreated automatically.",
 		"The existing Project Action atomically creates Project metadata, Primary Workspace and the first terminal projection. New Folder separately commits mkdir and requires the exact Action receipt, canonical publication and activation result before reporting Project opening."
 	],
-	"references": ["packages/workbench/docs/project-workspace.md"]
+	"references": ["apps/web/docs/project-workspace.md"]
 }

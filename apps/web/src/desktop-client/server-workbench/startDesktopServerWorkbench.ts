@@ -17,10 +17,7 @@ import {
 	workbenchMessages,
 } from '@orchbee/i18n';
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
-import {
-	matchesWorkbenchProjectCreation,
-	type WorkbenchShortcutPlatform,
-} from '@orchbee/workbench';
+import { matchesWorkbenchProjectCreation, type WorkbenchShortcutPlatform } from '../../workbench';
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench-client-protocol';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';

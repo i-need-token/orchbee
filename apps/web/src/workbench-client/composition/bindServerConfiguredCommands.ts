@@ -4,7 +4,7 @@ import {
 	type WorkbenchConfiguredCommandOutcome,
 	type WorkbenchConfiguredCommands,
 	type WorkbenchProjectWorkspaceRuntime,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import type { ServerConnection } from '../server-connection';
 import {

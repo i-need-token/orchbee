@@ -13,11 +13,6 @@ const config: StorybookConfig = {
 			titlePrefix: 'UI',
 		},
 		{
-			directory: '../../../packages/workbench/stories',
-			files: '**/*.stories.@(ts|tsx)',
-			titlePrefix: 'Packages/Workbench',
-		},
-		{
 			directory: '../../../packages/tab-strip/stories',
 			files: '**/*.stories.@(ts|tsx)',
 			titlePrefix: 'Packages/TabStrip',

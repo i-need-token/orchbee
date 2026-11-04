@@ -4,7 +4,7 @@ import type { ProjectedPasteReview, TerminalImagePreviewPresentation } from '@or
 import type {
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurfaceProps,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import * as React from 'react';
 
 import {

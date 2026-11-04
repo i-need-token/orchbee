@@ -3,7 +3,7 @@ import '@orchbee/ui/styles.css';
 import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import type { ProjectedAttachmentBootstrap } from '@orchbee/workbench-client-protocol';
 import {
 	AttachmentIdSchema,

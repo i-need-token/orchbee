@@ -5,7 +5,7 @@ import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	WorkbenchProjectWorkspaceRuntime,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';

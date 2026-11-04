@@ -63,6 +63,8 @@ export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/wo
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type { WorkbenchTerminalPresentationEventResult } from './model/WorkbenchProjectWorkspaceRuntime';
 export type { WorkbenchPublication } from './model/workbench-publication';
+export { createDefaultWorkbenchClientView, createWorkbenchClientView } from './document';
+export type { WorkbenchClientView } from './document';
 
 export type { WorkbenchTerminalPresentationCommand } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export type { WorkbenchPanelPosition, WorkbenchTabPosition } from './actions/workbench-action-ids';

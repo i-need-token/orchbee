@@ -5,7 +5,7 @@
 	"status": "canonical",
 	"name": "Panel Workspace",
 	"description": "Renders deterministic terminal panel layouts, directional, cyclic, positional, and visible focus or swap selection, child-terminal navigation, exact-current-directory Tab creation, snapshot-bound broadcast input, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"create-current-directory-tab",
@@ -21,13 +21,13 @@
 		"switch-terminal"
 	],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-panel-workspace/WorkbenchPanelWorkspace.tsx"
+		"apps/web/src/workbench/components/workbench-panel-workspace/WorkbenchPanelWorkspace.tsx"
 	],
 	"stories": [
 		{
 			"exportName": "PanelWorkspace",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--panel-workspace",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-workspace",
 			"states": [
 				"Split the active terminal into multiple panels and inspect headers, inactive masks, separators, and menu actions.",
 				"Split three Panels into a nested layout, cycle focus forward and backward through canonical leaf order, and inspect both wrap boundaries and terminal-input continuity.",
@@ -42,24 +42,24 @@
 		},
 		{
 			"exportName": "PanelBroadcastInput",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--panel-broadcast-input",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-broadcast-input",
 			"states": [
 				"Inspect a live three-Panel broadcast session, its dedicated input bar, exact target shields, hidden-input control, explicit end control, and each target's delivered text."
 			]
 		},
 		{
 			"exportName": "PanelVisualSelection",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--panel-visual-selection",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-visual-selection",
 			"states": [
 				"Inspect a three-Panel visible focus-selection session, physical labels, inactive targeting surfaces, and the exclusive keyboard scope."
 			]
 		},
 		{
 			"exportName": "PanelVisualSwapSelection",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--panel-visual-swap-selection",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-visual-swap-selection",
 			"states": [
 				"Inspect a three-Panel visible swap-selection session, source exclusion, pointer targets, and source-focus preservation after commit."
 			]
@@ -89,5 +89,5 @@
 		"Managed close retains topology until every exact presentation close completes; partial failure remains retryable without rollback.",
 		"Host PTY and process lifecycle remain outside the Panel workspace owner."
 	],
-	"references": ["packages/workbench/README.md"]
+	"references": ["apps/web/docs/workbench.md"]
 }

@@ -1,7 +1,7 @@
 import type {
 	WorkbenchAuthorityContext,
 	WorkbenchAuthoritySplitRatioChange,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import { parseWorkbenchResponse, type WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

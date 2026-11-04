@@ -5,17 +5,17 @@
 	"status": "canonical",
 	"name": "Unified Search Surface",
 	"description": "Provides one keyboard-first Workbench surface for local Actions, Settings, and composed searchable providers.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["discover-action", "search-workbench", "select-search-result"],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-search-surface/WorkbenchSearchSurface.tsx"
+		"apps/web/src/workbench/components/workbench-search-surface/WorkbenchSearchSurface.tsx"
 	],
 	"stories": [
 		{
 			"exportName": "UnifiedSearchAll",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--unified-search-all",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--unified-search-all",
 			"states": [
 				"Inspect the open All filter with fixed input, filter controls, grouped results, and keyboard footer.",
 				"Type a query, move the highlight with keyboard and pointer input, and open a nested Action argument picker."
@@ -36,5 +36,5 @@
 		"Closing or backing out of nested input performs no semantic Action mutation.",
 		"Prepared Action input remains bound to the originating runtime scope and executes at most once."
 	],
-	"references": ["packages/workbench/docs/unified-search.md"]
+	"references": ["apps/web/docs/unified-search.md"]
 }

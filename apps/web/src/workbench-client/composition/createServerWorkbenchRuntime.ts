@@ -12,7 +12,7 @@ import {
 	type WorkbenchAuthority,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchWorkspaceLocationSource,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,

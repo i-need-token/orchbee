@@ -39,11 +39,6 @@ export default function createKnipConfiguration({ production, strict }) {
 				project: ['src/**/*.{ts,tsx}!', 'stories/**/*.tsx', '*.ts'],
 				includeEntryExports: true,
 			},
-			'packages/workbench': {
-				entry: ['stories/**/*.stories.tsx'],
-				project: ['src/**/*.{ts,tsx}!', 'stories/**/*.tsx', '*.ts', '!src/**/__tests__/**!'],
-				includeEntryExports: true,
-			},
 			'packages/terminal-protocol': {
 				entry: ['src/**/*.unit.test.{ts,tsx}!', 'scripts/*.mjs!'],
 				project: ['src/**/*.{ts,tsx}!', 'scripts/*.mjs!', '*.ts', '!src/__tests__/conformance/**!'],
@@ -86,7 +81,13 @@ export default function createKnipConfiguration({ production, strict }) {
 					'stories/**/*.stories.tsx',
 					'system-tests/*.spec.ts',
 				],
-				project: ['src/**/*.{ts,tsx}!', 'stories/**/*.tsx', 'system-tests/*.ts', '*.ts'],
+				project: [
+					'src/**/*.{ts,tsx}!',
+					'stories/**/*.tsx',
+					'system-tests/*.ts',
+					'*.ts',
+					'!src/**/__tests__/**!',
+				],
 			},
 			'apps/desktop': {
 				entry: [
@@ -101,7 +102,7 @@ export default function createKnipConfiguration({ production, strict }) {
 			},
 			'apps/storybook': {
 				entry: ['src/**/*.unit.test.{ts,tsx}!'],
-				ignoreDependencies: ['@orchbee/tab-strip!', '@orchbee/ui!', '@orchbee/workbench!'],
+				ignoreDependencies: ['@orchbee/tab-strip!', '@orchbee/ui!'],
 				project: ['.storybook/*.ts!', 'src/**/*.{ts,tsx}!', '*.ts'],
 			},
 			'apps/terminal-host': {

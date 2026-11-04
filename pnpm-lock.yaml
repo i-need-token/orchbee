@@ -180,9 +180,6 @@ importers:
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../../packages/ui
-      '@orchbee/workbench':
-        specifier: workspace:^
-        version: link:../../packages/workbench
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -258,9 +255,6 @@ importers:
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../../packages/ui
-      '@orchbee/workbench':
-        specifier: workspace:^
-        version: link:../../packages/workbench
       '@orchbee/workbench-client-protocol':
         specifier: workspace:^
         version: link:../../packages/workbench-client-protocol
@@ -307,6 +301,9 @@ importers:
       ajv:
         specifier: 8.20.0
         version: 8.20.0
+      fast-check:
+        specifier: 4.9.0
+        version: 4.9.0
       jsdom:
         specifier: 29.1.1
         version: 29.1.1
@@ -629,67 +626,6 @@ importers:
       tw-animate-css:
         specifier: 'catalog:'
         version: 1.4.0
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
-
-  packages/workbench:
-    dependencies:
-      '@orchbee/actions':
-        specifier: workspace:^
-        version: link:../actions
-      '@orchbee/foundation':
-        specifier: workspace:^
-        version: link:../foundation
-      '@orchbee/i18n':
-        specifier: workspace:^
-        version: link:../i18n
-      '@orchbee/keyboard-shortcuts':
-        specifier: workspace:^
-        version: link:../keyboard-shortcuts
-      '@orchbee/tab-strip':
-        specifier: workspace:^
-        version: link:../tab-strip
-      '@orchbee/ui':
-        specifier: workspace:^
-        version: link:../ui
-      '@orchbee/workbench-client-protocol':
-        specifier: workspace:^
-        version: link:../workbench-client-protocol
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
-    devDependencies:
-      '@rsbuild/plugin-react':
-        specifier: 'catalog:'
-        version: 2.1.0(@rsbuild/core@2.1.6)(@rspack/core@2.1.4(@swc/helpers@0.5.23))
-      '@rslib/core':
-        specifier: 'catalog:'
-        version: 0.23.2(typescript@7.0.2)
-      '@testing-library/react':
-        specifier: 16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.17)
-      fast-check:
-        specifier: 4.9.0
-        version: 4.9.0
-      jsdom:
-        specifier: 29.1.1
-        version: 29.1.1
-      react:
-        specifier: 'catalog:'
-        version: 19.2.7
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.7(react@19.2.7)
-      storybook-react-rsbuild:
-        specifier: 'catalog:'
-        version: 3.3.4(@rsbuild/core@2.1.6)(@rspack/core@2.1.4(@swc/helpers@0.5.23))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.5.2(@types/react@19.2.17)(react@19.2.7))(tslib@2.8.1)(typescript@7.0.2)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))(webpack@5.108.4(esbuild@0.28.1)(postcss@8.5.19))
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))

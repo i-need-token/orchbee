@@ -5,19 +5,19 @@
 	"status": "canonical",
 	"name": "Workbench Action Menu",
 	"description": "Projects a Workbench action-entry model into consistent dropdown and context-menu presentations.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["invoke-action", "open-context-menu", "open-dropdown-menu"],
 	"implementation": [
-		"packages/workbench/src/workbench/types/workbench-action-menu.ts",
-		"packages/workbench/src/workbench/components/workbench-action-context-menu-content/WorkbenchActionContextMenuContent.tsx",
-		"packages/workbench/src/workbench/components/workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent.tsx"
+		"apps/web/src/workbench/types/workbench-action-menu.ts",
+		"apps/web/src/workbench/components/workbench-action-context-menu-content/WorkbenchActionContextMenuContent.tsx",
+		"apps/web/src/workbench/components/workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent.tsx"
 	],
 	"stories": [
 		{
 			"exportName": "ProjectWorkspaceNavigation",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-navigation",
 			"states": [
 				"Open the Project section add menu and inspect its command icons, disabled treatment, and grouping.",
 				"Open a Project or Workspace ellipsis menu and inspect its icon, grouping, destructive action, and submenu states.",
@@ -26,8 +26,8 @@
 		},
 		{
 			"exportName": "ProjectWorkspaceKeyboardMenu",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-keyboard-menu",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-keyboard-menu",
 			"states": [
 				"Inspect the same row action entries through Shift+F10 or ContextMenu and right-click, then dismiss to the exact valid row trigger without changing navigation.",
 				"Confirm that dialog and outside-focus handoffs retain their focus and that menu keys do not create a second menu."
@@ -35,8 +35,8 @@
 		},
 		{
 			"exportName": "PanelWorkspace",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--panel-workspace",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-workspace",
 			"states": [
 				"Right-click a terminal viewport and inspect the curated terminal commands above the panel menu: New child terminal and Broadcast Input, Split right and Split below, Maximize once another Panel exists, then the red Close; the Panel header's ellipsis and right-click show the same panel menu.",
 				"Confirm that only commands with an effective binding render a trailing shortcut and that custom labels match Action search."
@@ -62,5 +62,5 @@
 		"The terminal viewport menu contains only frequent contextual terminal Actions; lower-frequency terminal Actions remain discoverable in Action search.",
 		"Action invocation does not encode pointer geometry into confirmation policy; destructive confirmation remains identical for pointer and keyboard menu selection."
 	],
-	"references": ["packages/workbench/README.md"]
+	"references": ["apps/web/docs/workbench.md"]
 }

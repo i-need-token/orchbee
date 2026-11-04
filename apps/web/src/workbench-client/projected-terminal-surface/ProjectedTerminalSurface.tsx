@@ -1,6 +1,6 @@
 import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { Button } from '@orchbee/ui/components';
-import type { WorkbenchTerminalSurfaceProps } from '@orchbee/workbench';
+import type { WorkbenchTerminalSurfaceProps } from '../../workbench';
 import type { ReactNode } from 'react';
 
 import styles from './ProjectedTerminalSurface.module.css';

@@ -158,7 +158,7 @@ ports. Unsupported explicit runtime markers are rejected.
 | Owner                | Responsibility                                                                                  |
 | -------------------- | ----------------------------------------------------------------------------------------------- |
 | `@orchbee/web`       | Route declarations, history, route resolution, unavailable state, and Workbench navigation port |
-| `@orchbee/workbench` | Router-neutral navigation intent port and Client View transitions                               |
+| `src/workbench`      | Router-neutral navigation intent port and Client View transitions                               |
 | `@orchbee/tab-strip` | Router-neutral Tab-selection intent port and multi-selection semantics                          |
 | `@orchbee/desktop`   | `orchbee://app` resource delivery and the initial renderer URL                                  |
 

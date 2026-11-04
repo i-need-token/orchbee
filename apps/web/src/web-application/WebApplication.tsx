@@ -4,7 +4,6 @@ import {
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
 	type WorkbenchEnvironmentProjectConnectionCapability,
-	type WorkbenchLayoutStorage,
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
@@ -13,7 +12,8 @@ import {
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
 	type WorkbenchWorkspaceLocationSource,
-} from '@orchbee/workbench';
+} from '../workbench';
+import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
 import type { ReactNode } from 'react';
 
 import type {

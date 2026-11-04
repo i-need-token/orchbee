@@ -14,7 +14,6 @@
 	"dependencies": {
 		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/ui": "workspace:^",
-		"@orchbee/workbench": "workspace:^",
 		"react": "catalog:",
 		"react-dom": "catalog:"
 	},

@@ -1,7 +1,4 @@
-import {
-	createDefaultWorkbenchClientView,
-	createWorkbenchClientView,
-} from '@orchbee/workbench/document';
+import { createDefaultWorkbenchClientView, createWorkbenchClientView } from '../../../workbench';
 import { describe, expect, it } from 'vitest';
 import {
 	terminalPresentationId,

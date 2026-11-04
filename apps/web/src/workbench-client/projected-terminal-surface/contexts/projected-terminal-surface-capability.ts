@@ -1,7 +1,7 @@
 import type {
 	WorkbenchAgentSource,
 	WorkbenchTerminalPresentationEventResult,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalPresentationSnapshot,

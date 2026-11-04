@@ -21,7 +21,6 @@ zig-out/
 # Package-local correctness toolchains and generated model-checker state
 /packages/tab-strip/.tools/
 /packages/actions/.tools/
-/packages/workbench/.tools/
 /packages/terminal-protocol/.tools/
 /packages/terminal/.tools/
 /apps/desktop/.tools/
@@ -29,6 +28,5 @@ zig-out/
 /.tools/
 /packages/terminal-protocol/formal/tla/states/
 /packages/tab-strip/formal/tla/states/
-/packages/workbench/formal/tla/states/
 /states/
 /packages/tab-strip/test-results/

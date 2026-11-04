@@ -3,8 +3,8 @@
 | Field             | Value                                                                                                                                      |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Status            | Accepted; the search surface and bounded asynchronous provider coordination are implemented; Agent and Terminal integrations remain future |
-| Owner             | `@orchbee/workbench`, Agent capability, Terminal capability, and application composition maintainers                                       |
-| Current authority | [`packages/workbench/docs/unified-search.md`](../../packages/workbench/docs/unified-search.md)                                             |
+| Owner             | `@orchbee/web`, Agent capability, Terminal capability, and application composition maintainers                                             |
+| Current authority | [`apps/web/docs/unified-search.md`](../../apps/web/docs/unified-search.md)                                                                 |
 | Exit condition    | Integrate the remaining owned providers, update current authorities and tests, then delete this proposal                                   |
 
 ## Current foundation

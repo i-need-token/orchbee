@@ -7,7 +7,7 @@ import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalSurfaceProps,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import { act, createElement, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';

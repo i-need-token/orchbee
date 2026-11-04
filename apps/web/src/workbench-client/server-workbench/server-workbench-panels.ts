@@ -4,7 +4,7 @@ import type {
 	WorkbenchAuthorityPanelTerminalCreation,
 	WorkbenchAuthorityPanelTerminalReceipt,
 	WorkbenchAuthoritySplitRatioChange,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import type {
 	WorkbenchPanelNode,
 	WorkbenchSnapshot,

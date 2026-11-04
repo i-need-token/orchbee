@@ -4,7 +4,7 @@ import type {
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchTabCloseStop,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
 	type WorkbenchResponse,

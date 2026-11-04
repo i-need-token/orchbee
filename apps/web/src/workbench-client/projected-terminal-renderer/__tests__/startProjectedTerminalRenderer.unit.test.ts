@@ -2,7 +2,7 @@ import { ActionRuntime } from '@orchbee/actions';
 import type {
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalBellEffect,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import {
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,

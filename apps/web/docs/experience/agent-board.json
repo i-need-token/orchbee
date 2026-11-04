@@ -5,15 +5,15 @@
 	"status": "candidate",
 	"name": "Agent Board",
 	"description": "Lists the Server's Agent sessions with their status, Tab, provider, freshness and place, waiting ones first, and jumps to the chosen session's terminal after checking the session again.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["jump-to-agent-session", "list-agent-sessions"],
-	"implementation": ["packages/workbench/src/workbench/components/workbench-agent-board-dialog"],
+	"implementation": ["apps/web/src/workbench/components/workbench-agent-board-dialog"],
 	"stories": [
 		{
 			"exportName": "Sessions",
-			"file": "packages/workbench/stories/workbench-agent-board-dialog.stories.tsx",
-			"id": "packages-workbench-agent-board--sessions",
+			"file": "apps/web/stories/workbench-agent-board-dialog.stories.tsx",
+			"id": "applications-web-agent-board--sessions",
 			"states": [
 				"Inspect the waiting session first, a stale and a disconnected one, one no Panel can reach, and the dimmed ended ones, each named by its Tab and placed by its Workspace.",
 				"Move the selection with Up, Down, j, k, Home and End, and see the selected row follow the keyboard and scroll into view."
@@ -21,34 +21,34 @@
 		},
 		{
 			"exportName": "SessionsChinese",
-			"file": "packages/workbench/stories/workbench-agent-board-dialog.stories.tsx",
-			"id": "packages-workbench-agent-board--sessions-chinese",
+			"file": "apps/web/stories/workbench-agent-board-dialog.stories.tsx",
+			"id": "applications-web-agent-board--sessions-chinese",
 			"states": ["Inspect the same rows, status words and footer in Simplified Chinese."]
 		},
 		{
 			"exportName": "PartialRead",
-			"file": "packages/workbench/stories/workbench-agent-board-dialog.stories.tsx",
-			"id": "packages-workbench-agent-board--partial-read",
+			"file": "apps/web/stories/workbench-agent-board-dialog.stories.tsx",
+			"id": "applications-web-agent-board--partial-read",
 			"states": ["See the status line say the listing is incomplete while the rows stay."]
 		},
 		{
 			"exportName": "JumpFailed",
-			"file": "packages/workbench/stories/workbench-agent-board-dialog.stories.tsx",
-			"id": "packages-workbench-agent-board--jump-failed",
+			"file": "apps/web/stories/workbench-agent-board-dialog.stories.tsx",
+			"id": "applications-web-agent-board--jump-failed",
 			"states": ["See the warning that says why the last jump stopped."]
 		},
 		{
 			"exportName": "Empty",
-			"file": "packages/workbench/stories/workbench-agent-board-dialog.stories.tsx",
-			"id": "packages-workbench-agent-board--empty",
+			"file": "apps/web/stories/workbench-agent-board-dialog.stories.tsx",
+			"id": "applications-web-agent-board--empty",
 			"states": [
 				"See the empty list say that the Server has no Agent sessions, with Open disabled."
 			]
 		},
 		{
 			"exportName": "ReadFailed",
-			"file": "packages/workbench/stories/workbench-agent-board-dialog.stories.tsx",
-			"id": "packages-workbench-agent-board--read-failed",
+			"file": "apps/web/stories/workbench-agent-board-dialog.stories.tsx",
+			"id": "applications-web-agent-board--read-failed",
 			"states": ["See the list say why the first read failed."]
 		}
 	],
@@ -69,5 +69,5 @@
 		"Escape, the close button, and backdrop dismissal return focus to where it was when the board opened.",
 		"Up, Down, j, k, Home, and End move the selection and r reads again; a key held with Ctrl, Alt, or Meta passes through."
 	],
-	"references": ["packages/workbench/README.md"]
+	"references": ["apps/web/docs/workbench.md"]
 }

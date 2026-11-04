@@ -142,8 +142,8 @@ The Workbench product domain is shared; its renderer is not. Server owns canonic
 transitions and publishes framework-neutral, versioned semantic snapshots and deltas. Browser and
 Desktop use the one React implementation owned by `apps/web`; Rust TUI and future mobile Clients
 own separate presentation implementations. CLI may return a bounded structured semantic projection
-snapshot, never HTML, a React tree, pixels, or another Client's local view. The current mixed
-`@orchbee/workbench` package is decomposed along that boundary and deleted after migration.
+snapshot, never HTML, a React tree, pixels, or another Client's local view. The former mixed
+`@orchbee/workbench` package moved into `apps/web` and was deleted.
 
 ## Accepted semantic-control direction
 

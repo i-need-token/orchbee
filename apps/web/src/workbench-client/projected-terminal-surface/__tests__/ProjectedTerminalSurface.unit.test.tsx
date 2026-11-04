@@ -1,6 +1,6 @@
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import type { WorkbenchTerminalPresentation } from '@orchbee/workbench';
+import type { WorkbenchTerminalPresentation } from '../../../workbench';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';

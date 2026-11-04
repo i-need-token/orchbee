@@ -100,7 +100,7 @@ start until every result for the current envelope settles.
   `Ctrl+Escape` ends the session, and unmodified Escape is a broadcast key.
 - While active, the bar owns keyboard focus and Panel target shields own pointer hit testing.
   Workbench shortcuts and ordinary terminal DOM input cannot observe a broadcast keystroke.
-- `@orchbee/workbench` is the only writer of session state, target membership, FIFO order,
+- Workbench is the only writer of session state, target membership, FIFO order,
   notices, and focus-restoration commands.
 - Each injected terminal surface owns current write readiness, target-specific modifier and
   Option-as-Alt interpretation, semantic key publication, capability revision, and transport

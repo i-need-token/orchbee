@@ -166,7 +166,7 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	for (const [contract, packages] of [
 		[
 			'schemas/workbench/v1/workbench-action-identities-v1.json',
-			['@orchbee/tab-strip', '@orchbee/workbench'],
+			['@orchbee/tab-strip', '@orchbee/web'],
 		],
 		['schemas/workbench/v1/tab-close-targets-conformance-v1.json', ['@orchbee/tab-strip']],
 		['schemas/workbench/v1/shared-theme-colors-v1.json', ['@orchbee/design-tokens']],

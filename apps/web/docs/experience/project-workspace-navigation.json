@@ -5,7 +5,7 @@
 	"status": "canonical",
 	"name": "Project and Workspace Navigation",
 	"description": "Presents independently creatable Workspaces, optional Project groups, stable selection, semantic menus, where each Workspace stands, and live Agents directly under each Workspace.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"create-worktree",
@@ -25,22 +25,22 @@
 		"dissolve-project"
 	],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarFocusRequest.ts",
-		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkspaceWorktrees.ts",
-		"packages/workbench/src/workbench/actions/registerWorkbenchWorktreeActions.ts",
-		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarWorkspaceLocations.ts",
-		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useNavigationReorderDrag.ts",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-location-line/WorkspaceLocationLine.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-status-line/WorkspaceAgentStatusLine.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx"
+		"apps/web/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
+		"apps/web/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarFocusRequest.ts",
+		"apps/web/src/workbench/components/workbench-sidebar/hooks/useWorkspaceWorktrees.ts",
+		"apps/web/src/workbench/actions/registerWorkbenchWorktreeActions.ts",
+		"apps/web/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarWorkspaceLocations.ts",
+		"apps/web/src/workbench/components/workbench-sidebar/hooks/useNavigationReorderDrag.ts",
+		"apps/web/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
+		"apps/web/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-location-line/WorkspaceLocationLine.tsx",
+		"apps/web/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-status-line/WorkspaceAgentStatusLine.tsx",
+		"apps/web/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx"
 	],
 	"stories": [
 		{
 			"exportName": "ProjectWorkspaceNavigation",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-navigation",
 			"states": [
 				"Inspect fixed New workspace and Search full-row actions above the Workspace list, which has no heading of its own. Activate with keyboard and pointer, scroll a long list, and verify that both entries remain visible at 200px sidebar width in both locales.",
 				"Create multiple Workspaces with one click and inspect distinct localized default names, then move, ungroup, or dissolve a group while retaining terminal state.",
@@ -54,8 +54,8 @@
 		},
 		{
 			"exportName": "ProjectWorkspaceKeyboardMenu",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-keyboard-menu",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-keyboard-menu",
 			"states": [
 				"Inspect the Chinese Workspace menu opened by Shift+F10 without changing the active Workspace or Project disclosure.",
 				"Escape returns to that row's visible options trigger; repeat with the ContextMenu key and right-click, and verify that only one menu opens.",
@@ -65,8 +65,8 @@
 		},
 		{
 			"exportName": "ProjectWorkspaceFocusReveal",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-focus-reveal",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-focus-reveal",
 			"states": [
 				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal its offscreen current Workspace inside the Project scroll region without changing active location or Project disclosure.",
 				"At wide and compact sizes, verify that only the Project scroll region moves and outer Workbench and document scrolling remain unchanged; focusing an already visible row leaves scrollTop unchanged.",
@@ -75,8 +75,8 @@
 		},
 		{
 			"exportName": "CollapsedProjectFocusReveal",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--collapsed-project-focus-reveal",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--collapsed-project-focus-reveal",
 			"states": [
 				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal the last Project, folded around its hidden active Workspace, preserving the collapsed state and active terminal; the heading takes focus but no current fill.",
 				"Inspect Chinese focus and menu affordances at wide and compact sizes; the folded Project holding the active Workspace takes precedence over the standalone Terminal fallback."
@@ -84,8 +84,8 @@
 		},
 		{
 			"exportName": "WorkspaceAgentOverview",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--workspace-agent-overview",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--workspace-agent-overview",
 			"states": [
 				"Compare a single provider summary, a two-provider overlapped summary, a three-provider generic Agent summary, and a Workspace with the default layout icon because it has no observed Agent.",
 				"Inspect exact counts of terminals holding an Agent independently from the number of distinct provider marks and verify attention, failure, working, success, and idle states use both a glyph and semantic color.",
@@ -96,8 +96,8 @@
 		},
 		{
 			"exportName": "WorkspaceLocations",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--workspace-locations",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--workspace-locations",
 			"states": [
 				"Compare a Workspace on a branch with commits to push and pull, one with only commits to pull, one with no divergence, and one outside Git that names its folder; verify ↑ counts take the success color and ↓ counts the warning color beside the trailing markers.",
 				"Narrow the sidebar to 200px and verify the long branch truncates at its end while the long folder keeps its final folder and truncates its start; hover each second line for its full text.",
@@ -107,8 +107,8 @@
 		},
 		{
 			"exportName": "SshProjectConnection",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--ssh-project-connection",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--ssh-project-connection",
 			"states": [
 				"Inspect a remote Project connection indicator and accessible status, then open Project options to inspect the explicit Connect action.",
 				"Change the deterministic capability state when exercising the component test to inspect pending, connected, retry, and disconnect projections."
@@ -161,5 +161,5 @@
 		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, launch resources, terminal contexts, attachments, focus, and zoom.",
 		"A late Worktree creation or opening activates only the latest live initiating intent; newer Workspace, Tab, or Panel navigation retires it."
 	],
-	"references": ["packages/workbench/docs/project-workspace.md", "packages/workbench/README.md"]
+	"references": ["apps/web/docs/project-workspace.md", "apps/web/docs/workbench.md"]
 }

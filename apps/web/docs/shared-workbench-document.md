@@ -8,7 +8,7 @@ Two versioned contracts have different authority:
   Browser page and Electron renderer page connected to one application runtime.
   `@orchbee/workbench-client-protocol` owns its strict schema, revision, and parser.
 - `WorkbenchClientView` is one page's disposable navigation and layout projection, owned by
-  `@orchbee/workbench/document`. It never authorizes a product or terminal lifecycle change.
+  `src/workbench/document`. It never authorizes a product or terminal lifecycle change.
 
 Workbench produces, hydrates, and transforms both contracts; this reference remains their semantic
 description. Neither package performs a storage, IPC, process, network, React, or DOM effect.
@@ -181,7 +181,7 @@ broadcasts.
 | Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                                                                                                                                            | Host binding existence remains application work                  |
 | Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                                                                                                                                       | Rename presentation is adapter-owned                             |
 | Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation                                                                                                                             | One renderer runtime                                             |
-| An empty Terminal Context carries no presentation intent     | [Document schema tests](../../workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts)                                                                             | Pure structure; no remote runtime admission                      |
+| An empty Terminal Context carries no presentation intent     | [Document schema tests](../../../packages/workbench-client-protocol/src/__tests__/workbench-shared-document-contract.unit.test.ts)                                                                 | Pure structure; no remote runtime admission                      |
 | View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests                                                                                                                            | Shared ordering is Desktop session authority                     |
 | Preview state cannot claim shared durability                 | Deterministic rejection test                                                                                                                                                                       | Preview remains an in-memory composition                         |
 | Application stop is durable before close and batch-retryable | [Stop lifecycle tests](../src/workbench/model/__tests__/terminal-session-stop.unit.test.ts) and [document runtime tests](../src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts) | Controlled runtime fixtures; OS termination is outside the claim |

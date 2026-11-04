@@ -75,7 +75,7 @@ Invalid explicit Directories reject. Unavailable local defaults are skipped. Rem
 
 ### Semantic command projections and terminal creation
 
-The internal `semantic-commands` subsystem owns the current terminal creation operation and its location contract; it has no package subpath. Exact terminal locations contain only Workspace identity; the retired TypeScript CLI list projections are not part of this package.
+The internal `semantic-commands` subsystem owns the current terminal creation operation and its location contract; no other module imports it. Exact terminal locations contain only Workspace identity; the retired TypeScript CLI list projections are not part of this package.
 
 `executeWorkbenchTerminalCreate` changes one exact context, preserving current Workspace and existing Tab selections. The sole first Tab is the empty-context validity fallback. Results contain exact context/Tab/Panel/presentation and preview/provision identities. Application owners assign the revision, durably commit before process reconciliation and handle effects and navigation. Missing identities or invalid launch targets reject without mutation.
 

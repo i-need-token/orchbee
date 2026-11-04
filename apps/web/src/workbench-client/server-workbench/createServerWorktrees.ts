@@ -7,7 +7,7 @@ import type {
 	WorkbenchWorktreeRemoval,
 	WorkbenchWorktrees,
 	WorkbenchWorktreeStoppedRemoval,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import {
 	parseWorkbenchRequest,
 	WORKBENCH_PROTOCOL_VERSION,

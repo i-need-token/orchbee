@@ -10,7 +10,7 @@ import {
 	type WorkbenchShortcutId,
 	type WorkbenchPanelPosition,
 	type WorkbenchTabPosition,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import {
 	PROJECTED_TERMINAL_SHORTCUTS,

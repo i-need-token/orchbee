@@ -10,7 +10,7 @@ const knipVersion = '6.26.0';
 const analysisInputs = [
 	{
 		file: 'knip.config.mjs',
-		sha256: '475bfb87736314b70d217a77e838cd4ddcc407e4993876618570e21cfe70c9e3',
+		sha256: '8d940b3832478e684539359761b79c6d91e5591d7e01dd15f0cd51bc07270c3f',
 	},
 	{
 		file: 'pnpm-workspace.yaml',
@@ -22,7 +22,7 @@ const analysisInputs = [
 	},
 	{
 		file: '.gitignore',
-		sha256: '8385428233d4a4029dc255fccf125060d7d004f46f8b0dc00cc3cb0dc945b1ec',
+		sha256: '5d9a3e726c3d0dbad3973ee92954edb2d7ab7bd0dcc753ca5ffa517a326c31ac',
 	},
 ];
 const retentionOwners = [

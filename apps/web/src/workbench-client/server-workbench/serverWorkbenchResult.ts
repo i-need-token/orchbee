@@ -1,5 +1,5 @@
 import type { ActionResult } from '@orchbee/actions';
-import type { WorkbenchAuthorityContext } from '@orchbee/workbench';
+import type { WorkbenchAuthorityContext } from '../../workbench';
 
 import type { ServerWorkbenchOutcome, ServerWorkbenchSubmission } from './ServerWorkbenchSession';
 

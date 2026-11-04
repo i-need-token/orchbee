@@ -1,4 +1,4 @@
-import type { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../workbench';
 import {
 	workbenchSharedDocumentRevision,
 	type TerminalPresentationId,

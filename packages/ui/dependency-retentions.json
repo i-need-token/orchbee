@@ -48,19 +48,19 @@
 				},
 				{
 					"file": "apps/storybook/.storybook/main.ts",
-					"sha256": "f987f5ee675625150a77687ecff1463543309e344b239d86b394767aaf50c534"
+					"sha256": "509dac0d28253012472a554bd2599d6caa9e32d5f6520ad05b68a961518ae4b3"
 				},
 				{
 					"file": "apps/storybook/.storybook/preview.ts",
-					"sha256": "9910c82d2afd8e79ee7f098c89a523c8ff0066b3a1198404d58b9e0bd3f82520"
+					"sha256": "b07eab7be1792cc35752557787ca3e29e8d5e2edaabf45aaf00c919c66feb8cb"
 				},
 				{
 					"file": "apps/storybook/package.json",
-					"sha256": "03fe152eececef706269494d0985a4ff291e0b4279243def8c3e835708365465"
+					"sha256": "8c428d54b964a465f16553e94f9374b84b11eac6dce70fa305c9c68405ede6b2"
 				},
 				{
 					"file": "apps/storybook/tsconfig.json",
-					"sha256": "87f652b2911248e163d2375a7837f9020d98c83ee115a1fce71a0e33d8d7f785"
+					"sha256": "4f2bcb26dda7bb730e8abf7bede421941bdb314cbf5b3a436237233c3a11017b"
 				}
 			],
 			"diagnostics": [

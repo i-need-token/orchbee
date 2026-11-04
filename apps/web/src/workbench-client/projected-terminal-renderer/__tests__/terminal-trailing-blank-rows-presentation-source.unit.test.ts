@@ -1,4 +1,4 @@
-import type { WorkbenchAgentSnapshot, WorkbenchAgentSource } from '@orchbee/workbench';
+import type { WorkbenchAgentSnapshot, WorkbenchAgentSource } from '../../../workbench';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';

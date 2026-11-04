@@ -4,7 +4,7 @@ import type { UserPreferencesControl } from '../../user-preferences';
 import type {
 	WorkbenchAgentNotification,
 	WorkbenchAgentNotificationObserver,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
 

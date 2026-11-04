@@ -3,7 +3,7 @@ import {
 	showWorkbenchClientTarget,
 	type WorkbenchClientTarget,
 	type WorkbenchProjectWorkspaceRuntime,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import type { ServerConnection } from '../server-connection';
 import {

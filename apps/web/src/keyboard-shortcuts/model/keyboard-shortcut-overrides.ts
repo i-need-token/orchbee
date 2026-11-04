@@ -3,7 +3,7 @@ import {
 	type KeyboardShortcutChord,
 	type KeyboardShortcutPlatform,
 } from '@orchbee/keyboard-shortcuts';
-import { WORKBENCH_SHORTCUTS } from '@orchbee/workbench';
+import { WORKBENCH_SHORTCUTS } from '../../workbench';
 
 import { PROJECTED_TERMINAL_SHORTCUTS } from '../../projected-terminal-keyboard-shortcuts';
 import {

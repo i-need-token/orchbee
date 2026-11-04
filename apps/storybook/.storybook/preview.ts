@@ -1,6 +1,5 @@
 import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
-import '@orchbee/workbench/styles.css';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import type { Preview } from 'storybook-react-rsbuild';

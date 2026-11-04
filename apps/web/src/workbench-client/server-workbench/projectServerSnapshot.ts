@@ -1,6 +1,6 @@
 import { workbenchTabMessages, type IntlShape } from '@orchbee/i18n';
-import type { WorkbenchPublication } from '@orchbee/workbench';
-import { deriveProjectNameFromPath } from '@orchbee/workbench/project-workspace';
+import type { WorkbenchPublication } from '../../workbench';
+import { deriveProjectNameFromPath } from '../../project-workspace';
 import {
 	createWorkbenchSharedDocument,
 	terminalPresentationOperationId,

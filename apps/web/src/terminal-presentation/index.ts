@@ -4,3 +4,18 @@ export {
 } from './terminal-product-font-family';
 export { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE } from './terminal-presentation-configuration-source';
 export type { TerminalPresentationConfigurationSource } from './terminal-presentation-configuration-source';
+export {
+	createTerminalThemeRevisionStateFromHost,
+	normalizeTerminalThemeHostState,
+	normalizeTerminalThemeSnapshot,
+	terminalThemeOperationId,
+	transitionTerminalThemeRevision,
+} from './terminal-theme-revision';
+export type {
+	TerminalThemeFailure,
+	TerminalThemeOperationId,
+	TerminalThemeRevisionCommand,
+	TerminalThemeRevisionEvent,
+	TerminalThemeRevisionState,
+	TerminalThemeSnapshot,
+} from './terminal-theme-revision';

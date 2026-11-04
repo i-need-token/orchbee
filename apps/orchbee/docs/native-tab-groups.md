@@ -80,7 +80,7 @@ Chinese menu, path and drag copy calls each Tab **标签页** and a group **分�
 The localized wording distinguishes selected members from a whole group without changing captured IDs.
 
 Collapsed state remains Client-local, matching the authority in
-`packages/workbench/src/workbench/document/workbench-client-view.ts`. Header disclosure does not
+`apps/web/src/workbench/document/workbench-client-view.ts`. Header disclosure does not
 select a member, submit a command, advance a shared revision or hide members from the navigator.
 A group name uses its color as a bold accent over a faint tint; current and pointer surfaces replace
 only the tint through the [theme owner](native-themes.md#selection-and-ownership). Monochrome

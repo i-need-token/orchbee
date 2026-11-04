@@ -500,7 +500,6 @@ runtime, retired with the Desktop Electron suite.
 ```sh
 pnpm --filter @orchbee/keyboard-shortcuts typecheck
 pnpm --filter @orchbee/keyboard-shortcuts test
-pnpm --filter @orchbee/workbench test
 pnpm --filter @orchbee/web typecheck
 pnpm --filter @orchbee/web test
 ```

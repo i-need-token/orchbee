@@ -1,4 +1,4 @@
-import type { WorkbenchAuthorityClosure, WorkbenchAuthorityContext } from '@orchbee/workbench';
+import type { WorkbenchAuthorityClosure, WorkbenchAuthorityContext } from '../../../workbench';
 import { parseWorkbenchResponse, type WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

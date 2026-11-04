@@ -35,7 +35,7 @@ import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputReadiness,
 	WorkbenchTerminalBroadcastInputResult,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import type { ApplicationLocaleSource } from '../../application-locale';

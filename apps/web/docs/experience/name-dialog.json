@@ -5,7 +5,7 @@
 	"status": "canonical",
 	"name": "Name Dialog",
 	"description": "Asks for one name to rename a Project, Workspace, Tab, or Tab group, or to create a named Project or Tab group, under a title that also labels the field and a caller-declared rule for a blank name.",
-	"owner": "@orchbee/workbench",
+	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"create-project-and-move-workspace",
@@ -16,12 +16,12 @@
 		"rename-workspace",
 		"restore-tab-title"
 	],
-	"implementation": ["packages/workbench/src/workbench/components/name-dialog/NameDialog.tsx"],
+	"implementation": ["apps/web/src/workbench/components/name-dialog/NameDialog.tsx"],
 	"stories": [
 		{
 			"exportName": "ProjectWorkspaceNavigation",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-navigation",
 			"states": [
 				"Choose Rename from a Project or Workspace menu, inspect the prefilled and selected current name under a title that also labels the field, then submit or cancel.",
 				"Clear the name and submit to see the localized reason with the field focused, then type a name and see the reason go.",
@@ -30,8 +30,8 @@
 		},
 		{
 			"exportName": "TabTitleEditing",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--tab-title-editing",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--tab-title-editing",
 			"states": [
 				"Use the active Tab shortcut to inspect the prefilled and selected current name with the help that says a blank name restores the terminal's title.",
 				"Submit a name, then reopen from the Tab's Rename row, clear, and submit to restore the terminal title.",
@@ -56,5 +56,5 @@
 		"Submitting commits to the target captured when the Dialog opened and never redirects the name to a newly active Tab, group, Project, or Workspace.",
 		"A name never changes a directory, launch resources, terminal identity, or Git identity."
 	],
-	"references": ["packages/workbench/README.md", "packages/workbench/docs/project-workspace.md"]
+	"references": ["apps/web/docs/workbench.md", "apps/web/docs/project-workspace.md"]
 }

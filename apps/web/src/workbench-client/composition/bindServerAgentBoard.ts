@@ -6,7 +6,7 @@ import {
 	type WorkbenchAgentBoardRow,
 	type WorkbenchAgentBoardSnapshot,
 	type WorkbenchProjectWorkspaceRuntime,
-} from '@orchbee/workbench';
+} from '../../workbench';
 
 import type { AgentSessionSummary, ServerConnection } from '../server-connection';
 import { getServerAgentSession, listServerAgentSessions } from '../server-workbench';

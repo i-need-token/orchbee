@@ -1,9 +1,9 @@
 import { createOrchbeeIntl } from '@orchbee/i18n';
-import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
-} from '@orchbee/workbench/document';
+	WorkbenchProjectWorkspaceRuntime,
+} from '../../../workbench';
 import {
 	parseWorkbenchResponse,
 	terminalPresentationId,

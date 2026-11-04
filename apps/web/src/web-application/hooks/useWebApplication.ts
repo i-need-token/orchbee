@@ -2,7 +2,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchTerminalFontSizeChangeCallback,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
 import { type TerminalSettingsController, useTerminalSettings } from '../../terminal-settings';

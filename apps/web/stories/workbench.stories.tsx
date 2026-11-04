@@ -5,7 +5,7 @@ import {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
 	createWorkbenchPreviewTerminalPresentationComposition,
-} from '@orchbee/workbench';
+} from '../src/workbench';
 import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
@@ -15,7 +15,7 @@ import type {
 	WorkbenchTerminalSurfaceProps,
 	WorkbenchWorkspaceLocation,
 	WorkbenchWorkspaceLocationSource,
-} from '@orchbee/workbench';
+} from '../src/workbench';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 import {

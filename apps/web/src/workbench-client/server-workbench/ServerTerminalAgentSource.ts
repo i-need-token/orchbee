@@ -2,7 +2,7 @@ import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import {
 	WORKBENCH_PROTOCOL_VERSION,
 	type WorkbenchPanelNode,

@@ -2,7 +2,7 @@ import '@orchbee/ui/styles.css';
 
 import { ActionRuntime, type ActionDiscoveryResult } from '@orchbee/actions';
 import { ProjectedTerminal, type ProjectedTerminalOptions } from '@orchbee/terminal';
-import type { WorkbenchTerminalActionContextProvider } from '@orchbee/workbench';
+import type { WorkbenchTerminalActionContextProvider } from '../../../workbench';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
 import {
 	ActiveScreen,

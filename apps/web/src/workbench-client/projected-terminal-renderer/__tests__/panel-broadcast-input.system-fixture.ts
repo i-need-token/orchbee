@@ -7,7 +7,7 @@ import {
 	type WorkbenchTerminalBroadcastInput,
 	type WorkbenchTerminalPresentationCommand,
 	type WorkbenchTerminalSurfaceProps,
-} from '@orchbee/workbench';
+} from '../../../workbench';
 import { createElement, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import {

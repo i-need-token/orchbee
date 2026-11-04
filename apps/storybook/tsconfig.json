@@ -9,6 +9,7 @@
 		".storybook",
 		"src",
 		"../../apps/web/src/projected-terminal-css-properties.d.ts",
+		"../../apps/web/src/workbench-css-properties.d.ts",
 		"../../apps/web/stories",
 		"../../packages/*/stories"
 	]

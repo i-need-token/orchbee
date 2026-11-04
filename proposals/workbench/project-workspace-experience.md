@@ -4,12 +4,12 @@
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Status            | Retained as future GUI planning input under native runtime topology. Current Desktop capabilities remain running; future deletion, launch and cross-device effects require separate admission. |
 | Owner             | Workbench product maintainers and platform application owners                                                                                                                                  |
-| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                           |
+| Current authority | [`apps/web/docs/project-workspace.md`](../../apps/web/docs/project-workspace.md)                                                                                                               |
 | Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                               |
 
 ## Current foundation
 
-`@orchbee/workbench` already owns the in-memory Project, Directory, Workspace, active-location, Tab,
+`apps/web`'s Workbench already owns the in-memory Project, Directory, Workspace, active-location, Tab,
 Panel, and terminal-presentation composition. The browser preview supports synthetic Folder paths
 without filesystem or Git effects. Those implemented facts are maintained by the current authority
 and are not repeated here.

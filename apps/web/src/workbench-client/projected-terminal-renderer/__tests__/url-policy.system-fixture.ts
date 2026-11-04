@@ -7,7 +7,7 @@ import {
 	type ProjectedTerminalOptions,
 	type TerminalImagePreviewPresentation,
 } from '@orchbee/terminal';
-import type { WorkbenchTerminalActionContextProvider } from '@orchbee/workbench';
+import type { WorkbenchTerminalActionContextProvider } from '../../../workbench';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';

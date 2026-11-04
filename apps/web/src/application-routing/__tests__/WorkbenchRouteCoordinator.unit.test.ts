@@ -3,7 +3,7 @@ import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalPresentationCommand,
-} from '@orchbee/workbench';
+} from '../../workbench';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	terminalPresentationId,
