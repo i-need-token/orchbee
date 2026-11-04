@@ -396,35 +396,6 @@ export function collectPanelLeaves(root: PanelLayoutNode): readonly PanelLeaf[] 
 	return panels;
 }
 
-/**
- * Asks as the TUI does: before ending a terminal that may still run a program, and before closing a
- * Presentation with no terminal to read. A terminal that ended, or whose launch failed, closes
- * unasked.
- */
-export function terminalRequiresCloseConfirmation(terminal: TerminalPresentation): boolean {
-	switch (terminal.lifecycle.kind) {
-		case 'running':
-			return terminal.closeActivity !== 'idle';
-		case 'unbound':
-			return true;
-		case 'exited':
-		case 'failed':
-		case 'launch-failed':
-			return false;
-	}
-}
-
-export function countTerminalsRequiringCloseConfirmation(root: PanelLayoutNode): number {
-	return collectPanelLeaves(root).reduce(
-		(count, panel) =>
-			count +
-			[panel.primaryPresentation, ...panel.childPresentations].filter(
-				terminalRequiresCloseConfirmation,
-			).length,
-		0,
-	);
-}
-
 export function findPanel(root: PanelLayoutNode, panelId: string): PanelLeaf | null {
 	return findPanelInNode(root, panelId);
 }

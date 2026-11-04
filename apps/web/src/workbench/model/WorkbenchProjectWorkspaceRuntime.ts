@@ -20,7 +20,6 @@ import {
 } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import {
 	collectPanelLeaves,
-	countTerminalsRequiringCloseConfirmation,
 	findTerminal,
 	validatePanelWorkspaceState,
 	type PanelLayoutNode,
@@ -246,17 +245,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 			target,
 			terminalContextId: context.terminalContextId,
 		});
-	}
-
-	public getActiveTerminalTabsCloseConfirmationCount(tabIds: readonly string[]): number {
-		const requestedTabIds = new Set(tabIds);
-		return (this.getActiveTerminalContext()?.panelWorkspaceStore.getSnapshot().tabs ?? []).reduce(
-			(count, tab) =>
-				requestedTabIds.has(tab.tabId)
-					? count + countTerminalsRequiringCloseConfirmation(tab.root)
-					: count,
-			0,
-		);
 	}
 
 	/** What closing these Tabs does to every terminal they hold. */

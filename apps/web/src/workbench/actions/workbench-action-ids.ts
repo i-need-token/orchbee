@@ -27,6 +27,7 @@ export const WORKBENCH_ACTION_IDS = {
 	createWorkspaceProject: 'workbench.workspace.create-project',
 	closeProjectWorkspaces: 'workbench.project.close-all',
 	closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
+	closeTabConfirmed: 'workbench.tab.close-confirmed',
 	deleteWorkspace: 'workbench.workspace.delete',
 	equalizeActivePanels: 'workbench.panel.active.equalize',
 	focusActiveTerminal: 'workbench.focus.active-terminal',
@@ -215,6 +216,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed]: ActionSignature<WorkbenchWorkspaceInput>;
+	readonly [WORKBENCH_ACTION_IDS.closeTabConfirmed]: ActionSignature<WorkbenchTabTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<

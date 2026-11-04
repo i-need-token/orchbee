@@ -50,6 +50,7 @@ import {
 	serverHostColors,
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
+	ServerLeavingTabs,
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
 	ServerTerminalProjectionClient,
@@ -172,11 +173,20 @@ export function createServerWorkbenchRuntime({
 		() => session.snapshot,
 		() => adoptPublication(session.snapshot),
 	);
+	const leavingTabs = new ServerLeavingTabs(
+		() => session.snapshot,
+		(returned) => {
+			adoptPublication(session.snapshot);
+			// A Tab that left took what its terminals reported with it, so it shows that again.
+			if (returned) reapplyTerminalMetadata();
+		},
+	);
 	const adoptPublication = (snapshot: WorkbenchSnapshot): void => {
 		terminalEnds.prune(snapshot);
+		leavingTabs.prune(snapshot);
 		try {
 			projectWorkspaceRuntime.applyPublishedWorkbench(
-				projectServerSnapshot(snapshot, intl, terminalEnds.ends),
+				projectServerSnapshot(snapshot, intl, terminalEnds.ends, leavingTabs.leaving),
 			);
 		} catch (error) {
 			onPublicationFailure(error);
@@ -210,6 +220,7 @@ export function createServerWorkbenchRuntime({
 		},
 		...(launchProfiles === undefined ? {} : { launchProfiles }),
 		session,
+		tabLeave: leavingTabs,
 	});
 
 	// A publication can replace the terminal a Panel shows and this Client can move its focus, so both
@@ -270,6 +281,11 @@ export function createServerWorkbenchRuntime({
 					: nameServerTerminalTitle(observation.naturalTitle, intl),
 		});
 	};
+	const reapplyTerminalMetadata = (): void => {
+		for (const [presentationId, { metadata }] of metadataCursors) {
+			applyTerminalMetadata(presentationId, metadata);
+		}
+	};
 	const windowTitle =
 		titleWindow === undefined
 			? null
@@ -299,9 +315,7 @@ export function createServerWorkbenchRuntime({
 		locale = next;
 		intl = createOrchbeeIntl(next);
 		adoptPublication(session.snapshot);
-		for (const [presentationId, { metadata }] of metadataCursors) {
-			applyTerminalMetadata(presentationId, metadata);
-		}
+		reapplyTerminalMetadata();
 		windowTitle?.refresh();
 	});
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {

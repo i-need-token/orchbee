@@ -1081,22 +1081,24 @@ These choices stand unless review changes them:
   otherwise answers the Workspace's directory. The sample takes a directory the shell reported
   before the root process's, where the TUI used to read only the root process. The GUI waits at
   most five seconds, then uses the last directory the Server followed.
-- **Decision 2 has moved one workflow so far.** Of the Rust Client's multi-step workflows, only the
-  New Workspace directory moved to the Server. A Tab set close waits until ORC-301 settles the TUI's
-  own sequence, and Duplicate waits for step 5's decision on progress and the full comparison. The
+- **Decision 2 has moved two workflows so far.** Of the Rust Client's multi-step workflows, the
+  New Workspace directory and the evidence for whether one Tab or Panel close asks (ORC-307) moved
+  to the Server. A Tab set close waits until ORC-301 settles the TUI's own sequence, and Duplicate
+  waits for step 5's decision on progress and the full comparison. The
   TUI's Worktree launch and Worktree sidebar keep sampling the source terminal themselves until step 5. The rest stays in each Client, either as presentation, such as selection, navigation memory,
   drafts, and the close and take-control prompts, or because it belongs to the Client's own
   connection: Viewer membership and switching, settling a commit against the publications that
   Client sees, recovery fences, and removing a closed context.
-- **A close follows the TUI's states without its probes.** A Workspace asks the Server's conditional
-  close first and a Project always asks. A single Tab or Panel asks from the close activity its
-  surface last observed, not from the TUI's shell report and process sample, and a set of Tabs always
-  asks. Step 5 decides whether the difference still matters. A set compares the facts of its own
-  Tabs, not the whole snapshot.
-- **A close is followed to an end and never replayed.** Stale Workspace closes alone are sent again,
-  within the TUI's limit and only on unchanged facts. An accepted close reads its operation for at
-  most 50 seconds. Step 5 adds Resume for a Tab close that stopped where it may continue; an
-  unknown outcome is never resumed.
+- **A close follows the TUI's states, and the Server decides when one asks.** A Workspace, one
+  Tab, and one Panel send the Server's conditional close first, as the TUI does since ORC-307, and a
+  Project and a set of Tabs always ask. A Tab whose accepted close the window follows leaves the
+  strip at once and returns with its report when that close ends any other way. A set compares the
+  facts of its own Tabs, not the whole snapshot.
+- **A close is followed to an end and never replayed.** Stale conditional and Workspace closes alone
+  are sent again, within the TUI's limit and only on unchanged facts. An accepted close reads its
+  operation for at most 50 seconds, and a Tab's last Panel is followed as its Tab's close. Step 5
+  adds Resume for a Tab close that stopped where it may continue; an unknown outcome is never
+  resumed.
 - **Child terminals have no close.** The Server has no command that closes one child Presentation,
   so that entry stays disabled.
 - **A Tab strip says what was asked for.** With an authority, its Actions report a change and the next

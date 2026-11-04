@@ -183,18 +183,37 @@ function firstWorkspaceInDisplayOrder(
 	return publication.workspaces.find((workspace) => workspace.projectId === null);
 }
 
+/**
+ * A Tab that is gone gives way to the next one after it that remains, else the one before it, the
+ * survivor its close itself selects, as in the TUI; without either, to the first Tab.
+ */
+function survivingActiveTabId(
+	terminalContext: WorkbenchPublishedTerminalContext,
+	candidate: TerminalContextView | undefined,
+	tabIds: ReadonlySet<string>,
+): string | null {
+	const activeTabId = candidate?.tabCollection.activeTabId ?? null;
+	if (activeTabId !== null && tabIds.has(activeTabId)) return activeTabId;
+	const previousOrder = candidate?.panelWorkspace.tabs.map((tab) => tab.tabId) ?? [];
+	const position = activeTabId === null ? -1 : previousOrder.indexOf(activeTabId);
+	if (position >= 0) {
+		const next = previousOrder.slice(position + 1).find((tabId) => tabIds.has(tabId));
+		if (next !== undefined) return next;
+		for (let index = position - 1; index >= 0; index -= 1) {
+			const previous = previousOrder[index];
+			if (previous !== undefined && tabIds.has(previous)) return previous;
+		}
+	}
+	return terminalContext.tabs[0]?.id ?? null;
+}
+
 function reconcileTerminalContextView(
 	terminalContext: WorkbenchPublishedTerminalContext,
 	candidate: TerminalContextView | undefined,
 ): TerminalContextView {
 	const tabIds = new Set(terminalContext.tabs.map((tab) => tab.id));
 	const groupIds = new Set(terminalContext.groups.map((group) => group.id));
-	const activeTabId =
-		candidate?.tabCollection.activeTabId !== null &&
-		candidate?.tabCollection.activeTabId !== undefined &&
-		tabIds.has(candidate.tabCollection.activeTabId)
-			? candidate.tabCollection.activeTabId
-			: (terminalContext.tabs[0]?.id ?? null);
+	const activeTabId = survivingActiveTabId(terminalContext, candidate, tabIds);
 	const selectedCandidates = new Set(candidate?.tabCollection.selectedTabIds ?? []);
 	const selectedTabIds = terminalContext.tabs
 		.filter((tab) => selectedCandidates.has(tab.id))

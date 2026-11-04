@@ -17,6 +17,7 @@ describe('panel action contracts', () => {
 		expect(PANEL_ACTION_IDS).toEqual({
 			activateChildTerminal: 'workbench.panel.child-terminal.activate',
 			close: 'workbench.panel.close',
+			closeConfirmed: 'workbench.panel.close-confirmed',
 			equalize: 'workbench.panel.equalize',
 			focus: 'workbench.panel.focus',
 			move: 'workbench.panel.move',

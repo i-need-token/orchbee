@@ -177,9 +177,25 @@ export type WorkbenchAuthorityClosure =
 			readonly terminalContextId: string;
 			readonly tabIds: readonly string[];
 	  }
-	/** Settles when the authority accepts it: the Panel leaves with a later publication. */
+	/** Closes the Tab only if it runs nothing; otherwise settles `blocked` with `confirmation-required`. */
+	| {
+			readonly type: 'tab-close-if-idle';
+			readonly terminalContextId: string;
+			readonly tabId: string;
+	  }
+	/**
+	 * Settles when the authority accepts it, and the Panel leaves with a later publication. A Tab's
+	 * last Panel takes the Tab with it, and that close settles as a Tab's close does.
+	 */
 	| {
 			readonly type: 'panel-close';
+			readonly terminalContextId: string;
+			readonly tabId: string;
+			readonly panelId: string;
+	  }
+	/** As `panel-close`, only if the Panel runs nothing; otherwise as `tab-close-if-idle` refuses. */
+	| {
+			readonly type: 'panel-close-if-idle';
 			readonly terminalContextId: string;
 			readonly tabId: string;
 			readonly panelId: string;

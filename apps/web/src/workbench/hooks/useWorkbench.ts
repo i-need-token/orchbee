@@ -515,13 +515,41 @@ export function useWorkbench({
 		if (result.kind === 'completed') handover.complete();
 		return result;
 	};
+	/** As in the TUI, one Tab closes unasked when nothing runs in it, which only the authority knows. */
+	const closeSharedTab = async (
+		context: Parameters<TabStripCloseCallback>[0],
+		decider: WorkbenchAuthority,
+		tabId: string,
+	): Promise<ActionResult<void>> => {
+		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
+		if (activeContext === null) return ACTIVE_TAB_UNAVAILABLE;
+		const { terminalContextId } = activeContext;
+		const handover = focusRouting.beginTerminalHandover();
+		const result = await decider.close(context, {
+			tabId,
+			terminalContextId,
+			type: 'tab-close-if-idle',
+		});
+		if (result.kind === 'completed') handover.complete();
+		if (result.kind !== 'blocked' || result.code !== 'confirmation-required') return result;
+		// The question is its own Action, because this one has already asked the authority.
+		actions.invoke(
+			WORKBENCH_ACTION_IDS.closeTabConfirmed,
+			{ tabId, terminalContextId },
+			context.source,
+		);
+		return { kind: 'unchanged' };
+	};
 	const closeTabs = useMemoizedFn<
 		void,
 		Parameters<TabStripCloseCallback>,
 		ReturnType<TabStripCloseCallback>
 	>((context, request) => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		return closeSharedTabs(context, authorityNotice.authority, request.tabIds);
+		const [tabId, ...others] = request.tabIds;
+		return tabId === undefined || others.length > 0
+			? closeSharedTabs(context, authorityNotice.authority, request.tabIds)
+			: closeSharedTab(context, authorityNotice.authority, tabId);
 	});
 	const getCloseTabsConfirmation = useMemoizedFn<
 		void,
@@ -530,11 +558,9 @@ export function useWorkbench({
 	>((request) => {
 		const decider = authorityNotice.authority;
 		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
-		const asks =
-			projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(request.tabIds) > 0 ||
-			// A shared set always asks, because one press ends more than the Tab under the pointer.
-			request.tabIds.length > 1;
-		if (!asks || activeContext === null) return null;
+		// A shared set always asks, because one press ends more than the Tab under the pointer. One Tab
+		// asks only once the authority answers that something may run in it.
+		if (request.tabIds.length < 2 || activeContext === null) return null;
 		const closure = sharedTabsClosure(activeContext, request.tabIds);
 		const shown = closure.tabIds.slice(0, SHARED_TAB_CLOSE_NAMED_TABS);
 		const titles = new Map(

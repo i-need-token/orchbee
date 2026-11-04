@@ -15,13 +15,11 @@ import {
 	snapshotContext,
 	snapshotDirectory,
 	snapshotPanel,
-	snapshotPresentation,
 	snapshotSplit,
 	snapshotTab,
 	snapshotWorkspace,
 	workbenchSnapshot,
 } from '../../../__tests__/server-workbench-snapshot';
-import type { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
 
 /** Workspace 1 holds two Tabs and Workspace 2 one, both in Directory 1. */
 function twoWorkspaceSnapshot(revision: number, workspaceCount: 1 | 2 = 2) {
@@ -45,59 +43,7 @@ function presentation(sequence: number) {
 	return terminalPresentationId(fixturePresentationId(sequence));
 }
 
-function observeCloseActivity(
-	runtime: WorkbenchProjectWorkspaceRuntime,
-	sequence: number,
-	closeActivity: 'active' | 'idle' | 'unknown',
-) {
-	return runtime.applyTerminalMetadataObservation(presentation(sequence), {
-		closeActivity,
-		currentDirectory: { kind: 'ignored' },
-		naturalTitle: null,
-	});
-}
-
 describe('WorkbenchProjectWorkspaceRuntime', () => {
-	it('protects a terminal from closing only while its activity is not idle', () => {
-		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
-		const tabId = fixtureTabId(1);
-
-		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId])).toBe(1);
-		for (const [closeActivity, expectedCount] of [
-			['idle', 0],
-			['active', 1],
-			['unknown', 1],
-		] as const) {
-			expect(observeCloseActivity(runtime, 1, closeActivity)).toEqual({ kind: 'applied' });
-			expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId])).toBe(expectedCount);
-		}
-	});
-
-	it('counts close protection across every panel and child terminal in a Tab', () => {
-		const runtime = createSnapshotRuntime(
-			oneWorkspaceSnapshot(1, [
-				snapshotTab(
-					1,
-					snapshotSplit(
-						1,
-						'horizontal',
-						snapshotPanel(1, snapshotPresentation(1), [snapshotPresentation(3)]),
-						snapshotPanel(2),
-					),
-				),
-			]),
-		);
-		const tabId = fixtureTabId(1);
-		observeCloseActivity(runtime, 1, 'idle');
-		for (const sequence of [2, 3]) {
-			expect(observeCloseActivity(runtime, sequence, 'active')).toEqual({ kind: 'applied' });
-		}
-
-		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId])).toBe(2);
-		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId, tabId])).toBe(2);
-		expect(runtime.getActiveTerminalTabsCloseConfirmationCount(['missing-tab'])).toBe(0);
-	});
-
 	it('names a Tab without a chosen name by its current directory until a natural title arrives', () => {
 		const runtime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [snapshotTab(1, snapshotPanel(1), { automaticLabel: true })]),

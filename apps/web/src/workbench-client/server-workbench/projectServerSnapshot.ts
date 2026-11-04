@@ -13,6 +13,7 @@ import type {
 	WorkbenchTerminalContext,
 } from '@orchbee/workbench-client-protocol';
 
+import type { ServerTabLeaving } from './ServerLeavingTabs';
 import { observedServerTerminalEnd, type ObservedServerTerminalEnds } from './server-terminal-ends';
 import { nameServerTerminalProgram } from './server-terminal-names';
 
@@ -23,6 +24,7 @@ type Tab = WorkbenchTerminalContext['tabs'][number];
 type PanelNode = WorkbenchPublishedTab['root'];
 
 const NO_OBSERVED_ENDS: ObservedServerTerminalEnds = new Map();
+const NONE_LEAVING: ServerTabLeaving = () => false;
 
 /** What projecting one Tab's tree reads besides the tree. */
 interface PanelProjection {
@@ -38,12 +40,14 @@ const EVEN_SPLIT_RATIO = 0.5;
  * Projects what the Server published into the shapes the React Workbench's stores hold. Names
  * follow the TUI's: a terminal that shows no title takes the program the Server launched for it,
  * else its Tab's place, both in `intl`'s language. `observedEnds` holds, by Presentation, what this
- * window saw end.
+ * window saw end. A Tab `leaving` names is left out, as the TUI leaves out a Tab whose close is
+ * progressing, and so is a group it leaves empty.
  */
 export function projectServerSnapshot(
 	snapshot: WorkbenchSnapshot,
 	intl: IntlShape,
 	observedEnds = NO_OBSERVED_ENDS,
+	leaving = NONE_LEAVING,
 ): WorkbenchPublication {
 	const { navigation } = snapshot;
 	const directories = new Map(
@@ -56,7 +60,7 @@ export function projectServerSnapshot(
 			(project) => project.projectId,
 		).map((project) => ({ id: project.projectId, name: project.label })),
 		terminalContexts: snapshot.terminalContexts.map((context) =>
-			projectTerminalContext(context, intl, observedEnds),
+			projectTerminalContext(context, intl, observedEnds, leaving),
 		),
 		workspaces: inDisplayOrder(
 			navigation.workspaces,
@@ -100,10 +104,16 @@ function projectTerminalContext(
 	context: WorkbenchTerminalContext,
 	intl: IntlShape,
 	observedEnds: ObservedServerTerminalEnds,
+	leaving: ServerTabLeaving,
 ): WorkbenchPublishedTerminalContext {
+	// A Tab keeps its place among all the Server holds, so no other Tab is renumbered while it leaves.
+	const placedTabs = context.tabs.map((tab, position) => ({ position, tab }));
+	const shownTabs = placedTabs.filter(({ tab }) => !leaving(context.terminalContextId, tab.tabId));
+	const shownGroups = new Set(shownTabs.map(({ tab }) => tab.groupId));
+	const heldGroups = new Set(context.tabs.map((tab) => tab.groupId));
 	return {
-		// A projected context holds names in one language and the ends this window saw, so another
-		// language or another end replaces it.
+		// A projected context holds names in one language, the ends this window saw, and the Tabs it
+		// shows, so another language, another end, or a Tab leaving or returning replaces it.
 		fingerprint: JSON.stringify([
 			intl.locale,
 			context,
@@ -112,13 +122,16 @@ function projectTerminalContext(
 					observedServerTerminalEnd(presentation, observedEnds),
 				),
 			),
+			shownTabs.map(({ tab }) => tab.tabId),
 		]),
-		groups: context.groups.map((group) => ({
-			color: group.color,
-			id: group.groupId,
-			title: group.label,
-		})),
-		tabs: context.tabs.map((tab, position) => {
+		groups: context.groups
+			.filter((group) => shownGroups.has(group.groupId) || !heldGroups.has(group.groupId))
+			.map((group) => ({
+				color: group.color,
+				id: group.groupId,
+				title: group.label,
+			})),
+		tabs: shownTabs.map(({ position, tab }) => {
 			const tabTitle = tabPositionTitle(position, intl);
 			return {
 				customTitle: customTabTitle(tab),

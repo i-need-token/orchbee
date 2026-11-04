@@ -440,28 +440,38 @@ describe('close', () => {
 		expect(actions).toHaveLength(1);
 	});
 
-	it('takes an accepted Panel as closed, since its removal arrives as a publication', async () => {
-		const { asked, session } = fakeSession([
-			settled({
-				acceptedRevision: '5',
-				closeRequestId: CLOSE_REQUEST,
-				kind: 'panel-close-accepted',
-				panelId: PANEL,
-				tabId: FIRST_TAB,
-				terminalContextId: CONTEXT,
-			}),
-		]);
+	it('follows the close of the last Panel as the close of its Tab, which Resume continues', async () => {
+		const { asked, session } = fakeSession(
+			[
+				settled({
+					acceptedRevision: '5',
+					closeRequestId: CLOSE_REQUEST,
+					kind: 'panel-close-accepted',
+					panelId: PANEL,
+					tabId: FIRST_TAB,
+					terminalContextId: CONTEXT,
+				}),
+			],
+			[
+				closeStatus(
+					{ kind: 'cleanup-blocked', reason: 'host-refused', resumable: true },
+					{ kind: 'tab', tabId: FIRST_TAB, terminalContextId: CONTEXT },
+				),
+			],
+		);
+		const closes = createServerWorkbenchClose(session);
 
 		await expect(
-			closeWith(session, executionContext().context, {
+			closes.close(executionContext().context, {
 				panelId: PANEL,
 				tabId: FIRST_TAB,
 				terminalContextId: CONTEXT,
 				type: 'panel-close',
 			}),
-		).resolves.toEqual({ kind: 'completed' });
+		).resolves.toEqual({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
 
-		expect(asked).toEqual([]);
+		expect(asked).toHaveLength(1);
+		expect(closes.stoppedTabClose(CONTEXT, FIRST_TAB)).toBe('cleanup-blocked');
 	});
 
 	it('calls a cancelled close harmless only until a step has been handed over', async () => {

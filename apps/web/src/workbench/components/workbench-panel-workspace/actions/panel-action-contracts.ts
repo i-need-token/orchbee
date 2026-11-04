@@ -11,6 +11,7 @@ import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/reso
 export const PANEL_ACTION_IDS = {
 	activateChildTerminal: 'workbench.panel.child-terminal.activate',
 	close: 'workbench.panel.close',
+	closeConfirmed: 'workbench.panel.close-confirmed',
 	equalize: 'workbench.panel.equalize',
 	focus: 'workbench.panel.focus',
 	move: 'workbench.panel.move',
@@ -60,6 +61,7 @@ export interface PanelVisualSelectionInput extends PanelTargetInput {
 export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.activateChildTerminal]: ActionSignature<PanelChildTerminalInput>;
 	readonly [PANEL_ACTION_IDS.close]: ActionSignature<PanelCloseInput>;
+	readonly [PANEL_ACTION_IDS.closeConfirmed]: ActionSignature<PanelCloseInput>;
 	readonly [PANEL_ACTION_IDS.equalize]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.focus]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.move]: ActionSignature<PanelMoveInput>;

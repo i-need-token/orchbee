@@ -9,12 +9,10 @@ import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 import type { WorkbenchSharedPanelTerminalCreate } from '../../../../actions/createSharedPanelTerminal';
 import type { WorkbenchAuthority } from '../../../../types/workbench-authority';
 import { PANEL_ACTION_IDS } from '../../actions/panel-action-contracts';
-import {
-	transitionPanelWorkspace,
-	type PanelLeaf,
-	type PanelWorkspaceState,
-	type PanelWorkspaceTransition,
-	type TabPanelWorkspace,
+import type {
+	PanelLeaf,
+	PanelWorkspaceTransition,
+	TabPanelWorkspace,
 } from '../../model/panel-workspace-state';
 import { useWorkbenchPanelActions } from '../useWorkbenchPanelActions';
 import { inertWorkbenchAuthority } from '../../../../../__tests__/inertWorkbenchAuthority';
@@ -136,35 +134,32 @@ const PANEL_CLOSURE = {
 	terminalContextId: 'terminal-context-1',
 	type: 'panel-close',
 } as const;
+const PANEL_CLOSE_IF_IDLE = { ...PANEL_CLOSURE, type: 'panel-close-if-idle' } as const;
 
 afterEach(() => cleanup());
 
 describe('useWorkbenchPanelActions', () => {
 	it.each([
-		{ childActivity: null, closeActivity: 'idle' as const, confirmationCount: 0 },
-		{ childActivity: null, closeActivity: 'active' as const, confirmationCount: 1 },
-		{ childActivity: null, closeActivity: 'unknown' as const, confirmationCount: 1 },
-		// The Panel's Close ends its child terminals too, though only the primary is shown.
-		{ childActivity: 'active' as const, closeActivity: 'idle' as const, confirmationCount: 1 },
-	])(
-		'requests $confirmationCount confirmations when the primary is $closeActivity and a child is $childActivity',
-		async ({ childActivity, closeActivity, confirmationCount }) => {
+		{ answer: 'completed', closures: [PANEL_CLOSE_IF_IDLE], result: 'completed' },
+		// Confirming sends the ordinary close, which never asks the authority again.
+		{
+			answer: 'confirmation-required',
+			closures: [PANEL_CLOSE_IF_IDLE, PANEL_CLOSURE],
+			result: 'unchanged',
+		},
+	] as const)(
+		'asks before closing a Panel only when the authority answers $answer',
+		async ({ answer, closures, result }) => {
 			const confirm = vi.fn<() => boolean>(() => true);
 			const runtime = new ActionRuntime({ confirm });
-			const close = vi.fn<AuthorityClose>(() => Promise.resolve({ kind: 'completed' }));
-			const candidateTab: TabPanelWorkspace = {
-				...activeTab,
-				root: {
-					...panelLeaf(1),
-					childPresentations:
-						childActivity === null
-							? []
-							: [{ ...panelLeaf(2).primaryPresentation, closeActivity: childActivity }],
-					primaryPresentation: { ...panelLeaf(1).primaryPresentation, closeActivity },
-				},
-			};
+			const close = vi.fn<AuthorityClose>((_context, closure) =>
+				Promise.resolve(
+					closure.type === 'panel-close-if-idle' && answer === 'confirmation-required'
+						? { code: 'confirmation-required', kind: 'blocked' }
+						: { kind: 'completed' },
+				),
+			);
 			const scope = renderHarness({
-				activeTab: candidateTab,
 				authority: inertWorkbenchAuthority({ close }),
 				panelCount: 2,
 				parentScope: runtime.createScope('workbench'),
@@ -177,57 +172,12 @@ describe('useWorkbenchPanelActions', () => {
 				{ scope, source: 'button' },
 			);
 
-			await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
-			expect(confirm).toHaveBeenCalledTimes(confirmationCount);
-			expect(close).toHaveBeenCalledExactlyOnceWith(expect.anything(), PANEL_CLOSURE);
+			await expect(execution.completion).resolves.toEqual({ kind: result });
+			await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(closures.length));
+			expect(close.mock.calls.map(([, closure]) => closure)).toEqual(closures);
+			expect(confirm).toHaveBeenCalledTimes(closures.length - 1);
 		},
 	);
-
-	it('uses an immediate unknown metadata observation for close Action confirmation', async () => {
-		const presentationId = panelLeaf(1).primaryPresentation.presentationId;
-		const idleTab: TabPanelWorkspace = {
-			...activeTab,
-			root: {
-				...panelLeaf(1),
-				primaryPresentation: { ...panelLeaf(1).primaryPresentation, closeActivity: 'idle' },
-			},
-		};
-		const state: PanelWorkspaceState = { ...appliedTransition.state, tabs: [idleTab] };
-		const observation = transitionPanelWorkspace(state, {
-			closeActivity: 'unknown',
-			naturalTitle: null,
-			presentationId,
-			tabId: idleTab.tabId,
-			type: 'terminal-metadata-changed',
-		});
-		const observedTab = observation.state.tabs[0];
-		expect(observation.outcome).toBe('applied');
-		expect(observedTab?.root).toMatchObject({
-			primaryPresentation: { closeActivity: 'unknown' },
-		});
-		if (observedTab === undefined) throw new Error('Expected the observed Tab state');
-
-		const confirm = vi.fn<() => boolean>(() => true);
-		const runtime = new ActionRuntime({ confirm });
-		const close = vi.fn<AuthorityClose>(() => Promise.resolve({ kind: 'completed' }));
-		const scope = renderHarness({
-			activeTab: observedTab,
-			authority: inertWorkbenchAuthority({ close }),
-			panelCount: 2,
-			parentScope: runtime.createScope('workbench'),
-			runtime,
-		});
-
-		const execution = runtime.execute(
-			PANEL_ACTION_IDS.close,
-			{ panelId: 'panel-1', tabId: 'tab-1' },
-			{ scope, source: 'button' },
-		);
-
-		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
-		expect(confirm).toHaveBeenCalledOnce();
-		expect(close).toHaveBeenCalledOnce();
-	});
 
 	it('swaps two exact live Panels through the authority and focuses the moved Panel', async () => {
 		const runtime = new ActionRuntime();
@@ -380,6 +330,7 @@ describe('useWorkbenchPanelActions', () => {
 								panelId: 'panel-1',
 							},
 							[PANEL_ACTION_IDS.close]: { panelId: 'panel-1', tabId: 'tab-1' },
+							[PANEL_ACTION_IDS.closeConfirmed]: { panelId: 'panel-1', tabId: 'tab-1' },
 							[PANEL_ACTION_IDS.equalize]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.focus]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.move]: {

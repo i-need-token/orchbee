@@ -2,6 +2,7 @@ import type { ActionResult } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
 import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
+import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
@@ -99,13 +100,30 @@ function tabSubject(
 	};
 }
 
+/** Whether the Panel is its Tab's last, whose close takes the Tab with it. */
+function closesTab(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	terminalContextId: string,
+	tabId: string,
+): boolean {
+	const tab = runtime
+		.getTerminalContext(terminalContextId)
+		?.panelWorkspaceStore.getSnapshot()
+		.tabs.find((candidate) => candidate.tabId === tabId);
+	return tab !== undefined && collectPanelLeaves(tab.root).length === 1;
+}
+
 export function readWorkbenchCloseSubject(
 	closure: WorkbenchAuthorityClosure,
 	runtime: WorkbenchProjectWorkspaceRuntime,
 ): WorkbenchCloseSubject {
 	switch (closure.type) {
 		case 'panel-close':
-			return { kind: 'panel' };
+		case 'panel-close-if-idle':
+			return closesTab(runtime, closure.terminalContextId, closure.tabId)
+				? tabSubject(runtime, closure.terminalContextId, closure.tabId)
+				: { kind: 'panel' };
+		case 'tab-close-if-idle':
 		case 'tab-close-resume':
 			return tabSubject(runtime, closure.terminalContextId, closure.tabId);
 		case 'project-workspaces-close':
@@ -152,7 +170,10 @@ function tabSetCounts(
 	return { completed: subject.tabIds.length - remaining, remaining };
 }
 
-/** What to say while a close runs. A Panel settles on acceptance, so it never shows this. */
+/**
+ * What to say while a close runs. A Panel that is not its Tab's last settles on acceptance, so it
+ * never shows this.
+ */
 export function workbenchCloseProgressNotice(
 	subject: WorkbenchCloseSubject,
 	runtime: WorkbenchProjectWorkspaceRuntime,
@@ -195,6 +216,8 @@ export function workbenchCloseWithdrawnNotice(
 	return {
 		descriptor:
 			closure.type === 'panel-close' ||
+			closure.type === 'panel-close-if-idle' ||
+			closure.type === 'tab-close-if-idle' ||
 			closure.type === 'tab-close-resume' ||
 			closure.type === 'tabs-close'
 				? workbenchMessages.tabCloseCancelled

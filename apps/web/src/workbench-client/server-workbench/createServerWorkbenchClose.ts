@@ -14,6 +14,7 @@ import {
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
+import type { ServerTabLeave } from './ServerLeavingTabs';
 import type {
 	ServerWorkbenchAction,
 	ServerWorkbenchAnswer,
@@ -44,8 +45,17 @@ type GroupCloseAction = Extract<
 	{ readonly kind: 'workbench.workspace-group-close' }
 >['action'];
 type CloseSubmission =
-	| { readonly kind: 'answered'; readonly outcome: ServerWorkbenchOutcome }
+	| {
+			readonly kind: 'answered';
+			readonly outcome: ServerWorkbenchOutcome;
+			/** The snapshot the close was handed over against, which the Server decided at. */
+			readonly decidedFrom: WorkbenchSnapshot;
+	  }
 	| { readonly kind: 'ended'; readonly result: ActionResult<void> };
+type TabTarget = Pick<
+	Extract<WorkbenchAuthorityClosure, { readonly type: 'tab-close-if-idle' }>,
+	'tabId' | 'terminalContextId'
+>;
 
 /** The Action's context, which also knows whether any step has been handed over yet. */
 interface CloseContext extends WorkbenchAuthorityContext {
@@ -73,6 +83,12 @@ type KeepStoppedTabClose = (
 	stopped: StoppedTabClose | null,
 ) => void;
 
+/** What following a Tab's accepted close tells the window, and keeps for Resume. */
+interface TabCloseFollow {
+	readonly keep: KeepStoppedTabClose;
+	readonly leave: ServerTabLeave;
+}
+
 /** How long this Client watches a close it started. The Server's work continues past it. */
 const OBSERVATION_BUDGET_MILLISECONDS = 50_000;
 /** Physical settlement has no progress notification, so only a pending close is sampled. */
@@ -84,6 +100,7 @@ const MAXIMUM_STOPPED_TAB_CLOSES = 16;
 
 const NOT_SUBMITTED = { code: 'not-submitted', kind: 'blocked' } as const;
 const SCOPE_CHANGED = { code: 'scope-changed', kind: 'blocked' } as const;
+const NO_LEAVE: ServerTabLeave = { leave: () => undefined, stay: () => undefined };
 
 function failed(code: string, details?: string): ActionResult<void> {
 	return { failure: details === undefined ? { code } : { code, details }, kind: 'failed' };
@@ -101,14 +118,14 @@ function workspaceFacts(snapshot: WorkbenchSnapshot, workspaceId: string): strin
 	});
 }
 
+function findTab(snapshot: WorkbenchSnapshot, terminalContextId: string, tabId: string) {
+	return snapshot.terminalContexts
+		.find((candidate) => candidate.terminalContextId === terminalContextId)
+		?.tabs.find((candidate) => candidate.tabId === tabId);
+}
+
 function tabFacts(snapshot: WorkbenchSnapshot, terminalContextId: string, tabId: string): string {
-	return (
-		JSON.stringify(
-			snapshot.terminalContexts
-				.find((candidate) => candidate.terminalContextId === terminalContextId)
-				?.tabs.find((candidate) => candidate.tabId === tabId),
-		) ?? ''
-	);
+	return JSON.stringify(findTab(snapshot, terminalContextId, tabId)) ?? '';
 }
 
 /** What a person confirming this close was told. Anything else changing does not concern them. */
@@ -131,6 +148,8 @@ function closureFacts(closure: WorkbenchAuthorityClosure, snapshot: WorkbenchSna
 				closure.tabIds.map((tabId) => tabFacts(snapshot, closure.terminalContextId, tabId)),
 			);
 		case 'panel-close':
+		case 'panel-close-if-idle':
+		case 'tab-close-if-idle':
 		case 'tab-close-resume':
 			return tabFacts(snapshot, closure.terminalContextId, closure.tabId);
 	}
@@ -160,12 +179,14 @@ async function submitClose(
 	facts: (snapshot: WorkbenchSnapshot) => string,
 	expected: string,
 ): Promise<CloseSubmission> {
-	const submission = await session.submit((snapshot) =>
-		facts(snapshot) === expected ? handOverServerWorkbenchAction(context, action) : null,
-	);
+	let decidedFrom = session.snapshot;
+	const submission = await session.submit((snapshot) => {
+		decidedFrom = snapshot;
+		return facts(snapshot) === expected ? handOverServerWorkbenchAction(context, action) : null;
+	});
 	switch (submission.kind) {
 		case 'settled':
-			return { kind: 'answered', outcome: submission.outcome };
+			return { decidedFrom, kind: 'answered', outcome: submission.outcome };
 		case 'outcome-unknown':
 			return { kind: 'ended', result: failed('outcome-unknown') };
 		case 'not-submitted':
@@ -272,6 +293,64 @@ async function observeClose(
 	}
 }
 
+/**
+ * Hands one close over and answers what the Server said about the target as shown. A newer
+ * revision that left the target untouched is no refusal of it, so the close is handed over again.
+ * A conditional close's question that described a target that has since moved on is asked again
+ * once, since it answers nothing shown.
+ */
+async function submitShownClose(
+	session: CloseSession,
+	context: CloseContext,
+	action: ServerWorkbenchAction | null,
+	factsOf: (snapshot: WorkbenchSnapshot) => string,
+): Promise<CloseSubmission> {
+	let expected = factsOf(session.snapshot);
+	let repeatedOnChange = false;
+	for (let attempt = 0; ; attempt += 1) {
+		const submission = await submitClose(session, context, action, factsOf, expected);
+		if (submission.kind === 'ended' || submission.outcome.kind !== 'rejected') return submission;
+		const { outcome } = submission;
+		const current = factsOf(session.snapshot);
+		if (outcome.reason === 'revision-mismatch') {
+			if (current !== expected || attempt === STALE_RETRY_LIMIT) {
+				return { kind: 'ended', result: SCOPE_CHANGED };
+			}
+		} else if (outcome.reason !== 'confirmation-required' || current === expected) {
+			return submission;
+		} else if (repeatedOnChange) {
+			// The reply described a target that has moved on twice, so it answers nothing shown.
+			return { kind: 'ended', result: SCOPE_CHANGED };
+		} else {
+			repeatedOnChange = true;
+			expected = current;
+		}
+	}
+}
+
+/**
+ * Follows a Tab's accepted close to its end. As the TUI leaves a Tab out while its close
+ * progresses, the window leaves it out until the close settles: a completed close has removed it
+ * by then, and any other end shows it again with its report, keeping a stop Resume may continue.
+ */
+async function followTabClose(
+	session: CloseSession,
+	follow: TabCloseFollow,
+	{ tabId, terminalContextId }: TabTarget,
+	closeRequestId: CloseOperationResult['operationId'],
+	deadline: number,
+): Promise<ActionResult<void>> {
+	follow.leave.leave(terminalContextId, tabId);
+	try {
+		// A Close of a Tab whose close stopped joins that close, so it reports the same stop again.
+		const observed = await observeClose(session, closeRequestId, deadline);
+		follow.keep(terminalContextId, tabId, observed.stopped);
+		return observed.result;
+	} finally {
+		follow.leave.stay(terminalContextId, tabId);
+	}
+}
+
 async function closeWorkspace(
 	session: CloseSession,
 	context: CloseContext,
@@ -280,47 +359,32 @@ async function closeWorkspace(
 		{ readonly type: 'workspace-close' | 'workspace-close-if-idle' }
 	>,
 ): Promise<ActionResult<void>> {
-	const action = readServerWorkbenchAction(
-		closure.type === 'workspace-close-if-idle'
-			? { kind: 'workspace.close-if-idle', workspaceId: closure.workspaceId }
-			: { kind: 'workspace.close', workspaceId: closure.workspaceId },
+	const submission = await submitShownClose(
+		session,
+		context,
+		readServerWorkbenchAction(
+			closure.type === 'workspace-close-if-idle'
+				? { kind: 'workspace.close-if-idle', workspaceId: closure.workspaceId }
+				: { kind: 'workspace.close', workspaceId: closure.workspaceId },
+		),
+		(snapshot) => closureFacts(closure, snapshot),
 	);
-	const factsOf = (snapshot: WorkbenchSnapshot): string => closureFacts(closure, snapshot);
-	let expected = factsOf(session.snapshot);
-	let repeatedOnChange = false;
-	for (let attempt = 0; ; attempt += 1) {
-		const submission = await submitClose(session, context, action, factsOf, expected);
-		if (submission.kind === 'ended') return submission.result;
-		const { outcome } = submission;
-		if (outcome.kind === 'workspace-close-accepted') {
-			const observed = await observeClose(
-				session,
-				outcome.closeRequestId,
-				performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
-			);
-			return observed.result;
-		}
-		if (outcome.kind !== 'rejected') return refused(outcome);
-		const current = factsOf(session.snapshot);
-		if (outcome.reason === 'revision-mismatch') {
-			if (current !== expected || attempt === STALE_RETRY_LIMIT) return SCOPE_CHANGED;
-		} else if (outcome.reason !== 'confirmation-required' || current === expected) {
-			return refused(outcome);
-		} else if (repeatedOnChange) {
-			// The reply described a Workspace that has moved on twice, so it answers nothing shown.
-			return SCOPE_CHANGED;
-		} else {
-			repeatedOnChange = true;
-			expected = current;
-		}
-	}
+	if (submission.kind === 'ended') return submission.result;
+	const { outcome } = submission;
+	if (outcome.kind !== 'workspace-close-accepted') return refused(outcome);
+	const observed = await observeClose(
+		session,
+		outcome.closeRequestId,
+		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+	);
+	return observed.result;
 }
 
 async function closeTabs(
 	session: CloseSession,
 	context: CloseContext,
 	closure: Extract<WorkbenchAuthorityClosure, { readonly type: 'tabs-close' }>,
-	keep: KeepStoppedTabClose,
+	follow: TabCloseFollow,
 ): Promise<ActionResult<void>> {
 	const deadline = performance.now() + OBSERVATION_BUDGET_MILLISECONDS;
 	const { terminalContextId } = closure;
@@ -339,12 +403,45 @@ async function closeTabs(
 		if (submission.kind === 'ended') return submission.result;
 		const { outcome } = submission;
 		if (outcome.kind !== 'tab-close-accepted') return refused(outcome);
-		// A Close of a Tab whose close stopped joins that close, so it reports the same stop again.
-		const observed = await observeClose(session, outcome.closeRequestId, deadline);
-		keep(terminalContextId, tabId, observed.stopped);
-		if (observed.result.kind !== 'completed') return observed.result;
+		const result = await followTabClose(
+			session,
+			follow,
+			{ tabId, terminalContextId },
+			outcome.closeRequestId,
+			deadline,
+		);
+		if (result.kind !== 'completed') return result;
 	}
 	return { kind: 'completed' };
+}
+
+/** As the TUI asks, the Server closes the Tab unasked only when nothing runs in it. */
+async function closeTabIfIdle(
+	session: CloseSession,
+	context: CloseContext,
+	closure: Extract<WorkbenchAuthorityClosure, { readonly type: 'tab-close-if-idle' }>,
+	follow: TabCloseFollow,
+): Promise<ActionResult<void>> {
+	const submission = await submitShownClose(
+		session,
+		context,
+		readServerWorkbenchAction({
+			kind: 'tab.close-if-idle',
+			tabId: closure.tabId,
+			terminalContextId: closure.terminalContextId,
+		}),
+		(snapshot) => closureFacts(closure, snapshot),
+	);
+	if (submission.kind === 'ended') return submission.result;
+	const { outcome } = submission;
+	if (outcome.kind !== 'tab-close-accepted') return refused(outcome);
+	return followTabClose(
+		session,
+		follow,
+		closure,
+		outcome.closeRequestId,
+		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+	);
 }
 
 /** What a Resume the Server did not run says; nothing it names has changed. */
@@ -366,7 +463,7 @@ async function resumeTabClose(
 	session: CloseSession,
 	context: WorkbenchAuthorityContext,
 	stopped: StoppedTabClose | null,
-	keep: KeepStoppedTabClose,
+	follow: TabCloseFollow,
 ): Promise<ActionResult<void>> {
 	if (stopped === null) return SCOPE_CHANGED;
 	if (context.signal.aborted) return { kind: 'cancelled' };
@@ -394,36 +491,62 @@ async function resumeTabClose(
 	const { outcome } = answer.response;
 	if (outcome.kind !== 'resumed' && outcome.kind !== 'stale') {
 		// Whatever the Server refused here, a new Close finds the close as it is now.
-		if (outcome.kind === 'rejected') keep(target.terminalContextId, target.tabId, null);
+		if (outcome.kind === 'rejected') follow.keep(target.terminalContextId, target.tabId, null);
 		return resumeRefused(outcome);
 	}
-	const observed = await observeClose(session, closeRequestId, deadline);
-	keep(target.terminalContextId, target.tabId, observed.stopped);
-	return observed.result;
+	return followTabClose(session, follow, target, closeRequestId, deadline);
 }
 
+/**
+ * A Panel settles when the Server accepts its close, and leaves with a later publication. A Tab's
+ * last Panel takes the Tab with it, so that close is followed as a Tab's close is, keeping a stop
+ * for Resume. As in the TUI, only a Tab's own close takes it out of the strip early.
+ */
 async function closePanel(
 	session: CloseSession,
 	context: CloseContext,
-	closure: Extract<WorkbenchAuthorityClosure, { readonly type: 'panel-close' }>,
+	closure: Extract<
+		WorkbenchAuthorityClosure,
+		{ readonly type: 'panel-close' | 'panel-close-if-idle' }
+	>,
+	follow: TabCloseFollow,
 ): Promise<ActionResult<void>> {
+	const { panelId, tabId, terminalContextId } = closure;
 	const factsOf = (snapshot: WorkbenchSnapshot): string => closureFacts(closure, snapshot);
-	const submission = await submitClose(
-		session,
-		context,
-		readServerWorkbenchAction({
-			kind: 'panel.close',
-			panelId: closure.panelId,
-			tabId: closure.tabId,
-			terminalContextId: closure.terminalContextId,
-		}),
-		factsOf,
-		factsOf(session.snapshot),
-	);
+	const submission =
+		closure.type === 'panel-close-if-idle'
+			? await submitShownClose(
+					session,
+					context,
+					readServerWorkbenchAction({
+						kind: 'panel.close-if-idle',
+						panelId,
+						tabId,
+						terminalContextId,
+					}),
+					factsOf,
+				)
+			: await submitClose(
+					session,
+					context,
+					readServerWorkbenchAction({ kind: 'panel.close', panelId, tabId, terminalContextId }),
+					factsOf,
+					factsOf(session.snapshot),
+				);
 	if (submission.kind === 'ended') return submission.result;
-	return submission.outcome.kind === 'panel-close-accepted'
-		? { kind: 'completed' }
-		: refused(submission.outcome);
+	const { decidedFrom, outcome } = submission;
+	if (outcome.kind !== 'panel-close-accepted') return refused(outcome);
+	// The Server decided at this snapshot's revision, so its Tab held exactly these Panels.
+	if (findTab(decidedFrom, terminalContextId, tabId)?.root.kind !== 'panel') {
+		return { kind: 'completed' };
+	}
+	return followTabClose(
+		session,
+		{ keep: follow.keep, leave: NO_LEAVE },
+		closure,
+		outcome.closeRequestId,
+		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+	);
 }
 
 function groupOutcome(answer: ServerWorkbenchAnswer): GroupCloseResult['outcome'] | null {
@@ -529,9 +652,11 @@ function tabKey(terminalContextId: string, tabId: string): string {
 /**
  * Runs each close until its result is known and never repeats one that may have run. It keeps each
  * Tab close that stopped where an explicit Resume may continue it, while that Tab is still there.
+ * `leave` hears each Tab whose accepted close this follows, for as long as it follows it.
  */
 export function createServerWorkbenchClose(
 	session: CloseSession,
+	leave: ServerTabLeave = NO_LEAVE,
 ): Pick<WorkbenchAuthority, 'close' | 'stoppedTabClose' | 'watchClose'> {
 	const stoppedTabCloses = new Map<string, StoppedTabClose>();
 	const keep: KeepStoppedTabClose = (terminalContextId, tabId, stopped) => {
@@ -558,6 +683,7 @@ export function createServerWorkbenchClose(
 		}
 		return stopped;
 	};
+	const follow: TabCloseFollow = { keep, leave };
 	return {
 		close: (context, closure) => {
 			switch (closure.type) {
@@ -567,15 +693,18 @@ export function createServerWorkbenchClose(
 				case 'project-workspaces-close':
 					return closeProject(session, context, closure);
 				case 'tabs-close':
-					return closeTabs(session, closeContext(context), closure, keep);
+					return closeTabs(session, closeContext(context), closure, follow);
+				case 'tab-close-if-idle':
+					return closeTabIfIdle(session, closeContext(context), closure, follow);
 				case 'panel-close':
-					return closePanel(session, closeContext(context), closure);
+				case 'panel-close-if-idle':
+					return closePanel(session, closeContext(context), closure, follow);
 				case 'tab-close-resume':
 					return resumeTabClose(
 						session,
 						context,
 						stoppedClose(closure.terminalContextId, closure.tabId),
-						keep,
+						follow,
 					);
 			}
 		},

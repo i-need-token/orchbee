@@ -40,7 +40,6 @@ import {
 import {
 	findPanel,
 	getDisplayedTerminal,
-	terminalRequiresCloseConfirmation,
 	type PanelWorkspaceTransition,
 	type TabPanelWorkspace,
 	type TerminalPresentation,
@@ -120,12 +119,29 @@ export function useWorkbenchPanelActions({
 			const panel = findCloseTarget(input);
 			return panel === null ? [] : [panel.primaryPresentation, ...panel.childPresentations];
 		};
-		const closureFor = (input: PanelCloseInput): WorkbenchAuthorityClosure => ({
+		const closureFor = (
+			input: PanelCloseInput,
+			type: 'panel-close' | 'panel-close-if-idle',
+		): WorkbenchAuthorityClosure => ({
 			panelId: input.panelId,
 			tabId: input.tabId,
 			terminalContextId,
-			type: 'panel-close',
+			type,
 		});
+		// Both closes of a Panel wait for each other, so the question follows the answer it raised.
+		const closeExecution = {
+			concurrency: 'serialize' as const,
+			concurrencyKey: () => 'panel-close-confirmation',
+			mode: 'foreground' as const,
+		};
+		// The Server closes a Tab's last Panel together with its Tab.
+		const closeAvailability = (input: PanelCloseInput) =>
+			findCloseTarget(input) === null
+				? {
+						kind: 'disabled' as const,
+						reason: workbenchMessages.actionUnavailable,
+					}
+				: { kind: 'enabled' as const };
 		/** What a shared change names, because it can settle after this Client has moved elsewhere. */
 		const sharedTabTarget =
 			activeTab === null ? null : { tabId: activeTab.tabId, terminalContextId };
@@ -291,39 +307,53 @@ export function useWorkbenchPanelActions({
 				scope,
 				defineAction({
 					category,
-					confirmation: (input) => {
-						const terminals = closedTerminals(input);
-						return terminals.some(terminalRequiresCloseConfirmation)
-							? {
-									cancelLabel: workbenchMessages.panelCancel,
-									confirmLabel: workbenchMessages.panelClose,
-									description: {
-										...workbenchMessages.terminalCloseWarning,
-										values: terminalCloseWarningValues(terminalCloseImpact(terminals)),
-									},
-									risk: 'destructive',
-									title: workbenchMessages.panelCloseTitle,
-									watch: (withdraw) => authority.watchClose(closureFor(input), withdraw),
-								}
-							: null;
-					},
-					execution: {
-						concurrency: 'serialize',
-						concurrencyKey: () => 'panel-close-confirmation',
-						mode: 'foreground',
-					},
-					// The Server closes a Tab's last Panel together with its Tab.
-					getAvailability: (_context, input) =>
-						findCloseTarget(input) === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' },
+					execution: closeExecution,
+					getAvailability: (_context, input) => closeAvailability(input),
+					// A Panel that runs nothing closes without asking, and only the authority can tell.
 					handler: {
-						execute: (context, input) => authority.close(context, closureFor(input)),
+						execute: async (context, input) => {
+							const result = await authority.close(
+								context,
+								closureFor(input, 'panel-close-if-idle'),
+							);
+							if (result.kind !== 'blocked' || result.code !== 'confirmation-required') {
+								return result;
+							}
+							// The question is its own Action, because this one has already asked the authority.
+							typedRuntime.execute(PANEL_ACTION_IDS.closeConfirmed, input, {
+								scope,
+								source: context.source,
+								target: { id: input.panelId, type: 'panel' },
+							});
+							return { kind: 'unchanged' };
+						},
 					},
 					id: PANEL_ACTION_IDS.close,
+					input: panelCloseInput,
+					title: workbenchMessages.panelClose,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
+					confirmation: (input) => ({
+						cancelLabel: workbenchMessages.panelCancel,
+						confirmLabel: workbenchMessages.panelClose,
+						description: {
+							...workbenchMessages.terminalCloseWarning,
+							values: terminalCloseWarningValues(terminalCloseImpact(closedTerminals(input))),
+						},
+						risk: 'destructive',
+						title: workbenchMessages.panelCloseTitle,
+						watch: (withdraw) => authority.watchClose(closureFor(input, 'panel-close'), withdraw),
+					}),
+					execution: closeExecution,
+					getAvailability: (_context, input) => closeAvailability(input),
+					handler: {
+						execute: (context, input) => authority.close(context, closureFor(input, 'panel-close')),
+					},
+					id: PANEL_ACTION_IDS.closeConfirmed,
 					input: panelCloseInput,
 					title: workbenchMessages.panelClose,
 				}),
