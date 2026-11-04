@@ -1150,6 +1150,16 @@ pub(in crate::workbench_client) fn attach_split_peer(
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
 ) {
+    attach_split_peer_with_mode(ui, mailbox, clock, ControllerMode::ReadOnly);
+}
+
+/// `attach_split_peer` with the controller mode the peer's setup acquires.
+pub(in crate::workbench_client) fn attach_split_peer_with_mode(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    mode: ControllerMode,
+) {
     let state = ui.state.as_ref().unwrap();
     let focus = state.focus_panel_id().unwrap().clone();
     let peer = state.cache().tabs()[0].panel(1).unwrap().panel_id().clone();
@@ -1176,8 +1186,8 @@ pub(in crate::workbench_client) fn attach_split_peer(
         },
         WorkerEvent::SetupConfigured {
             key: key.clone(),
-            mode: ControllerMode::ReadOnly,
-            applied_geometry: None,
+            applied_geometry: matches!(mode, ControllerMode::Controlling(_)).then_some(geometry),
+            mode,
         },
     ] {
         let wait = mailbox

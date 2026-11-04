@@ -609,6 +609,137 @@ fn a_switch_refused_after_a_resize_restores_and_resizes_the_focus() {
     assert!(ui.state.as_ref().unwrap().invariant_holds());
 }
 
+/// Controlling Resizes the Host has not acknowledged when a Switch starts settle while the Switch
+/// is in flight. Neither those acknowledgements nor a refused Switch cost the Client: the restore
+/// returns both panes with their geometry unknown, and the next observation re-sends both Resizes.
+#[test]
+fn a_switch_refused_while_resizes_await_the_host_restores_and_resends_them() {
+    use super::super::tests::publication_hint::{
+        attach_split_peer_with_mode, ready_split_ui_with_mode,
+    };
+    let controlling = |id: u32| {
+        ControllerMode::Controlling(
+            orchbee_client_server_protocol::ControllerId::parse(&format!("{id:032x}")).unwrap(),
+        )
+    };
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui_with_mode(controlling(8));
+    attach_split_peer_with_mode(&mut ui, &mailbox, &clock, controlling(9));
+    let state = ui.state.as_ref().unwrap();
+    let focus_panel = state.focus_panel_id().unwrap().clone();
+    let peer_panel = state.cache().tabs()[0].panel(1).unwrap().panel_id().clone();
+    let focus = state.focus_pane_ref().unwrap();
+    let peer = state.pane_by_panel(&peer_panel).unwrap().pane_ref();
+    let projection = ui
+        .projections
+        .iter_mut()
+        .find(|item| item.key == peer)
+        .unwrap();
+    let frame = super::super::tests::viewport::frame(&projection.value, 0, false, 24);
+    projection.value.install_frame_for_test(frame);
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.stage_drawn_frame(&peer, FrameIdentity::new(7)));
+    assert!(state.mark_feedback_accepted(&peer, FrameIdentity::new(7)));
+
+    // The window grows, so both controlling panes owe the Host a Resize.
+    let grown = [
+        (focus_panel, 0, Geometry::new(50, 30, 8, 16).unwrap()),
+        (peer_panel, 1, Geometry::new(49, 30, 8, 16).unwrap()),
+    ];
+    ui.observe_panes(&grown);
+    // The Switch starts before the Host acknowledged either Resize.
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        ClientActionDisposition::DismissNavigator
+    );
+    // The executor runs the earlier Resizes first, so both acknowledgements settle while the
+    // Switch is in flight.
+    let modes = [
+        (focus.clone(), controlling(8)),
+        (peer.clone(), controlling(9)),
+    ];
+    let mut acknowledged = Vec::new();
+    let lease = loop {
+        let lease = mailbox.try_recv().unwrap().expect("a queued Switch");
+        if matches!(lease.record(), QueuedCommand::Switch(_)) {
+            break lease;
+        }
+        if let QueuedCommand::Resize(resize) = lease.record() {
+            let (key, mode) = modes
+                .iter()
+                .find(|(key, _)| key == resize.key())
+                .unwrap()
+                .clone();
+            let wait = mailbox
+                .publish_event_before(
+                    WorkerEvent::SetupConfigured {
+                        key: key.clone(),
+                        mode,
+                        applied_geometry: Some(*resize.value()),
+                    },
+                    EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
+                    &clock,
+                )
+                .unwrap();
+            ui.tick();
+            assert_eq!(
+                mailbox.is_closed(),
+                None,
+                "an acknowledged Resize never costs the Client"
+            );
+            assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+            acknowledged.push(key);
+        }
+        mailbox.finish_lease(lease).unwrap();
+    };
+    assert_eq!(acknowledged, [focus.clone(), peer.clone()]);
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        unreachable!("the loop breaks on a Switch")
+    };
+    let target = marker.target();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, target, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Unavailable {
+                    reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                },
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.is_closed(),
+        None,
+        "a refused Switch never costs the Client"
+    );
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    assert!(matches!(settlement.decision(), RefreshDecision::Continue));
+    assert_eq!(settlement.desired(), Some(focus.pane()));
+    mailbox.finish_lease(lease).unwrap();
+
+    // The shell observes the restored layout at the window's current size.
+    ui.observe_panes(&grown);
+    let mut resizes = Vec::new();
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        if let QueuedCommand::Resize(resize) = lease.record() {
+            resizes.push((resize.key().clone(), *resize.value()));
+        }
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert_eq!(resizes, [(focus, grown[0].2), (peer, grown[1].2)]);
+    assert_eq!(mailbox.is_closed(), None);
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+}
+
 #[test]
 fn response_before_ui_new_marker_preserves_exact_cleanup_and_never_installs_stale_candidate() {
     let (mut ui, mailbox, clock, _elapsed) = ready();

@@ -235,25 +235,6 @@ fn unavailable_cannot_restore_missing_projection_or_ready_without_current_proof(
 }
 
 #[test]
-fn accepted_old_resize_invalidates_anchor_without_rolling_back_its_result() {
-    let mut state = ready(2);
-    let old = state.desired().unwrap().clone();
-    let marker = admit(&mut state, 1, 2);
-    assert!(matches!(
-        state.settle_setup_configuration_event_t(&old, controlling(), Some(geometry(81))),
-        Some(SetupEventDisposition::Superseded { .. })
-    ));
-    assert!(
-        state
-            .prepare_switch_restore_k(&marker, Some(old.anchor()))
-            .is_err()
-    );
-    assert_eq!(state.last_accepted_geometry_t(&old), Some(geometry(81)));
-    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&marker));
-    assert!(state.invariant_holds());
-}
-
-#[test]
 fn an_actually_abandoned_causal_proof_prevents_restoration() {
     let mut abandoned = ready(2);
     let old = abandoned.desired().unwrap().clone();

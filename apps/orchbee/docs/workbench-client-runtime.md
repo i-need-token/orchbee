@@ -1423,13 +1423,21 @@ truthful pre-marker settlement. Preparation is effect-free; commit restores all 
 together without Attach, input replay or a fresh generation. The owner-minted restoration proof also
 publishes those exact pane incarnations into the mailbox in the same desired-install transaction,
 so ordinary Poll and input admission can resume without a new reconcile. Already departing panes
-remain departing. A missing or unfinished pane proof
-prevents restoration, and abandonment of any captured pane invalidates the anchor. Accepted Resize that clears
-the frame, unpreservable old Poll/causal abandonment, or viewer cleanup or replacement invalidates
-that proof. The anchor follows those facts; an admission-time clone cannot roll them back. A window
-observed at another size while the Switch is in flight does not: no Resize reaches the departing
-panes, so the restore returns the focus to the geometry it last observed, and the next observation
-resizes the restored panes as it resizes any visible pane. A recorded selected-without-attachment or retryable origin may restore only
+remain departing. A missing or unfinished pane proof, such as a frame proof that a Resize
+accepted before the Switch cleared, prevents restoration, and abandonment of any captured pane
+invalidates the anchor. Unpreservable old Poll/causal abandonment, or viewer cleanup or replacement
+invalidates that proof. The anchor follows those facts; an admission-time clone cannot roll them
+back. A Resize acknowledged while the Switch is in flight does not. A controlling pane whose
+Resize the Host has not yet acknowledged at its observed geometry is retained with its geometry
+unknown. The executor runs a Resize admitted before the Switch ahead of it, so that
+acknowledgement, for the old focus or a sibling alike, settles while the Switch is in flight: it
+leaves the retained pane's geometry unknown, keeps the anchor and settles as superseded. A restore
+clears the admitted geometry of each pane whose geometry is unknown, and the next observation
+re-sends its Resize as it resizes any visible pane. A Host resize is idempotent, so the re-sent
+Resize needs no proof of what the Host applied. A window observed at another size while the Switch
+is in flight does not invalidate the anchor either: no Resize reaches the departing panes, so the
+restore returns the focus to the geometry it last observed, and the next observation resizes the
+restored panes the same way. A recorded selected-without-attachment or retryable origin may restore only
 while it still has no viewer/controller, except an unbound selection or a retryable focus with
 live siblings uses the same exact whole-anchor projection proof described below; a retryable one
 restores still retryable. A partly completed Switch never creates a stable anchor;

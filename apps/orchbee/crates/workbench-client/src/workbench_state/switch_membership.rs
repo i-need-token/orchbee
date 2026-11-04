@@ -55,12 +55,8 @@ impl RetainedProjection {
         let mode = record.mode().cloned()?;
         let frame = record.accepted_frame()?;
         if record.departing
-            || match &mode {
-                ControllerMode::ReadOnly => record.last_accepted_geometry().is_some(),
-                ControllerMode::Controlling(_) => {
-                    record.last_accepted_geometry() != Some(record.observed_geometry)
-                }
-            }
+            || (matches!(mode, ControllerMode::ReadOnly)
+                && record.last_accepted_geometry().is_some())
         {
             return None;
         }
@@ -70,9 +66,20 @@ impl RetainedProjection {
             mode,
             observed_geometry: record.observed_geometry,
             last_admitted_geometry: record.last_admitted_geometry,
-            accepted_geometry: record.last_accepted_geometry(),
+            // A controlling pane's geometry is known once the Host acknowledged a Resize to its
+            // observed geometry. Until then, as while a Resize still awaits the Host, it is
+            // unknown.
+            accepted_geometry: record
+                .last_accepted_geometry()
+                .filter(|accepted| *accepted == record.observed_geometry),
             frame,
         })
+    }
+
+    /// A controlling pane whose geometry the restore cannot vouch for owes the Host its Resize
+    /// again. A Host resize is idempotent, so re-sending one needs no proof of what it applied.
+    fn geometry_unknown(&self) -> bool {
+        matches!(self.mode, ControllerMode::Controlling(_)) && self.accepted_geometry.is_none()
     }
 
     fn can_restore(&self, state: &WorkbenchClientState, retained: &[PaneRef]) -> bool {
@@ -100,6 +107,15 @@ impl StableAnchor {
         }
     }
 
+    fn projections_mut(&mut self) -> &mut [RetainedProjection] {
+        match self {
+            Self::Ready { projections, .. }
+            | Self::Unbound { projections, .. }
+            | Self::Lost { projections, .. } => projections,
+            Self::Selected(_) | Self::Retryable(_) => &mut [],
+        }
+    }
+
     fn selected(&self) -> &SelectedTab {
         match self {
             Self::Ready { ready, .. } => ready.selected(),
@@ -114,6 +130,19 @@ impl StableAnchor {
 impl SwitchMembership {
     pub(super) fn invalidate(&mut self) {
         self.anchor = None;
+    }
+
+    /// The Host applied a Resize to a retained pane while the Switch was in flight. The pane's
+    /// geometry becomes unknown, which a restore resolves by re-sending the Resize.
+    pub(super) fn forget_geometry(&mut self, pane: &PaneRef) {
+        if let Some(saved) = self.anchor.as_mut().and_then(|anchor| {
+            anchor
+                .projections_mut()
+                .iter_mut()
+                .find(|saved| saved.pane == *pane)
+        }) {
+            saved.accepted_geometry = None;
+        }
     }
 }
 
@@ -172,6 +201,10 @@ impl PreparedSwitchRestore<'_> {
                     .find(|saved| saved.pane == record.pane_ref())
                 {
                     record.departing = false;
+                    // The next observation re-sends the Resize, as it resizes any visible pane.
+                    if saved.geometry_unknown() {
+                        record.last_admitted_geometry = None;
+                    }
                     if let Some(attachment) = &mut record.attachment {
                         attachment.projection =
                             PaneProjection::Installed(FrameAcknowledgement::Accepted(saved.frame));
@@ -230,18 +263,9 @@ impl WorkbenchClientState {
     fn stable_switch_anchor(&self) -> Option<StableAnchor> {
         match &self.phase {
             ClientPhase::Ready(ready) => {
-                let record = self.focus_record()?;
-                record.accepted_frame()?;
-                let accepted_geometry = record.last_accepted_geometry();
-                match ready.mode() {
-                    ControllerMode::Controlling(_)
-                        if accepted_geometry != Some(self.latest_geometry) =>
-                    {
-                        return None;
-                    }
-                    ControllerMode::ReadOnly if accepted_geometry.is_some() => return None,
-                    ControllerMode::Controlling(_) | ControllerMode::ReadOnly => {}
-                }
+                // The focus is captured with its siblings: a controlling one whose Resize still
+                // awaits the Host is retained with its geometry unknown.
+                self.focus_record()?.accepted_frame()?;
                 Some(StableAnchor::Ready {
                     ready: ready.clone(),
                     projections: self.capture_anchor_projections(ready.selected(), false)?,

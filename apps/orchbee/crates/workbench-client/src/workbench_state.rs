@@ -2476,19 +2476,41 @@ impl WorkbenchClientState {
         {
             return None;
         }
+        // A Resize acknowledgement for a pane this Client already controls. The executor runs a
+        // Resize admitted before a Switch ahead of it, so the acknowledgement settles while the
+        // Switch is in flight, for the old selection and its siblings alike. A Host resize is
+        // idempotent and a restore re-sends it, so the acknowledgement only leaves a retained
+        // pane's geometry unknown.
+        let resized = applied_geometry.is_some()
+            && self
+                .live_pane_record(key)
+                .is_some_and(|record| record.mode() == Some(&mode));
         let ClientPhase::Switching(setup) = &mut self.phase else {
             return None;
         };
-        let previous = setup.previous.as_mut()?;
-        if previous.selected.key != *key.pane()
-            || previous
-                .mode
-                .as_ref()
-                .is_some_and(|recorded| recorded != &mode)
+        match setup
+            .previous
+            .as_mut()
+            .filter(|previous| previous.selected.key == *key.pane())
         {
-            return None;
+            Some(previous)
+                if previous
+                    .mode
+                    .as_ref()
+                    .is_some_and(|recorded| recorded != &mode) =>
+            {
+                return None;
+            }
+            Some(previous) => previous.mode = Some(mode.clone()),
+            None if !resized => return None,
+            None => {}
         }
-        previous.mode = Some(mode.clone());
+        if resized {
+            if let Some(membership) = &mut setup.membership {
+                membership.forget_geometry(key);
+            }
+            return Some(SetupEventDisposition::Superseded { desired });
+        }
         if let Some(attachment) = self
             .live_pane_record_mut(key)
             .and_then(|record| record.attachment.as_mut())
