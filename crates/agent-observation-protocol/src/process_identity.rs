@@ -1,11 +1,13 @@
 //! Pure native process identity rules shared by diagnostic and trusted Host adapters:
 //! the provider registry, the invocation mode classifier, per-process recognition,
-//! the per-sample anchor verdict, and the identity result vocabulary. Nothing here performs I/O.
+//! the per-sample anchor verdict, the identity result vocabulary, and interactive shell
+//! recognition. Nothing here performs I/O.
 mod executable;
 mod mode;
 mod registry;
 mod result;
 mod sample;
+mod shell;
 pub use executable::{AgentProcessRecognition, AgentUnresolvedProcess, classify_agent_process};
 pub use mode::{AgentInvocationMode, AgentModeGrammar};
 pub use registry::{
@@ -20,6 +22,7 @@ pub use sample::{
     AgentAnchor, AgentAnchorEvidence, AgentProcessRow, AgentSampleVerdict, descends_from,
     evaluate_agent_sample,
 };
+pub use shell::{ShellRoot, classify_shell_root, is_console_host};
 
 /// Extracts the native executable basename and one recognized suffix.
 pub fn native_agent_basename(path: &str) -> String {

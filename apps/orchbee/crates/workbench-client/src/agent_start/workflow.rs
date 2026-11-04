@@ -14,6 +14,7 @@ use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
     AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
     AgentPresentationId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
+    ShellRoot, classify_shell_root, is_console_host,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessConsole, TerminalProcessInfo};
@@ -611,13 +612,13 @@ pub(crate) fn close_sample(sample: &TerminalProcessInfo) -> CloseSample {
         return CloseSample::Unknown;
     }
     match root_shell(sample, &agent_start_runtime::interpret(sample)) {
-        RootShell::Interactive => {}
-        RootShell::Other => return CloseSample::Program,
-        RootShell::Unreadable => return CloseSample::Unknown,
+        ShellRoot::Interactive => {}
+        ShellRoot::Other => return CloseSample::Program,
+        ShellRoot::Unreadable => return CloseSample::Unknown,
     }
     let mut verdict = CloseSample::ShellOnly;
     for row in &sample.processes {
-        if row.pid == sample.root_pid || row.image.as_deref().is_some_and(console_host) {
+        if row.pid == sample.root_pid || row.image.as_deref().is_some_and(is_console_host) {
             continue;
         }
         match row.console {
@@ -629,78 +630,21 @@ pub(crate) fn close_sample(sample: &TerminalProcessInfo) -> CloseSample {
     verdict
 }
 
-fn console_host(image: &str) -> bool {
-    matches!(
-        crate::agent_provider::basename(image).as_str(),
-        "conhost" | "openconsole"
-    )
-}
-
-/// How a sample's root reads as an interactive shell.
-enum RootShell {
-    /// `cmd`, `powershell` or `pwsh` started with only interactive switches or the Worker's fixed
-    /// initialization. Arbitrary command bodies and noninteractive launches do not qualify.
-    Interactive,
-    Other,
-    Unreadable,
-}
-
+/// How the sample's root reads as an interactive shell, by the rule every close and start owner shares.
 fn root_shell(
     sample: &TerminalProcessInfo,
     interpreted: &[crate::agent_runtime::processes::Process<'_>],
-) -> RootShell {
-    let Some(root) = interpreted.iter().find(|p| p.facts.pid == sample.root_pid) else {
-        return RootShell::Unreadable;
-    };
-    let Some(image) = root.facts.image.as_deref() else {
-        return RootShell::Unreadable;
-    };
-    let shell = crate::agent_provider::basename(image);
-    if !matches!(shell.as_str(), "cmd" | "powershell" | "pwsh") {
-        return RootShell::Other;
-    }
-    let Some(args) = root.argv.as_deref() else {
-        return RootShell::Unreadable;
-    };
-    if args
-        .first()
-        .is_none_or(|first| crate::agent_provider::basename(first) != shell)
-    {
-        return RootShell::Other;
-    }
-    let switches = &args[1..];
-    // The worker's fixed initialization finishes before the interactive prompt.
-    let runtime_initialization = shell != "cmd"
-        && switches.last().is_some_and(|script| {
-            script == &orchbee_local_runtime::windows_interactive_powershell_initialization()
-        });
-    let flags = if switches.len() >= 3
-        && runtime_initialization
-        && switches[switches.len() - 2].eq_ignore_ascii_case("-Command")
-        && switches[..switches.len() - 2]
-            .iter()
-            .any(|flag| flag.eq_ignore_ascii_case("-NoExit"))
-    {
-        &switches[..switches.len() - 2]
-    } else {
-        switches
-    };
-    let interactive = flags.iter().all(|arg| {
-        let arg = arg.to_ascii_lowercase();
-        if shell == "cmd" {
-            matches!(
-                arg.as_str(),
-                "/d" | "/q" | "/a" | "/u" | "/v:on" | "/v:off" | "/e:on" | "/e:off"
+) -> ShellRoot {
+    interpreted
+        .iter()
+        .find(|p| p.facts.pid == sample.root_pid)
+        .map_or(ShellRoot::Unreadable, |root| {
+            classify_shell_root(
+                root.facts.image.as_deref(),
+                root.argv.as_deref(),
+                &orchbee_local_runtime::windows_interactive_powershell_initialization(),
             )
-        } else {
-            matches!(arg.as_str(), "-nologo" | "-noprofile" | "-noexit")
-        }
-    });
-    if interactive {
-        RootShell::Interactive
-    } else {
-        RootShell::Other
-    }
+        })
 }
 
 fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
@@ -709,7 +653,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
         return Err(refuse());
     }
     let interpreted = agent_start_runtime::interpret(sample);
-    if !matches!(root_shell(sample, &interpreted), RootShell::Interactive) {
+    if !matches!(root_shell(sample, &interpreted), ShellRoot::Interactive) {
         return Err(refuse());
     }
     if interpreted.iter().any(|p| {
@@ -717,7 +661,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
             && p.facts
                 .image
                 .as_deref()
-                .is_none_or(|image| !console_host(image))
+                .is_none_or(|image| !is_console_host(image))
     }) {
         return Err(refuse());
     }

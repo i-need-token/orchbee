@@ -134,6 +134,12 @@ reuse it rather than keeping their own tables.
   and `grade`, `unknown` and `unsupported` add one `reason`, and `none` adds nothing.
   `AgentProcessAnchor` is the PID and provider of the run the Server attributes to the Terminal,
   the run Panel reports show; its wire form is `{pid, providerId}`.
+- Shells: `classify_shell_root` reads a Terminal's root process from its actual image and decoded
+  arguments as `ShellRoot`: an interactive `cmd`, `powershell` or `pwsh` started with only
+  interactive switches or the Worker's fixed PowerShell initialization (which the caller passes in),
+  another program, or unreadable. `is_console_host` names the console host a Windows Terminal's
+  process tree carries beside its shell. The Server's idle close and the native Agent start read a
+  root through this one rule and keep their own verdicts over the rest of the sample.
 
 `evaluate_agent_sample` turns one complete sample of `AgentProcessRow` values into an
 `AgentSampleVerdict`: the outermost candidate anchor with its evidence (interactive, unclassified
