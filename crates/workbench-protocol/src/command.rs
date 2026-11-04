@@ -717,6 +717,15 @@ pub enum WorkbenchAction {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
     },
+    /// Close one Tab only after the authority's own evidence shows that none
+    /// of its terminals runs anything beyond an idle shell; otherwise retain
+    /// `confirmation_required`. A refusal never authorizes an unconditional
+    /// resubmission under the same request identity.
+    #[serde(rename = "tab.close-if-idle")]
+    TabCloseIfIdle {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+    },
     #[serde(rename = "tab.create-layout")]
     TabCreateLayout {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -788,6 +797,15 @@ pub enum WorkbenchAction {
     },
     #[serde(rename = "panel.close")]
     PanelClose {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+    },
+    /// Close one Panel, and with a Tab's last Panel its Tab, only after the
+    /// authority's own evidence shows that none of its terminals runs anything
+    /// beyond an idle shell; otherwise retain `confirmation_required`.
+    #[serde(rename = "panel.close-if-idle")]
+    PanelCloseIfIdle {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,

@@ -1,7 +1,7 @@
 //! Bounded on-demand reads share the sampler thread and its sole uncertain-viewer cleanup owner.
 //! Each kind of read keeps one active and one waiting request, so no kind waits behind another
 //! kind's queue, and a waiting read takes the sampler before its periodic work continues.
-use super::{LocalTerminalService, ProcessObservationTarget, Wake};
+use super::{LocalTerminalService, Wake};
 use crate::local_terminal_service::viewer_connection::PendingCleanup;
 use std::{
     sync::{
@@ -14,9 +14,8 @@ use std::{
 #[cfg(all(test, windows))]
 mod tests;
 
-/// One read of `target`: `parameters` say what to read and `result` receives it.
+/// One read: `parameters` say what to read and `result` receives it.
 pub(super) struct Job<P, T> {
-    pub(super) target: ProcessObservationTarget,
     pub(super) parameters: P,
     pub(super) deadline: Instant,
     pub(super) cancelled: Arc<AtomicBool>,
@@ -110,7 +109,6 @@ impl LocalTerminalService {
     pub(super) fn request_on_demand<P, T>(
         &self,
         queue: impl FnOnce(&Wake) -> &Requests<P, T>,
-        target: ProcessObservationTarget,
         parameters: P,
         window: Duration,
     ) -> Result<T, Refusal> {
@@ -129,7 +127,6 @@ impl LocalTerminalService {
         let (result, receiver) = mpsc::sync_channel(1);
         queue(&observer.wake).enqueue(
             Job {
-                target,
                 parameters,
                 deadline,
                 cancelled: Arc::clone(&cancellation.0),

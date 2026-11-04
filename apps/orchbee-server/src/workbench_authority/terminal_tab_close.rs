@@ -126,6 +126,13 @@ pub enum WorkbenchTabCloseMemberRuntime {
         target: WorkbenchTabCloseRuntimeTarget,
         observed_phase: Option<orchbee_capability_node_protocol::LifecycleTerminalPhase>,
     },
+    /// This exact runtime ended, or the Server's own read of its shell and processes found
+    /// nothing beyond an idle shell. A conditional Tab or Panel Close then runs the ordinary
+    /// lifecycle; the Host's idle guard does not apply, because input reached the shell.
+    QuietRuntime {
+        target: WorkbenchTabCloseRuntimeTarget,
+        observed_phase: orchbee_capability_node_protocol::LifecycleTerminalPhase,
+    },
     Uncreated {
         binding: orchbee_workbench_protocol::PresentationBinding,
     },
@@ -134,9 +141,9 @@ pub enum WorkbenchTabCloseMemberRuntime {
 impl WorkbenchTabCloseMemberRuntime {
     pub(super) fn matches_member(&self, member: &WorkbenchTerminalTab) -> bool {
         match self {
-            Self::Runtime { target, .. } | Self::IdleRuntime { target, .. } => {
-                target.matches_member(member)
-            }
+            Self::Runtime { target, .. }
+            | Self::IdleRuntime { target, .. }
+            | Self::QuietRuntime { target, .. } => target.matches_member(member),
             Self::Uncreated { binding } => binding == member.binding(),
         }
     }
@@ -235,7 +242,9 @@ impl CloseRecord {
     fn tab_id(&self) -> Option<&WorkbenchTabId> {
         match &self.command.action {
             WorkbenchAction::TabClose { tab_id, .. }
-            | WorkbenchAction::PanelClose { tab_id, .. } => Some(tab_id),
+            | WorkbenchAction::TabCloseIfIdle { tab_id, .. }
+            | WorkbenchAction::PanelClose { tab_id, .. }
+            | WorkbenchAction::PanelCloseIfIdle { tab_id, .. } => Some(tab_id),
             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         }
@@ -243,7 +252,8 @@ impl CloseRecord {
 
     fn panel_id(&self) -> Option<&WorkbenchPanelId> {
         match &self.command.action {
-            WorkbenchAction::PanelClose { panel_id, .. } => Some(panel_id),
+            WorkbenchAction::PanelClose { panel_id, .. }
+            | WorkbenchAction::PanelCloseIfIdle { panel_id, .. } => Some(panel_id),
             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.
             _ => None,
         }

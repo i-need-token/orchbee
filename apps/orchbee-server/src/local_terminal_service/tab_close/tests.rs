@@ -29,6 +29,7 @@ use std::{
 mod admitted_control;
 mod disposed_reuse;
 mod idle_capacity;
+mod leaf_idle;
 mod target_fences;
 mod workspace;
 mod workspace_close;

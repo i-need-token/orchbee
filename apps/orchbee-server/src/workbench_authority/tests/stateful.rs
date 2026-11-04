@@ -414,7 +414,9 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     return Err("pure trace generated directory association".to_owned());
                 }
                 WorkbenchAction::TabClose { .. }
+                | WorkbenchAction::TabCloseIfIdle { .. }
                 | WorkbenchAction::PanelClose { .. }
+                | WorkbenchAction::PanelCloseIfIdle { .. }
                 | WorkbenchAction::WorkspaceClose { .. }
                 | WorkbenchAction::WorkspaceCloseIfIdle { .. } => {
                     return Err("pure trace generated lifecycle close".to_owned());

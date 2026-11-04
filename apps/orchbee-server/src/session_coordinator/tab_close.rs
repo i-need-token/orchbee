@@ -25,8 +25,15 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceCloseResumeResult,
 };
 
-use super::{PostcommitCoordinationError, SessionCoordinator};
-use crate::terminal_coordinator::WorkerPlacement;
+use super::{PostcommitCoordinationError, ProcessObservationTarget, SessionCoordinator};
+use crate::terminal_coordinator::{BindingViewerTarget, WorkerPlacement};
+
+/// One captured member of a conditional Tab or Panel Close, with the viewer target the Server
+/// reads a live runtime through.
+pub(crate) type IdleCloseMember = (
+    WorkbenchTabCloseMemberRuntime,
+    Option<ProcessObservationTarget>,
+);
 
 impl SessionCoordinator {
     /// Captures every primary/child binding without reserving a Close; ordinary
@@ -65,7 +72,64 @@ impl SessionCoordinator {
         })
     }
 
-    pub(crate) fn prepare_workspace_idle_inspection(
+    /// Captures every member of a conditional Tab or Panel Close without reserving it. Ordinary
+    /// refusals and joins of an open Close stay with the ledger owner; a runtime this owner cannot
+    /// resolve asks first. The caller drops the Session gate before reading anything, then final
+    /// admission repeats these guards and compares exact runtime incarnations.
+    pub(crate) fn prepare_terminal_tab_idle_close(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+    ) -> Option<Result<Vec<IdleCloseMember>, WorkbenchCommandResult>> {
+        let Self {
+            terminals,
+            workbench,
+            ..
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let session_id = workbench.session_id().clone();
+        let grant = WorkbenchGrant::read_only(session_id.clone()).with_terminal_lifecycle();
+        let admission = match workbench.begin_terminal_tab_close(Some(&grant), command) {
+            WorkbenchTabCloseBegin::Ready(result) => return Some(Err(result)),
+            WorkbenchTabCloseBegin::Admitted(admission) => admission,
+        };
+        let admission = match admission.resolve_after_composition() {
+            WorkbenchTabCloseResolution::Ready(result) => return Some(Err(result)),
+            WorkbenchTabCloseResolution::Primary(admission) => admission,
+        };
+        let members = admission
+            .members()
+            .iter()
+            .map(|member| {
+                let runtime =
+                    Self::terminal_tab_close_runtime(terminals, member.binding(), worker)?;
+                let observation = match &runtime {
+                    WorkbenchTabCloseMemberRuntime::Runtime { target, .. } => {
+                        Some(ProcessObservationTarget {
+                            session_id: session_id.clone(),
+                            binding: member.binding().clone(),
+                            target: BindingViewerTarget {
+                                terminal_id: target.terminal_id(),
+                                identity: target.host_identity(),
+                                worker: WorkerPlacement {
+                                    worker_id: target.worker_id(),
+                                    generation: target.worker_generation(),
+                                },
+                            },
+                        })
+                    }
+                    _ => None,
+                };
+                Ok((runtime, observation))
+            })
+            .collect::<Result<Vec<_>, WorkbenchTabCloseRuntimeUnavailableReason>>();
+        Some(match members {
+            Ok(members) => Ok(members),
+            Err(_) => Err(admission.confirmation_required()),
+        })
+    }
+
+    pub(crate) fn prepare_close_inspection(
         &mut self,
         target: orchbee_server::WorkbenchTabCloseRuntimeTarget,
         close_id: &WorkbenchRequestId,
@@ -133,6 +197,41 @@ impl SessionCoordinator {
         owner_available: bool,
         now: Instant,
     ) -> Option<WorkbenchCommandResult> {
+        self.execute_terminal_tab_close_with_proof(command, worker, owner_available, now, None)
+    }
+
+    /// Final admission of a conditional Tab or Panel Close. Each member's proof counts only for
+    /// the exact runtime it was gathered from; anything else asks first.
+    pub(crate) fn execute_terminal_tab_close_with_idle_proof(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+        proof: &[WorkbenchTabCloseMemberRuntime],
+    ) -> Option<WorkbenchCommandResult> {
+        self.execute_terminal_tab_close_with_proof(
+            command,
+            worker,
+            owner_available,
+            now,
+            Some(proof),
+        )
+    }
+
+    fn execute_terminal_tab_close_with_proof(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+        idle_proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
+    ) -> Option<WorkbenchCommandResult> {
+        let conditional = matches!(
+            command.action,
+            orchbee_workbench_protocol::WorkbenchAction::TabCloseIfIdle { .. }
+                | orchbee_workbench_protocol::WorkbenchAction::PanelCloseIfIdle { .. }
+        );
         let Self {
             terminals,
             workbench,
@@ -160,10 +259,12 @@ impl SessionCoordinator {
             .iter()
             .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
             .collect::<Result<Vec<_>, _>>();
-        let runtimes = match runtimes {
+        let mut runtimes = match runtimes {
             Ok(runtimes) => runtimes,
+            Err(_) if conditional => return Some(admission.confirmation_required()),
             Err(reason) => return Some(admission.runtime_unavailable(reason)),
         };
+        apply_idle_proof(&mut runtimes, idle_proof);
         Some(match admission.finish_resolved_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
@@ -282,17 +383,7 @@ impl SessionCoordinator {
             Err(_) if conditional => return Some(admission.confirmation_required()),
             Err(reason) => return Some(admission.runtime_unavailable(reason)),
         };
-        if let Some(proof) = idle_proof.filter(|proof| proof.len() == runtimes.len()) {
-            for (runtime, proof) in runtimes.iter_mut().zip(proof) {
-                if matches!((&*runtime, proof), (
-                    WorkbenchTabCloseMemberRuntime::Runtime { target: current, .. },
-                    WorkbenchTabCloseMemberRuntime::IdleRuntime { target: observed, .. }
-                ) if current == observed)
-                {
-                    *runtime = proof.clone();
-                }
-            }
-        }
+        apply_idle_proof(&mut runtimes, idle_proof);
         Some(match admission.finish_resolved_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
@@ -537,5 +628,26 @@ impl SessionCoordinator {
             let _closed = prepared.commit();
         }
         Ok(())
+    }
+}
+
+/// Replaces each currently resolved runtime with the proof gathered from that exact runtime. A
+/// member whose runtime changed since keeps its plain resolution, and the conditional gate asks.
+fn apply_idle_proof(
+    runtimes: &mut [WorkbenchTabCloseMemberRuntime],
+    proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
+) {
+    let Some(proof) = proof.filter(|proof| proof.len() == runtimes.len()) else {
+        return;
+    };
+    for (runtime, proof) in runtimes.iter_mut().zip(proof) {
+        if matches!((&*runtime, proof), (
+            WorkbenchTabCloseMemberRuntime::Runtime { target: current, .. },
+            WorkbenchTabCloseMemberRuntime::IdleRuntime { target: observed, .. }
+                | WorkbenchTabCloseMemberRuntime::QuietRuntime { target: observed, .. }
+        ) if current == observed)
+        {
+            *runtime = proof.clone();
+        }
     }
 }

@@ -172,6 +172,48 @@ the complete primary/child/Project-member extractor, concrete pending entries an
 cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Session
 witnesses above carry those obligations separately; native process and prompt behavior additionally require the Host regressions and real TUI witnesses.
 
+### Tab and Panel
+
+`tab.close-if-idle {terminalContextId, tabId}` and `panel.close-if-idle {terminalContextId,
+tabId, panelId}` are distinct fingerprints answered by the ordinary `tab-close-accepted` or
+`panel-close-accepted` receipt or a retained `confirmation-required`. They take the ordinary
+lifecycle grant, replay/conflict, capacity, Session/revision and scope checks, and resolve scope
+like the ordinary actions: a Tab's last layout leaf closes its Tab. A request for a Tab or Panel
+whose Close is already open joins it whichever form opened it; any other overlapping Close is busy.
+
+The Server, not a Client, decides whether such a Close asks first. Under the registry → Session
+gates the service captures the exact member runtimes and reserves nothing; a runtime it cannot
+resolve asks. It drops both gates, then one one-second budget covers each runtime's read-only
+`InspectInventoryPage` walk and the read of every live runtime through the process observer. One
+on-demand job carries every live target and reads each on a temporary observation viewer, a fresh
+frame first and then one process sample, and stops at the first terminal that asks. Final admission
+re-enters the gates, repeats every ordinary guard and counts each proof only for the exact runtime
+it was read from: Worker generation, binding fence and full Host identity. A changed runtime asks;
+revision drift keeps its ordinary `revision-mismatch`.
+
+A member closes unasked when its inventory shows it Exited or Failed, or its own read shows
+nothing beyond an idle shell. Two facts decide. The shell's report comes from the frame: the
+reader's correlated markers, else the OSC 133 prompt marks on a complete frame's rows; a
+full-screen view or a delta frame reports nothing. The process sample proves a shell only when its
+root is an interactive shell by the rule `orchbee-agent-observation-protocol` shares with Agent
+start and no other member except a console host holds the console. A command reported running or a
+program holding the console asks. A shell at its prompt closes even when its sample is refused,
+unavailable or late; a silent shell is judged by its sample alone. A fact the budget leaves unread
+counts as silence or as unknown, so at expiry an unread terminal closes only on its shell's prompt
+report. A busy or stopped sampler, a refused observation attach, an uncertain viewer cleanup, or a
+missing or failed inventory page asks. Only Windows Hosts sample processes, so elsewhere every live
+terminal asks.
+
+An accepted conditional Close is the ordinary Close of its scope from then on: it installs the
+ordinary reservation and fences, terminates live members without the Host idle guard because the
+Server's own evidence already decided, and disposes ended ones. `confirmation-required` is
+definite no effect; a Client then asks and sends the ordinary `tab.close` or `panel.close` under a
+new request ID. The [owner tests](../src/local_terminal_service/tab_close/tests/leaf_idle.rs) and
+[evidence rules](../src/local_terminal_service/tab_close/evidence.rs) cover the decision table,
+ended members, the budget, replay and the exact-runtime recheck; the native
+`cli_windows_idle_close` witness reads a real PowerShell under the system ConHost and the bundled
+ConPTY.
+
 ## Close command and retained status
 
 The existing `workbench.command` envelope and full fingerprint

@@ -1529,7 +1529,9 @@ impl PureWorkbenchAction {
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabMoveIndex { .. }
             | WorkbenchAction::TabClose { .. }
+            | WorkbenchAction::TabCloseIfIdle { .. }
             | WorkbenchAction::PanelClose { .. }
+            | WorkbenchAction::PanelCloseIfIdle { .. }
             | WorkbenchAction::PanelMove { .. }
             | WorkbenchAction::PanelSwap { .. }
             | WorkbenchAction::PanelRelocate { .. }

@@ -52,7 +52,16 @@ pub(super) fn maximum_wire_charge(
             terminal_context_id,
             tab_id,
         }
+        | WorkbenchAction::TabCloseIfIdle {
+            terminal_context_id,
+            tab_id,
+        }
         | WorkbenchAction::PanelClose {
+            terminal_context_id,
+            tab_id,
+            ..
+        }
+        | WorkbenchAction::PanelCloseIfIdle {
             terminal_context_id,
             tab_id,
             ..
@@ -281,10 +290,19 @@ fn command_owned_bytes(command: &WorkbenchCommand) -> Option<usize> {
         WorkbenchAction::TabClose {
             terminal_context_id,
             tab_id,
+        }
+        | WorkbenchAction::TabCloseIfIdle {
+            terminal_context_id,
+            tab_id,
         } => terminal_context_id
             .owned_capacity()
             .checked_add(tab_id.owned_capacity()),
         WorkbenchAction::PanelClose {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        }
+        | WorkbenchAction::PanelCloseIfIdle {
             terminal_context_id,
             tab_id,
             panel_id,

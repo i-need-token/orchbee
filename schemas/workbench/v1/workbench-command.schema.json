@@ -504,7 +504,42 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "tab.close-if-idle"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "panel.close"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel.close-if-idle"
 						},
 						"terminalContextId": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"

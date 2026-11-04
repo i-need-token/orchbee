@@ -180,7 +180,9 @@ impl WorkbenchService {
                 if matches!(
                     &command.action,
                     WorkbenchAction::TabClose { .. }
+                        | WorkbenchAction::TabCloseIfIdle { .. }
                         | WorkbenchAction::PanelClose { .. }
+                        | WorkbenchAction::PanelCloseIfIdle { .. }
                         | WorkbenchAction::WorkspaceClose { .. }
                         | WorkbenchAction::WorkspaceCloseIfIdle { .. }
                 ) =>
@@ -376,7 +378,10 @@ impl WorkbenchService {
             WorkbenchRequest::Command(command)
                 if matches!(
                     &command.action,
-                    WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. }
+                    WorkbenchAction::TabClose { .. }
+                        | WorkbenchAction::TabCloseIfIdle { .. }
+                        | WorkbenchAction::PanelClose { .. }
+                        | WorkbenchAction::PanelCloseIfIdle { .. }
                 ) =>
             {
                 let response = self

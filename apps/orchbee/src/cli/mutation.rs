@@ -2166,6 +2166,8 @@ mod workflow {
             | WorkbenchAction::NavigationConfigure { .. }
             | WorkbenchAction::PanelCreateTerminal { .. }
             | WorkbenchAction::TabCreateLayout { .. }
+            | WorkbenchAction::TabCloseIfIdle { .. }
+            | WorkbenchAction::PanelCloseIfIdle { .. }
             | WorkbenchAction::WorkspaceCloseIfIdle { .. }
             | WorkbenchAction::ProjectDissolveIfIdle { .. } => {
                 Err(Failure::new(FailureKind::InternalFailure))

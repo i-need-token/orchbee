@@ -181,9 +181,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                 // A completed Close cannot still cover a member that remains projected.
                 return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command));
             }
-            let same_action = std::mem::discriminant(&record.command.action)
-                == std::mem::discriminant(&self.command.action);
-            if same_action
+            if same_leaf_close(&record.command.action, &self.command.action)
                 && record.panel_id() == self.panel_id.as_ref()
                 && record.matches_members(&members)
             {
@@ -466,16 +464,24 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         }
-        if matches!(
-            self.command.action,
-            WorkbenchAction::WorkspaceCloseIfIdle { .. }
-        ) && runtimes.iter().any(|runtime| {
-            !matches!(
-                runtime,
-                WorkbenchTabCloseMemberRuntime::Uncreated { .. }
-                    | WorkbenchTabCloseMemberRuntime::IdleRuntime { .. }
-            )
-        }) {
+        let unproven = |proof: fn(&WorkbenchTabCloseMemberRuntime) -> bool| {
+            runtimes.iter().any(|runtime| {
+                !matches!(runtime, WorkbenchTabCloseMemberRuntime::Uncreated { .. })
+                    && !proof(runtime)
+            })
+        };
+        let conditional_unproven = match self.command.action {
+            WorkbenchAction::WorkspaceCloseIfIdle { .. } => unproven(|runtime| {
+                matches!(runtime, WorkbenchTabCloseMemberRuntime::IdleRuntime { .. })
+            }),
+            WorkbenchAction::TabCloseIfIdle { .. } | WorkbenchAction::PanelCloseIfIdle { .. } => {
+                unproven(|runtime| {
+                    matches!(runtime, WorkbenchTabCloseMemberRuntime::QuietRuntime { .. })
+                })
+            }
+            _ => false,
+        };
+        if conditional_unproven {
             return WorkbenchTabClosePreparation::Ready(
                 self.authority
                     .retain_rejection(self.command, WorkbenchRejectionReason::ConfirmationRequired),
@@ -493,13 +499,19 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         };
         let outcome = match &self.command.action {
-            WorkbenchAction::TabClose { tab_id, .. } => WorkbenchCommandOutcome::TabCloseAccepted {
-                close_request_id: self.command.request_id.clone(),
-                terminal_context_id: self.membership.terminal_context_id().clone(),
-                tab_id: tab_id.clone(),
-                accepted_revision: self.command.expected_revision,
-            },
+            WorkbenchAction::TabClose { tab_id, .. }
+            | WorkbenchAction::TabCloseIfIdle { tab_id, .. } => {
+                WorkbenchCommandOutcome::TabCloseAccepted {
+                    close_request_id: self.command.request_id.clone(),
+                    terminal_context_id: self.membership.terminal_context_id().clone(),
+                    tab_id: tab_id.clone(),
+                    accepted_revision: self.command.expected_revision,
+                }
+            }
             WorkbenchAction::PanelClose {
+                tab_id, panel_id, ..
+            }
+            | WorkbenchAction::PanelCloseIfIdle {
                 tab_id, panel_id, ..
             } => WorkbenchCommandOutcome::PanelCloseAccepted {
                 close_request_id: self.command.request_id.clone(),
@@ -540,6 +552,20 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
                 } => (
                     Some(target),
                     CloseContinuation::prepare(now, observed_phase),
+                ),
+                // A terminal awaiting its start may start before the fence commits, so the
+                // retained operation observes it again rather than disposing of it unobserved.
+                WorkbenchTabCloseMemberRuntime::QuietRuntime {
+                    target,
+                    observed_phase,
+                } => (
+                    Some(target),
+                    CloseContinuation::prepare(
+                        now,
+                        Some(observed_phase).filter(|phase| {
+                            !matches!(phase, LifecycleTerminalPhase::AwaitingStart)
+                        }),
+                    ),
                 ),
                 WorkbenchTabCloseMemberRuntime::Uncreated { .. } => {
                     (None, CloseContinuation::prepare_uncreated(now))
@@ -636,7 +662,10 @@ impl WorkbenchAuthority {
     ) -> WorkbenchTabCloseBegin<'_> {
         let authorized = matches!(
             &command.action,
-            WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. }
+            WorkbenchAction::TabClose { .. }
+                | WorkbenchAction::TabCloseIfIdle { .. }
+                | WorkbenchAction::PanelClose { .. }
+                | WorkbenchAction::PanelCloseIfIdle { .. }
         ) && grant
             .is_some_and(|grant| grant.session_id == *self.session_id() && grant.close_terminal);
         if !authorized {
@@ -671,8 +700,17 @@ impl WorkbenchAuthority {
             WorkbenchAction::TabClose {
                 terminal_context_id,
                 tab_id,
+            }
+            | WorkbenchAction::TabCloseIfIdle {
+                terminal_context_id,
+                tab_id,
             } => (terminal_context_id, tab_id, None),
             WorkbenchAction::PanelClose {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+            }
+            | WorkbenchAction::PanelCloseIfIdle {
                 terminal_context_id,
                 tab_id,
                 panel_id,
@@ -818,4 +856,22 @@ impl WorkbenchAuthority {
             membership,
         }))
     }
+}
+
+/// Whether a request joins an open Close of the same Tab or Panel. A conditional request joins
+/// an ordinary one, and the reverse, because the Close already runs and asking would end nothing.
+fn same_leaf_close(retained: &WorkbenchAction, requested: &WorkbenchAction) -> bool {
+    let tab = |action: &WorkbenchAction| {
+        matches!(
+            action,
+            WorkbenchAction::TabClose { .. } | WorkbenchAction::TabCloseIfIdle { .. }
+        )
+    };
+    let panel = |action: &WorkbenchAction| {
+        matches!(
+            action,
+            WorkbenchAction::PanelClose { .. } | WorkbenchAction::PanelCloseIfIdle { .. }
+        )
+    };
+    (tab(retained) && tab(requested)) || (panel(retained) && panel(requested))
 }

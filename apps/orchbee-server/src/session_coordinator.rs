@@ -26,6 +26,7 @@ mod plugin_popup;
 pub(crate) use editor_popup::EditorPopupLaunch;
 mod exit_close;
 mod tab_close;
+pub(crate) use tab_close::IdleCloseMember;
 mod tab_create;
 #[cfg(test)]
 pub(crate) use tab_create::PendingTerminalTabCreate;
@@ -50,7 +51,9 @@ mod process_observation;
 mod semantic_events;
 #[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
-pub(crate) use process_observation::{ProcessObservationTarget, identify as identify_host_agent};
+pub(crate) use process_observation::{
+    ProcessObservationTarget, decoded_argv, identify as identify_host_agent,
+};
 
 pub(crate) struct SessionCoordinator {
     terminals: TerminalCoordinator,

@@ -44,19 +44,20 @@ fn key(binding: &PresentationBinding) -> (String, String) {
         binding.terminal_id.as_str().into(),
     )
 }
+/// The arguments of one Host-reported command line, or `None` when it is blank, carries a NUL,
+/// exceeds the Host's bound, or cannot be split on this build.
+pub(crate) fn decoded_argv(command_line: Option<&str>) -> Option<Vec<String>> {
+    command_line
+        .filter(|s| !s.trim().is_empty() && !s.contains('\0') && s.encode_utf16().count() <= 4096)
+        .and_then(command_line::argv)
+}
 /// Decodes one complete Host sample into identity rows.
 fn rows(sample: &TerminalProcessInfo) -> Vec<AgentProcessRow> {
     sample
         .processes
         .iter()
         .map(|p| {
-            let argv = p
-                .command_line
-                .as_deref()
-                .filter(|s| {
-                    !s.trim().is_empty() && !s.contains('\0') && s.encode_utf16().count() <= 4096
-                })
-                .and_then(command_line::argv);
+            let argv = decoded_argv(p.command_line.as_deref());
             AgentProcessRow {
                 pid: p.pid,
                 parent_pid: p.parent_pid,

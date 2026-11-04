@@ -91,13 +91,15 @@ TypeScript and JSON Schema share this boundary and the command conformance cases
 snapshot labels stay decodable so Clients can show a fallback and rename them. This does not
 change the independently owned Project, Tab or Tab-group naming rules.
 
-The additive `workspace.close-if-idle {workspaceId}` and `project.dissolve-if-idle {projectId}`
-actions keep the ordinary command envelope and existing accepted receipts, with distinct full
-fingerprints. They accept no caller idle flag. Only Server-owned complete-scope admission can
+The additive `workspace.close-if-idle {workspaceId}`, `project.dissolve-if-idle {projectId}`,
+`tab.close-if-idle {terminalContextId, tabId}` and `panel.close-if-idle {terminalContextId, tabId,
+panelId}` actions keep the ordinary command envelope and existing accepted receipts, with distinct
+full fingerprints. They accept no caller idle flag. Only Server-owned complete-scope admission can
 accept them; definite `rejected` reason `confirmation-required` has no effect and grants no
 automatic resubmission. Ordinary confirmed actions remain unchanged. The
 [Server conditional contract](../../apps/orchbee-server/docs/terminal-tab-close.md#conditional-idle-admission)
-owns pending reservations, exact never-created evidence, fences and organization preservation.
+owns pending reservations, exact never-created evidence, the Server's terminal evidence, fences
+and organization preservation.
 
 `navigation.configure` carries one closed `NavigationConfiguration`: `move-project` requires a
 Project ID and nullable `beforeProjectId`; `move-workspace` requires a Workspace ID, nullable

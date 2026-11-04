@@ -65,6 +65,18 @@ impl LocalTerminalService {
         });
         (explanation, pending)
     }
+    /// One live terminal's close evidence on a temporary viewer, each fact published as soon as
+    /// it is read.
+    pub(in crate::local_terminal_service) fn sample_close_facts(
+        &self,
+        target: &ProcessObservationTarget,
+        stop: &AtomicBool,
+        publish: &mut dyn FnMut(crate::local_terminal_service::tab_close::evidence::CloseFacts),
+    ) -> Option<PendingCleanup> {
+        self.with_observation_viewer(target, stop, |viewer, template| {
+            screen::close_facts(viewer, template, stop, publish);
+        })
+    }
     pub(in crate::local_terminal_service) fn sample_process_target(
         &self,
         target: &ProcessObservationTarget,

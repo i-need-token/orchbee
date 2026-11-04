@@ -35,9 +35,11 @@ impl WorkbenchCommand {
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabMoveIndex { .. }
             | WorkbenchAction::TabClose { .. }
+            | WorkbenchAction::TabCloseIfIdle { .. }
             | WorkbenchAction::TabCreate { .. }
             | WorkbenchAction::PanelSplit { .. }
             | WorkbenchAction::PanelClose { .. }
+            | WorkbenchAction::PanelCloseIfIdle { .. }
             | WorkbenchAction::PanelMove { .. }
             | WorkbenchAction::PanelSwap { .. }
             | WorkbenchAction::PanelRelocate { .. }

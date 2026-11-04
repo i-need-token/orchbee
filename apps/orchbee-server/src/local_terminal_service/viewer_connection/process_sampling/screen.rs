@@ -5,6 +5,7 @@ use super::super::{
 };
 use crate::{
     agent_screen::{ScreenDetector, ScreenInput},
+    local_terminal_service::tab_close::evidence::{CloseFacts, CloseSample, ShellReport},
     session_coordinator::identify_host_agent,
 };
 use orchbee_capability_node_protocol::{OperationId, ViewerRowDetail, ViewerSnapshotReason};
@@ -136,6 +137,27 @@ fn refresh_after_sequence(
     };
     viewer.projection.complete_feedback(&feedback);
     frame(viewer, template, stop)
+}
+/// The shell's report in a fresh frame, then, unless that already asks, one process sample. The
+/// frame comes first so that the sample cannot predate the report it is weighed with.
+pub(super) fn close_facts(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    publish: &mut dyn FnMut(CloseFacts),
+) {
+    let mut facts = CloseFacts::default();
+    if let Some(frame) = fresh_frame(viewer, template, stop) {
+        facts.report = Some(ShellReport::of(&frame));
+        publish(facts);
+    }
+    if facts.report == Some(ShellReport::Running) {
+        return;
+    }
+    if let Some(sample) = process(viewer, template, stop) {
+        facts.sample = Some(CloseSample::of(&sample));
+        publish(facts);
+    }
 }
 #[cfg(windows)]
 pub(super) fn directory(

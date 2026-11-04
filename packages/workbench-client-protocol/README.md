@@ -28,8 +28,10 @@ matching Rust and JSON Schema. Validation preserves accepted text exactly, inclu
 spaces, and uses the shared command corpus for ASCII and Unicode whitespace. Snapshot labels
 remain readable for recovery of existing blank names; other label families keep their own rules.
 
-Strict command bindings also admit `workspace.close-if-idle {workspaceId}` and
-`project.dissolve-if-idle {projectId}`, reject caller-supplied idle assertions, and decode the
+Strict command bindings also admit `workspace.close-if-idle {workspaceId}`,
+`project.dissolve-if-idle {projectId}`, `tab.close-if-idle {terminalContextId, tabId}` and
+`panel.close-if-idle {terminalContextId, tabId, panelId}`, reject caller-supplied idle assertions,
+and decode the
 definite no-effect `confirmation-required` rejection. Existing confirmed action shapes and
 accepted receipt shapes are unchanged; conditional and confirmed kinds are different request
 fingerprints. The [Server conditional owner](../../apps/orchbee-server/docs/terminal-tab-close.md#conditional-idle-admission)

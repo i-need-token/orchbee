@@ -198,10 +198,11 @@ with a complete nested `workbench.snapshot`, denied, or unavailable. The schema 
 the [Server authority](../../apps/orchbee-server/docs/workbench-authority.md) owns decision precedence,
 atomic commitment, authorization and its bounded process-local ledger. No automatic replay is implied.
 
-Conditional `workspace.close-if-idle {workspaceId}` and `project.dissolve-if-idle {projectId}`
-are separate strict action shapes with the same envelope and existing accepted receipts.
+Conditional `workspace.close-if-idle {workspaceId}`, `project.dissolve-if-idle {projectId}`,
+`tab.close-if-idle {terminalContextId, tabId}` and `panel.close-if-idle {terminalContextId, tabId,
+panelId}` are separate strict action shapes with the same envelope and existing accepted receipts.
 `confirmation-required` is a definite no-effect rejection reason. The shared command corpus
-includes both kinds and rejects caller idle assertions or omitted identities; legacy action
+includes every kind and rejects caller idle assertions or omitted identities; legacy action
 cases remain unchanged. The [Server conditional owner](../../apps/orchbee-server/docs/terminal-tab-close.md#conditional-idle-admission)
 defines complete-scope proof and the atomic effect fence. Schema acceptance alone cannot prove
 runtime absence, authorize an unconditional follow-up or establish real interaction behavior.

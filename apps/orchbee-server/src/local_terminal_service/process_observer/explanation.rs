@@ -6,7 +6,8 @@ use orchbee_workbench_protocol::PanelAgentFailure as Failure;
 use std::time::Duration;
 const READ_WINDOW: Duration = Duration::from_secs(4);
 
-pub(super) type Requests = on_demand::Requests<AgentReportProvider, CapturedAgentExplanation>;
+pub(super) type Requests =
+    on_demand::Requests<(ProcessObservationTarget, AgentReportProvider), CapturedAgentExplanation>;
 
 impl LocalTerminalService {
     pub(in crate::local_terminal_service) fn request_agent_explanation(
@@ -14,7 +15,7 @@ impl LocalTerminalService {
         target: ProcessObservationTarget,
         provider: AgentReportProvider,
     ) -> Result<CapturedAgentExplanation, Failure> {
-        self.request_on_demand(|wake| &wake.explanations, target, provider, READ_WINDOW)
+        self.request_on_demand(|wake| &wake.explanations, (target, provider), READ_WINDOW)
             .map_err(|refusal| match refusal {
                 on_demand::Refusal::Busy => Failure::ResourceLimit,
                 on_demand::Refusal::Unavailable => Failure::Unavailable,
@@ -23,6 +24,7 @@ impl LocalTerminalService {
 }
 pub(super) fn serve(service: &LocalTerminalService, wake: &Wake, detector: &ScreenDetector) {
     on_demand::serve(service, wake, &wake.explanations, |job| {
-        service.sample_agent_explanation(&job.target, &job.cancelled, detector, job.parameters)
+        let (target, provider) = &job.parameters;
+        service.sample_agent_explanation(target, &job.cancelled, detector, *provider)
     });
 }

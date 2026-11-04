@@ -1,33 +1,9 @@
 use super::*;
-use crate::terminal_coordinator::{BindingViewerTarget, WorkerPlacement};
-use orchbee_capability_node_protocol::{
-    HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, TerminalId, WorkerGeneration,
-    WorkerId,
-};
 const WINDOW: Duration = Duration::from_secs(4);
 
 fn job(now: Instant) -> (Job<(), ()>, mpsc::Receiver<Option<()>>) {
     let (result, receiver) = mpsc::sync_channel(1);
     let job = Job {
-        target: ProcessObservationTarget {
-            session_id: orchbee_workbench_protocol::SessionId::parse(&"1".repeat(32)).unwrap(),
-            binding: serde_json::from_value(
-                serde_json::json!({"workerId":"2".repeat(32),"terminalId":"3".repeat(32)}),
-            )
-            .unwrap(),
-            target: BindingViewerTarget {
-                terminal_id: TerminalId::from_bytes([3; 16]).unwrap(),
-                identity: HostTerminalIdentity::new(
-                    HostCreationId::from_bytes([4; 16]).unwrap(),
-                    HostEpoch::from_bytes([5; 16]).unwrap(),
-                    HostTerminalId::from_bytes([6; 16]).unwrap(),
-                ),
-                worker: WorkerPlacement {
-                    worker_id: WorkerId::from_bytes([2; 16]).unwrap(),
-                    generation: WorkerGeneration::new(std::num::NonZeroU64::MIN),
-                },
-            },
-        },
         parameters: (),
         deadline: now + WINDOW,
         cancelled: Arc::new(AtomicBool::new(false)),

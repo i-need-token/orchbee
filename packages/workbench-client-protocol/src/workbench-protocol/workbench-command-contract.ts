@@ -221,6 +221,13 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			tabId: WorkbenchTabIdSchema,
 		})
 		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('tab.close-if-idle'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+		})
+		.readonly(),
 	z.strictObject({ kind: z.literal('project.create'), label: WorkbenchLabelSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('project.dissolve'), projectId: WorkbenchProjectIdSchema })
@@ -523,6 +530,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('panel.close'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel.close-if-idle'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
 			panelId: WorkbenchPanelIdSchema,

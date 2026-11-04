@@ -21,6 +21,7 @@ pub(super) struct Schedule {
     agents: Option<Cursor>,
     discovery: Option<Cursor>,
 }
+mod close;
 mod directory;
 mod explanation;
 mod host_sampling;
@@ -32,6 +33,7 @@ struct Wake {
     wait: Mutex<()>,
     changed: Condvar,
     pending: Mutex<Option<PendingCleanup>>,
+    closes: close::Requests,
     directories: directory::Requests,
     explanations: explanation::Requests,
     manifests: manifests::Registry,
@@ -39,7 +41,7 @@ struct Wake {
 impl Wake {
     /// A read queued while the sampler was busy, whose wake-up therefore found no waiter.
     fn reads_waiting(&self) -> bool {
-        self.directories.waiting() || self.explanations.waiting()
+        self.closes.waiting() || self.directories.waiting() || self.explanations.waiting()
     }
 }
 #[derive(Default)]
@@ -56,6 +58,7 @@ impl ProcessObserver {
     }
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
+        self.wake.closes.cancel();
         self.wake.directories.cancel();
         self.wake.explanations.cancel();
         self.wake.manifests.cancel();
@@ -369,6 +372,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
         if wake.stop.load(Ordering::Acquire) {
             wake.manifests.cancel();
             // A stopping observer serves no read, so none may keep its wait from sleeping.
+            wake.closes.cancel();
             wake.directories.cancel();
             wake.explanations.cancel();
         }
@@ -379,6 +383,8 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
                 return;
             }
         } else if let Some(service) = service.as_deref() {
+            // A person waits on a close, so its read goes first.
+            close::serve(service, &wake);
             directory::serve(service, &wake);
             explanation::serve(service, &wake, &detector);
             service.sample_configuration(&mut configuration, Instant::now());
