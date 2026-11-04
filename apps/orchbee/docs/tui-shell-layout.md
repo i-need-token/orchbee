@@ -111,7 +111,9 @@ default sidebar plus that minimum (90 columns) are wide and show the sidebar by 
 hosts open it only as an explicitly requested overlay.
 
 When directory input is supported, the sidebar fixes two action rows at the top: `[ New workspace ]` and
-`[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
+`[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The first row starts at the sidebar's
+top edge and ends with the [sidebar toggle](#sidebar-toggle-and-help), as the Settings row ends
+with Help. The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
 remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above Settings, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Projects in their canonical
@@ -132,8 +134,9 @@ creation hint. Fixed actions and effective keyboard routes remain available. Glo
 keeps its localized directory and Tab creation guidance. The first workbench row remains available
 to authored guidance or terminal content; no PTY geometry is reserved.
 
-Fixed-action shortcut hints end at the sidebar divider, with at least two blank cells after the
-button. A hint that cannot fit in full is omitted; its cells are outside
+Fixed-action shortcut hints end at the sidebar divider, or two blank cells before the sidebar
+toggle on the first row, with at least two blank cells after the button. A hint that cannot fit in
+full is omitted; its cells are outside
 the button's pointer target. The Settings action leads the sidebar's last row without a shortcut
 hint, followed only by the [Help control](#sidebar-toggle-and-help) at the row's end, and at every
 size the list runs directly down to it with no divider, hint or blank row between them. The
@@ -152,9 +155,8 @@ regions use the same final rectangles; tree disclosure never changes terminal co
 A blank row normally separates the fixed actions from the first group. When canonical rows
 are available, the list omits repeated application branding and ordinary session status.
 An empty navigation tree leaves the space below the actions blank until rows or a creation preview arrive.
-Both sidebar presentations keep one top padding row, which holds only the
-[sidebar toggle](#sidebar-toggle-and-help) at its end, and one right padding cell, with no
-outer left padding. Row surfaces, the footer
+Both sidebar presentations keep one right padding cell, with no outer top or left padding: the
+first fixed-action row shares the Tab strip's row. Row surfaces, the footer
 divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
 divider; pointer targets keep the list's own columns. Only an overflowing list reserves its last
 row for the range; a list that fits reaches the row directly above Settings.
@@ -636,9 +638,9 @@ Two three-cell [icon actions](../../../docs/tui/components.md#action-controls) g
 the sidebar's visibility and shortcut help without knowing the prefix. Both invoke existing Client
 actions through global chrome, so no binding, action identity or surface is new:
 
-- The hide toggle `[«]` ends the visible sidebar's top padding row at the list's last column,
-  before the right padding cell. It invokes `ToggleBusinessSidebar` (`Ctrl+B b`), which closes a
-  docked sidebar or an overlay alike.
+- The hide toggle `[«]` ends the visible sidebar's first fixed-action row, after
+  `[ New workspace ]`, at the list's last column before the right padding cell. It invokes
+  `ToggleBusinessSidebar` (`Ctrl+B b`), which closes a docked sidebar or an overlay alike.
 - While an available sidebar is hidden at Full or Compact, the show toggle `[»]` leads the Tab
   strip, one strip cell before the Tabs, and invokes the same action. The toggle therefore stays on
   the first row in both states.
@@ -655,10 +657,11 @@ available visible sidebar, show an available hidden one, and Help a closed Help.
 
 Visibility is session state, like the width preference: hiding keeps the preferred width for the
 next show, and neither persists across Client restarts. An admitted sidebar is at least 24
-columns, so both controls fit at every presentable width. A narrower painted region first drops
-Help, once the Settings row cannot keep two blank cells after Settings; the hide toggle drops only
-when its row has fewer than three list columns. Neither overlaps New workspace, Search, Settings or
-row text. Minimal and TooSmall paint neither toggle; the keyboard toggle remains. The GUI does not
+columns, so both controls fit beside their actions at every presentable width in both locales; at
+the default 30 columns the first row's English shortcut hint gives way to the toggle. Each control
+keeps two blank cells after the action it follows: in a narrower painted region, the toggle drops
+once the first row cannot keep them after New workspace, and Help once the Settings row cannot
+keep them after Settings. Neither overlaps New workspace, Search, Settings or row text. Minimal and TooSmall paint neither toggle; the keyboard toggle remains. The GUI does not
 present these controls yet.
 
 The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)

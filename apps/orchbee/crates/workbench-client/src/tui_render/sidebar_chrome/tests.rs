@@ -83,11 +83,11 @@ fn action_tooltip(
     }
 }
 
-/// The visible sidebar ends its top padding row with the hide toggle and its Settings row with
-/// Help, both at the list's trailing edge beside the right padding cell, without touching the
-/// fixed actions; each names its action and the key that does the same.
+/// The visible sidebar ends its first row with the hide toggle and its Settings row with Help, both
+/// at the list's trailing edge beside the right padding cell, two blank cells clear of the action
+/// they follow; each names its action and the key that does the same.
 #[test]
-fn visible_sidebar_ends_its_top_and_settings_rows_with_the_toggle_and_help() {
+fn visible_sidebar_ends_its_first_and_settings_rows_with_the_toggle_and_help() {
     let mut ascii = Theme::terminal_native();
     ascii.glyphs = GlyphSet::ASCII;
     for (width, height) in [(120, 40), (80, 24), (60, 12)] {
@@ -124,14 +124,19 @@ fn visible_sidebar_ends_its_top_and_settings_rows_with_the_toggle_and_help() {
                         .unwrap_or_else(|| panic!("{case}: hide toggle"));
                     assert_eq!(toggle, Rect::new(list_end - 3, sidebar.y, 3, 1), "{case}");
                     assert_eq!(text(buffer, sidebar.y, toggle.x, toggle.right()), hide);
-                    assert_eq!(
-                        text(buffer, sidebar.y, sidebar.x, toggle.x).trim(),
-                        "",
-                        "{case}: the toggle alone occupies the top padding row"
-                    );
                     for fixed in [HitTarget::NewWorkspaceButton, HitTarget::SearchButton] {
                         let fixed = extent(&map, sidebar, &fixed).unwrap();
-                        assert!(fixed.y > toggle.y, "{case}");
+                        if fixed.y == toggle.y {
+                            assert!(
+                                toggle.x >= fixed.right() + 2,
+                                "{case}: the toggle crowds {fixed:?}"
+                            );
+                            assert_eq!(
+                                text(buffer, toggle.y, fixed.right(), toggle.x).trim(),
+                                "",
+                                "{case}"
+                            );
+                        }
                     }
 
                     let last = sidebar.bottom() - 1;
@@ -222,10 +227,10 @@ fn hidden_sidebar_leaves_its_toggle_at_the_strip_leading_edge() {
     }
 }
 
-/// Narrower sidebar regions than the admitted width drop Help before Settings and the toggle only
-/// when its own row cannot hold it; nothing ever overlaps.
+/// Narrower sidebar regions than the admitted width drop Help before Settings and the toggle before
+/// the action sharing its row; nothing ever overlaps.
 #[test]
-fn narrow_sidebar_regions_drop_help_then_the_toggle_without_overlap() {
+fn narrow_sidebar_regions_drop_the_icons_before_their_actions_without_overlap() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let settings_width = u16::try_from(display_width(locale.settings_title())).unwrap() + 4;
         for width in 3..=24 {
@@ -263,7 +268,7 @@ fn narrow_sidebar_regions_drop_help_then_the_toggle_without_overlap() {
             let map = hits.finish();
             let list = width - 2;
             let toggle = extent(&map, area, &HitTarget::SidebarHideButton);
-            assert_eq!(toggle.is_some(), list >= 3, "{locale:?} width {width}");
+            let new_workspace = extent(&map, area, &HitTarget::NewWorkspaceButton);
             let settings = extent(&map, area, &HitTarget::SettingsButton);
             let help = extent(&map, area, &HitTarget::ShortcutHelpButton);
             assert_eq!(
@@ -283,6 +288,12 @@ fn narrow_sidebar_regions_drop_help_then_the_toggle_without_overlap() {
             if let Some(toggle) = toggle {
                 assert_eq!(toggle.y, 0);
                 assert!(toggle.right() <= list);
+                if let Some(new_workspace) = new_workspace.filter(|action| action.y == toggle.y) {
+                    assert!(
+                        toggle.x >= new_workspace.right() + 2,
+                        "{locale:?} width {width}"
+                    );
+                }
             }
         }
     }

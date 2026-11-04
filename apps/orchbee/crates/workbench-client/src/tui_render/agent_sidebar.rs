@@ -25,7 +25,6 @@ fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
 
 struct FixedAction<'a> {
     label: &'a str,
-    hint: Option<&'a str>,
     kind: ActionKind,
     enabled: bool,
     target: InteractionTarget,
@@ -59,14 +58,12 @@ struct ActionsContext<'a> {
     owns_keyboard: bool,
     source: &'a crate::machine_picker::SidebarSource,
     hint_right: u16,
+    controls: &'a super::sidebar_chrome::Context<'a>,
 }
 
-/// `hint_right` is the exclusive column where a shortcut hint ends; it may pass `area` into the
-/// sidebar's trailing padding, up to its divider.
 fn render_fixed_action(
     frame: &mut Frame<'_>,
     area: Rect,
-    hint_right: u16,
     action: FixedAction<'_>,
     theme: &Theme,
     layer: HitLayer,
@@ -74,7 +71,6 @@ fn render_fixed_action(
 ) -> Option<Rect> {
     let FixedAction {
         label,
-        hint,
         kind,
         enabled,
         target,
@@ -120,23 +116,34 @@ fn render_fixed_action(
     if let Some(hits) = hits {
         hits.record_interaction(layer, rect, rect, target, interaction);
     }
-    if let Some(hint) = hint {
-        let hint_width = u16::try_from(display_width(hint)).unwrap_or(u16::MAX);
-        if let Some(hint_x) = hint_right.checked_sub(hint_width)
-            && hint_width > 0
-            && hint_x >= rect.right().saturating_add(2)
-        {
-            frame.render_widget(
-                Paragraph::new(hint).style(theme.style(if enabled {
-                    Role::HintKey
-                } else {
-                    Role::TextDisabled
-                })),
-                Rect::new(hint_x, area.y, hint_width, 1),
-            );
-        }
-    }
     Some(painted)
+}
+
+/// Right-aligns `hint` to `hint_right`, the exclusive column where it ends, on the row of the
+/// painted `action`. It may pass the list into the sidebar's trailing padding, up to its divider,
+/// and drops when it cannot keep two blank cells after the action.
+fn render_fixed_hint(
+    frame: &mut Frame<'_>,
+    action: Rect,
+    hint_right: u16,
+    hint: &str,
+    enabled: bool,
+    theme: &Theme,
+) {
+    let hint_width = u16::try_from(display_width(hint)).unwrap_or(u16::MAX);
+    if let Some(hint_x) = hint_right.checked_sub(hint_width)
+        && hint_width > 0
+        && hint_x >= action.right().saturating_add(2)
+    {
+        frame.render_widget(
+            Paragraph::new(hint).style(theme.style(if enabled {
+                Role::HintKey
+            } else {
+                Role::TextDisabled
+            })),
+            Rect::new(hint_x, action.y, hint_width, 1),
+        );
+    }
 }
 
 fn render_actions(
@@ -154,6 +161,7 @@ fn render_actions(
         owns_keyboard,
         source,
         hint_right,
+        controls,
     } = context;
     for (offset, (command, action, kind)) in [
         (
@@ -187,21 +195,39 @@ fn render_actions(
             .flatten();
         let target =
             InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(source, action));
-        let _ = render_fixed_action(
+        let enabled = view.machines.available;
+        let painted = render_fixed_action(
             frame,
             row,
-            hint_right,
             FixedAction {
                 label: locale.sidebar_navigation_action(command),
-                hint: hint.as_deref(),
                 kind,
-                enabled: view.machines.available,
+                enabled,
                 target,
             },
             theme,
             layer,
             hits.as_deref_mut(),
         );
+        // The first action shares its row with the hide toggle, as Settings shares its row with
+        // Help, so the toggle stays on the first row whether the sidebar is shown or hidden.
+        let toggle = if offset == 0 {
+            super::sidebar_chrome::render_sidebar_toggle(
+                frame,
+                row,
+                painted,
+                controls,
+                hits.as_deref_mut(),
+            )
+        } else {
+            None
+        };
+        if let (Some(painted), Some(hint)) = (painted, hint.as_deref()) {
+            let hint_right = toggle.map_or(hint_right, |toggle| {
+                toggle.x.saturating_sub(super::sidebar_chrome::TRAILING_GAP)
+            });
+            render_fixed_hint(frame, painted, hint_right, hint, enabled, theme);
+        }
     }
 }
 
@@ -232,7 +258,7 @@ pub(super) fn render(
         } else {
             Role::FrameDivider
         }))
-        .padding(Padding::new(0, 1, 1, 0))
+        .padding(Padding::new(0, 1, 0, 0))
         .style(theme.style(Role::SurfaceChrome));
     let mut inner = block.inner(sidebar.area);
     // The fixed actions continue through the trailing padding to the divider.
@@ -264,15 +290,6 @@ pub(super) fn render(
         theme,
         layer,
     };
-    // The top padding row stays free of the fixed actions; only the toggle ends it.
-    if inner.y > sidebar.area.y {
-        super::sidebar_chrome::render_sidebar_toggle(
-            frame,
-            Rect::new(inner.x, sidebar.area.y, inner.width, 1),
-            &controls,
-            hits.as_deref_mut(),
-        );
-    }
     let source = view.machines.sidebar_source();
     render_actions(
         frame,
@@ -285,6 +302,7 @@ pub(super) fn render(
             owns_keyboard,
             source: &source,
             hint_right: content_right,
+            controls: &controls,
         },
         hits.as_deref_mut(),
     );
@@ -308,10 +326,8 @@ pub(super) fn render(
         render_fixed_action(
             frame,
             settings,
-            content_right,
             FixedAction {
                 label: locale.settings_title(),
-                hint: None,
                 kind: ActionKind::Secondary,
                 enabled: true,
                 target: InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(

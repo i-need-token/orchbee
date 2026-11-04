@@ -1,9 +1,10 @@
 //! The sidebar toggle and Help icon actions around the sidebar's fixed chrome.
 //!
-//! The toggle sits at the trailing end of the sidebar's top padding row while the sidebar is
-//! visible and at the leading end of the Tab strip while it is hidden; Help shares the Settings
-//! row. Each paints only when its complete extent fits beside the content it must not cover, and
-//! publishes the existing sidebar visibility or shortcut-help action through global chrome.
+//! The toggle ends the sidebar's first fixed-action row while the sidebar is visible and leads the
+//! Tab strip while it is hidden, so it stays on the first row in both states; Help ends the
+//! Settings row. Each paints only when its complete extent fits beside the content it must not
+//! cover, and publishes the existing sidebar visibility or shortcut-help action through global
+//! chrome.
 
 use ratatui::{Frame, layout::Rect};
 
@@ -21,8 +22,9 @@ use crate::{
     tui_theme::Theme,
 };
 
-/// Blank cells between Settings and Help, the same separation a fixed action keeps from its hint.
-const SETTINGS_GAP: u16 = 2;
+/// Blank cells between a fixed action and the icon action ending its row, the same separation a
+/// fixed action keeps from its hint.
+pub(super) const TRAILING_GAP: u16 = 2;
 /// Blank strip cells between the hidden sidebar's toggle and the first Tab.
 const STRIP_GAP: u16 = 1;
 
@@ -147,30 +149,46 @@ pub(super) fn render_strip_toggle(
     debug_assert_eq!(painted, Some(rect));
 }
 
-/// The visible sidebar's toggle at the trailing end of `top`, the padding row above the fixed
-/// actions over the list's own columns. A row narrower than the control drops it.
-pub(super) fn render_sidebar_toggle(
+/// Paints `control` at the trailing end of `row`, over the list's own columns. It never covers or
+/// crowds `leading`, the action the row already painted: without [`TRAILING_GAP`] blank cells
+/// after it, the control drops, as it does on a row narrower than itself.
+fn paint_trailing(
     frame: &mut Frame<'_>,
-    top: Rect,
+    row: Rect,
+    leading: Option<Rect>,
+    control: Control,
     context: &Context<'_>,
     hits: Option<&mut HitMapBuilder>,
-) {
-    if let Some(x) = top.right().checked_sub(3)
-        && x >= top.x
-    {
-        let _ = paint(
-            frame,
-            Rect::new(x, top.y, 3, 1),
-            Control::Hide,
-            ControlSurface::Chrome,
-            context,
-            hits,
-        );
+) -> Option<Rect> {
+    let x = row.right().checked_sub(3).filter(|&x| x >= row.x)?;
+    if leading.is_some_and(|leading| x < leading.right().saturating_add(TRAILING_GAP)) {
+        return None;
     }
+    paint(
+        frame,
+        Rect::new(x, row.y, 3, 1),
+        control,
+        ControlSurface::Chrome,
+        context,
+        hits,
+    )
 }
 
-/// Help at the trailing end of `row`, the row Settings painted `settings` into. Help never covers
-/// or crowds Settings: without two blank cells after it, Help drops.
+/// The visible sidebar's toggle at the trailing end of `row`, the first fixed-action row, after
+/// the action painted into it, if any. Returns the painted extent so a shortcut hint on the same
+/// row can end before it.
+pub(super) fn render_sidebar_toggle(
+    frame: &mut Frame<'_>,
+    row: Rect,
+    action: Option<Rect>,
+    context: &Context<'_>,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
+    paint_trailing(frame, row, action, Control::Hide, context, hits)
+}
+
+/// Help at the trailing end of `row`, the row Settings painted `settings` into; without Settings,
+/// Help drops too.
 pub(super) fn render_help(
     frame: &mut Frame<'_>,
     row: Rect,
@@ -178,18 +196,8 @@ pub(super) fn render_help(
     context: &Context<'_>,
     hits: Option<&mut HitMapBuilder>,
 ) {
-    if let Some(settings) = settings
-        && let Some(x) = row.right().checked_sub(3)
-        && x >= settings.right().saturating_add(SETTINGS_GAP)
-    {
-        let _ = paint(
-            frame,
-            Rect::new(x, row.y, 3, 1),
-            Control::Help,
-            ControlSurface::Chrome,
-            context,
-            hits,
-        );
+    if settings.is_some() {
+        let _ = paint_trailing(frame, row, settings, Control::Help, context, hits);
     }
 }
 

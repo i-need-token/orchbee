@@ -258,9 +258,10 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         .unwrap()
                         .area
                         .width;
-                assert_eq!(
-                    hits.hit_target_at(0, 1),
-                    Some(&HitTarget::NewWorkspaceButton)
+                assert!(
+                    (0..height).any(|y| {
+                        hits.hit_target_at(0, y) == Some(&HitTarget::NewWorkspaceButton)
+                    })
                 );
                 // An expanded Project at rest keeps its muted label and shows its disclosure.
                 let project_y = (0..height).find(|y| {
@@ -452,24 +453,29 @@ fn fixed_actions_keep_complete_labels_and_exact_button_hits_above_the_first_grou
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut view = view(60, 12);
         let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
+        let action_row = |target: &HitTarget| {
+            (0..12)
+                .find(|y| (0..29).any(|x| hits.hit_target_at(x, *y) == Some(target)))
+                .unwrap()
+        };
         // No list heading: the first Project begins directly below the fixed actions.
-        let header = &rows[3];
+        let first_group = action_row(&HitTarget::SearchButton) + 1;
+        let header = &rows[usize::from(first_group)];
         assert!(header.trim_start().starts_with("Repo"), "{header:?}");
         assert!(!header.contains(locale.shell().workspaces), "{header:?}");
 
-        for (y, command, target) in [
+        for (command, target) in [
             (
-                1,
                 crate::machine_picker::SidebarCommand::NewWorkspace,
                 HitTarget::NewWorkspaceButton,
             ),
             (
-                2,
                 crate::machine_picker::SidebarCommand::Search,
                 HitTarget::SearchButton,
             ),
         ] {
-            let row = &rows[y as usize];
+            let y = action_row(&target);
+            let row = &rows[usize::from(y)];
             assert!(row.contains("[ "), "{row:?}");
             assert!(row.contains(locale.sidebar_navigation_action(command)));
             assert!(row.contains(" ]"), "{row:?}");
@@ -487,7 +493,7 @@ fn fixed_actions_keep_complete_labels_and_exact_button_hits_above_the_first_grou
                 Some(&HitTarget::OverlaySurface)
             );
             assert!(matches!(
-                hits.hit_target_at(0, 3),
+                hits.hit_target_at(0, first_group),
                 Some(HitTarget::MachineGroupRow { .. })
             ));
             let local_hint = crate::machine_picker::sidebar_binding_label(
@@ -499,17 +505,17 @@ fn fixed_actions_keep_complete_labels_and_exact_button_hits_above_the_first_grou
         }
         assert!(view.machines.enter_sidebar_navigation());
         let (focused_rows, _) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
-        for (y, command) in [
-            (1, crate::machine_picker::SidebarCommand::NewWorkspace),
-            (2, crate::machine_picker::SidebarCommand::Search),
-        ] {
-            let hint = crate::machine_picker::sidebar_binding_label(
-                command,
-                crate::client_view::KeyLabelGlyphs::Unicode,
-            )
-            .unwrap();
-            assert!(focused_rows[y].contains(&hint), "{}", focused_rows[y]);
-        }
+        let search = usize::from(action_row(&HitTarget::SearchButton));
+        let hint = crate::machine_picker::sidebar_binding_label(
+            crate::machine_picker::SidebarCommand::Search,
+            crate::client_view::KeyLabelGlyphs::Unicode,
+        )
+        .unwrap();
+        assert!(
+            focused_rows[search].contains(&hint),
+            "{}",
+            focused_rows[search]
+        );
     }
 }
 

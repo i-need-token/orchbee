@@ -551,7 +551,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         );
     }
     view.resize(60);
-    // Settings alone on the last row leaves a 12-row host the same six-row list body.
+    // Settings alone on the last row leaves a 12-row host a seven-row list body.
     // Explicitly show the compact sidebar; the full-width view's intent was docked.
     for key in [
         KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL),
@@ -567,30 +567,43 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
             _ => None,
         })
         .unwrap();
-    // The Recents heading and its Workspace each take one row before the first Agent.
-    assert_eq!(window.capacity, 3);
+    assert!(
+        window.top == 0 && window.end() < 5,
+        "the compact body clips the list"
+    );
     view.machines.queue_space_scroll(window, false);
     assert!(view.machines.settle_sidebar_scroll());
-    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
+    let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
     let mut painted = std::collections::BTreeMap::new();
     for y in 0..12 {
         if let Some(HitTarget::MachineAgentRow { selected, window }) = hits.hit_target_at(2, y) {
-            // The six-row body fits both remaining entries exactly: the first
-            // visible entry owns no leading gap (three Claude rows), then the
-            // custom entry owns its one-row gap plus two content rows.
-            assert_eq!((window.top, window.end()), (3, 5));
+            assert!(
+                window.top > 0 && window.end() == 5,
+                "scrolled to the last entry"
+            );
             let Some(crate::startup_directory::ClientStartupTarget::Agent(target)) =
                 &selected.context
             else {
                 panic!()
             };
-            *painted.entry(target.agent.as_str()).or_insert(0) += 1;
+            painted
+                .entry(target.member.clone())
+                .or_insert_with(Vec::new)
+                .push(y);
         }
     }
-    assert_eq!(
-        painted,
-        std::collections::BTreeMap::from([("claude", 3), ("custom", 3)])
-    );
+    // The entry at the window's top owns no leading gap; each later entry starts with its gap.
+    let mut firsts = painted.values().map(|ys| ys[0]).collect::<Vec<_>>();
+    firsts.sort_unstable();
+    let blank = |y: u16| {
+        rows[usize::from(y)]
+            .trim()
+            .trim_matches('│')
+            .trim()
+            .is_empty()
+    };
+    assert!(firsts.len() > 1 && !blank(firsts[0]), "{rows:?}");
+    assert!(firsts[1..].iter().all(|y| blank(*y)), "{rows:?}");
 }
 
 #[test]
@@ -1087,7 +1100,7 @@ fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forget
     assert!(view.machines.enter_sidebar_navigation());
     let theme = Theme::one_dark();
     let local_hint = crate::machine_picker::sidebar_binding_label(
-        crate::machine_picker::SidebarCommand::NewWorkspace,
+        crate::machine_picker::SidebarCommand::Search,
         theme.glyphs.key_labels(),
     )
     .unwrap();
@@ -1216,34 +1229,38 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let view = view(60, 12, 1);
     let theme = Theme::terminal_native();
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
-    assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
-    assert!(rows[2].contains("[ Search ]"), "{rows:?}");
+    let row_of = |text: &str| rows.iter().position(|row| row.contains(text)).unwrap();
+    let search = row_of("[ Search ]");
+    assert!(row_of("[ New workspace ]") < search, "{rows:?}");
     // The Recents heading names the group without a member count; its disclosure always shows.
+    let recents = row_of("Recents");
     assert_eq!(
-        rows[3].split_whitespace().collect::<Vec<_>>(),
+        rows[recents].split_whitespace().collect::<Vec<_>>(),
         ["Recents", theme.glyphs.disclosure_open, "│"],
         "{rows:?}"
     );
-    assert!(rows[4].contains("Workspace"), "{rows:?}");
-    assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
-    assert!(
-        rows[5].contains(theme.glyphs.tree_guide) && rows[5].contains("build"),
-        "{rows:?}"
-    );
+    let workspace = row_of("Workspace");
+    assert!(!rows[workspace].contains(theme.glyphs.ellipsis), "{rows:?}");
+    let agent = row_of("build");
+    assert!(rows[agent].contains(theme.glyphs.tree_guide), "{rows:?}");
+    assert!(search < recents && recents < workspace && workspace < agent);
     assert!(rows[11].contains("[ Settings ]"), "{rows:?}");
-    assert!((0..30).any(|x| matches!(hits.hit_target_at(x, 2), Some(HitTarget::SearchButton))));
+    let (search, agent) = (search as u16, agent as u16);
+    assert!(
+        (0..30).any(|x| matches!(hits.hit_target_at(x, search), Some(HitTarget::SearchButton)))
+    );
     for x in [2, 27] {
         assert!(matches!(
-            hits.hit_target_at(x, 5),
+            hits.hit_target_at(x, agent),
             Some(HitTarget::MachineAgentRow { .. })
         ));
     }
     assert!(matches!(
-        hits.hit_target_at(28, 5),
+        hits.hit_target_at(28, agent),
         Some(HitTarget::OverlaySurface)
     ));
     assert!(
-        hits.hit_target_at(30, 5).is_none(),
+        hits.hit_target_at(30, agent).is_none(),
         "outside overlay must dismiss without selecting"
     );
 }
