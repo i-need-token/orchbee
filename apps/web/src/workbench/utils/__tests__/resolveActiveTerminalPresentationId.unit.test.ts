@@ -1,27 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	createSnapshotRuntime,
+	fixturePresentationId,
+	oneWorkspaceSnapshot,
+	publishSnapshot,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
 import { resolveActiveTerminalPresentationId } from '../resolveActiveTerminalPresentationId';
 
 describe('resolveActiveTerminalPresentationId', () => {
 	it('returns only the focused terminal in the active Tab and becomes unavailable without one', () => {
-		const runtime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/workspace',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-				terminalPresentationId('terminal-initial'),
-				() => terminalPresentationId('terminal-next'),
-			),
-		});
-		const terminalContext = runtime.getActiveTerminalContext();
+		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
 
-		expect(resolveActiveTerminalPresentationId(runtime)).toBe('terminal-initial');
+		expect(resolveActiveTerminalPresentationId(runtime)).toBe(fixturePresentationId(1));
 
-		const activeTabId = terminalContext.tabModel.getSnapshot().activeTabId;
-		if (activeTabId === null) throw new Error('Expected an active Tab in the test runtime.');
-		terminalContext.tabModel.closeTab(activeTabId);
+		publishSnapshot(runtime, oneWorkspaceSnapshot(2, []));
 
 		expect(resolveActiveTerminalPresentationId(runtime)).toBeNull();
 	});

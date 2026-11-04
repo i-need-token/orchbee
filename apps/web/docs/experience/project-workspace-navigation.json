@@ -70,7 +70,7 @@
 			"states": [
 				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal its offscreen current Workspace inside the Project scroll region without changing active location or Project disclosure.",
 				"At wide and compact sizes, verify that only the Project scroll region moves and outer Workbench and document scrolling remain unchanged; focusing an already visible row leaves scrollTop unchanged.",
-				"Scroll the focused row out of view, then make a new sidebar focus request and verify it is revealed again; focusing the standalone Terminal reveals it inside the same Project region."
+				"Scroll the focused row out of view, then make a new sidebar focus request and verify it is revealed again."
 			]
 		},
 		{
@@ -79,7 +79,7 @@
 			"id": "applications-web-workbench--collapsed-project-focus-reveal",
 			"states": [
 				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal the last Project, folded around its hidden active Workspace, preserving the collapsed state and active terminal; the heading takes focus but no current fill.",
-				"Inspect Chinese focus and menu affordances at wide and compact sizes; the folded Project holding the active Workspace takes precedence over the standalone Terminal fallback."
+				"Inspect Chinese focus and menu affordances at wide and compact sizes."
 			]
 		},
 		{
@@ -104,15 +104,6 @@
 				"Verify the icon, row options, and Agent disclosure stay centred on the identity line of two-line rows, and that a Workspace without a location stays one line.",
 				"Drag a two-line Workspace across one-line and two-line siblings and verify each squeeze moves by the dragged row's height without overlap or gaps."
 			]
-		},
-		{
-			"exportName": "SshProjectConnection",
-			"file": "apps/web/stories/workbench.stories.tsx",
-			"id": "applications-web-workbench--ssh-project-connection",
-			"states": [
-				"Inspect a remote Project connection indicator and accessible status, then open Project options to inspect the explicit Connect action.",
-				"Change the deterministic capability state when exercising the component test to inspect pending, connected, retry, and disconnect projections."
-			]
 		}
 	],
 	"uses": ["workbench.action-menu", "workbench.name-dialog", "workbench.project-create-flow"],
@@ -120,7 +111,6 @@
 		"Workbench needs independent Workspace destinations, optional grouping, semantic menus, and ordering together.",
 		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state.",
 		"A person needs to notice live Agents in inactive Workspaces and navigate to an exact attached terminal without duplicating the Tab Strip.",
-		"A host supplies process-local Environment connection observations and explicit connect or disconnect commands for remote Projects.",
 		"A host can say where each Workspace stands, as its folder, Git branch, and divergence, and a person needs to see it without opening the Workspace."
 	],
 	"avoidWhen": [
@@ -128,15 +118,15 @@
 		"The caller only needs a generic tree primitive or a flat destination list without Workbench actions."
 	],
 	"invariants": [
-		"New workspace and Search occupy separate full-width fixed rows in that order. The independently scrolling list has no heading of its own and retains the standalone destination and trailing Project creation menu.",
+		"New workspace and Search occupy separate full-width fixed rows in that order. The independently scrolling list has no heading of its own and retains the trailing Project creation menu.",
 		"Projects come first in their order, then the Workspaces outside any Project under a Recents heading, always last and absent while it would be empty; no group heading shows a member count.",
 		"Project and Recents headings are never current, even folded around the active Workspace. Recents folds like a Project but has no menu and neither starts nor receives a drag; activating or creating one of its Workspaces opens it, as it opens a Project.",
 		"Row options and Project creation remain reachable in both Tab directions, with immediate focus-within disclosure and no pointer hit target while hidden.",
 		"Exact row-local Shift+F10 and unmodified ContextMenu open the existing options dropdown for that row; composing, repeated, extra-modifier, and portaled-menu input never opens another menu or reaches a different object's actions.",
 		"Context-menu dismissal returns to the row's valid explicit options trigger through the shared primitive, while outside interaction, dialog handoff, and row removal cannot cause late focus theft.",
 		"A native keyboard contextmenu event from a row or the open dropdown identified by that row's exact trigger aria-controls cannot open a second menu; pointer context gestures and unrelated portal targets retain their existing behavior.",
-		"A new sidebar focus request resolves the current visible location, then the folded Project or Recents heading holding the active Workspace, then Terminal, without activating a location or expanding a group.",
-		"Sidebar focus uses preventScroll and adjusts only the contained Project scroll owner's scrollTop to the nearer edge of its client viewport, clamped to the owner's scroll range; fully visible rows, oversized rows spanning the viewport, and zero-height geometry cause no scroll; standalone Terminal uses the same contained reveal rule.",
+		"A new sidebar focus request resolves the current visible location, then the folded Project or Recents heading holding the active Workspace, without activating a location or expanding a group.",
+		"Sidebar focus uses preventScroll and adjusts only the contained Project scroll owner's scrollTop to the nearer edge of its client viewport, clamped to the owner's scroll range; fully visible rows, oversized rows spanning the viewport, and zero-height geometry cause no scroll.",
 		"Repeated sidebar request tokens and data changes alone do not move focus or scroll; a new request reveals its target even when it already has focus.",
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
 		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",
@@ -156,7 +146,6 @@
 		"A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first, at most five or four and a muted +N; the line's title and the row's accessible name say each distinct state in words, and only a folded Workspace row repeats its Agents' unread marker.",
 		"Expanded Agent detail is a flat list only: it never repeats Tabs, terminal-only rows, panel thumbnails, prompts, commands, provider errors, or internal identifiers.",
 		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",
-		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle.",
 		"New Workspace immediately commits an ungrouped Workspace, stable launch resources, and first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",
 		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, launch resources, terminal contexts, attachments, focus, and zoom.",
 		"A late Worktree creation or opening activates only the latest live initiating intent; newer Workspace, Tab, or Panel navigation retires it."

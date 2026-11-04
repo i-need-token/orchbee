@@ -83,29 +83,13 @@ pnpm verify
 
 For daily edits, use `pnpm verify:changed -- <base>` as described in [Verification](docs/VERIFICATION.md). `pnpm build` prepares shared libraries only. Complete host application builds use explicit `pnpm build:full`; foreign-target compilation uses `pnpm test:cross`.
 
-Start the browser Workbench Preview with its deterministic in-memory session adapter:
+Run the GUI from source in the development Desktop window. The command builds the native CLI, Server, Worker, and Terminal Host, serves the Web renderer, and opens Electron on it:
 
 ```bash
-pnpm web
-```
-
-For the complete local multi-client flow, build the native Terminal Host once and keep `pnpm web` running. In a second terminal, start Electron; it loads that same Web development renderer:
-
-```bash
-pnpm --filter @orchbee/terminal-host build
 pnpm desktop
 ```
 
-Desktop prints an `ORCHBEE_BROWSER_CLIENT_URL`. Open that complete URL in a browser to join the same shared Workbench document and Host terminal sessions as Electron. Opening the unmarked `pnpm web` URL directly remains an isolated Preview.
-
-Inside a Terminal created by Desktop, inspect the exact running local coordinator with:
-
-```bash
-"$ORCHBEE_CLI" status
-```
-
-In PowerShell, use `& $env:ORCHBEE_CLI status`. Desktop injects this exact launcher; Orchbee does
-not install it globally or add it to `PATH`.
+`pnpm web` only serves the renderer that Electron loads; a page opened in a browser renders nothing.
 
 </details>
 

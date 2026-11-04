@@ -311,7 +311,6 @@ async function run(
 			projectFolderAcquisition,
 			projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
 			shortcutPlatform,
-			standaloneTerminalAvailable: false,
 			terminalDefaultSettingsControl: terminalDefaultSettingsClient,
 			terminalFeedbackSettingsController,
 			terminalInteractionSettingsController,

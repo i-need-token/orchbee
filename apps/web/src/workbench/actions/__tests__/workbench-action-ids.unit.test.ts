@@ -5,8 +5,6 @@ import {
 	WORKBENCH_ACTION_IDS,
 	workbenchAgentNavigateInput,
 	workbenchProjectCreateInput,
-	workbenchResourceDirectoryInput,
-	workbenchResourceFolderAddInput,
 	workbenchProjectInput,
 	workbenchProjectRenameInput,
 	workbenchProjectReorderInput,
@@ -28,7 +26,6 @@ describe('workbench action contracts', () => {
 			navigateAgent: 'workbench.agent.navigate',
 			activateStandalone: 'workbench.location.standalone.activate',
 			activateWorkspace: 'workbench.workspace.activate',
-			addResourceFolder: 'workbench.resource.directory.add',
 			createProject: 'workbench.project.create',
 			createTerminal: 'workbench.terminal.create',
 			createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
@@ -41,7 +38,6 @@ describe('workbench action contracts', () => {
 			decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 			deleteWorkspace: 'workbench.workspace.delete',
 			duplicateActiveTabs: 'workbench.tab.active.duplicate',
-			duplicateWorkspace: 'workbench.workspace.duplicate',
 			equalizeActivePanels: 'workbench.panel.active.equalize',
 			focusActiveTerminal: 'workbench.focus.active-terminal',
 			focusActivePanelByPosition: 'workbench.panel.active.focus-by-position',
@@ -64,7 +60,6 @@ describe('workbench action contracts', () => {
 			setWorkspaceProject: 'workbench.workspace.set-project',
 			createWorkspaceProject: 'workbench.workspace.create-project',
 			closeProjectWorkspaces: 'workbench.project.close-all',
-			removeResourceDirectory: 'workbench.resource.directory.remove',
 			renameProject: 'workbench.project.rename',
 			reorderProject: 'workbench.project.reorder',
 			reorderWorkspace: 'workbench.workspace.reorder',
@@ -88,7 +83,6 @@ describe('workbench action contracts', () => {
 			splitActivePanelRight: 'workbench.panel.active.split-right',
 			swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 			setTabStripOrientation: 'workbench.tab-strip.orientation.set',
-			setResourcePrimaryDirectory: 'workbench.resource.primary-directory.set',
 			toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 			toggleProjectExpansion: 'workbench.project.expansion.toggle',
 			toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
@@ -198,24 +192,6 @@ describe('workbench action contracts', () => {
 		});
 	});
 
-	it('trims a non-empty Folder path with its resource namespace for Folder addition', () => {
-		expect(
-			workbenchResourceFolderAddInput.parse({
-				path: '  /workspace/xterm.js  ',
-				resourceScopeId: 'project-1',
-			}),
-		).toEqual({
-			data: { path: '/workspace/xterm.js', resourceScopeId: 'project-1' },
-			success: true,
-		});
-		expect(
-			workbenchResourceFolderAddInput.parse({ path: '   ', resourceScopeId: 'project-1' }),
-		).toEqual({
-			code: 'expected-workbench-project-folder-add-input',
-			success: false,
-		});
-	});
-
 	it('copies stable Project and Workspace target identities at the action boundary', () => {
 		expect(workbenchProjectInput.parse({ projectId: 'project-1' })).toEqual({
 			data: { projectId: 'project-1' },
@@ -247,12 +223,6 @@ describe('workbench action contracts', () => {
 		expect(workbenchWorkspaceInput.parse({ projectId: 'project-1' })).toMatchObject({
 			success: false,
 		});
-		expect(
-			workbenchResourceDirectoryInput.parse({
-				directoryId: 'directory-1',
-				resourceScopeId: 'project-1',
-			}),
-		).toMatchObject({ success: true });
 		// Names keep their exact text, as the protocol and the TUI keep them; only blank ones fail.
 		expect(
 			workbenchProjectRenameInput.parse({ name: '  Orchbee ', projectId: 'project-1' }),

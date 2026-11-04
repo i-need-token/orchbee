@@ -22,8 +22,8 @@ import styles from './WorkbenchPanelWorkspace.module.css';
 interface WorkbenchPanelWorkspaceProps {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
-	readonly authority?: WorkbenchAuthority | undefined;
-	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate | undefined;
+	readonly authority: WorkbenchAuthority;
+	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;

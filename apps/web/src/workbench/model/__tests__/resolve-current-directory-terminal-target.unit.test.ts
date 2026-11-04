@@ -2,155 +2,133 @@ import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
-	initializePanelWorkspace,
-	transitionPanelWorkspace,
-} from '../../components/workbench-panel-workspace/model/panel-workspace-state';
-import {
-	revalidateCurrentDirectoryTerminalTarget,
-	resolveCurrentDirectoryTerminalTarget,
-} from '../resolve-current-directory-terminal-target';
+	createSnapshotRuntime,
+	fixtureContextId,
+	fixturePanelId,
+	fixturePresentationId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotSplit,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
+import type { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
 
 describe('current-directory terminal target resolution', () => {
-	it('prefers the reported current CWD and falls back to the launch CWD', () => {
-		const initial = initialState('/launch');
-		expect(resolve(initial)).toMatchObject({
-			cwd: '/launch',
-			kind: 'ready',
-			target: {
-				panelId: 'panel-1',
-				presentationId: terminalPresentationId('terminal-1'),
-				tabId: 'tab-1',
-				terminalContextId: 'context-1',
-			},
-		});
-		for (const currentCwd of [null, '']) {
-			const withoutCurrentDirectory = transitionPanelWorkspace(initial, {
-				currentCwd,
-				presentationId: terminalPresentationId('terminal-1'),
-				tabId: 'tab-1',
-				type: 'terminal-current-cwd-changed',
-			}).state;
-			expect(resolve(withoutCurrentDirectory)).toMatchObject({ cwd: '/launch', kind: 'ready' });
-		}
-
-		const changed = transitionPanelWorkspace(initial, {
-			currentCwd: '/reported',
-			presentationId: terminalPresentationId('terminal-1'),
-			tabId: 'tab-1',
-			type: 'terminal-current-cwd-changed',
-		}).state;
-		expect(resolve(changed)).toMatchObject({ cwd: '/reported', kind: 'ready' });
-	});
-
-	it('uses the displayed child and gives an explicit Panel target precedence over focus', () => {
-		const split = transitionPanelWorkspace(initialState('/primary'), {
-			direction: 'right',
-			newTerminalTitle: 'Second',
-			panelId: 'panel-1',
-			presentation: {
-				kind: 'preview',
-				presentationId: terminalPresentationId('terminal-2'),
-			},
-			tabId: 'tab-1',
-			type: 'panel-split',
-		}).state;
-		const child = transitionPanelWorkspace(split, {
-			newTerminalTitle: 'Child',
-			panelId: 'panel-2',
-			presentation: {
-				kind: 'preview',
-				presentationId: terminalPresentationId('terminal-child'),
-			},
-			tabId: 'tab-1',
-			type: 'child-terminal-created',
-		}).state;
-
-		expect(resolve(child)).toMatchObject({
-			cwd: '/primary',
-			target: { panelId: 'panel-2', presentationId: 'terminal-child' },
-		});
-		expect(resolve(child, 'panel-1')).toMatchObject({
-			cwd: '/primary',
-			target: { panelId: 'panel-1', presentationId: 'terminal-1' },
-		});
-	});
-
-	it('rejects missing active state, missing Panels, and terminals without a usable CWD', () => {
-		const state = initialState(null);
-		expect(
-			resolveCurrentDirectoryTerminalTarget({
-				activeTabId: null,
-				state,
-				targetPanelId: null,
-				terminalContextId: 'context-1',
-			}),
-		).toEqual({ kind: 'unavailable', reason: 'active-tab-unavailable' });
-		expect(resolve(state, 'missing')).toEqual({
-			kind: 'unavailable',
-			reason: 'panel-unavailable',
-		});
-		expect(resolve(state)).toEqual({
+	it('uses the reported current CWD and treats an empty report as none', () => {
+		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
+		expect(runtime.resolveActiveTerminalCurrentDirectoryTarget()).toEqual({
 			kind: 'unavailable',
 			reason: 'terminal-current-directory-unavailable',
 		});
+
+		reportCurrentDirectory(runtime, 1, '/reported');
+		expect(runtime.resolveActiveTerminalCurrentDirectoryTarget()).toEqual({
+			cwd: '/reported',
+			kind: 'ready',
+			target: {
+				panelId: fixturePanelId(1),
+				presentationId: presentation(1),
+				tabId: fixtureTabId(1),
+				terminalContextId: fixtureContextId(1),
+			},
+		});
+		for (const currentCwd of [null, '']) {
+			reportCurrentDirectory(runtime, 1, currentCwd);
+			expect(runtime.resolveActiveTerminalCurrentDirectoryTarget()).toEqual({
+				kind: 'unavailable',
+				reason: 'terminal-current-directory-unavailable',
+			});
+		}
+	});
+
+	it('uses the displayed child and gives an explicit Panel target precedence over focus', () => {
+		const runtime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [
+				snapshotTab(
+					1,
+					snapshotSplit(
+						1,
+						'horizontal',
+						snapshotPanel(1),
+						snapshotPanel(2, snapshotPresentation(2), [snapshotPresentation(3)]),
+					),
+				),
+			]),
+		);
+		reportCurrentDirectory(runtime, 1, '/primary');
+		reportCurrentDirectory(runtime, 2, '/second');
+		reportCurrentDirectory(runtime, 3, '/child');
+		const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
+		store.transition({ panelId: fixturePanelId(2), tabId: fixtureTabId(1), type: 'panel-focused' });
+		store.transition({
+			childPresentationId: presentation(3),
+			panelId: fixturePanelId(2),
+			tabId: fixtureTabId(1),
+			type: 'child-terminal-activated',
+		});
+
+		expect(runtime.resolveActiveTerminalCurrentDirectoryTarget()).toMatchObject({
+			cwd: '/child',
+			target: { panelId: fixturePanelId(2), presentationId: presentation(3) },
+		});
+		expect(runtime.resolveActiveTerminalCurrentDirectoryTarget(fixturePanelId(1))).toMatchObject({
+			cwd: '/primary',
+			target: { panelId: fixturePanelId(1), presentationId: presentation(1) },
+		});
+	});
+
+	it('rejects a missing active Tab and a missing Panel', () => {
+		expect(
+			createSnapshotRuntime(
+				oneWorkspaceSnapshot(1, []),
+			).resolveActiveTerminalCurrentDirectoryTarget(),
+		).toEqual({ kind: 'unavailable', reason: 'active-tab-unavailable' });
+		expect(
+			createSnapshotRuntime(
+				oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+			).resolveActiveTerminalCurrentDirectoryTarget('missing'),
+		).toEqual({ kind: 'unavailable', reason: 'panel-unavailable' });
 	});
 
 	it('revalidates every captured identity while accepting a newer CWD from the same terminal', () => {
-		const initial = initialState('/launch');
-		const captured = resolve(initial);
+		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
+		reportCurrentDirectory(runtime, 1, '/launch');
+		const captured = runtime.resolveActiveTerminalCurrentDirectoryTarget();
 		if (captured.kind !== 'ready') throw new Error('Expected a current-directory target.');
-		const changed = transitionPanelWorkspace(initial, {
-			currentCwd: '/latest',
-			presentationId: captured.target.presentationId,
-			tabId: captured.target.tabId,
-			type: 'terminal-current-cwd-changed',
-		}).state;
+		reportCurrentDirectory(runtime, 1, '/latest');
 
-		expect(
-			revalidateCurrentDirectoryTerminalTarget({
-				activeTabId: 'tab-1',
-				state: changed,
-				target: captured.target,
-				terminalContextId: 'context-1',
-			}),
-		).toMatchObject({ cwd: '/latest', kind: 'ready' });
+		expect(runtime.resolveTerminalCurrentDirectoryTarget(captured.target)).toMatchObject({
+			cwd: '/latest',
+			kind: 'ready',
+		});
 		for (const target of [
-			{ ...captured.target, terminalContextId: 'context-2' },
-			{ ...captured.target, tabId: 'tab-2' },
-			{ ...captured.target, panelId: 'panel-2' },
-			{ ...captured.target, presentationId: terminalPresentationId('terminal-2') },
+			{ ...captured.target, terminalContextId: fixtureContextId(2) },
+			{ ...captured.target, tabId: fixtureTabId(2) },
+			{ ...captured.target, panelId: fixturePanelId(2) },
+			{ ...captured.target, presentationId: presentation(2) },
 		]) {
-			expect(
-				revalidateCurrentDirectoryTerminalTarget({
-					activeTabId: 'tab-1',
-					state: changed,
-					target,
-					terminalContextId: 'context-1',
-				}),
-			).toEqual({ kind: 'unavailable', reason: 'terminal-target-stale' });
+			expect(runtime.resolveTerminalCurrentDirectoryTarget(target)).toEqual({
+				kind: 'unavailable',
+				reason: 'terminal-target-stale',
+			});
 		}
 	});
 });
 
-function initialState(cwd: string | null) {
-	return initializePanelWorkspace([
-		{
-			cwd,
-			id: 'tab-1',
-			presentation: {
-				kind: 'preview',
-				presentationId: terminalPresentationId('terminal-1'),
-			},
-			title: 'Terminal',
-		},
-	]).state;
+function presentation(sequence: number) {
+	return terminalPresentationId(fixturePresentationId(sequence));
 }
 
-function resolve(state: ReturnType<typeof initialState>, targetPanelId: string | null = null) {
-	return resolveCurrentDirectoryTerminalTarget({
-		activeTabId: 'tab-1',
-		state,
-		targetPanelId,
-		terminalContextId: 'context-1',
+function reportCurrentDirectory(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	sequence: number,
+	currentCwd: string | null,
+): void {
+	runtime.applyTerminalMetadataObservation(presentation(sequence), {
+		closeActivity: 'unknown',
+		currentDirectory: { currentCwd, kind: 'reported' },
+		naturalTitle: null,
 	});
 }

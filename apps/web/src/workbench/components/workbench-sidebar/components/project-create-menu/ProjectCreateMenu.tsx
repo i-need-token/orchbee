@@ -14,7 +14,6 @@ import styles from './ProjectCreateMenu.module.css';
 
 interface ProjectCreateMenuProps {
 	readonly messages: WorkbenchProjectNavigationMessages;
-	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly onSelectFolder: () => void;
 	readonly onNewFolder?: (() => void) | undefined;
 	readonly selectionPending?: boolean | undefined;
@@ -22,7 +21,6 @@ interface ProjectCreateMenuProps {
 
 export function ProjectCreateMenu({
 	messages,
-	onConnectViaSsh,
 	onSelectFolder,
 	onNewFolder,
 	selectionPending = false,
@@ -36,17 +34,6 @@ export function ProjectCreateMenu({
 			label: messages.selectFolder,
 			onSelect: onSelectFolder,
 		},
-		...(onConnectViaSsh === undefined
-			? []
-			: [
-					{
-						icon: 'terminal' as const,
-						id: 'connect-project-via-ssh',
-						kind: 'command' as const,
-						label: messages.connectViaSsh,
-						onSelect: onConnectViaSsh,
-					},
-				]),
 		{ id: 'project-folder-actions', kind: 'separator' },
 		{
 			disabled: selectionPending || onNewFolder === undefined,

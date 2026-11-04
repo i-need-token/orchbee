@@ -7,7 +7,6 @@ import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../mode
 import { WorkbenchAgentIdentity } from '../../../workbench-agent-identity/WorkbenchAgentIdentity';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
-import type { WorkbenchEnvironmentProjectConnectionStatus } from '../../../../types/workbench-environment-project-connection';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchSidebarWorkspaceLocation } from '../../hooks/useWorkbenchSidebarWorkspaceLocations';
@@ -53,13 +52,10 @@ interface ProjectNavigationItemProps {
 	readonly state: ProjectWorkspaceState;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
-	readonly connectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
-	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
-	readonly environmentConnection: WorkbenchEnvironmentProjectConnectionStatus | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly project: WorkbenchProject | null;
@@ -94,13 +90,10 @@ export function ProjectNavigationItem({
 	state,
 	setWorkspaceProject,
 	showWorkspaceProjectCreation,
-	connectEnvironment,
 	deleteWorkspace,
 	displacement,
-	disconnectEnvironment,
 	dragging,
 	expanded,
-	environmentConnection,
 	messages,
 	navigateAgent,
 	project,
@@ -129,54 +122,6 @@ export function ProjectNavigationItem({
 		activeLocation.kind === 'workspace' &&
 		workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
 	const workspaceReorder = useNavigationReorderDrag(workspaces, reorderWorkspace);
-	const environmentConnectionEntries: readonly WorkbenchActionMenuEntry[] = (() => {
-		if (environmentConnection === null || project === null) return [];
-		const statusLabel = messages.projectConnectionStatus[environmentConnection.state];
-		if (environmentConnection.state === 'connected') {
-			return [
-				{
-					disabled: disconnectEnvironment === undefined,
-					icon: 'close',
-					id: 'disconnect-environment-project',
-					kind: 'command',
-					label: messages.disconnectProject,
-					onSelect: () => disconnectEnvironment?.(project.id),
-				},
-				{ id: 'environment-connection-separator', kind: 'separator' },
-			];
-		}
-		if (
-			environmentConnection.state === 'connecting' ||
-			environmentConnection.state === 'interaction-required' ||
-			environmentConnection.state === 'retrying'
-		) {
-			return [
-				{
-					disabled: true,
-					icon: 'terminal',
-					id: 'environment-connection-pending',
-					kind: 'command',
-					label: statusLabel,
-					onSelect: () => undefined,
-				},
-				{ id: 'environment-connection-separator', kind: 'separator' },
-			];
-		}
-		return [
-			{
-				disabled: connectEnvironment === undefined,
-				icon: 'terminal',
-				id: 'connect-environment-project',
-				kind: 'command',
-				label:
-					environmentConnection.state === 'disconnected'
-						? messages.connectProject
-						: messages.retryProjectConnection,
-				onSelect: () => connectEnvironment?.(project.id),
-			},
-			{ id: 'environment-connection-separator', kind: 'separator' },
-		];
-	})();
 	// A Project's Worktree rows read the repository of its first Workspace, as the TUI's do.
 	const worktreeSourceId = workspaces[0]?.id ?? null;
 	const refreshProjectWorktrees = (open: boolean) => {
@@ -186,7 +131,6 @@ export function ProjectNavigationItem({
 		project === null
 			? []
 			: [
-					...environmentConnectionEntries,
 					projectNewWorkspaceMenu({
 						createWorkspace,
 						messages,
@@ -267,7 +211,7 @@ export function ProjectNavigationItem({
 						<Button
 							aria-expanded={expanded}
 							aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-							aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
+							aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}`}
 							className={styles['projectItem']}
 							data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
 							data-slot='workbench-sidebar-project'
@@ -279,14 +223,6 @@ export function ProjectNavigationItem({
 								<ProductIcon name='folder' />
 							</span>
 							<span className={styles['projectName']}>{project.name}</span>
-							{environmentConnection === null ? null : (
-								<span
-									aria-hidden='true'
-									className={styles['connectionStatus']}
-									data-state={environmentConnection.state}
-									title={messages.projectConnectionStatus[environmentConnection.state]}
-								/>
-							)}
 							<span
 								aria-hidden='true'
 								className={styles['disclosure']}

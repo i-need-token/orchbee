@@ -52,8 +52,6 @@ function surfaceView(
 		retryProjection: () => undefined,
 		root: { current: null },
 		sendMobileKey: () => false,
-		stopped: false,
-		startNewSession: () => undefined,
 		takeControl: () => undefined,
 		terminalOutcome: null,
 		toggleMobileKeyboard: () => false,
@@ -119,21 +117,6 @@ describe('ProjectedTerminalSurface', () => {
 		expect(markup).toContain('role="status"');
 		expect(markup).toContain('Terminal exited');
 		expect(markup).toContain('data-slot="projected-terminal-new-tab"');
-		expect(markup).not.toContain('data-slot="projected-terminal-mobile-input-bar"');
-	});
-
-	it('keeps the archived terminal surface visible behind a stopped-session action bar', () => {
-		vi.mocked(useProjectedTerminalSurface).mockReturnValue(surfaceView({ stopped: true }));
-
-		const markup = renderSurface(
-			{ ...presentation, lifecycle: { kind: 'stopped' } },
-			{ autoFocus: false, focusRequest: 0 },
-		);
-
-		expect(markup).toContain('data-slot="projected-terminal-stopped"');
-		expect(markup).toContain('Terminal session stopped');
-		expect(markup).toContain('Start New Session');
-		expect(markup).not.toContain('data-projected-terminal-status="true"');
 		expect(markup).not.toContain('data-slot="projected-terminal-mobile-input-bar"');
 	});
 });

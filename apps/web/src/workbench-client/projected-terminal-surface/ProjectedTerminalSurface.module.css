@@ -190,27 +190,6 @@
 	display: none;
 }
 
-.stopped {
-	box-sizing: border-box;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--ob-ref-space-2);
-	position: absolute;
-	z-index: var(--ob-ref-layer-raised);
-	inset-block-end: 0;
-	inset-inline: 0;
-	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
-	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	background: var(--ob-sys-color-surface-raised);
-	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-body-sm);
-}
-
-.stopped > p {
-	margin: 0;
-}
-
 @media (hover: none) and (pointer: coarse) {
 	.terminalSurface[data-projected-terminal-mobile-controls='visible'] {
 		padding-block-end: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-4));

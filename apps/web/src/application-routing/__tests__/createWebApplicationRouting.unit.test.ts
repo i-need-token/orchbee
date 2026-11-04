@@ -2,20 +2,29 @@
 
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import {
-	createWorkbenchPreviewTerminalPresentationComposition,
-	WorkbenchProjectWorkspaceRuntime,
-} from '../../workbench';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../workbench';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import {
+	createSnapshotRuntime,
+	fixtureProjectId,
+	fixtureTabId,
+	fixtureWorkspaceId,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotProject,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../__tests__/server-workbench-snapshot';
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { ApplicationLocaleController } from '../../application-locale';
 import { createWebApplicationRouting } from '../createWebApplicationRouting';
+import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
 
 const originalScrollTo = window.scrollTo;
 
@@ -41,36 +50,25 @@ afterAll(() => {
 	});
 });
 
+const WORKSPACE_1 = fixtureWorkspaceId(1);
+const TAB_1 = fixtureTabId(1);
+
+/** Project 1 holds Workspace 1, which holds Tab 1. */
 function createRuntime(): WorkbenchProjectWorkspaceRuntime {
-	let presentationSequence = 0;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/system',
-		standaloneTerminalTitle: 'Standalone',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('router-test:initial'),
-			() => terminalPresentationId(`router-test:dynamic:${(presentationSequence += 1)}`),
+	return createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1)],
+				projects: [snapshotProject(1)],
+				workspaces: [snapshotWorkspace(1, { projectId: fixtureProjectId(1) })],
+			},
+			[snapshotContext(1, [snapshotTab(1)])],
 		),
-	});
-	runtime.transition({
-		directory: {
-			available: true,
-			git: null,
-			id: 'directory-1',
-			kind: 'folder',
-			name: 'orchbee',
-			path: '/workspace/orchbee',
-			placement: { kind: 'local' },
-			source: 'selected',
-		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Primary',
-		projectName: 'Orchbee',
-		terminalTitle: 'Workspace',
-		type: 'project-created',
-	});
-	return runtime;
+	);
 }
+
+const inertAuthority = inertWorkbenchAuthority();
 
 function createRouting(path: string, runtime = createRuntime()) {
 	const actionRuntime = new ActionRuntime();
@@ -92,7 +90,7 @@ function createRouting(path: string, runtime = createRuntime()) {
 		{
 			actionRuntime,
 			applicationLocaleController,
-			getInitialTerminalTitle: () => 'Terminal',
+			authority: inertAuthority,
 			keyboardShortcutSettingsController,
 			projectWorkspaceRuntime: runtime,
 			shortcutPlatform: 'standard',
@@ -119,31 +117,12 @@ describe('createWebApplicationRouting', () => {
 		await fixture.routing.router.load();
 
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/workspaces/workspace-1/tabs/terminal-context-2-tab-1',
+			`/workspaces/${WORKSPACE_1}/tabs/${TAB_1}`,
 		);
 		expect(fixture.runtime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-
-			workspaceId: 'workspace-1',
+			workspaceId: WORKSPACE_1,
 		});
-		fixture.dispose();
-	});
-
-	it('creates one terminal before rendering an initially empty route and preserves a later empty state', async () => {
-		const runtime = createRuntime();
-		runtime.requestActiveTerminalTabsClose(['terminal-context-2-tab-1']);
-		const fixture = createRouting('/', runtime);
-
-		await fixture.routing.router.load();
-		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/workspaces/workspace-1/tabs/terminal-context-2-tab-2',
-		);
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
-
-		runtime.requestActiveTerminalTabsClose(['terminal-context-2-tab-2']);
-		await fixture.routing.router.load();
-		expect(fixture.routing.router.history.location.pathname).toBe('/workspaces/workspace-1');
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
 		fixture.dispose();
 	});
 
@@ -152,20 +131,20 @@ describe('createWebApplicationRouting', () => {
 		runtime
 			.getActiveTerminalContext()
 			.tabModel.addTab({ group: null, pinned: false, title: 'Encoded' }, { id: 'tab/encoded' });
-		const fixture = createRouting('/workspaces/workspace-1/tabs/tab%2Fencoded', runtime);
+		const fixture = createRouting(`/workspaces/${WORKSPACE_1}/tabs/tab%2Fencoded`, runtime);
 		await fixture.routing.router.load();
 
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().activeTabId).toBe(
 			'tab/encoded',
 		);
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/workspaces/workspace-1/tabs/tab%2Fencoded',
+			`/workspaces/${WORKSPACE_1}/tabs/tab%2Fencoded`,
 		);
 		fixture.dispose();
 	});
 
 	it('keeps an explicit stale route unavailable instead of selecting another entity', async () => {
-		const fixture = createRouting('/workspaces/workspace-1/tabs/missing-tab');
+		const fixture = createRouting(`/workspaces/${WORKSPACE_1}/tabs/missing-tab`);
 		const container = document.createElement('div');
 		const root = createRoot(container);
 		await act(async () => {
@@ -178,7 +157,7 @@ describe('createWebApplicationRouting', () => {
 			);
 		});
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/workspaces/workspace-1/tabs/missing-tab',
+			`/workspaces/${WORKSPACE_1}/tabs/missing-tab`,
 		);
 		expect(container.textContent).toContain('This page isn’t available');
 		await act(async () => root.unmount());
@@ -186,15 +165,21 @@ describe('createWebApplicationRouting', () => {
 	});
 
 	it('applies Back navigation without appending another history entry', async () => {
-		const fixture = createRouting('/terminal/tabs/terminal-context-1-tab-1');
+		const fixture = createRouting('/terminal');
 		await fixture.routing.router.load();
 		const initialLength = fixture.routing.router.history.length;
 
-		fixture.routing.coordinator.navigateTo({
-			kind: 'workspace',
-
-			workspaceId: 'workspace-1',
-		});
+		fixture.routing.coordinator.navigation.navigate(
+			{
+				executionId: 'back-navigation',
+				markCommitted: vi.fn<() => void>(),
+				reportProgress: vi.fn<() => void>(),
+				scope: { id: 'test', parent: null },
+				signal: new AbortController().signal,
+				source: 'button',
+			},
+			{ kind: 'workspace', workspaceId: WORKSPACE_1 },
+		);
 		await fixture.routing.router.load();
 		expect(fixture.runtime.getSnapshot().activeLocation).toMatchObject({ kind: 'workspace' });
 		expect(fixture.routing.router.history.length).toBe(initialLength + 1);

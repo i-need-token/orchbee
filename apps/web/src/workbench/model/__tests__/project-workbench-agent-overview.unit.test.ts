@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { collectPanelLeaves } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
+import {
+	createSnapshotRuntime,
+	fixtureDirectoryId,
+	fixturePresentationId,
+	fixtureProjectId,
+	fixtureTabId,
+	fixtureWorkspaceId,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotProject,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../__tests__/server-workbench-snapshot';
 import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentState,
 } from '../../types/workbench-agent-observation';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
 import {
 	findWorkbenchAgentDestination,
 	projectWorkbenchAgentOverview,
@@ -99,115 +110,33 @@ function agents(
 
 /** One Project with two Workspaces: the first holds two Tabs, the second one Tab. */
 function createOverviewFixture() {
-	let presentationSequence = 0;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/system',
-		standaloneTerminalTitle: 'Standalone',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('overview-standalone'),
-			() => terminalPresentationId(`overview-presentation-${(presentationSequence += 1)}`),
+	const projectId = fixtureProjectId(1);
+	const runtime = createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1)],
+				projects: [snapshotProject(1)],
+				workspaces: [
+					snapshotWorkspace(1, { projectId }),
+					snapshotWorkspace(2, { primaryDirectoryId: fixtureDirectoryId(1), projectId }),
+				],
+			},
+			[snapshotContext(1, [snapshotTab(1), snapshotTab(2)]), snapshotContext(2, [snapshotTab(3)])],
 		),
-	});
-	const created = runtime.transition({
-		directory: {
-			available: true,
-			git: null,
-			id: 'overview-directory',
-			kind: 'folder',
-			name: 'overview',
-			path: '/overview',
-			placement: { kind: 'local' },
-			source: 'selected',
-		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'First Workspace',
-		projectName: 'Overview',
-		terminalTitle: 'First Tab',
-		type: 'project-created',
-	});
-	const project = runtime.getSnapshot().projects[0];
-	const firstWorkspace = runtime.getSnapshot().workspaces[0];
-	if (created.outcome !== 'applied' || project === undefined || firstWorkspace === undefined) {
-		throw new Error('Expected the overview Project.');
-	}
-	const firstTabId = tabIds(runtime, firstWorkspace.terminalContextId)[0];
-	const secondTab = runtime.createTerminal({
-		groupId: null,
-		source: 'programmatic',
-		title: 'Second Tab',
-	});
-	if (firstTabId === undefined || secondTab.kind !== 'created') {
-		throw new Error('Expected the second Tab.');
-	}
-	const workspaceCreated = runtime.transition({
-		directoryId: firstWorkspace.primaryDirectoryId,
-		launchConfigurationId: null,
-		name: 'Second Workspace',
-		resourceScopeId: project.id.replace(/^project-/u, 'resource-scope-'),
-		projectId: project.id,
-		terminalTitle: 'Second Workspace Terminal',
-		type: 'workspace-created',
-	});
-	const secondWorkspace = runtime
-		.getSnapshot()
-		.workspaces.find((workspace) => workspace.id !== firstWorkspace.id);
-	if (workspaceCreated.outcome !== 'applied' || secondWorkspace === undefined) {
-		throw new Error('Expected the second Workspace.');
-	}
-	const firstContext = runtime.getTerminalContext(firstWorkspace.terminalContextId);
-	const firstTabPresentation = tabPresentation(
-		runtime,
-		firstWorkspace.terminalContextId,
-		firstTabId,
 	);
-	const secondTabPresentation = tabPresentation(
-		runtime,
-		firstWorkspace.terminalContextId,
-		secondTab.tabId,
-	);
-	const secondWorkspacePresentation = tabPresentation(
-		runtime,
-		secondWorkspace.terminalContextId,
-		tabIds(runtime, secondWorkspace.terminalContextId)[0],
-	);
-	const secondTabTitle = firstContext?.tabModel
-		.getSnapshot()
-		.tabs.find((tab) => tab.id === secondTab.tabId)?.title;
-	if (
-		firstTabPresentation === undefined ||
-		secondTabPresentation === undefined ||
-		secondWorkspacePresentation === undefined ||
-		secondTabTitle === undefined
-	) {
-		throw new Error('Expected a terminal in every Tab.');
-	}
+	const secondTabTitle = runtime
+		.getActiveTerminalContext()
+		.tabModel.getSnapshot()
+		.tabs.find((tab) => tab.id === fixtureTabId(2))?.title;
+	if (secondTabTitle === undefined) throw new Error('Expected the second Tab.');
 	return {
-		firstTabPresentation,
-		firstWorkspaceId: firstWorkspace.id,
+		firstTabPresentation: fixturePresentationId(1),
+		firstWorkspaceId: fixtureWorkspaceId(1),
 		runtime,
-		secondTabPresentation,
+		secondTabPresentation: fixturePresentationId(2),
 		secondTabTitle,
-		secondWorkspaceId: secondWorkspace.id,
-		secondWorkspacePresentation,
+		secondWorkspaceId: fixtureWorkspaceId(2),
+		secondWorkspacePresentation: fixturePresentationId(3),
 	};
-}
-
-function tabIds(runtime: WorkbenchProjectWorkspaceRuntime, terminalContextId: string): string[] {
-	const context = runtime.getTerminalContext(terminalContextId);
-	return context === null ? [] : context.tabModel.getSnapshot().tabs.map((tab) => tab.id);
-}
-
-function tabPresentation(
-	runtime: WorkbenchProjectWorkspaceRuntime,
-	terminalContextId: string,
-	tabId: string | undefined,
-): string | undefined {
-	const panelTab = runtime
-		.getTerminalContext(terminalContextId)
-		?.panelWorkspaceStore.getSnapshot()
-		.tabs.find((tab) => tab.tabId === tabId);
-	return panelTab === undefined
-		? undefined
-		: collectPanelLeaves(panelTab.root)[0]?.primaryPresentation.presentationId;
 }

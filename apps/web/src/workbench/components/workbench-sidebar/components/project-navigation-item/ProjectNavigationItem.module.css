@@ -230,14 +230,6 @@
 	color: var(--ob-sys-color-status-warning-text);
 }
 
-.connectionStatus {
-	width: var(--ob-ref-space-1-5);
-	height: var(--ob-ref-space-1-5);
-	flex: none;
-	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-icon-muted);
-}
-
 .workspaceItem .icon {
 	width: calc(2 * var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1));
 	height: var(--ob-ref-size-control-navigation);
@@ -254,21 +246,6 @@
 
 .unread:not([data-agent-unread]) {
 	visibility: hidden;
-}
-
-.connectionStatus[data-state='connected'] {
-	background: var(--ob-sys-color-status-success-border);
-}
-
-.connectionStatus[data-state='blocked'],
-.connectionStatus[data-state='unavailable'] {
-	background: var(--ob-sys-color-status-danger-border);
-}
-
-.connectionStatus[data-state='connecting'],
-.connectionStatus[data-state='interaction-required'],
-.connectionStatus[data-state='retrying'] {
-	background: var(--ob-sys-color-status-warning-border);
 }
 
 /* Centred on the identity line, which is the whole row unless a Workspace shows its location. */

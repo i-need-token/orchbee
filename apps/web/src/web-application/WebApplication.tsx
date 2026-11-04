@@ -3,11 +3,9 @@ import {
 	Workbench,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
-	type WorkbenchEnvironmentProjectConnectionCapability,
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
-	type WorkbenchRemoteTerminalCreationCapability,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
@@ -47,21 +45,15 @@ export interface WebApplicationProps {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
-	readonly authority?: WorkbenchAuthority | undefined;
-	readonly environmentProjectConnection?:
-		| WorkbenchEnvironmentProjectConnectionCapability
-		| undefined;
+	readonly authority: WorkbenchAuthority;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
-	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
-	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
-	readonly standaloneTerminalAvailable?: boolean | undefined;
 
 	readonly terminalSettingsController: TerminalSettingsController;
 	readonly terminalInteractionSettingsController?:
@@ -81,19 +73,13 @@ export function WebApplication({
 	agentIntegrationReminderController,
 	agentObservationSource,
 	authority,
-	environmentProjectConnection,
 	keyboardShortcutSettingsController,
 	layoutStorage,
 	macosTerminalInputSettingsController,
 	navigation,
-	onConnectViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
-	remoteTerminalCreation,
-
 	shortcutPlatform,
-	standaloneTerminalAvailable,
-
 	terminalSettingsController,
 	terminalInteractionSettingsController,
 	terminalFeedbackSettingsController,
@@ -143,19 +129,15 @@ export function WebApplication({
 					agentNotificationObserver={terminalFeedbackSettingsController}
 					agentObservationSource={agentObservationSource}
 					authority={authority}
-					environmentProjectConnection={environmentProjectConnection}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
 					navigation={navigation}
-					onConnectViaSsh={onConnectViaSsh}
 					onSettings={view.onSettings}
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
-					remoteTerminalCreation={remoteTerminalCreation}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
-					standaloneTerminalAvailable={standaloneTerminalAvailable}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
 					workspaceLocationSource={workspaceLocationSource}

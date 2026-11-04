@@ -4,14 +4,20 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+	createSnapshotRuntime,
+	fixtureProjectId,
+	fixtureWorkspaceId,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotProject,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../../../__tests__/server-workbench-snapshot';
+import {
 	createProjectWorkspaceState,
-	transitionProjectWorkspace,
 	type ProjectWorkspaceState,
 } from '../../../../../project-workspace';
-import type {
-	WorkbenchEnvironmentProjectConnectionCapability,
-	WorkbenchEnvironmentProjectConnectionStatus,
-} from '../../../../types/workbench-environment-project-connection';
 import { useWorkbenchSidebar } from '../useWorkbenchSidebar';
 
 afterEach(cleanup);
@@ -35,77 +41,38 @@ describe('useWorkbenchSidebar', () => {
 			{ initialProps: { snapshot: state } },
 		);
 
-		act(() => rendered.result.current.showProjectRename('project-1'));
+		act(() => rendered.result.current.showProjectRename(fixtureProjectId(1)));
 		expect(rendered.result.current.projectRename).toMatchObject({
 			name: 'orchbee',
-			project: { id: 'project-1' },
+			project: { id: fixtureProjectId(1) },
 		});
 		act(() => rendered.result.current.projectRename?.setName('Orchbee'));
 		expect(rendered.result.current.projectRename?.name).toBe('Orchbee');
 		act(() => rendered.result.current.projectRename?.close());
 		expect(rendered.result.current.projectRename).toBeNull();
 
-		act(() => rendered.result.current.showWorkspaceRename('workspace-1'));
+		act(() => rendered.result.current.showWorkspaceRename(fixtureWorkspaceId(1)));
 		expect(rendered.result.current.workspaceRename).toMatchObject({
 			name: 'Primary',
-			workspace: { id: 'workspace-1' },
+			workspace: { id: fixtureWorkspaceId(1) },
 		});
 		act(() => rendered.result.current.workspaceRename?.setName('Feature'));
 		expect(rendered.result.current.workspaceRename?.name).toBe('Feature');
 		act(() => rendered.result.current.workspaceRename?.close());
 		expect(rendered.result.current.workspaceRename).toBeNull();
 	});
-
-	it('subscribes to the optional Environment Project connection source', () => {
-		let listener: (() => void) | undefined;
-		let statuses: readonly WorkbenchEnvironmentProjectConnectionStatus[] = [
-			{ projectId: 'project-1', state: 'disconnected' },
-		];
-		const connection: WorkbenchEnvironmentProjectConnectionCapability = {
-			connect: () => undefined,
-			disconnect: () => undefined,
-			getSnapshot: () => statuses,
-			subscribe: (nextListener) => {
-				listener = nextListener;
-				return () => {
-					listener = undefined;
-				};
-			},
-		};
-		const rendered = renderHook(() => useWorkbenchSidebar(projectState(), connection));
-
-		expect(rendered.result.current.connectionStatusByProjectId.get('project-1')).toEqual({
-			projectId: 'project-1',
-			state: 'disconnected',
-		});
-		act(() => {
-			statuses = [{ projectId: 'project-1', state: 'connected' }];
-			listener?.();
-		});
-		expect(rendered.result.current.connectionStatusByProjectId.get('project-1')).toEqual({
-			projectId: 'project-1',
-			state: 'connected',
-		});
-	});
 });
 
 function projectState(): ProjectWorkspaceState {
-	return transitionProjectWorkspace(createProjectWorkspaceState(), {
-		directory: {
-			available: true,
-			git: null,
-			id: 'directory-1',
-			kind: 'folder',
-			name: 'orchbee',
-			path: '/workspace/orchbee',
-			placement: { kind: 'local' },
-			source: 'selected',
-		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Primary',
-		projectName: 'orchbee',
-		terminalTitle: 'Terminal 1',
-		type: 'project-created',
-	}).state;
+	return createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1)],
+				projects: [snapshotProject(1, 'orchbee')],
+				workspaces: [snapshotWorkspace(1, { label: 'Primary', projectId: fixtureProjectId(1) })],
+			},
+			[snapshotContext(1, [snapshotTab(1)])],
+		),
+	).getSnapshot();
 }

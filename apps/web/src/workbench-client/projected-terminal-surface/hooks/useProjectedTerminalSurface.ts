@@ -134,16 +134,12 @@ export function useProjectedTerminalSurface(
 	);
 	const [presentationImagePreview, setPresentationImagePreview] =
 		React.useState<PresentationImagePreview | null>(null);
-	const [startFailurePresentationId, setStartFailurePresentationId] = React.useState<string | null>(
-		null,
-	);
 	const [pasteReview, setPasteReview] = React.useState<ProjectedPasteReview | null>(null);
 	const pendingPasteDecision = React.useRef<PendingPasteDecision | null>(null);
 	const projectable =
 		presentation.lifecycle.kind === 'running' ||
 		presentation.lifecycle.kind === 'exited' ||
-		presentation.lifecycle.kind === 'failed' ||
-		presentation.lifecycle.kind === 'stopped';
+		presentation.lifecycle.kind === 'failed';
 	const closingPresentation =
 		presentation.lifecycle.kind === 'closing' ||
 		presentation.lifecycle.kind === 'close-failed' ||
@@ -153,7 +149,6 @@ export function useProjectedTerminalSurface(
 		closingPresentation || presentationMode === 'retained' ? 'retain' : 'project';
 	const sessionPolicyReference = React.useRef(sessionPolicy);
 	sessionPolicyReference.current = sessionPolicy;
-	const stopped = presentation.lifecycle.kind === 'stopped';
 	// The renderer hears an end first, but the surface names it only once the Presentation has
 	// ended too, so a composition decides when the person sees it, as the Server path holds a pane
 	// whose shell exited cleanly while the Server closes it.
@@ -271,16 +266,6 @@ export function useProjectedTerminalSurface(
 				reason: 'terminal-unavailable',
 			});
 		});
-	});
-	const startNewSession = useMemoizedFn((): void => {
-		try {
-			const result = capability?.startStoppedTerminalSession(presentation.presentationId);
-			setStartFailurePresentationId(
-				result?.kind === 'rejected' ? presentation.presentationId : null,
-			);
-		} catch {
-			setStartFailurePresentationId(presentation.presentationId);
-		}
 	});
 	const sendMobileKey = useMemoizedFn((key: MobileTerminalKey): boolean => {
 		const recovery = recoveryController.current;
@@ -481,11 +466,11 @@ export function useProjectedTerminalSurface(
 	}, [presentation.presentationId, sessionPolicy]);
 	React.useLayoutEffect(() => {
 		if (presentationMode === 'retained') return;
-		if (!projectable || stopped || currentRecovery?.kind === 'failed') {
+		if (!projectable || currentRecovery?.kind === 'failed') {
 			reportPresentationReady('display-ready');
 			reportPresentationReady('activation-ready');
 		}
-	}, [currentRecovery?.kind, presentationMode, projectable, reportPresentationReady, stopped]);
+	}, [currentRecovery?.kind, presentationMode, projectable, reportPresentationReady]);
 	React.useEffect(() => {
 		if (presentationMode !== 'active' || !autoFocus || currentRecovery?.kind !== 'ready') return;
 		const recovery = recoveryController.current;
@@ -509,12 +494,10 @@ export function useProjectedTerminalSurface(
 	if (currentRecovery?.kind === 'recovering') projectionState = 'recovering';
 	if (currentRecovery?.kind === 'failed') projectionState = 'failed';
 	let failureMessage: string | null = null;
-	if (!stopped && currentRecovery?.kind === 'recovering') {
+	if (currentRecovery?.kind === 'recovering') {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecovering);
-	} else if (!stopped && currentRecovery?.kind === 'failed') {
+	} else if (currentRecovery?.kind === 'failed') {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.disconnected);
-	} else if (startFailurePresentationId === presentation.presentationId) {
-		failureMessage = intl.formatMessage(projectedTerminalMessages.sessionStartFailed);
 	}
 	const currentFileDropFailure =
 		presentationFileDropFailure?.presentationId === presentation.presentationId
@@ -574,7 +557,7 @@ export function useProjectedTerminalSurface(
 		mobileInputState,
 		pasteReview,
 		projectionState,
-		recoveryAvailable: !stopped && currentRecovery?.kind === 'failed',
+		recoveryAvailable: currentRecovery?.kind === 'failed',
 		retryProjection: () => {
 			if (recoveryController.current?.presentationId === presentation.presentationId) {
 				recoveryController.current.controller.retry();
@@ -582,8 +565,6 @@ export function useProjectedTerminalSurface(
 		},
 		root,
 		sendMobileKey,
-		stopped,
-		startNewSession,
 		takeControl,
 		terminalOutcome: ended ? (currentControl?.outcome ?? null) : null,
 		toggleMobileKeyboard,

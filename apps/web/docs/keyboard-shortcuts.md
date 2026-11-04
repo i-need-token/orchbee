@@ -180,14 +180,14 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   Panel, or one exact Panel target.
 - **Data and ownership:** Workbench captures the displayed primary or child Presentation identity
   and reads its latest trusted non-empty `currentCwd`, falling back to that same Presentation's
-  `launchCwd`. Workbench remains the only Tab and Presentation writer; the Host remains authoritative
-  for observed CWD and process launch.
+  `launchCwd`. The Server creates the Tab through `authority.createTab`; the Host remains
+  authoritative for observed CWD and process launch.
 - **Transition and revalidation:** Execution revalidates terminal context, Tab, Panel, and
   Presentation before resolving the same terminal's newest CWD and creating one ordinary terminal
   Tab with an explicit launch directory. Missing CWD, a stale identity, or an unavailable Host
   capability makes the Action unavailable, creates nothing, and preserves the key event.
-- **Invariants and exclusions:** Success allocates distinct Tab, Panel, and Presentation identities,
-  focuses the new terminal through the existing handoff, and preserves the source session. Ordinary
+- **Invariants and exclusions:** Success yields distinct Tab, Panel, and Presentation identities,
+  focuses the new terminal through the keyboard handover, and preserves the source session. Ordinary
   New Tab keeps its Workspace/default CWD. Environment, executable, foreground process, output,
   attachment, SSH state, and remote-shell directory discovery are never cloned.
 - **Evidence:** Resolver, runtime, Action, menu, shortcut, and Settings tests cover target selection and current-directory Tab creation from trusted terminal metadata; the Desktop `terminal-parity/FS-15-current-directory-tab` trace retired with the Desktop Electron suite.
@@ -455,8 +455,8 @@ Controller tests cover combined reentrant edits, final stored values, newer fail
 
 Only the current key is read. Missing data uses platform defaults; invalid records report an issue and use defaults. Old keys are neither read, migrated nor deleted. The `keyboard-shortcut-overrides` name avoids accepting a shape-compatible development record from the old `keyboard-shortcuts:v1` key.
 
-Browser Preview and Electron each create and dispose one controller against their own origin-local
-storage. Electron passes the controller's narrow binding source through
+The Desktop composition creates and disposes one controller against its origin-local storage and
+passes the controller's narrow binding source through
 `ProjectedTerminalSurfaceCapability`. Event handlers read the current table at dispatch time, so a
 change does not remount Workbench, replace an attachment, or reopen a Host connection.
 

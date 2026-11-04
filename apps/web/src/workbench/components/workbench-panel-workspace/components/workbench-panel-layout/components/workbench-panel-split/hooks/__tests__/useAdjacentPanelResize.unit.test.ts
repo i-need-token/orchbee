@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { PanelSplit } from '../../../../../../model/panel-workspace-state';
+import type { SharedSplitResize } from '../../../../../../types/panel-workspace-view';
 import { useAdjacentPanelResize } from '../useAdjacentPanelResize';
 
 const split: PanelSplit = {
@@ -54,7 +55,9 @@ const split: PanelSplit = {
 	kind: 'split',
 	orientation: 'horizontal',
 };
-const onResize = vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
+/** No share floor beyond the pixel minimum, so each case shows what the pixels alone allow. */
+const sharedResize: SharedSplitResize = { commit, minimumChildPercent: 0 };
 
 function createThreePanelSplit(): PanelSplit {
 	const firstChild = split.children[0];
@@ -141,13 +144,13 @@ function HookProjection({
 	readonly maximizedChildId?: string | null;
 	readonly value?: PanelSplit;
 }) {
-	const resize = useAdjacentPanelResize(value, onResize, 30, maximizedChildId);
+	const resize = useAdjacentPanelResize(value, 30, maximizedChildId, sharedResize);
 	return createElement('div', null, JSON.stringify({ layout: resize.displayLayout }));
 }
 
 afterEach(() => {
 	cleanup();
-	onResize.mockReset();
+	commit.mockClear();
 });
 
 describe('useAdjacentPanelResize', () => {
@@ -184,7 +187,7 @@ describe('useAdjacentPanelResize', () => {
 		};
 		const { result, rerender } = renderHook(
 			({ maximizedChildId }: { readonly maximizedChildId: string | null }) =>
-				useAdjacentPanelResize(split, onResize, 30, maximizedChildId),
+				useAdjacentPanelResize(split, 30, maximizedChildId, sharedResize),
 			{ initialProps },
 		);
 		result.current.groupRef.current = {
@@ -203,7 +206,7 @@ describe('useAdjacentPanelResize', () => {
 			'split-1--panel-1': 50,
 			'split-1--panel-2': 50,
 		});
-		expect(onResize).not.toHaveBeenCalled();
+		expect(commit).not.toHaveBeenCalled();
 	});
 
 	it('cancels an active resize before projecting maximization', () => {
@@ -212,7 +215,7 @@ describe('useAdjacentPanelResize', () => {
 		};
 		const { result, rerender } = renderHook(
 			({ maximizedChildId }: { readonly maximizedChildId: string | null }) =>
-				useAdjacentPanelResize(split, onResize, 30, maximizedChildId),
+				useAdjacentPanelResize(split, 30, maximizedChildId, sharedResize),
 			{ initialProps },
 		);
 		result.current.groupElementRef.current = createPanelGroupElement([500, 500]);
@@ -222,7 +225,7 @@ describe('useAdjacentPanelResize', () => {
 		};
 
 		act(() => {
-			result.current.startPointerResize(0, 7);
+			result.current.startKeyboardResize(0);
 		});
 		rerender({ maximizedChildId: 'panel-2' });
 		act(() => {
@@ -230,9 +233,10 @@ describe('useAdjacentPanelResize', () => {
 				'split-1--panel-1': 0,
 				'split-1--panel-2': 100,
 			});
+			result.current.finishKeyboardResize(0);
 		});
 
-		expect(onResize).not.toHaveBeenCalled();
+		expect(commit).not.toHaveBeenCalled();
 	});
 
 	it('prepares the model layout when a same-axis split adds a child', () => {
@@ -246,11 +250,11 @@ describe('useAdjacentPanelResize', () => {
 		);
 	});
 
-	it('updates the model once for each distinct accepted primitive layout', () => {
+	it('submits the accepted primitive layout once when the divider is released', () => {
 		const setLayout = vi.fn<(layout: Record<string, number>) => Record<string, number>>(
 			(layout) => layout,
 		);
-		const { result } = renderHook(() => useAdjacentPanelResize(split, onResize, 30));
+		const { result } = renderHook(() => useAdjacentPanelResize(split, 30, null, sharedResize));
 		result.current.groupElementRef.current = createPanelGroupElement([500, 500]);
 		result.current.groupRef.current = {
 			getLayout: () => ({ 'split-1--panel-1': 50, 'split-1--panel-2': 50 }),
@@ -269,13 +273,18 @@ describe('useAdjacentPanelResize', () => {
 			});
 		});
 
-		expect(onResize).toHaveBeenCalledOnce();
-		expect(onResize).toHaveBeenCalledWith('split-1', 0, 60);
+		expect(commit).not.toHaveBeenCalled();
 		expect(setLayout).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.finishKeyboardResize(0);
+		});
+
+		expect(commit).toHaveBeenCalledExactlyOnceWith('split-1', 60);
 	});
 
-	it('updates the model when a resize returns to its initial layout', () => {
-		const { result } = renderHook(() => useAdjacentPanelResize(split, onResize, 30));
+	it('submits a resize that returns to its initial layout', () => {
+		const { result } = renderHook(() => useAdjacentPanelResize(split, 30, null, sharedResize));
 		result.current.groupElementRef.current = createPanelGroupElement([500, 500]);
 		result.current.groupRef.current = {
 			getLayout: () => ({ 'split-1--panel-1': 50, 'split-1--panel-2': 50 }),
@@ -292,17 +301,17 @@ describe('useAdjacentPanelResize', () => {
 				'split-1--panel-1': 50,
 				'split-1--panel-2': 50,
 			});
+			result.current.finishKeyboardResize(0);
 		});
 
-		expect(onResize).toHaveBeenNthCalledWith(1, 'split-1', 0, 60);
-		expect(onResize).toHaveBeenNthCalledWith(2, 'split-1', 0, 50);
+		expect(commit).toHaveBeenCalledExactlyOnceWith('split-1', 50);
 	});
 
 	it('corrects a primitive layout at the measured pixel minimum', () => {
 		const setLayout = vi.fn<(layout: Record<string, number>) => Record<string, number>>(
 			(layout) => layout,
 		);
-		const { result } = renderHook(() => useAdjacentPanelResize(split, onResize, 30));
+		const { result } = renderHook(() => useAdjacentPanelResize(split, 30, null, sharedResize));
 		result.current.groupElementRef.current = createPanelGroupElement([500, 500]);
 		result.current.groupRef.current = {
 			getLayout: () => ({ 'split-1--panel-1': 50, 'split-1--panel-2': 50 }),
@@ -315,13 +324,14 @@ describe('useAdjacentPanelResize', () => {
 				'split-1--panel-1': 99,
 				'split-1--panel-2': 1,
 			});
+			result.current.finishKeyboardResize(0);
 		});
 
 		expect(setLayout).toHaveBeenCalledWith({
 			'split-1--panel-1': 97,
 			'split-1--panel-2': 3,
 		});
-		expect(onResize).toHaveBeenCalledWith('split-1', 0, 97);
+		expect(commit).toHaveBeenCalledWith('split-1', 97);
 	});
 
 	it('rejects a candidate from a separator outside the active resize session', () => {
@@ -329,7 +339,9 @@ describe('useAdjacentPanelResize', () => {
 		const setLayout = vi.fn<(layout: Record<string, number>) => Record<string, number>>(
 			(layout) => layout,
 		);
-		const { result } = renderHook(() => useAdjacentPanelResize(threePanelSplit, onResize, 30));
+		const { result } = renderHook(() =>
+			useAdjacentPanelResize(threePanelSplit, 30, null, sharedResize),
+		);
 		result.current.groupElementRef.current = createPanelGroupElement([500, 250, 250]);
 		result.current.groupRef.current = {
 			getLayout: () => ({
@@ -349,16 +361,25 @@ describe('useAdjacentPanelResize', () => {
 			});
 		});
 
-		expect(onResize).not.toHaveBeenCalled();
 		expect(setLayout).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.finishKeyboardResize(0);
+		});
+
+		expect(commit).not.toHaveBeenCalled();
 	});
 
-	it.each(['lostpointercapture', 'pointercancel', 'pointerup'])(
-		'keeps a pointer session active until its initiating pointer receives %s',
-		(completionEvent) => {
+	it.each([
+		{ completionEvent: 'lostpointercapture', submitted: [] },
+		{ completionEvent: 'pointercancel', submitted: [] },
+		{ completionEvent: 'pointerup', submitted: [['split-1', 70]] },
+	])(
+		'keeps a pointer session active until its initiating pointer receives $completionEvent',
+		({ completionEvent, submitted }) => {
 			const groupElement = createPanelGroupElement([500, 500]);
 			const { result } = renderHook(() => {
-				const resize = useAdjacentPanelResize(split, onResize, 30);
+				const resize = useAdjacentPanelResize(split, 30, null, sharedResize);
 				useLayoutEffect(() => {
 					resize.groupElementRef.current = groupElement;
 				}, [resize.groupElementRef]);
@@ -380,8 +401,8 @@ describe('useAdjacentPanelResize', () => {
 				result.current.startPointerResize(0, 8);
 			});
 			fireEvent.pointerMove(document, { clientX: 900, pointerId: 8 });
-			expect(onResize).toHaveBeenCalledOnce();
 			firePointerCompletion(completionEvent, 8);
+			expect(commit).not.toHaveBeenCalled();
 			act(() => {
 				result.current.onLayoutChange({
 					'split-1--panel-1': 70,
@@ -396,9 +417,7 @@ describe('useAdjacentPanelResize', () => {
 				});
 			});
 
-			expect(onResize).toHaveBeenCalledTimes(2);
-			expect(onResize).toHaveBeenNthCalledWith(1, 'split-1', 0, 60);
-			expect(onResize).toHaveBeenNthCalledWith(2, 'split-1', 0, 70);
+			expect(commit.mock.calls).toEqual(submitted);
 		},
 	);
 
@@ -406,7 +425,7 @@ describe('useAdjacentPanelResize', () => {
 		const setLayout = vi.fn<(layout: Record<string, number>) => Record<string, number>>(
 			(layout) => layout,
 		);
-		const { result } = renderHook(() => useAdjacentPanelResize(split, onResize, 30));
+		const { result } = renderHook(() => useAdjacentPanelResize(split, 30, null, sharedResize));
 		result.current.groupElementRef.current = createPanelGroupElement([500, 500]);
 		result.current.groupRef.current = {
 			getLayout: () => ({ 'split-1--panel-1': 50, 'split-1--panel-2': 50 }),
@@ -414,7 +433,7 @@ describe('useAdjacentPanelResize', () => {
 		};
 
 		act(() => {
-			result.current.startPointerResize(0, 7);
+			result.current.startKeyboardResize(0);
 			result.current.onLayoutChange({
 				'split-1--panel-1': 60,
 				'split-1--panel-2': 40,
@@ -426,6 +445,7 @@ describe('useAdjacentPanelResize', () => {
 				'split-1--panel-1': 99,
 				'split-1--panel-2': 1,
 			});
+			result.current.finishKeyboardResize(0);
 		});
 
 		expect(setLayout).toHaveBeenCalledOnce();
@@ -433,7 +453,6 @@ describe('useAdjacentPanelResize', () => {
 			'split-1--panel-1': 94,
 			'split-1--panel-2': 6,
 		});
-		expect(onResize).toHaveBeenNthCalledWith(1, 'split-1', 0, 60);
-		expect(onResize).toHaveBeenNthCalledWith(2, 'split-1', 0, 94);
+		expect(commit).toHaveBeenCalledExactlyOnceWith('split-1', 94);
 	});
 });

@@ -9,24 +9,62 @@ import {
 } from '@orchbee/actions';
 import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
+import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	createSnapshotRuntime,
+	fixtureId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../__tests__/server-workbench-snapshot';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { registerWorkbenchTabSelectionActions } from '../registerWorkbenchTabSelectionActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
+const FIRST_TAB_ID = fixtureTabId(1);
+const GROUP_ID = fixtureId(0xc01);
+const GROUPED_A_ID = fixtureTabId(2);
+const GROUPED_B_ID = fixtureTabId(3);
+const PINNED_TAB_ID = fixtureTabId(4);
+
+/** A pinned Tab, the first Tab, and two Tabs in one group, with the first Tab active. */
+function groupedSnapshot(): WorkbenchSnapshot {
+	return workbenchSnapshot(
+		1,
+		{ directories: [snapshotDirectory(1)], workspaces: [snapshotWorkspace(1)] },
+		[
+			snapshotContext(
+				1,
+				[
+					snapshotTab(4, undefined, { label: 'Pinned', pinned: true }),
+					snapshotTab(1),
+					snapshotTab(2, undefined, { groupId: GROUP_ID, label: 'Grouped A' }),
+					snapshotTab(3, undefined, { groupId: GROUP_ID, label: 'Grouped B' }),
+				],
+				[{ color: 'blue', groupId: GROUP_ID, label: 'Group 1' }],
+			),
+		],
+	);
+}
+
+/** The grouped Tabs, with the first Tab active and the group collapsed. */
+function createGroupedHarness(): Harness {
+	const harness = createHarness(groupedSnapshot());
+	const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
+	model.selectTab(FIRST_TAB_ID);
+	model.toggleGroupCollapsed(GROUP_ID);
+	return harness;
+}
+
 describe('registerWorkbenchTabSelectionActions', () => {
 	it('selects the one-based TabModel position through the prepared Tab Strip Action', async () => {
-		const harness = createHarness();
+		const harness = createGroupedHarness();
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: false, title: 'Grouped A' }, { activate: false, id: 'group-a' });
-		model.addTab({ pinned: false, title: 'Grouped B' }, { activate: false, id: 'group-b' });
-		model.createGroup({ collapsed: true, color: 'blue', id: 'group-1', title: 'Group 1' }, [
-			'group-a',
-			'group-b',
-		]);
-		model.addTab({ pinned: true, title: 'Pinned' }, { activate: false, id: 'pinned' });
 		const lowerExecute = vi.fn<(input: TabSelectionInput) => void>();
 		registerTabSelection(harness, (context, input) => {
 			lowerExecute(input);
@@ -36,20 +74,20 @@ describe('registerWorkbenchTabSelectionActions', () => {
 		});
 
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-			'pinned',
-			'terminal-context-1-tab-1',
-			'group-a',
-			'group-b',
+			PINNED_TAB_ID,
+			FIRST_TAB_ID,
+			GROUPED_A_ID,
+			GROUPED_B_ID,
 		]);
 		await expect(harness.execute({ position: 3 })).resolves.toEqual({ kind: 'completed' });
 
-		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ mode: 'replace', tabId: 'group-a' });
-		expect(model.getSnapshot()).toMatchObject({ activeTabId: 'group-a' });
-		expect(model.getSnapshot().groups[0]).toMatchObject({ collapsed: false, id: 'group-1' });
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ mode: 'replace', tabId: GROUPED_A_ID });
+		expect(model.getSnapshot()).toMatchObject({ activeTabId: GROUPED_A_ID });
+		expect(model.getSnapshot().groups[0]).toMatchObject({ collapsed: false, id: GROUP_ID });
 	});
 
 	it('is unavailable when the active terminal context has no Tab at that position', async () => {
-		const harness = createHarness();
+		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
 		registerTabSelection(harness, () => ({ kind: 'completed' }));
 
 		expect(
@@ -66,15 +104,8 @@ describe('registerWorkbenchTabSelectionActions', () => {
 	});
 
 	it('selects previous and next in canonical order and wraps both boundaries', async () => {
-		const harness = createHarness();
+		const harness = createGroupedHarness();
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: false, title: 'Grouped A' }, { activate: false, id: 'group-a' });
-		model.addTab({ pinned: false, title: 'Grouped B' }, { activate: false, id: 'group-b' });
-		model.createGroup({ collapsed: true, color: 'blue', id: 'group-1', title: 'Group 1' }, [
-			'group-a',
-			'group-b',
-		]);
-		model.addTab({ pinned: true, title: 'Pinned' }, { activate: false, id: 'pinned' });
 		const lowerExecute = vi.fn<(input: TabSelectionInput) => void>();
 		registerTabSelection(harness, (context, input) => {
 			lowerExecute(input);
@@ -93,18 +124,19 @@ describe('registerWorkbenchTabSelectionActions', () => {
 			kind: 'completed',
 		});
 
-		expect(lowerExecute).toHaveBeenNthCalledWith(1, { mode: 'replace', tabId: 'pinned' });
-		expect(lowerExecute).toHaveBeenNthCalledWith(2, { mode: 'replace', tabId: 'group-b' });
-		expect(lowerExecute).toHaveBeenNthCalledWith(3, { mode: 'replace', tabId: 'pinned' });
-		expect(model.getSnapshot()).toMatchObject({ activeTabId: 'pinned' });
-		expect(model.getSnapshot().groups[0]).toMatchObject({ collapsed: false, id: 'group-1' });
+		expect(lowerExecute).toHaveBeenNthCalledWith(1, { mode: 'replace', tabId: PINNED_TAB_ID });
+		expect(lowerExecute).toHaveBeenNthCalledWith(2, { mode: 'replace', tabId: GROUPED_B_ID });
+		expect(lowerExecute).toHaveBeenNthCalledWith(3, { mode: 'replace', tabId: PINNED_TAB_ID });
+		expect(model.getSnapshot()).toMatchObject({ activeTabId: PINNED_TAB_ID });
+		expect(model.getSnapshot().groups[0]).toMatchObject({ collapsed: false, id: GROUP_ID });
 	});
 
 	it('re-resolves the current active Tab at execution and blocks after lower disposal', async () => {
-		const harness = createHarness();
+		const harness = createHarness(
+			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2), snapshotTab(3)]),
+		);
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: false, title: 'Second' }, { activate: false, id: 'second' });
-		model.addTab({ pinned: false, title: 'Third' }, { activate: false, id: 'third' });
+		model.selectTab(FIRST_TAB_ID);
 		const lowerExecute = vi.fn<(input: TabSelectionInput) => void>();
 		const lowerRegistration = registerTabSelection(harness, (context, input) => {
 			lowerExecute(input);
@@ -119,11 +151,14 @@ describe('registerWorkbenchTabSelectionActions', () => {
 				source: 'keyboard',
 			}),
 		).toMatchObject({ availability: { kind: 'enabled' } });
-		model.selectTab('second');
+		model.selectTab(fixtureTabId(2));
 		await expect(harness.executeAdjacent(WORKBENCH_ACTION_IDS.selectNextTab)).resolves.toEqual({
 			kind: 'completed',
 		});
-		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ mode: 'replace', tabId: 'third' });
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({
+			mode: 'replace',
+			tabId: fixtureTabId(3),
+		});
 
 		lowerRegistration.dispose();
 		await expect(
@@ -135,7 +170,7 @@ describe('registerWorkbenchTabSelectionActions', () => {
 	});
 
 	it('leaves adjacent selection unavailable for a singleton Tab model', async () => {
-		const harness = createHarness();
+		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
 		registerTabSelection(harness, () => ({ kind: 'completed' }));
 
 		for (const actionId of [
@@ -168,17 +203,10 @@ interface Harness {
 	execute(input: { readonly position: number }): Promise<unknown>;
 }
 
-function createHarness(): Harness {
+function createHarness(snapshot: WorkbenchSnapshot): Harness {
 	const runtime = new ActionRuntime();
 	const scope = runtime.createScope('workbench');
-	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace',
-		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('terminal-1'),
-			() => terminalPresentationId('terminal-next'),
-		),
-	});
+	const projectWorkspaceRuntime = createSnapshotRuntime(snapshot);
 	registerWorkbenchTabSelectionActions({
 		projectWorkspaceRuntime,
 		runtime,

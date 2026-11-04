@@ -19,7 +19,6 @@ export const WORKBENCH_ACTION_IDS = {
 	navigateAgent: 'workbench.agent.navigate',
 	activateStandalone: 'workbench.location.standalone.activate',
 	activateWorkspace: 'workbench.workspace.activate',
-	addResourceFolder: 'workbench.resource.directory.add',
 	createProject: 'workbench.project.create',
 	createTerminal: 'workbench.terminal.create',
 	createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
@@ -30,7 +29,6 @@ export const WORKBENCH_ACTION_IDS = {
 	closeProjectWorkspaces: 'workbench.project.close-all',
 	closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
 	deleteWorkspace: 'workbench.workspace.delete',
-	duplicateWorkspace: 'workbench.workspace.duplicate',
 	equalizeActivePanels: 'workbench.panel.active.equalize',
 	focusActiveTerminal: 'workbench.focus.active-terminal',
 	focusActivePanelDown: 'workbench.panel.active.focus-down',
@@ -51,7 +49,6 @@ export const WORKBENCH_ACTION_IDS = {
 	openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
 	openSettings: 'workbench.settings.open',
 	removeProject: 'workbench.project.dissolve',
-	removeResourceDirectory: 'workbench.resource.directory.remove',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 	resizeActivePanel: 'workbench.panel.active.resize',
 	renameProject: 'workbench.project.rename',
@@ -79,7 +76,6 @@ export const WORKBENCH_ACTION_IDS = {
 	splitActivePanelRight: 'workbench.panel.active.split-right',
 	swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 	setTabStripOrientation: 'workbench.tab-strip.orientation.set',
-	setResourcePrimaryDirectory: 'workbench.resource.primary-directory.set',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
@@ -101,11 +97,6 @@ export interface WorkbenchProjectInput {
 }
 
 interface WorkbenchProjectCreateInput {
-	readonly path: string;
-}
-
-interface WorkbenchResourceFolderAddInput {
-	readonly resourceScopeId: string;
 	readonly path: string;
 }
 
@@ -157,11 +148,6 @@ interface WorkbenchWorkspaceProjectInput extends WorkbenchWorkspaceInput {
 }
 interface WorkbenchWorkspaceProjectCreateInput extends WorkbenchWorkspaceInput {
 	readonly name: string;
-}
-
-interface WorkbenchResourceDirectoryInput {
-	readonly resourceScopeId: string;
-	readonly directoryId: string;
 }
 
 interface WorkbenchProjectRenameInput extends WorkbenchProjectInput {
@@ -236,7 +222,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateStandalone]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
-	readonly [WORKBENCH_ACTION_IDS.addResourceFolder]: ActionSignature<WorkbenchResourceFolderAddInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
 		WorkbenchProjectCreateInput,
 		WorkbenchProjectCreationReceipt
@@ -246,7 +231,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.decreaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspace]: ActionSignature<WorkbenchWorkspaceCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.deleteWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
-	readonly [WORKBENCH_ACTION_IDS.duplicateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.equalizeActivePanels]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActiveTerminal]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelDown]: ActionSignature<void>;
@@ -267,7 +251,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.openPanelBroadcastInput]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
-	readonly [WORKBENCH_ACTION_IDS.removeResourceDirectory]: ActionSignature<WorkbenchResourceDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanel]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
@@ -295,7 +278,6 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
-	readonly [WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory]: ActionSignature<WorkbenchResourceDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;
@@ -546,38 +528,6 @@ export const workbenchProjectCreateInput: ActionInputValidation<WorkbenchProject
 			? { success: true, data: { path: input['path'].trim() } }
 			: { success: false, code: 'expected-workbench-project-create-input' },
 };
-
-export const workbenchResourceFolderAddInput: ActionInputValidation<WorkbenchResourceFolderAddInput> =
-	{
-		name: 'WorkbenchResourceFolderAddInput',
-		parse: (input) =>
-			isRecord(input) &&
-			typeof input['path'] === 'string' &&
-			input['path'].trim().length > 0 &&
-			typeof input['resourceScopeId'] === 'string'
-				? {
-						success: true,
-						data: { path: input['path'].trim(), resourceScopeId: input['resourceScopeId'] },
-					}
-				: { success: false, code: 'expected-workbench-project-folder-add-input' },
-	};
-
-export const workbenchResourceDirectoryInput: ActionInputValidation<WorkbenchResourceDirectoryInput> =
-	{
-		name: 'WorkbenchResourceDirectoryInput',
-		parse: (input) =>
-			isRecord(input) &&
-			typeof input['directoryId'] === 'string' &&
-			typeof input['resourceScopeId'] === 'string'
-				? {
-						success: true,
-						data: {
-							directoryId: input['directoryId'],
-							resourceScopeId: input['resourceScopeId'],
-						},
-					}
-				: { success: false, code: 'expected-workbench-project-directory-input' },
-	};
 
 export const workbenchProjectRenameInput: ActionInputValidation<WorkbenchProjectRenameInput> = {
 	name: 'WorkbenchProjectRenameInput',

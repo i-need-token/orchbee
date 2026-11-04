@@ -112,11 +112,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.close.stopped',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.close.stopped'],
 	},
-	workspaceNew: {
-		description: 'Create an ungrouped Workspace with the default shell.',
-		id: 'workbench.workspaces.new',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.new'],
-	},
 	sidebarNewWorkspace: {
 		description: 'Fixed full-row sidebar action that creates an independent Workspace.',
 		id: 'workbench.sidebar.items.newWorkspace',
@@ -759,66 +754,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.collapse'],
 		description: 'Action that collapses a Project in the Workbench sidebar.',
 	},
-	projectConnect: {
-		id: 'workbench.projects.actions.connect',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.connect'],
-		description: 'Action that connects an Environment-backed Project.',
-	},
-	projectConnectViaSsh: {
-		id: 'workbench.projects.actions.connectViaSsh',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.connectViaSsh'],
-		description: 'Action that invokes an optional platform SSH Project enrollment capability.',
-	},
-	projectDisconnect: {
-		id: 'workbench.projects.actions.disconnect',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.disconnect'],
-		description: 'Action that disconnects an Environment-backed Project.',
-	},
-	projectRetryConnection: {
-		id: 'workbench.projects.actions.retryConnection',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.retryConnection'],
-		description: 'Action that retries an Environment-backed Project connection.',
-	},
-	projectConnectionBlocked: {
-		id: 'workbench.projects.connection.blocked',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.blocked'],
-		description: 'Status for a Project connection that needs user action.',
-	},
-	projectConnectionConnected: {
-		id: 'workbench.projects.connection.connected',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.connected'],
-		description: 'Status for a connected Environment-backed Project.',
-	},
-	projectConnectionConnecting: {
-		id: 'workbench.projects.connection.connecting',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.connecting'],
-		description: 'Status for an Environment-backed Project being connected.',
-	},
-	projectConnectionDisconnected: {
-		id: 'workbench.projects.connection.disconnected',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.disconnected'],
-		description: 'Status for a disconnected Environment-backed Project.',
-	},
-	projectConnectionInteractionRequired: {
-		id: 'workbench.projects.connection.interactionRequired',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.interactionRequired'],
-		description: 'Status for a Project connection waiting for authentication.',
-	},
-	projectConnectionRetrying: {
-		id: 'workbench.projects.connection.retrying',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.retrying'],
-		description: 'Status for an Environment-backed Project reconnecting automatically.',
-	},
-	projectConnectionUnavailable: {
-		id: 'workbench.projects.connection.unavailable',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.unavailable'],
-		description: 'Status for an unavailable Environment-backed Project connection.',
-	},
-	projectAddFolder: {
-		id: 'workbench.projects.actions.addFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.addFolder'],
-		description: 'Action that adds an existing Folder to a Project.',
-	},
 	projectCreate: {
 		id: 'workbench.projects.actions.create',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.create'],
@@ -929,20 +864,10 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.remove'],
 		description: 'Action that removes a Project from Orchbee.',
 	},
-	projectRemoveFolder: {
-		id: 'workbench.projects.actions.removeFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.removeFolder'],
-		description: 'Action that removes a manually added Folder from a Project.',
-	},
 	projectReorder: {
 		id: 'workbench.projects.actions.reorder',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.reorder'],
 		description: 'Action that reorders a Project in the Workbench sidebar.',
-	},
-	projectSetPrimaryFolder: {
-		id: 'workbench.projects.actions.setPrimaryFolder',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.setPrimaryFolder'],
-		description: 'Action that sets the Project primary Folder.',
 	},
 	projectSelectFolder: {
 		id: 'workbench.projects.actions.selectFolder',
@@ -1004,11 +929,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.sidebar.items.search',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.search'],
 		description: 'Label for the search entry in the Workbench sidebar.',
-	},
-	workspaceCopySuffix: {
-		id: 'workbench.workspaces.names.copySuffix',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.copySuffix'],
-		description: 'Suffix appended to the default name of a duplicated Workspace.',
 	},
 	workspaceActivate: {
 		id: 'workbench.workspaces.actions.activate',
@@ -1087,11 +1007,6 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Accessible words for the down-arrow count on a sidebar Workspace row: upstream commits its Git branch has not pulled.',
 	},
-	workspacePrimaryName: {
-		id: 'workbench.workspaces.names.primary',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.primary'],
-		description: 'Default name of the Workspace created with a Project.',
-	},
 	workspaceSetupNotApplied: {
 		id: 'workbench.workspaces.setup.notApplied',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.notApplied'],
@@ -1162,11 +1077,6 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.confirmDelete.title',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.confirmDelete.title'],
 		description: 'Title shown before deleting a Workspace.',
-	},
-	workspaceDuplicate: {
-		id: 'workbench.workspaces.actions.duplicate',
-		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.duplicate'],
-		description: 'Action that duplicates a Workspace without copying running processes.',
 	},
 	workspaceManage: {
 		id: 'workbench.workspaces.actions.manage',

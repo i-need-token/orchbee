@@ -1,32 +1,55 @@
 import type { ComponentProps } from 'react';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
-import {
-	Workbench,
-	WorkbenchProjectWorkspaceRuntime,
-	createWorkbenchPreviewTerminalPresentationComposition,
-} from '../src/workbench';
+import { Workbench } from '../src/workbench';
 import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
-	WorkbenchEnvironmentProjectConnectionCapability,
+	WorkbenchAuthority,
+	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalBroadcastInput,
-	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalSurfaceProps,
 	WorkbenchWorkspaceLocation,
 	WorkbenchWorkspaceLocationSource,
 } from '../src/workbench';
+import {
+	createSnapshotRuntime,
+	fixtureDirectoryId,
+	fixturePresentationId,
+	fixtureProjectId,
+	fixtureWorkspaceId,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotProject,
+	snapshotSplit,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+	type FixtureRecord,
+} from '../src/__tests__/server-workbench-snapshot';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-} from '@orchbee/workbench-client-protocol';
+
+/** Decides nothing: each Story shows a fixed Server snapshot, so every write leaves it as it is. */
+const staticStoryAuthority: WorkbenchAuthority = {
+	change: () => Promise.resolve({ kind: 'unchanged' }),
+	close: () => Promise.resolve({ kind: 'unchanged' }),
+	create: () => Promise.resolve({ kind: 'unsupported' }),
+	createPanelTerminal: () => Promise.resolve({ kind: 'unsupported' }),
+	createTab: () => Promise.resolve({ kind: 'unsupported' }),
+	minimumSplitPercent: 10,
+	stoppedTabClose: () => null,
+	watchClose: () => () => undefined,
+};
 
 const meta = {
 	title: 'Workbench',
 	component: Workbench,
+	args: {
+		authority: staticStoryAuthority,
+	},
 	parameters: {
 		layout: 'fullscreen',
 	},
@@ -48,221 +71,232 @@ const unavailableSearchProvider: NonNullable<
 	search: () => Promise.reject(new Error('Story provider unavailable')),
 };
 
-const createProjectWorkspaceRuntime = (titles: readonly [string, ...string[]]) => {
-	let presentationSequence = 0;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace/orchbee',
-		standaloneTerminalTitle: titles[0],
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('storybook:standalone:initial'),
-			() => terminalPresentationId(`storybook:dynamic:${(presentationSequence += 1)}`),
+const ORCHBEE_FOLDER = '/workspace/orchbee';
+const ORCHBEE_FEATURE_FOLDER = '/workspace/orchbee-feature';
+
+interface StoryWorkspace {
+	/** The Workspace the window shows; the last one marked wins. */
+	readonly active?: boolean;
+	/** Workspaces that name the same folder share one directory. */
+	readonly folder: string;
+	readonly name: string;
+	/** One Tab per title, each holding one terminal of that name. */
+	readonly titles: readonly string[];
+}
+
+interface StoryProject {
+	readonly collapsed?: boolean;
+	readonly name: string;
+	readonly workspaces: readonly StoryWorkspace[];
+}
+
+interface StoryWorkbench {
+	/** Each Workspace's terminals in Tab order, by Workspace name. */
+	readonly presentationIds: ReadonlyMap<string, readonly string[]>;
+	readonly runtime: WorkbenchProjectWorkspaceRuntime;
+}
+
+const titledPresentation = (sequence: number, title: string) =>
+	snapshotPresentation(sequence, { customLabel: title });
+
+const numberedTitles = (name: string, count: number): readonly string[] =>
+	Array.from({ length: count }, (_, index) => `${name} ${index + 1}`);
+
+/** The window a Server publishes these Projects and Workspaces to, showing the active Workspace. */
+function createStoryWorkbench({
+	projects = [],
+	workspaces = [],
+}: {
+	readonly projects?: readonly StoryProject[];
+	readonly workspaces?: readonly StoryWorkspace[];
+}): StoryWorkbench {
+	const folders = new Map<string, number>();
+	const directories: FixtureRecord[] = [];
+	const workspaceRecords: FixtureRecord[] = [];
+	const contexts: FixtureRecord[] = [];
+	const presentationIds = new Map<string, readonly string[]>();
+	let activeWorkspaceId: string | null = null;
+	let tabSequence = 0;
+	const addWorkspace = (workspace: StoryWorkspace, projectId: string | null): void => {
+		let directory = folders.get(workspace.folder);
+		if (directory === undefined) {
+			directory = folders.size + 1;
+			folders.set(workspace.folder, directory);
+			directories.push({ ...snapshotDirectory(directory), path: workspace.folder });
+		}
+		const sequence = workspaceRecords.length + 1;
+		workspaceRecords.push(
+			snapshotWorkspace(sequence, {
+				label: workspace.name,
+				primaryDirectoryId: fixtureDirectoryId(directory),
+				projectId,
+			}),
+		);
+		const tabs = workspace.titles.map((title) => ({ sequence: (tabSequence += 1), title }));
+		contexts.push(
+			snapshotContext(
+				sequence,
+				tabs.map((tab) =>
+					snapshotTab(
+						tab.sequence,
+						snapshotPanel(tab.sequence, titledPresentation(tab.sequence, tab.title)),
+						{
+							label: tab.title,
+						},
+					),
+				),
+			),
+		);
+		presentationIds.set(
+			workspace.name,
+			tabs.map((tab) => fixturePresentationId(tab.sequence)),
+		);
+		if (workspace.active === true) activeWorkspaceId = fixtureWorkspaceId(sequence);
+	};
+	for (const [index, project] of projects.entries()) {
+		for (const workspace of project.workspaces)
+			addWorkspace(workspace, fixtureProjectId(index + 1));
+	}
+	for (const workspace of workspaces) addWorkspace(workspace, null);
+	const runtime = createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories,
+				projects: projects.map((project, index) => snapshotProject(index + 1, project.name)),
+				workspaces: workspaceRecords,
+			},
+			contexts,
 		),
-	});
-	for (const title of titles.slice(1)) {
-		runtime.createTerminal({
-			groupId: null,
-			source: 'button',
-			title,
-		});
-	}
-	return runtime;
-};
-
-const createPopulatedProjectWorkspaceRuntime = () => {
-	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
-	runtime.transition({
-		directory: {
-			available: true,
-			git: {
-				branch: 'main',
-				head: 'preview',
-				repositoryId: 'orchbee',
-				worktree: false,
-			},
-			id: 'directory-orchbee',
-			kind: 'folder',
-			name: 'orchbee',
-			path: '/workspace/orchbee',
-			placement: { kind: 'local' },
-			source: 'selected',
+		{
+			expandedProjectIds: projects.flatMap((project, index) =>
+				project.collapsed === true ? [] : [fixtureProjectId(index + 1)],
+			),
 		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Primary',
-		projectName: 'orchbee',
-		terminalTitle: 'Terminal 1',
-		type: 'project-created',
-	});
-	runtime.transition({
-		directory: {
-			available: true,
-			git: {
-				branch: 'feature/project-workspace',
-				head: 'preview-feature',
-				repositoryId: 'orchbee',
-				worktree: true,
-			},
-			id: 'directory-orchbee-feature',
-			kind: 'worktree',
-			name: 'orchbee-feature',
-			path: '/workspace/orchbee-feature',
-			placement: { kind: 'local' },
-			source: 'discovered',
-		},
-		resourceScopeId: 'resource-scope-1',
-		type: 'directory-added',
-	});
-	runtime.transition({
-		directoryId: 'directory-orchbee-feature',
-		launchConfigurationId: null,
-		name: 'Project Workspace',
-		resourceScopeId: 'resource-scope-1',
-		projectId: 'project-1',
-		terminalTitle: 'Terminal 1',
-		type: 'workspace-created',
-	});
-	return runtime;
-};
+	);
+	if (activeWorkspaceId !== null) {
+		runtime.transition({ type: 'workspace-activated', workspaceId: activeWorkspaceId });
+	}
+	return { presentationIds, runtime };
+}
 
-const createSidebarFocusRevealRuntime = (collapsed: boolean) => {
-	const runtime = createPopulatedProjectWorkspaceRuntime();
-	for (let index = 1; index <= 24; index += 1) {
-		runtime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: `directory-focus-${index}`,
-				kind: 'folder',
-				name: `focus-${index}`,
-				path: `/workspace/focus-${index}`,
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: `Focus Project ${index}`,
-			terminalTitle: `Focus Terminal ${index}`,
-			type: 'project-created',
-		});
-	}
-	if (collapsed) {
-		const project = runtime.getSnapshot().projects.at(-1);
-		if (project === undefined) throw new Error('Expected the final focus-reveal Project.');
-		runtime.transition({ projectId: project.id, type: 'project-expansion-toggled' });
-	}
-	return runtime;
-};
+/** One Workspace outside any Project, holding one Tab per title. */
+const createTerminalTabsRuntime = (titles: readonly string[]) =>
+	createStoryWorkbench({
+		workspaces: [{ active: true, folder: ORCHBEE_FOLDER, name: 'orchbee', titles }],
+	}).runtime;
+
+/**
+ * The orchbee Project: its Primary Workspace, and the Project Workspace on a feature worktree,
+ * which the window shows unless `primaryActive`.
+ */
+const orchbeeProject = (
+	extraWorkspaces: readonly StoryWorkspace[] = [],
+	{
+		primaryActive = false,
+		primaryTitles = ['Terminal 1'],
+		reviewTitles = ['Terminal 1'],
+	}: {
+		readonly primaryActive?: boolean;
+		readonly primaryTitles?: readonly string[];
+		readonly reviewTitles?: readonly string[];
+	} = {},
+): StoryProject => ({
+	name: 'orchbee',
+	workspaces: [
+		{ active: primaryActive, folder: ORCHBEE_FOLDER, name: 'Primary', titles: primaryTitles },
+		{
+			active: !primaryActive,
+			folder: ORCHBEE_FEATURE_FOLDER,
+			name: 'Project Workspace',
+			titles: reviewTitles,
+		},
+		...extraWorkspaces,
+	],
+});
+
+const createPopulatedProjectWorkspaceRuntime = () =>
+	createStoryWorkbench({ projects: [orchbeeProject()] }).runtime;
+
+const createSidebarFocusRevealRuntime = (collapsed: boolean) =>
+	createStoryWorkbench({
+		projects: [
+			orchbeeProject(),
+			...Array.from({ length: 24 }, (_, index): StoryProject => {
+				const sequence = index + 1;
+				return {
+					collapsed: collapsed && sequence === 24,
+					name: `Focus Project ${sequence}`,
+					workspaces: [
+						{
+							active: true,
+							folder: `/workspace/focus-${sequence}`,
+							name: 'Primary',
+							titles: [`Focus Terminal ${sequence}`],
+						},
+					],
+				};
+			}),
+		],
+	}).runtime;
+
+/** The crowded Workspace's seven Agents, so its folded line shows four states and `+3`. */
+const CROWDED_AGENT_STATES = [
+	'working',
+	'idle',
+	'blocked',
+	'working',
+	'unknown',
+	'done',
+	'error',
+] as const;
 
 /** `crowded` adds a Workspace holding more Agents than a folded status line shows. */
 const createWorkspaceAgentOverviewStoryFixture = ({ crowded = false } = {}) => {
-	const runtime = createPopulatedProjectWorkspaceRuntime();
-	runtime.transition({
-		directoryId: 'directory-orchbee',
-		launchConfigurationId: null,
-		name: 'Batch Tasks',
-		resourceScopeId: 'resource-scope-1',
-		projectId: 'project-1',
-		terminalTitle: 'Batch Agent 1',
-		type: 'workspace-created',
+	const { presentationIds, runtime } = createStoryWorkbench({
+		projects: [
+			orchbeeProject(
+				[
+					{ folder: ORCHBEE_FOLDER, name: 'Batch Tasks', titles: numberedTitles('Batch Tasks', 3) },
+					{ folder: ORCHBEE_FOLDER, name: 'Docs', titles: ['Documentation'] },
+					...(crowded
+						? [
+								{
+									folder: ORCHBEE_FOLDER,
+									name: 'Nightly Agents',
+									titles: numberedTitles('Nightly Agents', CROWDED_AGENT_STATES.length),
+								},
+							]
+						: []),
+				],
+				{
+					primaryTitles: numberedTitles('Primary', 1),
+					reviewTitles: numberedTitles('Project Workspace', 2),
+				},
+			),
+		],
 	});
-	runtime.transition({
-		directoryId: 'directory-orchbee',
-		launchConfigurationId: null,
-		name: 'Docs',
-		resourceScopeId: 'resource-scope-1',
-		projectId: 'project-1',
-		terminalTitle: 'Documentation',
-		type: 'workspace-created',
-	});
-	const workspaces = runtime.getSnapshot().workspaces;
-	const primary = workspaces.find((workspace) => workspace.name === 'Primary');
-	const review = workspaces.find((workspace) => workspace.name === 'Project Workspace');
-	const batch = workspaces.find((workspace) => workspace.name === 'Batch Tasks');
-	if (primary === undefined || review === undefined || batch === undefined) {
-		throw new Error('Expected all Agent overview Storybook Workspaces.');
-	}
-	const primaryPresentations = createStoryWorkspacePresentations(runtime, primary.id, 1);
-	const reviewPresentations = createStoryWorkspacePresentations(runtime, review.id, 2);
-	const batchPresentations = createStoryWorkspacePresentations(runtime, batch.id, 3);
-	const crowdedAgents = crowded ? createCrowdedStoryWorkspaceAgents(runtime) : [];
-	runtime.transition({
-		type: 'workspace-activated',
-		workspaceId: review.id,
-	});
+	const primary = presentationIds.get('Primary') ?? [];
+	const review = presentationIds.get('Project Workspace') ?? [];
+	const batch = presentationIds.get('Batch Tasks') ?? [];
+	const nightly = presentationIds.get('Nightly Agents') ?? [];
 	return {
 		agentObservationSource: createStoryAgentSource([
-			{ agent: 'codex', presentationId: primaryPresentations[0], state: 'working' },
-			{ agent: 'claude', presentationId: reviewPresentations[0], state: 'blocked' },
-			{ agent: 'codex', presentationId: reviewPresentations[1], state: 'done' },
-			{ agent: 'codex', presentationId: batchPresentations[0], state: 'working' },
-			{ agent: 'claude', presentationId: batchPresentations[1], state: 'error' },
-			{ agent: 'gemini', presentationId: batchPresentations[2], state: 'idle' },
-			...crowdedAgents,
+			{ agent: 'codex', presentationId: primary[0], state: 'working' },
+			{ agent: 'claude', presentationId: review[0], state: 'blocked' },
+			{ agent: 'codex', presentationId: review[1], state: 'done' },
+			{ agent: 'codex', presentationId: batch[0], state: 'working' },
+			{ agent: 'claude', presentationId: batch[1], state: 'error' },
+			{ agent: 'gemini', presentationId: batch[2], state: 'idle' },
+			...nightly.map((presentationId, index) => ({
+				agent: index % 2 === 0 ? 'codex' : 'claude',
+				presentationId,
+				state: CROWDED_AGENT_STATES[index] ?? 'unknown',
+			})),
 		]),
 		projectWorkspaceRuntime: runtime,
 	};
 };
-
-/** A Workspace of seven Agents, so its folded line shows four states and `+3`. */
-function createCrowdedStoryWorkspaceAgents(runtime: WorkbenchProjectWorkspaceRuntime) {
-	runtime.transition({
-		directoryId: 'directory-orchbee',
-		launchConfigurationId: null,
-		name: 'Nightly Agents',
-		resourceScopeId: 'resource-scope-1',
-		projectId: 'project-1',
-		terminalTitle: 'Nightly Agent 1',
-		type: 'workspace-created',
-	});
-	const nightly = runtime
-		.getSnapshot()
-		.workspaces.find((workspace) => workspace.name === 'Nightly Agents');
-	if (nightly === undefined) throw new Error('Expected the crowded Storybook Workspace.');
-	const presentations = createStoryWorkspacePresentations(runtime, nightly.id, 7);
-	const states = ['working', 'idle', 'blocked', 'working', 'unknown', 'done', 'error'] as const;
-	return states.map((state, index) => ({
-		agent: index % 2 === 0 ? 'codex' : 'claude',
-		presentationId: presentations[index],
-		state,
-	}));
-}
-
-function createStoryWorkspacePresentations(
-	runtime: WorkbenchProjectWorkspaceRuntime,
-	workspaceId: string,
-	count: number,
-): readonly string[] {
-	const workspace = runtime
-		.getSnapshot()
-		.workspaces.find((candidate) => candidate.id === workspaceId);
-	if (workspace === undefined) {
-		throw new Error('Expected the Storybook Workspace.');
-	}
-	runtime.transition({ type: 'workspace-activated', workspaceId });
-	for (let index = 1; index < count; index += 1) {
-		runtime.createTerminal({
-			groupId: null,
-			source: 'programmatic',
-			title: `Agent Terminal ${index + 1}`,
-		});
-	}
-	const context = runtime.getTerminalContext(workspace.terminalContextId);
-	if (context === null) throw new Error('Expected the Storybook terminal context.');
-	const tabs = context.tabModel.getSnapshot().tabs.slice(0, count);
-	for (const [index, tab] of tabs.entries()) {
-		context.tabModel.updateTab(tab.id, { title: `${workspace.name} ${index + 1}` });
-	}
-	const panelsByTabId = new Map(
-		context.panelWorkspaceStore.getSnapshot().tabs.map((tab) => [tab.tabId, tab] as const),
-	);
-	return tabs.map((tab) => {
-		const panelTab = panelsByTabId.get(tab.id);
-		if (panelTab === undefined) throw new Error('Expected the Storybook Panel topology.');
-		if (panelTab.root.kind !== 'panel') throw new Error('Expected one Storybook terminal Panel.');
-		return panelTab.root.primaryPresentation.presentationId;
-	});
-}
 
 /** A Server that observes these Agents and can report each of them again. */
 function createStoryAgentSource(
@@ -317,73 +351,28 @@ function createStoryWorkspaceLocationSource(
 	return { getSnapshot: () => snapshot, subscribe: () => () => undefined };
 }
 
-const createVisualPanelSelectionRuntime = () => {
-	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
-	const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
-	const tabId = store.getActiveTabId();
-	if (tabId === null) throw new Error('Expected an active terminal Tab.');
-	for (let index = 0; index < 2; index += 1) {
-		const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
-		if (tab === undefined) throw new Error('Expected the active terminal Tab.');
-		store.transition({
-			direction: 'right',
-			newTerminalTitle: `Terminal ${index + 2}`,
-			panelId: tab.focusedPanelId,
-			presentation: store.createTerminalPresentation(),
-			tabId,
-			type: 'panel-split',
-		});
-	}
-	return runtime;
-};
-
-const createBroadcastPanelRuntime = () => {
-	let operationSequence = 0;
-	let presentationSequence = 0;
-	let removalSequence = 0;
-	const pendingCommands: WorkbenchTerminalPresentationCommand[] = [];
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace/orchbee',
-		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: {
-			createOperationId: () =>
-				terminalPresentationOperationId(`storybook:broadcast:operation:${++operationSequence}`),
-			createPresentationId: () =>
-				terminalPresentationId(`storybook:broadcast:terminal:${++presentationSequence}`),
-			createRemovalId: () =>
-				terminalPresentationRemovalId(`storybook:broadcast:removal:${++removalSequence}`),
-			dispatchCommands: (commands) => pendingCommands.push(...commands),
-			initialPresentationId: terminalPresentationId('storybook:broadcast:terminal:initial'),
-			kind: 'managed',
-		},
-	});
-	const settleProvisioning = (): void => {
-		for (const command of pendingCommands.splice(0)) {
-			if (command.type !== 'terminal-provision-requested') continue;
-			runtime.applyTerminalPresentationEvent({
-				operationId: command.operationId,
-				presentationId: command.presentationId,
-				type: 'terminal-provision-completed',
-			});
-		}
-	};
-	settleProvisioning();
-	const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
-	const tabId = store.getActiveTabId();
-	if (tabId === null) throw new Error('Expected an active terminal Tab.');
-	for (let index = 0; index < 2; index += 1) {
-		const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
-		if (tab === undefined) throw new Error('Expected the active terminal Tab.');
-		store.transition({
-			direction: 'right',
-			newTerminalTitle: `Terminal ${index + 2}`,
-			panelId: tab.focusedPanelId,
-			presentation: store.createTerminalPresentation(),
-			tabId,
-			type: 'panel-split',
-		});
-		settleProvisioning();
-	}
+/** One Tab of three side-by-side Panels, as two splits to the right leave it. */
+const createThreePanelRuntime = () => {
+	const panel = (sequence: number) =>
+		snapshotPanel(sequence, titledPresentation(sequence, `Terminal ${sequence}`));
+	const root = snapshotSplit(
+		1,
+		'horizontal',
+		panel(1),
+		snapshotSplit(2, 'horizontal', panel(2), panel(3)),
+		1 / 3,
+	);
+	const runtime = createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [{ ...snapshotDirectory(1), path: ORCHBEE_FOLDER }],
+				workspaces: [snapshotWorkspace(1, { label: 'orchbee' })],
+			},
+			[snapshotContext(1, [snapshotTab(1, root, { label: 'Terminal 1' })])],
+		),
+	);
+	runtime.transition({ type: 'workspace-activated', workspaceId: fixtureWorkspaceId(1) });
 	return runtime;
 };
 
@@ -466,51 +455,11 @@ function FocusStoryTerminalSurface({
 	);
 }
 
-const createRemoteProjectWorkspaceRuntime = () => {
-	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
-	runtime.transition({
-		directory: {
-			available: false,
-			git: null,
-			id: 'directory-remote-orchbee',
-			kind: 'folder',
-			name: 'orchbee',
-			path: '/srv/orchbee',
-			placement: {
-				environmentId: 'environment:00000000000000000000000000000001',
-				kind: 'environment',
-			},
-			source: 'selected',
-		},
-		projectName: 'Remote orchbee',
-		type: 'environment-project-registered',
-	});
-	runtime.transition({
-		directoryId: 'directory-remote-orchbee',
-		resourceScopeId: 'resource-scope-1',
-		projectId: 'project-1',
-		type: 'environment-workspace-registered',
-		workspaceName: 'Primary',
-	});
-	return runtime;
-};
-
-const disconnectedRemoteProject: WorkbenchEnvironmentProjectConnectionCapability = {
-	connect: () => undefined,
-	disconnect: () => undefined,
-	getSnapshot: () => [{ projectId: 'project-1', state: 'disconnected' }],
-	subscribe: () => () => undefined,
-};
-
 export const PanelWorkspace: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime([
-			'Terminal 1',
-			'Terminal 2',
-			'Terminal 3',
-		]),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (
@@ -524,7 +473,7 @@ export const PanelVisualSelection: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createVisualPanelSelectionRuntime(),
+		projectWorkspaceRuntime: createThreePanelRuntime(),
 		shortcutPlatform: 'apple',
 	},
 	play: () => {
@@ -548,7 +497,7 @@ export const PanelVisualSwapSelection: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createVisualPanelSelectionRuntime(),
+		projectWorkspaceRuntime: createThreePanelRuntime(),
 		shortcutPlatform: 'apple',
 	},
 	play: () => {
@@ -572,7 +521,7 @@ export const PanelBroadcastInput: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createBroadcastPanelRuntime(),
+		projectWorkspaceRuntime: createThreePanelRuntime(),
 		shortcutPlatform: 'apple',
 		terminalSurface: BroadcastStoryTerminalSurface,
 	},
@@ -606,7 +555,7 @@ export const SimplifiedChineseSidebar: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime(['终端 1', '终端 2', '终端 3']),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['终端 1', '终端 2', '终端 3']),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (
@@ -639,7 +588,7 @@ export const NativeProjectFolderAcquisition: Story = {
 			selectExistingFolder: () =>
 				Promise.resolve({ kind: 'selected', path: '/workspace/native-project' }),
 		},
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime(['Terminal 1']),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1']),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (
@@ -810,39 +759,30 @@ export const WorkspaceLocations: Story = {
 };
 
 const agentStateAndUnreadFixture = (() => {
-	const projectWorkspaceRuntime = createPopulatedProjectWorkspaceRuntime();
-	const agents = (['working', 'blocked', 'done', 'error', 'idle', 'unknown'] as const).map(
-		(state) => {
-			projectWorkspaceRuntime.transition({
-				directoryId: 'directory-orchbee',
-				launchConfigurationId: null,
-				name: state,
-				resourceScopeId: 'resource-scope-1',
-				projectId: 'project-1',
-				terminalTitle: state,
-				type: 'workspace-created',
-			});
-			const workspace = projectWorkspaceRuntime
-				.getSnapshot()
-				.workspaces.find((entry) => entry.name === state);
-			if (workspace === undefined) throw new Error('Expected the status Workspace.');
-			const presentationId = createStoryWorkspacePresentations(
-				projectWorkspaceRuntime,
-				workspace.id,
-				1,
-			)[0];
-			return { agent: 'codex', presentationId, state };
-		},
-	);
-	const initial = projectWorkspaceRuntime
-		.getSnapshot()
-		.workspaces.find((workspace) => workspace.name === 'Primary');
-	if (initial === undefined) throw new Error('Expected the initial Workspace.');
-	projectWorkspaceRuntime.transition({ type: 'workspace-activated', workspaceId: initial.id });
+	const states = ['working', 'blocked', 'done', 'error', 'idle', 'unknown'] as const;
+	const { presentationIds, runtime } = createStoryWorkbench({
+		projects: [
+			orchbeeProject(
+				states.map((state) => ({
+					folder: ORCHBEE_FOLDER,
+					name: state,
+					titles: numberedTitles(state, 1),
+				})),
+				{ primaryActive: true },
+			),
+		],
+	});
 	return {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
-		projectWorkspaceRuntime,
-		agentObservationSource: createStoryAgentSource(agents),
+		agentObservationSource: createStoryAgentSource(
+			states.map((state) => ({
+				agent: 'codex',
+				presentationId: presentationIds.get(state)?.[0],
+				state,
+			})),
+		),
+		authority: staticStoryAuthority,
+		projectWorkspaceRuntime: runtime,
 	};
 })();
 
@@ -871,22 +811,6 @@ export const AgentStateAndUnread: Story = {
 	render: () => <AgentStateAndUnreadFixture />,
 };
 
-export const SshProjectConnection: Story = {
-	args: {
-		actionRuntime: new ActionRuntime({ confirm: () => true }),
-		environmentProjectConnection: disconnectedRemoteProject,
-		onConnectViaSsh: () => undefined,
-		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createRemoteProjectWorkspaceRuntime(),
-		shortcutPlatform: 'apple',
-	},
-	render: (arguments_) => (
-		<OrchbeeI18nProvider locale='en-US'>
-			<Workbench {...arguments_} />
-		</OrchbeeI18nProvider>
-	),
-};
-
 export const HiddenSidebar: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
@@ -896,11 +820,7 @@ export const HiddenSidebar: Story = {
 			setItem: () => undefined,
 		},
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime([
-			'Terminal 1',
-			'Terminal 2',
-			'Terminal 3',
-		]),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (
@@ -914,11 +834,7 @@ export const UnifiedSearchAll: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime([
-			'Terminal 1',
-			'Terminal 2',
-			'Terminal 3',
-		]),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
 		shortcutPlatform: 'apple',
 	},
 	play: () => {
@@ -941,7 +857,7 @@ export const UnifiedSearchActionsChinese: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime(['终端 1', '终端 2', '终端 3']),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['终端 1', '终端 2', '终端 3']),
 		shortcutPlatform: 'apple',
 	},
 	play: () => {
@@ -964,11 +880,7 @@ export const UnifiedSearchProviderFailure: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime([
-			'Terminal 1',
-			'Terminal 2',
-			'Terminal 3',
-		]),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
 		searchProviders: [unavailableSearchProvider],
 		shortcutPlatform: 'apple',
 	},
@@ -992,7 +904,7 @@ export const TabTitleEditing: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
-		projectWorkspaceRuntime: createProjectWorkspaceRuntime(['Terminal 1', 'Terminal 2']),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2']),
 		shortcutPlatform: 'apple',
 	},
 	play: () => {

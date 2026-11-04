@@ -36,13 +36,13 @@
 		"A projected terminal attachment with the optional local capability has validated a supported raster image under the current fine-pointer path hover."
 	],
 	"avoidWhen": [
-		"The attachment is Browser Preview, archived, coarse-pointer, or lacks explicit local filesystem-effect authority."
+		"The attachment is archived, coarse-pointer, or lacks explicit local filesystem-effect authority."
 	],
 	"invariants": [
 		"Only the latest full hover membership may publish visible content; leaving, replacement, geometry or revision change, cancellation, recovery, freeze, and disposal retire it.",
 		"The card is pointer-transparent and accessibility-hidden, so terminal selection, application mouse reporting, keyboard input, and semantic path opening retain ownership.",
 		"The terminal package never reads the filesystem; the composition that supplies the local capability validates a regular file, an 8 MiB bound, extension, and magic bytes before returning ephemeral content.",
-		"Preview failure is silent, bytes are neither persisted nor cached, and Browser Preview attachments never receive a local-file capability."
+		"Preview failure is silent, bytes are neither persisted nor cached."
 	],
 	"references": ["apps/web/README.md"]
 }

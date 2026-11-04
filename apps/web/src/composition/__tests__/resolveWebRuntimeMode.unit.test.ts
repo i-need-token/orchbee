@@ -3,21 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { resolveWebRuntimeMode } from '../resolveWebRuntimeMode';
 
 describe('resolveWebRuntimeMode', () => {
-	it('uses Browser mode when neither the scheme nor User Agent identifies Electron', () => {
+	it('starts nothing when neither the scheme nor User Agent identifies Electron', () => {
 		expect(
 			resolveWebRuntimeMode({
 				protocol: 'https:',
 				search: '',
 				userAgent: 'Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36',
 			}),
-		).toBe('browser');
+		).toBe('unsupported');
 		expect(
 			resolveWebRuntimeMode({
 				protocol: 'http:',
 				search: '?unrelated=value',
 				userAgent: 'Mozilla/5.0',
 			}),
-		).toBe('browser');
+		).toBe('unsupported');
 	});
 
 	it('selects Desktop mode from the packaged scheme or the Electron User Agent', () => {
@@ -36,17 +36,17 @@ describe('resolveWebRuntimeMode', () => {
 	it('rejects retired Gateway and unsupported explicit runtime markers', () => {
 		const evidence = { protocol: 'http:', userAgent: 'Mozilla/5.0' } as const;
 		expect(resolveWebRuntimeMode({ ...evidence, search: '?orchbee-runtime=gateway' })).toBe(
-			'invalid',
+			'unsupported',
 		);
 		expect(resolveWebRuntimeMode({ ...evidence, search: '?orchbee-runtime=desktop' })).toBe(
-			'invalid',
+			'unsupported',
 		);
 		expect(
 			resolveWebRuntimeMode({
 				...evidence,
 				search: '?orchbee-runtime=gateway&orchbee-runtime=gateway',
 			}),
-		).toBe('invalid');
-		expect(resolveWebRuntimeMode({ ...evidence, search: '?orchbee-runtime=' })).toBe('invalid');
+		).toBe('unsupported');
+		expect(resolveWebRuntimeMode({ ...evidence, search: '?orchbee-runtime=' })).toBe('unsupported');
 	});
 });

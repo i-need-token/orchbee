@@ -6,12 +6,6 @@ import type {
 	WorkbenchProject,
 	WorkbenchWorkspace,
 } from '../../../../project-workspace';
-import type {
-	WorkbenchEnvironmentProjectConnectionCapability,
-	WorkbenchEnvironmentProjectConnectionStatus,
-} from '../../../types/workbench-environment-project-connection';
-
-const EMPTY_CONNECTION_STATUSES: readonly WorkbenchEnvironmentProjectConnectionStatus[] = [];
 
 interface ProjectRenameView {
 	readonly close: () => void;
@@ -34,10 +28,6 @@ interface WorkspaceRenameView {
 }
 
 interface WorkbenchSidebarView {
-	readonly connectionStatusByProjectId: ReadonlyMap<
-		string,
-		WorkbenchEnvironmentProjectConnectionStatus
-	>;
 	readonly workspaceProjectCreation: {
 		readonly workspaceId: string;
 		readonly name: string;
@@ -53,23 +43,7 @@ interface WorkbenchSidebarView {
 	readonly workspaceRename: WorkspaceRenameView | null;
 }
 
-export function useWorkbenchSidebar(
-	state: ProjectWorkspaceState,
-	environmentProjectConnection?: WorkbenchEnvironmentProjectConnectionCapability,
-): WorkbenchSidebarView {
-	const connectionStore = React.useMemo(
-		() => ({
-			getSnapshot: () => environmentProjectConnection?.getSnapshot() ?? EMPTY_CONNECTION_STATUSES,
-			subscribe: (listener: () => void) =>
-				environmentProjectConnection?.subscribe(listener) ?? (() => undefined),
-		}),
-		[environmentProjectConnection],
-	);
-	const connectionStatuses = React.useSyncExternalStore(
-		connectionStore.subscribe,
-		connectionStore.getSnapshot,
-		connectionStore.getSnapshot,
-	);
+export function useWorkbenchSidebar(state: ProjectWorkspaceState): WorkbenchSidebarView {
 	const [creatingProject, setCreatingProject] = React.useState(false);
 	const [projectPath, setProjectPath] = React.useState('');
 	const [renamedProjectId, setRenamedProjectId] = React.useState<string | null>(null);
@@ -119,9 +93,6 @@ export function useWorkbenchSidebar(
 			setGroupName(workspace.name);
 			setGroupingWorkspaceId(workspaceId);
 		},
-		connectionStatusByProjectId: new Map(
-			connectionStatuses.map((status) => [status.projectId, status] as const),
-		),
 		projectCreation: creatingProject
 			? { close: closeProjectCreation, path: projectPath, setPath: setProjectPath }
 			: null,

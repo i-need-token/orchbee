@@ -1,28 +1,32 @@
 // @vitest-environment jsdom
 
-import { ActionRuntime, type ActionScope } from '@orchbee/actions';
+import { ActionRuntime, type ActionResult, type ActionScope } from '@orchbee/actions';
 import { cleanup, render } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import type { WorkbenchSharedPanelTerminalCreate } from '../../../../actions/createSharedPanelTerminal';
+import type { WorkbenchAuthority } from '../../../../types/workbench-authority';
 import { PANEL_ACTION_IDS } from '../../actions/panel-action-contracts';
 import {
 	transitionPanelWorkspace,
+	type PanelLeaf,
 	type PanelWorkspaceState,
 	type PanelWorkspaceTransition,
 	type TabPanelWorkspace,
 } from '../../model/panel-workspace-state';
 import { useWorkbenchPanelActions } from '../useWorkbenchPanelActions';
+import { inertWorkbenchAuthority } from '../../../../../__tests__/inertWorkbenchAuthority';
 
-const activeTab: TabPanelWorkspace = {
-	focusedPanelId: 'panel-1',
-	maximizedPanelId: null,
-	panelFocusHistory: ['panel-1'],
-	root: {
+type AuthorityChange = WorkbenchAuthority['change'];
+type AuthorityClose = WorkbenchAuthority['close'];
+
+function panelLeaf(sequence: number): PanelLeaf {
+	return {
 		activeChildPresentationId: null,
 		childPresentations: [],
-		id: 'panel-1',
+		id: `panel-${sequence}`,
 		kind: 'panel',
 		primaryPresentation: {
 			closeActivity: 'unknown',
@@ -30,15 +34,34 @@ const activeTab: TabPanelWorkspace = {
 			launchCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
-			presentationId: terminalPresentationId('terminal-1'),
-			title: 'Terminal 1',
+			presentationId: terminalPresentationId(`terminal-${sequence}`),
+			title: `Terminal ${sequence}`,
 		},
-	},
+	};
+}
+
+const activeTab: TabPanelWorkspace = {
+	focusedPanelId: 'panel-1',
+	maximizedPanelId: null,
+	panelFocusHistory: ['panel-1'],
+	root: panelLeaf(1),
 	tabId: 'tab-1',
 };
 
+const splitTab: TabPanelWorkspace = {
+	...activeTab,
+	root: {
+		children: [
+			{ id: 'slot-1', node: panelLeaf(1), weight: 50 },
+			{ id: 'slot-2', node: panelLeaf(2), weight: 50 },
+		],
+		id: 'split-1',
+		kind: 'split',
+		orientation: 'horizontal',
+	},
+};
+
 const appliedTransition: PanelWorkspaceTransition = {
-	commands: [],
 	outcome: 'applied',
 	rejection: null,
 	state: {
@@ -51,48 +74,45 @@ const appliedTransition: PanelWorkspaceTransition = {
 	},
 };
 
+function unexpected(): Promise<never> {
+	return Promise.reject(new Error('The test did not expect this authority call.'));
+}
+
 interface HarnessProps {
 	readonly activeTab?: TabPanelWorkspace;
+	readonly authority?: WorkbenchAuthority;
 	readonly captureScope: (scope: ActionScope) => void;
-	readonly closeDisplayedTerminal?: () => PanelWorkspaceTransition;
-	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
-	readonly equalizePanels?: (panelId: string) => PanelWorkspaceTransition;
+	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate;
+	readonly focusPanel?: (panelId: string) => PanelWorkspaceTransition;
 	readonly panelCount?: number;
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
-	readonly swapPanels?: (panelId: string, targetPanelId: string) => PanelWorkspaceTransition;
 	readonly startPanelVisualSelection?: (panelId: string, mode: 'focus' | 'swap') => boolean;
 }
 
 function Harness({
 	activeTab: activeTabOverride = activeTab,
+	authority = inertWorkbenchAuthority(),
 	captureScope,
-	closeDisplayedTerminal = () => appliedTransition,
-	createChildTerminal,
-	equalizePanels = () => appliedTransition,
+	createPanelTerminal = unexpected,
+	focusPanel = () => appliedTransition,
 	panelCount = 1,
 	parentScope,
 	runtime,
 	startPanelVisualSelection = () => true,
-	swapPanels = () => appliedTransition,
 }: HarnessProps): ReactNode {
 	const actions = useWorkbenchPanelActions({
 		activeTab: activeTabOverride,
+		authority,
+		createPanelTerminal,
 		operations: {
 			activateChildTerminal: () => appliedTransition,
 			canStartBroadcastInput: () => true,
-			closeDisplayedTerminal,
-			createChildTerminal,
-			equalizePanels,
-			focusPanel: () => appliedTransition,
-			movePanel: () => appliedTransition,
-			resizePanel: () => appliedTransition,
+			focusPanel,
 			showPrimaryTerminal: () => appliedTransition,
-			splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 			startPanelResize: () => true,
 			startBroadcastInput: () => true,
 			startPanelVisualSelection,
-			swapPanels,
 			togglePanelMaximization: () => appliedTransition,
 		},
 		panelCount,
@@ -103,6 +123,27 @@ function Harness({
 	captureScope(actions.scope);
 	return null;
 }
+
+function renderHarness(props: Omit<HarnessProps, 'captureScope'>): ActionScope {
+	let scope: ActionScope | undefined;
+	render(
+		createElement(Harness, {
+			...props,
+			captureScope: (candidate) => {
+				scope = candidate;
+			},
+		}),
+	);
+	if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+	return scope;
+}
+
+const PANEL_CLOSURE = {
+	panelId: 'panel-1',
+	tabId: 'tab-1',
+	terminalContextId: 'terminal-context-1',
+	type: 'panel-close',
+} as const;
 
 afterEach(() => cleanup());
 
@@ -116,50 +157,21 @@ describe('useWorkbenchPanelActions', () => {
 		async ({ closeActivity, confirmationCount }) => {
 			const confirm = vi.fn<() => boolean>(() => true);
 			const runtime = new ActionRuntime({ confirm });
-			const parentScope = runtime.createScope('workbench');
-			const closeDisplayedTerminal = vi.fn<() => PanelWorkspaceTransition>(() => appliedTransition);
-			let scope: ActionScope | undefined;
-			if (activeTab.root.kind !== 'panel') throw new Error('Expected a panel fixture');
+			const close = vi.fn<AuthorityClose>(() => Promise.resolve({ kind: 'completed' }));
 			const candidateTab: TabPanelWorkspace = {
 				...activeTab,
 				root: {
-					...activeTab.root,
-					primaryPresentation: {
-						...activeTab.root.primaryPresentation,
-						closeActivity,
-					},
+					...panelLeaf(1),
+					primaryPresentation: { ...panelLeaf(1).primaryPresentation, closeActivity },
 				},
 			};
-			function CloseHarness(): ReactNode {
-				const actions = useWorkbenchPanelActions({
-					activeTab: candidateTab,
-					operations: {
-						activateChildTerminal: () => appliedTransition,
-						canStartBroadcastInput: () => true,
-						closeDisplayedTerminal,
-						createChildTerminal: () => appliedTransition,
-						equalizePanels: () => appliedTransition,
-						focusPanel: () => appliedTransition,
-						movePanel: () => appliedTransition,
-						resizePanel: () => appliedTransition,
-						showPrimaryTerminal: () => appliedTransition,
-						splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
-						startPanelResize: () => true,
-						startBroadcastInput: () => true,
-						startPanelVisualSelection: () => true,
-						swapPanels: () => appliedTransition,
-						togglePanelMaximization: () => appliedTransition,
-					},
-					panelCount: 2,
-					parentScope,
-					runtime,
-					terminalContextId: 'terminal-context-1',
-				});
-				scope = actions.scope;
-				return null;
-			}
-			render(createElement(CloseHarness));
-			if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+			const scope = renderHarness({
+				activeTab: candidateTab,
+				authority: inertWorkbenchAuthority({ close }),
+				panelCount: 2,
+				parentScope: runtime.createScope('workbench'),
+				runtime,
+			});
 
 			const execution = runtime.execute(
 				PANEL_ACTION_IDS.close,
@@ -169,21 +181,17 @@ describe('useWorkbenchPanelActions', () => {
 
 			await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
 			expect(confirm).toHaveBeenCalledTimes(confirmationCount);
-			expect(closeDisplayedTerminal).toHaveBeenCalledOnce();
+			expect(close).toHaveBeenCalledExactlyOnceWith(expect.anything(), PANEL_CLOSURE);
 		},
 	);
 
 	it('uses an immediate unknown metadata observation for close Action confirmation', async () => {
-		if (activeTab.root.kind !== 'panel') throw new Error('Expected a panel fixture');
-		const presentationId = activeTab.root.primaryPresentation.presentationId;
+		const presentationId = panelLeaf(1).primaryPresentation.presentationId;
 		const idleTab: TabPanelWorkspace = {
 			...activeTab,
 			root: {
-				...activeTab.root,
-				primaryPresentation: {
-					...activeTab.root.primaryPresentation,
-					closeActivity: 'idle',
-				},
+				...panelLeaf(1),
+				primaryPresentation: { ...panelLeaf(1).primaryPresentation, closeActivity: 'idle' },
 			},
 		};
 		const state: PanelWorkspaceState = { ...appliedTransition.state, tabs: [idleTab] };
@@ -203,23 +211,14 @@ describe('useWorkbenchPanelActions', () => {
 
 		const confirm = vi.fn<() => boolean>(() => true);
 		const runtime = new ActionRuntime({ confirm });
-		const parentScope = runtime.createScope('workbench');
-		const closeDisplayedTerminal = vi.fn<() => PanelWorkspaceTransition>(() => appliedTransition);
-		let scope: ActionScope | undefined;
-		render(
-			createElement(Harness, {
-				activeTab: observedTab,
-				captureScope: (candidate) => {
-					scope = candidate;
-				},
-				closeDisplayedTerminal,
-				createChildTerminal: () => appliedTransition,
-				panelCount: 2,
-				parentScope,
-				runtime,
-			}),
-		);
-		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+		const close = vi.fn<AuthorityClose>(() => Promise.resolve({ kind: 'completed' }));
+		const scope = renderHarness({
+			activeTab: observedTab,
+			authority: inertWorkbenchAuthority({ close }),
+			panelCount: 2,
+			parentScope: runtime.createScope('workbench'),
+			runtime,
+		});
 
 		const execution = runtime.execute(
 			PANEL_ACTION_IDS.close,
@@ -229,43 +228,23 @@ describe('useWorkbenchPanelActions', () => {
 
 		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
 		expect(confirm).toHaveBeenCalledOnce();
-		expect(closeDisplayedTerminal).toHaveBeenCalledOnce();
+		expect(close).toHaveBeenCalledOnce();
 	});
 
-	it('swaps two exact live Panels through the lower Panel Action', async () => {
-		const splitState = transitionPanelWorkspace(appliedTransition.state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			presentation: {
-				kind: 'preview',
-				presentationId: terminalPresentationId('terminal-2'),
-			},
-			tabId: 'tab-1',
-			type: 'panel-split',
-		}).state;
-		const splitTab = splitState.tabs[0];
-		if (splitTab === undefined) throw new Error('Expected a split Tab fixture');
+	it('swaps two exact live Panels through the authority and focuses the moved Panel', async () => {
 		const runtime = new ActionRuntime();
-		const parentScope = runtime.createScope('workbench');
-		const swapPanels = vi.fn<(panelId: string, targetPanelId: string) => PanelWorkspaceTransition>(
+		const change = vi.fn<AuthorityChange>(() => Promise.resolve({ kind: 'completed' }));
+		const focusPanel = vi.fn<(panelId: string) => PanelWorkspaceTransition>(
 			() => appliedTransition,
 		);
-		let scope: ActionScope | undefined;
-		render(
-			createElement(Harness, {
-				activeTab: splitTab,
-				captureScope: (candidate) => {
-					scope = candidate;
-				},
-				createChildTerminal: () => appliedTransition,
-				panelCount: 2,
-				parentScope,
-				runtime,
-				swapPanels,
-			}),
-		);
-		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+		const scope = renderHarness({
+			activeTab: splitTab,
+			authority: inertWorkbenchAuthority({ change }),
+			focusPanel,
+			panelCount: 2,
+			parentScope: runtime.createScope('workbench'),
+			runtime,
+		});
 
 		const execution = runtime.execute(
 			PANEL_ACTION_IDS.swap,
@@ -274,29 +253,27 @@ describe('useWorkbenchPanelActions', () => {
 		);
 
 		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
-		expect(swapPanels).toHaveBeenCalledWith('panel-1', 'panel-2');
+		expect(focusPanel).toHaveBeenCalledWith('panel-1');
+		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			panelId: 'panel-1',
+			tabId: 'tab-1',
+			targetPanelId: 'panel-2',
+			terminalContextId: 'terminal-context-1',
+			type: 'panels-swapped',
+		});
 	});
 
 	it('starts visual selection for an exact source when at least three Panels are visible', async () => {
 		const runtime = new ActionRuntime();
-		const parentScope = runtime.createScope('workbench');
 		const startPanelVisualSelection = vi.fn<(panelId: string, mode: 'focus' | 'swap') => boolean>(
 			() => true,
 		);
-		let scope: ActionScope | undefined;
-		render(
-			createElement(Harness, {
-				captureScope: (candidate) => {
-					scope = candidate;
-				},
-				createChildTerminal: () => appliedTransition,
-				panelCount: 3,
-				parentScope,
-				runtime,
-				startPanelVisualSelection,
-			}),
-		);
-		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+		const scope = renderHarness({
+			panelCount: 3,
+			parentScope: runtime.createScope('workbench'),
+			runtime,
+			startPanelVisualSelection,
+		});
 
 		await expect(
 			runtime.execute(
@@ -310,29 +287,16 @@ describe('useWorkbenchPanelActions', () => {
 
 	it('equalizes one exact live Tab target and preserves an idempotent unchanged result', async () => {
 		const runtime = new ActionRuntime();
-		const parentScope = runtime.createScope('workbench');
-		const unchangedTransition: PanelWorkspaceTransition = {
-			...appliedTransition,
-			outcome: 'unchanged',
-		};
-		const equalizePanels = vi
-			.fn<(panelId: string) => PanelWorkspaceTransition>()
-			.mockReturnValueOnce(appliedTransition)
-			.mockReturnValueOnce(unchangedTransition);
-		let scope: ActionScope | undefined;
-		render(
-			createElement(Harness, {
-				captureScope: (candidate) => {
-					scope = candidate;
-				},
-				createChildTerminal: () => appliedTransition,
-				equalizePanels,
-				panelCount: 2,
-				parentScope,
-				runtime,
-			}),
-		);
-		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+		const change = vi
+			.fn<AuthorityChange>()
+			.mockResolvedValueOnce({ kind: 'completed' })
+			.mockResolvedValueOnce({ kind: 'unchanged' });
+		const scope = renderHarness({
+			authority: inertWorkbenchAuthority({ change }),
+			panelCount: 2,
+			parentScope: runtime.createScope('workbench'),
+			runtime,
+		});
 
 		const first = runtime.execute(
 			PANEL_ACTION_IDS.equalize,
@@ -347,8 +311,13 @@ describe('useWorkbenchPanelActions', () => {
 
 		await expect(first.completion).resolves.toEqual({ kind: 'completed' });
 		await expect(second.completion).resolves.toEqual({ kind: 'unchanged' });
-		expect(equalizePanels).toHaveBeenNthCalledWith(1, 'panel-1');
-		expect(equalizePanels).toHaveBeenNthCalledWith(2, 'panel-1');
+		const equalization = {
+			tabId: 'tab-1',
+			terminalContextId: 'terminal-context-1',
+			type: 'panels-equalized',
+		};
+		expect(change).toHaveBeenNthCalledWith(1, expect.anything(), equalization);
+		expect(change).toHaveBeenNthCalledWith(2, expect.anything(), equalization);
 	});
 
 	it.each([
@@ -360,25 +329,14 @@ describe('useWorkbenchPanelActions', () => {
 		},
 	])('keeps Panel equalization disabled for a $label Tab', async ({ panelCount, tab }) => {
 		const runtime = new ActionRuntime();
-		const parentScope = runtime.createScope('workbench');
-		const equalizePanels = vi.fn<(panelId: string) => PanelWorkspaceTransition>(
-			() => appliedTransition,
-		);
-		let scope: ActionScope | undefined;
-		render(
-			createElement(Harness, {
-				activeTab: tab,
-				captureScope: (candidate) => {
-					scope = candidate;
-				},
-				createChildTerminal: () => appliedTransition,
-				equalizePanels,
-				panelCount,
-				parentScope,
-				runtime,
-			}),
-		);
-		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+		const change = vi.fn<AuthorityChange>(() => Promise.resolve({ kind: 'completed' }));
+		const scope = renderHarness({
+			activeTab: tab,
+			authority: inertWorkbenchAuthority({ change }),
+			panelCount,
+			parentScope: runtime.createScope('workbench'),
+			runtime,
+		});
 
 		await expect(
 			runtime.execute(
@@ -387,31 +345,28 @@ describe('useWorkbenchPanelActions', () => {
 				{ scope, source: 'keyboard' },
 			).completion,
 		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
-		expect(equalizePanels).not.toHaveBeenCalled();
+		expect(change).not.toHaveBeenCalled();
 	});
 
-	it('registers panel semantics, calls the domain writer, and disposes with its owner', async () => {
+	it('registers panel semantics, asks for a new terminal, and disposes with its owner', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');
-		const createChildTerminal = vi.fn<(panelId: string) => PanelWorkspaceTransition>(
-			() => appliedTransition,
+		const createPanelTerminal = vi.fn<WorkbenchSharedPanelTerminalCreate>(
+			(): Promise<ActionResult<string>> => Promise.resolve({ kind: 'completed', value: 'panel-1' }),
 		);
-		const swapPanels = vi.fn<(panelId: string, targetPanelId: string) => PanelWorkspaceTransition>(
-			() => appliedTransition,
-		);
+		const change = vi.fn<AuthorityChange>(() => Promise.resolve({ kind: 'completed' }));
 		let scope: ActionScope | undefined;
 		const rendered = render(
 			createElement(Harness, {
+				authority: inertWorkbenchAuthority({ change }),
 				captureScope: (candidate) => {
 					scope = candidate;
 				},
-				createChildTerminal,
+				createPanelTerminal,
 				parentScope,
 				runtime,
-				swapPanels,
 			}),
 		);
-		expect(scope).toBeDefined();
 		if (scope === undefined) {
 			throw new Error('Expected the panel action scope to be captured');
 		}
@@ -473,7 +428,13 @@ describe('useWorkbenchPanelActions', () => {
 		);
 
 		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
-		expect(createChildTerminal).toHaveBeenCalledWith('panel-1');
+		expect(createPanelTerminal).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			cwd: undefined,
+			panelId: 'panel-1',
+			tabId: 'tab-1',
+			terminalContextId: 'terminal-context-1',
+			type: 'child-terminal',
+		});
 
 		const swapExecution = runtime.execute(
 			PANEL_ACTION_IDS.swap,
@@ -484,7 +445,7 @@ describe('useWorkbenchPanelActions', () => {
 			code: 'action-unavailable',
 			kind: 'blocked',
 		});
-		expect(swapPanels).not.toHaveBeenCalled();
+		expect(change).not.toHaveBeenCalled();
 		rendered.unmount();
 		expect(
 			runtime

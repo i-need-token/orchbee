@@ -23,11 +23,7 @@ import type {
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-} from '@orchbee/workbench-client-protocol';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type {
 	ProjectedTerminalTransport,
@@ -146,13 +142,6 @@ function TestHarness({
 			onDrop: view.handleFileDrop,
 			ref: view.root,
 		},
-		view.stopped
-			? createElement(
-					'button',
-					{ 'data-start-new-session': true, onClick: view.startNewSession },
-					'Start new session',
-				)
-			: null,
 		view.pasteReview === null
 			? null
 			: createElement(
@@ -230,7 +219,6 @@ function createRunningTerminalFixture(presentationReady: Promise<void> = Promise
 		presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 		projectionClient: { open },
 		shortcutPlatform: 'apple',
-		startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 	};
 	return { capability, focus, presentation, release, session };
 }
@@ -351,68 +339,8 @@ describe('useProjectedTerminalSurface', () => {
 		},
 	);
 
-	it('presents a rejected Start New Session result instead of dropping it', async () => {
-		const startStoppedTerminalSession = vi
-			.fn<ProjectedTerminalSurfaceCapability['startStoppedTerminalSession']>()
-			.mockReturnValue({ kind: 'rejected', reason: 'terminal-creation-sealed' });
-		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
-			currentCwd: '/workspace',
-			launchCwd: '/workspace',
-			lifecycle: { kind: 'stopped' },
-			naturalTitle: null,
-			presentationId: terminalPresentationId('presentation-stopped'),
-			title: 'Terminal Stopped',
-		};
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		const root = createRoot(container);
-
-		await act(async () => {
-			root.render(
-				createElement(
-					ProjectedTerminalSurfaceCapabilityContext.Provider,
-					{
-						value: {
-							documentElement: document.documentElement,
-							observeTerminalMetadata: () => undefined,
-							platformEffects: {},
-							preferredLocales: ['en-US'],
-							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
-							projectionClient: {
-								open: () => {
-									throw new Error('A stopped presentation must not open a projection.');
-								},
-							},
-							shortcutPlatform: 'apple',
-							startStoppedTerminalSession,
-						},
-					},
-					createElement(
-						OrchbeeI18nProvider,
-						{ locale: 'en-US' },
-						createElement(TestHarness, { presentation }),
-					),
-				),
-			);
-		});
-		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBeNull();
-
-		await act(async () => {
-			(container.querySelector('[data-start-new-session]') as HTMLButtonElement).click();
-		});
-
-		expect(startStoppedTerminalSession).toHaveBeenCalledWith(presentation.presentationId);
-		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBe(
-			'The terminal session could not be started.',
-		);
-		await act(async () => root.unmount());
-		container.remove();
-	});
-
 	it.each([
 		{ kind: 'running' },
-		{ kind: 'stopped' },
 		{
 			failure: { code: 'terminal-runtime-pty-read-read-output', retryable: false },
 			kind: 'failed',
@@ -451,7 +379,6 @@ describe('useProjectedTerminalSurface', () => {
 								presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 								projectionClient: { open },
 								shortcutPlatform: 'apple',
-								startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 							},
 						},
 						createElement(
@@ -470,116 +397,6 @@ describe('useProjectedTerminalSurface', () => {
 			container.remove();
 		},
 	);
-
-	it('freezes the painted frame while a managed terminal closes', async () => {
-		const mountedFrame = document.createElement('canvas');
-		const sessionDispose = vi.fn<() => void>(() => mountedFrame.remove());
-		const sessionFreeze = vi.fn<() => void>();
-		renderer.start.mockImplementationOnce(async (rootElement) => {
-			rootElement?.append(mountedFrame);
-			return {
-				dispose: sessionDispose,
-				focus: vi.fn<() => void>(),
-				freeze: sessionFreeze,
-				isTransportAvailable: () => true,
-				pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
-				presentationReady: Promise.resolve(),
-				transportUnavailable: new Promise<void>(() => undefined),
-				updatePresentationConfiguration: vi
-					.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
-					.mockResolvedValue({
-						configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
-						kind: 'completed',
-					}),
-			};
-		});
-		const release = vi.fn<() => void>();
-		const transport: ProjectedTerminalTransport = {
-			close: vi.fn<() => void>(),
-			projectionBufferTrust: 'external',
-			send: vi.fn<ProjectedTerminalTransport['send']>(),
-			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
-		};
-		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
-			release,
-			result: Promise.resolve({
-				bootstrap: {
-					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
-					canInput: true,
-					canResize: true,
-					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
-					creationId: CreationIdSchema.parse('22'.repeat(16)),
-					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
-					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
-					terminalOutcome: null,
-					theme,
-				},
-				transport,
-			}),
-		}));
-		const runningPresentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'idle',
-			currentCwd: '/workspace',
-			launchCwd: '/workspace',
-			lifecycle: { kind: 'running' },
-			naturalTitle: null,
-			presentationId: terminalPresentationId('presentation-closing-frame'),
-			title: 'Terminal Closing Frame',
-		};
-		const capability: ProjectedTerminalSurfaceCapability = {
-			documentElement: document.documentElement,
-			observeTerminalMetadata: () => undefined,
-			platformEffects: {},
-			preferredLocales: ['en-US'],
-			presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
-			projectionClient: { open },
-			shortcutPlatform: 'apple',
-			startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
-		};
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		const root = createRoot(container);
-		const renderPresentation = async (
-			presentation: WorkbenchTerminalPresentation,
-		): Promise<void> => {
-			await act(async () => {
-				root.render(
-					createElement(
-						ProjectedTerminalSurfaceCapabilityContext.Provider,
-						{ value: capability },
-						createElement(
-							OrchbeeI18nProvider,
-							{ locale: 'en-US' },
-							createElement(TestHarness, { presentation }),
-						),
-					),
-				);
-			});
-		};
-
-		await renderPresentation(runningPresentation);
-		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
-		expect(container.contains(mountedFrame)).toBe(true);
-
-		await renderPresentation({
-			...runningPresentation,
-			lifecycle: {
-				kind: 'closing',
-				operationId: terminalPresentationOperationId('close-painted-frame'),
-				removalId: terminalPresentationRemovalId('remove-painted-frame'),
-			},
-		});
-
-		expect(sessionFreeze).toHaveBeenCalledOnce();
-		expect(release).toHaveBeenCalledOnce();
-		expect(sessionDispose).not.toHaveBeenCalled();
-		expect(container.contains(mountedFrame)).toBe(true);
-		expect(open).toHaveBeenCalledOnce();
-
-		await act(async () => root.unmount());
-		expect(sessionDispose).toHaveBeenCalledOnce();
-		container.remove();
-	});
 
 	it('waits for positive mounted geometry before opening the projection', async () => {
 		let notifyResize = (): void => undefined;
@@ -626,7 +443,6 @@ describe('useProjectedTerminalSurface', () => {
 							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -715,7 +531,6 @@ describe('useProjectedTerminalSurface', () => {
 								}),
 							},
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -822,7 +637,6 @@ describe('useProjectedTerminalSurface', () => {
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -914,7 +728,6 @@ describe('useProjectedTerminalSurface', () => {
 							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -1021,7 +834,6 @@ describe('useProjectedTerminalSurface', () => {
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -1110,7 +922,6 @@ describe('useProjectedTerminalSurface', () => {
 								},
 							},
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -1237,7 +1048,6 @@ describe('useProjectedTerminalSurface', () => {
 							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 							terminalFileDropCapability: { prepare },
 						},
 					},

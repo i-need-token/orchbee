@@ -53,7 +53,7 @@ interface WorkbenchSharedProjectWorkspace {
 	readonly workspaces: readonly WorkbenchSharedWorkspace[];
 }
 
-export function areValidWorkbenchSharedLaunchConfigurations(
+function areValidWorkbenchSharedLaunchConfigurations(
 	launchConfigurations: readonly WorkbenchSharedLaunchConfiguration[],
 ): boolean {
 	const ids = new Set<string>();
@@ -70,7 +70,7 @@ export function areValidWorkbenchSharedLaunchConfigurations(
 	return true;
 }
 
-export function hasWorkbenchSharedLaunchConfiguration(
+function hasWorkbenchSharedLaunchConfiguration(
 	launchConfigurations: readonly WorkbenchSharedLaunchConfiguration[],
 	launchConfigurationId: string | null,
 ): boolean {
@@ -82,7 +82,7 @@ export function hasWorkbenchSharedLaunchConfiguration(
 	);
 }
 
-export function isValidWorkbenchSharedDirectory(directory: WorkbenchSharedDirectory): boolean {
+function isValidWorkbenchSharedDirectory(directory: WorkbenchSharedDirectory): boolean {
 	if (
 		directory.placement.kind === 'environment' &&
 		(directory.placement.environmentId.length === 0 || directory.available)
@@ -94,7 +94,7 @@ export function isValidWorkbenchSharedDirectory(directory: WorkbenchSharedDirect
 		: directory.kind === 'folder' && (directory.git === null || directory.git?.worktree === false);
 }
 
-export function workbenchSharedDirectoryPlacementsEqual(
+function workbenchSharedDirectoryPlacementsEqual(
 	left: WorkbenchSharedDirectoryPlacement,
 	right: WorkbenchSharedDirectoryPlacement,
 ): boolean {
@@ -105,7 +105,7 @@ export function workbenchSharedDirectoryPlacementsEqual(
 	);
 }
 
-export function workbenchSharedDirectoriesShareLocation(
+function workbenchSharedDirectoriesShareLocation(
 	left: WorkbenchSharedDirectoryLocation,
 	right: WorkbenchSharedDirectoryLocation,
 ): boolean {

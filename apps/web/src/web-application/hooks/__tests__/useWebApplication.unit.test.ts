@@ -3,20 +3,21 @@
 import { ActionRuntime, defineAction, noActionInput } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
-import {
-	createWorkbenchPreviewTerminalPresentationComposition,
-	WorkbenchProjectWorkspaceRuntime,
-	type WorkbenchTerminalSurfaceProps,
-} from '../../../workbench';
+import type { WorkbenchTerminalSurfaceProps } from '../../../workbench';
 import { act, createElement, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { TerminalSettingsController } from '../../../terminal-settings';
 import { ApplicationLocaleController } from '../../../application-locale';
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
+import {
+	createSnapshotRuntime,
+	oneWorkspaceSnapshot,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
 import { WebApplication } from '../../WebApplication';
+import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
 
 class TestResizeObserver {
 	public disconnect(): void {}
@@ -45,15 +46,9 @@ describe('useWebApplication', () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const actionRuntime = new ActionRuntime();
-		let sequence = 0;
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/workspace',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-				terminalPresentationId('shortcut-scope:initial'),
-				() => terminalPresentationId(`shortcut-scope:${(sequence += 1)}`),
-			),
-		});
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		);
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
@@ -75,6 +70,7 @@ describe('useWebApplication', () => {
 						createElement(WebApplication, {
 							actionRuntime,
 							applicationLocaleController: createApplicationLocaleController(),
+							authority: inertAuthority,
 							keyboardShortcutSettingsController,
 							projectWorkspaceRuntime,
 							shortcutPlatform: 'apple',
@@ -86,98 +82,12 @@ describe('useWebApplication', () => {
 			);
 		});
 
-		const initialInput = requiredElement<HTMLTextAreaElement>(
+		const terminalInput = requiredElement<HTMLTextAreaElement>(
 			container.querySelector('[data-test-terminal-input="true"]'),
 		);
-		expect(document.activeElement).toBe(initialInput);
-		initialInput.blur();
-		expect(document.activeElement).toBe(document.body);
-		const createWithBodyFocus = appleCommand('KeyT');
-		await act(async () => document.body.dispatchEvent(createWithBodyFocus));
-		expect(createWithBodyFocus.defaultPrevented).toBe(true);
-		await vi.waitFor(() =>
-			expect(
-				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-			).toHaveLength(2),
-		);
-		const createdInput = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('[data-test-terminal-input="true"]'),
-		);
-		expect(document.activeElement).toBe(createdInput);
-		createdInput.blur();
-
-		const split = appleCommand('KeyD');
-		await act(async () => document.body.dispatchEvent(split));
-		expect(split.defaultPrevented).toBe(true);
-		await vi.waitFor(() =>
-			expect(container.querySelectorAll('[data-slot="workbench-panel"]')).toHaveLength(2),
-		);
-		const splitFocus = document.activeElement;
-		expect(splitFocus).toBeInstanceOf(HTMLTextAreaElement);
-		if (!(splitFocus instanceof HTMLTextAreaElement)) {
-			throw new Error('Expected the split terminal to receive focus.');
-		}
-		splitFocus.blur();
-
-		const closePanel = appleCommand('KeyW');
-		await act(async () => document.body.dispatchEvent(closePanel));
-		expect(closePanel.defaultPrevented).toBe(true);
-		await confirmClose();
-		await vi.waitFor(() =>
-			expect(container.querySelectorAll('[data-slot="workbench-panel"]')).toHaveLength(1),
-		);
-		await vi.waitFor(() =>
-			expect(document.activeElement).toBe(
-				container.querySelector('[data-test-terminal-input="true"]'),
-			),
-		);
-
-		const activeTabInput = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('[data-test-terminal-input="true"]'),
-		);
-		activeTabInput.blur();
-		const closeActiveTab = appleCommand('KeyW');
-		await act(async () => document.body.dispatchEvent(closeActiveTab));
-		expect(closeActiveTab.defaultPrevented).toBe(true);
-		await confirmClose();
-		await vi.waitFor(() =>
-			expect(
-				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-			).toHaveLength(1),
-		);
-		const finalTabInput = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('[data-test-terminal-input="true"]'),
-		);
-		expect(document.activeElement).toBe(finalTabInput);
-		finalTabInput.blur();
-		const closeFinalTab = appleCommand('KeyW');
-		await act(async () => document.body.dispatchEvent(closeFinalTab));
-		expect(closeFinalTab.defaultPrevented).toBe(true);
-		await confirmClose();
-		await vi.waitFor(() =>
-			expect(
-				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-			).toHaveLength(0),
-		);
-		expect(
-			projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-		).toHaveLength(0);
-		expect(document.activeElement).toBe(document.body);
-
-		const createFromEmpty = appleCommand('KeyT');
-		await act(async () => document.body.dispatchEvent(createFromEmpty));
-		expect(createFromEmpty.defaultPrevented).toBe(true);
-		await vi.waitFor(() =>
-			expect(
-				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-			).toHaveLength(1),
-		);
-		const recreatedInput = requiredElement<HTMLTextAreaElement>(
-			container.querySelector('[data-test-terminal-input="true"]'),
-		);
-		expect(document.activeElement).toBe(recreatedInput);
+		expect(document.activeElement).toBe(terminalInput);
 		const increaseFontSize = appleCommand('Equal');
-		await act(async () => recreatedInput.dispatchEvent(increaseFontSize));
+		await act(async () => terminalInput.dispatchEvent(increaseFontSize));
 		expect(increaseFontSize.defaultPrevented).toBe(true);
 		expect(terminalSettingsController.getSnapshot().preferences.fontSize).toBe(initialFontSize + 2);
 
@@ -210,24 +120,11 @@ describe('useWebApplication', () => {
 		await vi.waitFor(() =>
 			expect(container.querySelector('[data-slot="terminal-settings-surface"]')).toBeNull(),
 		);
-		await vi.waitFor(() => expect(document.activeElement).toBe(recreatedInput));
+		await vi.waitFor(() => expect(document.activeElement).toBe(terminalInput));
 		const resetFontSize = appleCommand('Digit0');
-		await act(async () => recreatedInput.dispatchEvent(resetFontSize));
+		await act(async () => terminalInput.dispatchEvent(resetFontSize));
 		expect(resetFontSize.defaultPrevented).toBe(true);
 		expect(terminalSettingsController.getSnapshot().preferences.fontSize).toBe(initialFontSize);
-		recreatedInput.blur();
-		const createAfterSettings = appleCommand('KeyT');
-		await act(async () => document.body.dispatchEvent(createAfterSettings));
-		expect(createAfterSettings.defaultPrevented).toBe(true);
-		await vi.waitFor(() =>
-			expect(
-				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
-			).toHaveLength(2),
-		);
-		expect(document.activeElement).toBe(
-			container.querySelector('[data-test-terminal-input="true"]'),
-		);
-
 		await act(async () => root.unmount());
 		container.remove();
 		keyboardShortcutSettingsController.dispose();
@@ -239,15 +136,9 @@ describe('useWebApplication', () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const actionRuntime = new ActionRuntime();
-		let sequence = 0;
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/workspace',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-				terminalPresentationId('settings-integration:initial'),
-				() => terminalPresentationId(`settings-integration:${(sequence += 1)}`),
-			),
-		});
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		);
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
@@ -268,6 +159,7 @@ describe('useWebApplication', () => {
 						createElement(WebApplication, {
 							actionRuntime,
 							applicationLocaleController: createApplicationLocaleController(),
+							authority: inertAuthority,
 							keyboardShortcutSettingsController,
 							projectWorkspaceRuntime,
 							shortcutPlatform: 'apple',
@@ -325,15 +217,9 @@ describe('useWebApplication', () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const actionRuntime = new ActionRuntime();
-		let sequence = 0;
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/workspace',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-				terminalPresentationId('shortcut-projection:initial'),
-				() => terminalPresentationId(`shortcut-projection:${(sequence += 1)}`),
-			),
-		});
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		);
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: document.documentElement,
@@ -354,6 +240,7 @@ describe('useWebApplication', () => {
 						createElement(WebApplication, {
 							actionRuntime,
 							applicationLocaleController: createApplicationLocaleController(),
+							authority: inertAuthority,
 							keyboardShortcutSettingsController,
 							projectWorkspaceRuntime,
 							shortcutPlatform: 'apple',
@@ -501,6 +388,8 @@ function useImmediateTerminalPresentationReadiness({
 	}, [onPresentationReady, presentationMode]);
 }
 
+const inertAuthority = inertWorkbenchAuthority();
+
 function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({
 		documentElement: document.documentElement,
@@ -531,15 +420,4 @@ function appleCommand(code: string): KeyboardEvent {
 		code,
 		metaKey: true,
 	});
-}
-
-async function confirmClose(): Promise<void> {
-	const close = await vi.waitFor(() =>
-		requiredElement<HTMLButtonElement>(
-			[...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(
-				(button) => button.textContent?.trim() === 'Close',
-			) ?? null,
-		),
-	);
-	await act(async () => close.click());
 }

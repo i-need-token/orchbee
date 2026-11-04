@@ -1,22 +1,17 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	createSnapshotRuntime,
+	oneWorkspaceSnapshot,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../findActiveTerminalFocusTarget';
 
 function createRuntime(): WorkbenchProjectWorkspaceRuntime {
-	let sequence = 0;
-	return new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/system',
-		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('focus-target:initial'),
-			() => terminalPresentationId(`focus-target:${(sequence += 1)}`),
-		),
-	});
+	return createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
 }
 
 describe('findActiveTerminalFocusTarget', () => {

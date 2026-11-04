@@ -1,26 +1,24 @@
 // @vitest-environment jsdom
 
-import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { createElement, createRef, startTransition, Suspense, useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	terminalPresentationId,
-	type TerminalPresentationId,
-} from '@orchbee/workbench-client-protocol';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	createSnapshotRuntime,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotSplit,
+	snapshotTab,
+} from '../../../../../__tests__/server-workbench-snapshot';
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputResult,
 	WorkbenchTerminalBroadcastInputSink,
 } from '../../../../types/workbench-terminal-surface';
-import { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
-import {
-	collectPanelLeaves,
-	getDisplayedTerminal,
-	type PanelLayoutNode,
-	type PanelWorkspaceState,
-} from '../../model/panel-workspace-state';
+import type { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
+import { collectPanelLeaves, getDisplayedTerminal } from '../../model/panel-workspace-state';
 import { useWorkbenchPanelBroadcastInput } from '../useWorkbenchPanelBroadcastInput';
 
 afterEach(() => cleanup());
@@ -442,60 +440,13 @@ function renderBroadcast() {
 	};
 }
 
+/** Two running Panels side by side, as the Server publishes them. */
 function runningTwoPanelStore(): PanelWorkspaceStore {
-	const tabModel = new TabModel({
-		activeTabId: 'tab-broadcast',
-		tabs: [{ group: null, id: 'tab-broadcast', pinned: false, title: 'Broadcast' }],
-	});
-	let presentationSequence = 1;
-	const composition = {
-		createPresentationId: () =>
-			terminalPresentationId(`terminal-broadcast-${presentationSequence++}`),
-		initialPresentationId: terminalPresentationId('terminal-broadcast-initial'),
-		kind: 'preview' as const,
-	};
-	const builder = new PanelWorkspaceStore(tabModel, { composition });
-	const initialTab = builder.getSnapshot().tabs[0];
-	if (initialTab === undefined) throw new Error('Expected an initial Tab.');
-	builder.transition({
-		direction: 'right',
-		newTerminalTitle: 'Terminal 2',
-		panelId: initialTab.focusedPanelId,
-		presentation: builder.createTerminalPresentation(),
-		tabId: initialTab.tabId,
-		type: 'panel-split',
-	});
-	return new PanelWorkspaceStore(tabModel, {
-		composition,
-		initialState: runningWorkspaceState(builder.getSnapshot()),
-	});
-}
-
-function runningWorkspaceState(state: PanelWorkspaceState): PanelWorkspaceState {
-	return {
-		...state,
-		tabs: state.tabs.map((tab) => ({ ...tab, root: runningLayout(tab.root) })),
-	};
-}
-
-function runningLayout(node: PanelLayoutNode): PanelLayoutNode {
-	if (node.kind === 'split') {
-		return {
-			...node,
-			children: node.children.map((child) => ({ ...child, node: runningLayout(child.node) })),
-		};
-	}
-	return {
-		...node,
-		childPresentations: node.childPresentations.map((presentation) => ({
-			...presentation,
-			lifecycle: { kind: 'running' },
-		})),
-		primaryPresentation: {
-			...node.primaryPresentation,
-			lifecycle: { kind: 'running' },
-		},
-	};
+	return createSnapshotRuntime(
+		oneWorkspaceSnapshot(1, [
+			snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
+		]),
+	).getActiveTerminalContext().panelWorkspaceStore;
 }
 
 function deferred<Value>(): {

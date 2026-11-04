@@ -184,9 +184,6 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.launch.shellFailed':
 		'The configured shell could not be started. Check its launch profile and working directory.',
 	'terminal.projected.launch.unavailable': 'Terminal unavailable',
-	'terminal.projected.session.startNew': 'Start New Session',
-	'terminal.projected.session.startFailed': 'The terminal session could not be started.',
-	'terminal.projected.session.stopped': 'Terminal session stopped',
 } as const;
 
 export type ProjectedTerminalMessageId = keyof typeof enUSProjectedTerminalMessages;

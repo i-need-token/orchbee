@@ -6,9 +6,17 @@ import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	createSnapshotRuntime,
+	oneWorkspaceSnapshot,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../__tests__/server-workbench-snapshot';
 import type { WorkbenchActiveLocation } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAgentSnapshot } from '../../types/workbench-agent-observation';
 import { useWorkbenchAgentNavigation } from '../useWorkbenchAgentNavigation';
 import { pendingActionExecution } from './pendingActionExecution';
@@ -105,15 +113,7 @@ describe('useWorkbenchAgentNavigation', () => {
 	);
 
 	it('announces a terminal that holds no Agent in the latest projection', () => {
-		const runtime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal',
-			terminalPresentation: {
-				createPresentationId: () => terminalPresentationId('agent-navigation-dynamic'),
-				initialPresentationId: terminalPresentationId('agent-navigation-initial'),
-				kind: 'preview',
-			},
-		});
+		const runtime = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
 		const announceUnavailable = vi.fn<() => void>();
 		const invokeAgentNavigation = vi.fn<(input: WorkbenchAgentNavigationInput) => ActionExecution>(
 			() => blockedExecution,
@@ -144,55 +144,22 @@ describe('useWorkbenchAgentNavigation', () => {
 });
 
 function navigationFixture() {
-	let presentationSequence = 0;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/system',
-		standaloneTerminalTitle: 'Terminal',
-		terminalPresentation: {
-			createPresentationId: () => terminalPresentationId(`navigation-${++presentationSequence}`),
-			initialPresentationId: terminalPresentationId('navigation-standalone'),
-			kind: 'preview',
-		},
-	});
-	runtime.transition({
-		directory: {
-			available: true,
-			git: null,
-			id: 'navigation-directory',
-			kind: 'folder',
-			name: 'Navigation',
-			path: '/navigation',
-			placement: { kind: 'local' },
-			source: 'selected',
-		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Target Workspace',
-		projectName: 'Navigation',
-		terminalTitle: 'Target Terminal',
-		type: 'project-created',
-	});
-	const project = runtime.getSnapshot().projects[0];
-	const target = runtime.getSnapshot().workspaces[0];
-	if (project === undefined || target === undefined)
-		throw new Error('Expected a target Workspace.');
+	const runtime = createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1), snapshotDirectory(2)],
+				workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
+			},
+			[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
+		),
+	);
+	const [target, unrelated] = runtime.getSnapshot().workspaces;
+	if (target === undefined || unrelated === undefined) throw new Error('Expected two Workspaces.');
 	const panel = runtime
 		.getTerminalContext(target.terminalContextId)
 		?.panelWorkspaceStore.getSnapshot().tabs[0]?.root;
 	if (panel?.kind !== 'panel') throw new Error('Expected one target Panel.');
-	runtime.transition({
-		directoryId: target.primaryDirectoryId,
-		launchConfigurationId: null,
-		name: 'Unrelated Workspace',
-		projectId: project.id,
-		resourceScopeId: target.resourceScopeId,
-		terminalTitle: 'Unrelated Terminal',
-		type: 'workspace-created',
-	});
-	const unrelated = runtime
-		.getSnapshot()
-		.workspaces.find((workspace) => workspace.id !== target.id);
-	if (unrelated === undefined) throw new Error('Expected an unrelated Workspace.');
 	runtime.transition({ type: 'standalone-activated' });
 	const { presentationId } = panel.primaryPresentation;
 	const observed = (sequence: bigint): WorkbenchAgentSnapshot => ({

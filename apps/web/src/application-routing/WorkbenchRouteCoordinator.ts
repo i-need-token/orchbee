@@ -17,13 +17,6 @@ import {
 	type WorkbenchRouteResolution,
 	type WorkbenchRouteSnapshot,
 } from './workbench-route-model';
-import {
-	EMPTY_TERMINAL_CONTEXT_INITIALIZATION_STATE,
-	transitionTerminalContextInitialization,
-	type TerminalContextInitializationEvent,
-	type TerminalContextInitializationState,
-	type TerminalContextInitializationTransition,
-} from './transition-terminal-context-initialization';
 
 type WorkbenchTabSelectionInput = Parameters<WorkbenchNavigationPort['selectTab']>[1];
 type WorkbenchRouteNavigationResult = 'navigated' | 'unavailable' | 'unchanged' | 'updated';
@@ -73,7 +66,6 @@ export class WorkbenchRouteCoordinator {
 	#applying = false;
 	#disposed = false;
 	#displayedLocation: WorkbenchRouteLocation | undefined;
-	readonly #getInitialTerminalTitle: (() => string) | undefined;
 	readonly #navigate: WorkbenchRouteNavigation;
 	#pendingProjectCreation: PendingProjectCreationRoute | undefined;
 	#pendingSelection:
@@ -84,8 +76,6 @@ export class WorkbenchRouteCoordinator {
 		| undefined;
 	#requestedLocation: WorkbenchRouteLocation | undefined;
 	readonly #runtime: WorkbenchProjectWorkspaceRuntime;
-	#terminalContextInitializationState: TerminalContextInitializationState =
-		EMPTY_TERMINAL_CONTEXT_INITIALIZATION_STATE;
 	readonly #unsubscribe: () => void;
 
 	public readonly navigation: WorkbenchNavigationPort = {
@@ -108,11 +98,9 @@ export class WorkbenchRouteCoordinator {
 	public constructor(
 		runtime: WorkbenchProjectWorkspaceRuntime,
 		navigate: WorkbenchRouteNavigation,
-		getInitialTerminalTitle: (() => string) | undefined,
 	) {
 		this.#runtime = runtime;
 		this.#navigate = navigate;
-		this.#getInitialTerminalTitle = getInitialTerminalTitle;
 		this.#unsubscribe = runtime.subscribeClientView(this.#handleClientViewChange);
 	}
 
@@ -125,81 +113,22 @@ export class WorkbenchRouteCoordinator {
 		this.#requestedLocation = undefined;
 	}
 
-	public navigateTo(target: WorkbenchNavigationTarget): WorkbenchRouteNavigationResult {
-		this.#rejectPendingProjectCreation('route-acceptance-replaced');
-		return this.#navigateTo(target);
-	}
-
-	public navigateToTab(input: WorkbenchTabSelectionInput): WorkbenchRouteNavigationResult {
-		this.#rejectPendingProjectCreation('route-acceptance-replaced');
-		return this.#navigateToTab(input);
-	}
-
 	public prepare(request: WorkbenchRouteRequest): WorkbenchRouteResolution {
 		const resolution = resolveWorkbenchRoute(readWorkbenchRouteSnapshot(this.#runtime), request);
 		if (resolution.kind === 'ready') {
 			this.#applyRoute(resolution.location);
-			const getInitialTerminalTitle = this.#getInitialTerminalTitle;
-			if (getInitialTerminalTitle === undefined) return resolution;
-			const activeTerminalContext = this.#runtime.getActiveTerminalContext();
-			const commands = this.#transitionTerminalContextInitialization({
-				hasTabs: activeTerminalContext.tabModel.getSnapshot().tabs.length > 0,
-				terminalContextId: activeTerminalContext.terminalContextId,
-				type: 'terminal-route-ready',
-			});
-			if (commands.length === 0) return resolution;
-
-			this.#applying = true;
-			let creation: ReturnType<WorkbenchProjectWorkspaceRuntime['createTerminal']>;
-			try {
-				if (
-					this.#runtime.getActiveTerminalContext().terminalContextId !==
-					commands[0]?.terminalContextId
-				) {
-					throw new Error('The terminal context changed before first-open initialization.');
-				}
-				creation = this.#runtime.createTerminal({
-					groupId: null,
-					source: 'programmatic',
-					title: getInitialTerminalTitle(),
-				});
-			} finally {
-				this.#applying = false;
-			}
-			if (creation.kind === 'rejected') return resolution;
-
-			const createdResolution = resolveWorkbenchRoute(
-				readWorkbenchRouteSnapshot(this.#runtime),
-				request,
-			);
-			if (createdResolution.kind === 'ready') this.#applyRoute(createdResolution.location);
-			return createdResolution;
 		} else if (resolution.kind === 'unavailable') {
 			this.#rejectPendingProjectCreation('route-target-unavailable');
 			this.#displayedLocation = undefined;
 			this.#pendingSelection = undefined;
 			this.#requestedLocation = undefined;
-			this.#transitionTerminalContextInitialization({ type: 'route-unavailable' });
-		} else {
-			if (
-				this.#pendingProjectCreation !== undefined &&
-				!workbenchRouteLocationsEqual(this.#pendingProjectCreation.location, resolution.location)
-			)
-				this.#rejectPendingProjectCreation('route-acceptance-replaced');
-			this.#transitionTerminalContextInitialization({ type: 'redirect-observed' });
+		} else if (
+			this.#pendingProjectCreation !== undefined &&
+			!workbenchRouteLocationsEqual(this.#pendingProjectCreation.location, resolution.location)
+		) {
+			this.#rejectPendingProjectCreation('route-acceptance-replaced');
 		}
 		return resolution;
-	}
-
-	#transitionTerminalContextInitialization(
-		event: TerminalContextInitializationEvent,
-	): TerminalContextInitializationTransition['commands'] {
-		const transition = transitionTerminalContextInitialization(
-			this.#terminalContextInitializationState,
-			event,
-		);
-		this.#terminalContextInitializationState = transition.state;
-		return transition.commands;
 	}
 
 	#applyRoute(location: WorkbenchRouteLocation): void {

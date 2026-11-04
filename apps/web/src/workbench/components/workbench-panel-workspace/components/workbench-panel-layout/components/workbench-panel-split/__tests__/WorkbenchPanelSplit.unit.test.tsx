@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { PanelSplit } from '../../../../../model/panel-workspace-state';
-import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
+import type {
+	SharedSplitResize,
+	WorkbenchPanelWorkspaceView,
+} from '../../../../../types/panel-workspace-view';
 import { WorkbenchPanelSplit } from '../WorkbenchPanelSplit';
 
 const split: PanelSplit = {
@@ -119,10 +122,11 @@ function createBounds(left: number, width: number): DOMRect {
 }
 
 function createView(
-	resizeAdjacentPanels: (splitId: string, separatorIndex: number, leadingWeight: number) => void,
+	commit: SharedSplitResize['commit'],
 	maximizedPanelId: string | null = null,
 ): WorkbenchPanelWorkspaceView {
-	return { maximizedPanelId, resizeAdjacentPanels } as unknown as WorkbenchPanelWorkspaceView;
+	const sharedSplitResize: SharedSplitResize = { commit, minimumChildPercent: 10 };
+	return { maximizedPanelId, sharedSplitResize } as unknown as WorkbenchPanelWorkspaceView;
 }
 
 function prepareHorizontalGeometry(container: HTMLElement): HTMLElement {
@@ -196,15 +200,14 @@ afterEach(() => {
 
 describe('WorkbenchPanelSplit', () => {
 	it('keeps every panel DOM node mounted while projecting one maximized panel', () => {
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const renderNode = (node: PanelSplit['children'][number]['node']) =>
 			createElement('span', { 'data-rendered-panel': node.id });
 		const { container, rerender } = render(
 			createElement(WorkbenchPanelSplit, {
 				renderNode,
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		const firstPanelContent = container.querySelector('[data-rendered-panel="panel-1"]');
@@ -214,7 +217,7 @@ describe('WorkbenchPanelSplit', () => {
 			createElement(WorkbenchPanelSplit, {
 				renderNode,
 				split,
-				view: createView(resizeAdjacentPanels, 'panel-2'),
+				view: createView(commit, 'panel-2'),
 			}),
 		);
 
@@ -231,7 +234,7 @@ describe('WorkbenchPanelSplit', () => {
 			createElement(WorkbenchPanelSplit, {
 				renderNode,
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 
@@ -240,8 +243,7 @@ describe('WorkbenchPanelSplit', () => {
 	});
 
 	it('withholds descendant focus until maximize and minimize layouts have settled', () => {
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const settlements: Array<boolean | undefined> = [];
 		const renderNode = (node: PanelSplit['children'][number]['node'], layoutSettled?: boolean) => {
 			if (node.id === 'panel-2') settlements.push(layoutSettled);
@@ -251,7 +253,7 @@ describe('WorkbenchPanelSplit', () => {
 			createElement(WorkbenchPanelSplit, {
 				renderNode,
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		expect(settlements.at(-1)).toBe(true);
@@ -261,7 +263,7 @@ describe('WorkbenchPanelSplit', () => {
 			createElement(WorkbenchPanelSplit, {
 				renderNode,
 				split,
-				view: createView(resizeAdjacentPanels, 'panel-2'),
+				view: createView(commit, 'panel-2'),
 			}),
 		);
 		expect(settlements).toContain(false);
@@ -272,7 +274,7 @@ describe('WorkbenchPanelSplit', () => {
 			createElement(WorkbenchPanelSplit, {
 				renderNode,
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		expect(settlements).toContain(false);
@@ -288,7 +290,7 @@ describe('WorkbenchPanelSplit', () => {
 					return createElement('span', { 'data-rendered-panel': node.id });
 				},
 				split,
-				view: createView(() => undefined, 'panel-2'),
+				view: createView(() => Promise.resolve(), 'panel-2'),
 			}),
 		);
 
@@ -297,13 +299,12 @@ describe('WorkbenchPanelSplit', () => {
 	});
 
 	it('leaves split creation unconstrained while the resize controller owns the pixel minimum', () => {
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const { container } = render(
 			createElement(WorkbenchPanelSplit, {
 				renderNode: () => createElement('span'),
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 
@@ -316,13 +317,12 @@ describe('WorkbenchPanelSplit', () => {
 	});
 
 	it('prevents unsupported separator keys before they reach the real primitive', () => {
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const { container } = render(
 			createElement(WorkbenchPanelSplit, {
 				renderNode: () => createElement('span'),
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		const separator = prepareHorizontalGeometry(container);
@@ -338,18 +338,17 @@ describe('WorkbenchPanelSplit', () => {
 			expect(event.defaultPrevented).toBe(true);
 		}
 
-		expect(resizeAdjacentPanels).not.toHaveBeenCalled();
+		expect(commit).not.toHaveBeenCalled();
 	});
 
 	it('does not install a document-global cursor while the pointer crosses a separator', () => {
 		const insertCursorRule = vi.spyOn(CSSStyleSheet.prototype, 'insertRule');
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const { container } = render(
 			createElement(WorkbenchPanelSplit, {
 				renderNode: () => createElement('span'),
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		const separator = prepareHorizontalGeometry(container);
@@ -366,14 +365,13 @@ describe('WorkbenchPanelSplit', () => {
 		expect(insertCursorRule).not.toHaveBeenCalled();
 	});
 
-	it('synchronizes a real primitive arrow-key layout with the model', () => {
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+	it('submits a real primitive arrow-key layout when the key is released', () => {
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const { container } = render(
 			createElement(WorkbenchPanelSplit, {
 				renderNode: () => createElement('span'),
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		const separator = prepareHorizontalGeometry(container);
@@ -382,18 +380,16 @@ describe('WorkbenchPanelSplit', () => {
 		fireEvent.keyDown(separator, { key: 'ArrowRight' });
 		fireEvent.keyUp(separator, { key: 'ArrowRight' });
 
-		expect(resizeAdjacentPanels).toHaveBeenCalledOnce();
-		expect(resizeAdjacentPanels).toHaveBeenCalledWith('split-1', 0, 55);
+		expect(commit).toHaveBeenCalledExactlyOnceWith('split-1', 55);
 	});
 
 	it('uses the real primitive as the sole source of pointer layout candidates', () => {
-		const resizeAdjacentPanels =
-			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const commit = vi.fn<SharedSplitResize['commit']>(() => Promise.resolve());
 		const { container } = render(
 			createElement(WorkbenchPanelSplit, {
 				renderNode: () => createElement('span'),
 				split,
-				view: createView(resizeAdjacentPanels),
+				view: createView(commit),
 			}),
 		);
 		const separator = prepareHorizontalGeometry(container);
@@ -424,7 +420,6 @@ describe('WorkbenchPanelSplit', () => {
 			pointerType: 'mouse',
 		});
 
-		expect(resizeAdjacentPanels).toHaveBeenCalledOnce();
-		expect(resizeAdjacentPanels).toHaveBeenCalledWith('split-1', 0, 55);
+		expect(commit).toHaveBeenCalledExactlyOnceWith('split-1', 55);
 	});
 });

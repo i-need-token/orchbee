@@ -1,143 +1,44 @@
-import {
-	array,
-	assert,
-	constantFrom,
-	double,
-	nat,
-	property,
-	record,
-	uniqueArray,
-} from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-	type TerminalPresentationCreation,
-} from '@orchbee/workbench-client-protocol';
+import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
-	clonePanelWorkspaceState as clonePanelWorkspaceStateCore,
+	createSnapshotRuntime,
+	fixturePanelId,
+	fixturePresentationId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotSplit,
+	snapshotTab,
+	type FixtureRecord,
+} from '../../../../../__tests__/server-workbench-snapshot';
+import {
 	collectPanelLeaves,
 	findPanel,
 	getDisplayedTerminal,
-	initializePanelWorkspace,
 	projectPanelDrag,
-	transitionPanelWorkspace as transitionPanelWorkspaceCore,
+	transitionPanelWorkspace,
 	validatePanelWorkspaceState,
 	type PanelLayoutNode,
 	type PanelSplit,
 	type PanelSplitDirection,
-	type PanelWorkspaceEvent,
 	type PanelWorkspaceState,
+	type TabPanelWorkspace,
 } from '../panel-workspace-state';
 
-type PreviewPanelWorkspaceEvent = PanelWorkspaceEvent extends infer Event
-	? Event extends { readonly type: 'child-terminal-created' | 'panel-split' }
-		? Omit<Event, 'presentation'> & { readonly presentation?: TerminalPresentationCreation }
-		: Event extends { readonly type: 'child-terminal-closed' | 'panel-closed' }
-			? Omit<Event, 'close'> & { readonly close?: { readonly kind: 'preview' } }
-			: Event
-	: never;
-
-function previewPresentation(sequence: number): TerminalPresentationCreation {
-	return {
-		kind: 'preview',
-		presentationId: terminalPresentationId(`terminal-${sequence}`),
-	};
-}
-
-function managedPresentation(
-	presentationId: string,
-	operationId: string,
-): Extract<TerminalPresentationCreation, { readonly kind: 'managed' }> {
-	return {
-		kind: 'managed',
-		operationId: terminalPresentationOperationId(operationId),
-		presentationId: terminalPresentationId(presentationId),
-	};
-}
-
-function managedCloseRequest(presentationId: string, operationId: string, removalId: string) {
-	return {
-		kind: 'managed' as const,
-		operations: [
-			{
-				operationId: terminalPresentationOperationId(operationId),
-				presentationId: terminalPresentationId(presentationId),
-			},
-		],
-		removalId: terminalPresentationRemovalId(removalId),
-	};
-}
-
-function completeManagedClose(
-	state: PanelWorkspaceState,
-	presentationId: string,
-	operationId: string,
-	removalId: string,
-	tabId = 'tab-a',
-) {
-	return transitionPanelWorkspaceCore(state, {
-		operationId: terminalPresentationOperationId(operationId),
-		presentationId: terminalPresentationId(presentationId),
-		removalId: terminalPresentationRemovalId(removalId),
-		tabId,
-		type: 'terminal-close-completed',
-	});
-}
-
-function createPanelWorkspaceState(
-	tabs: readonly { readonly cwd?: string | null; readonly id: string; readonly title: string }[],
-): PanelWorkspaceState {
-	return initializePanelWorkspace(
-		tabs.map((tab, index) => ({ ...tab, presentation: previewPresentation(index + 1) })),
-	).state;
-}
-
-function clonePanelWorkspaceState(
-	state: PanelWorkspaceState,
-	tabIdMap: ReadonlyMap<string, string>,
-	identityPrefix: string,
-): PanelWorkspaceState {
-	let sequence = 1;
-	return clonePanelWorkspaceStateCore(state, tabIdMap, identityPrefix, () =>
-		terminalPresentationId(`${identityPrefix}-terminal-${sequence++}`),
-	);
-}
-
-function transitionPanelWorkspace(state: PanelWorkspaceState, event: PreviewPanelWorkspaceEvent) {
-	if (event.type === 'child-terminal-created' || event.type === 'panel-split') {
-		return transitionPanelWorkspaceCore(state, {
-			...event,
-			presentation: event.presentation ?? previewPresentation(state.nextTerminalSequence),
-		});
-	}
-	if (event.type === 'child-terminal-closed' || event.type === 'panel-closed') {
-		return transitionPanelWorkspaceCore(state, {
-			...event,
-			close: event.close ?? { kind: 'preview' },
-		});
-	}
-	if (event.type === 'tabs-reconciled') {
-		const existingTabIds = new Set(state.tabs.map((tab) => tab.tabId));
-		let sequence = state.nextTerminalSequence;
-		return transitionPanelWorkspaceCore(state, {
-			tabs: event.tabs.map((tab) =>
-				existingTabIds.has(tab.id) || tab.presentation !== undefined
-					? tab
-					: { ...tab, presentation: previewPresentation(sequence++) },
-			),
-			type: event.type,
-		});
-	}
-	return transitionPanelWorkspaceCore(state, event);
-}
-
 const PANEL_SPLIT_DIRECTIONS = ['above', 'below', 'left', 'right'] as const;
+const TAB_ID = fixtureTabId(1);
 
-function apply(state: PanelWorkspaceState, event: PreviewPanelWorkspaceEvent): PanelWorkspaceState {
-	return transitionPanelWorkspace(state, event).state;
+/** The Panels a window holds when the Server publishes Workspace 1 with `tabs`. */
+function publishedState(tabs: readonly FixtureRecord[]): PanelWorkspaceState {
+	return createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs))
+		.getActiveTerminalContext()
+		.panelWorkspaceStore.getSnapshot();
+}
+
+function oneTabState(root: FixtureRecord): PanelWorkspaceState {
+	return publishedState([snapshotTab(1, root)]);
 }
 
 function requireSplit(node: PanelLayoutNode): PanelSplit {
@@ -154,8 +55,8 @@ function requireDefined<Value>(value: Value | null | undefined): Value {
 	return value;
 }
 
-function terminalTitle(state: PanelWorkspaceState): string {
-	return `Terminal ${state.nextTerminalSequence}`;
+function requireTab(state: PanelWorkspaceState, index = 0): TabPanelWorkspace {
+	return requireDefined(state.tabs[index]);
 }
 
 function collectUniquePanelSlotIds(node: PanelLayoutNode, slotIds: Set<string>): boolean {
@@ -186,20 +87,6 @@ function hasPanelMembership(node: PanelLayoutNode, expectedPanelIds: ReadonlySet
 	);
 }
 
-function collectPanelSplits(
-	node: PanelLayoutNode,
-	splits: PanelSplit[] = [],
-): readonly PanelSplit[] {
-	if (node.kind === 'panel') {
-		return splits;
-	}
-	splits.push(node);
-	for (const child of node.children) {
-		collectPanelSplits(child.node, splits);
-	}
-	return splits;
-}
-
 interface EquivalentPanelMove {
 	readonly direction: PanelSplitDirection;
 	readonly panelId: string;
@@ -217,29 +104,18 @@ function collectEquivalentPanelMoves(
 		const leadingPanel = requireDefined(node.children[index]).node;
 		const trailingPanel = requireDefined(node.children[index + 1]).node;
 		if (leadingPanel.kind === 'panel' && trailingPanel.kind === 'panel') {
+			const horizontal = node.orientation === 'horizontal';
 			moves.push(
-				node.orientation === 'horizontal'
-					? {
-							direction: 'left',
-							panelId: leadingPanel.id,
-							targetPanelId: trailingPanel.id,
-						}
-					: {
-							direction: 'above',
-							panelId: leadingPanel.id,
-							targetPanelId: trailingPanel.id,
-						},
-				node.orientation === 'horizontal'
-					? {
-							direction: 'right',
-							panelId: trailingPanel.id,
-							targetPanelId: leadingPanel.id,
-						}
-					: {
-							direction: 'below',
-							panelId: trailingPanel.id,
-							targetPanelId: leadingPanel.id,
-						},
+				{
+					direction: horizontal ? 'left' : 'above',
+					panelId: leadingPanel.id,
+					targetPanelId: trailingPanel.id,
+				},
+				{
+					direction: horizontal ? 'right' : 'below',
+					panelId: trailingPanel.id,
+					targetPanelId: leadingPanel.id,
+				},
 			);
 		}
 	}
@@ -249,71 +125,63 @@ function collectEquivalentPanelMoves(
 	return moves;
 }
 
-function requireTab(state: PanelWorkspaceState) {
-	return requireDefined(state.tabs[0]);
-}
-
-function assertValidPanelMove(
-	state: PanelWorkspaceState,
+function assertValidDragPreview(
+	root: PanelLayoutNode,
 	sourcePanelId: string,
 	targetPanelId: string,
 	direction: PanelSplitDirection,
 ): void {
-	const tab = requireDefined(state.tabs[0]);
-	const panelIds = new Set(collectPanelLeaves(tab.root).map((panel) => panel.id));
-	const previewRoot = projectPanelDrag(tab.root, sourcePanelId, {
-		direction,
-		targetPanelId,
-	});
+	const panelIds = new Set(collectPanelLeaves(root).map((panel) => panel.id));
+	const previewRoot = projectPanelDrag(root, sourcePanelId, { direction, targetPanelId });
 	if (previewRoot === null || !hasUniquePanelSlotIds(previewRoot)) {
 		throw new Error(`Invalid move preview: ${sourcePanelId} ${direction} ${targetPanelId}`);
 	}
 	if (!hasPanelMembership(previewRoot, panelIds)) {
 		throw new Error(`Move preview changed panel membership: ${sourcePanelId}`);
 	}
-
-	const result = transitionPanelWorkspace(state, {
-		direction,
-		panelId: sourcePanelId,
-		tabId: tab.tabId,
-		targetPanelId,
-		type: 'panel-moved',
-	});
-	if (result.outcome === 'rejected') {
-		throw new Error(`Valid panel move was rejected: ${result.rejection}`);
-	}
-	const committedRoot = requireDefined(result.state.tabs[0]).root;
-	if (!hasUniquePanelSlotIds(committedRoot)) {
-		throw new Error(`Invalid committed move: ${sourcePanelId} ${direction} ${targetPanelId}`);
-	}
-	if (!hasPanelMembership(committedRoot, panelIds)) {
-		throw new Error(`Committed move changed panel membership: ${sourcePanelId}`);
-	}
 }
 
-function enumerateSplitLayouts(panelCount: number): readonly PanelWorkspaceState[] {
-	let states = [createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }])];
-	for (let currentPanelCount = 1; currentPanelCount < panelCount; currentPanelCount += 1) {
-		const nextStates: PanelWorkspaceState[] = [];
-		for (const state of states) {
-			const tab = requireDefined(state.tabs[0]);
-			for (const panel of collectPanelLeaves(tab.root)) {
-				for (const direction of PANEL_SPLIT_DIRECTIONS) {
-					nextStates.push(
-						apply(state, {
-							direction,
-							newTerminalTitle: terminalTitle(state),
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-split',
-						}),
-					);
+type LayoutShape =
+	| { readonly kind: 'panel'; readonly sequence: number }
+	| {
+			readonly first: LayoutShape;
+			readonly kind: 'split';
+			readonly orientation: 'horizontal' | 'vertical';
+			readonly second: LayoutShape;
+	  };
+
+/** Every binary layout of `panelSequences` in visual order, with both orientations at each split. */
+function enumerateLayoutShapes(panelSequences: readonly number[]): readonly LayoutShape[] {
+	if (panelSequences.length === 1) {
+		return [{ kind: 'panel', sequence: requireDefined(panelSequences[0]) }];
+	}
+	const shapes: LayoutShape[] = [];
+	for (let cut = 1; cut < panelSequences.length; cut += 1) {
+		for (const first of enumerateLayoutShapes(panelSequences.slice(0, cut))) {
+			for (const second of enumerateLayoutShapes(panelSequences.slice(cut))) {
+				for (const orientation of ['horizontal', 'vertical'] as const) {
+					shapes.push({ first, kind: 'split', orientation, second });
 				}
 			}
 		}
-		states = nextStates;
 	}
-	return states;
+	return shapes;
+}
+
+function layoutFixture(shape: LayoutShape, splitSequence = { next: 1 }): FixtureRecord {
+	if (shape.kind === 'panel') return snapshotPanel(shape.sequence);
+	const sequence = splitSequence.next;
+	splitSequence.next += 1;
+	return snapshotSplit(
+		sequence,
+		shape.orientation,
+		layoutFixture(shape.first, splitSequence),
+		layoutFixture(shape.second, splitSequence),
+	);
+}
+
+function enumerateFourPanelLayouts(): readonly PanelWorkspaceState[] {
+	return enumerateLayoutShapes([1, 2, 3, 4]).map((shape) => oneTabState(layoutFixture(shape)));
 }
 
 function enumerateOrderedSubsets(values: readonly string[]): readonly (readonly string[])[] {
@@ -333,265 +201,59 @@ function enumerateOrderedSubsets(values: readonly string[]): readonly (readonly 
 }
 
 describe('panel workspace state', () => {
-	it('clones the complete layout into fresh scoped identities without sharing layout objects', () => {
-		let state = createPanelWorkspaceState([
-			{ cwd: '/workspace', id: 'tab-a', title: 'Terminal 1' },
-		]);
-		state = transitionPanelWorkspace(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		}).state;
-		state = apply(state, {
-			currentCwd: '/changed',
-			presentationId: terminalPresentationId('terminal-1'),
-			tabId: 'tab-a',
-			type: 'terminal-current-cwd-changed',
-		});
+	it('projects the reversible drag grid before a panel move is committed', () => {
+		const root = requireTab(
+			oneTabState(
+				snapshotSplit(
+					1,
+					'horizontal',
+					snapshotPanel(1),
+					snapshotSplit(2, 'vertical', snapshotPanel(2), snapshotPanel(3)),
+				),
+			),
+		).root;
+		const sourcePanel = requireDefined(findPanel(root, fixturePanelId(1)));
 
-		const clone = clonePanelWorkspaceState(state, new Map([['tab-a', 'tab-copy']]), 'copy-context');
-
-		expect(clone.tabs[0]?.tabId).toBe('tab-copy');
-		expect(clone.tabs[0]?.root).not.toBe(state.tabs[0]?.root);
-		expect(clone.tabs[0]).toMatchObject({
-			focusedPanelId: 'copy-context-panel-1',
-			panelFocusHistory: ['copy-context-panel-1'],
-			root: {
-				children: [
-					{
-						id: 'copy-context-panel-slot-1',
-						node: {
-							id: 'copy-context-panel-2',
-							primaryPresentation: {
-								currentCwd: '/workspace',
-								launchCwd: '/workspace',
-								lifecycle: { kind: 'preview' },
-								presentationId: 'copy-context-terminal-1',
-							},
-						},
-					},
-					{
-						id: 'copy-context-panel-slot-2',
-						node: {
-							id: 'copy-context-panel-1',
-							primaryPresentation: {
-								presentationId: 'copy-context-terminal-2',
-							},
-						},
-					},
-				],
-				id: 'copy-context-split-1',
-				kind: 'split',
-			},
-		});
-	});
-
-	it.each([
-		['left', 'horizontal', ['panel-2', 'panel-1']],
-		['right', 'horizontal', ['panel-1', 'panel-2']],
-		['above', 'vertical', ['panel-2', 'panel-1']],
-		['below', 'vertical', ['panel-1', 'panel-2']],
-	] as const)('splits a panel locally toward %s', (direction, orientation, expectedPanelIds) => {
-		const initial = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		const result = transitionPanelWorkspace(initial, {
-			direction,
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const root = requireSplit(requireDefined(result.state.tabs[0]).root);
-
-		expect(result.outcome).toBe('applied');
-		expect(root.orientation).toBe(orientation);
-		expect(root.children.map((child) => child.weight)).toEqual([50, 50]);
-		expect(
-			root.children.map((child) => (child.node.kind === 'panel' ? child.node.id : child.node.kind)),
-		).toEqual(expectedPanelIds);
-	});
-
-	it.each([
-		['left', 'panel-2', 'panel-1', 'horizontal', ['panel-2', 'panel-1']],
-		['right', 'panel-1', 'panel-2', 'horizontal', ['panel-2', 'panel-1']],
-		['above', 'panel-1', 'panel-2', 'vertical', ['panel-1', 'panel-2']],
-		['below', 'panel-1', 'panel-2', 'vertical', ['panel-2', 'panel-1']],
-	] as const)(
-		'moves an existing panel toward %s without replacing its terminal state',
-		(direction, panelId, targetPanelId, orientation, expectedPanelIds) => {
-			let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-			state = apply(state, {
-				direction: 'right',
-				newTerminalTitle: 'Terminal 2',
-				panelId: 'panel-1',
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-			state = apply(state, {
-				newTerminalTitle: 'Terminal 3',
-				panelId,
-				tabId: 'tab-a',
-				type: 'child-terminal-created',
-			});
-			const panelBeforeMove = requireDefined(
-				findPanel(requireDefined(state.tabs[0]).root, panelId),
-			);
-			const panelSequence = state.nextPanelSequence;
-			const terminalSequence = state.nextTerminalSequence;
-
-			const result = transitionPanelWorkspace(state, {
-				direction,
-				panelId,
-				tabId: 'tab-a',
-				targetPanelId,
-				type: 'panel-moved',
-			});
-			const tab = requireDefined(result.state.tabs[0]);
-			const root = requireSplit(tab.root);
-
-			expect(result.outcome).toBe('applied');
-			expect(root.orientation).toBe(orientation);
-			expect(root.children.map((child) => child.node.id)).toEqual(expectedPanelIds);
-			expect(findPanel(root, panelId)).toBe(panelBeforeMove);
-			expect(collectPanelLeaves(root)).toHaveLength(2);
-			expect(tab.focusedPanelId).toBe(panelId);
-			expect(result.state.nextPanelSequence).toBe(panelSequence);
-			expect(result.state.nextTerminalSequence).toBe(terminalSequence);
-		},
-	);
-
-	it('treats a move onto the source as a no-op and rejects an unknown target', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-
-		const unchangedResult = transitionPanelWorkspace(state, {
-			direction: 'left',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			targetPanelId: 'panel-1',
-			type: 'panel-moved',
-		});
-		const rejectedResult = transitionPanelWorkspace(state, {
-			direction: 'left',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			targetPanelId: 'missing-panel',
-			type: 'panel-moved',
-		});
-
-		expect(unchangedResult).toMatchObject({ outcome: 'unchanged', state });
-		expect(rejectedResult).toMatchObject({
-			outcome: 'rejected',
-			rejection: 'panel-not-found',
-			state,
-		});
-	});
-
-	it.each([
-		['left panel before right panel', 'right', 'panel-1', 'panel-2', 'left'],
-		['right panel after left panel', 'right', 'panel-2', 'panel-1', 'right'],
-		['upper panel above lower panel', 'below', 'panel-1', 'panel-2', 'above'],
-		['lower panel below upper panel', 'below', 'panel-2', 'panel-1', 'below'],
-	] as const)(
-		'preserves layout when moving the %s',
-		(_, splitDirection, panelId, targetPanelId, moveDirection) => {
-			let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-			state = apply(state, {
-				direction: splitDirection,
-				newTerminalTitle: 'Terminal 2',
-				panelId: 'panel-1',
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-			const split = requireSplit(requireTab(state).root);
-			state = apply(state, {
-				leadingWeight: 35,
-				separatorIndex: 0,
-				splitId: split.id,
-				tabId: 'tab-a',
-				type: 'adjacent-panels-resized',
-			});
-
-			const result = transitionPanelWorkspace(state, {
-				direction: moveDirection,
-				panelId,
-				tabId: 'tab-a',
-				targetPanelId,
-				type: 'panel-moved',
-			});
-
-			expect(result).toMatchObject({ outcome: 'unchanged', state });
-			expect(result.state).toBe(state);
-		},
-	);
-
-	it('projects the reversible drag grid before committing a panel move', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			direction: 'below',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const root = requireDefined(state.tabs[0]).root;
-		const sourcePanel = requireDefined(findPanel(root, 'panel-1'));
-
-		const liftedRoot = requireDefined(projectPanelDrag(root, 'panel-1', null));
+		const liftedRoot = requireDefined(projectPanelDrag(root, fixturePanelId(1), null));
 		const targetRoot = requireDefined(
-			projectPanelDrag(root, 'panel-1', {
+			projectPanelDrag(root, fixturePanelId(1), {
 				direction: 'left',
-				targetPanelId: 'panel-3',
+				targetPanelId: fixturePanelId(3),
 			}),
 		);
 		const targetSplit = requireSplit(targetRoot);
 		const nestedTarget = requireSplit(requireDefined(targetSplit.children[1]).node);
 
 		expect(collectPanelLeaves(root)).toHaveLength(3);
-		expect(collectPanelLeaves(liftedRoot).map((panel) => panel.id)).toEqual(['panel-2', 'panel-3']);
+		expect(collectPanelLeaves(liftedRoot).map((panel) => panel.id)).toEqual([
+			fixturePanelId(2),
+			fixturePanelId(3),
+		]);
 		expect(nestedTarget.orientation).toBe('horizontal');
-		expect(nestedTarget.children.map((child) => child.node.id)).toEqual(['panel-1', 'panel-3']);
-		expect(findPanel(targetRoot, 'panel-1')).toBe(sourcePanel);
+		expect(nestedTarget.children.map((child) => child.node.id)).toEqual([
+			fixturePanelId(1),
+			fixturePanelId(3),
+		]);
+		expect(findPanel(targetRoot, fixturePanelId(1))).toBe(sourcePanel);
 	});
 
 	it('keeps panel slot ids unique when dragging a panel out of a collapsing nested split', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const panelId of ['panel-1', 'panel-2']) {
-			state = apply(state, {
-				direction: 'right',
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-		state = apply(state, {
-			direction: 'below',
-			newTerminalTitle: terminalTitle(state),
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const root = requireDefined(state.tabs[0]).root;
+		const root = requireTab(
+			oneTabState(
+				snapshotSplit(
+					1,
+					'horizontal',
+					snapshotSplit(2, 'vertical', snapshotPanel(1), snapshotPanel(4)),
+					snapshotSplit(3, 'horizontal', snapshotPanel(2), snapshotPanel(3)),
+				),
+			),
+		).root;
+		const rightSplitId = requireSplit(requireDefined(requireSplit(root).children[1]).node).id;
 		const previewRoot = requireSplit(
 			requireDefined(
-				projectPanelDrag(root, 'panel-1', {
+				projectPanelDrag(root, fixturePanelId(1), {
 					direction: 'left',
-					targetPanelId: 'panel-3',
+					targetPanelId: fixturePanelId(3),
 				}),
 			),
 		);
@@ -599,1547 +261,45 @@ describe('panel workspace state', () => {
 		const rightBranch = requireSplit(requireDefined(previewRoot.children[1]).node);
 		const targetBranch = requireSplit(requireDefined(rightBranch.children[1]).node);
 
-		expect(previewRoot.children.map((child) => child.node.id)).toEqual(['panel-4', 'split-2']);
+		expect(previewRoot.children.map((child) => child.node.id)).toEqual([
+			fixturePanelId(4),
+			rightSplitId,
+		]);
 		expect(rightBranch.children.map((child) => child.node.id)).toEqual([
-			'panel-2',
+			fixturePanelId(2),
 			'panel-drag-preview-split',
 		]);
-		expect(targetBranch.children.map((child) => child.node.id)).toEqual(['panel-1', 'panel-3']);
+		expect(targetBranch.children.map((child) => child.node.id)).toEqual([
+			fixturePanelId(1),
+			fixturePanelId(3),
+		]);
 		expect(hasUniquePanelSlotIds(previewRoot)).toBe(true);
 	});
 
-	it('keeps slot ids unique when moving a panel out of a non-collapsing nested split', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const [panelId, direction] of [
-			['panel-1', 'right'],
-			['panel-1', 'below'],
-			['panel-3', 'below'],
-		] as const) {
-			state = apply(state, {
-				direction,
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-
-		expect(() => assertValidPanelMove(state, 'panel-1', 'panel-2', 'left')).not.toThrow();
-	});
-
-	it('keeps the outer sibling at 50 percent when the right panel splits again', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const root = requireSplit(requireDefined(state.tabs[0]).root);
-		const nestedRight = requireSplit(requireDefined(root.children[1]).node);
-
-		expect(root.children.map((child) => child.weight)).toEqual([50, 50]);
-		expect(nestedRight.children.map((child) => child.weight)).toEqual([50, 50]);
-	});
-
-	it('keeps the parent split child identity stable when a panel becomes a nested split', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const originalRoot = requireSplit(requireDefined(state.tabs[0]).root);
-		const originalChildIds = originalRoot.children.map((child) => child.id);
-
-		state = apply(state, {
-			direction: 'below',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const nestedRoot = requireSplit(requireDefined(state.tabs[0]).root);
-
-		expect(nestedRoot.children.map((child) => child.id)).toEqual(originalChildIds);
-		expect(nestedRoot.children[0]?.node.kind).toBe('split');
-	});
-
-	it('preserves parent split weights when closing a panel collapses a nested split', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const parentSplitId = requireSplit(requireDefined(state.tabs[0]).root).id;
-		state = apply(state, {
-			leadingWeight: 40,
-			separatorIndex: 0,
-			splitId: parentSplitId,
-			tabId: 'tab-a',
-			type: 'adjacent-panels-resized',
-		});
-		state = apply(state, {
-			direction: 'below',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			panelId: 'panel-3',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-		const root = requireSplit(requireDefined(state.tabs[0]).root);
-
-		expect(root.id).toBe(parentSplitId);
-		expect(root.children.map((child) => child.weight)).toEqual([40, 60]);
-		expect(root.children.map((child) => child.node.kind)).toEqual(['panel', 'panel']);
-	});
-
-	it('restores an equal four-Panel grid after closing one leaf of a repeated right split', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const [panelId, direction] of [
-			['panel-1', 'below'],
-			['panel-1', 'right'],
-			['panel-2', 'right'],
-			['panel-4', 'right'],
-		] as const) {
-			state = apply(state, {
-				direction,
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-
-		const rootBeforeClose = requireSplit(requireTab(state).root);
-		const lowerBeforeClose = requireSplit(requireDefined(rootBeforeClose.children[1]).node);
-		expect(lowerBeforeClose.children).toHaveLength(2);
-		expect(requireDefined(lowerBeforeClose.children[1]).node.kind).toBe('split');
-
-		state = apply(state, {
-			panelId: 'panel-4',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-		const root = requireSplit(requireTab(state).root);
-		const upper = requireSplit(requireDefined(root.children[0]).node);
-		const lower = requireSplit(requireDefined(root.children[1]).node);
-
-		expect(root.orientation).toBe('vertical');
-		expect(root.children.map((child) => child.weight)).toEqual([50, 50]);
-		expect(upper.children.map((child) => child.weight)).toEqual([50, 50]);
-		expect(lower.children.map((child) => child.weight)).toEqual([50, 50]);
-		expect(collectPanelLeaves(root).map((panel) => panel.id)).toEqual([
-			'panel-1',
-			'panel-3',
-			'panel-2',
-			'panel-5',
-		]);
-	});
-
-	it('keeps focus on the current panel and purges its history entry when a different panel closes', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const panelId of ['panel-1', 'panel-2']) {
-			state = apply(state, {
-				direction: 'right',
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-		state = apply(state, {
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-focused',
-		});
-
-		const result = transitionPanelWorkspace(state, {
-			panelId: 'panel-3',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-
-		expect(requireTab(result.state).focusedPanelId).toBe('panel-1');
-		expect(requireTab(result.state).panelFocusHistory).toEqual(['panel-2', 'panel-1']);
-	});
-
-	it('focuses the most recently focused surviving panel after closing the focused panel', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const panelId of ['panel-1', 'panel-2']) {
-			state = apply(state, {
-				direction: 'right',
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-		for (const panelId of ['panel-1', 'panel-3', 'panel-2']) {
-			state = apply(state, {
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-focused',
-			});
-		}
-
-		expect(requireTab(state).panelFocusHistory).toEqual(['panel-1', 'panel-3', 'panel-2']);
-
-		const result = transitionPanelWorkspace(state, {
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-
-		expect(requireTab(result.state)).toMatchObject({
-			focusedPanelId: 'panel-3',
-			panelFocusHistory: ['panel-1', 'panel-3'],
-		});
-	});
-
-	it('falls back to previous-then-next visual order when no earlier focus visit survives', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const panelId of ['panel-1', 'panel-2']) {
-			state = apply(state, {
-				direction: 'right',
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-		state = {
-			...state,
-			tabs: [
-				{
-					...requireTab(state),
-					focusedPanelId: 'panel-2',
-					panelFocusHistory: ['panel-2'],
-				},
-			],
-		};
-		state = apply(state, {
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-
-		expect(requireTab(state)).toMatchObject({
-			focusedPanelId: 'panel-1',
-			panelFocusHistory: ['panel-1'],
-		});
-
-		const firstPanelOnlyHistory: PanelWorkspaceState = {
-			...state,
-			tabs: [
-				{
-					...requireTab(state),
-					focusedPanelId: 'panel-1',
-					panelFocusHistory: ['panel-1'],
-				},
-			],
-		};
-		const firstClosed = transitionPanelWorkspace(firstPanelOnlyHistory, {
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-
-		expect(requireTab(firstClosed.state)).toMatchObject({
-			focusedPanelId: 'panel-3',
-			panelFocusHistory: ['panel-3'],
-		});
-	});
-
-	it('reports malformed panel focus histories', () => {
-		const state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		const tab = requireTab(state);
-
-		expect(
-			validatePanelWorkspaceState({
-				...state,
-				tabs: [{ ...tab, panelFocusHistory: [] }],
-			}),
-		).toContain('Empty panel focus history: tab-a');
-		expect(
-			validatePanelWorkspaceState({
-				...state,
-				tabs: [{ ...tab, panelFocusHistory: ['panel-1', 'panel-1'] }],
-			}),
-		).toContain('Duplicate panel focus history id: panel-1');
-		expect(
-			validatePanelWorkspaceState({
-				...state,
-				tabs: [{ ...tab, panelFocusHistory: ['missing-panel', 'panel-1'] }],
-			}),
-		).toContain('Missing panel in focus history: missing-panel');
-		expect(
-			validatePanelWorkspaceState({
-				...state,
-				tabs: [{ ...tab, panelFocusHistory: ['panel-1'], focusedPanelId: 'missing-panel' }],
-			}),
-		).toContain('Panel focus history does not end with focused panel: tab-a');
-	});
-
-	it('resizes only the binary split that owns a separator', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		for (const panelId of ['panel-1', 'panel-2']) {
-			state = apply(state, {
-				direction: 'right',
-				newTerminalTitle: terminalTitle(state),
-				panelId,
-				tabId: 'tab-a',
-				type: 'panel-split',
-			});
-		}
-		const root = requireSplit(requireDefined(state.tabs[0]).root);
-		state = apply(state, {
-			leadingWeight: 30,
-			separatorIndex: 0,
-			splitId: root.id,
-			tabId: 'tab-a',
-			type: 'adjacent-panels-resized',
-		});
-
-		const resizedRoot = requireSplit(requireDefined(state.tabs[0]).root);
-		const nestedRight = requireSplit(requireDefined(resizedRoot.children[1]).node);
-
-		expect(resizedRoot.children.map((child) => child.weight)).toEqual([30, 70]);
-		expect(nestedRight.children.map((child) => child.weight)).toEqual([50, 50]);
-	});
-
-	it('keeps repeated orientations nested after closing an intermediate sibling', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			direction: 'below',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 4',
-			panelId: 'panel-3',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-
-		const root = requireSplit(requireDefined(state.tabs[0]).root);
-		const repeatedRight = requireSplit(requireDefined(root.children[1]).node);
-
-		expect(root.orientation).toBe('horizontal');
-		expect(repeatedRight.orientation).toBe('horizontal');
-		expect(collectPanelLeaves(root).map((panel) => panel.id)).toEqual([
-			'panel-1',
-			'panel-3',
-			'panel-4',
-		]);
-	});
-
-	it('creates one-level child terminals, switches presentation, and returns to primary on close', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'child-terminal-created',
-		});
-		let panel = requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-1'));
-
-		expect(panel.childPresentations).toHaveLength(1);
-		expect(getDisplayedTerminal(panel).title).toBe('Terminal 2');
-
-		state = apply(state, {
-			childPresentationId: requireDefined(panel.childPresentations[0]).presentationId,
-			panelId: panel.id,
-			tabId: 'tab-a',
-			type: 'child-terminal-closed',
-		});
-		panel = requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-1'));
-
-		expect(panel.childPresentations).toHaveLength(0);
-		expect(getDisplayedTerminal(panel)).toBe(panel.primaryPresentation);
-	});
-
-	it('inherits the displayed terminal cwd when creating a panel or child terminal', () => {
-		let state = createPanelWorkspaceState([{ cwd: '/launch', id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			currentCwd: '/workspace',
-			presentationId: terminalPresentationId('terminal-1'),
-			tabId: 'tab-a',
-			type: 'terminal-current-cwd-changed',
-		});
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'child-terminal-created',
-		});
-
-		const panel = requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-2'));
-		expect(panel.primaryPresentation.currentCwd).toBe('/workspace');
-		expect(panel.primaryPresentation.launchCwd).toBe('/workspace');
-		expect(requireDefined(panel.childPresentations[0])).toMatchObject({
-			currentCwd: '/workspace',
-			launchCwd: '/workspace',
-		});
-		const originalPanel = requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-1'));
-		expect(originalPanel.primaryPresentation).toMatchObject({
-			currentCwd: '/workspace',
-			launchCwd: '/launch',
-		});
-	});
-
-	it('retains a failed provision and requires a fresh operation ID to retry it', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		const split = transitionPanelWorkspace(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			presentation: {
-				kind: 'managed',
-				operationId: terminalPresentationOperationId('provision-2'),
-				presentationId: terminalPresentationId('terminal-2'),
-			},
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = transitionPanelWorkspace(split.state, {
-			failure: { code: 'spawn-failed', retryable: true },
-			operationId: terminalPresentationOperationId('provision-2'),
-			presentationId: terminalPresentationId('terminal-2'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-failed',
-		}).state;
-
-		const panels = collectPanelLeaves(requireDefined(state.tabs[0]).root);
-		expect(panels).toHaveLength(2);
-		expect(
-			requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-2')).primaryPresentation,
-		).toMatchObject({
-			lifecycle: {
-				failure: { code: 'spawn-failed', retryable: true },
-				kind: 'provision-failed',
-			},
-			presentationId: 'terminal-2',
-		});
-		const reusedOperation = transitionPanelWorkspaceCore(state, {
-			operationId: terminalPresentationOperationId('provision-2'),
-			presentationId: terminalPresentationId('terminal-2'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-retried',
-		});
-		expect(reusedOperation).toMatchObject({
-			outcome: 'rejected',
-			rejection: 'stale-operation',
-		});
-		expect(reusedOperation.state).toBe(state);
-		const retry = transitionPanelWorkspaceCore(state, {
-			operationId: terminalPresentationOperationId('provision-2-retry'),
-			presentationId: terminalPresentationId('terminal-2'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-retried',
-		});
-		expect(retry.commands).toEqual([
-			{
-				launchCwd: null,
-				operationId: 'provision-2-retry',
-				presentationId: 'terminal-2',
-				type: 'terminal-provision-requested',
-			},
-		]);
-	});
-
-	it('accepts an authoritative runtime failure before provisioning completes', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-1', 'provision-1'),
-				title: 'Terminal 1',
-			},
-		]);
-		const failure = { code: 'terminal-runtime-pty-read-read-output', retryable: false };
-		const failed = transitionPanelWorkspaceCore(initialization.state, {
-			failure,
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-failed',
-		});
-
-		expect(failed.outcome).toBe('applied');
-		expect(
-			findPanel(requireDefined(failed.state.tabs[0]).root, 'panel-1')?.primaryPresentation
-				.lifecycle,
-		).toEqual({ failure, kind: 'failed' });
-		expect(
-			transitionPanelWorkspaceCore(failed.state, {
-				operationId: terminalPresentationOperationId('provision-1'),
-				presentationId: terminalPresentationId('presentation-1'),
-				tabId: 'tab-a',
-				type: 'terminal-provision-completed',
-			}),
-		).toMatchObject({ outcome: 'rejected', rejection: 'stale-operation' });
-	});
-
-	it('removes only an exited child after disposal and retains a failed disposal for retry', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-primary', 'provision-primary'),
-				title: 'Primary',
-			},
-		]);
-		let state = transitionPanelWorkspaceCore(initialization.state, {
-			operationId: terminalPresentationOperationId('provision-primary'),
-			presentationId: terminalPresentationId('presentation-primary'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			newTerminalTitle: 'Child',
-			panelId: 'panel-1',
-			presentation: managedPresentation('presentation-child', 'provision-child'),
-			tabId: 'tab-a',
-			type: 'child-terminal-created',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			operationId: terminalPresentationOperationId('provision-child'),
-			presentationId: terminalPresentationId('presentation-child'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-
-		const exited = transitionPanelWorkspaceCore(state, {
-			close: managedCloseRequest('presentation-child', 'close-child', 'remove-child'),
-			exitCode: null,
-			presentationId: terminalPresentationId('presentation-child'),
-			signal: 'SIGTERM',
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		});
-		expect(exited.commands).toEqual([
-			{
-				disposition: 'remove',
-				operationId: 'close-child',
-				presentationId: 'presentation-child',
-				type: 'terminal-close-requested',
-			},
-		]);
-		expect(
-			getDisplayedTerminal(requireDefined(findPanel(requireTab(exited.state).root, 'panel-1'))),
-		).toMatchObject({ lifecycle: { kind: 'closing' }, presentationId: 'presentation-child' });
-
-		const failed = transitionPanelWorkspaceCore(exited.state, {
-			failure: { code: 'host-busy', retryable: true },
-			operationId: terminalPresentationOperationId('close-child'),
-			presentationId: terminalPresentationId('presentation-child'),
-			removalId: terminalPresentationRemovalId('remove-child'),
-			tabId: 'tab-a',
-			type: 'terminal-close-failed',
-		});
-		expect(requireTab(failed.state).root).toMatchObject({
-			childPresentations: [{ lifecycle: { failure: { code: 'host-busy' }, kind: 'close-failed' } }],
-		});
-		const retry = transitionPanelWorkspaceCore(failed.state, {
-			operationId: terminalPresentationOperationId('close-child-retry'),
-			presentationId: terminalPresentationId('presentation-child'),
-			removalId: terminalPresentationRemovalId('remove-child'),
-			tabId: 'tab-a',
-			type: 'terminal-close-retried',
-		});
-		const completed = completeManagedClose(
-			retry.state,
-			'presentation-child',
-			'close-child-retry',
-			'remove-child',
-		);
-		const panel = requireDefined(findPanel(requireTab(completed.state).root, 'panel-1'));
-		expect(panel.childPresentations).toEqual([]);
-		expect(getDisplayedTerminal(panel).presentationId).toBe('presentation-primary');
-		expect(completed.state.pendingRemovals).toEqual([]);
-	});
-
-	it('promotes the active surviving child, with the first child as the no-active fallback', () => {
-		function stateWithTwoChildren(): PanelWorkspaceState {
-			const initialization = initializePanelWorkspace([
-				{
-					id: 'tab-a',
-					presentation: managedPresentation('presentation-primary', 'provision-primary'),
-					title: 'Primary',
-				},
-			]);
-			let state = transitionPanelWorkspaceCore(initialization.state, {
-				operationId: terminalPresentationOperationId('provision-primary'),
-				presentationId: terminalPresentationId('presentation-primary'),
-				tabId: 'tab-a',
-				type: 'terminal-provision-completed',
-			}).state;
-			for (const [presentationId, operationId, title] of [
-				['presentation-child-1', 'provision-child-1', 'Child 1'],
-				['presentation-child-2', 'provision-child-2', 'Child 2'],
-			] as const) {
-				state = transitionPanelWorkspaceCore(state, {
-					newTerminalTitle: title,
-					panelId: 'panel-1',
-					presentation: managedPresentation(presentationId, operationId),
-					tabId: 'tab-a',
-					type: 'child-terminal-created',
-				}).state;
-				state = transitionPanelWorkspaceCore(state, {
-					operationId: terminalPresentationOperationId(operationId),
-					presentationId: terminalPresentationId(presentationId),
-					tabId: 'tab-a',
-					type: 'terminal-provision-completed',
-				}).state;
-			}
-			return state;
-		}
-
-		let activeState = transitionPanelWorkspaceCore(stateWithTwoChildren(), {
-			childPresentationId: terminalPresentationId('presentation-child-1'),
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'child-terminal-activated',
-		}).state;
-		const activeExit = transitionPanelWorkspaceCore(activeState, {
-			close: managedCloseRequest(
-				'presentation-primary',
-				'close-primary-active',
-				'remove-primary-active',
+	it('keeps slot ids unique when dragging a panel out of a non-collapsing nested split', () => {
+		const root = requireTab(
+			oneTabState(
+				snapshotSplit(
+					1,
+					'horizontal',
+					snapshotSplit(
+						2,
+						'vertical',
+						snapshotPanel(1),
+						snapshotSplit(3, 'vertical', snapshotPanel(3), snapshotPanel(4)),
+					),
+					snapshotPanel(2),
+				),
 			),
-			exitCode: 7,
-			presentationId: terminalPresentationId('presentation-primary'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		});
-		expect(activeExit.commands).toEqual([
-			{
-				disposition: 'remove',
-				operationId: 'close-primary-active',
-				presentationId: 'presentation-primary',
-				type: 'terminal-close-requested',
-			},
-		]);
-		activeState = activeExit.state;
-		const activeCompleted = completeManagedClose(
-			activeState,
-			'presentation-primary',
-			'close-primary-active',
-			'remove-primary-active',
-		);
-		const activePanel = requireDefined(
-			findPanel(requireTab(activeCompleted.state).root, 'panel-1'),
-		);
-		expect(activePanel.primaryPresentation.presentationId).toBe('presentation-child-1');
-		expect(activePanel.childPresentations.map(({ presentationId }) => presentationId)).toEqual([
-			'presentation-child-2',
-		]);
-		expect(activePanel.activeChildPresentationId).toBeNull();
+		).root;
 
-		let fallbackState = transitionPanelWorkspaceCore(stateWithTwoChildren(), {
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'primary-terminal-shown',
-		}).state;
-		fallbackState = transitionPanelWorkspaceCore(fallbackState, {
-			close: managedCloseRequest(
-				'presentation-primary',
-				'close-primary-fallback',
-				'remove-primary-fallback',
-			),
-			exitCode: 0,
-			presentationId: terminalPresentationId('presentation-primary'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		}).state;
-		const fallbackCompleted = completeManagedClose(
-			fallbackState,
-			'presentation-primary',
-			'close-primary-fallback',
-			'remove-primary-fallback',
-		);
-		expect(
-			findPanel(requireTab(fallbackCompleted.state).root, 'panel-1')?.primaryPresentation
-				.presentationId,
-		).toBe('presentation-child-1');
-
-		let concurrentState = transitionPanelWorkspaceCore(stateWithTwoChildren(), {
-			childPresentationId: terminalPresentationId('presentation-child-1'),
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'child-terminal-activated',
-		}).state;
-		concurrentState = transitionPanelWorkspaceCore(concurrentState, {
-			close: managedCloseRequest(
-				'presentation-primary',
-				'close-primary-concurrent',
-				'remove-primary-concurrent',
-			),
-			exitCode: 0,
-			presentationId: terminalPresentationId('presentation-primary'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		}).state;
-		concurrentState = transitionPanelWorkspaceCore(concurrentState, {
-			close: managedCloseRequest(
-				'presentation-child-1',
-				'close-child-concurrent',
-				'remove-child-concurrent',
-			),
-			exitCode: 0,
-			presentationId: terminalPresentationId('presentation-child-1'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		}).state;
-		const concurrentPrimaryCompleted = completeManagedClose(
-			concurrentState,
-			'presentation-primary',
-			'close-primary-concurrent',
-			'remove-primary-concurrent',
-		);
-		const concurrentPanel = requireDefined(
-			findPanel(requireTab(concurrentPrimaryCompleted.state).root, 'panel-1'),
-		);
-		expect(concurrentPanel.primaryPresentation.presentationId).toBe('presentation-child-2');
-		expect(concurrentPanel.activeChildPresentationId).toBeNull();
-		expect(concurrentPrimaryCompleted.state.pendingRemovals).toEqual([
-			expect.objectContaining({ kind: 'child', removalId: 'remove-child-concurrent' }),
-		]);
+		expect(() =>
+			assertValidDragPreview(root, fixturePanelId(1), fixturePanelId(2), 'left'),
+		).not.toThrow();
 	});
 
-	it('waits when its only child exits concurrently before closing the final Tab', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-primary', 'provision-primary'),
-				title: 'Primary',
-			},
-		]);
-		let state = transitionPanelWorkspaceCore(initialization.state, {
-			operationId: terminalPresentationOperationId('provision-primary'),
-			presentationId: terminalPresentationId('presentation-primary'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			newTerminalTitle: 'Child',
-			panelId: 'panel-1',
-			presentation: managedPresentation('presentation-child', 'provision-child'),
-			tabId: 'tab-a',
-			type: 'child-terminal-created',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			operationId: terminalPresentationOperationId('provision-child'),
-			presentationId: terminalPresentationId('presentation-child'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			close: managedCloseRequest('presentation-primary', 'close-primary', 'remove-primary'),
-			exitCode: 0,
-			presentationId: terminalPresentationId('presentation-primary'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			close: managedCloseRequest('presentation-child', 'close-child', 'remove-child'),
-			exitCode: 0,
-			presentationId: terminalPresentationId('presentation-child'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		}).state;
-
-		const primaryCompleted = completeManagedClose(
-			state,
-			'presentation-primary',
-			'close-primary',
-			'remove-primary',
-		);
-		expect(primaryCompleted.commands).toEqual([]);
-		expect(primaryCompleted.state.pendingRemovals).toHaveLength(2);
-		const childCompleted = completeManagedClose(
-			primaryCompleted.state,
-			'presentation-child',
-			'close-child',
-			'remove-child',
-		);
-		expect(childCompleted.commands).toEqual([
-			{ removalId: 'remove-primary', tabId: 'tab-a', type: 'tab-close-ready' },
-		]);
-		expect(childCompleted.state.pendingRemovals).toEqual([
-			expect.objectContaining({ kind: 'tab', removalId: 'remove-primary' }),
-		]);
-	});
-
-	it('removes an exited primary Panel with deterministic focus and escalates concurrent final Panels to Tab closure', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-1', 'provision-1'),
-				title: 'Terminal 1',
-			},
-		]);
-		let state = transitionPanelWorkspaceCore(initialization.state, {
-			operationId: terminalPresentationOperationId('provision-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			presentation: managedPresentation('presentation-2', 'provision-2'),
-			tabId: 'tab-a',
-			type: 'panel-split',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			operationId: terminalPresentationOperationId('provision-2'),
-			presentationId: terminalPresentationId('presentation-2'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-
-		state = transitionPanelWorkspaceCore(state, {
-			close: managedCloseRequest('presentation-2', 'close-2', 'remove-2'),
-			exitCode: 0,
-			presentationId: terminalPresentationId('presentation-2'),
-			signal: null,
-			tabId: 'tab-a',
-			type: 'terminal-exited',
-		}).state;
-		const blockedChild = transitionPanelWorkspaceCore(state, {
-			newTerminalTitle: 'Must not start',
-			panelId: 'panel-2',
-			presentation: managedPresentation('presentation-blocked', 'provision-blocked'),
-			tabId: 'tab-a',
-			type: 'child-terminal-created',
-		});
-		expect(blockedChild).toMatchObject({
-			commands: [],
-			outcome: 'rejected',
-			rejection: 'terminal-removal-conflict',
-		});
-		expect(blockedChild.state).toBe(state);
-		const focusedRemoval = completeManagedClose(state, 'presentation-2', 'close-2', 'remove-2');
-		expect(requireTab(focusedRemoval.state).focusedPanelId).toBe('panel-1');
-
-		let concurrentState = transitionPanelWorkspaceCore(
-			transitionPanelWorkspaceCore(initialization.state, {
-				operationId: terminalPresentationOperationId('provision-1'),
-				presentationId: terminalPresentationId('presentation-1'),
-				tabId: 'tab-a',
-				type: 'terminal-provision-completed',
-			}).state,
-			{
-				direction: 'right',
-				newTerminalTitle: 'Terminal 2',
-				panelId: 'panel-1',
-				presentation: managedPresentation('presentation-2', 'provision-2'),
-				tabId: 'tab-a',
-				type: 'panel-split',
-			},
-		).state;
-		concurrentState = transitionPanelWorkspaceCore(concurrentState, {
-			operationId: terminalPresentationOperationId('provision-2'),
-			presentationId: terminalPresentationId('presentation-2'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		for (const [presentationId, operationId, removalId] of [
-			['presentation-1', 'close-concurrent-1', 'remove-concurrent-1'],
-			['presentation-2', 'close-concurrent-2', 'remove-concurrent-2'],
-		] as const) {
-			concurrentState = transitionPanelWorkspaceCore(concurrentState, {
-				close: managedCloseRequest(presentationId, operationId, removalId),
-				exitCode: 0,
-				presentationId: terminalPresentationId(presentationId),
-				signal: null,
-				tabId: 'tab-a',
-				type: 'terminal-exited',
-			}).state;
-		}
-		const firstCompleted = completeManagedClose(
-			concurrentState,
-			'presentation-1',
-			'close-concurrent-1',
-			'remove-concurrent-1',
-		);
-		expect(collectPanelLeaves(requireTab(firstCompleted.state).root)).toHaveLength(1);
-		const finalCompleted = completeManagedClose(
-			firstCompleted.state,
-			'presentation-2',
-			'close-concurrent-2',
-			'remove-concurrent-2',
-		);
-		expect(finalCompleted.commands).toEqual([
-			{ removalId: 'remove-concurrent-2', tabId: 'tab-a', type: 'tab-close-ready' },
-		]);
-	});
-
-	it('clears transient terminal metadata when a stopped session starts fresh', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				cwd: '/launch',
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-1', 'provision-1'),
-				title: 'Terminal 1',
-			},
-		]);
-		let state = transitionPanelWorkspaceCore(initialization.state, {
-			operationId: terminalPresentationOperationId('provision-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			closeActivity: 'active',
-			currentCwd: '/observed',
-			naturalTitle: 'old process',
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-metadata-changed',
-		}).state;
-		const stopping = transitionPanelWorkspaceCore(state, {
-			operations: [
-				{
-					operationId: terminalPresentationOperationId('stop-1'),
-					presentationId: terminalPresentationId('presentation-1'),
-				},
-			],
-			type: 'terminal-sessions-stop-requested',
-		});
-		expect(stopping.commands).toEqual([
-			{
-				disposition: 'stop',
-				operationId: 'stop-1',
-				presentationId: 'presentation-1',
-				type: 'terminal-close-requested',
-			},
-		]);
-		state = stopping.state;
-		state = transitionPanelWorkspaceCore(state, {
-			operationId: terminalPresentationOperationId('stop-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-stop-completed',
-		}).state;
-
-		const restarted = transitionPanelWorkspaceCore(state, {
-			presentation: managedPresentation('presentation-2', 'provision-2'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-stopped-session-started',
-		});
-
-		expect(
-			getDisplayedTerminal(
-				requireDefined(findPanel(requireDefined(restarted.state.tabs[0]).root, 'panel-1')),
-			),
-		).toMatchObject({
-			closeActivity: 'idle',
-			currentCwd: '/launch',
-			naturalTitle: null,
-			presentationId: 'presentation-2',
-			title: 'Terminal 1',
-		});
-	});
-
-	it('uses the latest Panel focus history when a managed close commits', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-1', 'provision-1'),
-				title: 'Terminal 1',
-			},
-		]);
-		let state = transitionPanelWorkspaceCore(initialization.state, {
-			operationId: terminalPresentationOperationId('provision-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		for (const [panelId, sequence] of [
-			['panel-1', 2],
-			['panel-2', 3],
-		] as const) {
-			state = transitionPanelWorkspaceCore(state, {
-				direction: 'right',
-				newTerminalTitle: `Terminal ${sequence}`,
-				panelId,
-				presentation: managedPresentation(`presentation-${sequence}`, `provision-${sequence}`),
-				tabId: 'tab-a',
-				type: 'panel-split',
-			}).state;
-			state = transitionPanelWorkspaceCore(state, {
-				operationId: terminalPresentationOperationId(`provision-${sequence}`),
-				presentationId: terminalPresentationId(`presentation-${sequence}`),
-				tabId: 'tab-a',
-				type: 'terminal-provision-completed',
-			}).state;
-		}
-		for (const panelId of ['panel-1', 'panel-3', 'panel-2']) {
-			state = apply(state, { panelId, tabId: 'tab-a', type: 'panel-focused' });
-		}
-		state = transitionPanelWorkspaceCore(state, {
-			close: managedCloseRequest('presentation-2', 'close-2', 'remove-panel-2'),
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		}).state;
-		for (const panelId of ['panel-1', 'panel-3']) {
-			state = apply(state, { panelId, tabId: 'tab-a', type: 'panel-focused' });
-		}
-
-		const completed = completeManagedClose(state, 'presentation-2', 'close-2', 'remove-panel-2');
-
-		expect(requireTab(completed.state)).toMatchObject({
-			focusedPanelId: 'panel-3',
-			panelFocusHistory: ['panel-1', 'panel-3'],
-		});
-	});
-
-	it('keeps a partially closed Panel until failed terminals retry and complete', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-1', 'provision-1'),
-				title: 'Terminal 1',
-			},
-		]);
-		expect(initialization.commands).toEqual([
-			{
-				launchCwd: null,
-				operationId: 'provision-1',
-				presentationId: 'presentation-1',
-				type: 'terminal-provision-requested',
-			},
-		]);
-		let state = transitionPanelWorkspaceCore(initialization.state, {
-			operationId: terminalPresentationOperationId('provision-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			presentation: managedPresentation('presentation-2', 'provision-2'),
-			tabId: 'tab-a',
-			type: 'panel-split',
-		}).state;
-		state = transitionPanelWorkspaceCore(state, {
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-2',
-			presentation: managedPresentation('presentation-3', 'provision-3'),
-			tabId: 'tab-a',
-			type: 'child-terminal-created',
-		}).state;
-		for (const [presentationId, operationId] of [
-			['presentation-2', 'provision-2'],
-			['presentation-3', 'provision-3'],
-		] as const) {
-			state = transitionPanelWorkspaceCore(state, {
-				operationId: terminalPresentationOperationId(operationId),
-				presentationId: terminalPresentationId(presentationId),
-				tabId: 'tab-a',
-				type: 'terminal-provision-completed',
-			}).state;
-		}
-
-		const close = transitionPanelWorkspaceCore(state, {
-			close: {
-				kind: 'managed',
-				operations: [
-					{
-						operationId: terminalPresentationOperationId('close-2'),
-						presentationId: terminalPresentationId('presentation-2'),
-					},
-					{
-						operationId: terminalPresentationOperationId('close-3'),
-						presentationId: terminalPresentationId('presentation-3'),
-					},
-				],
-				removalId: terminalPresentationRemovalId('remove-panel-2'),
-			},
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-closed',
-		});
-		expect(close.commands).toEqual([
-			{
-				disposition: 'remove',
-				operationId: 'close-2',
-				presentationId: 'presentation-2',
-				type: 'terminal-close-requested',
-			},
-			{
-				disposition: 'remove',
-				operationId: 'close-3',
-				presentationId: 'presentation-3',
-				type: 'terminal-close-requested',
-			},
-		]);
-		expect(collectPanelLeaves(requireTab(close.state).root)).toHaveLength(2);
-
-		const firstCompleted = transitionPanelWorkspaceCore(close.state, {
-			operationId: terminalPresentationOperationId('close-2'),
-			presentationId: terminalPresentationId('presentation-2'),
-			removalId: terminalPresentationRemovalId('remove-panel-2'),
-			tabId: 'tab-a',
-			type: 'terminal-close-completed',
-		});
-		const partialFailure = transitionPanelWorkspaceCore(firstCompleted.state, {
-			failure: { code: 'host-busy', retryable: true },
-			operationId: terminalPresentationOperationId('close-3'),
-			presentationId: terminalPresentationId('presentation-3'),
-			removalId: terminalPresentationRemovalId('remove-panel-2'),
-			tabId: 'tab-a',
-			type: 'terminal-close-failed',
-		});
-		expect(collectPanelLeaves(requireTab(partialFailure.state).root)).toHaveLength(2);
-		expect(
-			findPanel(requireTab(partialFailure.state).root, 'panel-2')?.primaryPresentation.lifecycle,
-		).toMatchObject({ kind: 'closed' });
-		expect(
-			findPanel(requireTab(partialFailure.state).root, 'panel-2')?.childPresentations[0]?.lifecycle,
-		).toMatchObject({ failure: { code: 'host-busy' }, kind: 'close-failed' });
-
-		const stale = transitionPanelWorkspaceCore(partialFailure.state, {
-			operationId: terminalPresentationOperationId('close-3'),
-			presentationId: terminalPresentationId('presentation-3'),
-			removalId: terminalPresentationRemovalId('remove-panel-2'),
-			tabId: 'tab-a',
-			type: 'terminal-close-completed',
-		});
-		expect(stale).toMatchObject({ outcome: 'rejected', rejection: 'stale-operation' });
-		expect(stale.state).toBe(partialFailure.state);
-		const reusedOperation = transitionPanelWorkspaceCore(partialFailure.state, {
-			operationId: terminalPresentationOperationId('close-3'),
-			presentationId: terminalPresentationId('presentation-3'),
-			removalId: terminalPresentationRemovalId('remove-panel-2'),
-			tabId: 'tab-a',
-			type: 'terminal-close-retried',
-		});
-		expect(reusedOperation).toMatchObject({
-			outcome: 'rejected',
-			rejection: 'stale-operation',
-		});
-		expect(reusedOperation.state).toBe(partialFailure.state);
-
-		const retry = transitionPanelWorkspaceCore(partialFailure.state, {
-			operationId: terminalPresentationOperationId('close-3-retry'),
-			presentationId: terminalPresentationId('presentation-3'),
-			removalId: terminalPresentationRemovalId('remove-panel-2'),
-			tabId: 'tab-a',
-			type: 'terminal-close-retried',
-		});
-		expect(retry.commands).toEqual([
-			{
-				disposition: 'remove',
-				operationId: 'close-3-retry',
-				presentationId: 'presentation-3',
-				type: 'terminal-close-requested',
-			},
-		]);
-		const completed = transitionPanelWorkspaceCore(retry.state, {
-			operationId: terminalPresentationOperationId('close-3-retry'),
-			presentationId: terminalPresentationId('presentation-3'),
-			removalId: terminalPresentationRemovalId('remove-panel-2'),
-			tabId: 'tab-a',
-			type: 'terminal-close-completed',
-		});
-		expect(collectPanelLeaves(requireTab(completed.state).root).map((panel) => panel.id)).toEqual([
-			'panel-1',
-		]);
-		expect(completed.state.pendingRemovals).toEqual([]);
-	});
-
-	it('ignores a late provision result after close has committed and emits Tab readiness last', () => {
-		const initialization = initializePanelWorkspace([
-			{
-				id: 'tab-a',
-				presentation: managedPresentation('presentation-1', 'provision-1'),
-				title: 'Terminal 1',
-			},
-		]);
-		const close = transitionPanelWorkspaceCore(initialization.state, {
-			close: {
-				kind: 'managed',
-				operations: [
-					{
-						operationId: terminalPresentationOperationId('close-1'),
-						presentationId: terminalPresentationId('presentation-1'),
-					},
-				],
-				removalId: terminalPresentationRemovalId('remove-tab-a'),
-			},
-			tabId: 'tab-a',
-			type: 'tab-close-requested',
-		});
-		const lateProvision = transitionPanelWorkspaceCore(close.state, {
-			operationId: terminalPresentationOperationId('provision-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			tabId: 'tab-a',
-			type: 'terminal-provision-completed',
-		});
-		expect(lateProvision).toMatchObject({ outcome: 'rejected', rejection: 'stale-operation' });
-		expect(lateProvision.state).toBe(close.state);
-		const prematureReconciliation = transitionPanelWorkspaceCore(close.state, {
-			tabs: [],
-			type: 'tabs-reconciled',
-		});
-		expect(prematureReconciliation).toMatchObject({
-			outcome: 'rejected',
-			rejection: 'terminal-removal-required',
-		});
-		expect(prematureReconciliation.state).toBe(close.state);
-
-		const completed = transitionPanelWorkspaceCore(close.state, {
-			operationId: terminalPresentationOperationId('close-1'),
-			presentationId: terminalPresentationId('presentation-1'),
-			removalId: terminalPresentationRemovalId('remove-tab-a'),
-			tabId: 'tab-a',
-			type: 'terminal-close-completed',
-		});
-		expect(completed.commands).toEqual([
-			{ removalId: 'remove-tab-a', tabId: 'tab-a', type: 'tab-close-ready' },
-		]);
-		expect(completed.state.tabs).toHaveLength(1);
-		expect(completed.state.pendingRemovals).toHaveLength(1);
-
-		const reconciled = transitionPanelWorkspaceCore(completed.state, {
-			tabs: [],
-			type: 'tabs-reconciled',
-		});
-		expect(reconciled.state).toMatchObject({ pendingRemovals: [], tabs: [] });
-	});
-
-	it('restores layout before splitting a maximized panel and refuses to close the last panel', () => {
-		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 2',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		state = apply(state, {
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-maximization-toggled',
-		});
-		state = apply(state, {
-			direction: 'below',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-
-		expect(requireDefined(state.tabs[0]).maximizedPanelId).toBeNull();
-
-		const singleton = createPanelWorkspaceState([{ id: 'tab-b', title: 'Terminal 1' }]);
-		const closeResult = transitionPanelWorkspace(singleton, {
-			panelId: 'panel-1',
-			tabId: 'tab-b',
-			type: 'panel-closed',
-		});
-		expect(closeResult).toMatchObject({ outcome: 'rejected', rejection: 'last-panel' });
-		expect(closeResult.state).toBe(singleton);
-	});
-
-	it('keeps tab workspaces isolated while reconciling additions, removals, and order', () => {
-		let state = createPanelWorkspaceState([
-			{ id: 'tab-a', title: 'Terminal A' },
-			{ id: 'tab-b', title: 'Terminal B' },
-		]);
-		state = apply(state, {
-			direction: 'right',
-			newTerminalTitle: 'Terminal 3',
-			panelId: 'panel-1',
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const tabARoot = requireDefined(state.tabs[0]).root;
-		state = apply(state, {
-			tabs: [
-				{ id: 'tab-b', title: 'Terminal B' },
-				{ id: 'tab-a', title: 'Terminal A' },
-				{ id: 'tab-c', title: 'Terminal C' },
-			],
-			type: 'tabs-reconciled',
-		});
-
-		expect(state.tabs.map((tab) => tab.tabId)).toEqual(['tab-b', 'tab-a', 'tab-c']);
-		expect(requireDefined(state.tabs[1]).root).toBe(tabARoot);
-		expect(collectPanelLeaves(requireDefined(state.tabs[0]).root)).toHaveLength(1);
-		expect(collectPanelLeaves(requireDefined(state.tabs[2]).root)).toHaveLength(1);
-	});
-
-	it('exhausts every ordered subset when reconciling a bounded tab collection', () => {
-		const initial = createPanelWorkspaceState([
-			{ id: 'tab-a', title: 'Terminal A' },
-			{ id: 'tab-b', title: 'Terminal B' },
-		]);
-		const initialTabs = new Map(initial.tabs.map((tab) => [tab.tabId, tab]));
-		const orders = enumerateOrderedSubsets(['tab-a', 'tab-b', 'tab-c']);
-
-		for (const order of orders) {
-			const result = transitionPanelWorkspace(initial, {
-				tabs: order.map((id) => ({ id, title: id })),
-				type: 'tabs-reconciled',
-			});
-
-			expect(result.state.tabs.map((tab) => tab.tabId)).toEqual(order);
-			expect(
-				result.state.tabs
-					.filter((tab) => initialTabs.has(tab.tabId))
-					.every((tab) => tab === initialTabs.get(tab.tabId)),
-			).toBe(true);
-		}
-
-		expect(orders).toHaveLength(16);
-	});
-
-	it('preserves surviving tab identity through generated reconciliation sequences', () => {
-		const tabOrderArbitrary = uniqueArray(constantFrom('tab-a', 'tab-b', 'tab-c', 'tab-d'), {
-			maxLength: 4,
-		});
-
-		assert(
-			property(array(tabOrderArbitrary, { maxLength: 40 }), (orders) => {
-				let state = createPanelWorkspaceState([
-					{ id: 'tab-a', title: 'Terminal A' },
-					{ id: 'tab-b', title: 'Terminal B' },
-				]);
-				for (const order of orders) {
-					const previousTabs = new Map(state.tabs.map((tab) => [tab.tabId, tab]));
-					const result = transitionPanelWorkspace(state, {
-						tabs: order.map((id) => ({ id, title: id })),
-						type: 'tabs-reconciled',
-					});
-
-					expect(result.state.tabs.map((tab) => tab.tabId)).toEqual(order);
-					expect(
-						result.state.tabs
-							.filter((tab) => previousTabs.has(tab.tabId))
-							.every((tab) => tab === previousTabs.get(tab.tabId)),
-					).toBe(true);
-					state = result.state;
-				}
-			}),
-			{ numRuns: 120, seed: 2_026_07_26 },
-		);
-	});
-
-	it('preserves all invariants through generated stateful action sequences', () => {
-		const actionArbitrary = record({
-			adjustment: constantFrom('narrower', 'reset', 'shorter', 'taller', 'wider'),
-			direction: constantFrom<PanelSplitDirection>('above', 'below', 'left', 'right'),
-			kind: constantFrom(
-				'split',
-				'move',
-				'swap',
-				'equalize',
-				'resize',
-				'keyboard-resize',
-				'create-child',
-				'activate-child',
-				'close-child',
-				'close-panel',
-				'focus',
-				'maximize',
-				'cwd',
-				'show-primary',
-			),
-			primaryIndex: nat(),
-			secondaryIndex: nat(),
-			multiplier: constantFrom<1 | 2>(1, 2),
-			weight: double({ min: -100, max: 200, noNaN: true }),
-		});
-
-		assert(
-			property(array(actionArbitrary, { maxLength: 80 }), (actions) => {
-				let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-				for (const action of actions) {
-					const tab = requireDefined(state.tabs[0]);
-					const panels = collectPanelLeaves(tab.root);
-					const panel = requireDefined(panels[action.primaryIndex % panels.length]);
-					if (action.kind === 'split' && panels.length < 20) {
-						state = apply(state, {
-							direction: action.direction,
-							newTerminalTitle: terminalTitle(state),
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-split',
-						});
-					} else if (action.kind === 'move' && panels.length > 1) {
-						const targetPanel = requireDefined(
-							panels[
-								(action.primaryIndex + 1 + (action.secondaryIndex % (panels.length - 1))) %
-									panels.length
-							],
-						);
-						state = apply(state, {
-							direction: action.direction,
-							panelId: panel.id,
-							tabId: tab.tabId,
-							targetPanelId: targetPanel.id,
-							type: 'panel-moved',
-						});
-					} else if (action.kind === 'swap' && panels.length > 1 && tab.maximizedPanelId === null) {
-						const targetPanel = requireDefined(
-							panels[
-								(action.primaryIndex + 1 + (action.secondaryIndex % (panels.length - 1))) %
-									panels.length
-							],
-						);
-						state = apply(state, {
-							panelId: panel.id,
-							tabId: tab.tabId,
-							targetPanelId: targetPanel.id,
-							type: 'panels-swapped',
-						});
-					} else if (
-						action.kind === 'equalize' &&
-						panels.length > 1 &&
-						tab.maximizedPanelId === null
-					) {
-						state = apply(state, {
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panels-equalized',
-						});
-					} else if (action.kind === 'create-child' && panel.childPresentations.length < 4) {
-						state = apply(state, {
-							newTerminalTitle: terminalTitle(state),
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'child-terminal-created',
-						});
-					} else if (action.kind === 'activate-child' && panel.childPresentations.length > 0) {
-						const child = requireDefined(
-							panel.childPresentations[action.secondaryIndex % panel.childPresentations.length],
-						);
-						state = apply(state, {
-							childPresentationId: child.presentationId,
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'child-terminal-activated',
-						});
-					} else if (action.kind === 'close-child' && panel.childPresentations.length > 0) {
-						const child = requireDefined(
-							panel.childPresentations[action.secondaryIndex % panel.childPresentations.length],
-						);
-						state = apply(state, {
-							childPresentationId: child.presentationId,
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'child-terminal-closed',
-						});
-					} else if (action.kind === 'close-panel' && panels.length > 1) {
-						state = apply(state, {
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-closed',
-						});
-					} else if (action.kind === 'focus') {
-						state = apply(state, {
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-focused',
-						});
-					} else if (action.kind === 'maximize') {
-						state = apply(state, {
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-maximization-toggled',
-						});
-					} else if (action.kind === 'cwd') {
-						state = apply(state, {
-							currentCwd: `/generated/${action.secondaryIndex % 7}`,
-							presentationId: getDisplayedTerminal(panel).presentationId,
-							tabId: tab.tabId,
-							type: 'terminal-current-cwd-changed',
-						});
-					} else if (action.kind === 'show-primary') {
-						state = apply(state, {
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'primary-terminal-shown',
-						});
-					} else if (action.kind === 'resize' && tab.root.kind === 'split') {
-						const separatorIndex = action.secondaryIndex % (tab.root.children.length - 1);
-						state = apply(state, {
-							leadingWeight: action.weight,
-							separatorIndex,
-							splitId: tab.root.id,
-							tabId: tab.tabId,
-							type: 'adjacent-panels-resized',
-						});
-					} else if (action.kind === 'keyboard-resize' && tab.maximizedPanelId === null) {
-						state = apply(state, {
-							adjustment: action.adjustment,
-							multiplier: action.multiplier,
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-size-adjusted',
-						});
-					}
-					expect(state.tabs).toHaveLength(1);
-				}
-			}),
-			{ numRuns: 120, seed: 2_026_07_26 },
-		);
-	});
-
-	it('exhausts every panel move across all layouts with up to three splits', () => {
-		const states = enumerateSplitLayouts(4);
+	it('exhausts every drag preview across all four-Panel layouts', () => {
+		const states = enumerateFourPanelLayouts();
 		let exploredEquivalentMoveCount = 0;
 		let exploredMoveCount = 0;
 
@@ -2152,35 +312,27 @@ describe('panel workspace state', () => {
 						continue;
 					}
 					for (const direction of PANEL_SPLIT_DIRECTIONS) {
-						assertValidPanelMove(state, sourcePanel.id, targetPanel.id, direction);
+						assertValidDragPreview(tab.root, sourcePanel.id, targetPanel.id, direction);
 						exploredMoveCount += 1;
 					}
 				}
 			}
 			for (const move of collectEquivalentPanelMoves(tab.root)) {
 				expect(projectPanelDrag(tab.root, move.panelId, move)).toBe(tab.root);
-				expect(
-					transitionPanelWorkspace(state, {
-						...move,
-						tabId: tab.tabId,
-						type: 'panel-moved',
-					}),
-				).toMatchObject({ outcome: 'unchanged', state });
 				exploredEquivalentMoveCount += 1;
 			}
 		}
 
-		expect(states).toHaveLength(384);
-		expect(exploredMoveCount).toBe(18_432);
+		expect(states).toHaveLength(40);
+		expect(exploredMoveCount).toBe(1_920);
 		expect(exploredEquivalentMoveCount).toBeGreaterThan(0);
 	});
 
-	it('exhausts panel, presentation, focus, maximize, close, swap, equalize, and resize actions across bounded layouts', () => {
-		const states = enumerateSplitLayouts(4);
-		const terminalCwds = ['/a', '/b', '/c', '/d', '/e'] as const;
+	it('exhausts focus, maximize, and metadata changes across four-Panel layouts', () => {
+		const terminalCwds = ['/a', '/b', '/c'] as const;
 		let exploredActionCount = 0;
 
-		for (const state of states) {
+		for (const state of enumerateFourPanelLayouts()) {
 			const tab = requireTab(state);
 			const panels = collectPanelLeaves(tab.root);
 			const originalPanelIds = new Set(panels.map((panel) => panel.id));
@@ -2219,62 +371,14 @@ describe('panel workspace state', () => {
 				});
 				exploredActionCount += 2;
 
-				const createChildResult = transitionPanelWorkspace(state, {
-					newTerminalTitle: terminalTitle(state),
-					panelId: panel.id,
-					tabId: tab.tabId,
-					type: 'child-terminal-created',
-				});
-				const panelWithChild = requireDefined(
-					findPanel(requireTab(createChildResult.state).root, panel.id),
-				);
-				const child = requireDefined(panelWithChild.childPresentations.at(-1));
-				expect(panelWithChild.activeChildPresentationId).toBe(child.presentationId);
-				expect(child.currentCwd).toBe(getDisplayedTerminal(panel).currentCwd);
-				expect(requireTab(createChildResult.state).focusedPanelId).toBe(panel.id);
-
-				const primaryResult = transitionPanelWorkspace(createChildResult.state, {
-					panelId: panel.id,
-					tabId: tab.tabId,
-					type: 'primary-terminal-shown',
-				});
-				expect(
-					requireDefined(findPanel(requireTab(primaryResult.state).root, panel.id))
-						.activeChildPresentationId,
-				).toBeNull();
-
-				const activateResult = transitionPanelWorkspace(primaryResult.state, {
-					childPresentationId: child.presentationId,
-					panelId: panel.id,
-					tabId: tab.tabId,
-					type: 'child-terminal-activated',
-				});
-				expect(
-					requireDefined(findPanel(requireTab(activateResult.state).root, panel.id))
-						.activeChildPresentationId,
-				).toBe(child.presentationId);
-
-				const closeChildResult = transitionPanelWorkspace(activateResult.state, {
-					childPresentationId: child.presentationId,
-					panelId: panel.id,
-					tabId: tab.tabId,
-					type: 'child-terminal-closed',
-				});
-				const panelAfterChildClose = requireDefined(
-					findPanel(requireTab(closeChildResult.state).root, panel.id),
-				);
-				expect(panelAfterChildClose.childPresentations).toHaveLength(
-					panel.childPresentations.length,
-				);
-				expect(panelAfterChildClose.activeChildPresentationId).toBeNull();
-				exploredActionCount += 4;
-
 				for (const currentCwd of terminalCwds) {
 					const cwdResult = transitionPanelWorkspace(state, {
+						closeActivity: 'idle',
 						currentCwd,
+						naturalTitle: null,
 						presentationId: panel.primaryPresentation.presentationId,
 						tabId: tab.tabId,
-						type: 'terminal-current-cwd-changed',
+						type: 'terminal-metadata-changed',
 					});
 					expect(
 						requireDefined(findPanel(requireTab(cwdResult.state).root, panel.id))
@@ -2283,186 +387,135 @@ describe('panel workspace state', () => {
 					expect(hasPanelMembership(requireTab(cwdResult.state).root, originalPanelIds)).toBe(true);
 					exploredActionCount += 1;
 				}
-
-				for (const adjustment of ['narrower', 'reset', 'shorter', 'taller', 'wider'] as const) {
-					for (const multiplier of [1, 2] as const) {
-						const keyboardResizeResult = transitionPanelWorkspace(state, {
-							adjustment,
-							multiplier,
-							panelId: panel.id,
-							tabId: tab.tabId,
-							type: 'panel-size-adjusted',
-						});
-						expect(keyboardResizeResult.rejection).toBeNull();
-						expect(
-							hasPanelMembership(requireTab(keyboardResizeResult.state).root, originalPanelIds),
-						).toBe(true);
-						exploredActionCount += 1;
-					}
-				}
-
-				for (const targetPanel of panels) {
-					if (targetPanel.id === panel.id) continue;
-					const swapResult = transitionPanelWorkspace(state, {
-						panelId: panel.id,
-						tabId: tab.tabId,
-						targetPanelId: targetPanel.id,
-						type: 'panels-swapped',
-					});
-					const swappedTab = requireTab(swapResult.state);
-					expect(swapResult).toMatchObject({ outcome: 'applied', rejection: null });
-					expect(hasPanelMembership(swappedTab.root, originalPanelIds)).toBe(true);
-					expect(findPanel(swappedTab.root, panel.id)).toBe(panel);
-					expect(findPanel(swappedTab.root, targetPanel.id)).toBe(targetPanel);
-					expect(swappedTab.focusedPanelId).toBe(panel.id);
-					expect({
-						panel: swapResult.state.nextPanelSequence,
-						slot: swapResult.state.nextPanelSlotSequence,
-						split: swapResult.state.nextSplitSequence,
-						terminal: swapResult.state.nextTerminalSequence,
-					}).toEqual({
-						panel: state.nextPanelSequence,
-						slot: state.nextPanelSlotSequence,
-						split: state.nextSplitSequence,
-						terminal: state.nextTerminalSequence,
-					});
-					const roundTrip = transitionPanelWorkspace(swapResult.state, {
-						panelId: panel.id,
-						tabId: tab.tabId,
-						targetPanelId: targetPanel.id,
-						type: 'panels-swapped',
-					});
-					expect(requireTab(roundTrip.state).root).toEqual(tab.root);
-					exploredActionCount += 1;
-				}
-
-				const equalizeResult = transitionPanelWorkspace(state, {
-					panelId: panel.id,
-					tabId: tab.tabId,
-					type: 'panels-equalized',
-				});
-				expect(equalizeResult.rejection).toBeNull();
-				expect(hasPanelMembership(requireTab(equalizeResult.state).root, originalPanelIds)).toBe(
-					true,
-				);
-				expect(requireTab(equalizeResult.state).focusedPanelId).toBe(tab.focusedPanelId);
-				exploredActionCount += 1;
-
-				const closeResult = transitionPanelWorkspace(state, {
-					panelId: panel.id,
-					tabId: tab.tabId,
-					type: 'panel-closed',
-				});
-				expect(closeResult.outcome).toBe('applied');
-				const remainingPanelIds = new Set(
-					[...originalPanelIds].filter((panelId) => panelId !== panel.id),
-				);
-				expect(hasPanelMembership(requireTab(closeResult.state).root, remainingPanelIds)).toBe(
-					true,
-				);
-				expect(requireTab(closeResult.state).focusedPanelId).toBe(
-					tab.focusedPanelId === panel.id
-						? ([...tab.panelFocusHistory].reverse().find((panelId) => panelId !== panel.id) ??
-								(panels[panels.indexOf(panel) - 1] ?? panels[panels.indexOf(panel) + 1])?.id)
-						: tab.focusedPanelId,
-				);
-				exploredActionCount += 1;
-			}
-
-			for (const split of collectPanelSplits(tab.root)) {
-				for (
-					let separatorIndex = 0;
-					separatorIndex < split.children.length - 1;
-					separatorIndex += 1
-				) {
-					const leadingChild = requireDefined(split.children[separatorIndex]);
-					const trailingChild = requireDefined(split.children[separatorIndex + 1]);
-					const pairWeight = leadingChild.weight + trailingChild.weight;
-					for (const leadingWeight of [-10, 0, pairWeight / 2, pairWeight, pairWeight + 10]) {
-						const resizeResult = transitionPanelWorkspace(state, {
-							leadingWeight,
-							separatorIndex,
-							splitId: split.id,
-							tabId: tab.tabId,
-							type: 'adjacent-panels-resized',
-						});
-						const resizedSplit = requireDefined(
-							collectPanelSplits(requireTab(resizeResult.state).root).find(
-								(candidate) => candidate.id === split.id,
-							),
-						);
-						const expectedLeadingWeight = Math.min(Math.max(leadingWeight, 0), pairWeight);
-						expect(requireDefined(resizedSplit.children[separatorIndex]).weight).toBeCloseTo(
-							expectedLeadingWeight,
-						);
-						expect(requireDefined(resizedSplit.children[separatorIndex + 1]).weight).toBeCloseTo(
-							pairWeight - expectedLeadingWeight,
-						);
-						expect(
-							resizedSplit.children
-								.filter((_, index) => index !== separatorIndex && index !== separatorIndex + 1)
-								.map((child) => child.weight),
-						).toEqual(
-							split.children
-								.filter((_, index) => index !== separatorIndex && index !== separatorIndex + 1)
-								.map((child) => child.weight),
-						);
-						exploredActionCount += 1;
-					}
-				}
 			}
 		}
 
-		expect(states).toHaveLength(384);
-		expect(exploredActionCount).toBe(47_232);
-	}, 15_000);
+		expect(exploredActionCount).toBe(40 * 4 * 6);
+	});
 
-	it('keeps generated split layouts valid across every possible panel move', () => {
-		const splitActionArbitrary = record({
-			direction: constantFrom<PanelSplitDirection>('above', 'below', 'left', 'right'),
-			panelIndex: nat({ max: 7 }),
+	it('records focus history and switches between child terminals and the primary', () => {
+		let state = oneTabState(
+			snapshotSplit(
+				1,
+				'horizontal',
+				snapshotPanel(1, snapshotPresentation(1), [snapshotPresentation(4)]),
+				snapshotSplit(2, 'vertical', snapshotPanel(2), snapshotPanel(3)),
+			),
+		);
+		for (const sequence of [3, 2]) {
+			state = transitionPanelWorkspace(state, {
+				panelId: fixturePanelId(sequence),
+				tabId: TAB_ID,
+				type: 'panel-focused',
+			}).state;
+		}
+
+		expect(requireTab(state).panelFocusHistory).toEqual([
+			fixturePanelId(1),
+			fixturePanelId(3),
+			fixturePanelId(2),
+		]);
+
+		const activated = transitionPanelWorkspace(state, {
+			childPresentationId: terminalPresentationId(fixturePresentationId(4)),
+			panelId: fixturePanelId(1),
+			tabId: TAB_ID,
+			type: 'child-terminal-activated',
+		}).state;
+		const activatedPanel = requireDefined(findPanel(requireTab(activated).root, fixturePanelId(1)));
+
+		expect(getDisplayedTerminal(activatedPanel).presentationId).toBe(fixturePresentationId(4));
+		expect(requireTab(activated).focusedPanelId).toBe(fixturePanelId(1));
+
+		const primary = transitionPanelWorkspace(activated, {
+			panelId: fixturePanelId(1),
+			tabId: TAB_ID,
+			type: 'primary-terminal-shown',
+		}).state;
+		const primaryPanel = requireDefined(findPanel(requireTab(primary).root, fixturePanelId(1)));
+
+		expect(primaryPanel.activeChildPresentationId).toBeNull();
+		expect(getDisplayedTerminal(primaryPanel)).toBe(primaryPanel.primaryPresentation);
+	});
+
+	it('reports malformed panel focus histories', () => {
+		const state = oneTabState(snapshotPanel(1));
+		const tab = requireTab(state);
+		const panelId = fixturePanelId(1);
+
+		expect(
+			validatePanelWorkspaceState({ ...state, tabs: [{ ...tab, panelFocusHistory: [] }] }),
+		).toContain(`Empty panel focus history: ${TAB_ID}`);
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, panelFocusHistory: [panelId, panelId] }],
+			}),
+		).toContain(`Duplicate panel focus history id: ${panelId}`);
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, panelFocusHistory: ['missing-panel', panelId] }],
+			}),
+		).toContain('Missing panel in focus history: missing-panel');
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, focusedPanelId: 'missing-panel', panelFocusHistory: [panelId] }],
+			}),
+		).toContain(`Panel focus history does not end with focused panel: ${TAB_ID}`);
+	});
+
+	it('keeps tab workspaces isolated while reordering and refuses a Tab it holds no Panels for', () => {
+		const state = publishedState([
+			snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
+			snapshotTab(2, snapshotPanel(3)),
+		]);
+		const tabARoot = requireTab(state).root;
+
+		const reordered = transitionPanelWorkspace(state, {
+			tabIds: [fixtureTabId(2), fixtureTabId(1)],
+			type: 'tabs-reconciled',
+		}).state;
+		const added = transitionPanelWorkspace(state, {
+			tabIds: [fixtureTabId(1), fixtureTabId(2), fixtureTabId(3)],
+			type: 'tabs-reconciled',
 		});
 
-		assert(
-			property(array(splitActionArbitrary, { maxLength: 8, minLength: 3 }), (splitActions) => {
-				let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-				for (const action of splitActions) {
-					const tab = requireDefined(state.tabs[0]);
-					const panels = collectPanelLeaves(tab.root);
-					const panel = requireDefined(panels[action.panelIndex % panels.length]);
-					state = apply(state, {
-						direction: action.direction,
-						newTerminalTitle: terminalTitle(state),
-						panelId: panel.id,
-						tabId: tab.tabId,
-						type: 'panel-split',
-					});
-				}
+		expect(reordered.tabs.map((tab) => tab.tabId)).toEqual([fixtureTabId(2), fixtureTabId(1)]);
+		expect(requireTab(reordered, 1).root).toBe(tabARoot);
+		expect(collectPanelLeaves(requireTab(reordered).root)).toHaveLength(1);
+		expect(added).toMatchObject({
+			outcome: 'rejected',
+			rejection: 'terminal-presentation-required',
+		});
+		expect(added.state).toBe(state);
+	});
 
-				const tab = requireDefined(state.tabs[0]);
-				const panels = collectPanelLeaves(tab.root);
-				for (const sourcePanel of panels) {
-					for (const targetPanel of panels) {
-						if (sourcePanel.id === targetPanel.id) {
-							continue;
-						}
-						for (const direction of PANEL_SPLIT_DIRECTIONS) {
-							assertValidPanelMove(state, sourcePanel.id, targetPanel.id, direction);
-						}
-					}
-				}
-				for (const move of collectEquivalentPanelMoves(tab.root)) {
-					expect(projectPanelDrag(tab.root, move.panelId, move)).toBe(tab.root);
-					expect(
-						transitionPanelWorkspace(state, {
-							...move,
-							tabId: tab.tabId,
-							type: 'panel-moved',
-						}),
-					).toMatchObject({ outcome: 'unchanged', state });
-				}
-			}),
-			{ numRuns: 120, seed: 2_026_07_26 },
-		);
+	it('exhausts every ordered subset when reconciling a bounded tab collection', () => {
+		const initial = publishedState([snapshotTab(1), snapshotTab(2), snapshotTab(3)]);
+		const tabIds = initial.tabs.map((tab) => tab.tabId);
+		const initialTabs = new Map(initial.tabs.map((tab) => [tab.tabId, tab]));
+		const orders = enumerateOrderedSubsets(tabIds);
+		const permutations = orders.filter((order) => order.length === tabIds.length);
+		const removals = orders.filter((order) => order.length < tabIds.length);
+
+		for (const order of permutations) {
+			const result = transitionPanelWorkspace(initial, { tabIds: order, type: 'tabs-reconciled' });
+
+			expect(result.state.tabs.map((tab) => tab.tabId)).toEqual(order);
+			expect(result.state.tabs.every((tab) => tab === initialTabs.get(tab.tabId))).toBe(true);
+		}
+		for (const order of removals) {
+			const result = transitionPanelWorkspace(initial, { tabIds: order, type: 'tabs-reconciled' });
+
+			expect(result).toMatchObject({
+				outcome: 'rejected',
+				rejection: 'terminal-removal-required',
+			});
+			expect(result.state).toBe(initial);
+		}
+
+		expect([permutations.length, removals.length]).toEqual([6, 10]);
 	});
 });

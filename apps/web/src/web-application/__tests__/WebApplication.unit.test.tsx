@@ -1,32 +1,26 @@
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
-import {
-	createWorkbenchPreviewTerminalPresentationComposition,
-	WorkbenchProjectWorkspaceRuntime,
-} from '../../workbench';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { ApplicationLocaleController } from '../../application-locale';
+import {
+	createSnapshotRuntime,
+	workbenchSnapshot,
+} from '../../__tests__/server-workbench-snapshot';
 import { WebApplication } from '../WebApplication';
+import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
 
 describe('WebApplication', () => {
-	it('renders the Workbench with the initial terminal tabs', () => {
+	it('renders the Workbench before the Server holds any Workspace', () => {
 		const actionRuntime = new ActionRuntime();
-		let presentationSequence = 0;
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/workspace',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-				terminalPresentationId('web:standalone:initial'),
-				() => terminalPresentationId(`web:test:dynamic:${(presentationSequence += 1)}`),
-			),
-		});
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			workbenchSnapshot(1, { workspaces: [] }, []),
+		);
 		const terminalSettingsController = new TerminalSettingsController({
 			storage: { getItem: () => null, setItem: () => undefined },
 			themeTarget: { dataset: {} },
@@ -45,6 +39,7 @@ describe('WebApplication', () => {
 					createElement(WebApplication, {
 						actionRuntime,
 						applicationLocaleController: createApplicationLocaleController(),
+						authority: inertAuthority,
 						keyboardShortcutSettingsController,
 						layoutStorage: {
 							getItem: () => '{"width":320}',
@@ -62,19 +57,16 @@ describe('WebApplication', () => {
 		expect(markup).toContain('data-slot="workbench-right-panel"');
 		expect(markup).toContain('flex-basis:320px');
 		expect(markup).toContain('role="tablist"');
-		expect(markup).toContain('aria-label="workspace"');
-		expect(markup).not.toContain('Terminal 1');
-		expect(markup).not.toContain('Terminal 4');
 		expect(markup).toContain('aria-label="Create Project"');
 		expect(markup).not.toContain('data-slot="workbench-sidebar-project"');
 		expect(markup).not.toContain('data-slot="workbench-sidebar-workspace"');
-		expect(markup).not.toContain('Local shell');
-		expect(markup).not.toContain('本地 Shell');
 		actionRuntime.dispose();
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
 	});
 });
+
+const inertAuthority = inertWorkbenchAuthority();
 
 function createApplicationLocaleController(): ApplicationLocaleController {
 	return new ApplicationLocaleController({

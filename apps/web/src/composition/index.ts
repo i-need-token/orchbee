@@ -1,1 +1,1 @@
-export { startWebApplication } from './startWebApplication';
+export { startWebRenderer } from './startWebRenderer';

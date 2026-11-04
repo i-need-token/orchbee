@@ -5,7 +5,7 @@ import {
 	TerminalPresentationOperationIdSchema,
 	TerminalPresentationRemovalIdSchema,
 } from './terminal-presentation-contract';
-import { assertWorkbenchSharedProjectWorkspaceInvariants } from './workbench-shared-project-workspace-contract';
+import { assertWorkbenchSharedProjectWorkspaceInvariants } from './assertWorkbenchSharedProjectWorkspaceInvariants';
 
 const identifierSchema = z.string().min(1);
 const sequenceSchema = z.number().int().positive();

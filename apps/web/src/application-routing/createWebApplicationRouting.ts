@@ -121,16 +121,13 @@ const routeTree = webApplicationRootRoute.addChildren([
 	workspaceTabRoute,
 ]);
 
-interface WebApplicationRoutingInput extends Omit<WebApplicationProps, 'navigation'> {
-	/** Names the terminal a first route opens; a Server Client's terminals come from its Server. */
-	readonly getInitialTerminalTitle?: (() => string) | undefined;
-}
+type WebApplicationRoutingInput = Omit<WebApplicationProps, 'navigation'>;
 
 const createWebApplicationRoutingImplementation = (
 	input: WebApplicationRoutingInput,
 	history?: RouterHistory | undefined,
 ) => {
-	const { getInitialTerminalTitle, ...application } = input;
+	const application = input;
 	let routeHistory: RouterHistory | undefined = history;
 	const coordinator = new WorkbenchRouteCoordinator(
 		application.projectWorkspaceRuntime,
@@ -140,7 +137,6 @@ const createWebApplicationRoutingImplementation = (
 			if (options.replace) routeHistory.replace(path);
 			else routeHistory.push(path);
 		},
-		getInitialTerminalTitle,
 	);
 	const router = createRouter({
 		context: { application, coordinator },

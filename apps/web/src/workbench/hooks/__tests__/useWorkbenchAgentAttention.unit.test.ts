@@ -1,19 +1,24 @@
 // @vitest-environment jsdom
 
-import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/model/PanelWorkspaceStore';
+import {
+	createSnapshotRuntime,
+	fixturePresentationId,
+	oneWorkspaceSnapshot,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
 import type { WorkbenchAgentSnapshot } from '../../types/workbench-agent-observation';
 import { useWorkbenchAgentAttention } from '../useWorkbenchAgentAttention';
+
+const PRESENTATION_ID = fixturePresentationId(1);
 
 function observation(sequence: bigint): WorkbenchAgentSnapshot {
 	return {
 		complete: true,
 		presentations: new Map([
-			['terminal', { agent: 'codex', binding: 'binding', sequence, state: 'idle' }],
+			[PRESENTATION_ID, { agent: 'codex', binding: 'binding', sequence, state: 'idle' }],
 		]),
 	};
 }
@@ -51,22 +56,14 @@ describe('Workbench Agent read visibility', () => {
 		const layer = document.createElement('div');
 		const viewport = document.createElement('div');
 		layer.dataset['presentationMode'] = 'active';
-		viewport.dataset['terminalPresentationId'] = 'terminal';
+		viewport.dataset['terminalPresentationId'] = PRESENTATION_ID;
 		layer.append(viewport);
 		element.append(layer);
 		document.body.append(element);
 		const root = { current: element };
-		const tabModel = new TabModel({
-			activeTabId: 'tab',
-			tabs: [{ group: null, id: 'tab', pinned: false, title: 'Terminal' }],
-		});
-		const panels = new PanelWorkspaceStore(tabModel, {
-			composition: {
-				createPresentationId: () => terminalPresentationId('next'),
-				initialPresentationId: terminalPresentationId('terminal'),
-				kind: 'preview',
-			},
-		});
+		const { panelWorkspaceStore: panels, tabModel } = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		).getActiveTerminalContext();
 		let snapshot = observation(1n);
 		const listeners = new Set<() => void>();
 		const source = {
@@ -96,7 +93,7 @@ describe('Workbench Agent read visibility', () => {
 		layer.dataset['presentationMode'] = 'active';
 		await paint();
 		expect(rendered.result.current.unread.size).toBe(0);
-		expect(painted).toHaveBeenLastCalledWith(snapshot, new Set(['terminal']));
+		expect(painted).toHaveBeenLastCalledWith(snapshot, new Set([PRESENTATION_ID]));
 		expect(rendered.result.current.observation).toBe(snapshot);
 	});
 });

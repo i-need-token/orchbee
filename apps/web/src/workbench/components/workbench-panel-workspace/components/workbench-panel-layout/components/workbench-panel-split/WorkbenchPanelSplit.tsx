@@ -38,7 +38,6 @@ export function WorkbenchPanelSplit({
 				null);
 	const resize = useAdjacentPanelResize(
 		split,
-		view.resizeAdjacentPanels,
 		MINIMUM_PANEL_SIZE_PX,
 		maximizedChildId,
 		view.sharedSplitResize,

@@ -65,7 +65,7 @@
 				"Open Shell integration to inspect completion-reminder and Agent-notification policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action.",
-				"Inspect System appearance and locale, notification sound, shared save/conflict/reload/reset status when the composition supplies device preferences, and independent Browser Preview persistence."
+				"Inspect System appearance and locale, notification sound, shared save/conflict/reload/reset status when the composition supplies device preferences, and independent origin records otherwise."
 			]
 		},
 		{
@@ -75,7 +75,7 @@
 			"states": [
 				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, the absence of roadmap-only categories or controls.",
 				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor.",
-				"Inspect System appearance and locale, notification sound, shared save/conflict/reload/reset status when the composition supplies device preferences, and independent Browser Preview persistence."
+				"Inspect System appearance and locale, notification sound, shared save/conflict/reload/reset status when the composition supplies device preferences, and independent origin records otherwise."
 			]
 		}
 	],
@@ -94,7 +94,7 @@
 		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate."
 	],
 	"avoidWhen": [
-		"A terminal setting must synchronize through the shared Workbench document or be writable by Browser Preview clients.",
+		"A terminal setting must synchronize through the shared Workbench document.",
 		"Ghostty files, included configuration, or themes must be read, or analyzed values must be applied automatically.",
 		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured."
 	],
@@ -111,7 +111,7 @@
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles live in the Session's shared preferences, change only executable and literal ordered arguments, and affect only terminals launched after the Server commits the catalog; running and restored terminals retain their captured launch.",
-		"Desktop scrollback defaults commit to the Session's shared preferences, and the Worker gives the value to each terminal it launches after the save, so existing history never changes; Browser Preview omits the row.",
+		"Desktop scrollback defaults commit to the Session's shared preferences, and the Worker gives the value to each terminal it launches after the save, so existing history never changes; a composition without that control omits the row.",
 		"Agent integration inventory is read-only on startup and refresh; Agent-specific details stay behind Desktop adapters while the renderer receives only the ten canonical Agent labels, bounded states, and privacy-safe failures.",
 		"Agent integration mutation begins only from an explicit Settings switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success.",
 		"Disabling removes or disables only Orchbee's exact owned entry, preserves unrelated Agent configuration and any shared local marketplace, and records the reminder dismissal; a verified successful enable clears that Agent's dismissal.",

@@ -1,7 +1,4 @@
-import type {
-	WorkbenchAgentSource,
-	WorkbenchTerminalPresentationEventResult,
-} from '../../../workbench';
+import type { WorkbenchAgentSource } from '../../../workbench';
 import type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalPresentationSnapshot,
@@ -71,9 +68,6 @@ export interface ProjectedTerminalSurfaceCapability {
 			'closeActivity' | 'currentDirectory' | 'revision' | 'title'
 		>,
 	): void;
-	startStoppedTerminalSession(
-		presentationId: TerminalPresentationId,
-	): WorkbenchTerminalPresentationEventResult;
 }
 
 export const ProjectedTerminalSurfaceCapabilityContext =

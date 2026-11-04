@@ -3,21 +3,16 @@ import { ActionRuntime } from '@orchbee/actions';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	createSnapshotRuntime,
+	oneWorkspaceSnapshot,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
 import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
 import { defaultWorkbenchShortcutBindings } from '../../utils/workbench-shortcuts';
 import { useWorkbench } from '../useWorkbench';
-
-function createTestTerminalPresentationComposition(scope: string) {
-	let sequence = 0;
-	return createWorkbenchPreviewTerminalPresentationComposition(
-		terminalPresentationId(`${scope}:initial`),
-		() => terminalPresentationId(`${scope}:dynamic:${(sequence += 1)}`),
-	);
-}
 
 interface WorkbenchHarnessProps {
 	readonly actionRuntime: ActionRuntime;
@@ -28,13 +23,10 @@ interface WorkbenchHarnessProps {
 function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: WorkbenchHarnessProps) {
 	const workbench = useWorkbench({
 		actionRuntime,
+		authority: inertWorkbenchAuthority(),
 		isShortcutScopeActive: true,
 		onSettings: undefined,
-		projectWorkspaceRuntime: new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('use-workbench'),
-		}),
+		projectWorkspaceRuntime: createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)])),
 		shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
 		shortcutPlatform: 'apple',
 		storage,

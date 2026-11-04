@@ -52,41 +52,23 @@ interface PanelActionOperations {
 		panelId: string,
 		childPresentationId: TerminalPresentationId,
 	) => PanelWorkspaceTransition | null;
-	readonly closeDisplayedTerminal: (input: PanelCloseInput) => PanelWorkspaceTransition | null;
 	readonly canStartBroadcastInput: (panelId: string) => boolean;
-	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
-	readonly equalizePanels: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly focusPanel: (panelId: string) => PanelWorkspaceTransition | null;
-	readonly movePanel: (
-		panelId: string,
-		targetPanelId: string,
-		direction: 'above' | 'below' | 'left' | 'right',
-	) => PanelWorkspaceTransition | null;
-	readonly resizePanel: (
-		panelId: string,
-		adjustment: 'narrower' | 'reset' | 'shorter' | 'taller' | 'wider',
-		multiplier: 1 | 2,
-	) => PanelWorkspaceTransition | null;
 	readonly showPrimaryTerminal: (panelId: string) => PanelWorkspaceTransition | null;
-	readonly splitPanel: (
-		panelId: string,
-		direction: 'above' | 'below' | 'left' | 'right',
-	) => { readonly panelId: string; readonly transition: PanelWorkspaceTransition } | null;
 	readonly startPanelResize: (panelId: string) => boolean;
 	readonly startBroadcastInput: (panelId: string) => boolean;
 	readonly startPanelVisualSelection: (
 		panelId: string,
 		mode: PanelVisualSelectionInput['mode'],
 	) => boolean;
-	readonly swapPanels: (panelId: string, targetPanelId: string) => PanelWorkspaceTransition | null;
 	readonly togglePanelMaximization: (panelId: string) => PanelWorkspaceTransition | null;
 }
 
 interface UseWorkbenchPanelActionsOptions {
 	readonly activeTab: TabPanelWorkspace | null;
-	/** Decides shared structure when this Client does not; without one, the operations do. */
-	readonly authority?: WorkbenchAuthority | undefined;
-	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate | undefined;
+	/** Decides the shared Workbench structure. */
+	readonly authority: WorkbenchAuthority;
+	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
 	readonly operations: PanelActionOperations;
 	readonly panelCount: number;
 	readonly parentScope: ActionScope;
@@ -274,16 +256,10 @@ export function useWorkbenchPanelActions({
 								}
 							: targetAvailability(input.panelId),
 					handler: {
-						execute: (context, input) => {
-							if (authority !== undefined && sharedTabTarget !== null) {
-								return authority.change(context, { ...sharedTabTarget, type: 'panels-equalized' });
-							}
-							const result = resultFor(operations.equalizePanels(input.panelId));
-							if (result.kind === 'completed') {
-								context.markCommitted();
-							}
-							return result;
-						},
+						execute: (context) =>
+							sharedTabTarget === null
+								? { code: 'active-tab-unavailable', kind: 'blocked' }
+								: authority.change(context, { ...sharedTabTarget, type: 'panels-equalized' }),
 					},
 					id: PANEL_ACTION_IDS.equalize,
 					input: panelTargetInput,
@@ -311,21 +287,16 @@ export function useWorkbenchPanelActions({
 					},
 					handler: {
 						execute: (context, input) => {
-							if (authority !== undefined && sharedTabTarget !== null) {
-								// Which Panel holds this Client's focus is not the authority's to say.
-								operations.focusPanel(input.panelId);
-								return authority.change(context, {
-									...sharedTabTarget,
-									panelId: input.panelId,
-									targetPanelId: input.targetPanelId,
-									type: 'panels-swapped',
-								});
-							}
-							const result = resultFor(operations.swapPanels(input.panelId, input.targetPanelId));
-							if (result.kind === 'completed') {
-								context.markCommitted();
-							}
-							return result;
+							if (sharedTabTarget === null)
+								return { code: 'active-tab-unavailable', kind: 'blocked' };
+							// Which Panel holds this Client's focus is not the authority's to say.
+							operations.focusPanel(input.panelId);
+							return authority.change(context, {
+								...sharedTabTarget,
+								panelId: input.panelId,
+								targetPanelId: input.targetPanelId,
+								type: 'panels-swapped',
+							});
 						},
 					},
 					id: PANEL_ACTION_IDS.swap,
@@ -348,24 +319,16 @@ export function useWorkbenchPanelActions({
 						return targetAvailability(input.panelId);
 					},
 					handler: {
-						execute: (context, input) => {
-							if (authority !== undefined && sharedTabTarget !== null) {
-								return authority.change(context, {
-									...sharedTabTarget,
-									adjustment: input.adjustment,
-									multiplier: input.multiplier,
-									panelId: input.panelId,
-									type: 'panel-size-adjusted',
-								});
-							}
-							const result = resultFor(
-								operations.resizePanel(input.panelId, input.adjustment, input.multiplier),
-							);
-							if (result.kind === 'completed') {
-								context.markCommitted();
-							}
-							return result;
-						},
+						execute: (context, input) =>
+							sharedTabTarget === null
+								? { code: 'active-tab-unavailable', kind: 'blocked' }
+								: authority.change(context, {
+										...sharedTabTarget,
+										adjustment: input.adjustment,
+										multiplier: input.multiplier,
+										panelId: input.panelId,
+										type: 'panel-size-adjusted',
+									}),
 					},
 					id: PANEL_ACTION_IDS.resize,
 					input: panelResizeInput,
@@ -391,10 +354,7 @@ export function useWorkbenchPanelActions({
 										input.childPresentationId === null
 											? workbenchMessages.panelCloseTitle
 											: workbenchMessages.panelCloseRunningTitle,
-									watch:
-										authority === undefined
-											? undefined
-											: (withdraw) => authority.watchClose(closureFor(input), withdraw),
+									watch: (withdraw) => authority.watchClose(closureFor(input), withdraw),
 								}
 							: null;
 					},
@@ -406,9 +366,8 @@ export function useWorkbenchPanelActions({
 					getAvailability: (_context, input) => {
 						const panel = findCloseTarget(input);
 						// The Server contract closes a Panel, and has no command for one of its child terminals.
-						const childUnavailable = authority !== undefined && input.childPresentationId !== null;
 						return panel === null ||
-							childUnavailable ||
+							input.childPresentationId !== null ||
 							(input.childPresentationId === null && panelCount < 2)
 							? {
 									kind: 'disabled',
@@ -417,18 +376,7 @@ export function useWorkbenchPanelActions({
 							: { kind: 'enabled' };
 					},
 					handler: {
-						execute: (context, input) => {
-							if (authority !== undefined) return authority.close(context, closureFor(input));
-							const transition = operations.closeDisplayedTerminal(input);
-							if (transition === null) {
-								return { code: 'stale-target', kind: 'blocked' };
-							}
-							const result = resultFor(transition);
-							if (result.kind === 'completed') {
-								context.markCommitted();
-							}
-							return result;
-						},
+						execute: (context, input) => authority.close(context, closureFor(input)),
 					},
 					id: PANEL_ACTION_IDS.close,
 					input: panelCloseInput,
@@ -459,18 +407,15 @@ export function useWorkbenchPanelActions({
 					execution,
 					getAvailability: (_context, input) => targetAvailability(input.panelId),
 					handler: {
-						execute: (context, input) => {
-							if (createPanelTerminal !== undefined && sharedTabTarget !== null) {
-								return createPanelTerminal(context, {
-									...sharedTabTarget,
-									cwd: reportedDirectory(input.panelId),
-									panelId: input.panelId,
-									type: 'child-terminal',
-								}).then(withoutOutput);
-							}
-							context.markCommitted();
-							return resultFor(operations.createChildTerminal(input.panelId));
-						},
+						execute: (context, input) =>
+							sharedTabTarget === null
+								? { code: 'active-tab-unavailable', kind: 'blocked' }
+								: createPanelTerminal(context, {
+										...sharedTabTarget,
+										cwd: reportedDirectory(input.panelId),
+										panelId: input.panelId,
+										type: 'child-terminal',
+									}).then(withoutOutput),
 					},
 					id: PANEL_ACTION_IDS.createChildTerminal,
 					input: panelTargetInput,
@@ -514,21 +459,17 @@ export function useWorkbenchPanelActions({
 					},
 					handler: {
 						execute: (context, input) => {
-							if (authority !== undefined && sharedTabTarget !== null) {
-								// Which Panel holds this Client's focus is not the authority's to say.
-								operations.focusPanel(input.panelId);
-								return authority.change(context, {
-									...sharedTabTarget,
-									direction: input.direction,
-									panelId: input.panelId,
-									targetPanelId: input.targetPanelId,
-									type: 'panel-moved',
-								});
-							}
-							context.markCommitted();
-							return resultFor(
-								operations.movePanel(input.panelId, input.targetPanelId, input.direction),
-							);
+							if (sharedTabTarget === null)
+								return { code: 'active-tab-unavailable', kind: 'blocked' };
+							// Which Panel holds this Client's focus is not the authority's to say.
+							operations.focusPanel(input.panelId);
+							return authority.change(context, {
+								...sharedTabTarget,
+								direction: input.direction,
+								panelId: input.panelId,
+								targetPanelId: input.targetPanelId,
+								type: 'panel-moved',
+							});
 						},
 					},
 					id: PANEL_ACTION_IDS.move,
@@ -568,28 +509,16 @@ export function useWorkbenchPanelActions({
 					execution,
 					getAvailability: (_context, input) => targetAvailability(input.panelId),
 					handler: {
-						execute: (context, input) => {
-							if (createPanelTerminal !== undefined && sharedTabTarget !== null) {
-								return createPanelTerminal(context, {
-									...sharedTabTarget,
-									cwd: reportedDirectory(input.panelId),
-									direction: input.direction,
-									panelId: input.panelId,
-									type: 'panel-split',
-								});
-							}
-							context.markCommitted();
-							const result = operations.splitPanel(input.panelId, input.direction);
-							if (result === null || result.transition.outcome === 'rejected') {
-								return {
-									code: result?.transition.rejection ?? 'active-tab-unavailable',
-									kind: 'blocked',
-								};
-							}
-							return result.transition.outcome === 'unchanged'
-								? { kind: 'unchanged' }
-								: { kind: 'completed', value: result.panelId };
-						},
+						execute: (context, input) =>
+							sharedTabTarget === null
+								? { code: 'active-tab-unavailable', kind: 'blocked' }
+								: createPanelTerminal(context, {
+										...sharedTabTarget,
+										cwd: reportedDirectory(input.panelId),
+										direction: input.direction,
+										panelId: input.panelId,
+										type: 'panel-split',
+									}),
 					},
 					id: PANEL_ACTION_IDS.split,
 					input: panelSplitInput,

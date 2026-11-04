@@ -1,40 +1,28 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import { TabModel } from '@orchbee/tab-strip';
 import { act, render, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/model/PanelWorkspaceStore';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	createSnapshotRuntime,
+	fixturePresentationId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
 import type { WorkbenchAgentSnapshot } from '../../types/workbench-agent-observation';
 import { useWorkbenchAgentPresentation } from '../useWorkbenchAgentPresentation';
 
 describe('useWorkbenchAgentPresentation', () => {
 	it('shows a Tab’s Agent and state only while the Server observes one in it', () => {
-		const presentationId = terminalPresentationId('agent-presentation-hook');
-		const tabModel = new TabModel({
-			activeTabId: 'agent-tab-hook',
-			tabs: [{ group: null, id: 'agent-tab-hook', pinned: false, title: 'Terminal' }],
-		});
-		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
-			composition: {
-				createPresentationId: () => terminalPresentationId('agent-presentation-dynamic'),
-				initialPresentationId: presentationId,
-				kind: 'preview',
-			},
-		});
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal',
-			terminalPresentation: {
-				createPresentationId: () => terminalPresentationId('agent-project-dynamic'),
-				initialPresentationId: terminalPresentationId('agent-project-initial'),
-				kind: 'preview',
-			},
-		});
+		const presentationId = fixturePresentationId(1);
+		const tabId = fixtureTabId(1);
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		);
+		const { panelWorkspaceStore, tabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
 		let snapshot: WorkbenchAgentSnapshot = {
 			complete: true,
 			presentations: new Map([
@@ -69,12 +57,12 @@ describe('useWorkbenchAgentPresentation', () => {
 			},
 		);
 
-		expect(rendered.result.current.tabStatusAdornments.get('agent-tab-hook')).toMatchObject({
+		expect(rendered.result.current.tabStatusAdornments.get(tabId)).toMatchObject({
 			accessibleLabel: 'Claude Code: Working',
 			kind: 'active',
 		});
 		const activeIcon = render(
-			createElement('div', null, rendered.result.current.tabIdentityIcons.get('agent-tab-hook')),
+			createElement('div', null, rendered.result.current.tabIdentityIcons.get(tabId)),
 		);
 		expect(activeIcon.container.querySelector('[data-agent-provider-icon="claude"]')).toBeTruthy();
 
@@ -84,7 +72,7 @@ describe('useWorkbenchAgentPresentation', () => {
 			for (const listener of listeners) listener();
 		});
 
-		expect(rendered.result.current.tabStatusAdornments.has('agent-tab-hook')).toBe(false);
-		expect(rendered.result.current.tabIdentityIcons.has('agent-tab-hook')).toBe(false);
+		expect(rendered.result.current.tabStatusAdornments.has(tabId)).toBe(false);
+		expect(rendered.result.current.tabIdentityIcons.has(tabId)).toBe(false);
 	});
 });

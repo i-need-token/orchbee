@@ -4,23 +4,37 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, startTransition, StrictMode, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
+
 import {
-	createProjectWorkspaceState,
-	transitionProjectWorkspace,
-	type ProjectWorkspaceState,
-} from '../../../../../project-workspace';
+	createSnapshotRuntime,
+	fixtureDirectoryId,
+	fixtureProjectId,
+	fixtureWorkspaceId,
+	publishSnapshot,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotProject,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../../../__tests__/server-workbench-snapshot';
 import { useWorkspaceCreationActivation } from '../useWorkspaceCreationActivation';
 
 afterEach(cleanup);
 const subscribeNavigation = () => () => undefined;
+const PRIMARY_WORKSPACE_ID = fixtureWorkspaceId(1);
+const CREATED_WORKSPACE_ID = fixtureWorkspaceId(2);
 
 describe('useWorkspaceCreationActivation', () => {
 	it.each(['before', 'after'] as const)(
 		'waits for committed membership when creation settles %s publication commits',
 		(settlement) => {
 			const activateWorkspace = vi.fn<(workspaceId: string) => void>();
-			const initial = projectState();
-			const published = addWorkspace(initial);
+			const runtime = createSnapshotRuntime(navigationSnapshot(1, [1]));
+			const initial = runtime.getSnapshot();
+			publishSnapshot(runtime, navigationSnapshot(2, [1, 2]));
+			const published = runtime.getSnapshot();
 			const pending = new Promise<void>(() => undefined);
 			const rendered = renderHook(
 				({ snapshot, suspend }) => {
@@ -41,17 +55,17 @@ describe('useWorkspaceCreationActivation', () => {
 			act(() => {
 				startTransition(() => rendered.rerender({ snapshot: published, suspend: true }));
 			});
-			if (settlement === 'before') act(() => complete('workspace-2'));
+			if (settlement === 'before') act(() => complete(CREATED_WORKSPACE_ID));
 			expect(activateWorkspace).not.toHaveBeenCalled();
 			rendered.rerender({ snapshot: published, suspend: false });
-			if (settlement === 'after') act(() => complete('workspace-2'));
-			expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-2');
+			if (settlement === 'after') act(() => complete(CREATED_WORKSPACE_ID));
+			expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith(CREATED_WORKSPACE_ID);
 		},
 	);
 
 	it('waits through publication and regrouping, then activates the exact Workspace once', () => {
 		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
-		let state = projectState();
+		const runtime = createSnapshotRuntime(navigationSnapshot(1, [1]));
 		const rendered = renderHook(
 			({ projectWorkspaceState }) =>
 				useWorkspaceCreationActivation({
@@ -60,27 +74,25 @@ describe('useWorkspaceCreationActivation', () => {
 					projectWorkspaceState,
 				}),
 			{
-				initialProps: { projectWorkspaceState: state },
+				initialProps: { projectWorkspaceState: runtime.getSnapshot() },
 				wrapper: ({ children }) => createElement(StrictMode, null, children),
 			},
 		);
 		const complete = rendered.result.current.begin();
-		act(() => complete('workspace-2'));
+		act(() => complete(CREATED_WORKSPACE_ID));
 		expect(activateWorkspace).not.toHaveBeenCalled();
-		state = addWorkspace(state);
-		state = transitionProjectWorkspace(state, {
-			type: 'project-dissolved',
-			projectId: 'project-1',
-		}).state;
+		// The Server publishes the new Workspace after its Project was dissolved.
+		publishSnapshot(runtime, navigationSnapshot(2, [1, 2], false));
+		const state = runtime.getSnapshot();
 		rendered.rerender({ projectWorkspaceState: state });
-		expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-2');
+		expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith(CREATED_WORKSPACE_ID);
 		rendered.rerender({ projectWorkspaceState: state });
 		expect(activateWorkspace).toHaveBeenCalledOnce();
 	});
 
 	it('activates an already published Workspace after the operation result arrives', () => {
 		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
-		const state = addWorkspace(projectState());
+		const state = createSnapshotRuntime(navigationSnapshot(1, [1, 2])).getSnapshot();
 		const rendered = renderHook(() =>
 			useWorkspaceCreationActivation({
 				subscribeNavigation,
@@ -89,13 +101,13 @@ describe('useWorkspaceCreationActivation', () => {
 			}),
 		);
 		const complete = rendered.result.current.begin();
-		act(() => complete('workspace-2'));
-		expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-2');
+		act(() => complete(CREATED_WORKSPACE_ID));
+		expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith(CREATED_WORKSPACE_ID);
 	});
 
 	it('does not steal focus after navigation away and back, or after explicit navigation to the same location', () => {
 		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
-		let state = projectState();
+		const runtime = createSnapshotRuntime(navigationSnapshot(1, [1]));
 		const rendered = renderHook(
 			({ projectWorkspaceState }) =>
 				useWorkspaceCreationActivation({
@@ -103,21 +115,18 @@ describe('useWorkspaceCreationActivation', () => {
 					activateWorkspace,
 					projectWorkspaceState,
 				}),
-			{ initialProps: { projectWorkspaceState: state } },
+			{ initialProps: { projectWorkspaceState: runtime.getSnapshot() } },
 		);
 		const complete = rendered.result.current.begin();
-		state = transitionProjectWorkspace(state, { type: 'standalone-activated' }).state;
-		rendered.rerender({ projectWorkspaceState: state });
-		state = transitionProjectWorkspace(state, {
-			type: 'workspace-activated',
-			workspaceId: 'workspace-1',
-		}).state;
-		state = addWorkspace(state);
-		rendered.rerender({ projectWorkspaceState: state });
-		act(() => complete('workspace-2'));
+		runtime.transition({ type: 'standalone-activated' });
+		rendered.rerender({ projectWorkspaceState: runtime.getSnapshot() });
+		runtime.transition({ type: 'workspace-activated', workspaceId: PRIMARY_WORKSPACE_ID });
+		publishSnapshot(runtime, navigationSnapshot(2, [1, 2]));
+		rendered.rerender({ projectWorkspaceState: runtime.getSnapshot() });
+		act(() => complete(CREATED_WORKSPACE_ID));
 		const second = rendered.result.current.begin();
 		act(() => rendered.result.current.cancel());
-		act(() => second('workspace-2'));
+		act(() => second(CREATED_WORKSPACE_ID));
 		expect(activateWorkspace).not.toHaveBeenCalled();
 	});
 
@@ -127,46 +136,32 @@ describe('useWorkspaceCreationActivation', () => {
 			useWorkspaceCreationActivation({
 				subscribeNavigation,
 				activateWorkspace,
-				projectWorkspaceState: projectState(),
+				projectWorkspaceState: createSnapshotRuntime(navigationSnapshot(1, [1])).getSnapshot(),
 			}),
 		);
 		const complete = rendered.result.current.begin();
 		rendered.unmount();
-		act(() => complete('workspace-1'));
+		act(() => complete(PRIMARY_WORKSPACE_ID));
 		expect(activateWorkspace).not.toHaveBeenCalled();
 	});
 });
 
-function projectState(): ProjectWorkspaceState {
-	return transitionProjectWorkspace(createProjectWorkspaceState(), {
-		directory: {
-			available: true,
-			git: null,
-			id: 'directory-1',
-			kind: 'folder',
-			name: 'orchbee',
-			path: '/workspace/orchbee',
-			placement: { kind: 'local' },
-			source: 'selected',
+/** Workspaces `sequences` in Directory 1, in Project 1 unless it was dissolved. */
+function navigationSnapshot(
+	revision: number,
+	sequences: readonly number[],
+	grouped = true,
+): WorkbenchSnapshot {
+	const projectId = grouped ? fixtureProjectId(1) : null;
+	return workbenchSnapshot(
+		revision,
+		{
+			directories: [snapshotDirectory(1)],
+			projects: grouped ? [snapshotProject(1)] : [],
+			workspaces: sequences.map((sequence) =>
+				snapshotWorkspace(sequence, { primaryDirectoryId: fixtureDirectoryId(1), projectId }),
+			),
 		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Primary',
-		projectName: 'orchbee',
-		terminalTitle: 'Terminal',
-		type: 'project-created',
-	}).state;
-}
-
-function addWorkspace(state: ProjectWorkspaceState): ProjectWorkspaceState {
-	const next = transitionProjectWorkspace(state, {
-		directoryId: 'directory-1',
-		launchConfigurationId: null,
-		name: 'feature',
-		resourceScopeId: 'resource-scope-1',
-		projectId: 'project-1',
-		terminalTitle: 'Terminal',
-		type: 'workspace-created',
-	}).state;
-	return { ...next, activeLocation: state.activeLocation };
+		sequences.map((sequence) => snapshotContext(sequence, [snapshotTab(sequence)])),
+	);
 }

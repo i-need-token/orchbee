@@ -56,7 +56,7 @@ import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/wor
 
 interface UseWorkbenchActionsOptions {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
-	readonly authority?: WorkbenchAuthority | undefined;
+	readonly authority: WorkbenchAuthority;
 	readonly focusRouting: Pick<
 		WorkbenchFocusRouting,
 		'beginTerminalHandover' | 'focus' | 'getResolution'
@@ -74,16 +74,12 @@ interface UseWorkbenchActionsOptions {
 	readonly openTabTitleEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
-	readonly primaryWorkspaceName: string;
-	readonly defaultWorkspaceName: string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly runtime: ActionRuntime;
 	readonly setTabStripOrientation: (orientation: TabStripOrientation) => void;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly toggleSidebar: () => void;
-	readonly workspaceCopySuffix: string;
-	readonly workspaceTerminalTitle: string;
 	/** The localized default Worktree Workspace label with this ordinal; keep it stable across renders. */
 	readonly worktreeLabel: (ordinal: number) => string;
 }
@@ -116,16 +112,12 @@ export function useWorkbenchActions({
 	openTabTitleEditor,
 	onSettings,
 	onTerminalFontSizeChange,
-	primaryWorkspaceName,
-	defaultWorkspaceName,
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
 	runtime,
 	setTabStripOrientation,
 	tabStripOrientation,
 	toggleSidebar,
-	workspaceCopySuffix,
-	workspaceTerminalTitle,
 	worktreeLabel,
 }: UseWorkbenchActionsOptions): WorkbenchActions {
 	const scope = React.useMemo(() => runtime.createScope('workbench'), [runtime]);
@@ -213,34 +205,26 @@ export function useWorkbenchActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				stoppedTabClose: authority?.stoppedTabClose,
+				stoppedTabClose: authority.stoppedTabClose,
 				typedRuntime,
 			}),
-			...(authority === undefined
-				? []
-				: [
-						registerWorkbenchTabCloseResumeAction({
-							authority,
-							beginTerminalHandover: focusRouting.beginTerminalHandover,
-							formatCloseWarning,
-							projectWorkspaceRuntime,
-							scope,
-							typedRuntime,
-						}),
-					]),
+			registerWorkbenchTabCloseResumeAction({
+				authority,
+				beginTerminalHandover: focusRouting.beginTerminalHandover,
+				formatCloseWarning,
+				projectWorkspaceRuntime,
+				scope,
+				typedRuntime,
+			}),
 			...registerWorkbenchProjectWorkspaceActions({
 				authority,
 				beginTerminalHandover: focusRouting.beginTerminalHandover,
 				navigation,
-				primaryWorkspaceName,
-				defaultWorkspaceName,
 				projectWorkspaceRuntime,
 				scope,
 				typedRuntime,
-				workspaceCopySuffix,
-				workspaceTerminalTitle,
 			}),
-			...(authority?.worktrees === undefined
+			...(authority.worktrees === undefined
 				? []
 				: registerWorkbenchWorktreeActions({
 						projectWorkspaceRuntime,
@@ -250,7 +234,7 @@ export function useWorkbenchActions({
 						worktrees: authority.worktrees,
 					})),
 			registerWorkbenchConfiguredCommandActions({
-				commands: authority?.configuredCommands,
+				commands: authority.configuredCommands,
 				runtime,
 				scope,
 			}),
@@ -280,10 +264,7 @@ export function useWorkbenchActions({
 									kind: 'blocked',
 								};
 							}
-							if (
-								authority !== undefined &&
-								projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'workspace'
-							) {
+							if (projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'workspace') {
 								// A Tab needs a Workspace, and creating one explicitly has its own owner.
 								typedRuntime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
 									scope,
@@ -387,7 +368,7 @@ export function useWorkbenchActions({
 				}),
 			),
 			// Only an authority that reads the Server's Agent sessions has a board to open.
-			...(authority?.agentBoard === undefined
+			...(authority.agentBoard === undefined
 				? []
 				: [
 						typedRuntime.register(
@@ -490,8 +471,6 @@ export function useWorkbenchActions({
 		openAgentBoard,
 		openSearch,
 		openTabTitleEditor,
-		primaryWorkspaceName,
-		defaultWorkspaceName,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,
@@ -500,8 +479,6 @@ export function useWorkbenchActions({
 		tabStripOrientation,
 		toggleSidebar,
 		typedRuntime,
-		workspaceCopySuffix,
-		workspaceTerminalTitle,
 		worktreeLabel,
 	]);
 

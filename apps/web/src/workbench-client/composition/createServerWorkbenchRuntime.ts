@@ -1,5 +1,5 @@
 import { ActionRuntime } from '@orchbee/actions';
-import { createOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { createOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import {
 	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	type ProjectedTerminalPresentationSnapshot,
@@ -14,16 +14,12 @@ import {
 	type WorkbenchWorkspaceLocationSource,
 } from '../../workbench';
 import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
 	workbenchSharedDocumentRevision,
 	type TerminalPresentationId,
 	type WorkbenchSnapshot,
 } from '@orchbee/workbench-client-protocol';
 
 import type { ApplicationLocaleSource } from '../../application-locale';
-import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import { runApplicationCleanup } from '../../runApplicationCleanup';
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import {
@@ -171,21 +167,6 @@ export function createServerWorkbenchRuntime({
 						readWorkbenchFocusRecovery(focusRecoveryStorage),
 					),
 		initialPublication,
-		standaloneCwd: defaultDirectory,
-		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
-		terminalPresentation: {
-			createOperationId: () =>
-				terminalPresentationOperationId(`workbench:operation:${createBrowserRandomIdentifier()}`),
-			createPresentationId: () =>
-				terminalPresentationId(`workbench:presentation:${createBrowserRandomIdentifier()}`),
-			createRemovalId: () =>
-				terminalPresentationRemovalId(`workbench:removal:${createBrowserRandomIdentifier()}`),
-			dispatchCommands: () => undefined,
-			initialPresentationId: terminalPresentationId(
-				`workbench:presentation:${createBrowserRandomIdentifier()}`,
-			),
-			kind: 'managed',
-		},
 	});
 	const boundTerminal = (presentationId: TerminalPresentationId): string | null => {
 		const binding = findServerTerminalBinding(session.snapshot, presentationId);
@@ -357,8 +338,6 @@ export function createServerWorkbenchRuntime({
 		},
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
-		startStoppedTerminalSession: (presentationId) =>
-			projectWorkspaceRuntime.startStoppedTerminalSession(presentationId),
 		...(terminalCompletionReminderObserver === undefined
 			? {}
 			: { terminalCompletionReminderObserver }),

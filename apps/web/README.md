@@ -1,6 +1,6 @@
 # @orchbee/web
 
-Browser composition entry for the Orchbee Workbench.
+Renderer entry for the Orchbee Workbench, which a Desktop window runs as a Server Client.
 
 ## Server Client path
 
@@ -36,28 +36,17 @@ A window whose connection ends, including one that receives a publication it can
 
 The React Workbench lives in `src/workbench`; [Workbench](docs/workbench.md) describes the shell, its Actions, and its reviewed experience records.
 
-A Desktop window reaches Agent integrations through its Server connection, as jobs on the Session's Worker that project a ten-Agent inventory and run explicit Settings refresh, enable, and disable requests. Browser Preview omits this capability.
+A Desktop window reaches Agent integrations through its Server connection, as jobs on the Session's Worker that project a ten-Agent inventory and run explicit Settings refresh, enable, and disable requests.
 
-`apps/web` is the single runnable product UI for both a normal browser page and Electron's renderer. Environment adapters may provide different transport and privileged capabilities, but they compose the same Workbench, Workspace, Tab, Panel, and projected-terminal application. Desktop must not maintain a parallel renderer UI. The shared Workbench client runtime owns shared-document coordination, projected-terminal presentation, search, actions, and its narrow client-session and projection ports. It has no Electron, `MessagePort`, network, or application-lifetime dependency. The runtime provides each projected renderer session with one stable `TerminalPresentationConfigurationSource`. Its initial complete value opens the surface, and later complete values update that same session and attachment without changing React capability identity or reopening projection. The default source retains unbalanced padding, fixes `fontSize` at 13 to match Ghostty's default 13-point setting, and replaces the source-neutral package face with the bundled Ghostty-aligned JetBrains Mono 2.304 variable faces plus Symbols Nerd Font 3.4.0 fallback. Application startup registers those immutable assets before opening any surface; the same bundle and license links serve Browser Preview and Electron renderers without depending on machine-installed fonts. Each application composition replaces that fallback with one client-local settings controller that restores a strict complete preference record, exposes the same stable presentation source, and publishes complete runtime updates without reopening projection.
+`apps/web` is the single product UI that Electron's renderer loads; Desktop must not maintain a parallel renderer UI. Only a Desktop window starts the Workbench: `composition/entry.ts` calls `startWebRenderer`, which runs `startDesktopServerWorkbench` and through it `createServerWorkbenchRuntime` only when `resolveWebRuntimeMode` returns `desktop`. Any other page, including the `pnpm web` development server opened in a browser, renders nothing; Browser ingress to real Sessions waits for remote networking, as the [migration plan's decisions](../../proposals/platform/native-runtime-topology.md#decisions) record. `createServerWorkbenchRuntime` composes projected-terminal presentation, search, Actions, and the Workbench authority over a transport-neutral `ServerConnection`, with no Electron, `MessagePort`, or application-lifetime dependency. The runtime provides each projected renderer session with one stable `TerminalPresentationConfigurationSource`. Its initial complete value opens the surface, and later complete values update that same session and attachment without changing React capability identity or reopening projection. The default source retains unbalanced padding, fixes `fontSize` at 13 to match Ghostty's default 13-point setting, and replaces the source-neutral package face with the bundled Ghostty-aligned JetBrains Mono 2.304 variable faces plus Symbols Nerd Font 3.4.0 fallback. Renderer startup registers those immutable assets before opening any surface, so the renderer never depends on machine-installed fonts. The Desktop composition replaces that fallback with one client-local settings controller that restores a strict complete preference record, exposes the same stable presentation source, and publishes complete runtime updates without reopening projection.
 
-The shared client runtime closes local admission before releasing resources. Session retirement
-settles pending proposals before invoking transport cleanup; a subscription returned after
-synchronous retirement is released immediately. Document startup releases previously acquired
-subscriptions when acquisition fails and never reports readiness after disposal. A thrown or
-rejected proposal completion supplies no proof that the document was not committed: the coordinator
-becomes `control-unavailable`, settles pending flushes, and never automatically resubmits that
-proposal. Cleanup attempts every independent owned resource once and preserves single or aggregated
-failures. Retired surface capabilities cannot apply late terminal metadata. Deterministic capability
-traces cover these local ownership and failure boundaries; they do not claim remote rollback or
-exactly-once document delivery.
+Desktop renderer disposal retires its local lifetime before cleanup. A React unmount failure cannot
+prevent the remaining routing, settings, and transport cleanup attempts. These composition and
+Workbench cleanup paths share `runApplicationCleanup`: repeated or reentrant disposal is inert, and a
+single original error or an ordered aggregate is reported after all independent steps have been
+attempted.
 
-Browser Preview and Desktop renderer disposal retire their local lifetime before cleanup. A React
-unmount failure cannot prevent the remaining routing, settings, and transport cleanup attempts. These composition and Workbench cleanup paths share `runApplicationCleanup`:
-repeated or reentrant disposal is inert, and a single original error or an ordered aggregate is
-reported after all independent steps have been attempted. Composition tests inject failure at the
-React root boundary.
-
-Browser Preview uses an in-memory composition. Desktop reaches its Session through the Server Client path above, and Main serves only native Project Folder acquisition beside that connection. The shared terminal surface retains measured cell geometry, complete background coverage, clipped direct graphics, bounded bell indication, connection notices, and terminal-outcome precedence. Workbench payloads come from `@orchbee/workbench-client-protocol`; Electron capability contracts come from `@orchbee/desktop-client-protocol`.
+Desktop reaches its Session through the Server Client path above, and Main serves only native Project Folder acquisition beside that connection. The shared terminal surface retains measured cell geometry, complete background coverage, clipped direct graphics, bounded bell indication, connection notices, and terminal-outcome precedence. Workbench payloads come from `@orchbee/workbench-client-protocol`; Electron capability contracts come from `@orchbee/desktop-client-protocol`.
 
 Desktop's Server runtime supplies Agent observation through `ServerTerminalAgentSource`, which reads
 the Server's per-terminal Agent reports with `panel-agent` `states` State streams of at most 64
@@ -65,7 +54,7 @@ terminals each, in topology order. A membership change reopens only the streams 
 changed. A failed answer or a closed stream keeps its last Agents for 10 seconds, a capacity close
 reopens after 5 seconds, and a frame that breaks the protocol ends the observation. Workbench
 presentation, Agent notifications through the terminal-feedback controller, and the
-trailing-blank-row policy read that source. Browser Preview supplies none and shows no Agent status.
+trailing-blank-row policy read that source.
 
 For a Host-backed visual terminal, the shared surface does not open projection until it has loaded
 the current configured fonts and measured a positive mounted viewport. It sends the resulting exact
@@ -91,10 +80,6 @@ second after such an exit the window keeps the final frame without naming the en
 does, and a program the Server keeps names its end after that second. The surface names an end
 only once its Presentation has ended too, which leaves that timing to the composition.
 A connection that stays lost reads Disconnected, and an automatic recovery reads Reconnecting….
-Stopped presentations remain a separate Workbench state. Its
-Start New Session control returns the Workbench transition result through the shared composition;
-an accepted result replaces the presentation through the normal durable workflow, while a rejected
-or thrown start remains on the stopped presentation and displays localized failure feedback.
 
 An unexpected attachment loss freezes the last completed canvas and accessible rows while releasing
 its transport and interaction ownership. The shared surface retries a fresh attachment after 250,
@@ -138,7 +123,7 @@ the shared client runtime is disposed. An incoming surface may paint a cached sn
 fresh live attachment produces a frame. That cached draw satisfies only Workbench's display-ready
 barrier; input, pointer interaction, and `autoFocus` remain disabled until the candidate paints its
 first live frame and satisfies activation-ready. On a miss or oversized snapshot, the outgoing
-frozen layer remains visible until live, stopped, or honest failure content is ready. Returning to a
+frozen layer remains visible until live or honest failure content is ready. Returning to a
 still-frozen surface reuses its canvas for the display barrier while attaching a fresh candidate
 behind it. Superseded or inactive sessions cannot acknowledge frames or publish metadata, and each
 surface still releases its per-terminal Canvas, atlas, buffers, and renderer after handoff.
@@ -176,18 +161,17 @@ surface are the only adapter paths that move focus into the hidden terminal inpu
 root contains that input and both surfaces, so moving among them does not publish a terminal focus
 transition.
 
-### Mobile browser terminal interaction
+### Coarse-pointer terminal interaction
 
 | Field                   | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem and scope       | A Browser terminal surface on a coarse, non-hover pointer must expose terminal input, scrolling, and essential keys without redesigning the complete Workbench. Whole-shell responsive layout, native selection handles, multi-touch, pinch zoom, Panel gestures, and configurable key rows are excluded.                                                                                                                                                                                                           |
-| Inputs and dependencies | The application consumes the current projected-attachment input readiness, terminal textarea focus, localized messages, `(hover: none) and (pointer: coarse)`, `VisualViewport` geometry, layout-viewport fallback, and semantic key intents. It never infers Host modes or encodes terminal bytes.                                                                                                                                                                                                                 |
-| State and ownership     | One mounted projected-terminal renderer owns `MobileTerminalInputState`: attachment availability, native keyboard focus, and a subset of one-shot `control`/`alt` modifiers. The React surface only renders that prepared state. The Web composition adapter owns current visual-viewport width, height, and offsets as reversible presentation geometry; it owns no terminal or Workbench state.                                                                                                                   |
+| Problem and scope       | A terminal surface on a coarse, non-hover pointer must expose terminal input, scrolling, and essential keys without redesigning the complete Workbench. Whole-shell responsive layout, native selection handles, multi-touch, pinch zoom, Panel gestures, and configurable key rows are excluded.                                                                                                                                                                                                                   |
+| Inputs and dependencies | The application consumes the current projected-attachment input readiness, terminal textarea focus, localized messages, `(hover: none) and (pointer: coarse)`, and semantic key intents. It never infers Host modes or encodes terminal bytes.                                                                                                                                                                                                                                                                      |
+| State and ownership     | One mounted projected-terminal renderer owns `MobileTerminalInputState`: attachment availability, native keyboard focus, and a subset of one-shot `control`/`alt` modifiers. The React surface only renders that prepared state.                                                                                                                                                                                                                                                                                    |
 | Modifier transitions    | Tapping Control or Alt toggles that one-shot modifier. The next eligible toolbar key, physical key, or independent single printable ASCII native input consumes all armed modifiers before publication. Composition start, paste, multi-character or non-ASCII committed text, blur, read-only downgrade, attachment replacement, recovery, and disposal clear them without transforming or replaying input. A blocked or failed send still consumes the snapshot so stale modifiers cannot affect a later command. |
 | Key row and focus       | The canonical `projected-terminal.mobile-input-bar` appears only for the coarse non-hover media condition and contains Show/Hide Keyboard, Escape, Tab, Control, Alt, and four Arrow controls. Its key controls retain textarea focus and use the exact active attachment revision; the keyboard toggle reflects actual textarea focus and never claims that the operating system displayed a keyboard. Unavailable or read-only input disables input-producing controls.                                           |
-| Viewport projection     | The composition applies each finite positive `VisualViewport` resize or scroll sample to the application root before terminal measurement; an unavailable or invalid API uses the layout viewport. The root respects safe-area insets, and the existing terminal `ResizeObserver` remains the only writer of projected grid resize. Keyboard close restores the latest full visual viewport without persisting geometry.                                                                                            |
-| Invariants and failure  | Touch scrolling never arms a modifier; controls never publish to a replaced attachment; no mobile state enters the shared Workbench document, browser storage, or Terminal Host. Missing browser focus or viewport capabilities degrade to an unchanged layout and typed unavailable input rather than synthetic success. Desktop pointer and hardware-keyboard behavior remain unchanged.                                                                                                                          |
-| Verification and limits | Deterministic state tests cover every modifier transition and replacement. Renderer and React tests cover native capture ordering, revision pinning, localization, and focus retention. A controlled headed mobile-viewport trace remains required to verify media-conditioned visibility, touch tap/scroll, viewport shrink/restore, grid resize, and both locales; real iOS and Android keyboard appearance remains manual release evidence.                                                                      |
+| Invariants and failure  | Touch scrolling never arms a modifier; controls never publish to a replaced attachment; no mobile state enters the shared Workbench document, browser storage, or Terminal Host. Missing browser focus capabilities degrade to an unchanged layout and typed unavailable input rather than synthetic success. Desktop pointer and hardware-keyboard behavior remain unchanged.                                                                                                                                      |
+| Verification and limits | Deterministic state tests cover every modifier transition and replacement. Renderer and React tests cover native capture ordering, revision pinning, localization, and focus retention. A controlled headed coarse-pointer trace remains required to verify media-conditioned visibility, touch tap/scroll, grid resize, and both locales; real iOS and Android keyboard appearance remains manual release evidence.                                                                                                |
 
 Each attachment publishes only its own focus claim and projection demand. Terminal Host combines
 eligible claims for a shared terminal, so one attachment losing focus or visibility cannot emit a
@@ -291,11 +275,11 @@ zero stale input commands, and only fresh upgraded input. Terminal Host's owner-
 the authoritative rejection and repair ordering; this Browser fixture does not grant a renderer
 capability mutation or claim native permission behavior.
 
-The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode, so a loopback development renderer inside Electron is Desktop too; Desktop authority arrives only through the validated Server-connection announcement from preload. An ordinary HTTP(S) origin selects the in-memory Browser Preview. An `orchbee-runtime` query parameter fails closed.
+The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode, so a loopback development renderer inside Electron is Desktop too; Desktop authority arrives only through the validated Server-connection announcement from preload. Any other page resolves `unsupported` and renders nothing, and so does a page carrying an `orchbee-runtime` query parameter.
 
 ## Navigation
 
-All compositions use one TanStack Browser Router. Canonical Workspace routes use `/workspaces/$workspaceId[/tabs/$tabId]`, independent of nullable Project membership. Old Project-qualified Workspace paths are not admitted. Group-only links resolve current membership; unknown Workspace/Tab identities remain unavailable. Navigation pushes history; canonicalization replaces it. Renderer focus recovery restores the exact surviving Workspace, Tab, Panel and child before explicit route reconciliation. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
+The Desktop composition uses one TanStack Router over memory history, because a window has no address bar. Canonical Workspace routes use `/workspaces/$workspaceId[/tabs/$tabId]`, independent of nullable Project membership. Old Project-qualified Workspace paths are not admitted. Group-only links resolve current membership; unknown Workspace/Tab identities remain unavailable. Navigation pushes history; canonicalization replaces it. Renderer focus recovery restores the exact surviving Workspace, Tab, Panel and child before explicit route reconciliation. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
 
 ## Settings
 
@@ -306,10 +290,10 @@ integration client. Reminder dismissal stores only the Agent ID, and remote setu
 manual-only.
 
 General offers System, English and Simplified Chinese. Desktop reads the same confirmed device
-preference as TUI; Browser Preview keeps an origin-local record. System follows declared locale
+preference as TUI. System follows declared locale
 inputs, while explicit locale wins. Confirmed changes update mounted product copy without reload.
 
-The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Desktop common preferences use the shared device store with source-bound drafts, confirmed saves, conflict and unknown-outcome recovery. Host typography, pixel padding and opacity remain renderer-local. Browser Preview retains its independent strict origin records. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Sixty-seven frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, keyboard Panel resize mode, circular active-Tab movement within its pinned or unpinned section, visible terminal Hints, Show Last Command Output, and Show Scrollback, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Desktop additionally injects a semantic shell-profile control over the Session's shared preferences. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the shared catalog commits. Browser Preview compositions receive no profile capability. Shell integration settings own a separate default-off device-local completion-reminder policy whose notifications never include command text; reminders need OSC 133 command boundaries, which the Terminal Host's PowerShell integration supplies on Windows, while Zsh, Bash, and Fish emit them only through the user's own configuration. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
+The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Desktop common preferences use the shared device store with source-bound drafts, confirmed saves, conflict and unknown-outcome recovery. Host typography, pixel padding and opacity remain renderer-local. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Sixty-seven frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, keyboard Panel resize mode, circular active-Tab movement within its pinned or unpinned section, visible terminal Hints, Show Last Command Output, and Show Scrollback, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Desktop additionally injects a semantic shell-profile control over the Session's shared preferences. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the shared catalog commits. Shell integration settings own a separate default-off device-local completion-reminder policy whose notifications never include command text; reminders need OSC 133 command boundaries, which the Terminal Host's PowerShell integration supplies on Windows, while Zsh, Bash, and Fish emit them only through the user's own configuration. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
 
 The exact headed `terminal-parity/SU-09-theme` witness holds a prepared Host result and its
 revision-tagged frame before one release, then observes the terminal defaults, palette, cursor,
@@ -317,14 +301,18 @@ overlays, pixels, and application surface publish one matching revision. It uses
 runtime-presentation Canvas fixture and does not claim a persisted settings migration, a native
 operating-system theme event, or a renderer-owned terminal palette.
 
-## Local development preview
+## Desktop composition
 
-Locale preference, automatic fallback resolution, and shortcut-platform setup belong to the Web
-composition shared by Browser Preview and Desktop.
+Run the Workbench locally with `pnpm desktop`, which serves this renderer and opens the development
+Desktop window on it; `pnpm web` alone only serves the renderer for Electron to load. Electron loads
+the Web development URL and discovers its adapter from the User-Agent. Packaged Electron serves this
+production build from the standard secure `orchbee://app` origin; `apps/desktop` owns packaging and
+resource delivery.
 
-`pnpm web` renders the Workbench shell with its localized sidebar, standalone terminal context, Project and Workspace navigation, and per-tab Panel workspace. The browser composition creates one `ActionRuntime` and one in-memory `WorkbenchProjectWorkspaceRuntime`. It starts with only the standalone Terminal context. A person can create an in-memory Project by entering a folder path; the Project add control first preserves the common creation menu, then `Select Folder…` opens the browser-only path entry in place of a native picker. The browser uses that path as the initial Project Folder and terminal CWD without claiming that the path exists. `New Folder…` remains visible but disabled because the composition performs no filesystem, Git, PTY, or durable-storage effect.
+Locale preference, automatic fallback resolution, and shortcut-platform setup belong to the Desktop
+composition.
 
-Electron Desktop injects native existing-Folder acquisition into the shared application. `Select Folder…` uses the operating-system picker, and local Project Folder attachment uses that same capability. Browser Preview retains manual Folder path entry and receives no native filesystem effect. `New Folder…` selects a native parent and explicitly creates one absent child, then observes the existing Project Action, exact canonical publication and Workspace activation. The existing route coordinator reports its accepted current target separately from pending navigation, so creation never acknowledges an unrelated route. Created or uncertain filesystem outcomes are preserved for Select Folder recovery; no new provisioning or filesystem API is introduced.
+Electron Desktop injects native existing-Folder acquisition into the shared application. `Select Folder…` uses the operating-system picker, and local Project Folder attachment uses that same capability. `New Folder…` selects a native parent and explicitly creates one absent child, then observes the existing Project Action, exact canonical publication and Workspace activation. The existing route coordinator reports its accepted current target separately from pending navigation, so creation never acknowledges an unrelated route. Created or uncertain filesystem outcomes are preserved for Select Folder recovery; no new provisioning or filesystem API is introduced.
 
 An OSC 52 write never shares the selection-copy fast path. The shared renderer automatically processes
 each exact bounded UTF-8 request without presenting a confirmation surface. Its decision repeats the
@@ -364,7 +352,7 @@ pointer leave or press, wheel input, geometry or revision change, attachment ret
 disposal cancel the pending presentation; a late completion cannot replace the latest hover. The
 surface renders admitted bytes in one pointer-transparent card anchored next to the source cell and
 keeps terminal focus and selection unchanged. Missing, unsupported, invalid, or unreadable images
-fail silently. Browser Preview never requests or receive local image bytes.
+fail silently.
 
 The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
 `terminal-parity/FS-06-url-policy` compose the production projected surface, Workbench Action, and
@@ -413,15 +401,7 @@ neither Host export nor writer, and retain localized feedback. The fixture captu
 mutates the operating-system clipboard and controls the capability-loss and insecure-context probes;
 it does not claim browser permission-UI behavior or LAN transport security.
 
-Browser-owned request and presentation identifiers use `crypto.getRandomValues`, which remains available on the explicitly accepted HTTP LAN-preview origin. Runtime code does not depend on the secure-context-only `crypto.randomUUID` API.
-
-For the complete local Desktop flow, run:
-
-```sh
-pnpm desktop
-```
-
-Electron loads the Web development URL and discovers its adapter from the User-Agent. Packaged Electron serves this production build from the standard secure `orchbee://app` origin; `apps/desktop` owns packaging and resource delivery. Browser Preview remains an independent in-memory development surface.
+Browser-owned request and presentation identifiers use `crypto.getRandomValues`; runtime code does not depend on the secure-context-only `crypto.randomUUID` API.
 
 ## Unit verification
 

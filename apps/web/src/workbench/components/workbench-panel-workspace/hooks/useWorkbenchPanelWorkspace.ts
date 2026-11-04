@@ -1,4 +1,4 @@
-import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
@@ -46,11 +46,7 @@ import {
 	type PanelVisualSelectionTransition,
 } from '../model/panel-visual-selection';
 import { projectTerminalTabPresentationRevision } from '../model/projectTerminalTabPresentationRevision';
-import {
-	resolvePanelResize,
-	type PanelResizeAdjustment,
-	type PanelResizeMultiplier,
-} from '../model/resolvePanelResize';
+import { resolvePanelResize } from '../model/resolvePanelResize';
 import type {
 	PanelDragGhost,
 	PanelDropTarget,
@@ -68,8 +64,8 @@ import { useWorkbenchPanelBroadcastInput } from './useWorkbenchPanelBroadcastInp
 interface UseWorkbenchPanelWorkspaceOptions {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
-	readonly authority?: WorkbenchAuthority | undefined;
-	readonly createPanelTerminal?: WorkbenchSharedPanelTerminalCreate | undefined;
+	readonly authority: WorkbenchAuthority;
+	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
@@ -253,23 +249,10 @@ export function useWorkbenchPanelWorkspace({
 		}),
 		[intl],
 	);
-	const createTerminalTitle = useMemoizedFn(() =>
-		intl.formatMessage(workbenchTabMessages.terminalTitle),
-	);
 	const transitionForActiveTab = useMemoizedFn(
 		(event: ActiveTabPanelWorkspaceEventInput): PanelWorkspaceTransition | null => {
 			const tabId = store.getActiveTabId();
 			return tabId === null ? null : store.transition({ ...event, tabId });
-		},
-	);
-	const commitMovePanel = useMemoizedFn(
-		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) => {
-			return transitionForActiveTab({
-				direction,
-				panelId,
-				targetPanelId,
-				type: 'panel-moved',
-			});
 		},
 	);
 	const operations = React.useMemo(
@@ -280,80 +263,10 @@ export function useWorkbenchPanelWorkspace({
 					panelId,
 					type: 'child-terminal-activated',
 				}),
-			closeDisplayedTerminal: (input: PanelCloseInput) => {
-				const tabId = store.getActiveTabId();
-				const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === input.tabId);
-				const panel = tab === undefined ? null : findPanel(tab.root, input.panelId);
-				if (
-					tabId !== input.tabId ||
-					panel === null ||
-					panel.activeChildPresentationId !== input.childPresentationId
-				) {
-					return null;
-				}
-				const presentationIds =
-					input.childPresentationId === null
-						? [
-								panel.primaryPresentation.presentationId,
-								...panel.childPresentations.map((terminal) => terminal.presentationId),
-							]
-						: [input.childPresentationId];
-				const close = store.createTerminalCloseRequest(presentationIds);
-				return store.transition(
-					input.childPresentationId === null
-						? { close, panelId: input.panelId, tabId: input.tabId, type: 'panel-closed' }
-						: {
-								childPresentationId: input.childPresentationId,
-								close,
-								panelId: input.panelId,
-								tabId: input.tabId,
-								type: 'child-terminal-closed',
-							},
-				);
-			},
 			canStartBroadcastInput: panelBroadcastInput.canStart,
-			createChildTerminal: (panelId: string) =>
-				transitionForActiveTab({
-					newTerminalTitle: createTerminalTitle(),
-					panelId,
-					presentation: store.createTerminalPresentation(),
-					type: 'child-terminal-created',
-				}),
-			equalizePanels: (panelId: string) =>
-				transitionForActiveTab({ panelId, type: 'panels-equalized' }),
 			focusPanel: (panelId: string) => transitionForActiveTab({ panelId, type: 'panel-focused' }),
-			movePanel: commitMovePanel,
-			resizePanel: (
-				panelId: string,
-				adjustment: PanelResizeAdjustment,
-				multiplier: PanelResizeMultiplier,
-			) =>
-				transitionForActiveTab({
-					adjustment,
-					multiplier,
-					panelId,
-					type: 'panel-size-adjusted',
-				}),
 			showPrimaryTerminal: (panelId: string) =>
 				transitionForActiveTab({ panelId, type: 'primary-terminal-shown' }),
-			splitPanel: (panelId: string, direction: PanelSplitDirection) => {
-				const tabId = store.getActiveTabId();
-				if (tabId === null) {
-					return null;
-				}
-				const newPanelId = `panel-${store.getSnapshot().nextPanelSequence}`;
-				return {
-					panelId: newPanelId,
-					transition: store.transition({
-						direction,
-						newTerminalTitle: createTerminalTitle(),
-						panelId,
-						presentation: store.createTerminalPresentation(),
-						tabId,
-						type: 'panel-split',
-					}),
-				};
-			},
 			startPanelResize: (panelId: string) => {
 				if (panelVisualSelection !== null || panelBroadcastInput.state.kind !== 'idle') {
 					return false;
@@ -395,18 +308,10 @@ export function useWorkbenchPanelWorkspace({
 				return true;
 			},
 			startBroadcastInput: panelBroadcastInput.start,
-			swapPanels: (panelId: string, targetPanelId: string) =>
-				transitionForActiveTab({
-					panelId,
-					targetPanelId,
-					type: 'panels-swapped',
-				}),
 			togglePanelMaximization: (panelId: string) =>
 				transitionForActiveTab({ panelId, type: 'panel-maximization-toggled' }),
 		}),
 		[
-			commitMovePanel,
-			createTerminalTitle,
 			panelDragSession,
 			panelBroadcastInput.canStart,
 			panelBroadcastInput.start,
@@ -432,7 +337,7 @@ export function useWorkbenchPanelWorkspace({
 	const commitSplitRatio = useMemoizedFn(
 		async (splitId: string, leadingWeight: number): Promise<void> => {
 			const tabId = store.getActiveTabId();
-			if (authority === undefined || tabId === null) return;
+			if (tabId === null) return;
 			await authority.change(SPLIT_RATIO_CONTEXT, {
 				leadingWeight,
 				splitId,
@@ -442,12 +347,9 @@ export function useWorkbenchPanelWorkspace({
 			});
 		},
 	);
-	const minimumSplitPercent = authority?.minimumSplitPercent;
-	const sharedSplitResize = React.useMemo<SharedSplitResize | undefined>(
-		() =>
-			minimumSplitPercent === undefined
-				? undefined
-				: { commit: commitSplitRatio, minimumChildPercent: minimumSplitPercent },
+	const minimumSplitPercent = authority.minimumSplitPercent;
+	const sharedSplitResize = React.useMemo<SharedSplitResize>(
+		() => ({ commit: commitSplitRatio, minimumChildPercent: minimumSplitPercent }),
 		[commitSplitRatio, minimumSplitPercent],
 	);
 	const revalidatePanelVisualSelection = useMemoizedFn(
@@ -798,9 +700,6 @@ export function useWorkbenchPanelWorkspace({
 				dropTarget.panelId,
 				dropTarget.direction,
 			);
-			if (authority === undefined) {
-				return false;
-			}
 			const { panelId, sourceRevision } = panelDragSession;
 			setPanelDrag({
 				draggingPanelId: panelId,
@@ -1040,14 +939,6 @@ export function useWorkbenchPanelWorkspace({
 				} satisfies PanelCloseInput,
 				source,
 			);
-		},
-		resizeAdjacentPanels: (splitId, separatorIndex, leadingWeight) => {
-			transitionForActiveTab({
-				leadingWeight,
-				separatorIndex,
-				splitId,
-				type: 'adjacent-panels-resized',
-			});
 		},
 		resizePanel: (panelId, adjustment, multiplier, source: ActionInvocationSource = 'keyboard') => {
 			if (

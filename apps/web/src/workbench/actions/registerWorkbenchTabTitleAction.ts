@@ -30,7 +30,7 @@ export interface WorkbenchTabTitleEditorRequest {
 }
 
 interface RegisterWorkbenchTabTitleActionOptions {
-	readonly authority?: WorkbenchAuthority | undefined;
+	readonly authority: WorkbenchAuthority;
 	readonly openEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly scope: ActionScope;
@@ -76,40 +76,21 @@ export function registerWorkbenchTabTitleAction({
 							tabId: target.tabId,
 							terminalContextId: target.terminalContext.terminalContextId,
 							title: target.title,
-							unnamed: authority !== undefined && titlePolicy?.customTitle === null,
+							unnamed: titlePolicy?.customTitle === null,
 						});
 						return { kind: 'completed' };
 					}
 
-					if (authority !== undefined) {
-						const label = input.title?.trim() ?? '';
-						// A shared name has no way back to following the terminal, so empty asks for nothing.
-						return label === ''
-							? { kind: 'unchanged' }
-							: authority.change(context, {
-									label,
-									tabId: target.tabId,
-									terminalContextId: target.terminalContext.terminalContextId,
-									type: 'tab-renamed',
-								});
-					}
-					const title = input.title?.trim() || null;
-					if (titlePolicy === undefined) {
-						return { code: 'tab-title-target-unavailable', kind: 'blocked' };
-					}
-					if (titlePolicy.customTitle === title) return { kind: 'unchanged' };
-
-					context.markCommitted();
-					const result = target.terminalContext.panelWorkspaceStore.setTabCustomTitle(
-						target.tabId,
-						title,
-					);
-					if (result.kind === 'rejected') {
-						throw new Error(
-							'The validated Tab title target disappeared during synchronous commit.',
-						);
-					}
-					return result.kind === 'unchanged' ? { kind: 'unchanged' } : { kind: 'completed' };
+					const label = input.title?.trim() ?? '';
+					// A shared name has no way back to following the terminal, so empty asks for nothing.
+					return label === ''
+						? { kind: 'unchanged' }
+						: authority.change(context, {
+								label,
+								tabId: target.tabId,
+								terminalContextId: target.terminalContext.terminalContextId,
+								type: 'tab-renamed',
+							});
 				},
 			},
 			id: WORKBENCH_ACTION_IDS.setTabTitle,

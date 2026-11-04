@@ -16,7 +16,6 @@ import type { ActionExecution } from '@orchbee/actions';
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
-import type { WorkbenchEnvironmentProjectConnectionCapability } from '../../types/workbench-environment-project-connection';
 import type {
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectCreationReceipt,
@@ -44,9 +43,6 @@ import type { WorkbenchWorkspaceLocationSource } from '../../types/workbench-wor
 import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
-	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
-	/** A host whose terminals all live in Workspaces has nothing to offer here. */
-	readonly standaloneTerminalAvailable: boolean;
 	readonly activateWorkspace: (
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
@@ -62,14 +58,10 @@ interface WorkbenchSidebarProps {
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly focusRequest: number;
-	readonly environmentProjectConnection?:
-		| WorkbenchEnvironmentProjectConnectionCapability
-		| undefined;
 	readonly label: string;
 	readonly newWorkspaceLabel: string;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
-	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
@@ -88,7 +80,6 @@ interface WorkbenchSidebarProps {
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
-	readonly terminalLabel: string;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
@@ -100,8 +91,6 @@ interface WorkbenchSidebarProps {
 }
 
 export function WorkbenchSidebar({
-	activateStandalone,
-	standaloneTerminalAvailable,
 	activateWorkspace,
 	createWorkspace,
 	setWorkspaceProject,
@@ -112,12 +101,10 @@ export function WorkbenchSidebar({
 	deleteWorkspace,
 	navigateAgent,
 	focusRequest,
-	environmentProjectConnection,
 	label,
 	newWorkspaceLabel,
 	onSearch,
 	onSettings,
-	onConnectViaSsh,
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
@@ -133,7 +120,6 @@ export function WorkbenchSidebar({
 	settingsLabel,
 	settingsShortcutId,
 	settingsShortcutLabel,
-	terminalLabel,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
@@ -145,7 +131,7 @@ export function WorkbenchSidebar({
 	const agentGradientPrefix = useId().replaceAll(':', '');
 	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
-	const view = useWorkbenchSidebar(projectWorkspaceState, environmentProjectConnection);
+	const view = useWorkbenchSidebar(projectWorkspaceState);
 	const folderAcquisition = useProjectFolderAcquisition({
 		acquisition: projectFolderAcquisition,
 		createProject,
@@ -179,7 +165,6 @@ export function WorkbenchSidebar({
 	)
 		? [...projectWorkspaceState.projects, null]
 		: projectWorkspaceState.projects;
-	const standaloneActive = projectWorkspaceState.activeLocation.kind === 'standalone';
 	const projectCreation = view.projectCreation;
 	const projectRename = view.projectRename;
 	const workspaceProjectCreation = view.workspaceProjectCreation;
@@ -238,27 +223,6 @@ export function WorkbenchSidebar({
 				</ul>
 				<div className={styles['projectSection']}>
 					<div className={styles['projectRegion']} data-navigation-reorder-scroll='true'>
-						{standaloneTerminalAvailable ? (
-							<div>
-								<Button
-									aria-current={standaloneActive ? 'page' : undefined}
-									className={styles['primaryItem']}
-									data-active={standaloneActive || undefined}
-									data-slot='workbench-sidebar-terminal'
-									size='sm'
-									variant='ghost'
-									onClick={(event) => {
-										workspaceActivation.cancel();
-										activateStandalone(event.detail > 0 ? 'pointer' : 'other');
-									}}
-								>
-									<span className={styles['icon']}>
-										<ProductIcon name='terminal' />
-									</span>
-									<span className={styles['label']}>{terminalLabel}</span>
-								</Button>
-							</div>
-						) : null}
 						{/* Project and Recents headings name the groups; the list shows no heading of its own. */}
 						<ul
 							ref={projectReorder.listRef}
@@ -282,13 +246,6 @@ export function WorkbenchSidebar({
 											? projectReorder.displacementDirection
 											: null
 									}
-									environmentConnection={
-										project === null
-											? null
-											: (view.connectionStatusByProjectId.get(project.id) ?? null)
-									}
-									connectEnvironment={environmentProjectConnection?.connect}
-									disconnectEnvironment={environmentProjectConnection?.disconnect}
 									expanded={
 										project === null
 											? projectWorkspaceState.recentsExpanded
@@ -333,7 +290,6 @@ export function WorkbenchSidebar({
 									projectFolderAcquisition?.newFolder === undefined ? undefined : newFolder.open
 								}
 								messages={projectNavigationMessages}
-								onConnectViaSsh={onConnectViaSsh}
 								onSelectFolder={
 									projectFolderAcquisition === undefined
 										? view.showProjectCreation

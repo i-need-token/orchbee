@@ -1,9 +1,17 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
+import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	createSnapshotRuntime,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	publishSnapshot,
+	snapshotPanel,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
+import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import {
 	registerWorkbenchTabTitleAction,
@@ -17,35 +25,31 @@ import {
 
 describe('registerWorkbenchTabTitleAction', () => {
 	it('opens the active Tab with a captured stable identity and effective title', async () => {
-		const harness = createHarness();
+		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
 		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
 
 		await expect(harness.execute(undefined)).resolves.toEqual({ kind: 'completed' });
 
 		expect(harness.openEditor).toHaveBeenCalledExactlyOnceWith({
-			tabId: 'terminal-context-1-tab-1',
+			tabId: fixtureTabId(1),
 			terminalContextId: context.terminalContextId,
-			title: 'workspace',
+			title: 'Tab 1',
 			unnamed: false,
 		});
 	});
 
 	it('opens and commits the explicitly targeted Tab without redirecting to the active Tab', async () => {
-		const harness = createHarness();
-		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
-		const firstTabId = context.tabModel.getSnapshot().activeTabId;
-		const creation = harness.projectWorkspaceRuntime.createTerminal({
-			groupId: null,
-			source: 'button',
-			title: 'Terminal 2',
+		const change = vi.fn<WorkbenchAuthority['change']>(() =>
+			Promise.resolve({ kind: 'completed' }),
+		);
+		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]), {
+			change,
 		});
-		if (firstTabId === null || creation.kind !== 'created') {
-			throw new Error('Expected two terminal Tabs.');
-		}
-		context.tabModel.selectTab(firstTabId);
+		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
+		context.tabModel.selectTab(fixtureTabId(1));
 		const target = {
 			kind: 'open' as const,
-			tabId: creation.tabId,
+			tabId: fixtureTabId(2),
 			terminalContextId: context.terminalContextId,
 		};
 
@@ -53,58 +57,35 @@ describe('registerWorkbenchTabTitleAction', () => {
 		expect(harness.openEditor).toHaveBeenLastCalledWith({
 			tabId: target.tabId,
 			terminalContextId: target.terminalContextId,
-			title: 'workspace',
+			title: 'Tab 2',
 			unnamed: false,
 		});
 
 		await expect(
 			harness.execute({ ...target, kind: 'commit', title: '  Focus work  ' }),
 		).resolves.toEqual({ kind: 'completed' });
-		expect(context.tabModel.getSnapshot()).toMatchObject({ activeTabId: firstTabId });
-		expect(
-			context.tabModel.getSnapshot().tabs.find((tab) => tab.id === creation.tabId)?.title,
-		).toBe('Focus work');
-		expect(context.tabModel.getSnapshot().tabs.find((tab) => tab.id === firstTabId)?.title).toBe(
-			'workspace',
-		);
-	});
-
-	it('maps an empty commit to reset and reports an unchanged reset exactly', async () => {
-		const harness = createHarness();
-		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
-		const tabId = context.tabModel.getSnapshot().activeTabId;
-		if (tabId === null) throw new Error('Expected one active Tab.');
-		context.panelWorkspaceStore.setTabCustomTitle(tabId, 'Custom');
-		const input = {
-			kind: 'commit' as const,
-			tabId,
-			terminalContextId: context.terminalContextId,
-			title: '   ',
-		};
-
-		await expect(harness.execute(input)).resolves.toEqual({ kind: 'completed' });
-		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('workspace');
-		await expect(harness.execute(input)).resolves.toEqual({ kind: 'unchanged' });
+		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			label: 'Focus work',
+			tabId: target.tabId,
+			terminalContextId: target.terminalContextId,
+			type: 'tab-renamed',
+		});
+		expect(context.tabModel.getSnapshot()).toMatchObject({ activeTabId: fixtureTabId(1) });
 	});
 
 	it('leaves a shared name to its authority, which only hears a name someone typed', async () => {
 		const change = vi.fn<WorkbenchAuthority['change']>(() =>
 			Promise.resolve({ kind: 'completed' }),
 		);
-		const harness = createHarness({
-			change,
-			close: () => Promise.reject(new Error('Nothing closes here.')),
-			create: () => Promise.reject(new Error('No Workspace is created here.')),
-			createPanelTerminal: () => Promise.reject(new Error('No Panel is created here.')),
-			createTab: () => Promise.reject(new Error('No Tab is created here.')),
-			minimumSplitPercent: 10,
-			stoppedTabClose: () => null,
-			watchClose: () => () => undefined,
-		});
+		const harness = createHarness(
+			oneWorkspaceSnapshot(1, [snapshotTab(1, snapshotPanel(1), { automaticLabel: true })]),
+			{ change },
+		);
 		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
 		const tabId = context.tabModel.getSnapshot().activeTabId;
 		if (tabId === null) throw new Error('Expected one active Tab.');
 		const target = { tabId, terminalContextId: context.terminalContextId };
+		const shown = context.tabModel.getSnapshot();
 
 		await harness.execute({ ...target, kind: 'open' });
 		expect(harness.openEditor).toHaveBeenLastCalledWith(expect.objectContaining({ unnamed: true }));
@@ -122,14 +103,14 @@ describe('registerWorkbenchTabTitleAction', () => {
 			label: 'Focus work',
 			type: 'tab-renamed',
 		});
-		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('workspace');
+		// The name shows once the authority publishes it.
+		expect(context.tabModel.getSnapshot()).toBe(shown);
 	});
 
 	it('disables stale Tab and terminal-context targets', async () => {
-		const harness = createHarness();
+		const harness = createHarness(oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]));
 		const context = harness.projectWorkspaceRuntime.getActiveTerminalContext();
-		const tabId = context.tabModel.getSnapshot().activeTabId;
-		if (tabId === null) throw new Error('Expected one active Tab.');
+		const tabId = fixtureTabId(1);
 		const staleContextInput = {
 			kind: 'open' as const,
 			tabId,
@@ -143,7 +124,7 @@ describe('registerWorkbenchTabTitleAction', () => {
 			kind: 'blocked',
 		});
 
-		context.tabModel.closeTab(tabId);
+		publishSnapshot(harness.projectWorkspaceRuntime, oneWorkspaceSnapshot(2, [snapshotTab(2)]));
 		const staleTabInput = {
 			kind: 'open' as const,
 			tabId,
@@ -162,20 +143,16 @@ interface Harness {
 	resolve(input: WorkbenchTabTitleInput): ReturnType<ActionRuntime['resolveAction']>;
 }
 
-function createHarness(authority?: WorkbenchAuthority): Harness {
+function createHarness(
+	snapshot: WorkbenchSnapshot,
+	authority: Partial<WorkbenchAuthority> = {},
+): Harness {
 	const runtime = new ActionRuntime();
 	const scope = runtime.createScope('workbench');
-	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace',
-		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('terminal-1'),
-			() => terminalPresentationId('terminal-next'),
-		),
-	});
+	const projectWorkspaceRuntime = createSnapshotRuntime(snapshot);
 	const openEditor = vi.fn<(request: WorkbenchTabTitleEditorRequest) => void>();
 	registerWorkbenchTabTitleAction({
-		authority,
+		authority: inertWorkbenchAuthority(authority),
 		openEditor,
 		projectWorkspaceRuntime,
 		scope,

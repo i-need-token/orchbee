@@ -42,8 +42,7 @@ export function ProjectedTerminalSurface({
 	});
 	const intl = useOrchbeeIntl();
 	// An ended terminal keeps its last frame but takes no input and has no control to take.
-	const terminalShown =
-		!view.stopped && view.launchFailure === null && view.terminalOutcome === null;
+	const terminalShown = view.launchFailure === null && view.terminalOutcome === null;
 	return (
 		<>
 			<div
@@ -57,14 +56,6 @@ export function ProjectedTerminalSurface({
 				onDrop={view.handleFileDrop}
 				ref={view.root}
 			>
-				{view.stopped ? (
-					<div className={styles['stopped']} data-slot='projected-terminal-stopped'>
-						<p>{intl.formatMessage(projectedTerminalMessages.sessionStopped)}</p>
-						<Button data-slot='projected-terminal-start-new-session' onClick={view.startNewSession}>
-							{intl.formatMessage(projectedTerminalMessages.startNewSession)}
-						</Button>
-					</div>
-				) : null}
 				{view.failureMessage === null ? null : (
 					<div data-projected-terminal-status='true' role='alert'>
 						<span>{view.failureMessage}</span>

@@ -1870,11 +1870,31 @@ beside the Server path. These choices stand unless review changes them:
   strict analysis, as the package did, so a test still cannot keep a production module alive. The
   dependency-scope fixture takes `@orchbee/ui` as its private package with a bundled subpath and
   checks test helpers under `apps/web`.
-- **The in-memory preview goes.** A plain browser page no longer shows a working Workbench; UI work
-  uses the Desktop development build or Storybook. The browser-local model, its local writes, and
-  the shared-document intermediate follow, so the window renders only what the Server publishes.
+- **The in-memory preview is gone.** Only a Desktop window starts the Workbench; any other page,
+  including the development server opened in a browser, renders nothing. UI work uses the Desktop
+  development build or Storybook.
+- **The browser-local model is gone.** The window builds its runtime only from a Server
+  publication, and every change it asks for is a `WorkbenchAuthority` command. The window itself
+  changes only what it shows: the selected location and Tab, Project and Recents expansion, focus,
+  the maximized Panel, and the displayed child terminal. The Project-Workspace reducer keeps those
+  four location events and the Panel reducer seven events.
+- **No route creates a terminal.** Every terminal comes from the Server, so a route to an empty
+  Workspace shows that Workspace without starting one.
+- **A stopped terminal has no surface.** The Server publishes running, ended, and failed-to-start
+  terminals only, so the "Start new session" overlay and the local restart are deleted.
+- **The split divider commits only through the Server.** Nothing resizes the layout locally;
+  equalize, swap, move, and split resolvers went with the local transitions.
+- **Copy for deleted surfaces is deleted.** SSH and Project connection states, local folder
+  management, Workspace duplication, and stopped-session copy left both locales.
+- **Browser platform effects and terminal file drop stay dormant.** They are host adapters with no
+  current composition: Browser ingress waits for step 8 (decision 5) and file drop for its own
+  decision (decision 6).
+- **Tests and stories start from Server snapshots.** One shared fixture builds snapshots that the
+  protocol parser accepts and projects them with the production projection, so client tests do not
+  depend on a model the window no longer has.
 
-Not done yet: removing the preview, the local model, and the shared-document intermediate.
+Not done yet: dropping the shared-document intermediate so snapshots project straight into the view
+model, and settling the standalone terminal context, whose routes and location kind remain.
 
 ### Evidence
 

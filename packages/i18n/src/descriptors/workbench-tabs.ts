@@ -68,10 +68,6 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.rename',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.rename'],
 	},
-	tabTitleRestoreDescription: {
-		id: 'workbench.tabs.titleEditor.restoreDescription',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.restoreDescription'],
-	},
 	moveGroup: {
 		id: 'workbench.tabs.actions.moveGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroup'],

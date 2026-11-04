@@ -12,9 +12,8 @@ interface ActiveResizeBase {
 	readonly childIds: readonly string[];
 	readonly latestLayout: Readonly<Record<string, number>>;
 	readonly minimumPanelSizePx: number;
-	readonly onResize: (splitId: string, separatorIndex: number, leadingWeight: number) => void;
 	readonly separatorIndex: number;
-	readonly shared: SharedSplitResize | undefined;
+	readonly shared: SharedSplitResize;
 	readonly splitId: string;
 	/** What a shared divider will submit when released. Null while nothing has moved. */
 	readonly unsubmittedLeadingWeight: number | null;
@@ -42,10 +41,9 @@ interface UseAdjacentPanelResizeResult {
 
 export function useAdjacentPanelResize(
 	split: PanelSplit,
-	onResize: (splitId: string, separatorIndex: number, leadingWeight: number) => void,
 	minimumPanelSizePx: number,
-	maximizedChildId: string | null = null,
-	shared?: SharedSplitResize,
+	maximizedChildId: string | null,
+	shared: SharedSplitResize,
 ): UseAdjacentPanelResizeResult {
 	const activeResizeRef = React.useRef<ActiveResize | null>(null);
 	const correctingLayoutRef = React.useRef(false);
@@ -117,7 +115,7 @@ export function useAdjacentPanelResize(
 				availablePanelSizePx: measureAvailablePanelSize(),
 				candidateLayout,
 				childIds: activeResize.childIds,
-				minimumChildPercent: activeResize.shared?.minimumChildPercent,
+				minimumChildPercent: activeResize.shared.minimumChildPercent,
 				minimumPanelSizePx: activeResize.minimumPanelSizePx,
 				modelLayout: activeResize.latestLayout,
 			});
@@ -142,13 +140,6 @@ export function useAdjacentPanelResize(
 					correctingLayoutRef.current = false;
 				}
 			}
-			if (reconciliation.modelNeedsUpdate && activeResize.shared === undefined) {
-				activeResize.onResize(
-					activeResize.splitId,
-					reconciliation.separatorIndex,
-					reconciliation.leadingWeight,
-				);
-			}
 		},
 	);
 	const finishResize = useMemoizedFn(
@@ -158,11 +149,7 @@ export function useAdjacentPanelResize(
 				return;
 			}
 			activeResizeRef.current = null;
-			if (
-				!released ||
-				activeResize.shared === undefined ||
-				activeResize.unsubmittedLeadingWeight === null
-			) {
+			if (!released || activeResize.unsubmittedLeadingWeight === null) {
 				requestLayoutSync();
 				return;
 			}
@@ -208,7 +195,6 @@ export function useAdjacentPanelResize(
 				childIds,
 				latestLayout: initialLayout,
 				minimumPanelSizePx,
-				onResize,
 				separatorIndex,
 				shared,
 				splitId: split.id,

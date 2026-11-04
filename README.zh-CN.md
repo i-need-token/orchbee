@@ -83,29 +83,13 @@ pnpm verify
 
 日常修改使用[验证规范](docs/VERIFICATION.md)中的 `pnpm verify:changed -- <base>`。`pnpm build` 只准备共享库。完整的本机应用构建使用显式 `pnpm build:full`，其他平台的编译使用 `pnpm test:cross`。
 
-使用确定性的内存 Session 适配器启动浏览器 Workbench Preview：
+从源码在开发版 Desktop 窗口中运行 GUI。该命令会构建原生 CLI、Server、Worker 和 Terminal Host，启动 Web renderer 的开发服务，并在其上打开 Electron：
 
 ```bash
-pnpm web
-```
-
-如需体验完整的本地多客户端流程，先构建一次原生 Terminal Host，并保持 `pnpm web` 运行。然后在第二个终端中启动 Electron；Electron 会加载同一个 Web 开发 renderer：
-
-```bash
-pnpm --filter @orchbee/terminal-host build
 pnpm desktop
 ```
 
-Desktop 会打印一个 `ORCHBEE_BROWSER_CLIENT_URL`。在浏览器中打开这个完整 URL，即可与 Electron 加入同一个共享 Workbench 文档和 Host 终端会话。直接打开未带标记的 `pnpm web` URL 时，仍然是隔离的 Preview。
-
-在 Desktop 创建的 Terminal 内，使用以下命令检查精确的 running local coordinator：
-
-```bash
-"$ORCHBEE_CLI" status
-```
-
-在 PowerShell 中使用 `& $env:ORCHBEE_CLI status`。Desktop 会注入这个精确 launcher；Orchbee
-不会全局安装它，也不会把它加入 `PATH`。
+`pnpm web` 只提供 Electron 加载的 renderer；在浏览器中打开该页面不会渲染任何内容。
 
 </details>
 

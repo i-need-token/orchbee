@@ -4,19 +4,22 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	createSnapshotRuntime,
+	fixturePresentationId,
+	fixtureProjectId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotProject,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../__tests__/server-workbench-snapshot';
 import { Workbench } from '../Workbench';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
-
-function createTestTerminalPresentationComposition(scope: string) {
-	let sequence = 0;
-	return createWorkbenchPreviewTerminalPresentationComposition(
-		terminalPresentationId(`${scope}:initial`),
-		() => terminalPresentationId(`${scope}:dynamic:${(sequence += 1)}`),
-	);
-}
+import { inertWorkbenchAuthority } from '../../__tests__/inertWorkbenchAuthority';
 
 function renderWorkbench(
 	getItem: (key: string) => string | null = () => null,
@@ -25,45 +28,29 @@ function renderWorkbench(
 	collapseProject = false,
 	activateStandalone = false,
 ): string {
-	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/system',
-		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: createTestTerminalPresentationComposition('workbench-render'),
-	});
-	projectWorkspaceRuntime.createTerminal({
-		groupId: null,
-		source: 'button',
-		title: 'Terminal 2',
-	});
-	if (withProject) {
+	const tabs = [snapshotTab(1), snapshotTab(2)];
+	const projectWorkspaceRuntime = createSnapshotRuntime(
+		withProject
+			? workbenchSnapshot(
+					1,
+					{
+						directories: [snapshotDirectory(1)],
+						projects: [snapshotProject(1, 'orchbee')],
+						workspaces: [
+							snapshotWorkspace(1, { label: 'Primary', projectId: fixtureProjectId(1) }),
+						],
+					},
+					[snapshotContext(1, tabs)],
+				)
+			: oneWorkspaceSnapshot(1, tabs),
+	);
+	if (collapseProject) {
 		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-orchbee',
-				kind: 'folder',
-				name: 'orchbee',
-				path: '/workspace/orchbee',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: 'orchbee',
-			terminalTitle: 'Terminal 1',
-			type: 'project-created',
+			projectId: fixtureProjectId(1),
+			type: 'project-expansion-toggled',
 		});
-		if (collapseProject) {
-			projectWorkspaceRuntime.transition({
-				projectId: 'project-1',
-				type: 'project-expansion-toggled',
-			});
-		}
-		if (activateStandalone) {
-			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
-		}
 	}
+	if (activateStandalone) projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 	return renderToStaticMarkup(
 		createElement(
 			OrchbeeI18nProvider,
@@ -73,6 +60,7 @@ function renderWorkbench(
 				null,
 				createElement(Workbench, {
 					actionRuntime: new ActionRuntime(),
+					authority: inertWorkbenchAuthority(),
 					layoutStorage: { getItem, setItem: () => undefined },
 					projectWorkspaceRuntime,
 					shortcutPlatform: 'apple',
@@ -84,11 +72,9 @@ function renderWorkbench(
 
 describe('Workbench', () => {
 	it('mounts an application-owned terminal surface only inside the displayed viewport', () => {
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('surface'),
-		});
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		);
 		const markup = renderToStaticMarkup(
 			createElement(
 				OrchbeeI18nProvider,
@@ -98,6 +84,7 @@ describe('Workbench', () => {
 					null,
 					createElement(Workbench, {
 						actionRuntime: new ActionRuntime(),
+						authority: inertWorkbenchAuthority(),
 						projectWorkspaceRuntime,
 						shortcutPlatform: 'apple',
 						terminalSurface: ({ presentation }) =>
@@ -109,7 +96,7 @@ describe('Workbench', () => {
 			),
 		);
 
-		expect(markup).toContain('data-mounted-presentation="surface:initial"');
+		expect(markup).toContain(`data-mounted-presentation="${fixturePresentationId(1)}"`);
 	});
 
 	it('renders the sidebar chrome and the host-owned tab model', () => {
@@ -123,9 +110,6 @@ describe('Workbench', () => {
 		expect(markup).toContain('aria-label="Workbench navigation"');
 		expect(markup).toContain('data-slot="workbench-sidebar-new-workspace"');
 		expect(markup).toContain('New workspace');
-		expect(markup).toContain('data-slot="workbench-sidebar-terminal"');
-		expect(markup).toContain('data-icon="terminal"');
-		expect(markup).toContain('Terminal');
 		expect(markup).toContain('data-slot="workbench-tab-bar"');
 		expect(markup).toContain('data-orientation="horizontal"');
 		expect(markup).toContain('data-tab-strip-orientation="horizontal"');
@@ -147,9 +131,9 @@ describe('Workbench', () => {
 		expect(markup).toContain('⌘,');
 		expect(markup).toContain('role="tablist"');
 		expect(markup).toContain('aria-label="Terminal tabs"');
-		expect(markup).toContain('data-tab-id="terminal-context-1-tab-1"');
-		expect(markup).toContain('data-tab-id="terminal-context-1-tab-2"');
-		expect(markup).toContain('aria-label="system"');
+		expect(markup).toContain(`data-tab-id="${fixtureTabId(1)}"`);
+		expect(markup).toContain(`data-tab-id="${fixtureTabId(2)}"`);
+		expect(markup).toContain('aria-label="Tab 1"');
 		expect(markup).toContain('data-slot="workbench-tab-content"');
 		expect(markup).toContain('data-slot="workbench-panel-workspace"');
 		expect(markup).toContain('data-slot="workbench-panel"');
@@ -164,7 +148,6 @@ describe('Workbench', () => {
 
 		expect(markup).toContain('aria-label="工作区导航"');
 		expect(markup).toContain('新建工作区');
-		expect(markup).toContain('终端');
 		expect(markup).toContain('搜索');
 		expect(markup).toContain('项目');
 		expect(markup).toContain('设置');
@@ -201,9 +184,6 @@ describe('Workbench', () => {
 		);
 		expect(activeMarkup).not.toContain('data-slot="workbench-sidebar-workspace"');
 		expect(standaloneMarkup).not.toContain('data-holds-active-workspace');
-		expect(standaloneMarkup).toMatch(
-			/<button(?=[^>]*data-slot="workbench-sidebar-terminal")(?=[^>]*data-active="true")[^>]*>/,
-		);
 	});
 
 	it('restores the vertical tab-strip layout from host-provided storage', () => {

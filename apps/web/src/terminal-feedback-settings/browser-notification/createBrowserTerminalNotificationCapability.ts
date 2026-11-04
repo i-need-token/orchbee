@@ -25,13 +25,11 @@ export function createBrowserTerminalNotificationCapability(
 	};
 }
 
-export const UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY: TerminalNotificationCapability =
-	Object.freeze({
-		permission: () => 'unsupported',
-		requestPermission: (): Promise<TerminalNotificationPermission> =>
-			Promise.resolve('unsupported'),
-		show: () => false,
-	});
+const UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY: TerminalNotificationCapability = Object.freeze({
+	permission: () => 'unsupported',
+	requestPermission: (): Promise<TerminalNotificationPermission> => Promise.resolve('unsupported'),
+	show: () => false,
+});
 
 function normalizePermission(permission: NotificationPermission): TerminalNotificationPermission {
 	switch (permission) {

@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
-	initializePanelWorkspace,
-	transitionPanelWorkspace,
-	type PanelLayoutNode,
-	type PanelWorkspaceState,
-} from '../panel-workspace-state';
+	createSnapshotRuntime,
+	fixturePanelId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotSplit,
+	snapshotTab,
+	type FixtureRecord,
+} from '../../../../../__tests__/server-workbench-snapshot';
+import type { PanelLayoutNode } from '../panel-workspace-state';
 import {
 	resolveDirectionalPanelFocus,
 	type PanelFocusDirection,
@@ -14,96 +17,61 @@ import {
 
 describe('resolveDirectionalPanelFocus', () => {
 	it('traverses a four-Panel grid by visual direction without wrapping at an outer edge', () => {
-		const state = fourPanelGrid();
-		const root = state.tabs[0]?.root;
-		if (root === undefined) throw new Error('Expected the test Tab.');
+		const root = layout(
+			snapshotSplit(
+				1,
+				'horizontal',
+				snapshotSplit(2, 'vertical', snapshotPanel(1), snapshotPanel(4)),
+				snapshotSplit(3, 'vertical', snapshotPanel(2), snapshotPanel(3)),
+			),
+		);
 
-		expect(resolve(root, 'panel-4', 'up')).toBe('panel-1');
-		expect(resolve(root, 'panel-1', 'right')).toBe('panel-2');
-		expect(resolve(root, 'panel-2', 'down')).toBe('panel-3');
-		expect(resolve(root, 'panel-3', 'left')).toBe('panel-4');
-		expect(resolve(root, 'panel-1', 'up')).toBeNull();
-		expect(resolve(root, 'panel-1', 'left')).toBeNull();
-		expect(resolve(root, 'panel-3', 'right')).toBeNull();
-		expect(resolve(root, 'panel-4', 'down')).toBeNull();
+		expect(resolve(root, 4, 'up')).toBe(fixturePanelId(1));
+		expect(resolve(root, 1, 'right')).toBe(fixturePanelId(2));
+		expect(resolve(root, 2, 'down')).toBe(fixturePanelId(3));
+		expect(resolve(root, 3, 'left')).toBe(fixturePanelId(4));
+		expect(resolve(root, 1, 'up')).toBeNull();
+		expect(resolve(root, 1, 'left')).toBeNull();
+		expect(resolve(root, 3, 'right')).toBeNull();
+		expect(resolve(root, 4, 'down')).toBeNull();
 	});
 
 	it('uses perpendicular center distance and then visual order for multiple adjacent candidates', () => {
-		const equal = threePanelLayout();
-		const equalRoot = equal.tabs[0]?.root;
-		if (equalRoot === undefined) throw new Error('Expected the test Tab.');
-		expect(resolve(equalRoot, 'panel-1', 'right')).toBe('panel-2');
+		const threePanels = (rightRatio?: number) =>
+			layout(
+				snapshotSplit(
+					1,
+					'horizontal',
+					snapshotPanel(1),
+					snapshotSplit(2, 'vertical', snapshotPanel(2), snapshotPanel(3), rightRatio),
+				),
+			);
 
-		if (equalRoot.kind !== 'split') throw new Error('Expected the root Split.');
-		const right = equalRoot.children[1]?.node;
-		if (right?.kind !== 'split') throw new Error('Expected the nested right Split.');
-		const resized = transitionPanelWorkspace(equal, {
-			leadingWeight: 25,
-			separatorIndex: 0,
-			splitId: right.id,
-			tabId: 'tab-1',
-			type: 'adjacent-panels-resized',
-		}).state;
-		const resizedRoot = resized.tabs[0]?.root;
-		if (resizedRoot === undefined) throw new Error('Expected the resized test Tab.');
-
-		expect(resolve(resizedRoot, 'panel-1', 'right')).toBe('panel-3');
+		expect(resolve(threePanels(), 1, 'right')).toBe(fixturePanelId(2));
+		expect(resolve(threePanels(0.25), 1, 'right')).toBe(fixturePanelId(3));
 	});
 
 	it('returns null for a missing source and a singleton layout', () => {
-		const state = initialState();
-		const root = state.tabs[0]?.root;
-		if (root === undefined) throw new Error('Expected the test Tab.');
+		const root = layout(snapshotPanel(1));
 
-		expect(resolve(root, 'missing-panel', 'right')).toBeNull();
-		expect(resolve(root, 'panel-1', 'right')).toBeNull();
+		expect(resolveDirectionalPanelFocus(root, 'missing-panel', 'right')).toBeNull();
+		expect(resolve(root, 1, 'right')).toBeNull();
 	});
 });
 
 function resolve(
 	root: PanelLayoutNode,
-	panelId: string,
+	panelSequence: number,
 	direction: PanelFocusDirection,
 ): string | null {
-	return resolveDirectionalPanelFocus(root, panelId, direction);
+	return resolveDirectionalPanelFocus(root, fixturePanelId(panelSequence), direction);
 }
 
-function initialState(): PanelWorkspaceState {
-	return initializePanelWorkspace([
-		{
-			id: 'tab-1',
-			presentation: {
-				kind: 'preview',
-				presentationId: terminalPresentationId('terminal-1'),
-			},
-			title: 'Terminal 1',
-		},
-	]).state;
-}
-
-function split(
-	state: PanelWorkspaceState,
-	panelId: string,
-	direction: 'below' | 'right',
-	terminalSequence: number,
-): PanelWorkspaceState {
-	return transitionPanelWorkspace(state, {
-		direction,
-		newTerminalTitle: `Terminal ${terminalSequence}`,
-		panelId,
-		presentation: {
-			kind: 'preview',
-			presentationId: terminalPresentationId(`terminal-${terminalSequence}`),
-		},
-		tabId: 'tab-1',
-		type: 'panel-split',
-	}).state;
-}
-
-function threePanelLayout(): PanelWorkspaceState {
-	return split(split(initialState(), 'panel-1', 'right', 2), 'panel-2', 'below', 3);
-}
-
-function fourPanelGrid(): PanelWorkspaceState {
-	return split(threePanelLayout(), 'panel-1', 'below', 4);
+/** The Panel layout a window shows when the Server publishes one Tab holding `root`. */
+function layout(root: FixtureRecord): PanelLayoutNode {
+	const tab = createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1, root)]))
+		.getActiveTerminalContext()
+		.panelWorkspaceStore.getSnapshot().tabs[0];
+	if (tab === undefined) throw new Error('Expected the published Tab.');
+	return tab.root;
 }

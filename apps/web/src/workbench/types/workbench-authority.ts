@@ -5,26 +5,42 @@ import type {
 	UserLaunchProfileCatalog,
 } from '@orchbee/workbench-client-protocol';
 
-import type { ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchAgentBoard } from './workbench-agent-board';
 import type { WorkbenchConfiguredCommands } from './workbench-configured-commands';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
 import type { WorkbenchWorktrees } from './workbench-worktrees';
 
-/** A change the navigation states without an authority too, as one event of its own. */
-export type WorkbenchAuthorityNavigationChange = Extract<
-	ProjectWorkspaceEvent,
-	{
-		readonly type:
-			| 'project-dissolved'
-			| 'project-renamed'
-			| 'project-reordered'
-			| 'workspace-project-created'
-			| 'workspace-project-set'
-			| 'workspace-reordered'
-			| 'workspace-updated';
-	}
->;
+/** A change to how Projects name, group, and order Workspaces. */
+export type WorkbenchAuthorityNavigationChange =
+	| { readonly type: 'project-dissolved'; readonly projectId: string }
+	| { readonly type: 'project-renamed'; readonly projectId: string; readonly name: string }
+	| {
+			readonly type: 'project-reordered';
+			readonly projectId: string;
+			readonly beforeProjectId: string | null;
+	  }
+	| {
+			readonly type: 'workspace-project-created';
+			readonly workspaceId: string;
+			readonly name: string;
+	  }
+	| {
+			readonly type: 'workspace-project-set';
+			readonly workspaceId: string;
+			readonly projectId: string | null;
+	  }
+	| {
+			readonly type: 'workspace-reordered';
+			readonly workspaceId: string;
+			readonly beforeWorkspaceId: string | null;
+	  }
+	| {
+			readonly type: 'workspace-updated';
+			readonly workspaceId: string;
+			readonly launchConfigurationId: string | null;
+			readonly primaryDirectoryId: string;
+			readonly name: string;
+	  };
 
 type WorkbenchAuthorityPanelDirection = 'above' | 'below' | 'left' | 'right';
 

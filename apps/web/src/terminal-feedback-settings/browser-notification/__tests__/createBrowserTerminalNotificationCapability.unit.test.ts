@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-	createBrowserTerminalNotificationCapability,
-	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
-} from '../browser-terminal-notification-capability';
+import { createBrowserTerminalNotificationCapability } from '../createBrowserTerminalNotificationCapability';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -14,7 +11,6 @@ describe('createBrowserTerminalNotificationCapability', () => {
 			focus: vi.fn<() => void>(),
 		});
 
-		expect(capability).toBe(UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY);
 		expect(capability.permission()).toBe('unsupported');
 		await expect(capability.requestPermission()).resolves.toBe('unsupported');
 		expect(capability.show({ body: 'safe body', tag: 'terminal', title: 'safe title' })).toBe(

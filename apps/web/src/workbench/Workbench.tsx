@@ -49,8 +49,6 @@ import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent
 import type { WorkbenchAgentSource } from './types/workbench-agent-observation';
 import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspace-location';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
-import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
-import type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -62,25 +60,19 @@ interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentNotificationObserver?: WorkbenchAgentNotificationObserver | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
-	/** Decides shared Workbench structure for a Client that does not hold it. */
-	readonly authority?: WorkbenchAuthority | undefined;
+	/** Decides the shared Workbench structure. */
+	readonly authority: WorkbenchAuthority;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
-	readonly environmentProjectConnection?:
-		| WorkbenchEnvironmentProjectConnectionCapability
-		| undefined;
 	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
-	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
-	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
-	readonly standaloneTerminalAvailable?: boolean | undefined;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	/** Where each Workspace stands; without it the sidebar names Workspaces alone. */
@@ -93,20 +85,16 @@ export function Workbench({
 	agentObservationSource,
 	authority,
 	createCrossWindowDragRuntime,
-	environmentProjectConnection,
 	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
 	onSettings,
 	onTerminalFontSizeChange,
-	onConnectViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
-	remoteTerminalCreation,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
 	shortcutPlatform,
-	standaloneTerminalAvailable = true,
 	terminalActionShortcutLabels,
 	terminalSurface,
 	workspaceLocationSource,
@@ -128,7 +116,6 @@ export function Workbench({
 		onSettings,
 		onTerminalFontSizeChange,
 		projectWorkspaceRuntime,
-		remoteTerminalCreation,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
@@ -219,18 +206,16 @@ export function Workbench({
 					</span>
 				)}
 			</div>
-			{authority === undefined ? null : (
-				<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
-					{view.authorityNotice === null ? null : (
-						<span
-							className={styles['statusNoticeText']}
-							data-persistent={view.authorityNotice.persistent || undefined}
-						>
-							{view.authorityNotice.message}
-						</span>
-					)}
-				</div>
-			)}
+			<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
+				{view.authorityNotice === null ? null : (
+					<span
+						className={styles['statusNoticeText']}
+						data-persistent={view.authorityNotice.persistent || undefined}
+					>
+						{view.authorityNotice.message}
+					</span>
+				)}
+			</div>
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>
@@ -258,8 +243,6 @@ export function Workbench({
 								>
 									<WorkbenchSidebar
 										subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
-										activateStandalone={view.activateStandalone}
-										standaloneTerminalAvailable={standaloneTerminalAvailable}
 										activateWorkspace={view.activateWorkspace}
 										createProject={view.createProject}
 										activateCreatedProject={view.activateCreatedProject}
@@ -269,11 +252,9 @@ export function Workbench({
 										createWorkspaceProject={view.createWorkspaceProject}
 										deleteWorkspace={view.deleteWorkspace}
 										navigateAgent={view.navigateAgent}
-										environmentProjectConnection={environmentProjectConnection}
 										label={view.sidebarLabel}
 										onSearch={view.search}
 										onSettings={view.settings}
-										onConnectViaSsh={onConnectViaSsh}
 										projectLabel={view.projectLabel}
 										newWorkspaceLabel={view.newWorkspaceLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
@@ -291,7 +272,6 @@ export function Workbench({
 										settingsLabel={view.settingsLabel}
 										settingsShortcutId={view.settingsShortcutId}
 										settingsShortcutLabel={view.settingsShortcutLabel}
-										terminalLabel={view.terminalLabel}
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										toggleRecentsExpansion={view.toggleRecentsExpansion}
 										toggleWorkspaceAgents={agentPresentation.toggleWorkspaceAgents}

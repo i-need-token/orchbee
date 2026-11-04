@@ -6,14 +6,28 @@ import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	createSnapshotRuntime,
+	fixturePresentationId,
+	fixtureProjectId,
+	fixtureWorkspaceId,
+	oneWorkspaceSnapshot,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotProject,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../__tests__/server-workbench-snapshot';
+import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
 import { WORKBENCH_ACTION_IDS } from '../../actions/workbench-action-ids';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import type {
 	WorkbenchNavigationPort,
 	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../../types/workbench-host-actions';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { WORKBENCH_SHORTCUTS } from '../../utils/workbench-shortcuts';
 import { useWorkbenchActions } from '../useWorkbenchActions';
 
@@ -25,15 +39,27 @@ const unavailableFocusRouting = {
 const worktreeTestLabel = (ordinal: number) => `Worktree ${ordinal}`;
 const closeWarningTestText = () => 'Ends its terminals.';
 
-function createTestTerminalPresentationComposition(scope: string) {
-	let sequence = 0;
-	return createWorkbenchPreviewTerminalPresentationComposition(
-		terminalPresentationId(`${scope}:initial`),
-		() => terminalPresentationId(`${scope}:dynamic:${(sequence += 1)}`),
+function createTerminalRuntime(): WorkbenchProjectWorkspaceRuntime {
+	return createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)]));
+}
+
+/** Workspace 1 of Project 1 in Directory 1. */
+function createProjectRuntime(): WorkbenchProjectWorkspaceRuntime {
+	return createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1)],
+				projects: [snapshotProject(1, 'orchbee')],
+				workspaces: [snapshotWorkspace(1, { label: 'Primary', projectId: fixtureProjectId(1) })],
+			},
+			[snapshotContext(1, [snapshotTab(1)])],
+		),
 	);
 }
 
 interface WorkbenchActionsHarnessProps {
+	readonly authority?: WorkbenchAuthority | undefined;
 	readonly captureActions?: ((actions: ReturnType<typeof useWorkbenchActions>) => void) | undefined;
 	readonly captureScope?: ((scope: ReturnType<ActionRuntime['createScope']>) => void) | undefined;
 	readonly focusRouting?: Parameters<typeof useWorkbenchActions>[0]['focusRouting'] | undefined;
@@ -45,6 +71,7 @@ interface WorkbenchActionsHarnessProps {
 }
 
 function WorkbenchActionsHarness({
+	authority = inertWorkbenchAuthority(),
 	captureActions,
 	captureScope,
 	focusRouting = unavailableFocusRouting,
@@ -56,13 +83,7 @@ function WorkbenchActionsHarness({
 }: WorkbenchActionsHarnessProps): React.ReactNode {
 	const [isSidebarVisible, setIsSidebarVisible] = React.useState(true);
 	const [projectWorkspaceRuntime] = React.useState(
-		() =>
-			providedProjectWorkspaceRuntime ??
-			new WorkbenchProjectWorkspaceRuntime({
-				standaloneCwd: '/system',
-				standaloneTerminalTitle: 'Terminal 1',
-				terminalPresentation: createTestTerminalPresentationComposition('action-harness'),
-			}),
+		() => providedProjectWorkspaceRuntime ?? createTerminalRuntime(),
 	);
 	const projectWorkspaceState = React.useSyncExternalStore(
 		projectWorkspaceRuntime.subscribe,
@@ -70,6 +91,7 @@ function WorkbenchActionsHarness({
 		projectWorkspaceRuntime.getSnapshot,
 	);
 	const actions = useWorkbenchActions({
+		authority,
 		focusRouting,
 		formatCloseWarning: closeWarningTestText,
 		isSidebarVisible,
@@ -80,16 +102,12 @@ function WorkbenchActionsHarness({
 		openAgentBoard: () => undefined,
 		openSearch: () => undefined,
 		openTabTitleEditor: () => undefined,
-		defaultWorkspaceName: 'Workspace',
-		primaryWorkspaceName: 'Primary',
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,
 		setTabStripOrientation: () => undefined,
 		tabStripOrientation: 'horizontal',
 		toggleSidebar: () => setIsSidebarVisible((visible) => !visible),
-		workspaceCopySuffix: 'Copy',
-		workspaceTerminalTitle: 'Terminal 1',
 		worktreeLabel: worktreeTestLabel,
 	});
 	captureActions?.(actions);
@@ -124,29 +142,7 @@ afterEach(() => cleanup());
 describe('useWorkbenchActions', () => {
 	it('delegates location navigation without mutating the Workbench first', async () => {
 		const runtime = new ActionRuntime();
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('route-navigation'),
-		});
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-1',
-				kind: 'folder',
-				name: 'orchbee',
-				path: '/workspace/orchbee',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: 'orchbee',
-			terminalTitle: 'Terminal 1',
-			type: 'project-created',
-		});
+		const projectWorkspaceRuntime = createProjectRuntime();
 		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
 			context.markCommitted();
 			return { kind: 'completed' };
@@ -176,8 +172,7 @@ describe('useWorkbenchActions', () => {
 		expect(navigate).toHaveBeenCalledWith(expect.anything(), { kind: 'standalone' });
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-
-			workspaceId: 'workspace-1',
+			workspaceId: fixtureWorkspaceId(1),
 		});
 	});
 
@@ -218,10 +213,6 @@ describe('useWorkbenchActions', () => {
 								name: 'Group',
 							},
 							[WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: { projectId: 'missing' },
-							[WORKBENCH_ACTION_IDS.addResourceFolder]: {
-								path: '/workspace/ghostty',
-								resourceScopeId: 'missing-project',
-							},
 							[WORKBENCH_ACTION_IDS.openSearch]: {
 								filter: 'all',
 							},
@@ -241,10 +232,6 @@ describe('useWorkbenchActions', () => {
 								projectId: 'missing-project',
 								workspaceId: 'missing-workspace',
 							},
-							[WORKBENCH_ACTION_IDS.duplicateWorkspace]: {
-								projectId: 'missing-project',
-								workspaceId: 'missing-workspace',
-							},
 							[WORKBENCH_ACTION_IDS.removeProject]: {
 								projectId: 'missing-project',
 							},
@@ -256,10 +243,6 @@ describe('useWorkbenchActions', () => {
 								beforeWorkspaceId: null,
 								projectId: 'missing-project',
 								workspaceId: 'missing-workspace',
-							},
-							[WORKBENCH_ACTION_IDS.removeResourceDirectory]: {
-								directoryId: 'missing-directory',
-								resourceScopeId: 'missing-project',
 							},
 							[WORKBENCH_ACTION_IDS.renameProject]: {
 								name: 'Missing Project',
@@ -273,10 +256,6 @@ describe('useWorkbenchActions', () => {
 							},
 							[WORKBENCH_ACTION_IDS.selectTabByPosition]: {
 								position: 1,
-							},
-							[WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory]: {
-								directoryId: 'missing-directory',
-								resourceScopeId: 'missing-project',
 							},
 							[WORKBENCH_ACTION_IDS.toggleProjectExpansion]: {
 								projectId: 'missing-project',
@@ -318,11 +297,15 @@ describe('useWorkbenchActions', () => {
 
 	it('captures the exact displayed terminal when creating a Tab in its current directory', async () => {
 		const runtime = new ActionRuntime();
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('current-directory-action'),
-		});
+		const projectWorkspaceRuntime = createTerminalRuntime();
+		projectWorkspaceRuntime.applyTerminalMetadataObservation(
+			terminalPresentationId(fixturePresentationId(1)),
+			{
+				closeActivity: 'unknown',
+				currentDirectory: { currentCwd: '/workspace/orchbee', kind: 'reported' },
+				naturalTitle: null,
+			},
+		);
 		const targetResolution = projectWorkspaceRuntime.resolveActiveTerminalCurrentDirectoryTarget();
 		if (targetResolution.kind !== 'ready') throw new Error('Expected a current-directory target.');
 		const onNewTerminal = vi.fn<WorkbenchTerminalCreateCallback>(() => ({ kind: 'completed' }));
@@ -367,15 +350,9 @@ describe('useWorkbenchActions', () => {
 		const runtime = new ActionRuntime();
 		let capturedScope: ReturnType<typeof runtime.createScope> | undefined;
 		const CapturingHarness = () => {
-			const [projectWorkspaceRuntime] = React.useState(
-				() =>
-					new WorkbenchProjectWorkspaceRuntime({
-						standaloneCwd: '/system',
-						standaloneTerminalTitle: 'Terminal 1',
-						terminalPresentation: createTestTerminalPresentationComposition('action-disabled'),
-					}),
-			);
+			const [projectWorkspaceRuntime] = React.useState(createTerminalRuntime);
 			const actions = useWorkbenchActions({
+				authority: inertWorkbenchAuthority(),
 				focusRouting: unavailableFocusRouting,
 				formatCloseWarning: closeWarningTestText,
 				isSidebarVisible: true,
@@ -384,16 +361,12 @@ describe('useWorkbenchActions', () => {
 				openAgentBoard: () => undefined,
 				openSearch: () => undefined,
 				openTabTitleEditor: () => undefined,
-				defaultWorkspaceName: 'Workspace',
-				primaryWorkspaceName: 'Primary',
 				projectWorkspaceRuntime,
 				projectWorkspaceState: projectWorkspaceRuntime.getSnapshot(),
 				runtime,
 				setTabStripOrientation: () => undefined,
 				tabStripOrientation: 'horizontal',
 				toggleSidebar: () => undefined,
-				workspaceCopySuffix: 'Copy',
-				workspaceTerminalTitle: 'Terminal 1',
 				worktreeLabel: worktreeTestLabel,
 			});
 			capturedScope = actions.scope;
@@ -539,46 +512,20 @@ describe('useWorkbenchActions', () => {
 
 	it('routes Project and Workspace intents through stable actions', async () => {
 		const runtime = new ActionRuntime({ confirm: () => true });
-		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-			standaloneCwd: '/system',
-			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('action-confirmation'),
-		});
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-1',
-				kind: 'folder',
-				name: 'orchbee',
-				path: '/workspace/orchbee',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			launchConfigurations: [],
-			primaryWorkspaceLaunchConfigurationId: null,
-			primaryWorkspaceName: 'Primary',
-			projectName: 'orchbee',
-			terminalTitle: 'Terminal 1',
-			type: 'project-created',
-		});
-		projectWorkspaceRuntime.transition({
-			directory: {
-				available: true,
-				git: null,
-				id: 'directory-2',
-				kind: 'folder',
-				name: 'xterm.js',
-				path: '/workspace/xterm.js',
-				placement: { kind: 'local' },
-				source: 'selected',
-			},
-			resourceScopeId: 'resource-scope-1',
-			type: 'directory-added',
-		});
+		const projectWorkspaceRuntime = createProjectRuntime();
+		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
+		if (workspace === undefined) throw new Error('Expected one Workspace.');
+		const change = vi.fn<WorkbenchAuthority['change']>(() =>
+			Promise.resolve({ kind: 'completed' }),
+		);
+		const close = vi.fn<WorkbenchAuthority['close']>(() => Promise.resolve({ kind: 'completed' }));
+		const create = vi.fn<WorkbenchAuthority['create']>(() =>
+			Promise.resolve({ kind: 'cancelled' }),
+		);
 		let actionScope: ReturnType<ActionRuntime['createScope']> | undefined;
 		render(
 			React.createElement(WorkbenchActionsHarness, {
+				authority: inertWorkbenchAuthority({ change, close, create }),
 				captureScope: (scope) => {
 					actionScope = scope;
 				},
@@ -590,108 +537,52 @@ describe('useWorkbenchActions', () => {
 			throw new Error('Expected the Workbench action scope to be captured');
 		}
 		const projectActionScope = actionScope;
+		const execute = async (actionId: string, input: unknown) => {
+			await act(async () => {
+				await runtime.execute(actionId, input, { scope: projectActionScope, source: 'button' })
+					.completion;
+			});
+		};
 
-		await act(async () => {
-			await runtime.execute(WORKBENCH_ACTION_IDS.activateStandalone, undefined, {
-				scope: projectActionScope,
-				source: 'button',
-			}).completion;
-		});
+		await execute(WORKBENCH_ACTION_IDS.activateStandalone, undefined);
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
 
-		await act(async () => {
-			await runtime.execute(
-				WORKBENCH_ACTION_IDS.removeResourceDirectory,
-				{ directoryId: 'directory-1', resourceScopeId: 'resource-scope-1' },
-				{ scope: projectActionScope, source: 'button' },
-			).completion;
+		await execute(WORKBENCH_ACTION_IDS.renameProject, {
+			name: 'Orchbee Project',
+			projectId: fixtureProjectId(1),
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({ name: 'orchbee' });
-		expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
-			primaryDirectoryId: 'directory-2',
+		await execute(WORKBENCH_ACTION_IDS.createWorkspace, {
+			directoryId: workspace.primaryDirectoryId,
+			projectId: fixtureProjectId(1),
+			resourceScopeId: workspace.resourceScopeId,
 		});
-		expect(
-			projectWorkspaceRuntime
-				.getSnapshot()
-				.workspaces.filter(
-					(workspace) =>
-						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
-				),
-		).toMatchObject([{ primaryDirectoryId: 'directory-2' }]);
+		await execute(WORKBENCH_ACTION_IDS.updateWorkspace, {
+			name: 'Feature',
+			primaryDirectoryId: workspace.primaryDirectoryId,
+			workspaceId: workspace.id,
+		});
+		await execute(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId: workspace.id });
 
-		await act(async () => {
-			await runtime.execute(
-				WORKBENCH_ACTION_IDS.renameProject,
-				{ name: 'Orchbee Project', projectId: 'project-1' },
-				{ scope: projectActionScope, source: 'button' },
-			).completion;
+		expect(change.mock.calls.map(([, request]) => request)).toEqual([
+			{ name: 'Orchbee Project', projectId: fixtureProjectId(1), type: 'project-renamed' },
+			{
+				launchConfigurationId: null,
+				name: 'Feature',
+				primaryDirectoryId: workspace.primaryDirectoryId,
+				type: 'workspace-updated',
+				workspaceId: workspace.id,
+			},
+		]);
+		expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			directoryId: workspace.primaryDirectoryId,
+			projectId: fixtureProjectId(1),
+			type: 'workspace-created',
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee Project');
-
-		await act(async () => {
-			await runtime.execute(
-				WORKBENCH_ACTION_IDS.createWorkspace,
-				{ directoryId: 'directory-2', resourceScopeId: 'resource-scope-1', projectId: 'project-1' },
-				{ scope: projectActionScope, source: 'menu' },
-			).completion;
+		expect(close).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			type: 'workspace-close-if-idle',
+			workspaceId: workspace.id,
 		});
-		expect(
-			projectWorkspaceRuntime
-				.getSnapshot()
-				.workspaces.filter(
-					(workspace) =>
-						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
-				),
-		).toHaveLength(2);
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toMatchObject({
-			kind: 'workspace',
-			workspaceId: 'workspace-2',
-		});
-
-		await act(async () => {
-			await runtime.execute(
-				WORKBENCH_ACTION_IDS.updateWorkspace,
-				{
-					name: 'Feature',
-					primaryDirectoryId: 'directory-2',
-
-					workspaceId: 'workspace-2',
-				},
-				{ scope: projectActionScope, source: 'button' },
-			).completion;
-		});
-
-		await act(async () => {
-			await runtime.execute(
-				WORKBENCH_ACTION_IDS.duplicateWorkspace,
-				{ workspaceId: 'workspace-2' },
-				{ scope: projectActionScope, source: 'menu' },
-			).completion;
-		});
-		expect(
-			projectWorkspaceRuntime
-				.getSnapshot()
-				.workspaces.filter(
-					(workspace) =>
-						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
-				)[2]?.name,
-		).toBe('Feature Copy');
-
-		await act(async () => {
-			await runtime.execute(
-				WORKBENCH_ACTION_IDS.deleteWorkspace,
-				{ workspaceId: 'workspace-3' },
-				{ scope: projectActionScope, source: 'menu' },
-			).completion;
-		});
-		expect(
-			projectWorkspaceRuntime
-				.getSnapshot()
-				.workspaces.filter(
-					(workspace) =>
-						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
-				),
-		).toHaveLength(2);
+		// Every change shows once the authority publishes it.
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
 	});
 

@@ -167,7 +167,4 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.newTab': '新建标签页',
 	'terminal.projected.launch.shellFailed': '无法启动所配置的 Shell。请检查启动配置和工作目录。',
 	'terminal.projected.launch.unavailable': '终端不可用',
-	'terminal.projected.session.startNew': '启动新会话',
-	'terminal.projected.session.startFailed': '无法启动终端会话。',
-	'terminal.projected.session.stopped': '终端会话已停止',
 } as const satisfies Readonly<Record<ProjectedTerminalMessageId, string>>;

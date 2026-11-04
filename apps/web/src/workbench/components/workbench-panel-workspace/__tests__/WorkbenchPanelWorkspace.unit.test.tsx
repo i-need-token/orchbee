@@ -2,32 +2,37 @@
 
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import { TabModel } from '@orchbee/tab-strip';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
+import {
+	createSnapshotRuntime,
+	fixturePanelId,
+	fixturePresentationId,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotSplit,
+	snapshotTab,
+	type FixtureRecord,
+} from '../../../../__tests__/server-workbench-snapshot';
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputResult,
 	WorkbenchTerminalSurfaceProps,
 } from '../../../types/workbench-terminal-surface';
+import type { WorkbenchAuthority } from '../../../types/workbench-authority';
 import { registerWorkbenchActiveTerminalActions } from '../../../actions/registerWorkbenchActiveTerminalActions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
 } from '../../../actions/workbench-action-ids';
-import { WorkbenchProjectWorkspaceRuntime } from '../../../model/WorkbenchProjectWorkspaceRuntime';
-import { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
-import {
-	collectPanelLeaves,
-	getDisplayedTerminal,
-	type PanelLayoutNode,
-	type PanelWorkspaceState,
-} from '../model/panel-workspace-state';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../../model/WorkbenchProjectWorkspaceRuntime';
+import { collectPanelLeaves, getDisplayedTerminal } from '../model/panel-workspace-state';
 import { WorkbenchPanelWorkspace } from '../WorkbenchPanelWorkspace';
+import { inertWorkbenchAuthority } from '../../../../__tests__/inertWorkbenchAuthority';
 
 const surfaces = new Map<string, WorkbenchTerminalSurfaceProps>();
 const surfacesByMode = new Map<string, WorkbenchTerminalSurfaceProps>();
@@ -36,6 +41,17 @@ const broadcastSendHandlers = new Map<
 	string,
 	(input: WorkbenchTerminalBroadcastInput) => Promise<WorkbenchTerminalBroadcastInputResult>
 >();
+
+const TAB_A = fixtureTabId(1);
+const TAB_B = fixtureTabId(2);
+/** Panel 1 beside Panels 2 and 3, which share the right side. */
+const THREE_PANEL_ROOT = snapshotSplit(
+	1,
+	'horizontal',
+	snapshotPanel(1),
+	snapshotSplit(2, 'horizontal', snapshotPanel(2), snapshotPanel(3)),
+);
+const TWO_PANEL_ROOT = snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(3));
 
 function deferred<Value>(): {
 	readonly promise: Promise<Value>;
@@ -108,64 +124,21 @@ function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNo
 	);
 }
 
-function runningLayout(node: PanelLayoutNode): PanelLayoutNode {
-	if (node.kind === 'panel') {
-		return {
-			...node,
-			childPresentations: node.childPresentations.map((terminal) => ({
-				...terminal,
-				lifecycle: { kind: 'running' },
-			})),
-			primaryPresentation: {
-				...node.primaryPresentation,
-				lifecycle: { kind: 'running' },
-			},
-		};
-	}
-	return {
-		...node,
-		children: node.children.map((child) => ({ ...child, node: runningLayout(child.node) })),
-	};
+function unexpected(): Promise<never> {
+	return Promise.reject(new Error('The test did not expect this authority call.'));
 }
 
-function runningWorkspaceState(state: PanelWorkspaceState): PanelWorkspaceState {
-	return {
-		...state,
-		tabs: state.tabs.map((tab) => ({ ...tab, root: runningLayout(tab.root) })),
-	};
+/** The runtime a window holds when the Server publishes Workspace 1 with `tabs`. */
+function publishedRuntime(tabs: readonly FixtureRecord[]): WorkbenchProjectWorkspaceRuntime {
+	return createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs));
 }
 
-function renderThreePanelWorkspace() {
+function renderWorkspace(projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime) {
 	const actionRuntime = new ActionRuntime();
 	const parentActionScope = actionRuntime.createScope('test.workbench');
-	let sequence = 1;
-	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace',
-		standaloneTerminalTitle: 'Terminal A',
-		terminalPresentation: {
-			createPresentationId: () => terminalPresentationId(`terminal-visual-${sequence++}`),
-			initialPresentationId: terminalPresentationId('terminal-visual-initial'),
-			kind: 'preview',
-		},
-	});
-	const panelWorkspaceStore =
-		projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
-	const tabId = panelWorkspaceStore.getActiveTabId();
-	if (tabId === null) throw new Error('Expected an active terminal Tab.');
-	for (let index = 0; index < 2; index += 1) {
-		const tab = panelWorkspaceStore
-			.getSnapshot()
-			.tabs.find((candidate) => candidate.tabId === tabId);
-		if (tab === undefined) throw new Error('Expected the active terminal Tab.');
-		panelWorkspaceStore.transition({
-			direction: 'right',
-			newTerminalTitle: 'Terminal',
-			panelId: tab.focusedPanelId,
-			presentation: panelWorkspaceStore.createTerminalPresentation(),
-			tabId,
-			type: 'panel-split',
-		});
-	}
+	const context = projectWorkspaceRuntime.getActiveTerminalContext();
+	const change = vi.fn<WorkbenchAuthority['change']>(() => Promise.resolve({ kind: 'completed' }));
+	const authority = inertWorkbenchAuthority({ change });
 	registerWorkbenchActiveTerminalActions({
 		projectWorkspaceRuntime,
 		runtime: actionRuntime,
@@ -177,9 +150,11 @@ function renderThreePanelWorkspace() {
 			<TooltipProvider>
 				<WorkbenchPanelWorkspace
 					actionRuntime={actionRuntime}
-					panelWorkspaceStore={panelWorkspaceStore}
+					authority={authority}
+					createPanelTerminal={unexpected}
+					panelWorkspaceStore={context.panelWorkspaceStore}
 					parentActionScope={parentActionScope}
-					terminalContextId='test-context'
+					terminalContextId={context.terminalContextId}
 					shortcutLabelForAction={() => undefined}
 					terminalAutoFocusAllowed
 					terminalFocusRequest={null}
@@ -188,56 +163,26 @@ function renderThreePanelWorkspace() {
 			</TooltipProvider>
 		</OrchbeeI18nProvider>,
 	);
-	return { actionRuntime, panelWorkspaceStore, parentActionScope, rendered };
+	return {
+		actionRuntime,
+		change,
+		panelWorkspaceStore: context.panelWorkspaceStore,
+		parentActionScope,
+		rendered,
+		tabModel: context.tabModel,
+		terminalContextId: context.terminalContextId,
+	};
 }
 
-function renderRunningThreePanelWorkspace() {
-	const actionRuntime = new ActionRuntime();
-	const parentActionScope = actionRuntime.createScope('test.broadcast-workbench');
-	const tabModel = new TabModel({
-		activeTabId: 'tab-broadcast',
-		tabs: [{ group: null, id: 'tab-broadcast', pinned: false, title: 'Broadcast' }],
+/** Three Panels with Panel 3 focused, as after splitting to the right twice. */
+function renderThreePanelWorkspace() {
+	const projectWorkspaceRuntime = publishedRuntime([snapshotTab(1, THREE_PANEL_ROOT)]);
+	projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+		panelId: fixturePanelId(3),
+		tabId: TAB_A,
+		type: 'panel-focused',
 	});
-	let sequence = 1;
-	const composition = {
-		createPresentationId: () => terminalPresentationId(`terminal-broadcast-${sequence++}`),
-		initialPresentationId: terminalPresentationId('terminal-broadcast-initial'),
-		kind: 'preview' as const,
-	};
-	const layoutBuilder = new PanelWorkspaceStore(tabModel, { composition });
-	for (let index = 0; index < 2; index += 1) {
-		const tab = layoutBuilder.getSnapshot().tabs[0];
-		if (tab === undefined) throw new Error('Expected the broadcast terminal Tab.');
-		layoutBuilder.transition({
-			direction: 'right',
-			newTerminalTitle: `Terminal ${index + 2}`,
-			panelId: tab.focusedPanelId,
-			presentation: layoutBuilder.createTerminalPresentation(),
-			tabId: tab.tabId,
-			type: 'panel-split',
-		});
-	}
-	const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
-		composition,
-		initialState: runningWorkspaceState(layoutBuilder.getSnapshot()),
-	});
-	const rendered = render(
-		<OrchbeeI18nProvider locale='en-US'>
-			<TooltipProvider>
-				<WorkbenchPanelWorkspace
-					actionRuntime={actionRuntime}
-					panelWorkspaceStore={panelWorkspaceStore}
-					parentActionScope={parentActionScope}
-					terminalContextId='test-context'
-					shortcutLabelForAction={() => undefined}
-					terminalAutoFocusAllowed
-					terminalFocusRequest={null}
-					terminalSurface={TestTerminalSurface}
-				/>
-			</TooltipProvider>
-		</OrchbeeI18nProvider>,
-	);
-	return { actionRuntime, panelWorkspaceStore, rendered };
+	return renderWorkspace(projectWorkspaceRuntime);
 }
 
 beforeEach(() => {
@@ -289,7 +234,9 @@ afterEach(() => {
 
 describe('WorkbenchPanelWorkspace', () => {
 	it('broadcasts committed text and key taps to exactly three displayed Panels in FIFO order', async () => {
-		const { actionRuntime, panelWorkspaceStore, rendered } = renderRunningThreePanelWorkspace();
+		const { actionRuntime, panelWorkspaceStore, rendered } = renderWorkspace(
+			publishedRuntime([snapshotTab(1, THREE_PANEL_ROOT)]),
+		);
 		const tab = panelWorkspaceStore.getSnapshot().tabs[0];
 		if (tab === undefined) throw new Error('Expected the broadcast terminal Tab.');
 		const targets = collectPanelLeaves(tab.root).map(
@@ -349,7 +296,9 @@ describe('WorkbenchPanelWorkspace', () => {
 	});
 
 	it('ends visibly after a non-atomic partial broadcast delivery and never replays it', async () => {
-		const { actionRuntime, panelWorkspaceStore, rendered } = renderRunningThreePanelWorkspace();
+		const { actionRuntime, panelWorkspaceStore, rendered } = renderWorkspace(
+			publishedRuntime([snapshotTab(1, THREE_PANEL_ROOT)]),
+		);
 		const tab = panelWorkspaceStore.getSnapshot().tabs[0];
 		if (tab === undefined) throw new Error('Expected the broadcast terminal Tab.');
 		const targets = collectPanelLeaves(tab.root).map(
@@ -377,6 +326,7 @@ describe('WorkbenchPanelWorkspace', () => {
 		rendered.unmount();
 		actionRuntime.dispose();
 	});
+
 	it('owns keyboard selection exclusively and focuses the physically labeled target', async () => {
 		const { actionRuntime, panelWorkspaceStore, parentActionScope, rendered } =
 			renderThreePanelWorkspace();
@@ -408,19 +358,28 @@ describe('WorkbenchPanelWorkspace', () => {
 		expect(workspace.getAttribute('data-workbench-keyboard-capture')).toBe('true');
 
 		fireEvent.keyDown(workspace, { code: 'Digit1', ctrlKey: true, shiftKey: true });
-		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe('panel-1');
+		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe(fixturePanelId(1));
 		expect(workspace.hasAttribute('data-workbench-keyboard-capture')).toBe(false);
 		expect(
 			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
 		).toBeNull();
-		expect((document.activeElement as HTMLElement | null)?.dataset['panelId']).toBe('panel-1');
+		const activeElement = document.activeElement;
+		expect(
+			activeElement instanceof HTMLElement ? activeElement.dataset['panelId'] : undefined,
+		).toBe(fixturePanelId(1));
 
 		actionRuntime.dispose();
 	});
 
 	it('swaps with a primary-click target through the exact lower Panel Action', async () => {
-		const { actionRuntime, panelWorkspaceStore, parentActionScope, rendered } =
-			renderThreePanelWorkspace();
+		const {
+			actionRuntime,
+			change,
+			panelWorkspaceStore,
+			parentActionScope,
+			rendered,
+			terminalContextId,
+		} = renderThreePanelWorkspace();
 		await act(async () => {
 			await actionRuntime.execute(WORKBENCH_ACTION_IDS.swapActivePanelVisible, undefined, {
 				scope: parentActionScope,
@@ -428,19 +387,20 @@ describe('WorkbenchPanelWorkspace', () => {
 			}).completion;
 		});
 		const target = rendered.container.querySelector<HTMLElement>(
-			'[data-panel-visual-selection-target="true"][data-panel-id="panel-2"]',
+			`[data-panel-visual-selection-target="true"][data-panel-id="${fixturePanelId(2)}"]`,
 		);
 		if (target === null) throw new Error('Expected the Panel swap target.');
 
 		fireEvent.pointerDown(target, { button: 0 });
 
-		const tab = panelWorkspaceStore.getSnapshot().tabs[0];
-		expect(tab === undefined ? [] : collectPanelLeaves(tab.root).map((panel) => panel.id)).toEqual([
-			'panel-1',
-			'panel-3',
-			'panel-2',
-		]);
-		expect(tab?.focusedPanelId).toBe('panel-3');
+		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			panelId: fixturePanelId(3),
+			tabId: TAB_A,
+			targetPanelId: fixturePanelId(2),
+			terminalContextId,
+			type: 'panels-swapped',
+		});
+		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe(fixturePanelId(3));
 		expect(
 			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
 		).toBeNull();
@@ -460,13 +420,11 @@ describe('WorkbenchPanelWorkspace', () => {
 		expect(
 			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
 		).not.toBeNull();
-		const tabId = panelWorkspaceStore.getActiveTabId();
-		if (tabId === null) throw new Error('Expected an active terminal Tab.');
 
 		act(() => {
 			panelWorkspaceStore.transition({
-				panelId: 'panel-1',
-				tabId,
+				panelId: fixturePanelId(1),
+				tabId: TAB_A,
 				type: 'panel-focused',
 			});
 		});
@@ -474,67 +432,35 @@ describe('WorkbenchPanelWorkspace', () => {
 		expect(
 			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
 		).toBeNull();
-		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe('panel-1');
+		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe(fixturePanelId(1));
 
 		actionRuntime.dispose();
 	});
 
 	it('keeps the outgoing frame until display readiness and delays focus until activation', () => {
-		const actionRuntime = new ActionRuntime();
-		const tabModel = new TabModel({
-			activeTabId: 'tab-a',
-			tabs: [
-				{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' },
-				{ group: null, id: 'tab-b', pinned: false, title: 'Terminal B' },
-			],
-		});
-		let sequence = 1;
-		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
-			composition: {
-				createPresentationId: () => terminalPresentationId(`terminal-${sequence++}`),
-				initialPresentationId: terminalPresentationId('terminal-a'),
-				kind: 'preview',
-			},
-		});
-		const targetTab = panelWorkspaceStore.getSnapshot().tabs[1];
-		const targetPanel = targetTab === undefined ? undefined : collectPanelLeaves(targetTab.root)[0];
-		if (targetPanel === undefined) throw new Error('Expected the target Tab workspace.');
-		const targetPresentationId = getDisplayedTerminal(targetPanel).presentationId;
-		const rendered = render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<WorkbenchPanelWorkspace
-						actionRuntime={actionRuntime}
-						panelWorkspaceStore={panelWorkspaceStore}
-						parentActionScope={actionRuntime.createScope('test.workbench')}
-						terminalContextId='test-context'
-						shortcutLabelForAction={() => undefined}
-						terminalAutoFocusAllowed
-						terminalFocusRequest={null}
-						terminalSurface={TestTerminalSurface}
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
+		const { actionRuntime, rendered, tabModel } = renderWorkspace(
+			publishedRuntime([snapshotTab(1), snapshotTab(2)]),
 		);
+		const targetPresentationId = fixturePresentationId(2);
 
-		act(() => tabModel.selectTab('tab-b'));
+		act(() => tabModel.selectTab(TAB_B));
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-a"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_A}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('retained');
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_B}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('incoming');
 		expect(surfaces.get(targetPresentationId)?.autoFocus).toBe(false);
 
 		act(() => surfaces.get(targetPresentationId)?.onPresentationReady('display-ready'));
-		expect(rendered.container.querySelector('[data-terminal-tab-id="tab-a"]')).toBeNull();
+		expect(rendered.container.querySelector(`[data-terminal-tab-id="${TAB_A}"]`)).toBeNull();
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_B}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('incoming');
 		expect(surfaces.get(targetPresentationId)?.autoFocus).toBe(false);
@@ -542,7 +468,7 @@ describe('WorkbenchPanelWorkspace', () => {
 		act(() => surfaces.get(targetPresentationId)?.onPresentationReady('activation-ready'));
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_B}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('active');
 		expect(surfaces.get(targetPresentationId)?.autoFocus).toBe(true);
@@ -551,64 +477,20 @@ describe('WorkbenchPanelWorkspace', () => {
 	});
 
 	it('keeps the pre-maximize same-Tab layer visible until the maximized geometry is ready', () => {
-		const actionRuntime = new ActionRuntime();
-		const tabModel = new TabModel({
-			activeTabId: 'tab-a',
-			tabs: [{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' }],
-		});
-		let sequence = 1;
-		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
-			composition: {
-				createPresentationId: () => terminalPresentationId(`terminal-max-${sequence++}`),
-				initialPresentationId: terminalPresentationId('terminal-max-initial'),
-				kind: 'preview',
-			},
-		});
-		const initialTab = panelWorkspaceStore.getSnapshot().tabs[0];
-		const initialPanel =
-			initialTab === undefined ? undefined : collectPanelLeaves(initialTab.root)[0];
-		if (initialPanel === undefined) throw new Error('Expected the initial Panel.');
-		panelWorkspaceStore.transition({
-			direction: 'right',
-			newTerminalTitle: 'Terminal',
-			panelId: initialPanel.id,
-			presentation: panelWorkspaceStore.createTerminalPresentation(),
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const splitTab = panelWorkspaceStore.getSnapshot().tabs[0];
-		if (splitTab === undefined) throw new Error('Expected the split Tab.');
-		const maximizedPanel = collectPanelLeaves(splitTab.root).find(
-			(panel) => panel.id === splitTab.focusedPanelId,
+		const { actionRuntime, panelWorkspaceStore, rendered } = renderWorkspace(
+			publishedRuntime([snapshotTab(1, TWO_PANEL_ROOT)]),
 		);
-		if (maximizedPanel === undefined) throw new Error('Expected the focused Panel.');
-		const maximizedPresentationId = getDisplayedTerminal(maximizedPanel).presentationId;
-		const rendered = render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<WorkbenchPanelWorkspace
-						actionRuntime={actionRuntime}
-						panelWorkspaceStore={panelWorkspaceStore}
-						parentActionScope={actionRuntime.createScope('test.workbench')}
-						terminalContextId='test-context'
-						shortcutLabelForAction={() => undefined}
-						terminalAutoFocusAllowed
-						terminalFocusRequest={null}
-						terminalSurface={TestTerminalSurface}
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
-		);
+		const maximizedPresentationId = fixturePresentationId(3);
 
 		act(() => {
 			panelWorkspaceStore.transition({
-				panelId: maximizedPanel.id,
-				tabId: 'tab-a',
+				panelId: fixturePanelId(3),
+				tabId: TAB_A,
 				type: 'panel-maximization-toggled',
 			});
 		});
 		const pendingLayers = [
-			...rendered.container.querySelectorAll('[data-terminal-tab-id="tab-a"]'),
+			...rendered.container.querySelectorAll(`[data-terminal-tab-id="${TAB_A}"]`),
 		];
 		expect(pendingLayers.map((element) => element.getAttribute('data-presentation-mode'))).toEqual([
 			'incoming',
@@ -620,14 +502,14 @@ describe('WorkbenchPanelWorkspace', () => {
 
 		act(() => incomingSurface.onPresentationReady('display-ready'));
 		expect(
-			[...rendered.container.querySelectorAll('[data-terminal-tab-id="tab-a"]')].map((element) =>
+			[...rendered.container.querySelectorAll(`[data-terminal-tab-id="${TAB_A}"]`)].map((element) =>
 				element.getAttribute('data-presentation-mode'),
 			),
 		).toEqual(['incoming']);
 		act(() => incomingSurface.onPresentationReady('activation-ready'));
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-a"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_A}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('active');
 		expect(surfaces.get(maximizedPresentationId)?.autoFocus).toBe(true);
@@ -635,161 +517,32 @@ describe('WorkbenchPanelWorkspace', () => {
 		actionRuntime.dispose();
 	});
 
-	it('keeps a closed active Tab visible until its surviving replacement is display ready', () => {
-		const actionRuntime = new ActionRuntime();
-		const tabModel = new TabModel({
-			activeTabId: 'tab-a',
-			tabs: [
-				{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' },
-				{ group: null, id: 'tab-b', pinned: false, title: 'Terminal B' },
-			],
-		});
-		let sequence = 1;
-		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
-			composition: {
-				createPresentationId: () => terminalPresentationId(`terminal-close-${sequence++}`),
-				initialPresentationId: terminalPresentationId('terminal-a'),
-				kind: 'preview',
-			},
-		});
-		const tabA = panelWorkspaceStore.getSnapshot().tabs[0];
-		const tabB = panelWorkspaceStore.getSnapshot().tabs[1];
-		const tabAPanel = tabA === undefined ? undefined : collectPanelLeaves(tabA.root)[0];
-		const tabBPanel = tabB === undefined ? undefined : collectPanelLeaves(tabB.root)[0];
-		if (tabAPanel === undefined || tabBPanel === undefined) {
-			throw new Error('Expected both Tab workspaces.');
-		}
-		const tabAPresentationId = getDisplayedTerminal(tabAPanel).presentationId;
-		const tabBPresentationId = getDisplayedTerminal(tabBPanel).presentationId;
-		const rendered = render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<WorkbenchPanelWorkspace
-						actionRuntime={actionRuntime}
-						panelWorkspaceStore={panelWorkspaceStore}
-						parentActionScope={actionRuntime.createScope('test.workbench')}
-						terminalContextId='test-context'
-						shortcutLabelForAction={() => undefined}
-						terminalAutoFocusAllowed
-						terminalFocusRequest={null}
-						terminalSurface={TestTerminalSurface}
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
-		);
-
-		act(() => tabModel.selectTab('tab-b'));
-		act(() => surfaces.get(tabBPresentationId)?.onPresentationReady('activation-ready'));
-		expect(
-			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
-				?.getAttribute('data-presentation-mode'),
-		).toBe('active');
-
-		act(() => panelWorkspaceStore.requestTabClose(['tab-b']));
-		expect(tabModel.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['tab-a']);
-		expect(
-			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
-				?.getAttribute('data-presentation-mode'),
-		).toBe('retained');
-		expect(
-			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-a"]')
-				?.getAttribute('data-presentation-mode'),
-		).toBe('incoming');
-		expect(surfaces.get(tabAPresentationId)?.autoFocus).toBe(false);
-
-		act(() => surfaces.get(tabAPresentationId)?.onPresentationReady('display-ready'));
-		expect(rendered.container.querySelector('[data-terminal-tab-id="tab-b"]')).toBeNull();
-		act(() => surfaces.get(tabAPresentationId)?.onPresentationReady('activation-ready'));
-		expect(
-			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-a"]')
-				?.getAttribute('data-presentation-mode'),
-		).toBe('active');
-
-		actionRuntime.dispose();
-	});
-
 	it('commits only the maximized Panel when returning to a split Tab', () => {
-		const actionRuntime = new ActionRuntime();
-		const tabModel = new TabModel({
-			activeTabId: 'tab-a',
-			tabs: [
-				{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' },
-				{ group: null, id: 'tab-b', pinned: false, title: 'Terminal B' },
-			],
-		});
-		let sequence = 1;
-		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
-			composition: {
-				createPresentationId: () => terminalPresentationId(`terminal-${sequence++}`),
-				initialPresentationId: terminalPresentationId('terminal-a'),
-				kind: 'preview',
-			},
-		});
-		const initialTabA = panelWorkspaceStore.getSnapshot().tabs[0];
-		const sourcePanel =
-			initialTabA === undefined ? undefined : collectPanelLeaves(initialTabA.root)[0];
-		if (sourcePanel === undefined) throw new Error('Expected the source Tab workspace.');
-		panelWorkspaceStore.transition({
-			direction: 'right',
-			newTerminalTitle: 'Terminal',
-			panelId: sourcePanel.id,
-			presentation: panelWorkspaceStore.createTerminalPresentation(),
-			tabId: 'tab-a',
-			type: 'panel-split',
-		});
-		const splitTabA = panelWorkspaceStore.getSnapshot().tabs[0];
-		if (splitTabA === undefined) throw new Error('Expected the split source Tab workspace.');
-		const maximizedPanelId = splitTabA.focusedPanelId;
-		panelWorkspaceStore.transition({
-			panelId: maximizedPanelId,
-			tabId: 'tab-a',
+		const projectWorkspaceRuntime = publishedRuntime([
+			snapshotTab(1, TWO_PANEL_ROOT),
+			snapshotTab(2),
+		]);
+		projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.transition({
+			panelId: fixturePanelId(3),
+			tabId: TAB_A,
 			type: 'panel-maximization-toggled',
 		});
-		const maximizedTabA = panelWorkspaceStore.getSnapshot().tabs[0];
-		const tabB = panelWorkspaceStore.getSnapshot().tabs[1];
-		const maximizedPanel =
-			maximizedTabA === undefined
-				? undefined
-				: collectPanelLeaves(maximizedTabA.root).find((panel) => panel.id === maximizedPanelId);
-		const tabBPanel = tabB === undefined ? undefined : collectPanelLeaves(tabB.root)[0];
-		if (maximizedPanel === undefined || tabBPanel === undefined) {
-			throw new Error('Expected both Tab workspaces.');
-		}
-		const maximizedPresentationId = getDisplayedTerminal(maximizedPanel).presentationId;
-		const tabBPresentationId = getDisplayedTerminal(tabBPanel).presentationId;
-		const rendered = render(
-			<OrchbeeI18nProvider locale='en-US'>
-				<TooltipProvider>
-					<WorkbenchPanelWorkspace
-						actionRuntime={actionRuntime}
-						panelWorkspaceStore={panelWorkspaceStore}
-						parentActionScope={actionRuntime.createScope('test.workbench')}
-						terminalContextId='test-context'
-						shortcutLabelForAction={() => undefined}
-						terminalAutoFocusAllowed
-						terminalFocusRequest={null}
-						terminalSurface={TestTerminalSurface}
-					/>
-				</TooltipProvider>
-			</OrchbeeI18nProvider>,
-		);
+		const { actionRuntime, rendered, tabModel } = renderWorkspace(projectWorkspaceRuntime);
+		const maximizedPresentationId = fixturePresentationId(3);
+		const tabBPresentationId = fixturePresentationId(2);
 
-		act(() => tabModel.selectTab('tab-b'));
+		act(() => tabModel.selectTab(TAB_B));
 		act(() => surfaces.get(tabBPresentationId)?.onPresentationReady('activation-ready'));
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_B}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('active');
 
-		act(() => tabModel.selectTab('tab-a'));
+		act(() => tabModel.selectTab(TAB_A));
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-b"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_B}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('retained');
 		const incomingMaximizedSurface = surfacesByMode.get(`${maximizedPresentationId}:incoming`);
@@ -798,10 +551,10 @@ describe('WorkbenchPanelWorkspace', () => {
 		}
 		act(() => incomingMaximizedSurface.onPresentationReady('activation-ready'));
 
-		expect(rendered.container.querySelector('[data-terminal-tab-id="tab-b"]')).toBeNull();
+		expect(rendered.container.querySelector(`[data-terminal-tab-id="${TAB_B}"]`)).toBeNull();
 		expect(
 			rendered.container
-				.querySelector('[data-terminal-tab-id="tab-a"]')
+				.querySelector(`[data-terminal-tab-id="${TAB_A}"]`)
 				?.getAttribute('data-presentation-mode'),
 		).toBe('active');
 

@@ -160,11 +160,6 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly releasePanelDragHold: (sourceRevision: string) => void;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly dismissBroadcastInput: () => void;
-	readonly resizeAdjacentPanels: (
-		splitId: string,
-		separatorIndex: number,
-		leadingWeight: number,
-	) => void;
 	/** Settles true when the size changed. */
 	readonly resizePanel: (
 		panelId: string,
@@ -172,7 +167,7 @@ export interface WorkbenchPanelWorkspaceView {
 		multiplier: PanelResizeMultiplier,
 		source?: ActionInvocationSource,
 	) => Promise<boolean>;
-	readonly sharedSplitResize?: SharedSplitResize | undefined;
+	readonly sharedSplitResize: SharedSplitResize;
 	readonly showPrimaryTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly splitPanel: (

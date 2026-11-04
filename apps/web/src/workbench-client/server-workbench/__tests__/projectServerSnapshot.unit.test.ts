@@ -1,147 +1,26 @@
-import { createOrchbeeIntl } from '@orchbee/i18n';
-import {
-	createDefaultWorkbenchClientView,
-	createWorkbenchClientView,
-	WorkbenchProjectWorkspaceRuntime,
-} from '../../../workbench';
-import {
-	parseWorkbenchResponse,
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-	type WorkbenchSnapshot,
-} from '@orchbee/workbench-client-protocol';
+import type { WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+	createSnapshotRuntime,
+	FIXTURE_DEFAULT_DIRECTORY,
+	FIXTURE_INTL,
+	FIXTURE_WORKER_ID,
+	fixtureBinding,
+	fixtureId,
+	oneWorkspaceSnapshot,
+	publishSnapshot,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../../../__tests__/server-workbench-snapshot';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../../workbench';
 import { projectServerSnapshot } from '../projectServerSnapshot';
 import { ServerTerminalEndObserver } from '../server-terminal-ends';
-
-const DEFAULT_DIRECTORY = 'C:\\Users\\someone';
-const INTL = createOrchbeeIntl('en-US');
-const WORKER_ID = hex(0x2);
-
-function hex(value: number): string {
-	return value.toString(16).padStart(32, '0');
-}
-
-function presentation(sequence: number, overrides: object = {}) {
-	return {
-		binding: { terminalId: hex(0x900 + sequence), workerId: WORKER_ID },
-		customLabel: null,
-		label: `Terminal ${sequence}`,
-		presentationId: hex(0x800 + sequence),
-		...overrides,
-	};
-}
-
-function panel(sequence: number, primary: object = presentation(sequence)) {
-	return {
-		childPresentations: [],
-		kind: 'panel',
-		panelId: hex(0x700 + sequence),
-		primaryPresentation: primary,
-	};
-}
-
-function tab(sequence: number, root: object = panel(sequence), overrides: object = {}) {
-	return {
-		groupId: null,
-		label: `Tab ${sequence}`,
-		pinned: false,
-		root,
-		tabId: hex(0x600 + sequence),
-		...overrides,
-	};
-}
-
-function context(sequence: number, tabs: readonly object[]) {
-	return { groups: [], tabs, terminalContextId: hex(0x500 + sequence) };
-}
-
-function workspace(sequence: number, overrides: object = {}) {
-	return {
-		label: `Workspace ${sequence}`,
-		primaryDirectoryId: hex(0x300 + sequence),
-		projectId: null,
-		terminalContextId: hex(0x500 + sequence),
-		workspaceId: hex(0x400 + sequence),
-		...overrides,
-	};
-}
-
-function directory(sequence: number) {
-	return {
-		directoryId: hex(0x300 + sequence),
-		path: `C:\\work\\directory-${sequence}`,
-		workerId: WORKER_ID,
-	};
-}
-
-function snapshot(
-	revision: number,
-	navigation: { readonly workspaces: readonly object[] } & Record<string, unknown>,
-	terminalContexts: readonly object[],
-): WorkbenchSnapshot {
-	const response = parseWorkbenchResponse({
-		kind: 'workbench.snapshot.result',
-		outcome: {
-			kind: 'available',
-			snapshot: {
-				kind: 'workbench.snapshot',
-				navigation: { directories: [], projects: [], ...navigation },
-				protocolVersion: 1,
-				revision: `${revision}`,
-				sessionId: hex(0x1),
-				terminalContexts,
-			},
-		},
-		protocolVersion: 1,
-		requestId: hex(0xf00),
-	});
-	if (response.kind !== 'workbench.snapshot.result' || response.outcome.kind !== 'available') {
-		throw new Error('The fixture is not an available snapshot.');
-	}
-	return response.outcome.snapshot;
-}
-
-function oneWorkspaceSnapshot(revision: number, tabs: readonly object[]): WorkbenchSnapshot {
-	return snapshot(revision, { directories: [directory(1)], workspaces: [workspace(1)] }, [
-		context(1, tabs),
-	]);
-}
-
-/** `recoveredExpansion` stands for the view a reloaded document recovers, which expands those Projects. */
-function createRuntime(
-	initial: WorkbenchSnapshot,
-	recoveredExpansion?: readonly string[],
-): WorkbenchProjectWorkspaceRuntime {
-	let sequence = 0;
-	const initialPublication = projectServerSnapshot(initial, DEFAULT_DIRECTORY, INTL);
-	return new WorkbenchProjectWorkspaceRuntime({
-		initialClientView:
-			recoveredExpansion === undefined
-				? undefined
-				: createWorkbenchClientView({
-						...createDefaultWorkbenchClientView(initialPublication.document),
-						expandedProjectIds: [...recoveredExpansion],
-					}),
-		initialPublication,
-		standaloneCwd: DEFAULT_DIRECTORY,
-		standaloneTerminalTitle: 'Terminal',
-		terminalPresentation: {
-			createOperationId: () => terminalPresentationOperationId(`operation:${(sequence += 1)}`),
-			createPresentationId: () => terminalPresentationId(`presentation:${(sequence += 1)}`),
-			createRemovalId: () => terminalPresentationRemovalId(`removal:${(sequence += 1)}`),
-			dispatchCommands: () => undefined,
-			initialPresentationId: terminalPresentationId('presentation:initial'),
-			kind: 'managed',
-		},
-	});
-}
-
-function publish(runtime: WorkbenchProjectWorkspaceRuntime, next: WorkbenchSnapshot): void {
-	runtime.applyPublishedWorkbench(projectServerSnapshot(next, DEFAULT_DIRECTORY, INTL));
-}
 
 /** Adopts `next` as the composition does, with what the window saw end. */
 function publishWithEnds(
@@ -151,7 +30,7 @@ function publishWithEnds(
 ): void {
 	terminalEnds.prune(next);
 	runtime.applyPublishedWorkbench(
-		projectServerSnapshot(next, DEFAULT_DIRECTORY, INTL, terminalEnds.ends),
+		projectServerSnapshot(next, FIXTURE_DEFAULT_DIRECTORY, FIXTURE_INTL, terminalEnds.ends),
 	);
 }
 
@@ -165,42 +44,48 @@ function activeLeaf(runtime: WorkbenchProjectWorkspaceRuntime, tabIndex = 0) {
 
 describe('projectServerSnapshot', () => {
 	it('shows Projects and Workspaces in display order and opens the first Workspace', () => {
-		const runtime = createRuntime(
-			snapshot(
+		const runtime = createSnapshotRuntime(
+			workbenchSnapshot(
 				1,
 				{
-					directories: [directory(1), directory(2)],
-					projectOrder: [hex(0x202), hex(0x201)],
+					directories: [snapshotDirectory(1), snapshotDirectory(2)],
+					projectOrder: [fixtureId(0x202), fixtureId(0x201)],
 					projects: [
-						{ label: 'First identity', projectId: hex(0x201) },
-						{ label: 'Second identity', projectId: hex(0x202) },
+						{ label: 'First identity', projectId: fixtureId(0x201) },
+						{ label: 'Second identity', projectId: fixtureId(0x202) },
 					],
-					workspaceOrder: [hex(0x402), hex(0x401)],
+					workspaceOrder: [fixtureId(0x402), fixtureId(0x401)],
 					workspaces: [
-						workspace(1, { projectId: hex(0x201) }),
-						workspace(2, { projectId: hex(0x202) }),
+						snapshotWorkspace(1, { projectId: fixtureId(0x201) }),
+						snapshotWorkspace(2, { projectId: fixtureId(0x202) }),
 					],
 				},
-				[context(1, [tab(1)]), context(2, [tab(2)])],
+				[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
 			),
 		);
 
 		const state = runtime.getSnapshot();
-		expect(state.projects.map((project) => project.id)).toEqual([hex(0x202), hex(0x201)]);
-		expect(state.workspaces.map((candidate) => candidate.id)).toEqual([hex(0x402), hex(0x401)]);
-		expect(state.activeLocation).toEqual({ kind: 'workspace', workspaceId: hex(0x402) });
+		expect(state.projects.map((project) => project.id)).toEqual([
+			fixtureId(0x202),
+			fixtureId(0x201),
+		]);
+		expect(state.workspaces.map((candidate) => candidate.id)).toEqual([
+			fixtureId(0x402),
+			fixtureId(0x401),
+		]);
+		expect(state.activeLocation).toEqual({ kind: 'workspace', workspaceId: fixtureId(0x402) });
 	});
 
 	it('attaches only to a bound terminal whose launch did not fail', () => {
-		const runtime = createRuntime(
+		const runtime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [
-				tab(1),
-				tab(2, panel(2, presentation(2, { binding: null }))),
-				tab(
+				snapshotTab(1),
+				snapshotTab(2, snapshotPanel(2, snapshotPresentation(2, { binding: null }))),
+				snapshotTab(
 					3,
-					panel(
+					snapshotPanel(
 						3,
-						presentation(3, {
+						snapshotPresentation(3, {
 							launchFailure: { executable: null, reason: 'terminal-create-failed' },
 						}),
 					),
@@ -223,15 +108,17 @@ describe('projectServerSnapshot', () => {
 	it('gives every Client the same Split sizes from the shared ratio', () => {
 		const split = (ratio: object) => ({
 			children: [
-				{ node: panel(1), slotId: hex(0xa01) },
-				{ node: panel(2), slotId: hex(0xa02) },
+				{ node: snapshotPanel(1), slotId: fixtureId(0xa01) },
+				{ node: snapshotPanel(2), slotId: fixtureId(0xa02) },
 			],
 			kind: 'split',
 			orientation: 'horizontal',
-			splitId: hex(0xb01),
+			splitId: fixtureId(0xb01),
 			...ratio,
 		});
-		const runtime = createRuntime(oneWorkspaceSnapshot(1, [tab(1, split({ ratio: 0.3 }))]));
+		const runtime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1, split({ ratio: 0.3 }))]),
+		);
 		const weights = (): readonly number[] => {
 			const root = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot()
 				.tabs[0]?.root;
@@ -240,24 +127,28 @@ describe('projectServerSnapshot', () => {
 		};
 
 		expect(weights()).toEqual([30, 70]);
-		publish(runtime, oneWorkspaceSnapshot(2, [tab(1, split({}))]));
+		publishSnapshot(runtime, oneWorkspaceSnapshot(2, [snapshotTab(1, split({}))]));
 		expect(weights()).toEqual([50, 50]);
 	});
 
 	it('holds a Workspace that has no directory without inventing an available one', () => {
-		const runtime = createRuntime(
-			snapshot(1, { workspaces: [workspace(1, { primaryDirectoryId: null })] }, [context(1, [])]),
+		const runtime = createSnapshotRuntime(
+			workbenchSnapshot(1, { workspaces: [snapshotWorkspace(1, { primaryDirectoryId: null })] }, [
+				snapshotContext(1, []),
+			]),
 		);
 
 		const [scope] = runtime.getSnapshot().resourceScopes;
-		expect(scope?.directories).toMatchObject([{ available: false, path: DEFAULT_DIRECTORY }]);
+		expect(scope?.directories).toMatchObject([
+			{ available: false, path: FIXTURE_DEFAULT_DIRECTORY },
+		]);
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
 	});
 
 	it('lets a name a person chose outrank what the terminal reports', () => {
-		const named = panel(1, presentation(1, { customLabel: 'build' }));
-		const runtime = createRuntime(
-			oneWorkspaceSnapshot(1, [tab(1, named, { automaticLabel: true })]),
+		const named = snapshotPanel(1, snapshotPresentation(1, { customLabel: 'build' }));
+		const runtime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1, named, { automaticLabel: true })]),
 		);
 		const presentationId = activeLeaf(runtime).primaryPresentation.presentationId;
 
@@ -276,14 +167,16 @@ describe('projectServerSnapshot', () => {
 	});
 
 	it('names a terminal that shows no title by its launched program, else by its Tab place', () => {
-		const runtime = createRuntime(
+		const runtime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [
-				tab(1, panel(1, presentation(1, { launchProgram: 'pwsh.exe' })), { automaticLabel: true }),
-				tab(
+				snapshotTab(1, snapshotPanel(1, snapshotPresentation(1, { launchProgram: 'pwsh.exe' })), {
+					automaticLabel: true,
+				}),
+				snapshotTab(
 					2,
-					panel(
+					snapshotPanel(
 						2,
-						presentation(2, {
+						snapshotPresentation(2, {
 							launchFailure: {
 								executable: 'C:\\tools\\node.exe',
 								reason: 'terminal-create-failed',
@@ -292,8 +185,12 @@ describe('projectServerSnapshot', () => {
 					),
 					{ automaticLabel: true },
 				),
-				tab(3, panel(3, presentation(3, { binding: null })), { automaticLabel: true }),
-				tab(4, panel(4, presentation(4, { launchProgram: 'cmd.exe' })), { label: 'build' }),
+				snapshotTab(3, snapshotPanel(3, snapshotPresentation(3, { binding: null })), {
+					automaticLabel: true,
+				}),
+				snapshotTab(4, snapshotPanel(4, snapshotPresentation(4, { launchProgram: 'cmd.exe' })), {
+					label: 'build',
+				}),
 			]),
 		);
 
@@ -308,24 +205,35 @@ describe('projectServerSnapshot', () => {
 describe('applyPublishedWorkbench', () => {
 	it('keeps the live models of a context that did not change', () => {
 		const navigation = {
-			directories: [directory(1), directory(2)],
-			workspaces: [workspace(1), workspace(2)],
+			directories: [snapshotDirectory(1), snapshotDirectory(2)],
+			workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
 		};
-		const runtime = createRuntime(
-			snapshot(1, navigation, [context(1, [tab(1)]), context(2, [tab(2)])]),
+		const runtime = createSnapshotRuntime(
+			workbenchSnapshot(1, navigation, [
+				snapshotContext(1, [snapshotTab(1)]),
+				snapshotContext(2, [snapshotTab(2)]),
+			]),
 		);
-		const untouched = runtime.getTerminalContext(hex(0x501));
-		const changed = runtime.getTerminalContext(hex(0x502));
+		const untouched = runtime.getTerminalContext(fixtureId(0x501));
+		const changed = runtime.getTerminalContext(fixtureId(0x502));
 
-		publish(runtime, snapshot(2, navigation, [context(1, [tab(1)]), context(2, [tab(2), tab(3)])]));
+		publishSnapshot(
+			runtime,
+			workbenchSnapshot(2, navigation, [
+				snapshotContext(1, [snapshotTab(1)]),
+				snapshotContext(2, [snapshotTab(2), snapshotTab(3)]),
+			]),
+		);
 
-		expect(runtime.getTerminalContext(hex(0x501))).toBe(untouched);
-		expect(runtime.getTerminalContext(hex(0x502))).not.toBe(changed);
+		expect(runtime.getTerminalContext(fixtureId(0x501))).toBe(untouched);
+		expect(runtime.getTerminalContext(fixtureId(0x502))).not.toBe(changed);
 	});
 
 	it('keeps this Client selection and what a terminal reported when its context changes', () => {
-		const runtime = createRuntime(oneWorkspaceSnapshot(1, [tab(1), tab(2)]));
-		const secondTabId = hex(0x602);
+		const runtime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
+		);
+		const secondTabId = fixtureId(0x602);
 		runtime.getActiveTerminalContext().tabModel.selectTab(secondTabId);
 		const presentationId = activeLeaf(runtime, 1).primaryPresentation.presentationId;
 		runtime.applyTerminalMetadataObservation(presentationId, {
@@ -334,7 +242,10 @@ describe('applyPublishedWorkbench', () => {
 			naturalTitle: 'vim',
 		});
 
-		publish(runtime, oneWorkspaceSnapshot(2, [tab(1), tab(2), tab(3)]));
+		publishSnapshot(
+			runtime,
+			oneWorkspaceSnapshot(2, [snapshotTab(1), snapshotTab(2), snapshotTab(3)]),
+		);
 
 		const tabs = runtime.getActiveTerminalContext().tabModel.getSnapshot();
 		expect(tabs.activeTabId).toBe(secondTabId);
@@ -343,22 +254,24 @@ describe('applyPublishedWorkbench', () => {
 	});
 
 	it('ends a terminal once this window sees its Host settle it, and not the one bound after it', () => {
-		let published = oneWorkspaceSnapshot(1, [tab(1)]);
-		const runtime = createRuntime(published);
+		let published = oneWorkspaceSnapshot(1, [snapshotTab(1)]);
+		const runtime = createSnapshotRuntime(published);
 		const terminalEnds = new ServerTerminalEndObserver(
 			() => published,
 			() => undefined,
 		);
-		const settled = presentation(1);
+		const settled = snapshotPresentation(1);
 		const failed = { failure: { code: 'host-lost', retryable: false }, kind: 'failed' } as const;
 
-		terminalEnds.observe(settled.presentationId, settled.binding, failed);
+		terminalEnds.observe(settled.presentationId, fixtureBinding(1), failed);
 		// The Server publishes nothing new when a terminal ends, so only the window's own sight changes.
 		publishWithEnds(runtime, published, terminalEnds);
 		expect(activeLeaf(runtime).primaryPresentation.lifecycle).toEqual(failed);
 
-		const rebound = presentation(1, { binding: { terminalId: hex(0x9ff), workerId: WORKER_ID } });
-		published = oneWorkspaceSnapshot(2, [tab(1, panel(1, rebound))]);
+		const rebound = snapshotPresentation(1, {
+			binding: { terminalId: fixtureId(0x9ff), workerId: FIXTURE_WORKER_ID },
+		});
+		published = oneWorkspaceSnapshot(2, [snapshotTab(1, snapshotPanel(1, rebound))]);
 		publishWithEnds(runtime, published, terminalEnds);
 		expect(activeLeaf(runtime).primaryPresentation.lifecycle.kind).toBe('running');
 	});
@@ -366,8 +279,8 @@ describe('applyPublishedWorkbench', () => {
 	it('sees a clean exit of all a Panel holds after a second, unless the Server closed it', () => {
 		vi.useFakeTimers();
 		try {
-			let published = oneWorkspaceSnapshot(1, [tab(1), tab(2)]);
-			const runtime = createRuntime(published);
+			let published = oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]);
+			const runtime = createSnapshotRuntime(published);
 			let changes = 0;
 			const terminalEnds = new ServerTerminalEndObserver(
 				() => published,
@@ -376,16 +289,16 @@ describe('applyPublishedWorkbench', () => {
 				},
 			);
 			const exited = { exitCode: 0, kind: 'exited', signal: null } as const;
-			const [closing, kept] = [presentation(1), presentation(2)];
+			const [closing, kept] = [snapshotPresentation(1), snapshotPresentation(2)];
 
-			terminalEnds.observe(closing.presentationId, closing.binding, exited);
-			terminalEnds.observe(kept.presentationId, kept.binding, exited);
+			terminalEnds.observe(closing.presentationId, fixtureBinding(1), exited);
+			terminalEnds.observe(kept.presentationId, fixtureBinding(2), exited);
 			vi.advanceTimersByTime(999);
 			publishWithEnds(runtime, published, terminalEnds);
 			expect(activeLeaf(runtime, 1).primaryPresentation.lifecycle.kind).toBe('running');
 
 			// The Server's Close removes the first Tab within the hold, and the second one stays.
-			published = oneWorkspaceSnapshot(2, [tab(2)]);
+			published = oneWorkspaceSnapshot(2, [snapshotTab(2)]);
 			publishWithEnds(runtime, published, terminalEnds);
 			vi.advanceTimersByTime(1);
 			expect(changes).toBe(1);
@@ -397,63 +310,70 @@ describe('applyPublishedWorkbench', () => {
 	});
 
 	it('moves to the first Workspace when its Workspace is gone, and to none when all are', () => {
-		const runtime = createRuntime(
-			snapshot(
+		const runtime = createSnapshotRuntime(
+			workbenchSnapshot(
 				1,
 				{
-					directories: [directory(1), directory(2), directory(3)],
-					workspaces: [workspace(1), workspace(2), workspace(3)],
+					directories: [snapshotDirectory(1), snapshotDirectory(2), snapshotDirectory(3)],
+					workspaces: [snapshotWorkspace(1), snapshotWorkspace(2), snapshotWorkspace(3)],
 				},
-				[context(1, [tab(1)]), context(2, [tab(2)]), context(3, [tab(3)])],
+				[
+					snapshotContext(1, [snapshotTab(1)]),
+					snapshotContext(2, [snapshotTab(2)]),
+					snapshotContext(3, [snapshotTab(3)]),
+				],
 			),
 		);
-		runtime.transition({ type: 'workspace-activated', workspaceId: hex(0x403) });
+		runtime.transition({ type: 'workspace-activated', workspaceId: fixtureId(0x403) });
 
-		publish(
+		publishSnapshot(
 			runtime,
-			snapshot(
+			workbenchSnapshot(
 				2,
-				{ directories: [directory(1), directory(2)], workspaces: [workspace(1), workspace(2)] },
-				[context(1, [tab(1)]), context(2, [tab(2)])],
+				{
+					directories: [snapshotDirectory(1), snapshotDirectory(2)],
+					workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
+				},
+				[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
 			),
 		);
 		expect(runtime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-			workspaceId: hex(0x401),
+			workspaceId: fixtureId(0x401),
 		});
 
-		publish(runtime, snapshot(3, { workspaces: [] }, []));
+		publishSnapshot(runtime, workbenchSnapshot(3, { workspaces: [] }, []));
 		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
 	});
 
 	it('expands a Project it has not seen and leaves a collapsed one collapsed', () => {
-		const firstProject = { label: 'First', projectId: hex(0x201) };
-		const runtime = createRuntime(
-			snapshot(
+		const firstProject = { label: 'First', projectId: fixtureId(0x201) };
+		const runtime = createSnapshotRuntime(
+			workbenchSnapshot(
 				1,
 				{
-					directories: [directory(1)],
+					directories: [snapshotDirectory(1)],
 					projects: [firstProject],
-					workspaces: [workspace(1, { projectId: firstProject.projectId })],
+					workspaces: [snapshotWorkspace(1, { projectId: firstProject.projectId })],
 				},
-				[context(1, [tab(1)])],
+				[snapshotContext(1, [snapshotTab(1)])],
 			),
 		);
 		expect(runtime.getSnapshot().expandedProjectIds).toEqual([firstProject.projectId]);
 		runtime.transition({ projectId: firstProject.projectId, type: 'project-expansion-toggled' });
 
-		const secondProject = { label: 'Second', projectId: hex(0x202) };
-		publish(
+		const secondProject = { label: 'Second', projectId: fixtureId(0x202) };
+		publishSnapshot(
 			runtime,
-			snapshot(
+			workbenchSnapshot(
 				2,
 				{
-					directories: [directory(1)],
+					directories: [snapshotDirectory(1)],
 					projects: [firstProject, secondProject],
-					workspaces: [workspace(1, { projectId: firstProject.projectId })],
+					workspaces: [snapshotWorkspace(1, { projectId: firstProject.projectId })],
 				},
-				[context(1, [tab(1)])],
+				[snapshotContext(1, [snapshotTab(1)])],
 			),
 		);
 
@@ -461,18 +381,18 @@ describe('applyPublishedWorkbench', () => {
 	});
 
 	it('expands a Project once when the recovered view of a reloaded document expands it', () => {
-		const project = { label: 'First', projectId: hex(0x201) };
-		const runtime = createRuntime(
-			snapshot(
+		const project = { label: 'First', projectId: fixtureId(0x201) };
+		const runtime = createSnapshotRuntime(
+			workbenchSnapshot(
 				1,
 				{
-					directories: [directory(1)],
+					directories: [snapshotDirectory(1)],
 					projects: [project],
-					workspaces: [workspace(1, { projectId: project.projectId })],
+					workspaces: [snapshotWorkspace(1, { projectId: project.projectId })],
 				},
-				[context(1, [tab(1)])],
+				[snapshotContext(1, [snapshotTab(1)])],
 			),
-			[project.projectId],
+			{ expandedProjectIds: [project.projectId] },
 		);
 
 		expect(runtime.getClientView().expandedProjectIds).toEqual([project.projectId]);

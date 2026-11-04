@@ -4,16 +4,10 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project Create Flow",
-	"description": "Creates a local Project from shared Folder acquisition or delegates an optional host-owned remote Project enrollment entry such as Desktop SSH.",
+	"description": "Creates a local Project from shared Folder acquisition, with a typed path entry where no native Folder capability is supplied.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
-	"intents": [
-		"acquire-folder",
-		"connect-project-via-ssh",
-		"create-project",
-		"enter-folder-path",
-		"create-folder"
-	],
+	"intents": ["acquire-folder", "create-project", "enter-folder-path", "create-folder"],
 	"implementation": [
 		"apps/web/src/workbench/components/workbench-sidebar/components/project-create-menu/ProjectCreateMenu.tsx",
 		"apps/web/src/workbench/components/workbench-sidebar/components/create-project-dialog/CreateProjectDialog.tsx",
@@ -25,7 +19,7 @@
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--simplified-chinese-sidebar",
 			"states": [
-				"Open the optional Create Project menu, choose Select Folder, and inspect the browser path-entry dialog.",
+				"Open the optional Create Project menu, choose Select Folder, and inspect the path-entry dialog shown without a native Folder capability.",
 				"Inspect the disabled New Folder command without replacing the shared Folder acquisition menu."
 			]
 		},
@@ -37,21 +31,12 @@
 				"Open the optional Create Project menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
 				"Choose New Folder, inspect the selected parent and single name, cancel once, then explicitly Create and inspect the resulting Project, Primary Workspace and terminal projection."
 			]
-		},
-		{
-			"exportName": "SshProjectConnection",
-			"file": "apps/web/stories/workbench.stories.tsx",
-			"id": "applications-web-workbench--ssh-project-connection",
-			"states": [
-				"Open the optional Create Project menu and inspect the host-injected Connect via SSH entry alongside the canonical local Folder choices."
-			]
 		}
 	],
 	"uses": ["workbench.action-menu", "workbench.resource-dialog-form"],
 	"useWhen": [
 		"A Workbench host starts Project creation from a selected Folder or an equivalent platform folder capability.",
-		"Browser and desktop hosts must share one entry menu and diverge only at the Folder acquisition boundary.",
-		"A host exposes a separately owned remote Project enrollment flow without giving Workbench transport or credential authority."
+		"Hosts with and without a native Folder capability must share one entry menu and diverge only at the Folder acquisition boundary."
 	],
 	"avoidWhen": [
 		"An existing Project needs a Workspace in a directory it already records; use that Project's New Workspace submenu instead.",
@@ -60,9 +45,8 @@
 	],
 	"invariants": [
 		"The Project add trigger always opens the shared Folder acquisition menu before any platform-specific input.",
-		"Browser composition accepts a manually entered absolute path without claiming that the path was verified.",
+		"Without a native Folder capability, the menu accepts a manually entered absolute path without claiming that the path was verified.",
 		"Desktop composition uses one injected Folder capability, renders no parallel manual path dialog, and admits at most one native selection; New Folder additionally requires the optional creation capability.",
-		"A remote enrollment entry is absent unless the host injects it, and selection delegates to the host without collecting SSH details in Workbench.",
 		"Cancellation before Create has no effect; retirement cancels queued uncommitted Actions and suppresses late activation. A committed Folder remains visible in recovery and is never deleted or recreated automatically.",
 		"The existing Project Action atomically creates Project metadata, Primary Workspace and the first terminal projection. New Folder separately commits mkdir and requires the exact Action receipt, canonical publication and activation result before reporting Project opening."
 	],

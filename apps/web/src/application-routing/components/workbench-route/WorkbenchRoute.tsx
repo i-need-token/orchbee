@@ -13,17 +13,13 @@ export function WorkbenchRoute(): ReactNode {
 			agentObservationSource={application.agentObservationSource}
 			applicationLocaleController={application.applicationLocaleController}
 			authority={application.authority}
-			environmentProjectConnection={application.environmentProjectConnection}
 			keyboardShortcutSettingsController={application.keyboardShortcutSettingsController}
 			layoutStorage={application.layoutStorage}
 			macosTerminalInputSettingsController={application.macosTerminalInputSettingsController}
 			navigation={coordinator.navigation}
-			onConnectViaSsh={application.onConnectViaSsh}
 			projectFolderAcquisition={application.projectFolderAcquisition}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
-			remoteTerminalCreation={application.remoteTerminalCreation}
 			shortcutPlatform={application.shortcutPlatform}
-			standaloneTerminalAvailable={application.standaloneTerminalAvailable}
 			terminalSettingsController={application.terminalSettingsController}
 			terminalInteractionSettingsController={application.terminalInteractionSettingsController}
 			terminalFeedbackSettingsController={application.terminalFeedbackSettingsController}

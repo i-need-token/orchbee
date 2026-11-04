@@ -1,39 +1,54 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
-// The board is private to this package, so its runtime comes from the same source as the dialog.
+import {
+	createSnapshotRuntime,
+	fixturePresentationId,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotTab,
+	snapshotWorkspace,
+	workbenchSnapshot,
+} from '../src/__tests__/server-workbench-snapshot';
+// The board is private to this package, so the Story reads it from the same source as the dialog.
 import { WorkbenchAgentBoardDialog } from '../src/workbench/components/workbench-agent-board-dialog/WorkbenchAgentBoardDialog';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../src/workbench/model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../src/workbench/model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchAgentBoard,
 	WorkbenchAgentBoardRow,
 	WorkbenchAgentBoardSnapshot,
 } from '../src/workbench/types/workbench-agent-board';
 
-/** Three Tabs whose terminals the sessions below are attached to: board:1, board:2 and board:3. */
-const createBoardRuntime = (titles: readonly [string, ...string[]]) => {
-	let sequence = 1;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace/orchbee',
-		standaloneTerminalTitle: titles[0],
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('storybook:board:1'),
-			() => terminalPresentationId(`storybook:board:${(sequence += 1)}`),
+/** One Workspace whose Tabs hold the terminals the sessions below are attached to, in this order. */
+const createBoardRuntime = (titles: readonly string[]) =>
+	createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [{ ...snapshotDirectory(1), path: '/workspace/orchbee' }],
+				workspaces: [snapshotWorkspace(1, { label: 'orchbee' })],
+			},
+			[
+				snapshotContext(
+					1,
+					titles.map((title, index) =>
+						snapshotTab(
+							index + 1,
+							snapshotPanel(index + 1, snapshotPresentation(index + 1, { customLabel: title })),
+							{ label: title },
+						),
+					),
+				),
+			],
 		),
-	});
-	for (const title of titles.slice(1)) {
-		runtime.createTerminal({ groupId: null, source: 'button', title });
-	}
-	return runtime;
-};
+	);
 
 const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'fresh',
-		presentationId: 'storybook:board:2',
+		presentationId: fixturePresentationId(2),
 		providerId: 'claude',
 		sessionId: 'session-review',
 		status: { count: 2, kind: 'needs-attention' },
@@ -41,7 +56,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'fresh',
-		presentationId: 'storybook:board:1',
+		presentationId: fixturePresentationId(1),
 		providerId: 'codex',
 		sessionId: 'session-build',
 		status: { kind: 'working' },
@@ -49,7 +64,7 @@ const sessions: readonly WorkbenchAgentBoardRow[] = [
 	{
 		ended: false,
 		freshness: 'stale',
-		presentationId: 'storybook:board:3',
+		presentationId: fixturePresentationId(3),
 		providerId: 'gemini',
 		sessionId: 'session-docs',
 		status: { kind: 'idle' },

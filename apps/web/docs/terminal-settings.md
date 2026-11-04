@@ -6,7 +6,8 @@ Web owns Settings, drafts and client presentation sources. Desktop common values
 [device preference authority](../../../crates/workbench-protocol/docs/user-preferences.md) shared
 with TUI through the Session's Server. Common values never write back to browser storage.
 Seven host appearance leaves (fonts, weights, ligatures, pixel padding and opacity) and macOS
-Option-as-Alt remain renderer-local. Browser Preview retains an independent origin scope.
+Option-as-Alt remain renderer-local. A controller constructed without the Session's preferences keeps
+independent origin records instead; the Desktop composition always supplies them.
 
 The Session's Server and Worker own launch adaptation, terminal defaults and Agent integration effects.
 Preferences are not Workbench content and never synchronize to remote devices.
@@ -25,11 +26,11 @@ General offers System, English and 简体中文. System is a persisted choice fo
 declared locale inputs. Confirmed Desktop snapshots update document lang/dir and product surfaces
 without reload. User data, paths, commands and shared content are never translated.
 
-Browser Preview reads only strict `orchbee:web:locale-preference:v1` with `{ locale: null | 'en-US' | 'zh-CN' }`, where null preserves System. The new name isolates shape-compatible old v1 data. Missing data uses defaults and invalid data reports an issue; old keys are not read. Browser write failures retain the session choice with a visible issue. Desktop reads shared preferences directly without importing old browser records.
+Without the Session's preferences, the locale controller reads only strict `orchbee:web:locale-preference:v1` with `{ locale: null | 'en-US' | 'zh-CN' }`, where null preserves System. The new name isolates shape-compatible old v1 data. Missing data uses defaults and invalid data reports an issue; old keys are not read. Browser write failures retain the session choice with a visible issue. Desktop reads shared preferences directly without importing old browser records.
 
 ## Appearance and interaction preference records
 
-Browser Preview writes `orchbee:web:terminal-appearance:v1`. Desktop writes only seven host leaves to
+Without the Session's preferences, the appearance controller writes `orchbee:web:terminal-appearance:v1`. Desktop writes only seven host leaves to
 `orchbee:web:terminal-host-appearance:v1`; four common appearance leaves come from shared storage. Its value is one complete JSON
 object with no unknown fields:
 
@@ -56,7 +57,7 @@ Both weights are integer hundreds from 100 through 900. Terminal padding is an i
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-In Browser Preview, the separate strict key `orchbee:web:terminal-interaction:v1` contains one complete object with no
+Without the Session's preferences, the separate strict key `orchbee:web:terminal-interaction:v1` contains one complete object with no
 unknown fields:
 
 ```ts
@@ -134,7 +135,7 @@ commits every mounted terminal before updating `data-theme` in the same JavaScri
 
 The Desktop renderer on macOS additionally owns `orchbee:web:macos-terminal-input:v1`. The strict
 record contains only `optionAsAlt: 'off' | 'left' | 'right' | 'both'`; `off` is the product default.
-Browser Preview, Windows, and Linux compositions do not expose the Option-as-Alt row and retain the
+Windows and Linux compositions do not expose the Option-as-Alt row and retain the
 default; Cursor & Input remains a stable catalog destination on every platform.
 Invalid or unreadable records fail to `off`, while a failed write keeps the accepted session value
 and shows the existing persistence warning.
@@ -152,8 +153,8 @@ Only the Desktop composition injects `TerminalLaunchProfileControl`, filled from
 Session's shared preferences, whose `launchProfiles` value the TUI edits too and the
 [shared preference inventory](../../../crates/workbench-protocol/docs/user-preferences.md) owns. Its
 snapshot exposes one bounded canonical catalog and the current default identity; it is the built-in
-catalog only until the first read and never carries a persistence issue. Browser Preview
-compositions receive no control and omit the Profiles category. The renderer never receives a store
+catalog only until the first read and never carries a persistence issue. A composition without the
+control omits the Profiles category. The renderer never receives a store
 path, Node error, filesystem primitive, or launch capability.
 
 Each profile has a stable identity, a user-visible name, and exactly one command choice:
@@ -192,8 +193,8 @@ Session's shared `scrollbackBytes` preference. The Terminal page exposes `termin
 decimal byte count from `0` through `1_000_000_000` and states that running terminals keep their
 current limit. The row commits through the shared draft, and the TUI shows the same value in
 megabytes. The Worker gives the value to each terminal it launches after the save, so no Host
-application step can fail, and existing terminal history is unchanged. Browser Preview compositions
-receive no control and omit this row. The Terminal category remains visible only when that
+application step can fail, and existing terminal history is unchanged. A composition without the
+control omits this row. The Terminal category remains visible only when that
 composition supplies another current Terminal setting.
 
 ## Read, commit, and recovery model
@@ -207,7 +208,8 @@ Enter followed by blur commits at most once.
 System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
 for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
 
-The local record algorithm below applies only to Browser Preview and Desktop host-specific leaves.
+The local record algorithm below applies only to controllers without the Session's preferences and to
+Desktop host-specific leaves.
 Strict codecs reject unknown fields and accept only the current shape at one v1 key.
 Missing uses defaults; invalid or unreadable sources expose a recoverable issue.
 
@@ -304,9 +306,9 @@ consuming Settings input. On first open, the application captures a still-connec
 and focuses global Settings search. Repeated open does not replace that return target. The content
 viewport remains keyboard-scrollable and draws an inset focus indicator.
 
-The rail owns an explicit Close settings button. Escape clears a non-empty search before closing Settings; close restores a connected invoker or safe fallback. Local Desktop may inject Agent integration, shell profile, and terminal default controls. Browser Preview omits these privileged capabilities.
+The rail owns an explicit Close settings button. Escape clears a non-empty search before closing Settings; close restores a connected invoker or safe fallback. Desktop injects Agent integration, shell profile, and terminal default controls; a composition without them omits their categories and rows.
 
-Desktop and wide browser Settings use the following composition: one quiet rail
+Wide Settings use the following composition: one quiet rail
 owns Close, search, monochrome product-outcome categories, and a restrained neutral selection; one
 moderate content column owns a compact category title, optional introduction, section labels, direct
 rows with hairline separators, descriptions, and a stable trailing control column. Radius and shadow
@@ -398,8 +400,8 @@ ranking ties are explicitly excluded.
 ## Desktop Agent integrations
 
 Only the Desktop composition injects `AgentIntegrationManagementControl`, as
-`ServerAgentIntegrationClient`, and `AgentIntegrationReminderController`. Browser Preview clients
-omit the Agent Integrations category, its search entries, and the reminder. The renderer consumes one
+`ServerAgentIntegrationClient`, and `AgentIntegrationReminderController`. A composition without them
+omits the Agent Integrations category, its search entries, and the reminder. The renderer consumes one
 canonical snapshot with a row for every wire provider in registry order, taken from
 `AGENT_INTEGRATION_PROVIDERS` in `@orchbee/workbench-client-protocol`, and displays curated Agent
 names, bounded states and failures, and the shared privacy explanation. It receives no Agent command output, executable path, adapter resource
@@ -457,7 +459,7 @@ Orchbee's PowerShell integration itself; Orchbee ships no Zsh, Bash, or Fish int
 terminals, so those shells emit boundaries only through the user's own configuration. The surface
 never reads, creates, edits, or backs up a shell startup file.
 
-Browser Preview feedback reads only the complete `orchbee:web:terminal-feedback:v1` shape: Agent mode (never/hidden), completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never, never, 5 and false. Old v1 lacks required fields and is rejected; old v2/v3 keys are not read. Browser write failures retain session values with an issue. Desktop uses confirmed shared snapshots.
+Without the Session's preferences, feedback reads only the complete `orchbee:web:terminal-feedback:v1` shape: Agent mode (never/hidden), completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never, never, 5 and false. Old v1 lacks required fields and is rejected; old v2/v3 keys are not read. Browser write failures retain session values with an issue. Desktop uses confirmed shared snapshots.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
@@ -584,5 +586,4 @@ not claims about Ghostty's byte limits.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.
-- Browser Preview composition tests prove the shared sources and Settings entry. No Desktop window
-  test covers Settings on the Server path.
+- No composition or Desktop window test covers Settings on the Server path.

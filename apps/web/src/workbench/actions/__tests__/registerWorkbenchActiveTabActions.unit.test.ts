@@ -9,24 +9,40 @@ import {
 } from '@orchbee/actions';
 import { TAB_STRIP_ACTION_IDS, TabStripOrientation, type TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
-import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	createSnapshotRuntime,
+	fixtureTabId,
+	oneWorkspaceSnapshot,
+	snapshotTab,
+	type FixtureRecord,
+} from '../../../__tests__/server-workbench-snapshot';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { registerWorkbenchActiveTabActions } from '../registerWorkbenchActiveTabActions';
 import { registerWorkbenchTabSelectionActions } from '../registerWorkbenchTabSelectionActions';
 import type { ActiveTabMovementDecision as TabMoveInput } from '../resolveActiveTabMovement';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
+const FIRST = fixtureTabId(1);
+const SECOND = fixtureTabId(2);
+const THIRD = fixtureTabId(3);
+const FOURTH = fixtureTabId(4);
+const PINNED_A = fixtureTabId(5);
+const PINNED_B = fixtureTabId(6);
+
+function pinnedTab(sequence: number): FixtureRecord {
+	return snapshotTab(sequence, undefined, { pinned: true });
+}
+
 describe('registerWorkbenchActiveTabActions', () => {
 	it('gives the lower Actions the active Tab, its selection and what follows it', async () => {
-		const harness = createHarness();
+		const harness = createHarness(
+			[snapshotTab(1), snapshotTab(2), snapshotTab(3), snapshotTab(4)],
+			FIRST,
+		);
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: false, title: 'Second' }, { activate: false, id: 'second' });
-		model.addTab({ pinned: false, title: 'Third' }, { activate: false, id: 'third' });
-		model.addTab({ pinned: false, title: 'Fourth' }, { activate: false, id: 'fourth' });
 		// Adding a Tab to the selection also makes it the active Tab.
-		model.toggleSelected('second');
+		model.toggleSelected(SECOND);
 		const lowerInputs = vi.fn<(actionId: string, input: unknown) => void>();
 		const tabScope = harness.runtime.createScope('tab-strip', harness.scope);
 		for (const [scope, actionId] of [
@@ -67,11 +83,11 @@ describe('registerWorkbenchActiveTabActions', () => {
 		}
 		expect(lowerInputs.mock.calls).toEqual([
 			[WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, index: 2 }],
-			[TAB_STRIP_ACTION_IDS.duplicateTabs, { tabIds: ['terminal-context-1-tab-1', 'second'] }],
-			[TAB_STRIP_ACTION_IDS.closeTabs, { closeSource: 'non-ui', tabIds: ['third', 'fourth'] }],
+			[TAB_STRIP_ACTION_IDS.duplicateTabs, { tabIds: [FIRST, SECOND] }],
+			[TAB_STRIP_ACTION_IDS.closeTabs, { closeSource: 'non-ui', tabIds: [THIRD, FOURTH] }],
 		]);
 
-		model.selectTab('fourth');
+		model.selectTab(FOURTH);
 		expect(
 			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.closeTabsAfterActive, undefined, {
 				scope: harness.scope,
@@ -81,10 +97,8 @@ describe('registerWorkbenchActiveTabActions', () => {
 	});
 
 	it('moves the active Tab circularly through the prepared Tab Strip Action', async () => {
-		const harness = createHarness();
+		const harness = createHarness([snapshotTab(1), snapshotTab(2), snapshotTab(3)], FIRST);
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: false, title: 'Second' }, { activate: false, id: 'second' });
-		model.addTab({ pinned: false, title: 'Third' }, { activate: false, id: 'third' });
 		const lowerExecute = vi.fn<(input: TabMoveInput) => void>();
 		registerTabMovement(harness, (context, input) => {
 			lowerExecute(input);
@@ -98,35 +112,24 @@ describe('registerWorkbenchActiveTabActions', () => {
 		});
 		expect(lowerExecute).toHaveBeenLastCalledWith({
 			direction: 'last',
-			tabId: 'terminal-context-1-tab-1',
+			tabId: FIRST,
 		});
-		expect(model.getSnapshot()).toMatchObject({ activeTabId: 'terminal-context-1-tab-1' });
-		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-			'second',
-			'third',
-			'terminal-context-1-tab-1',
-		]);
+		expect(model.getSnapshot()).toMatchObject({ activeTabId: FIRST });
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([SECOND, THIRD, FIRST]);
 
 		await expect(harness.execute(WORKBENCH_ACTION_IDS.moveActiveTabForward)).resolves.toEqual({
 			kind: 'completed',
 		});
 		expect(lowerExecute).toHaveBeenLastCalledWith({
 			direction: 'first',
-			tabId: 'terminal-context-1-tab-1',
+			tabId: FIRST,
 		});
-		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-			'terminal-context-1-tab-1',
-			'second',
-			'third',
-		]);
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([FIRST, SECOND, THIRD]);
 	});
 
 	it('keeps circular movement inside the active Tab pinned partition', async () => {
-		const harness = createHarness();
+		const harness = createHarness([pinnedTab(5), pinnedTab(6), snapshotTab(1)], PINNED_A);
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: true, title: 'Pinned A' }, { activate: false, id: 'pinned-a' });
-		model.addTab({ pinned: true, title: 'Pinned B' }, { activate: false, id: 'pinned-b' });
-		model.selectTab('pinned-a');
 		registerTabMovement(harness, (context, input) => {
 			applyMove(input, model);
 			context.markCommitted();
@@ -137,18 +140,16 @@ describe('registerWorkbenchActiveTabActions', () => {
 			kind: 'completed',
 		});
 
-		expect(model.getSnapshot()).toMatchObject({ activeTabId: 'pinned-a' });
+		expect(model.getSnapshot()).toMatchObject({ activeTabId: PINNED_A });
 		expect(model.getSnapshot().tabs.map((tab) => [tab.id, tab.pinned])).toEqual([
-			['pinned-b', true],
-			['pinned-a', true],
-			['terminal-context-1-tab-1', false],
+			[PINNED_B, true],
+			[PINNED_A, true],
+			[FIRST, false],
 		]);
 	});
 
 	it('is unavailable when the active pin partition has fewer than two Tabs', async () => {
-		const harness = createHarness();
-		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: true, title: 'Pinned' }, { activate: false, id: 'pinned' });
+		const harness = createHarness([pinnedTab(5), snapshotTab(1)], FIRST);
 		registerTabMovement(harness, () => ({ kind: 'completed' }));
 
 		for (const actionId of [
@@ -169,10 +170,8 @@ describe('registerWorkbenchActiveTabActions', () => {
 	});
 
 	it('re-resolves the active Tab at execution and blocks after lower disposal', async () => {
-		const harness = createHarness();
+		const harness = createHarness([snapshotTab(1), snapshotTab(2), snapshotTab(3)], FIRST);
 		const model = harness.projectWorkspaceRuntime.getActiveTerminalContext().tabModel;
-		model.addTab({ pinned: false, title: 'Second' }, { activate: false, id: 'second' });
-		model.addTab({ pinned: false, title: 'Third' }, { activate: false, id: 'third' });
 		const lowerExecute = vi.fn<(input: TabMoveInput) => void>();
 		const lowerRegistration = registerTabMovement(harness, (context, input) => {
 			lowerExecute(input);
@@ -187,11 +186,11 @@ describe('registerWorkbenchActiveTabActions', () => {
 				source: 'keyboard',
 			}),
 		).toMatchObject({ availability: { kind: 'enabled' } });
-		model.selectTab('third');
+		model.selectTab(THIRD);
 		await expect(harness.execute(WORKBENCH_ACTION_IDS.moveActiveTabForward)).resolves.toEqual({
 			kind: 'completed',
 		});
-		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ direction: 'first', tabId: 'third' });
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ direction: 'first', tabId: THIRD });
 
 		lowerRegistration.dispose();
 		await expect(
@@ -200,7 +199,7 @@ describe('registerWorkbenchActiveTabActions', () => {
 	});
 
 	it('coexists with adjacent Tab composites during all-Action discovery', () => {
-		const harness = createHarness();
+		const harness = createHarness([snapshotTab(1)], FIRST);
 		registerWorkbenchTabSelectionActions({
 			projectWorkspaceRuntime: harness.projectWorkspaceRuntime,
 			runtime: harness.runtime,
@@ -242,17 +241,12 @@ interface Harness {
 	): Promise<unknown>;
 }
 
-function createHarness(): Harness {
+/** One Workspace holding `tabs`, with `activeTabId` active. */
+function createHarness(tabs: readonly FixtureRecord[], activeTabId: string): Harness {
 	const runtime = new ActionRuntime();
 	const scope = runtime.createScope('workbench');
-	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/workspace',
-		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('terminal-1'),
-			() => terminalPresentationId('terminal-next'),
-		),
-	});
+	const projectWorkspaceRuntime = createSnapshotRuntime(oneWorkspaceSnapshot(1, tabs));
+	projectWorkspaceRuntime.getActiveTerminalContext().tabModel.selectTab(activeTabId);
 	registerWorkbenchActiveTabActions({
 		projectWorkspaceRuntime,
 		runtime,

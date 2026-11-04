@@ -27,7 +27,7 @@ import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 
 export interface WorkbenchAuthorityNoticeView {
-	readonly authority: WorkbenchAuthority | undefined;
+	readonly authority: WorkbenchAuthority;
 	readonly notice: { readonly message: string; readonly persistent: boolean } | null;
 	readonly reportDuplicationStopped: (
 		stop: WorkbenchTabDuplicationStop,
@@ -104,128 +104,125 @@ function reportingWorktrees(
  * dissolving a Project says that its Workspaces remain.
  */
 export function useWorkbenchAuthorityNotice(
-	authority: WorkbenchAuthority | undefined,
+	authority: WorkbenchAuthority,
 	projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime,
 ): WorkbenchAuthorityNoticeView {
 	const intl = useOrchbeeIntl();
 	const [notice, setNotice] = React.useState<WorkbenchAuthorityNotice | null>(null);
-	const reportingAuthority = React.useMemo<WorkbenchAuthority | undefined>(
-		() =>
-			authority === undefined
-				? undefined
-				: {
-						minimumSplitPercent: authority.minimumSplitPercent,
-						// The board reports its own outcomes, so nothing it does reaches the status line.
-						agentBoard: authority.agentBoard,
-						change: async (context, change) => {
-							const dissolvedWorkspaces =
-								change.type === 'project-dissolved' &&
-								projectWorkspaceRuntime
-									.getSnapshot()
-									.workspaces.some((workspace) => workspace.projectId === change.projectId);
-							setNotice(null);
-							const result = await authority.change(context, change);
-							if (result.kind === 'completed' && change.type === 'project-dissolved') {
-								setNotice({
-									descriptor: dissolvedWorkspaces
-										? workbenchMessages.workspaceSetupProjectDissolved
-										: workbenchMessages.workspaceSetupProjectDissolvedEmpty,
-									lifetime: 'timed',
-								});
-							} else if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
-								setNotice(workbenchTabsFailureNotice(result));
-							} else if (change.type === 'panel-moved' || change.type === 'panels-swapped') {
-								setNotice(workbenchPanelsFailureNotice(result));
-							} else if (
-								change.type === 'panel-size-adjusted' ||
-								change.type === 'panels-equalized' ||
-								change.type === 'split-ratio-set'
-							) {
-								setNotice(workbenchSplitRatioFailureNotice(result));
-							} else {
-								setNotice(workbenchFailureNotice(result));
-							}
-							return result;
-						},
-						close: async (context, closure) => {
-							const subject = readWorkbenchCloseSubject(closure, projectWorkspaceRuntime);
-							const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
-							const landsAutomatically = closesActiveLocation(closure, projectWorkspaceRuntime);
-							let progress: WorkbenchAuthorityNotice | null = null;
-							let closingShown = false;
-							const showProgress = (): void => {
-								if (!closingShown) return;
-								progress = workbenchCloseProgressNotice(subject, projectWorkspaceRuntime);
-								setNotice(progress);
-							};
-							setNotice(null);
-							const closingDelay = setTimeout(() => {
-								closingShown = true;
-								showProgress();
-							}, CLOSING_NOTICE_DELAY_MILLISECONDS);
-							const stopWatching = projectWorkspaceRuntime.subscribe(showProgress);
-							try {
-								const result = await authority.close(context, closure);
-								const next = workbenchCloseResultNotice(
-									subject,
-									result,
-									projectWorkspaceRuntime,
-									authority,
-									landsAutomatically ||
-										workbenchActiveLocationsEqual(
-											origin,
-											projectWorkspaceRuntime.getSnapshot().activeLocation,
-										),
-								);
-								const shown = progress;
-								setNotice((current) => {
-									// Saying nothing removes only what this close said, not what later work says.
-									if (next === null) return current === shown ? null : current;
-									return current?.lifetime === 'until-press' && next.lifetime === 'timed'
-										? current
-										: next;
-								});
-								return result;
-							} finally {
-								clearTimeout(closingDelay);
-								stopWatching();
-							}
-						},
-						create: async (context, creation) => {
-							setNotice(null);
-							const result = await authority.create(context, creation);
-							setNotice(workbenchFailureNotice(result));
-							return result;
-						},
-						createPanelTerminal: async (context, creation) => {
-							setNotice(null);
-							const result = await authority.createPanelTerminal(context, creation);
-							setNotice(workbenchPanelsFailureNotice(result));
-							return result;
-						},
-						createTab: async (context, creation) => {
-							setNotice(null);
-							const result = await authority.createTab(context, creation);
-							setNotice(workbenchTabCreationFailureNotice(result));
-							return result;
-						},
-						launchProfiles: authority.launchProfiles,
-						stoppedTabClose: (terminalContextId, tabId) =>
-							authority.stoppedTabClose(terminalContextId, tabId),
-						watchClose: (closure, onChanged) =>
-							authority.watchClose(closure, () => {
-								setNotice(workbenchCloseWithdrawnNotice(closure));
-								onChanged();
-							}),
-						worktrees:
-							authority.worktrees === undefined
-								? undefined
-								: reportingWorktrees(authority.worktrees, setNotice),
-						configuredCommands:
-							authority.configuredCommands === undefined
-								? undefined
-								: reportingConfiguredCommands(authority.configuredCommands, intl, setNotice),
-					},
+	const reportingAuthority = React.useMemo<WorkbenchAuthority>(
+		() => ({
+			minimumSplitPercent: authority.minimumSplitPercent,
+			// The board reports its own outcomes, so nothing it does reaches the status line.
+			agentBoard: authority.agentBoard,
+			change: async (context, change) => {
+				const dissolvedWorkspaces =
+					change.type === 'project-dissolved' &&
+					projectWorkspaceRuntime
+						.getSnapshot()
+						.workspaces.some((workspace) => workspace.projectId === change.projectId);
+				setNotice(null);
+				const result = await authority.change(context, change);
+				if (result.kind === 'completed' && change.type === 'project-dissolved') {
+					setNotice({
+						descriptor: dissolvedWorkspaces
+							? workbenchMessages.workspaceSetupProjectDissolved
+							: workbenchMessages.workspaceSetupProjectDissolvedEmpty,
+						lifetime: 'timed',
+					});
+				} else if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
+					setNotice(workbenchTabsFailureNotice(result));
+				} else if (change.type === 'panel-moved' || change.type === 'panels-swapped') {
+					setNotice(workbenchPanelsFailureNotice(result));
+				} else if (
+					change.type === 'panel-size-adjusted' ||
+					change.type === 'panels-equalized' ||
+					change.type === 'split-ratio-set'
+				) {
+					setNotice(workbenchSplitRatioFailureNotice(result));
+				} else {
+					setNotice(workbenchFailureNotice(result));
+				}
+				return result;
+			},
+			close: async (context, closure) => {
+				const subject = readWorkbenchCloseSubject(closure, projectWorkspaceRuntime);
+				const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
+				const landsAutomatically = closesActiveLocation(closure, projectWorkspaceRuntime);
+				let progress: WorkbenchAuthorityNotice | null = null;
+				let closingShown = false;
+				const showProgress = (): void => {
+					if (!closingShown) return;
+					progress = workbenchCloseProgressNotice(subject, projectWorkspaceRuntime);
+					setNotice(progress);
+				};
+				setNotice(null);
+				const closingDelay = setTimeout(() => {
+					closingShown = true;
+					showProgress();
+				}, CLOSING_NOTICE_DELAY_MILLISECONDS);
+				const stopWatching = projectWorkspaceRuntime.subscribe(showProgress);
+				try {
+					const result = await authority.close(context, closure);
+					const next = workbenchCloseResultNotice(
+						subject,
+						result,
+						projectWorkspaceRuntime,
+						authority,
+						landsAutomatically ||
+							workbenchActiveLocationsEqual(
+								origin,
+								projectWorkspaceRuntime.getSnapshot().activeLocation,
+							),
+					);
+					const shown = progress;
+					setNotice((current) => {
+						// Saying nothing removes only what this close said, not what later work says.
+						if (next === null) return current === shown ? null : current;
+						return current?.lifetime === 'until-press' && next.lifetime === 'timed'
+							? current
+							: next;
+					});
+					return result;
+				} finally {
+					clearTimeout(closingDelay);
+					stopWatching();
+				}
+			},
+			create: async (context, creation) => {
+				setNotice(null);
+				const result = await authority.create(context, creation);
+				setNotice(workbenchFailureNotice(result));
+				return result;
+			},
+			createPanelTerminal: async (context, creation) => {
+				setNotice(null);
+				const result = await authority.createPanelTerminal(context, creation);
+				setNotice(workbenchPanelsFailureNotice(result));
+				return result;
+			},
+			createTab: async (context, creation) => {
+				setNotice(null);
+				const result = await authority.createTab(context, creation);
+				setNotice(workbenchTabCreationFailureNotice(result));
+				return result;
+			},
+			launchProfiles: authority.launchProfiles,
+			stoppedTabClose: (terminalContextId, tabId) =>
+				authority.stoppedTabClose(terminalContextId, tabId),
+			watchClose: (closure, onChanged) =>
+				authority.watchClose(closure, () => {
+					setNotice(workbenchCloseWithdrawnNotice(closure));
+					onChanged();
+				}),
+			worktrees:
+				authority.worktrees === undefined
+					? undefined
+					: reportingWorktrees(authority.worktrees, setNotice),
+			configuredCommands:
+				authority.configuredCommands === undefined
+					? undefined
+					: reportingConfiguredCommands(authority.configuredCommands, intl, setNotice),
+		}),
 		[authority, intl, projectWorkspaceRuntime],
 	);
 	const reportDuplicationStopped = useMemoizedFn(

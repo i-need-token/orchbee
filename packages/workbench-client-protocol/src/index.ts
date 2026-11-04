@@ -12,19 +12,11 @@ export {
 	TerminalPresentationIdSchema,
 	terminalPresentationId,
 	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
 } from './terminal-presentation-contract';
 export type {
 	TerminalPresentationCloseActivity,
-	TerminalPresentationCloseOperation,
-	TerminalPresentationCloseRequest,
-	TerminalPresentationCommand,
-	TerminalPresentationCreation,
-	TerminalPresentationEvent,
-	TerminalPresentationFailure,
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,
-	TerminalPresentationOperationId,
 	TerminalPresentationRemovalId,
 } from './terminal-presentation-contract';
 export {
@@ -39,14 +31,7 @@ export type {
 	WorkbenchSharedPresentation,
 	WorkbenchSharedPresentationIntent,
 } from './workbench-shared-document-contract';
-export {
-	areValidWorkbenchSharedLaunchConfigurations,
-	assertWorkbenchSharedProjectWorkspaceInvariants,
-	hasWorkbenchSharedLaunchConfiguration,
-	isValidWorkbenchSharedDirectory,
-	workbenchSharedDirectoriesShareLocation,
-	workbenchSharedDirectoryPlacementsEqual,
-} from './workbench-shared-project-workspace-contract';
+export { assertWorkbenchSharedProjectWorkspaceInvariants } from './assertWorkbenchSharedProjectWorkspaceInvariants';
 
 export {
 	AGENT_INTEGRATION_PROVIDERS,

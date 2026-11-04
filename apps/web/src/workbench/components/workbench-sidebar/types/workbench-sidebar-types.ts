@@ -24,14 +24,10 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly workspaceMoveToProject: string;
 	readonly workspaceCreateProject: string;
 	readonly workspaceUngroup: string;
-	readonly workspaceNew: string;
 	readonly cancel: string;
 	readonly close: string;
 	readonly collapseProject: string;
 	readonly collapseRecents: string;
-	readonly connectProject: string;
-	readonly connectViaSsh: string;
-	readonly disconnectProject: string;
 	readonly create: string;
 	readonly projectCreate: string;
 	readonly projectCreateDescription: string;
@@ -39,18 +35,6 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectCreatePathDescription: string;
 	readonly projectCreatePathPlaceholder: string;
 	readonly projectCreateTitle: string;
-	readonly projectConnectionStatus: Readonly<
-		Record<
-			| 'blocked'
-			| 'connected'
-			| 'connecting'
-			| 'disconnected'
-			| 'interaction-required'
-			| 'retrying'
-			| 'unavailable',
-			string
-		>
-	>;
 	readonly createWorkspace: string;
 	readonly expandProject: string;
 	readonly expandRecents: string;
@@ -79,7 +63,6 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectRenameTitle: string;
 	readonly projectWorktrees: string;
 	readonly recents: string;
-	readonly retryProjectConnection: string;
 	readonly selectFolder: string;
 	readonly workspaceMenuClose: string;
 	readonly workspaceMenuNewProject: string;

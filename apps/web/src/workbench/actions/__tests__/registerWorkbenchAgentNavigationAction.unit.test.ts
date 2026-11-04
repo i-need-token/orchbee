@@ -3,78 +3,54 @@ import { describe, expect, it } from 'vitest';
 import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import {
-	collectPanelLeaves,
+	createSnapshotRuntime,
+	fixturePanelId,
+	fixturePresentationId,
+	fixtureTabId,
+	fixtureWorkspaceId,
+	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotPresentation,
+	snapshotSplit,
+	snapshotTab,
+} from '../../../__tests__/server-workbench-snapshot';
+import {
 	findPanel,
 	getDisplayedTerminal,
 } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAgentSource } from '../../types/workbench-agent-observation';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 import { registerWorkbenchAgentNavigationAction } from '../registerWorkbenchAgentNavigationAction';
 
+const WORKSPACE_ID = fixtureWorkspaceId(1);
+
 describe('registerWorkbenchAgentNavigationAction', () => {
 	it('re-resolves and opens the exact inactive Workspace Tab before focusing its Panel', async () => {
-		const projectWorkspaceRuntime = projectRuntime();
-		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
-		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
-		expect(project).toBeDefined();
-		expect(workspace).toBeDefined();
-		if (project === undefined || workspace === undefined) return;
-		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
-		expect(context).not.toBeNull();
-		if (context === null) return;
-		const creation = projectWorkspaceRuntime.createTerminal({
-			groupId: null,
-			source: 'programmatic',
-			title: 'Agent Tab',
-		});
-		expect(creation.kind).toBe('created');
-		if (creation.kind !== 'created') return;
-		const targetTab = context.panelWorkspaceStore
-			.getSnapshot()
-			.tabs.find((tab) => tab.tabId === creation.tabId);
-		expect(targetTab).toBeDefined();
-		if (targetTab === undefined) return;
-		const targetPanel = targetTab.root.kind === 'panel' ? targetTab.root : null;
-		expect(targetPanel).not.toBeNull();
-		if (targetPanel === null) return;
-		const targetPresentationId = targetPanel.primaryPresentation.presentationId;
-		const firstTabId = context.tabModel.getSnapshot().tabs[0]?.id;
-		expect(firstTabId).toBeDefined();
-		if (firstTabId === undefined) return;
-		context.tabModel.selectTab(firstTabId);
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
+		);
+		const context = projectWorkspaceRuntime.getActiveTerminalContext();
+		const targetTabId = fixtureTabId(2);
+		const targetPresentationId = fixturePresentationId(2);
+		context.tabModel.selectTab(fixtureTabId(1));
 		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
-		const actionRuntime = new ActionRuntime();
-		const scope = actionRuntime.createScope('workbench');
-		const registration = registerWorkbenchAgentNavigationAction({
+		const { execute, registration } = registerNavigation(
 			projectWorkspaceRuntime,
-			scope,
-			source: agentSource(targetPresentationId),
-			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
-		});
+			agentSource(targetPresentationId),
+		);
 
-		await expect(
-			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.navigateAgent,
-				{
-					presentationId: terminalPresentationId(targetPresentationId),
-					workspaceId: workspace.id,
-				},
-				{ scope, source: 'button' },
-			).completion,
-		).resolves.toEqual({ kind: 'completed' });
+		await expect(execute(targetPresentationId)).resolves.toEqual({ kind: 'completed' });
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-
-			workspaceId: workspace.id,
+			workspaceId: WORKSPACE_ID,
 		});
-		expect(context.tabModel.getSnapshot().activeTabId).toBe(creation.tabId);
+		expect(context.tabModel.getSnapshot().activeTabId).toBe(targetTabId);
 		const selectedTab = context.panelWorkspaceStore
 			.getSnapshot()
-			.tabs.find((tab) => tab.tabId === creation.tabId);
-		expect(selectedTab?.focusedPanelId).toBe(targetPanel.id);
+			.tabs.find((tab) => tab.tabId === targetTabId);
+		expect(selectedTab?.focusedPanelId).toBe(fixturePanelId(2));
 		expect(
 			selectedTab?.root.kind === 'panel'
 				? getDisplayedTerminal(selectedTab.root).presentationId
@@ -85,107 +61,59 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 	});
 
 	it('blocks a stale row once its terminal no longer holds an Agent', async () => {
-		const projectWorkspaceRuntime = projectRuntime();
-		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
-		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
-		if (project === undefined || workspace === undefined) return;
-		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
-		if (context === null) return;
-		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];
-		if (tab?.root.kind !== 'panel') return;
-		const actionRuntime = new ActionRuntime();
-		const scope = actionRuntime.createScope('workbench');
-		const registration = registerWorkbenchAgentNavigationAction({
-			projectWorkspaceRuntime,
-			scope,
-			source: agentSource(),
-			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
-		});
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
+		);
+		const { execute, registration } = registerNavigation(projectWorkspaceRuntime, agentSource());
 
-		await expect(
-			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.navigateAgent,
-				{
-					presentationId: terminalPresentationId(tab.root.primaryPresentation.presentationId),
-					workspaceId: workspace.id,
-				},
-				{ scope, source: 'button' },
-			).completion,
-		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
+		await expect(execute(fixturePresentationId(1))).resolves.toMatchObject({
+			code: 'action-unavailable',
+			kind: 'blocked',
+		});
 
 		registration.dispose();
 	});
 
 	it('reveals an exact child terminal and removes a conflicting Panel maximization', async () => {
-		const projectWorkspaceRuntime = projectRuntime();
-		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
-		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
-		if (project === undefined || workspace === undefined) return;
-		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
-		if (context === null) return;
-		const initialTab = context.panelWorkspaceStore.getSnapshot().tabs[0];
-		if (initialTab?.root.kind !== 'panel') return;
-		const tabId = initialTab.tabId;
-		const targetPanelId = initialTab.root.id;
-		const childPresentation = context.panelWorkspaceStore.createTerminalPresentation();
-		expect(
-			context.panelWorkspaceStore.transition({
-				newTerminalTitle: 'Agent child',
-				panelId: targetPanelId,
-				presentation: childPresentation,
-				tabId,
-				type: 'child-terminal-created',
-			}).outcome,
-		).toBe('applied');
-		const childPresentationId = childPresentation.presentationId;
+		const targetPanelId = fixturePanelId(1);
+		const childPresentationId = fixturePresentationId(3);
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			oneWorkspaceSnapshot(1, [
+				snapshotTab(
+					1,
+					snapshotSplit(
+						1,
+						'horizontal',
+						snapshotPanel(1, snapshotPresentation(1), [snapshotPresentation(3)]),
+						snapshotPanel(2),
+					),
+				),
+			]),
+		);
+		const context = projectWorkspaceRuntime.getActiveTerminalContext();
+		const tabId = fixtureTabId(1);
 		expect(
 			context.panelWorkspaceStore.transition({
 				panelId: targetPanelId,
 				tabId,
 				type: 'primary-terminal-shown',
 			}).outcome,
-		).toBe('applied');
+		).toBe('unchanged');
 		expect(
 			context.panelWorkspaceStore.transition({
-				direction: 'right',
-				newTerminalTitle: 'Other Panel',
-				panelId: targetPanelId,
-				presentation: context.panelWorkspaceStore.createTerminalPresentation(),
-				tabId,
-				type: 'panel-split',
-			}).outcome,
-		).toBe('applied');
-		const splitTab = context.panelWorkspaceStore.getSnapshot().tabs[0];
-		if (splitTab === undefined) return;
-		const otherPanel = collectPanelLeaves(splitTab.root).find(
-			(panel) => panel.id !== targetPanelId,
-		);
-		if (otherPanel === undefined) return;
-		expect(
-			context.panelWorkspaceStore.transition({
-				panelId: otherPanel.id,
+				panelId: fixturePanelId(2),
 				tabId,
 				type: 'panel-maximization-toggled',
 			}).outcome,
 		).toBe('applied');
 		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 
-		const actionRuntime = new ActionRuntime();
-		const scope = actionRuntime.createScope('workbench');
-		const registration = registerWorkbenchAgentNavigationAction({
+		const { execute, registration } = registerNavigation(
 			projectWorkspaceRuntime,
-			scope,
-			source: agentSource(childPresentationId),
-			typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
-		});
+			agentSource(childPresentationId),
+		);
 
-		await expect(
-			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.navigateAgent,
-				{ presentationId: terminalPresentationId(childPresentationId), workspaceId: workspace.id },
-				{ scope, source: 'button' },
-			).completion,
-		).resolves.toEqual({ kind: 'completed' });
+		await expect(execute(childPresentationId)).resolves.toEqual({ kind: 'completed' });
 		const navigatedTab = context.panelWorkspaceStore.getSnapshot().tabs[0];
 		expect(navigatedTab?.focusedPanelId).toBe(targetPanelId);
 		expect(navigatedTab?.maximizedPanelId).toBeNull();
@@ -199,36 +127,27 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 	});
 });
 
-function projectRuntime(): WorkbenchProjectWorkspaceRuntime {
-	let sequence = 0;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: '/system',
-		standaloneTerminalTitle: 'Standalone',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('agent-navigation-initial'),
-			() => terminalPresentationId(`agent-navigation-${(sequence += 1)}`),
-		),
+function registerNavigation(
+	projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime,
+	source: WorkbenchAgentSource,
+) {
+	const actionRuntime = new ActionRuntime();
+	const scope = actionRuntime.createScope('workbench');
+	const registration = registerWorkbenchAgentNavigationAction({
+		projectWorkspaceRuntime,
+		scope,
+		source,
+		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
 	});
-	const transition = runtime.transition({
-		directory: {
-			available: true,
-			git: null,
-			id: 'directory-agent-navigation',
-			kind: 'folder',
-			name: 'Agent Navigation',
-			path: '/agent-navigation',
-			placement: { kind: 'local' },
-			source: 'selected',
-		},
-		launchConfigurations: [],
-		primaryWorkspaceLaunchConfigurationId: null,
-		primaryWorkspaceName: 'Workspace',
-		projectName: 'Project',
-		terminalTitle: 'First Tab',
-		type: 'project-created',
-	});
-	if (transition.outcome !== 'applied') throw new Error('Expected Project creation.');
-	return runtime;
+	return {
+		execute: (presentationId: string) =>
+			actionRuntime.execute(
+				WORKBENCH_ACTION_IDS.navigateAgent,
+				{ presentationId: terminalPresentationId(presentationId), workspaceId: WORKSPACE_ID },
+				{ scope, source: 'button' },
+			).completion,
+		registration,
+	};
 }
 
 /** The Server observing an Agent in each of these terminals. */

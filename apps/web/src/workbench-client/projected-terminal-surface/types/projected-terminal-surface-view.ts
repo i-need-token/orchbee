@@ -29,8 +29,7 @@ export interface ProjectedTerminalSurfaceView {
 	readonly projectionState: 'failed' | 'inactive' | 'recovering' | 'requested';
 	readonly recoveryAvailable: boolean;
 	readonly root: RefObject<HTMLDivElement | null>;
-	readonly stopped: boolean;
-	/** How the shown terminal ended, absent while it runs or once its session stopped. */
+	/** How the shown terminal ended, absent while it runs. */
 	readonly terminalOutcome: ProjectedTerminalOutcome | null;
 	approvePaste(): void;
 	cancelPaste(): void;
@@ -40,7 +39,6 @@ export interface ProjectedTerminalSurfaceView {
 	handleFileDrop(event: DragEvent<HTMLDivElement>): void;
 	retryProjection(): void;
 	sendMobileKey(key: MobileTerminalKey): boolean;
-	startNewSession(): void;
 	takeControl(): void;
 	toggleMobileKeyboard(): boolean;
 	toggleMobileModifier(modifier: MobileTerminalModifier): void;

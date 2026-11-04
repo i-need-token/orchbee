@@ -48,7 +48,6 @@ import type {
 	WorkbenchProjectNavigationMessages,
 	WorkbenchWorktreeCommands,
 } from '../components/workbench-sidebar/types/workbench-sidebar-types';
-import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
 import {
@@ -78,11 +77,6 @@ import type {
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
-import {
-	executeWorkbenchTerminalCreationAction,
-	getWorkbenchTabCreationAvailability,
-	getWorkbenchTerminalCreationAvailability,
-} from '../actions/workbench-terminal-creation-action';
 import {
 	createSharedTab,
 	createSharedTerminal,
@@ -141,15 +135,14 @@ interface WorkbenchView {
 	} | null;
 	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
-	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly actionScope: ActionScope;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
 	/** Present when an authority may stop a Tab's close where Resume continues it. */
-	readonly closeResume: TabStripCloseResume | undefined;
+	readonly closeResume: TabStripCloseResume;
 	readonly confirmProjectWorkspaceAction: () => void;
 	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
-	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate | undefined;
+	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
 	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
 	readonly activateCreatedProject: (
 		receipt: WorkbenchProjectCreationReceipt,
@@ -173,7 +166,7 @@ interface WorkbenchView {
 	readonly newTabChoices: readonly TabStripNewTabChoice[] | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
 	/** Present when an authority decides the Tabs, which then show only as it answers. */
-	readonly onTabsChange: TabStripChangeCallback | undefined;
+	readonly onTabsChange: TabStripChangeCallback;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly getTabCreationAvailability: (intent: TabStripTabCreationIntent) => ActionAvailability;
 	readonly onLayoutChanged: (
@@ -242,7 +235,6 @@ interface WorkbenchView {
 	readonly hasVisibleTerminalTabs: boolean;
 	/** Only a shared Workbench says anything in place of a Workspace's missing Tabs. */
 	readonly emptyWorkspace: WorkbenchEmptyWorkspace | null;
-	readonly terminalLabel: string;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly tabStripFocusRequest: number;
 	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
@@ -263,13 +255,12 @@ interface WorkbenchView {
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
-	readonly authority?: WorkbenchAuthority | undefined;
+	readonly authority: WorkbenchAuthority;
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
-	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
@@ -285,7 +276,6 @@ export function useWorkbench({
 	onSettings,
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
-	remoteTerminalCreation,
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
@@ -437,72 +427,40 @@ export function useWorkbench({
 		intl.formatMessage(workbenchMessages.terminalCloseWarning, terminalCloseWarningValues(impact)),
 	);
 	const getNewTerminalAvailability = useMemoizedFn(
-		(input: WorkbenchTerminalCreateInput): ActionAvailability => {
-			if (authorityNotice.authority !== undefined) {
-				return getSharedTerminalCreationAvailability(projectWorkspaceRuntime, input);
-			}
-			// Only an authority knows the saved launch profiles.
-			return input.profile === undefined
-				? getWorkbenchTerminalCreationAvailability(
-						projectWorkspaceRuntime,
-						remoteTerminalCreation,
-						input,
-					)
-				: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
-		},
+		(input: WorkbenchTerminalCreateInput): ActionAvailability =>
+			getSharedTerminalCreationAvailability(projectWorkspaceRuntime, input),
 	);
 	const getTabCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) =>
-		authorityNotice.authority === undefined
-			? getWorkbenchTabCreationAvailability(projectWorkspaceRuntime, remoteTerminalCreation, intent)
-			: getSharedTabCreationAvailability(projectWorkspaceRuntime, intent),
+		getSharedTabCreationAvailability(projectWorkspaceRuntime, intent),
 	);
 	const createTerminal = useMemoizedFn<
 		void,
 		Parameters<WorkbenchTerminalCreateCallback>,
 		ReturnType<WorkbenchTerminalCreateCallback>
-	>((context, input) => {
-		if (authorityNotice.authority !== undefined) {
-			return createSharedTerminal(context, input, {
-				authority: authorityNotice.authority,
-				beginTerminalHandover: focusRouting.beginTerminalHandover,
-				runtime: projectWorkspaceRuntime,
-			});
-		}
-		// A chosen profile never falls back to the default program.
-		if (input.profile !== undefined) return { code: 'launch-profile-unavailable', kind: 'blocked' };
-		return executeWorkbenchTerminalCreationAction(context, input, {
-			fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
-			onLocalTerminalCreated: () => {
-				focusRouting.requestTerminalFocus();
-			},
-			onRemoteTerminalCreated: () => {
-				focusRouting.requestTerminalFocus();
-			},
-			remoteTerminalCreation,
+	>((context, input) =>
+		createSharedTerminal(context, input, {
+			authority: authorityNotice.authority,
+			beginTerminalHandover: focusRouting.beginTerminalHandover,
 			runtime: projectWorkspaceRuntime,
-		});
-	});
+		}),
+	);
 	const createPanelTerminal = useMemoizedFn<
 		void,
 		Parameters<WorkbenchSharedPanelTerminalCreate>,
 		ReturnType<WorkbenchSharedPanelTerminalCreate>
-	>((context, creation) => {
-		const decider = authorityNotice.authority;
-		return decider === undefined
-			? Promise.resolve({ kind: 'unsupported' })
-			: createSharedPanelTerminal(context, creation, {
-					authority: decider,
-					beginTerminalHandover: focusRouting.beginTerminalHandover,
-					runtime: projectWorkspaceRuntime,
-				});
-	});
+	>((context, creation) =>
+		createSharedPanelTerminal(context, creation, {
+			authority: authorityNotice.authority,
+			beginTerminalHandover: focusRouting.beginTerminalHandover,
+			runtime: projectWorkspaceRuntime,
+		}),
+	);
 	const changeSharedTabs = useMemoizedFn<
 		void,
 		Parameters<TabStripChangeCallback>,
 		ReturnType<TabStripChangeCallback>
 	>((context, change) => {
 		const decider = authorityNotice.authority;
-		if (decider === undefined) return { kind: 'unsupported' };
 		switch (change.kind) {
 			case 'tab-created-in-new-group':
 				return createSharedTab(
@@ -558,14 +516,7 @@ export function useWorkbench({
 		ReturnType<TabStripCloseCallback>
 	>((context, request) => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		if (authorityNotice.authority !== undefined) {
-			return closeSharedTabs(context, authorityNotice.authority, request.tabIds);
-		}
-		const result = projectWorkspaceRuntime.requestActiveTerminalTabsClose(request.tabIds);
-		if (result.kind === 'rejected') return { code: result.reason, kind: 'blocked' };
-		if (result.kind === 'unchanged') return { kind: 'unchanged' };
-		context.markCommitted();
-		return { kind: 'completed' };
+		return closeSharedTabs(context, authorityNotice.authority, request.tabIds);
 	});
 	const getCloseTabsConfirmation = useMemoizedFn<
 		void,
@@ -576,7 +527,7 @@ export function useWorkbench({
 		const asks =
 			projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(request.tabIds) > 0 ||
 			// A shared set always asks, because one press ends more than the Tab under the pointer.
-			(decider !== undefined && request.tabIds.length > 1);
+			request.tabIds.length > 1;
 		if (!asks) return null;
 		const closure = sharedTabsClosure(request.tabIds);
 		const { tabModel: activeTabModel } = projectWorkspaceRuntime.getActiveTerminalContext();
@@ -597,8 +548,7 @@ export function useWorkbench({
 			},
 			risk: 'destructive',
 			title: { ...workbenchMessages.tabCloseTitle, values: { count: closure.tabIds.length } },
-			watch:
-				decider === undefined ? undefined : (withdraw) => decider.watchClose(closure, withdraw),
+			watch: (withdraw) => decider.watchClose(closure, withdraw),
 		};
 	});
 	const actions = useWorkbenchActions({
@@ -615,23 +565,18 @@ export function useWorkbench({
 		openAgentBoard,
 		openSearch,
 		openTabTitleEditor,
-		primaryWorkspaceName: intl.formatMessage(workbenchMessages.workspacePrimaryName),
-		defaultWorkspaceName: intl.formatMessage(workbenchMessages.workspaceDefaultName),
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime: actionRuntime,
 		setTabStripOrientation,
 		tabStripOrientation,
 		toggleSidebar,
-		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
-		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 		worktreeLabel,
 	});
-	const worktrees = authorityNotice.authority?.worktrees;
+	const worktrees = authorityNotice.authority.worktrees;
 	const invokeAction = actions.invoke;
-	const closeResume = React.useMemo<TabStripCloseResume | undefined>(() => {
+	const closeResume = React.useMemo<TabStripCloseResume>(() => {
 		const decider = authorityNotice.authority;
-		if (decider === undefined) return undefined;
 		const shownContext = () => projectWorkspaceRuntime.getActiveTerminalContext().terminalContextId;
 		return {
 			available: (tabId) => decider.stoppedTabClose(shownContext(), tabId) !== null,
@@ -648,7 +593,7 @@ export function useWorkbench({
 		actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null, profile }, 'context-menu');
 	});
 	const newTabChoices = useWorkbenchNewTabChoices(
-		authorityNotice.authority?.launchProfiles,
+		authorityNotice.authority.launchProfiles,
 		projectWorkspaceState.activeLocation.kind === 'workspace',
 		createTabWithProfile,
 	);
@@ -683,9 +628,6 @@ export function useWorkbench({
 		requestTerminalFocus: requestLocationTerminalFocus,
 		terminalTargetAvailable: resolveTerminalFocusTarget() !== null,
 	});
-	const activateStandalone = useMemoizedFn((origin: WorkbenchTerminalLocationActivationOrigin) =>
-		activateLocation({ kind: 'standalone' }, origin),
-	);
 	const activateWorkspace = useMemoizedFn(
 		(workspaceId: string, origin: WorkbenchTerminalLocationActivationOrigin) =>
 			activateLocation({ kind: 'workspace', workspaceId }, origin),
@@ -763,7 +705,7 @@ export function useWorkbench({
 	);
 
 	return {
-		agentBoard: agentBoardOpen ? authorityNotice.authority?.agentBoard : undefined,
+		agentBoard: agentBoardOpen ? authorityNotice.authority.agentBoard : undefined,
 		agentBoardFinalFocus,
 		closeAgentBoard,
 		showAgentBoardSession,
@@ -776,7 +718,6 @@ export function useWorkbench({
 					},
 		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,
-		activateStandalone,
 		navigateAgent,
 		actionScope: actions.scope,
 		activateWorkspace,
@@ -831,8 +772,8 @@ export function useWorkbench({
 			),
 		newTabChoices,
 		onCloseTabs: closeTabs,
-		createPanelTerminal: authorityNotice.authority === undefined ? undefined : createPanelTerminal,
-		onTabsChange: authorityNotice.authority === undefined ? undefined : changeSharedTabs,
+		createPanelTerminal,
+		onTabsChange: changeSharedTabs,
 		getCloseTabsConfirmation,
 		getTabCreationAvailability,
 		onLayoutChanged: (_layout, meta) => {
@@ -862,17 +803,12 @@ export function useWorkbench({
 			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
 			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
 			workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),
-			workspaceNew: intl.formatMessage(workbenchMessages.workspaceNew),
-
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
 			collapseProject: intl.formatMessage(workbenchMessages.projectCollapse),
 			collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
-			connectProject: intl.formatMessage(workbenchMessages.projectConnect),
-			connectViaSsh: intl.formatMessage(workbenchMessages.projectConnectViaSsh),
 			create: intl.formatMessage(workbenchMessages.resourceCreate),
 			createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
-			disconnectProject: intl.formatMessage(workbenchMessages.projectDisconnect),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
 			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
 			folderAcquisitionFailureDismiss: intl.formatMessage(
@@ -925,24 +861,12 @@ export function useWorkbench({
 				workbenchMessages.projectCreatePathPlaceholder,
 			),
 			projectCreateTitle: intl.formatMessage(workbenchMessages.projectCreateTitle),
-			projectConnectionStatus: {
-				blocked: intl.formatMessage(workbenchMessages.projectConnectionBlocked),
-				connected: intl.formatMessage(workbenchMessages.projectConnectionConnected),
-				connecting: intl.formatMessage(workbenchMessages.projectConnectionConnecting),
-				disconnected: intl.formatMessage(workbenchMessages.projectConnectionDisconnected),
-				'interaction-required': intl.formatMessage(
-					workbenchMessages.projectConnectionInteractionRequired,
-				),
-				retrying: intl.formatMessage(workbenchMessages.projectConnectionRetrying),
-				unavailable: intl.formatMessage(workbenchMessages.projectConnectionUnavailable),
-			},
 			projectMenuDissolve: intl.formatMessage(workbenchMessages.projectMenuDissolve),
 			projectMenuRename: intl.formatMessage(workbenchMessages.projectMenuRename),
 			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
 			projectRenameTitle: intl.formatMessage(workbenchMessages.projectRenameTitle),
 			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
 			recents: intl.formatMessage(workbenchMessages.recents),
-			retryProjectConnection: intl.formatMessage(workbenchMessages.projectRetryConnection),
 			selectFolder: intl.formatMessage(workbenchMessages.projectSelectFolder),
 			workspaceMenuClose: intl.formatMessage(workbenchMessages.workspaceMenuClose),
 			workspaceMenuNewProject: intl.formatMessage(workbenchMessages.workspaceMenuNewProject),
@@ -998,13 +922,7 @@ export function useWorkbench({
 		tabTitleEditorFinalFocus,
 		tabTitleEditorMessages: {
 			// A shared name has no way back to following the terminal, so a blank one is refused.
-			blank:
-				authorityNotice.authority === undefined
-					? {
-							help: intl.formatMessage(workbenchTabMessages.tabTitleRestoreDescription),
-							kind: 'accept',
-						}
-					: { kind: 'refuse', reason: intl.formatMessage(workbenchMessages.nameRequired) },
+			blank: { kind: 'refuse', reason: intl.formatMessage(workbenchMessages.nameRequired) },
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
 			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
@@ -1036,10 +954,9 @@ export function useWorkbench({
 		tabModel,
 		hasVisibleTerminalTabs: tabModelSnapshot.tabs.length > 0,
 		emptyWorkspace:
-			authorityNotice.authority === undefined || tabModelSnapshot.tabs.length > 0
+			tabModelSnapshot.tabs.length > 0
 				? null
 				: projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl),
-		terminalLabel: intl.formatMessage(workbenchMessages.terminal),
 		tabStripOrientation,
 		tabStripFocusRequest: focusRouting.tabStripFocusRequest,
 		onTabStripOrientationChange: (orientation) => {

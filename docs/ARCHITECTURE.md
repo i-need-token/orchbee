@@ -26,10 +26,9 @@ flowchart TB
  Native["apps/orchbee<br/>native CLI / TUI"] <-->|"local Client protocol"| Server["apps/orchbee-server<br/>local Session and Workbench authority"]
  Server <-->|"Worker protocol"| Worker["apps/orchbee-worker<br/>terminal execution coordination"]
  Worker <-->|"terminal protocol / private IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
- Web["apps/web<br/>React Workbench renderer and in-memory Preview"] <-->|"local Client protocol"| Server
+ Web["apps/web<br/>React Workbench renderer"] <-->|"local Client protocol, relayed by Desktop Main"| Server
  Web -. "composes" .-> Terminal["@orchbee/terminal<br/>projected terminal client surface"]
  Web -->|"Electron renderer"| Desktop["apps/desktop<br/>local Main / preload and capability brokers"]
- Desktop <-->|"terminal protocol / private IPC"| Host
 ```
 
 ## Package boundaries

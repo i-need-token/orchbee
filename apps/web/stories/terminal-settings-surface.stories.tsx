@@ -10,7 +10,7 @@ import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
 import {
 	TerminalFeedbackSettingsController,
-	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
+	type TerminalNotificationPermission,
 } from '../src/terminal-feedback-settings';
 import { TerminalSettingsSurface } from '../src/terminal-settings-surface';
 import {
@@ -169,7 +169,13 @@ function createKeyboardStoryController(
 
 function createFeedbackStoryController(): TerminalFeedbackSettingsController {
 	return new TerminalFeedbackSettingsController({
-		notificationCapability: UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
+		// Stories ask for no notification permission.
+		notificationCapability: {
+			permission: () => 'unsupported',
+			requestPermission: (): Promise<TerminalNotificationPermission> =>
+				Promise.resolve('unsupported'),
+			show: () => false,
+		},
 		storage: { getItem: () => null, setItem: () => undefined },
 	});
 }

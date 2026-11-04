@@ -1,19 +1,7 @@
 import type { TabModel, TabModelSnapshot } from '@orchbee/tab-strip/model';
-import type {
-	TerminalPresentationCloseRequest,
-	TerminalPresentationCreation,
-	TerminalPresentationId,
-} from '@orchbee/workbench-client-protocol';
 
-import type {
-	WorkbenchTerminalPresentationCommand,
-	WorkbenchTerminalPresentationComposition,
-} from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import {
-	initializePanelWorkspace,
-	collectPanelLeaves,
 	findPanel,
-	findTerminal,
 	getDisplayedTerminal,
 	getTerminalDisplayTitle,
 	transitionPanelWorkspace,
@@ -25,16 +13,8 @@ import {
 type Listener = () => void;
 
 interface PanelWorkspaceStoreOptions {
-	readonly composition: WorkbenchTerminalPresentationComposition;
-	readonly initialCwd?: string | null | undefined;
-	readonly initialPresentations?:
-		| readonly {
-				readonly cwd: string | null;
-				readonly presentationId: TerminalPresentationId;
-		  }[]
-		| undefined;
-	readonly initialPresentationId?: TerminalPresentationId | undefined;
-	readonly initialState?: PanelWorkspaceState | undefined;
+	/** The Panels the Server published for this terminal context. */
+	readonly initialState: PanelWorkspaceState;
 	readonly initialTabTitlePolicies?: readonly WorkbenchTabTitlePolicy[] | undefined;
 }
 
@@ -44,53 +24,19 @@ export interface WorkbenchTabTitlePolicy {
 	readonly tabId: string;
 }
 
-type WorkbenchTabTitleUpdateResult =
-	| { readonly kind: 'applied' | 'unchanged' }
-	| { readonly kind: 'rejected'; readonly reason: 'tab-not-found' };
-
 export class PanelWorkspaceStore {
 	private readonly listeners = new Set<Listener>();
-	private readonly pendingTabCwds = new Map<string, string | null>();
-	private readonly pendingTabPresentations = new Map<string, TerminalPresentationCreation>();
 	private readonly tabTitlePolicies = new Map<string, WorkbenchTabTitlePolicy>();
-	private readonly composition: WorkbenchTerminalPresentationComposition;
 	private synchronizingTabTitles = false;
-	private terminalCreationSealed = false;
 	private readonly tabModel: TabModel;
 	private unsubscribeTabModel: (() => void) | null = null;
 	private state: PanelWorkspaceState;
 
 	public constructor(tabModel: TabModel, options: PanelWorkspaceStoreOptions) {
 		this.tabModel = tabModel;
-		this.composition = options.composition;
 		this.initializeTabTitlePolicies(tabModel.getSnapshot(), options.initialTabTitlePolicies);
-		if (options.initialState !== undefined) {
-			this.state = options.initialState;
-			this.syncTabTitles();
-			return;
-		}
-		const snapshot = tabModel.getSnapshot();
-		if (
-			options.initialPresentations !== undefined &&
-			options.initialPresentations.length !== snapshot.tabs.length
-		) {
-			throw new Error('Initial terminal presentations must match the initial Tab collection.');
-		}
-		const initialTabs = snapshot.tabs.map((tab, index) => ({
-			cwd: options.initialPresentations?.[index]?.cwd ?? options.initialCwd ?? null,
-			id: tab.id,
-			presentation: this.createPresentation(
-				options.initialPresentations?.[index]?.presentationId ??
-					(index === 0
-						? (options.initialPresentationId ?? options.composition.initialPresentationId)
-						: undefined),
-			),
-			title: this.requireTabTitlePolicy(tab.id).fallbackTitle,
-		}));
-		const initialization = initializePanelWorkspace(initialTabs);
-		this.state = initialization.state;
+		this.state = options.initialState;
 		this.syncTabTitles();
-		this.dispatchCommands(initialization.commands);
 	}
 
 	public readonly getSnapshot = (): PanelWorkspaceState => this.state;
@@ -113,27 +59,6 @@ export class PanelWorkspaceStore {
 		});
 	}
 
-	public setTabCustomTitle(
-		tabId: string,
-		customTitle: string | null,
-	): WorkbenchTabTitleUpdateResult {
-		const policy = this.tabTitlePolicies.get(tabId);
-		if (policy === undefined) return { kind: 'rejected', reason: 'tab-not-found' };
-		if (customTitle === null) {
-			if (policy.customTitle === null) return { kind: 'unchanged' };
-			this.tabTitlePolicies.set(tabId, { ...policy, customTitle: null });
-		} else {
-			const normalized = customTitle.trim();
-			if (normalized.length === 0 || policy.customTitle === normalized) {
-				return { kind: 'unchanged' };
-			}
-			this.tabTitlePolicies.set(tabId, { ...policy, customTitle: normalized });
-		}
-		this.syncTabTitle(tabId);
-		this.emit();
-		return { kind: 'applied' };
-	}
-
 	public readonly subscribe = (listener: Listener): (() => void) => {
 		if (this.unsubscribeTabModel === null) {
 			this.unsubscribeTabModel = this.tabModel.subscribe(this.reconcileTabs);
@@ -150,298 +75,13 @@ export class PanelWorkspaceStore {
 	};
 
 	public transition(event: PanelWorkspaceEvent): PanelWorkspaceTransition {
-		return this.applyTransition(event, true);
-	}
-
-	public applyTerminalExit(
-		event: Omit<Extract<PanelWorkspaceEvent, { readonly type: 'terminal-exited' }>, 'close'>,
-	): PanelWorkspaceTransition {
-		const tab = this.state.tabs.find((candidate) => candidate.tabId === event.tabId);
-		if (tab === undefined) return rejectedTransition(this.state, 'tab-not-found');
-		if (findTerminal(tab.root, event.presentationId) === null) {
-			return rejectedTransition(this.state, 'terminal-not-found');
-		}
-		if (
-			this.state.pendingRemovals.some((removal) =>
-				removal.presentationIds.includes(event.presentationId),
-			)
-		) {
-			return unchangedTransition(this.state);
-		}
-		const close = this.createTerminalCloseRequest([event.presentationId]);
-		if (close.kind !== 'managed') {
-			return rejectedTransition(this.state, 'invalid-close-operations');
-		}
-		return this.transition({ ...event, close });
-	}
-
-	private applyTransition(
-		event: PanelWorkspaceEvent,
-		dispatchCommands: boolean,
-	): PanelWorkspaceTransition {
 		const result = transitionPanelWorkspace(this.state, event);
 		if (result.state !== this.state) {
 			this.state = result.state;
 			this.syncTabTitles();
 			this.emit();
 		}
-		if (dispatchCommands) this.dispatchCommands(result.commands);
-		return dispatchCommands ? result : { ...result, commands: [] };
-	}
-
-	public createTerminalPresentation(): TerminalPresentationCreation {
-		this.assertTerminalCreationAvailable();
-		return this.createPresentation();
-	}
-
-	public sealTerminalCreation(): void {
-		this.terminalCreationSealed = true;
-		this.pendingTabCwds.clear();
-		this.pendingTabPresentations.clear();
-	}
-
-	public requestAllTerminalSessionsStop(): PanelWorkspaceTransition {
-		const composition = this.composition;
-		if (composition.kind !== 'managed') {
-			return rejectedTransition(this.state, 'invalid-close-operations');
-		}
-		const operations = this.getRestartableTerminalPresentationIds().map((presentationId) => ({
-			operationId: composition.createOperationId(),
-			presentationId,
-		}));
-		return this.transition({ operations, type: 'terminal-sessions-stop-requested' });
-	}
-
-	public getRestartableTerminalPresentationIds(): readonly TerminalPresentationId[] {
-		return this.collectTerminals()
-			.filter(
-				(terminal) =>
-					terminal.lifecycle.kind !== 'closing' &&
-					terminal.lifecycle.kind !== 'close-failed' &&
-					terminal.lifecycle.kind !== 'closed' &&
-					terminal.lifecycle.kind !== 'stopping' &&
-					terminal.lifecycle.kind !== 'stopped',
-			)
-			.map((terminal) => terminal.presentationId);
-	}
-
-	public retryFailedTerminalSessionStops(): PanelWorkspaceTransition {
-		const composition = this.composition;
-		if (composition.kind !== 'managed') {
-			return rejectedTransition(this.state, 'invalid-close-operations');
-		}
-		let aggregate: PanelWorkspaceTransition = {
-			commands: [],
-			outcome: 'unchanged',
-			rejection: null,
-			state: this.state,
-		};
-		for (const tab of this.state.tabs) {
-			for (const panel of collectPanelLeaves(tab.root)) {
-				for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
-					if (
-						terminal.lifecycle.kind !== 'stop-failed' &&
-						terminal.lifecycle.kind !== 'close-failed'
-					) {
-						continue;
-					}
-					if (!terminal.lifecycle.failure.retryable) {
-						return rejectedTransition(this.state, 'stale-operation');
-					}
-					const operationId = composition.createOperationId();
-					const result = this.transition(
-						terminal.lifecycle.kind === 'stop-failed'
-							? {
-									operationId,
-									presentationId: terminal.presentationId,
-									tabId: tab.tabId,
-									type: 'terminal-stop-retried',
-								}
-							: {
-									operationId,
-									presentationId: terminal.presentationId,
-									removalId: terminal.lifecycle.removalId,
-									tabId: tab.tabId,
-									type: 'terminal-close-retried',
-								},
-					);
-					if (result.outcome === 'rejected') return result;
-					aggregate = {
-						commands: [...aggregate.commands, ...result.commands],
-						outcome: 'applied',
-						rejection: null,
-						state: result.state,
-					};
-				}
-			}
-		}
-		return aggregate;
-	}
-
-	public startStoppedTerminalSession(
-		presentationId: TerminalPresentationId,
-		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
-	): PanelWorkspaceTransition {
-		this.assertTerminalCreationAvailable();
-		return this.replaceStoppedTerminalSession(presentationId, presentation, true);
-	}
-
-	public stageStoppedTerminalSessionForRestart(
-		presentationId: TerminalPresentationId,
-		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
-	): PanelWorkspaceTransition {
-		if (!this.terminalCreationSealed) {
-			return rejectedTransition(this.state, 'terminal-session-not-stopped');
-		}
-		return this.replaceStoppedTerminalSession(presentationId, presentation, false);
-	}
-
-	private replaceStoppedTerminalSession(
-		presentationId: TerminalPresentationId,
-		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
-		dispatchCommands: boolean,
-	): PanelWorkspaceTransition {
-		const composition = this.composition;
-		if (composition.kind !== 'managed') {
-			return rejectedTransition(this.state, 'terminal-session-not-stopped');
-		}
-		const tab = this.state.tabs.find((candidate) =>
-			collectPanelLeaves(candidate.root).some((panel) =>
-				[panel.primaryPresentation, ...panel.childPresentations].some(
-					(terminal) => terminal.presentationId === presentationId,
-				),
-			),
-		);
-		if (tab === undefined) return rejectedTransition(this.state, 'terminal-not-found');
-		return this.applyTransition(
-			{
-				presentation,
-				presentationId,
-				tabId: tab.tabId,
-				type: 'terminal-stopped-session-started',
-			},
-			dispatchCommands,
-		);
-	}
-
-	public createTerminalCloseRequest(
-		presentationIds: readonly TerminalPresentationId[],
-	): TerminalPresentationCloseRequest {
-		if (this.composition.kind === 'preview') return { kind: 'preview' };
-		const composition = this.composition;
-		return {
-			kind: 'managed',
-			operations: presentationIds.map((presentationId) => ({
-				operationId: composition.createOperationId(),
-				presentationId,
-			})),
-			removalId: composition.createRemovalId(),
-		};
-	}
-
-	public requestTabClose(tabIds: readonly string[]): PanelWorkspaceTransition {
-		const uniqueTabIds = new Set(tabIds);
-		if (tabIds.length === 0 || uniqueTabIds.size !== tabIds.length) {
-			return {
-				commands: [],
-				outcome: 'rejected',
-				rejection: 'invalid-close-operations',
-				state: this.state,
-			};
-		}
-		if (this.composition.kind === 'preview') {
-			const changed = this.tabModel.closeTabs(tabIds);
-			if (this.unsubscribeTabModel === null) this.reconcileTabs();
-			return {
-				commands: [],
-				outcome: changed ? 'applied' : 'unchanged',
-				rejection: null,
-				state: this.state,
-			};
-		}
-
-		let nextState = this.state;
-		const commands: WorkbenchTerminalPresentationCommand[] = [];
-		for (const tabId of tabIds) {
-			const tab = nextState.tabs.find((candidate) => candidate.tabId === tabId);
-			if (tab === undefined) {
-				return {
-					commands: [],
-					outcome: 'rejected',
-					rejection: 'tab-not-found',
-					state: this.state,
-				};
-			}
-			const presentationIds = collectPanelLeaves(tab.root).flatMap((panel) => [
-				panel.primaryPresentation.presentationId,
-				...panel.childPresentations.map((terminal) => terminal.presentationId),
-			]);
-			const close = this.createTerminalCloseRequest(presentationIds);
-			if (close.kind !== 'managed') {
-				return {
-					commands: [],
-					outcome: 'rejected',
-					rejection: 'invalid-close-operations',
-					state: this.state,
-				};
-			}
-			const transition = transitionPanelWorkspace(nextState, {
-				close,
-				tabId,
-				type: 'tab-close-requested',
-			});
-			if (transition.outcome === 'rejected') {
-				return { ...transition, state: this.state };
-			}
-			nextState = transition.state;
-			commands.push(...transition.commands);
-		}
-
-		this.state = nextState;
-		const selectedReplacement = this.selectReplacementForPendingActiveTab();
-		if (!selectedReplacement || this.unsubscribeTabModel === null) this.emit();
-		this.dispatchCommands(commands);
-		return { commands, outcome: 'applied', rejection: null, state: nextState };
-	}
-
-	private selectReplacementForPendingActiveTab(): boolean {
-		const snapshot = this.tabModel.getSnapshot();
-		if (snapshot.activeTabId === null) return false;
-		const pendingTabIds = new Set(
-			this.state.pendingRemovals.flatMap((removal) =>
-				removal.kind === 'tab' ? [removal.tabId] : [],
-			),
-		);
-		if (!pendingTabIds.has(snapshot.activeTabId)) return false;
-		const activeIndex = snapshot.tabs.findIndex((tab) => tab.id === snapshot.activeTabId);
-		if (activeIndex === -1) return false;
-		for (let index = activeIndex + 1; index < snapshot.tabs.length; index += 1) {
-			const tab = snapshot.tabs[index];
-			if (tab !== undefined && !pendingTabIds.has(tab.id)) {
-				this.tabModel.selectTab(tab.id);
-				return true;
-			}
-		}
-		for (let index = activeIndex - 1; index >= 0; index -= 1) {
-			const tab = snapshot.tabs[index];
-			if (tab !== undefined && !pendingTabIds.has(tab.id)) {
-				this.tabModel.selectTab(tab.id);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	public prepareTabCwd(
-		tabId: string,
-		cwd: string | null,
-		presentation?: TerminalPresentationCreation | undefined,
-	): TerminalPresentationCreation {
-		this.assertTerminalCreationAvailable();
-		const resolvedPresentation = presentation ?? this.createPresentation();
-		this.pendingTabCwds.set(tabId, cwd);
-		this.pendingTabPresentations.set(tabId, resolvedPresentation);
-		return resolvedPresentation;
+		return result;
 	}
 
 	public readonly reconcileTabs = (): void => {
@@ -450,7 +90,7 @@ export class PanelWorkspaceStore {
 		this.captureExternalTabTitleChanges(snapshot);
 		this.ensureTabTitlePolicies(snapshot);
 		const result = this.transition({
-			tabs: this.toTabInputs(snapshot),
+			tabIds: snapshot.tabs.map((tab) => tab.id),
 			type: 'tabs-reconciled',
 		});
 		const retainedTabIds = new Set(snapshot.tabs.map((tab) => tab.id));
@@ -460,10 +100,6 @@ export class PanelWorkspaceStore {
 		this.syncTabTitles();
 		if (result.state === this.state && result.outcome === 'unchanged') {
 			this.emit();
-		}
-		for (const tab of result.state.tabs) {
-			this.pendingTabCwds.delete(tab.tabId);
-			this.pendingTabPresentations.delete(tab.tabId);
 		}
 	};
 
@@ -551,73 +187,4 @@ export class PanelWorkspaceStore {
 	private syncTabTitles(): void {
 		for (const tabId of this.tabTitlePolicies.keys()) this.syncTabTitle(tabId);
 	}
-
-	private createPresentation(
-		presentationId?: TerminalPresentationId,
-	): TerminalPresentationCreation {
-		this.assertTerminalCreationAvailable();
-		const resolvedPresentationId = presentationId ?? this.composition.createPresentationId();
-		return this.composition.kind === 'preview'
-			? { kind: 'preview', presentationId: resolvedPresentationId }
-			: {
-					kind: 'managed',
-					operationId: this.composition.createOperationId(),
-					presentationId: resolvedPresentationId,
-				};
-	}
-
-	private assertTerminalCreationAvailable(): void {
-		if (this.terminalCreationSealed) {
-			throw new Error('Terminal creation is sealed for application shutdown.');
-		}
-	}
-
-	private collectTerminals() {
-		return this.state.tabs.flatMap((tab) =>
-			collectPanelLeaves(tab.root).flatMap((panel) => [
-				panel.primaryPresentation,
-				...panel.childPresentations,
-			]),
-		);
-	}
-
-	private dispatchCommands(commands: PanelWorkspaceTransition['commands']): void {
-		if (commands.length === 0 || this.composition.kind !== 'managed') return;
-		const terminalCommands = commands.filter((command) => {
-			if (command.type !== 'tab-close-ready') return true;
-			if (this.tabModel.closeTab(command.tabId) && this.unsubscribeTabModel === null) {
-				this.reconcileTabs();
-			}
-			return false;
-		});
-		if (terminalCommands.length > 0) this.composition.dispatchCommands(terminalCommands);
-	}
-
-	private toTabInputs(snapshot: TabModelSnapshot, initialCwd?: string | null) {
-		const existingTabIds = new Set(this.state.tabs.map((tab) => tab.tabId));
-		return snapshot.tabs.map((tab) => {
-			let presentation = this.pendingTabPresentations.get(tab.id);
-			if (!existingTabIds.has(tab.id) && presentation === undefined) {
-				presentation = this.createPresentation();
-				this.pendingTabPresentations.set(tab.id, presentation);
-			}
-			return {
-				cwd: this.pendingTabCwds.get(tab.id) ?? initialCwd ?? null,
-				id: tab.id,
-				...(presentation === undefined ? {} : { presentation }),
-				title: this.requireTabTitlePolicy(tab.id).fallbackTitle,
-			};
-		});
-	}
-}
-
-function rejectedTransition(
-	state: PanelWorkspaceState,
-	rejection: Exclude<PanelWorkspaceTransition['rejection'], null>,
-): PanelWorkspaceTransition {
-	return { commands: [], outcome: 'rejected', rejection, state };
-}
-
-function unchangedTransition(state: PanelWorkspaceState): PanelWorkspaceTransition {
-	return { commands: [], outcome: 'unchanged', rejection: null, state };
 }
