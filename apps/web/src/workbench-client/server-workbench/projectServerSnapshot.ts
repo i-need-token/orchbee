@@ -197,7 +197,6 @@ function projectPresentation(
 ): WorkbenchTerminalPresentation {
 	const launched = presentation.launchProgram ?? presentation.launchFailure?.executable ?? null;
 	return {
-		closeActivity: 'unknown',
 		currentCwd: null,
 		...(presentation.customLabel === null ? {} : { customTitle: presentation.customLabel }),
 		lifecycle: projectTerminalLifecycle(presentation, observedEnds),

@@ -950,7 +950,6 @@ describe('Ghostty surface parity', () => {
 			cellPixelWidth: 8,
 			columns: RENDER_COLUMNS,
 			commandCompletion: null,
-			closeActivity: 'unknown',
 			currentDirectory: 'file:///workspace/primary',
 			cursor: expectedFrameMetadata.cursor,
 			defaultColors: expectedFrameMetadata.defaultColors,

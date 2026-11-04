@@ -16,7 +16,6 @@ import { WorkbenchTerminalViewport } from '../WorkbenchTerminalViewport';
 
 const clearTerminal = vi.fn<() => void>();
 const terminal: TerminalPresentation = {
-	closeActivity: 'unknown',
 	currentCwd: null,
 	lifecycle: { kind: 'running' },
 	naturalTitle: null,

@@ -196,7 +196,6 @@ function createRunningTerminalFixture(presentationReady: Promise<void> = Promise
 		}),
 	}));
 	const presentation: WorkbenchTerminalPresentation = {
-		closeActivity: 'unknown',
 		currentCwd: '/workspace',
 		lifecycle: { kind: 'running' },
 		naturalTitle: null,
@@ -287,7 +286,6 @@ describe('useProjectedTerminalSurface', () => {
 				result: new Promise(() => undefined),
 			}));
 			const presentation: WorkbenchTerminalPresentation = {
-				closeActivity: 'unknown',
 				currentCwd: '/workspace',
 				lifecycle,
 				naturalTitle: null,
@@ -350,7 +348,6 @@ describe('useProjectedTerminalSurface', () => {
 			result: new Promise(() => undefined),
 		}));
 		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
@@ -418,7 +415,6 @@ describe('useProjectedTerminalSurface', () => {
 			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
 		};
 		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
@@ -540,7 +536,6 @@ describe('useProjectedTerminalSurface', () => {
 			return { release: thirdRelease, result: new Promise(() => undefined) };
 		});
 		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
@@ -630,7 +625,6 @@ describe('useProjectedTerminalSurface', () => {
 			result: Promise.reject(new Error('projection unavailable')),
 		}));
 		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,
@@ -734,7 +728,6 @@ describe('useProjectedTerminalSurface', () => {
 			}),
 		}));
 		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,

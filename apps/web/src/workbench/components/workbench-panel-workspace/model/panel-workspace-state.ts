@@ -1,7 +1,4 @@
-import type {
-	TerminalPresentationCloseActivity,
-	TerminalPresentationId,
-} from '@orchbee/workbench-client-protocol';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type {
 	PanelLayoutNode,
@@ -66,7 +63,6 @@ export type PanelWorkspaceEvent =
 			readonly type: 'primary-terminal-shown';
 	  }
 	| {
-			readonly closeActivity: TerminalPresentationCloseActivity;
 			readonly currentCwd?: string | null | undefined;
 			readonly naturalTitle: string | null;
 			readonly presentationId: TerminalPresentationId;
@@ -200,16 +196,13 @@ function mapTerminalMetadata(
 	node: PanelLayoutNode,
 	presentationId: TerminalPresentationId,
 	naturalTitle: string | null,
-	closeActivity: TerminalPresentationCloseActivity,
 	currentCwd?: string | null,
 ): TreeUpdate {
 	return mapTerminal(node, presentationId, (terminal) => {
 		const nextCurrentCwd = currentCwd === undefined ? terminal.currentCwd : currentCwd;
-		return terminal.closeActivity === closeActivity &&
-			terminal.currentCwd === nextCurrentCwd &&
-			terminal.naturalTitle === naturalTitle
+		return terminal.currentCwd === nextCurrentCwd && terminal.naturalTitle === naturalTitle
 			? terminal
-			: { ...terminal, closeActivity, currentCwd: nextCurrentCwd, naturalTitle };
+			: { ...terminal, currentCwd: nextCurrentCwd, naturalTitle };
 	});
 }
 
@@ -499,7 +492,6 @@ export function transitionPanelWorkspace(
 			tab.root,
 			event.presentationId,
 			event.naturalTitle,
-			event.closeActivity,
 			event.currentCwd,
 		);
 		if (!result.changed) {

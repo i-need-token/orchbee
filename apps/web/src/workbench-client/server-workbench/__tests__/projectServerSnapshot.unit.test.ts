@@ -143,7 +143,6 @@ describe('projectServerSnapshot', () => {
 		const presentationId = activeLeaf(runtime).primaryPresentation.presentationId;
 
 		runtime.applyTerminalMetadataObservation(presentationId, {
-			closeActivity: 'unknown',
 			currentDirectory: { currentCwd: 'C:\\elsewhere', kind: 'reported' },
 			naturalTitle: 'pwsh',
 		});
@@ -225,7 +224,6 @@ describe('applyPublishedWorkbench', () => {
 		activeTerminalContext(runtime).tabModel.selectTab(secondTabId);
 		const presentationId = activeLeaf(runtime, 1).primaryPresentation.presentationId;
 		runtime.applyTerminalMetadataObservation(presentationId, {
-			closeActivity: 'unknown',
 			currentDirectory: { kind: 'ignored' },
 			naturalTitle: 'vim',
 		});

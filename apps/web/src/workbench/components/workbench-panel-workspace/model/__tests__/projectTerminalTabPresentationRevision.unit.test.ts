@@ -6,7 +6,6 @@ import { projectTerminalTabPresentationRevision } from '../projectTerminalTabPre
 
 function panel(id: string, childIds: readonly string[] = []): PanelLeaf {
 	const children = childIds.map((childId) => ({
-		closeActivity: 'idle' as const,
 		currentCwd: null,
 		lifecycle: { kind: 'running' as const },
 		naturalTitle: null,
@@ -19,7 +18,6 @@ function panel(id: string, childIds: readonly string[] = []): PanelLeaf {
 		id,
 		kind: 'panel',
 		primaryPresentation: {
-			closeActivity: 'idle',
 			currentCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,

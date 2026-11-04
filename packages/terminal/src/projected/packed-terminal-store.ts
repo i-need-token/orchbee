@@ -6,8 +6,6 @@ import {
 	PROTOCOL_LIMITS,
 	ProtocolErrorCode,
 	TerminalCellWidthCode,
-	TerminalCloseActivityCode,
-	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalGraphicsUpdateKind,
 	type ActiveScreenValue,
@@ -46,8 +44,6 @@ export type ProjectedStorePhase = (typeof ProjectedStorePhase)[keyof typeof Proj
 
 type ProjectedFrameAcknowledgement = FrameApplied;
 
-export type ProjectedTerminalCloseActivity = 'active' | 'idle' | 'unknown';
-
 export type ProjectedFrameApplyResult =
 	| {
 			readonly acknowledgement: ProjectedFrameAcknowledgement;
@@ -82,7 +78,6 @@ export interface ProjectedTerminalMetadata {
 	readonly cellPixelWidth: number;
 	readonly columns: number;
 	readonly commandCompletion: TerminalCommandCompletion | null;
-	readonly closeActivity: ProjectedTerminalCloseActivity;
 	readonly currentDirectory: string | null;
 	readonly cursor: {
 		readonly blinking: boolean;
@@ -594,7 +589,6 @@ function metadataFromFrame(frame: DecodedTerminalFrame): ProjectedTerminalMetada
 		cellPixelWidth: frame.cellPixelWidth,
 		columns: frame.columns,
 		commandCompletion: frame.commandCompletion,
-		closeActivity: closeActivityFromExtensions(frame.extensions),
 		currentDirectory: frame.currentDirectory,
 		cursor: frame.cursor,
 		defaultColors: frame.defaultColors,
@@ -618,7 +612,6 @@ function metadataFromProjectionBuffer(
 		cellPixelWidth: frame.cellPixelWidth,
 		columns: frame.columns,
 		commandCompletion: null,
-		closeActivity: 'unknown',
 		currentDirectory: frame.currentDirectory,
 		cursor: frame.cursor,
 		defaultColors: frame.defaultColors,
@@ -631,23 +624,6 @@ function metadataFromProjectionBuffer(
 		themeRevision: frame.themeRevision,
 		title: frame.title,
 	};
-}
-
-function closeActivityFromExtensions(
-	extensions: DecodedTerminalFrame['extensions'],
-): ProjectedTerminalCloseActivity {
-	const matches = extensions.filter(
-		(extension) => extension.kind === TerminalFrameExtensionKind.closeActivity,
-	);
-	if (matches.length !== 1 || matches[0]?.data.byteLength !== 1) return 'unknown';
-	switch (matches[0].data[0]) {
-		case TerminalCloseActivityCode.active:
-			return 'active';
-		case TerminalCloseActivityCode.idle:
-			return 'idle';
-		default:
-			return 'unknown';
-	}
 }
 
 function candidateRowsHaveValidTopology(rows: readonly PackedTerminalRowBacking[]): boolean {
@@ -874,7 +850,6 @@ function removeBudgetStyle(budget: RetainedPresentationBudget, value: string): v
 
 function metadataExtensionBytes(metadata: ProjectedTerminalMetadata): number {
 	return (
-		(metadata.closeActivity === 'unknown' ? 0 : 8 + 1) +
 		(metadata.progress.state === 'remove' && metadata.progress.value === null ? 0 : 8 + 2) +
 		(metadata.commandCompletion === null ? 0 : 8 + 25)
 	);

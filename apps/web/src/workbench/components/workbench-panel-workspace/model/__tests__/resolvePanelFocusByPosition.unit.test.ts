@@ -110,7 +110,6 @@ function panel(id: string): PanelLeaf {
 		id,
 		kind: 'panel',
 		primaryPresentation: {
-			closeActivity: 'unknown',
 			currentCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,

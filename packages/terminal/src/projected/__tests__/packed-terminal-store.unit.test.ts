@@ -14,7 +14,6 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
-	TerminalCloseActivityCode,
 	TerminalCellWidthCode,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
@@ -657,53 +656,6 @@ describe('PackedTerminalStore', () => {
 		expect(store.rows[0]?.grapheme(0)).toBe('a');
 		expect(store.graphics.images).toBe(beforeImages);
 		expect(store.graphics.animationTick).toBe(1n);
-	});
-
-	it.each([
-		{
-			expected: 'unknown' as const,
-			extensions: [],
-			label: 'missing',
-		},
-		{
-			expected: 'idle' as const,
-			extensions: [
-				{
-					data: new Uint8Array([TerminalCloseActivityCode.idle]),
-					kind: TerminalFrameExtensionKind.closeActivity,
-					required: false,
-				},
-			],
-			label: 'idle',
-		},
-		{
-			expected: 'active' as const,
-			extensions: [
-				{
-					data: new Uint8Array([TerminalCloseActivityCode.active]),
-					kind: TerminalFrameExtensionKind.closeActivity,
-					required: false,
-				},
-			],
-			label: 'active',
-		},
-		{
-			expected: 'unknown' as const,
-			extensions: [
-				{
-					data: new Uint8Array([TerminalCloseActivityCode.idle, 0]),
-					kind: TerminalFrameExtensionKind.closeActivity,
-					required: false,
-				},
-			],
-			label: 'malformed',
-		},
-	])('maps a $label close-activity extension to $expected', ({ expected, extensions }) => {
-		const store = new PackedTerminalStore(hostEpoch, attachmentId);
-		const snapshot = { ...frame('snapshot', 1n, 1n, ['a', 'b']), extensions };
-
-		expect(store.apply(bytes(snapshot)).kind).toBe('committed');
-		expect(store.metadata?.closeActivity).toBe(expected);
 	});
 
 	it('maps the current terminal progress extension into projection metadata', () => {

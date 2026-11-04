@@ -17,7 +17,6 @@ function tab(presentationId: string): TabPanelWorkspace {
 			id: 'panel-a',
 			kind: 'panel',
 			primaryPresentation: {
-				closeActivity: 'idle',
 				currentCwd: null,
 				lifecycle: { kind: 'running' },
 				naturalTitle: null,

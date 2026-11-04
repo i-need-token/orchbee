@@ -262,18 +262,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 		presentationId: TerminalPresentationId,
 		observation: WorkbenchTerminalMetadataObservation,
 	): TerminalMetadataObservationResult {
-		return this.#applyTerminalMetadataObservation(
-			presentationId,
-			observation,
-			observation.closeActivity,
-		);
-	}
-
-	#applyTerminalMetadataObservation(
-		presentationId: TerminalPresentationId,
-		observation: Omit<WorkbenchTerminalMetadataObservation, 'closeActivity'>,
-		closeActivity?: WorkbenchTerminalMetadataObservation['closeActivity'],
-	): TerminalMetadataObservationResult {
 		const matches: Array<{
 			readonly store: PanelWorkspaceStore;
 			readonly tabId: string;
@@ -298,7 +286,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 			...(observation.currentDirectory.kind === 'reported'
 				? { currentCwd: observation.currentDirectory.currentCwd }
 				: {}),
-			closeActivity: closeActivity ?? match.terminal.closeActivity,
 			naturalTitle: observation.naturalTitle,
 			presentationId,
 			tabId: match.tabId,
@@ -559,7 +546,6 @@ function observedTerminal(
 		? published
 		: {
 				...published,
-				closeActivity: observed.closeActivity,
 				currentCwd: observed.currentCwd,
 				naturalTitle: observed.naturalTitle,
 			};

@@ -317,7 +317,6 @@ describe('useWorkbenchActions', () => {
 		projectWorkspaceRuntime.applyTerminalMetadataObservation(
 			terminalPresentationId(fixturePresentationId(1)),
 			{
-				closeActivity: 'unknown',
 				currentDirectory: { currentCwd: '/workspace/orchbee', kind: 'reported' },
 				naturalTitle: null,
 			},

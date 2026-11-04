@@ -12,7 +12,6 @@ export { TerminalPresentationIdSchema } from './terminal-presentation-contract';
 /** @internal Builds presentation IDs for tests in this package and `apps/web`; production boundaries parse them with `TerminalPresentationIdSchema`. */
 export { terminalPresentationId } from './terminal-presentation-contract';
 export type {
-	TerminalPresentationCloseActivity,
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,
 } from './terminal-presentation-contract';

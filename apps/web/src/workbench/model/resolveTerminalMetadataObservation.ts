@@ -1,22 +1,16 @@
-import type { TerminalPresentationCloseActivity } from '@orchbee/workbench-client-protocol';
-
 type WorkbenchTerminalCurrentDirectoryObservation =
 	| { readonly currentCwd: string | null; readonly kind: 'reported' }
 	| { readonly kind: 'ignored' };
 
 export interface WorkbenchTerminalMetadataObservation {
-	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentDirectory: WorkbenchTerminalCurrentDirectoryObservation;
 	readonly naturalTitle: string | null;
 }
 
 interface RawTerminalMetadataObservation {
-	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentDirectory: string | null;
 	readonly title: string | null;
 }
-
-type RawTerminalNaturalMetadataObservation = Omit<RawTerminalMetadataObservation, 'closeActivity'>;
 
 /** A `file:` URL's path to a Windows directory, which Windows itself only accepts without the slash. */
 const WINDOWS_DRIVE_URL_PATH = /^\/[A-Za-z]:[/\\]/u;
@@ -25,16 +19,6 @@ export function resolveTerminalMetadataObservation(
 	metadata: RawTerminalMetadataObservation,
 	terminalHostName: string,
 ): WorkbenchTerminalMetadataObservation {
-	return {
-		closeActivity: metadata.closeActivity,
-		...resolveTerminalNaturalMetadataObservation(metadata, terminalHostName),
-	};
-}
-
-function resolveTerminalNaturalMetadataObservation(
-	metadata: RawTerminalNaturalMetadataObservation,
-	terminalHostName: string,
-): Omit<WorkbenchTerminalMetadataObservation, 'closeActivity'> {
 	return {
 		currentDirectory:
 			metadata.currentDirectory === null

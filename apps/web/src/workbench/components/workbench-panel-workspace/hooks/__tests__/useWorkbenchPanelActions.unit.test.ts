@@ -27,7 +27,6 @@ function panelLeaf(sequence: number): PanelLeaf {
 		id: `panel-${sequence}`,
 		kind: 'panel',
 		primaryPresentation: {
-			closeActivity: 'unknown',
 			currentCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,

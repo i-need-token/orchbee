@@ -1691,8 +1691,8 @@ choices stand unless review changes them:
   ended ones, and the button says Close in place of Close anyway. A terminal has ended once its
   launch failed, the window saw its Host settle that exact terminal, or its disposal is proven. The
   Server publishes nothing when a terminal ends, so a window that did not see the end still counts
-  that terminal as running. Asking still follows the close activity a surface last observed, so a
-  Tab or Panel whose terminals have all ended closes unasked, and a set of several Tabs always asks.
+  that terminal as running. The Server decides whether one Tab or Panel asks, from its own evidence,
+  and a set of several Tabs always asks.
   A lone Panel's Close is its Tab's question, so the TUI's last-Panel line has no GUI place, and a
   child terminal's Close keeps its own title, Close running terminal?, on the local path only.
 - **A clean exit keeps its frame for a second, as in the TUI.** When all a Panel holds exits with

@@ -7,30 +7,24 @@ describe('terminal metadata policy', () => {
 		expect(
 			resolveTerminalMetadataObservation(
 				{
-					closeActivity: 'active',
 					currentDirectory: 'file://Orchbee-Host/workspace/My%20Project',
 					title: 'vim\0',
 				},
 				'orchbee-host',
 			),
 		).toEqual({
-			closeActivity: 'active',
 			currentDirectory: { currentCwd: '/workspace/My Project', kind: 'reported' },
 			naturalTitle: 'vim',
 		});
 		expect(
-			resolveTerminalMetadataObservation(
-				{ closeActivity: 'idle', currentDirectory: null, title: null },
-				'orchbee-host',
-			),
+			resolveTerminalMetadataObservation({ currentDirectory: null, title: null }, 'orchbee-host'),
 		).toEqual({
-			closeActivity: 'idle',
 			currentDirectory: { currentCwd: null, kind: 'reported' },
 			naturalTitle: null,
 		});
 		expect(
 			resolveTerminalMetadataObservation(
-				{ closeActivity: 'unknown', currentDirectory: null, title: ' \0 natural  ' },
+				{ currentDirectory: null, title: ' \0 natural  ' },
 				'orchbee-host',
 			),
 		).toMatchObject({ naturalTitle: ' natural' });
@@ -43,10 +37,8 @@ describe('terminal metadata policy', () => {
 		['file://orchbee-host/C:\\Windows', 'C:\\Windows'],
 	])('reports %s in the form Windows accepts', (currentDirectory, currentCwd) => {
 		expect(
-			resolveTerminalMetadataObservation(
-				{ closeActivity: 'unknown', currentDirectory, title: null },
-				'orchbee-host',
-			).currentDirectory,
+			resolveTerminalMetadataObservation({ currentDirectory, title: null }, 'orchbee-host')
+				.currentDirectory,
 		).toEqual({ currentCwd, kind: 'reported' });
 	});
 
@@ -61,11 +53,10 @@ describe('terminal metadata policy', () => {
 	])('ignores an untrusted or malformed OSC 7 value: %s', (currentDirectory) => {
 		expect(
 			resolveTerminalMetadataObservation(
-				{ closeActivity: 'unknown', currentDirectory, title: '  natural title\0  ' },
+				{ currentDirectory, title: '  natural title\0  ' },
 				'orchbee-host',
 			),
 		).toEqual({
-			closeActivity: 'unknown',
 			currentDirectory: { kind: 'ignored' },
 			naturalTitle: 'natural title',
 		});

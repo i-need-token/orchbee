@@ -374,7 +374,6 @@ describe('panel workspace state', () => {
 
 				for (const currentCwd of terminalCwds) {
 					const cwdResult = transitionPanelWorkspace(state, {
-						closeActivity: 'idle',
 						currentCwd,
 						naturalTitle: null,
 						presentationId: panel.primaryPresentation.presentationId,

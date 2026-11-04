@@ -117,7 +117,6 @@ function panel(id: string): Extract<PanelLayoutNode, { readonly kind: 'panel' }>
 		id,
 		kind: 'panel',
 		primaryPresentation: {
-			closeActivity: 'unknown',
 			currentCwd: null,
 			lifecycle: { kind: 'running' },
 			naturalTitle: null,

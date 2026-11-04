@@ -128,7 +128,6 @@ function reportCurrentDirectory(
 	currentCwd: string | null,
 ): void {
 	runtime.applyTerminalMetadataObservation(presentation(sequence), {
-		closeActivity: 'unknown',
 		currentDirectory: { currentCwd, kind: 'reported' },
 		naturalTitle: null,
 	});

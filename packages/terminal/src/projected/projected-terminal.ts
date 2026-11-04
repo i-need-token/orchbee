@@ -166,7 +166,6 @@ import {
 	PackedTerminalStore,
 	PackedTerminalViewport,
 	projectedCellDisplayWidth,
-	type ProjectedTerminalCloseActivity,
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalPresentationSnapshot,
 } from './packed-terminal-store';
@@ -821,7 +820,6 @@ interface PresentationPreparation {
 }
 
 interface ThemePresentationStage {
-	closeActivityFreshnessEpoch: bigint | undefined;
 	readonly operationId: string;
 	readonly prepared: PreparedTerminalThemePresentation;
 	readonly ready: Promise<ProjectedTerminalThemeReadinessResult>;
@@ -833,15 +831,6 @@ interface ThemePresentationStage {
 	readonly store: PackedTerminalStore;
 	targetRevision: bigint | undefined;
 }
-
-interface CloseActivitySnapshotBarrier {
-	readonly epoch: bigint;
-	readonly sequence: bigint;
-}
-
-type CloseActivityFrameDisposition =
-	| { readonly freshnessEpoch: bigint | undefined; readonly kind: 'acknowledge' }
-	| { readonly kind: 'request-snapshot' };
 
 interface PreparedPaste {
 	readonly review: ProjectedPasteReview;
@@ -962,10 +951,6 @@ export class ProjectedTerminal {
 	#applicationMouseClickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
 	#applicationMouseGesture: ApplicationMouseGesture | undefined;
 	#canvas: HTMLCanvasElement | undefined;
-	#closeActivityEpoch = 0n;
-	#closeActivityPendingEpoch: bigint | undefined;
-	#closeActivityOverride: ProjectedTerminalCloseActivity | undefined;
-	#closeActivitySnapshotBarrier: CloseActivitySnapshotBarrier | undefined;
 	#copyOnSelect: boolean;
 	#demand: ProjectionDemand = 'active';
 	#demandSent: ProjectionDemand | undefined;
@@ -1139,8 +1124,7 @@ export class ProjectedTerminal {
 	}
 
 	get metadata(): ProjectedTerminalMetadata | null {
-		const metadata = this.#visibleStore().metadata;
-		return metadata === null ? null : this.#metadataWithLiveCloseActivity(metadata);
+		return this.#visibleStore().metadata;
 	}
 
 	/** Whether the surface shows only part of the drawn grid, as a viewer smaller than it does. */
@@ -1552,7 +1536,6 @@ export class ProjectedTerminal {
 			throw new Error('Theme presentation readiness was not initialized synchronously');
 		}
 		this.#themePresentationStage = {
-			closeActivityFreshnessEpoch: undefined,
 			operationId,
 			prepared,
 			ready,
@@ -1596,8 +1579,6 @@ export class ProjectedTerminal {
 			stage.operationId !== operationId ||
 			stage.targetRevision !== revision ||
 			!stage.readyToCommit ||
-			(this.#closeActivityPendingEpoch !== undefined &&
-				stage.closeActivityFreshnessEpoch !== this.#closeActivityPendingEpoch) ||
 			this.#renderer === undefined ||
 			!this.#themePresentationCanPublish()
 		) {
@@ -1622,11 +1603,7 @@ export class ProjectedTerminal {
 		renderer.commitThemePresentation(stage.prepared);
 		if (stage.reuseVisibleStore) stage.store.dispose();
 		else previousStore.dispose();
-		this.#reconcileLiveStoreCommit(
-			previousGeneration,
-			previousRevision,
-			stage.closeActivityFreshnessEpoch,
-		);
+		this.#reconcileLiveStoreCommit(previousGeneration, previousRevision);
 		return true;
 	}
 
@@ -1661,41 +1638,21 @@ export class ProjectedTerminal {
 			return 'connection-terminal';
 		}
 		if (result.kind === 'snapshot-required') {
-			this.#sendCloseActivityBarrierSnapshotRequest(result.request);
+			this.#sendSnapshotRequest(result.request);
 			return 'snapshot-required';
 		}
-		const closeActivityDisposition = this.#closeActivityFrameDisposition(
-			targetStore,
-			result.acknowledgement,
-			stage?.closeActivityFreshnessEpoch,
-		);
 		if (stage !== undefined) {
 			stage.receivedFrame = true;
 			stage.reuseVisibleStore = false;
-			if (closeActivityDisposition.kind === 'acknowledge') {
-				stage.closeActivityFreshnessEpoch = closeActivityDisposition.freshnessEpoch;
-			}
 			if (this.#themePresentationStage === stage) {
 				this.#resolveThemePresentationStageIfReady();
-			}
-			if (closeActivityDisposition.kind === 'request-snapshot') {
-				return 'snapshot-required';
 			}
 			this.#send({ kind: 'frame-applied', payload: result.acknowledgement });
 			this.#finalizeExitIfCaughtUp();
 			return 'staged';
 		}
 		if (result.kind === 'committed') {
-			this.#reconcileLiveStoreCommit(
-				previousGeneration,
-				previousRevision,
-				closeActivityDisposition.kind === 'acknowledge'
-					? closeActivityDisposition.freshnessEpoch
-					: undefined,
-			);
-		}
-		if (closeActivityDisposition.kind === 'request-snapshot') {
-			return 'snapshot-required';
+			this.#reconcileLiveStoreCommit(previousGeneration, previousRevision);
 		}
 		if (
 			this.#phase === ProjectedTerminalPhase.constructed ||
@@ -1961,7 +1918,7 @@ export class ProjectedTerminal {
 		});
 		const metadata = viewport.metadata;
 		if (metadata) {
-			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
+			this.#metadataEmitter.fire(metadata);
 			this.#updateAccessibility(metadata);
 		}
 		this.#continueSelectionAutoscrollGesture();
@@ -2039,7 +1996,7 @@ export class ProjectedTerminal {
 		this.#tailPresentationRowsBefore = flight.rowsBefore;
 		this.#invalidateLinkCache();
 		this.#syncPreeditPresentation();
-		this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(visibleMetadata));
+		this.#metadataEmitter.fire(visibleMetadata);
 		this.#updateAccessibility(visibleMetadata);
 		this.#scheduleRender();
 		return 'committed';
@@ -3180,7 +3137,6 @@ export class ProjectedTerminal {
 		this.#inputPublicationActive = true;
 		try {
 			await this.#options.port.send(command);
-			this.#invalidateCloseActivityAfterAcceptedInput(command);
 			if (this.#inputEnabled && intent === ProjectedInputPublicationIntent.held) {
 				this.#commitPublishedInputOwnership(command);
 			}
@@ -3743,16 +3699,8 @@ export class ProjectedTerminal {
 			return;
 		}
 		stage.reuseVisibleStore =
-			this.#closeActivityPendingEpoch === undefined &&
-			!stage.receivedFrame &&
-			this.#store.metadata?.themeRevision === targetRevision;
+			!stage.receivedFrame && this.#store.metadata?.themeRevision === targetRevision;
 		if (stagedRevision !== targetRevision && !stage.reuseVisibleStore) return;
-		if (
-			this.#closeActivityPendingEpoch !== undefined &&
-			stage.closeActivityFreshnessEpoch !== this.#closeActivityPendingEpoch
-		) {
-			return;
-		}
 		if (!this.#themePresentationCanPublish()) return;
 		stage.readyToCommit = true;
 		if (!stage.resolved) {
@@ -3785,73 +3733,20 @@ export class ProjectedTerminal {
 		stage.resolve({ kind: 'cancelled', reason });
 	}
 
-	#closeActivityFrameDisposition(
-		store: PackedTerminalStore,
-		acknowledgement: FrameApplied,
-		knownFreshnessEpoch?: bigint,
-	): CloseActivityFrameDisposition {
-		const pendingEpoch = this.#closeActivityPendingEpoch;
-		if (pendingEpoch === undefined) {
-			return { freshnessEpoch: undefined, kind: 'acknowledge' };
-		}
-		if (knownFreshnessEpoch === pendingEpoch || store.metadata?.closeActivity !== 'idle') {
-			this.#closeActivitySnapshotBarrier = undefined;
-			return { freshnessEpoch: pendingEpoch, kind: 'acknowledge' };
-		}
-
-		const sequence = BigInt(acknowledgement.sequence);
-		const barrier = this.#closeActivitySnapshotBarrier;
-		if (
-			barrier?.epoch === pendingEpoch &&
-			sequence > barrier.sequence &&
-			store.lastFrameKind === TerminalFrameKind.snapshot
-		) {
-			this.#closeActivitySnapshotBarrier = undefined;
-			return { freshnessEpoch: pendingEpoch, kind: 'acknowledge' };
-		}
-
-		this.#sendCloseActivityBarrierSnapshotRequest({
-			attachmentId: this.#attachmentId,
-			reason: 'activity-stale',
-			sequence: acknowledgement.sequence,
-		});
-		return { kind: 'request-snapshot' };
-	}
-
-	#sendCloseActivityBarrierSnapshotRequest(request: NeedSnapshot): boolean {
-		if (!this.#send({ kind: 'need-snapshot', payload: request })) return false;
+	#sendSnapshotRequest(request: NeedSnapshot): void {
+		if (!this.#send({ kind: 'need-snapshot', payload: request })) return;
 		if (this.#pendingOpeningFrameAcknowledgement?.sequence === request.sequence) {
 			this.#pendingOpeningFrameAcknowledgement = undefined;
 		}
-		const pendingEpoch = this.#closeActivityPendingEpoch;
-		if (pendingEpoch !== undefined) {
-			this.#closeActivitySnapshotBarrier = {
-				epoch: pendingEpoch,
-				sequence: BigInt(request.sequence),
-			};
-		}
-		return true;
 	}
 
-	#reconcileLiveStoreCommit(
-		previousGeneration: bigint,
-		previousRevision: bigint,
-		closeActivityFreshnessEpoch?: bigint,
-	): void {
+	#reconcileLiveStoreCommit(previousGeneration: bigint, previousRevision: bigint): void {
 		const metadata = this.#store.metadata;
 		if (metadata) {
 			const mouseModeKey = applicationMouseModeKey(metadata.interaction);
 			if (mouseModeKey !== this.#applicationMouseModeKey) {
 				this.#applicationMouseModeKey = mouseModeKey;
 				this.#lastApplicationMouseCell = undefined;
-			}
-			if (
-				this.#closeActivityPendingEpoch !== undefined &&
-				closeActivityFreshnessEpoch === this.#closeActivityPendingEpoch
-			) {
-				this.#closeActivityPendingEpoch = undefined;
-				this.#closeActivityOverride = undefined;
-				this.#closeActivitySnapshotBarrier = undefined;
 			}
 			this.#reconcileCommittedGeometry(metadata);
 			this.#historyGeneration = metadata.generation;
@@ -3870,7 +3765,7 @@ export class ProjectedTerminal {
 			) {
 				this.#finishHistoryRecovery();
 			} else if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-				this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
+				this.#metadataEmitter.fire(metadata);
 				this.#updateAccessibility(metadata);
 			}
 			this.#syncPreeditPresentation();
@@ -4023,17 +3918,11 @@ export class ProjectedTerminal {
 			return;
 		const metadata = this.#store.metadata;
 		if (metadata !== null) {
-			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
+			this.#metadataEmitter.fire(metadata);
 			this.#updateAccessibility(metadata);
 		}
 		this.#syncPreeditPresentation();
 		this.#scheduleRender();
-	}
-
-	#metadataWithLiveCloseActivity(metadata: ProjectedTerminalMetadata): ProjectedTerminalMetadata {
-		const closeActivity = this.#closeActivityOverride ?? this.#store.metadata?.closeActivity;
-		if (closeActivity === undefined || closeActivity === metadata.closeActivity) return metadata;
-		return { ...metadata, closeActivity };
 	}
 
 	#syncProjectedViewportState(): void {
@@ -4464,7 +4353,7 @@ export class ProjectedTerminal {
 		this.#resolveThemePresentationStageIfReady();
 		this.#syncPreeditPresentation();
 		if (metadata) {
-			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
+			this.#metadataEmitter.fire(metadata);
 			this.#updateAccessibility(metadata);
 		}
 		this.#continueSelectionAutoscrollGesture();
@@ -5398,7 +5287,6 @@ export class ProjectedTerminal {
 		let accepted = false;
 		try {
 			accepted = this.#send(command);
-			if (accepted) this.#invalidateCloseActivityAfterAcceptedInput(command);
 			if (accepted && this.#inputEnabled && intent === ProjectedInputPublicationIntent.held) {
 				this.#commitPublishedInputOwnership(command);
 			}
@@ -5406,18 +5294,6 @@ export class ProjectedTerminal {
 		} finally {
 			this.#inputPublicationActive = false;
 			this.#resumeDeferredInputRepair();
-		}
-	}
-
-	#invalidateCloseActivityAfterAcceptedInput(command: ProjectedTerminalCommand): void {
-		if (command.kind === 'focus-input') return;
-		this.#closeActivityEpoch += 1n;
-		this.#closeActivityPendingEpoch = this.#closeActivityEpoch;
-		this.#closeActivityOverride = 'unknown';
-		this.#closeActivitySnapshotBarrier = undefined;
-		const metadata = this.#visibleStore().metadata;
-		if (metadata !== null) {
-			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
 		}
 	}
 

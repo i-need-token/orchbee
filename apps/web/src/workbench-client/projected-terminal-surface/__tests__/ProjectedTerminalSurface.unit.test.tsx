@@ -15,7 +15,6 @@ vi.mock('../hooks/useProjectedTerminalSurface', () => ({
 }));
 
 const presentation: WorkbenchTerminalPresentation = {
-	closeActivity: 'unknown',
 	currentCwd: '/workspace',
 	lifecycle: { kind: 'running' },
 	naturalTitle: null,
@@ -91,7 +90,6 @@ describe('ProjectedTerminalSurface', () => {
 		const markup = renderSurface(presentation, { autoFocus: true, focusRequest: 3 });
 
 		expect(markup).toContain('data-projected-terminal-status="true"');
-		expect(markup).toContain('data-projected-terminal-close-activity="unknown"');
 		expect(markup).toContain('role="alert"');
 		expect(markup).toContain('Disconnected');
 		expect(markup).toContain('data-slot="projected-terminal-mobile-input-bar"');

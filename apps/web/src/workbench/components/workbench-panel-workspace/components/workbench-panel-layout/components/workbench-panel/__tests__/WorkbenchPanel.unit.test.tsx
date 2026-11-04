@@ -16,7 +16,6 @@ import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../types/w
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
 const primaryPresentation = {
-	closeActivity: 'unknown',
 	currentCwd: null,
 	lifecycle: { kind: 'running' },
 	naturalTitle: null,
@@ -24,7 +23,6 @@ const primaryPresentation = {
 	title: 'Terminal 1',
 } as const;
 const childTerminal = {
-	closeActivity: 'unknown',
 	currentCwd: null,
 	lifecycle: { kind: 'running' },
 	naturalTitle: null,
@@ -37,7 +35,6 @@ const otherPanel = {
 	id: 'panel-2',
 	kind: 'panel',
 	primaryPresentation: {
-		closeActivity: 'unknown',
 		currentCwd: null,
 		lifecycle: { kind: 'running' },
 		naturalTitle: null,

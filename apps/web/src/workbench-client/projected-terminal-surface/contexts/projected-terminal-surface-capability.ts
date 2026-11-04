@@ -61,10 +61,7 @@ export interface ProjectedTerminalSurfaceCapability {
 		| undefined;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
-		metadata: Pick<
-			ProjectedTerminalMetadata,
-			'closeActivity' | 'currentDirectory' | 'revision' | 'title'
-		>,
+		metadata: Pick<ProjectedTerminalMetadata, 'currentDirectory' | 'revision' | 'title'>,
 	): void;
 }
 

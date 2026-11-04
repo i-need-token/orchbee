@@ -30,7 +30,6 @@ export type {
 	ProjectedTerminalLabels,
 	ProjectedTerminalLinkOpenRequest,
 	ProjectedTerminalMetadata,
-	ProjectedTerminalCloseActivity,
 	ProjectedTerminalOptions,
 	ProjectedTerminalPhaseValue,
 	ProjectedTerminalPresentationSnapshot,

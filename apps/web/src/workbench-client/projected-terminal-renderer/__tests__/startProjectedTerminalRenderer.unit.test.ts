@@ -1127,7 +1127,6 @@ describe('startProjectedTerminalRenderer', () => {
 					activeScreen: 'primary',
 					cellPixelHeight: 18,
 					cellPixelWidth: 9,
-					closeActivity: 'unknown',
 					columns: 80,
 					commandCompletion: null,
 					currentDirectory: null,

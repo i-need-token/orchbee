@@ -1,6 +1,5 @@
 export type {
 	ProjectedTerminalMetadata,
-	ProjectedTerminalCloseActivity,
 	ProjectedTerminalPresentationSnapshot,
 } from './packed-terminal-store';
 export {

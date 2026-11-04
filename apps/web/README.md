@@ -208,9 +208,8 @@ aborting current work; an already-cancelled caller cannot displace an active req
 and [preparation](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalTextViewerPreparationCoordinator.unit.test.ts)
 tests cover reentrant replacement, disposal, and cancelled admission.
 
-After a projected frame commits, the renderer forwards its complete nullable title,
-current-directory metadata, and transient `idle`/`active`/`unknown` close activity, which decides no close, with the exact
-`TerminalPresentationId`. The shared client runtime
+After a projected frame commits, the renderer forwards its complete nullable title and
+current-directory metadata with the exact `TerminalPresentationId`. The shared client runtime
 normalizes that observation with the trusted terminal-machine hostname from the client-session
 bootstrap and applies it to the matching Workbench presentation. Natural titles and accepted
 current CWD remain transient. The Server holds each Tab's fallback and chosen name; Workbench

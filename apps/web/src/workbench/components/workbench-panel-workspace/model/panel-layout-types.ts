@@ -1,5 +1,4 @@
 import type {
-	TerminalPresentationCloseActivity,
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,
 } from '@orchbee/workbench-client-protocol';
@@ -8,7 +7,6 @@ export type PanelSplitDirection = 'above' | 'below' | 'left' | 'right';
 export type PanelSplitOrientation = 'horizontal' | 'vertical';
 
 export interface TerminalPresentation {
-	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentCwd: string | null;
 	/** A name a person chose, which outranks everything the terminal reports about itself. */
 	readonly customTitle?: string | undefined;

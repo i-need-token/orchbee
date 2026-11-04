@@ -18,8 +18,6 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
-	TerminalCloseActivityCode,
-	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalGraphicsUpdateKind,
 	TerminalRowWindowDetail,
@@ -256,7 +254,6 @@ function terminalFrame(
 	generation = 1n,
 	columns = 2,
 	activeScreen: TerminalFrame['activeScreen'] = ActiveScreen.primary,
-	closeActivity: 'active' | 'idle' | 'unknown' = 'unknown',
 	themeRevision = 0n,
 	geometry: {
 		readonly cellPixelHeight?: number;
@@ -281,16 +278,7 @@ function terminalFrame(
 		},
 		currentDirectory: '/tmp',
 		defaultColors: { backgroundRgb: 0, cursorRgb: null, foregroundRgb: 0xff_ff_ff },
-		extensions:
-			closeActivity === 'unknown'
-				? []
-				: [
-						{
-							data: new Uint8Array([TerminalCloseActivityCode[closeActivity]]),
-							kind: TerminalFrameExtensionKind.closeActivity,
-							required: false,
-						},
-					],
+		extensions: [],
 		generation,
 		hostEpoch,
 		interaction: frameInteraction,
@@ -366,35 +354,7 @@ function themedTerminalFrame(
 		1n,
 		2,
 		ActiveScreen.primary,
-		'unknown',
 		themeRevision,
-	);
-}
-
-function closeActivityTerminalFrame(
-	sequence: bigint,
-	revision: bigint,
-	closeActivity: 'active' | 'idle' | 'unknown',
-	options: {
-		readonly scrollbackRows?: bigint;
-		readonly themeRevision?: bigint;
-	} = {},
-): Uint8Array {
-	return terminalFrame(
-		'snapshot',
-		sequence,
-		revision,
-		['a', 'b'],
-		null,
-		[0, 1],
-		options.scrollbackRows ?? 0n,
-		interaction,
-		{ column: 0, row: 0 },
-		1n,
-		2,
-		ActiveScreen.primary,
-		closeActivity,
-		options.themeRevision ?? 0n,
 	);
 }
 
@@ -1309,7 +1269,6 @@ describe('ProjectedTerminal', () => {
 					1n,
 					2,
 					ActiveScreen.primary,
-					'active',
 					0n,
 					{ rows: 4 },
 				),
@@ -4551,401 +4510,6 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('keeps focus-only publication fresh and invalidates idle after an accepted held-input focus prelude', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const inputAttempts: ProjectedTerminalCommand[] = [];
-		let rejectFirstFocus = true;
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					if (command.kind === 'focus-input' || command.kind === 'key-input') {
-						inputAttempts.push(command);
-					}
-					if (command.kind === 'focus-input' && rejectFirstFocus) {
-						rejectFirstFocus = false;
-						throw new Error('focus was rejected before publication');
-					}
-				},
-			},
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle'));
-		const metadataChanges: Array<{
-			readonly closeActivity: 'active' | 'idle' | 'unknown';
-			readonly lastInputKind: ProjectedTerminalCommand['kind'] | undefined;
-		}> = [];
-		terminal.onMetadataChange((metadata) => {
-			metadataChanges.push({
-				closeActivity: metadata.closeActivity,
-				lastInputKind: inputAttempts.at(-1)?.kind,
-			});
-		});
-		const input = terminal.textarea as unknown as FakeElement;
-
-		input.dispatch('focus', { type: 'focus' } as FocusEvent);
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		expect(metadataChanges).toEqual([]);
-
-		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
-
-		expect(
-			inputAttempts.map((command) =>
-				command.kind === 'focus-input' ? `focus:${command.payload.focused}` : command.kind,
-			),
-		).toEqual(['focus:true', 'focus:true', 'key-input']);
-		expect(metadataChanges).toEqual([{ closeActivity: 'unknown', lastInputKind: 'key-input' }]);
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		terminal.dispose();
-	});
-
-	it('does not invalidate idle when the activity input is rejected synchronously', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					if (command.kind === 'key-input') {
-						throw new Error('key was rejected before publication');
-					}
-				},
-			},
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle'));
-		const metadataChanges: Array<'active' | 'idle' | 'unknown'> = [];
-		terminal.onMetadataChange((metadata) => metadataChanges.push(metadata.closeActivity));
-		const input = terminal.textarea as unknown as FakeElement;
-		input.dispatch('focus', { type: 'focus' } as FocusEvent);
-
-		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
-
-		expect(metadataChanges).toEqual([]);
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		terminal.dispose();
-	});
-
-	it('keeps a late pre-input idle frame unknown and replaces its acknowledgement with a freshness snapshot request', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const commands: ProjectedTerminalCommand[] = [];
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					commands.push(command);
-				},
-			},
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle'));
-		commands.length = 0;
-
-		await expect(terminal.paste('safe')).resolves.toMatchObject({ kind: 'sent' });
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		expect(terminal.applyFrame(closeActivityTerminalFrame(2n, 1n, 'idle'))).toBe(
-			'snapshot-required',
-		);
-
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		expect(commands.at(-1)).toEqual({
-			kind: 'need-snapshot',
-			payload: { attachmentId, reason: 'activity-stale', sequence: '2' },
-		});
-		expect(
-			commands.some(
-				(command) => command.kind === 'frame-applied' && command.payload.sequence === '2',
-			),
-		).toBe(false);
-
-		expect(terminal.applyFrame(closeActivityTerminalFrame(3n, 1n, 'idle'))).toBe('committed');
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		expect(commands.at(-1)).toEqual({
-			kind: 'frame-applied',
-			payload: { attachmentId, generation: '1', revision: '1', sequence: '3' },
-		});
-		terminal.dispose();
-	});
-
-	it('cancels an opening acknowledgement when a duplicate idle frame starts the freshness barrier', async () => {
-		const browser = createFakeBrowser();
-		const finishFontLoads: Array<() => void> = [];
-		const fontLoad = vi.fn<() => Promise<FontFace[]>>(
-			() =>
-				new Promise<FontFace[]>((resolve) => {
-					finishFontLoads.push(() => resolve([]));
-				}),
-		);
-		Object.defineProperty(browser.document, 'fonts', {
-			configurable: true,
-			value: { load: fontLoad },
-		});
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const commands: ProjectedTerminalCommand[] = [];
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					commands.push(command);
-				},
-			},
-			terminalId,
-		});
-		const opening = terminal.open(browser.root);
-		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(4));
-		const idleFrame = closeActivityTerminalFrame(1n, 1n, 'idle');
-
-		expect(terminal.applyFrame(idleFrame)).toBe('committed');
-		await expect(terminal.paste('safe')).resolves.toMatchObject({ kind: 'sent' });
-		expect(terminal.applyFrame(idleFrame)).toBe('snapshot-required');
-		expect(
-			commands.some(
-				(command) => command.kind === 'frame-applied' && command.payload.sequence === '1',
-			),
-		).toBe(false);
-		expect(terminal.applyFrame(closeActivityTerminalFrame(2n, 1n, 'idle'))).toBe('committed');
-		expect(commands.some((command) => command.kind === 'frame-applied')).toBe(false);
-
-		for (const finishFontLoad of finishFontLoads) finishFontLoad();
-		await opening;
-		expect(commands).toContainEqual({
-			kind: 'need-snapshot',
-			payload: { attachmentId, reason: 'activity-stale', sequence: '1' },
-		});
-		expect(
-			commands.some(
-				(command) => command.kind === 'frame-applied' && command.payload.sequence === '1',
-			),
-		).toBe(false);
-		expect(commands).toContainEqual({
-			kind: 'frame-applied',
-			payload: { attachmentId, generation: '1', revision: '1', sequence: '2' },
-		});
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		terminal.dispose();
-	});
-
-	it('restarts the idle freshness barrier after another input and a rejected snapshot request', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const commands: ProjectedTerminalCommand[] = [];
-		let rejectFirstSnapshotRequest = true;
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					commands.push(command);
-					if (command.kind === 'need-snapshot' && rejectFirstSnapshotRequest) {
-						rejectFirstSnapshotRequest = false;
-						throw new Error('snapshot request was rejected before publication');
-					}
-				},
-			},
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle'));
-		commands.length = 0;
-
-		await terminal.paste('first');
-		expect(terminal.applyFrame(closeActivityTerminalFrame(2n, 1n, 'idle'))).toBe(
-			'snapshot-required',
-		);
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		await terminal.paste('second');
-		expect(terminal.applyFrame(closeActivityTerminalFrame(3n, 1n, 'idle'))).toBe(
-			'snapshot-required',
-		);
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-
-		expect(
-			commands
-				.filter((command) => command.kind === 'need-snapshot')
-				.map((command) => command.payload),
-		).toEqual([
-			{ attachmentId, reason: 'activity-stale', sequence: '2' },
-			{ attachmentId, reason: 'activity-stale', sequence: '3' },
-		]);
-		expect(terminal.applyFrame(closeActivityTerminalFrame(4n, 1n, 'idle'))).toBe('committed');
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		terminal.dispose();
-	});
-
-	it('keeps invalidated activity unknown through snapshot failure and clears it on a same-revision live snapshot', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: { send: () => undefined },
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle'));
-		const metadataChanges: Array<'active' | 'idle' | 'unknown'> = [];
-		terminal.onMetadataChange((metadata) => metadataChanges.push(metadata.closeActivity));
-
-		await expect(terminal.paste('safe')).resolves.toMatchObject({ kind: 'sent' });
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		expect(terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['x', ''], 0n, [0]))).toBe(
-			'snapshot-required',
-		);
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-
-		expect(terminal.applyFrame(closeActivityTerminalFrame(3n, 1n, 'idle'))).toBe('committed');
-		expect(metadataChanges).toEqual(['unknown', 'idle']);
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		terminal.dispose();
-	});
-
-	it('does not clear invalidated activity when a history row window commits', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const commands: ProjectedTerminalCommand[] = [];
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					commands.push(command);
-				},
-			},
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle', { scrollbackRows: 10n }));
-		await expect(terminal.paste('safe')).resolves.toMatchObject({ kind: 'sent' });
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-
-		terminal.scrollLines(-1);
-		const read = commands.at(-1);
-		if (read?.kind !== 'read-rows') throw new Error('history request was not sent');
-		expect(
-			terminal.applyRows(
-				renderRowWindow(BigInt(read.payload.requestSequence), 1n, 9n, 12n, [
-					'history',
-					'live',
-					'overscan',
-				]),
-			),
-		).toBe('committed');
-
-		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		terminal.dispose();
-	});
-
-	it('quarantines a stale staged idle frame until its causal snapshot is presented', async () => {
-		const browser = createFakeBrowser();
-		vi.stubGlobal('document', browser.document);
-		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
-		const commands: ProjectedTerminalCommand[] = [];
-		const terminal = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					commands.push(command);
-				},
-			},
-			terminalId,
-		});
-		await terminal.open(browser.root);
-		terminal.applyFrame(closeActivityTerminalFrame(1n, 1n, 'idle'));
-		await expect(terminal.paste('safe')).resolves.toMatchObject({ kind: 'sent' });
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-
-		expect(terminal.prepareThemePresentation('close-activity-theme', themeOverlays)).toEqual({
-			kind: 'prepared',
-		});
-		const readiness = terminal.waitForThemePresentation('close-activity-theme', 1n);
-		expect(
-			terminal.applyFrame(closeActivityTerminalFrame(2n, 2n, 'idle', { themeRevision: 1n })),
-		).toBe('snapshot-required');
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		let readinessSettled = false;
-		void readiness.then(() => {
-			readinessSettled = true;
-		});
-		await Promise.resolve();
-		expect(readinessSettled).toBe(false);
-		expect(commands.at(-1)).toEqual({
-			kind: 'need-snapshot',
-			payload: { attachmentId, reason: 'activity-stale', sequence: '2' },
-		});
-		expect(
-			commands.some(
-				(command) => command.kind === 'frame-applied' && command.payload.sequence === '2',
-			),
-		).toBe(false);
-
-		expect(
-			terminal.applyFrame(closeActivityTerminalFrame(3n, 2n, 'idle', { themeRevision: 1n })),
-		).toBe('staged');
-		expect(terminal.metadata?.closeActivity).toBe('unknown');
-		await expect(readiness).resolves.toEqual({ kind: 'ready' });
-		expect(terminal.canCommitThemePresentation('close-activity-theme', 1n)).toBe(true);
-
-		await expect(terminal.paste('newer')).resolves.toMatchObject({ kind: 'sent' });
-		expect(terminal.canCommitThemePresentation('close-activity-theme', 1n)).toBe(false);
-		expect(
-			terminal.applyFrame(closeActivityTerminalFrame(4n, 2n, 'idle', { themeRevision: 1n })),
-		).toBe('snapshot-required');
-		expect(commands.at(-1)).toEqual({
-			kind: 'need-snapshot',
-			payload: { attachmentId, reason: 'activity-stale', sequence: '4' },
-		});
-		expect(
-			terminal.applyFrame(closeActivityTerminalFrame(5n, 2n, 'idle', { themeRevision: 1n })),
-		).toBe('staged');
-		expect(terminal.canCommitThemePresentation('close-activity-theme', 1n)).toBe(true);
-
-		expect(terminal.commitThemePresentation('close-activity-theme', 1n)).toBe(true);
-		expect(terminal.metadata?.closeActivity).toBe('idle');
-		terminal.dispose();
-	});
-
 	it('pins each coalesced draw checkpoint to the latest committed generation and revision', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -5131,7 +4695,6 @@ describe('ProjectedTerminal', () => {
 				1n,
 				2,
 				ActiveScreen.primary,
-				'active',
 				0n,
 				{ rows: 4 },
 			),
@@ -5194,7 +4757,6 @@ describe('ProjectedTerminal', () => {
 				1n,
 				2,
 				ActiveScreen.primary,
-				'active',
 				0n,
 				{ rows: 4 },
 			),
@@ -5266,7 +4828,6 @@ describe('ProjectedTerminal', () => {
 				2n,
 				2,
 				ActiveScreen.alternate,
-				'unknown',
 				0n,
 				{ rows: 4 },
 			),
@@ -5287,7 +4848,6 @@ describe('ProjectedTerminal', () => {
 				2n,
 				2,
 				ActiveScreen.primary,
-				'unknown',
 				0n,
 				{ rows: 4 },
 			),
@@ -5308,7 +4868,6 @@ describe('ProjectedTerminal', () => {
 				2n,
 				2,
 				ActiveScreen.primary,
-				'unknown',
 				0n,
 				{ rows: 4 },
 			),
@@ -5438,8 +4997,6 @@ describe('ProjectedTerminal', () => {
 			},
 			terminalId,
 		});
-		const metadataChanges: Array<'active' | 'idle' | 'unknown'> = [];
-		terminal.onMetadataChange((metadata) => metadataChanges.push(metadata.closeActivity));
 		await terminal.open(browser.root);
 		terminal.applyFrame(
 			terminalFrame(
@@ -5455,7 +5012,6 @@ describe('ProjectedTerminal', () => {
 				1n,
 				2,
 				ActiveScreen.primary,
-				'active',
 			),
 		);
 		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
@@ -5506,8 +5062,6 @@ describe('ProjectedTerminal', () => {
 		).toBe('committed');
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
 		expect(terminal.metadata?.revision).toBe(2n);
-		expect(terminal.metadata?.closeActivity).toBe('active');
-		expect(metadataChanges.at(-1)).toBe('active');
 		expect(accessibilityAnnouncement?.attributes.get('aria-live')).toBe('off');
 		expect(accessibilityRoot?.children[0]?.attributes.get('data-terminal-absolute-row')).toBe('9');
 		expect(commands.at(-1)).toEqual({
@@ -5907,7 +5461,6 @@ describe('ProjectedTerminal', () => {
 				1n,
 				2,
 				ActiveScreen.primary,
-				'unknown',
 				0n,
 				compactResize.payload,
 			),
@@ -14846,7 +14399,6 @@ describe('ProjectedTerminal', () => {
 				1n,
 				geometry.columns,
 				ActiveScreen.primary,
-				'unknown',
 				0n,
 				geometry,
 			);
@@ -15504,7 +15056,6 @@ describe('ProjectedTerminal', () => {
 					1n,
 					measured.payload.columns,
 					ActiveScreen.primary,
-					'unknown',
 					0n,
 					{
 						cellPixelHeight: measured.payload.cellPixelHeight,

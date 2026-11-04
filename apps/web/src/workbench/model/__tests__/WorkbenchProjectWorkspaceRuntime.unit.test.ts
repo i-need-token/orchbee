@@ -54,7 +54,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 
 		expect(
 			runtime.applyTerminalMetadataObservation(presentation(1), {
-				closeActivity: 'idle',
 				currentDirectory: { currentCwd: '/workspace/orchbee', kind: 'reported' },
 				naturalTitle: null,
 			}),
@@ -62,21 +61,18 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(title()).toBe('orchbee');
 
 		runtime.applyTerminalMetadataObservation(presentation(1), {
-			closeActivity: 'active',
 			currentDirectory: { kind: 'ignored' },
 			naturalTitle: 'vim',
 		});
 		expect(title()).toBe('vim');
 
 		runtime.applyTerminalMetadataObservation(presentation(1), {
-			closeActivity: 'idle',
 			currentDirectory: { currentCwd: 'C:\\Users\\someone\\orchbee', kind: 'reported' },
 			naturalTitle: null,
 		});
 		expect(title()).toBe('orchbee');
 
 		runtime.applyTerminalMetadataObservation(presentation(1), {
-			closeActivity: 'idle',
 			currentDirectory: { currentCwd: null, kind: 'reported' },
 			naturalTitle: null,
 		});
@@ -113,7 +109,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		const unsubscribe = runtime.subscribeTerminalTopology(listener);
 		const observeTitle = (naturalTitle: string) =>
 			runtime.applyTerminalMetadataObservation(presentation(1), {
-				closeActivity: 'unknown',
 				currentDirectory: { kind: 'ignored' },
 				naturalTitle,
 			});

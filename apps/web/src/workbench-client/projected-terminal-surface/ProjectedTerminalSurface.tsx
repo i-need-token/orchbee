@@ -44,7 +44,6 @@ export function ProjectedTerminalSurface({
 		<>
 			<div
 				className={styles['terminalSurface']}
-				data-projected-terminal-close-activity={presentation.closeActivity}
 				data-projected-terminal-control={terminalShown ? view.controlPresentation : 'none'}
 				data-projected-terminal-mobile-controls={terminalShown ? 'visible' : 'hidden'}
 				data-terminal-presentation-id={presentation.presentationId}

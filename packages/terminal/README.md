@@ -451,23 +451,9 @@ object graph. After a draw completes, frame telemetry records the exact committe
 and revision read from the visible packed store. Multiple commits may coalesce behind one animation
 frame; that checkpoint names the newest commit actually drawn, never an earlier scheduled revision.
 
-Committed live-frame metadata maps the optional close-activity extension to `idle`, `active`, or
-`unknown`; absence, duplication, and malformed payloads resolve conservatively to `unknown`.
-Historical row windows have no live process observation, so retained-history presentation keeps the
-latest live store's close activity while using the history window for visual metadata and rows. An
-accepted non-focus key, text, paste, mouse, or equivalent raw input immediately invalidates the
-latest observation and synchronously publishes transient `unknown`; focus-only input and a
-synchronously rejected publication do not. The override remains authoritative across retained
-history, staged frames, snapshot requests, failures, and disposal. A newly arriving `idle` frame
-may have entered flight before that input, so the client sends `NeedSnapshot(activity-stale)` for
-its exact sequence instead of `FrameApplied` and retains `unknown`. The next complete snapshot is
-causally newer than the input invalidation, but it proves neither that the Host accepted the input
-nor that the shell consumed it. Under wire protocol `0.1.0`, Host-accepted non-focus input
-invalidates the Host cache immediately, while a later current-state sample may report `active`,
-`idle`, or `unknown`. A causally eligible replacement may therefore restore fresh `idle` in the
-same terminal lifecycle. A stale theme-stage frame is fenced at apply time and cannot make the
-stage ready; only a causally eligible staged frame clears the local override when its conservative
-presentation actually commits.
+Committed live-frame metadata ignores the optional close-activity extension. Whether a close asks
+first is the Server's decision, so this package keeps no close activity, its input invalidates
+none, and it never sends `NeedSnapshot(activity-stale)`.
 
 Committed live frames may also carry the bounded Kitty graphics extension. A graphics snapshot
 atomically replaces decoded in-memory image resources, resolved placements, and the monotonic

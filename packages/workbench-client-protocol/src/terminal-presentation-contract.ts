@@ -36,9 +36,6 @@ export type TerminalPresentationLifecycle =
 	  }
 	| { readonly kind: 'unbound' };
 
-/** Transient evidence used only to decide whether closing a live terminal needs confirmation. */
-export type TerminalPresentationCloseActivity = 'active' | 'idle' | 'unknown';
-
 /** @internal Builds presentation IDs for tests in this package and `apps/web`; production boundaries parse them with `TerminalPresentationIdSchema`. */
 export function terminalPresentationId(value: string): TerminalPresentationId {
 	return TerminalPresentationIdSchema.parse(value);

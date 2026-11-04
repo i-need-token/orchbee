@@ -42,7 +42,6 @@ function metadata(
 		cellPixelWidth: 9,
 		columns: 2,
 		commandCompletion: null,
-		closeActivity: 'active',
 		currentDirectory: null,
 		cursor: {
 			blinking: false,

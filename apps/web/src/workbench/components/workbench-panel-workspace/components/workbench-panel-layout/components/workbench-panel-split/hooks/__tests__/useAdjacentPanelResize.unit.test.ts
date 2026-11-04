@@ -20,7 +20,6 @@ const split: PanelSplit = {
 				id: 'panel-1',
 				kind: 'panel',
 				primaryPresentation: {
-					closeActivity: 'unknown',
 					currentCwd: null,
 					lifecycle: { kind: 'running' },
 					naturalTitle: null,
@@ -38,7 +37,6 @@ const split: PanelSplit = {
 				id: 'panel-2',
 				kind: 'panel',
 				primaryPresentation: {
-					closeActivity: 'unknown',
 					currentCwd: null,
 					lifecycle: { kind: 'running' },
 					naturalTitle: null,
@@ -83,7 +81,6 @@ function createThreePanelSplit(): PanelSplit {
 					id: 'panel-3',
 					kind: 'panel',
 					primaryPresentation: {
-						closeActivity: 'unknown',
 						currentCwd: null,
 						lifecycle: { kind: 'running' },
 						naturalTitle: null,
