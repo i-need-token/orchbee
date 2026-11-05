@@ -635,21 +635,47 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
     open(&mut ui);
     assert_eq!(worktrees(&ui), None);
     settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    assert!(
+        [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees]
+            .iter()
+            .all(|row| !ui.view().action_menu().unwrap().actions.contains(row)),
+        "a failed discovery must revoke previously known Git rows"
+    );
     close(&mut ui);
     open(&mut ui);
+    assert!(
+        [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees]
+            .iter()
+            .all(|row| !ui.view().action_menu().unwrap().actions.contains(row))
+    );
 }
 
 /// Git-only actions follow the current addressed result, including the first open menu.
 #[test]
-fn unknown_workspace_has_no_git_actions_on_its_first_menu_paint() {
-    let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
-    first_terminal_moves(&mut ui, "plain", "C:/plain");
-    assert!(ui.open_action_menu(target, None, false));
-    for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
-        assert!(
-            !ui.view().action_menu().unwrap().actions.contains(&action),
-            "unknown repository status must not advertise {action:?}"
-        );
+fn unknown_or_failed_workspace_has_no_git_actions_from_its_first_menu_paint() {
+    for failure in [
+        WorktreeNotice::NotRepository,
+        WorktreeNotice::ListingUnavailable,
+        WorktreeNotice::SourceUnavailable,
+        WorktreeNotice::SourceChanged,
+    ] {
+        let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
+        first_terminal_moves(&mut ui, "plain", "C:/plain");
+        assert!(ui.open_action_menu(target.clone(), None, false));
+        let hidden = |ui: &WorkbenchClientUi| {
+            for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
+                assert!(
+                    !ui.view().action_menu().unwrap().actions.contains(&action),
+                    "unknown or failed repository status must not advertise {action:?}"
+                );
+            }
+        };
+        hidden(&ui);
+        settle(&mut ui, Err(failure));
+        hidden(&ui);
+        press(&mut ui, KeyCode::Esc);
+        assert!(ui.open_action_menu(target, None, false));
+        hidden(&ui);
     }
 }
 

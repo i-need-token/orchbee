@@ -246,14 +246,15 @@ for one name and atomically creates the Project and moves the Workspace. Organiz
 a noncurrent Workspace. Empty conditional creation sections publish no orphan separator.
 
 Opening a Project or Workspace menu starts Git discovery of the addressed source. New Worktree…
-and Open Worktree ▸ stay disabled with a localized reason until discovery succeeds; a non-Git or
-failed source keeps them disabled, and Open Worktree ▸ also stays disabled while the Workspace's own
-checkout is the only one. Until the first answer, a menu shows the last success the Client keeps for
+and Open Worktree ▸ are absent from the first paint unless current sidebar branch information or
+a matching successful discovery proves Git. Unknown, non-Git, failed, expired or changed sources
+contribute neither Git-only rows nor their separator. A known Git source may show Open Worktree ▸
+disabled until its checkout list arrives, and while the Workspace's own checkout is the only one. Until the first answer, a menu shows the last success the Client keeps for
 the same source, the newest for each of up to 16 recent sources, while the source stands in the
 checkout it describes; a failed answer drops it. Git refusing the directory, as not in a repository
 or not trusted, is kept the same way for that exact directory only, since a folder outside Git may
 hold a repository below it: a later menu there omits New Worktree…, Open Worktree ▸ and their
-separator, and a Project's New Workspace ▸ omits New Worktree…. The current addressed answer also updates an already-open menu: a refusal removes both
+separator, and a Project's New Workspace ▸ omits New Worktree…. The current addressed answer also updates an already-open menu: a refusal or failed discovery removes both
 Git-only actions and their separator immediately, including on the first opening. A directory that
 becomes a repository regains them when discovery succeeds. Every membership change invalidates
 old pointer and keyboard draw proofs before the rebuilt menu accepts input. A sidebar row that shows a branch there outweighs a kept refusal. Otherwise a Workspace menu opened from a sidebar row that already shows a
@@ -265,8 +266,7 @@ nothing, because a folder outside Git and a detached HEAD both show none, so its
 directory change of the first terminal keeps the menu open and starts discovery over, and an answer
 speaks only for where it was read. Until the new answer arrives the rows keep a success whose checkout
 contains the new directory, so a move inside a checkout neither greys them nor changes the height, and
-they change only if the answer differs. Any other move, or a failed answer, leaves them disabled until
-Git answers, and an open Open Worktree ▸ list closes. The sidebar row cannot decide this during a
+they change only if the answer differs. Any other move, or a failed answer, removes the Git-only rows until positive evidence returns, and an open Open Worktree ▸ list closes. The sidebar row cannot decide this during a
 move, because it holds its old facts until its own read arrives. A row chosen meanwhile waits for the
 new answer, bounded by discovery's 10 s deadline, and runs only against it; an answer that no longer offers
 the row, or a move out of the checkout, closes the menu with the localized unavailable notice.
