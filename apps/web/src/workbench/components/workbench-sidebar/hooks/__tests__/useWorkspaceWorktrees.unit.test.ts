@@ -24,7 +24,10 @@ function location(
 	line: WorkbenchSidebarWorkspaceLocation['line'],
 ): ReadonlyMap<string, WorkbenchSidebarWorkspaceLocation> {
 	return new Map([
-		[WORKSPACE, { ahead: 0, behind: 0, divergenceLabel: null, heldName: null, line }],
+		[
+			WORKSPACE,
+			{ ahead: 0, behind: 0, directory: null, divergenceLabel: null, heldName: null, line },
+		],
 	]);
 }
 

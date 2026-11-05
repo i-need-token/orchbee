@@ -5,12 +5,35 @@
 	flex: none;
 	align-items: center;
 	justify-content: center;
-	color: var(--ob-sys-color-icon-secondary);
-	font: var(--ob-sys-typography-label-lg);
+	color: var(--ob-sys-color-text-muted);
+}
+
+.glyph[data-size='small'] {
+	width: var(--ob-ref-size-icon-xs);
+	height: var(--ob-ref-size-icon-xs);
 }
 
 .glyph[data-alignment='start'] {
 	justify-content: flex-start;
+}
+
+.shape {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+.shape path {
+	fill: currentColor;
+	stroke: currentColor;
+	stroke-linejoin: round;
+	stroke-width: 1;
+}
+
+.glyph[data-shape='ring'] .shape path {
+	fill: none;
+	stroke-width: 1.5;
 }
 
 .glyph[data-tone='attention'] {
@@ -18,14 +41,17 @@
 	animation: agent-attention var(--ob-sys-motion-duration-agent-cycle)
 		var(--ob-sys-motion-easing-agent-frame) infinite;
 }
+
 .glyph[data-tone='danger'] {
 	color: var(--ob-sys-color-status-agent-error);
 }
+
 .glyph[data-tone='working'] {
 	color: var(--ob-sys-color-status-working);
 	animation: agent-working var(--ob-sys-motion-duration-agent-breath)
 		var(--ob-sys-motion-easing-agent-breath) infinite;
 }
+
 .glyph[data-tone='success'] {
 	color: var(--ob-sys-color-status-agent-done);
 }
@@ -36,7 +62,13 @@
 
 @keyframes agent-working {
 	50% {
-		opacity: var(--ob-ref-opacity-50);
+		opacity: var(--ob-sys-opacity-disabled);
+	}
+}
+
+@keyframes agent-attention {
+	50% {
+		opacity: var(--ob-sys-opacity-disabled);
 	}
 }
 
@@ -44,11 +76,5 @@
 	.glyph[data-tone='attention'],
 	.glyph[data-tone='working'] {
 		animation: none;
-	}
-}
-
-@keyframes agent-attention {
-	50% {
-		opacity: var(--ob-ref-opacity-50);
 	}
 }

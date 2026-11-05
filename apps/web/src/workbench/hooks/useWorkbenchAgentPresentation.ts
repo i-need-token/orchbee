@@ -54,6 +54,21 @@ const FOLDED_STATUS_GLYPHS = 5;
 
 const NO_PANEL_TABS: readonly [] = [];
 
+/** The active Tab's focused Panel's terminal: the open Workspace's current Agent, if it is one. */
+function focusedPresentationId(
+	panelTabs: ReturnType<WorkbenchTerminalContext['panelWorkspaceStore']['getSnapshot']>['tabs'],
+	activeTabId: string | null,
+): string | null {
+	const active = panelTabs.find((tab) => tab.tabId === activeTabId);
+	const panel =
+		active === undefined
+			? undefined
+			: collectPanelLeaves(active.root).find((leaf) => leaf.id === active.focusedPanelId);
+	return panel === undefined
+		? null
+		: (panel.activeChildPresentationId ?? panel.primaryPresentation.presentationId);
+}
+
 const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornmentKind>> = {
 	blocked: 'attention',
 	done: 'success',
@@ -92,6 +107,14 @@ export function useWorkbenchAgentPresentation({
 		readPanelTabs,
 		readPanelTabs,
 	);
+	const tabModel = terminalContext?.tabModel;
+	const readActiveTabId = () => tabModel?.getSnapshot().activeTabId ?? null;
+	const activeTabId = React.useSyncExternalStore(
+		tabModel?.subscribe ?? subscribeToNothing,
+		readActiveTabId,
+		readActiveTabId,
+	);
+	const currentPresentationId = focusedPresentationId(panelTabs, activeTabId);
 	const terminalTopologyRevision = React.useSyncExternalStore(
 		projectWorkspaceRuntime.subscribeTerminalTopology,
 		projectWorkspaceRuntime.getTerminalTopologyRevision,
@@ -157,7 +180,6 @@ export function useWorkbenchAgentPresentation({
 				const states = workspace.rowsByUrgency.map(({ observation }) => observation.state);
 				return {
 					agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
-					agents: workspace.agents,
 					collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
 						count,
 						workspace: workspace.workspaceName,
@@ -172,8 +194,8 @@ export function useWorkbenchAgentPresentation({
 						glyphs: workspace.rowsByUrgency.slice(0, shown).map(({ destination, observation }) => {
 							const status = formatWorkbenchAgentStatus(intl, observation.state);
 							return {
-								glyph: status.glyph,
 								presentationId: destination.presentationId,
+								shape: status.shape,
 								tone: status.tone,
 							};
 						}),
@@ -181,6 +203,7 @@ export function useWorkbenchAgentPresentation({
 							[...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state).status),
 							{ style: 'narrow', type: 'conjunction' },
 						),
+						legend: [...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state)),
 						remainder: count - shown,
 					},
 					projectId: workspace.projectId,
@@ -195,10 +218,10 @@ export function useWorkbenchAgentPresentation({
 								status: status.status,
 							}),
 							agentLabel,
-							agents: [observation.agent],
-							locationLabel,
+							current: destination.presentationId === currentPresentationId,
 							presentationId: destination.presentationId,
 							status,
+							titleLabel: destination.tabTitle,
 							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
 						};
 					}),
@@ -206,12 +229,12 @@ export function useWorkbenchAgentPresentation({
 					unreadLabel: workspace.rows.some((row) => unread.has(row.destination.presentationId))
 						? unreadLabel
 						: undefined,
-					visibleCountLabel: count > 99 ? '99+' : String(count),
 					workspaceId: workspace.workspaceId,
 				};
 			},
 		);
 	}, [
+		currentPresentationId,
 		foldedWorkspaceIds,
 		intl,
 		projectWorkspaceRuntime,

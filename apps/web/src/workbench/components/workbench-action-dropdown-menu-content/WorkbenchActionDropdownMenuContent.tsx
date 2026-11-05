@@ -16,19 +16,29 @@ import type { WorkbenchActionMenuEntry } from '../../types/workbench-action-menu
 
 interface WorkbenchActionDropdownMenuContentProps {
 	readonly align?: 'end' | 'start';
+	readonly alignOffset?: number | undefined;
 	readonly entries: readonly WorkbenchActionMenuEntry[];
 	readonly finalFocus?: React.ComponentProps<typeof DropdownMenuContent>['finalFocus'];
 	readonly side?: 'bottom' | 'right';
+	readonly sideOffset?: number | undefined;
 }
 
 export function WorkbenchActionDropdownMenuContent({
 	align = 'end',
+	alignOffset,
 	entries,
 	finalFocus,
 	side = 'bottom',
+	sideOffset,
 }: WorkbenchActionDropdownMenuContentProps): React.ReactNode {
 	return (
-		<DropdownMenuContent align={align} finalFocus={finalFocus} side={side}>
+		<DropdownMenuContent
+			align={align}
+			alignOffset={alignOffset}
+			finalFocus={finalFocus}
+			side={side}
+			sideOffset={sideOffset}
+		>
 			{entries.map((entry) => {
 				switch (entry.kind) {
 					case 'command':

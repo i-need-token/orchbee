@@ -1,10 +1,16 @@
-import { Button, ContextMenu, ContextMenuTrigger, ProductIcon } from '@orchbee/ui/components';
+import {
+	ContextMenu,
+	ContextMenuTrigger,
+	ProductIcon,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from '@orchbee/ui/components';
 import type { PointerEvent, ReactNode } from 'react';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../model/workbench-terminal-location-activation';
-import { WorkbenchAgentIdentity } from '../../../workbench-agent-identity/WorkbenchAgentIdentity';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
@@ -15,10 +21,9 @@ import type {
 	WorkbenchProjectNavigationMessages,
 	WorkbenchSidebarWorkspaceCreation,
 } from '../../types/workbench-sidebar-types';
+import { SidebarTruncationTooltip } from '../sidebar-truncation-tooltip/SidebarTruncationTooltip';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
-import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
-import { WorkspaceAgentStatusLine } from './components/workspace-agent-status-line/WorkspaceAgentStatusLine';
-import { WorkspaceLocationLine } from './components/workspace-location-line/WorkspaceLocationLine';
+import { WorkspaceNavigationRow } from './components/workspace-navigation-row/WorkspaceNavigationRow';
 import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
 import { navigationMenuAriaKeyShortcuts } from './utils/navigation-menu-shortcuts';
 import {
@@ -26,23 +31,9 @@ import {
 	suppressDuplicateNavigationContextMenu,
 } from './utils/navigation-row-menu';
 import { projectNewWorkspaceMenu } from './utils/projectNewWorkspaceMenu';
-import { workspaceMoveToProjectMenu } from './utils/workspaceMoveToProjectMenu';
 import styles from './ProjectNavigationItem.module.css';
 
-/**
- * A Workspace's Agents in words. Folded, the row speaks for its hidden Agent rows: every state its
- * second line shows, and their unread marker.
- */
-function workspaceAgentSummary(overview: WorkbenchWorkspaceAgentOverviewView): string {
-	if (overview.expanded) {
-		return `${overview.countLabel}. ${overview.agentLabel}: ${overview.status.status}`;
-	}
-	const unread = overview.unreadLabel === undefined ? '' : ` · ${overview.unreadLabel}`;
-	return `${overview.countLabel}. ${overview.agentLabel}: ${overview.foldedStatus.label}${unread}`;
-}
-
 interface ProjectNavigationItemProps {
-	readonly agentGradientPrefix: string;
 	readonly activateWorkspace: (
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
@@ -82,8 +73,16 @@ interface ProjectNavigationItemProps {
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
 }
 
+/** The + menu: New Workspace's rows as one menu, one click shorter, its groups kept apart. */
+function flattenSubmenu(entry: WorkbenchActionMenuEntry): readonly WorkbenchActionMenuEntry[] {
+	if (entry.kind !== 'submenu') return [entry];
+	return entry.groups.flatMap((group, index): WorkbenchActionMenuEntry[] => [
+		...(index === 0 ? [] : [{ id: `${group.id}-separator`, kind: 'separator' as const }]),
+		...group.commands,
+	]);
+}
+
 export function ProjectNavigationItem({
-	agentGradientPrefix,
 	activateWorkspace,
 	activeLocation,
 	createWorkspace,
@@ -127,17 +126,21 @@ export function ProjectNavigationItem({
 	const refreshProjectWorktrees = (open: boolean) => {
 		if (open && worktreeSourceId !== null) refreshWorktrees(worktreeSourceId);
 	};
-	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] =
+	const newWorkspaceMenu =
 		project === null
+			? null
+			: projectNewWorkspaceMenu({
+					createWorkspace,
+					messages,
+					project,
+					state,
+					worktrees: projectWorktreeRows(worktreeSourceId),
+				});
+	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] =
+		project === null || newWorkspaceMenu === null
 			? []
 			: [
-					projectNewWorkspaceMenu({
-						createWorkspace,
-						messages,
-						project,
-						state,
-						worktrees: projectWorktreeRows(worktreeSourceId),
-					}),
+					newWorkspaceMenu,
 					{
 						icon: 'edit',
 						id: 'rename-project',
@@ -155,6 +158,48 @@ export function ProjectNavigationItem({
 						onSelect: () => removeProject(project.id),
 					},
 				];
+	const name = project?.name ?? messages.recents;
+	const projectFoldLabel = expanded ? messages.collapseProject : messages.expandProject;
+	const recentsFoldLabel = expanded ? messages.collapseRecents : messages.expandRecents;
+	const chevronLabel = project === null ? recentsFoldLabel : `${projectFoldLabel}: ${project.name}`;
+	// Headings are never current and never filled; only the chevron folds the group, and it always
+	// shows, as the TUI's does (ORC-285).
+	const headingContent = (
+		<>
+			<SidebarTruncationTooltip content={name} render={<span className={styles['headingName']} />}>
+				{name}
+			</SidebarTruncationTooltip>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<button
+							aria-expanded={expanded}
+							aria-keyshortcuts={project === null ? undefined : navigationMenuAriaKeyShortcuts}
+							aria-label={chevronLabel}
+							className={styles['chevron']}
+							data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
+							data-navigation-reorder-excluded='true'
+							data-sidebar-nav=''
+							data-slot={
+								project === null ? 'workbench-sidebar-recents' : 'workbench-sidebar-project'
+							}
+							type='button'
+							onClick={() =>
+								project === null ? toggleRecentsExpansion() : toggleProjectExpansion(project.id)
+							}
+						/>
+					}
+				>
+					<span className={styles['chevronIcon']} data-open={expanded || undefined}>
+						<ProductIcon name='chevron-right' size='disclosure' />
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side='bottom'>
+					{project === null ? recentsFoldLabel : projectFoldLabel}
+				</TooltipContent>
+			</Tooltip>
+		</>
+	);
 	return (
 		<li
 			className={styles['project']}
@@ -164,32 +209,12 @@ export function ProjectNavigationItem({
 			data-project-reorder-active={reorderActive || undefined}
 			data-project-reorder-displacement={displacement ?? undefined}
 		>
-			{project === null && (
+			{project === null || newWorkspaceMenu === null ? (
 				// Recents only folds: it has no menu and neither starts nor receives a drag.
-				<div className={styles['projectRow']} data-recents-row='true'>
-					<Button
-						aria-expanded={expanded}
-						aria-label={expanded ? messages.collapseRecents : messages.expandRecents}
-						className={styles['projectItem']}
-						data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
-						data-slot='workbench-sidebar-recents'
-						size='sm'
-						variant='ghost'
-						onClick={toggleRecentsExpansion}
-					>
-						<span aria-hidden='true' className={styles['icon']} />
-						<span className={styles['projectName']}>{messages.recents}</span>
-						<span
-							aria-hidden='true'
-							className={styles['disclosure']}
-							data-expanded={expanded || undefined}
-						>
-							<ProductIcon name='chevron-right' />
-						</span>
-					</Button>
+				<div className={styles['heading']} data-recents-row='true'>
+					{headingContent}
 				</div>
-			)}
-			{project !== null && (
+			) : (
 				<ContextMenu
 					onOpenChange={(open, details) => {
 						refreshProjectWorktrees(open);
@@ -199,7 +224,7 @@ export function ProjectNavigationItem({
 					<ContextMenuTrigger
 						render={
 							<div
-								className={styles['projectRow']}
+								className={styles['heading']}
 								data-navigation-reorder-row='true'
 								data-project-reorder-row='true'
 								onContextMenuCapture={suppressDuplicateNavigationContextMenu}
@@ -208,45 +233,51 @@ export function ProjectNavigationItem({
 							/>
 						}
 					>
-						<Button
-							aria-expanded={expanded}
-							aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-							aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}`}
-							className={styles['projectItem']}
-							data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
-							data-slot='workbench-sidebar-project'
-							size='sm'
-							variant='ghost'
-							onClick={() => toggleProjectExpansion(project.id)}
-						>
-							<span className={styles['icon']}>
-								<ProductIcon name='folder' />
-							</span>
-							<span className={styles['projectName']}>{project.name}</span>
-							<span
-								aria-hidden='true'
-								className={styles['disclosure']}
-								data-expanded={expanded || undefined}
-							>
-								<ProductIcon name='chevron-right' />
-							</span>
-						</Button>
-						<WorkbenchSidebarDropdownMenu
-							onOpenChange={refreshProjectWorktrees}
-							entries={projectMenuEntries}
-							trigger={
-								<Button
-									aria-label={`${messages.projectOptions}: ${project.name}`}
-									aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-									className={styles['rowMenu']}
-									data-navigation-menu-trigger='true'
-									data-navigation-reorder-excluded='true'
-									size='icon-xs'
-									variant='ghost'
+						{headingContent}
+						<span className={styles['tools']}>
+							<Tooltip>
+								<WorkbenchSidebarDropdownMenu
+									onOpenChange={refreshProjectWorktrees}
+									entries={flattenSubmenu(newWorkspaceMenu)}
+									trigger={
+										<TooltipTrigger
+											render={
+												<button
+													aria-label={`${messages.createWorkspace}: ${project.name}`}
+													className={styles['tool']}
+													data-navigation-reorder-excluded='true'
+													type='button'
+												/>
+											}
+										/>
+									}
+									triggerContent={<ProductIcon name='add' />}
 								/>
-							}
-							triggerContent={<ProductIcon name='ellipsis' />}
-						/>
+								<TooltipContent side='bottom'>{messages.createWorkspace}</TooltipContent>
+							</Tooltip>
+							<Tooltip>
+								<WorkbenchSidebarDropdownMenu
+									onOpenChange={refreshProjectWorktrees}
+									entries={projectMenuEntries}
+									trigger={
+										<TooltipTrigger
+											render={
+												<button
+													aria-label={`${messages.projectOptions}: ${project.name}`}
+													aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
+													className={styles['tool']}
+													data-navigation-menu-trigger='true'
+													data-navigation-reorder-excluded='true'
+													type='button'
+												/>
+											}
+										/>
+									}
+									triggerContent={<ProductIcon name='ellipsis' />}
+								/>
+								<TooltipContent side='bottom'>{messages.projectOptions}</TooltipContent>
+							</Tooltip>
+						</span>
 					</ContextMenuTrigger>
 					<WorkbenchActionContextMenuContent
 						entries={projectMenuEntries}
@@ -260,225 +291,39 @@ export function ProjectNavigationItem({
 					className={styles['workspaceList']}
 					data-workspace-reorder-dragging={workspaceReorder.draggingItemId ?? undefined}
 				>
-					{workspaces.map((workspace) => {
-						const agentOverview = workspaceAgentOverviews.find(
-							(overview) => overview.workspaceId === workspace.id,
-						);
-						const agentExpanded = agentOverview?.expanded ?? false;
-						// A folded Workspace's second line lists its Agents' states in place of its location,
-						// and its row repeats their unread marker while the Agent rows are hidden.
-						const agentsFolded = agentOverview !== undefined && !agentExpanded;
-						const location = workspaceLocations.get(workspace.id);
-						// A row whose directory just moved keeps its old name until its new location settles.
-						const name = location?.heldName ?? workspace.name;
-						const ahead = location?.ahead ?? 0;
-						const behind = location?.behind ?? 0;
-						const active =
-							activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspace.id;
-						const worktrees = worktreeMenu(workspace.id);
-						const workspaceMenuEntries: readonly WorkbenchActionMenuEntry[] = [
-							workspaceMoveToProjectMenu({
-								messages,
-								setWorkspaceProject,
-								showWorkspaceProjectCreation,
-								state,
-								workspace,
-							}),
-							{
-								icon: 'edit',
-								id: 'rename-workspace',
-								kind: 'command',
-								label: messages.workspaceMenuRename,
-								onSelect: () => showWorkspaceRename(workspace.id),
-							},
-							...worktrees.section,
-							{ id: 'close-workspace-separator', kind: 'separator' },
-							{
-								destructive: true,
-								icon: 'close',
-								id: 'close-workspace',
-								kind: 'command',
-								label: messages.workspaceMenuClose,
-								onSelect: () => deleteWorkspace(workspace.id),
-							},
-							// Discovery only ever appends this row, so no row above it moves.
-							...worktrees.removal,
-						];
-						const workspaceDragging = workspaceReorder.draggingItemId === workspace.id;
-						const workspaceDisplacement = workspaceReorder.displacedItemIds.includes(workspace.id)
-							? workspaceReorder.displacementDirection
-							: null;
-						return (
-							<li
-								key={workspace.id}
-								className={styles['workspace']}
-								data-dragging={workspaceDragging || undefined}
-								data-navigation-reorder-id={workspace.id}
-								data-workspace-id={workspace.id}
-								data-workspace-reorder-active={workspaceReorder.displacementAnimated || undefined}
-								data-workspace-reorder-displacement={workspaceDisplacement ?? undefined}
-							>
-								<ContextMenu
-									onOpenChange={(open, details) => {
-										if (open) refreshWorktrees(workspace.id);
-										menuFocus.onOpenChange(workspace.id, open, details);
-									}}
-								>
-									<ContextMenuTrigger
-										render={
-											<div
-												className={styles['workspaceRow']}
-												data-navigation-reorder-row='true'
-												onContextMenuCapture={suppressDuplicateNavigationContextMenu}
-												onKeyDown={openNavigationRowMenuFromKeyboard}
-												onPointerDown={(event) =>
-													workspaceReorder.onItemPointerDown(workspace.id, event)
-												}
-											/>
-										}
-									>
-										<Button
-											aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-											aria-label={[
-												name,
-												agentsFolded ? null : location?.line?.text,
-												location?.divergenceLabel,
-												agentOverview === undefined ? null : workspaceAgentSummary(agentOverview),
-											]
-												.filter((part) => typeof part === 'string')
-												.join('. ')}
-											aria-current={active ? 'page' : undefined}
-											className={styles['workspaceItem']}
-											data-active={active || undefined}
-											data-agent-summary={agentOverview === undefined ? undefined : 'true'}
-											data-slot='workbench-sidebar-workspace'
-											size='sm'
-											variant='ghost'
-											onClick={(event) =>
-												activateWorkspace(workspace.id, event.detail > 0 ? 'pointer' : 'other')
-											}
-										>
-											<span className={styles['icon']}>
-												{agentOverview === undefined ? (
-													<ProductIcon name='layout' />
-												) : (
-													<WorkbenchAgentIdentity
-														agents={agentOverview.agents}
-														gradientPrefix={`${agentGradientPrefix}-${workspace.id}`}
-														status={agentOverview.status}
-													/>
-												)}
-											</span>
-											<span className={styles['workspaceText']}>
-												<span className={styles['workspaceIdentity']}>
-													<span className={styles['workspaceName']}>{name}</span>
-													{ahead > 0 || behind > 0 ? (
-														// Commits to push read as success and commits to pull as a caution, as in
-														// common Git tools; the arrows tell them apart without color.
-														<span aria-hidden='true' className={styles['divergence']}>
-															{ahead > 0 ? <span className={styles['ahead']}>↑{ahead}</span> : null}
-															{behind > 0 ? (
-																<span className={styles['behind']}>↓{behind}</span>
-															) : null}
-														</span>
-													) : null}
-													{agentOverview === undefined ? null : (
-														<span
-															aria-hidden='true'
-															className={styles['unread']}
-															data-agent-unread={
-																agentsFolded && agentOverview.unreadLabel !== undefined
-																	? ''
-																	: undefined
-															}
-															title={agentsFolded ? agentOverview.unreadLabel : undefined}
-														>
-															●
-														</span>
-													)}
-													{agentOverview === undefined ? null : (
-														<span
-															aria-hidden='true'
-															className={styles['agentCount']}
-															title={agentOverview.countLabel}
-														>
-															{agentOverview.visibleCountLabel}
-														</span>
-													)}
-												</span>
-												{agentsFolded ? (
-													<span className={styles['workspaceLocation']}>
-														<WorkspaceAgentStatusLine status={agentOverview.foldedStatus} />
-													</span>
-												) : null}
-												{!agentsFolded && location !== undefined && location.line !== null ? (
-													<span className={styles['workspaceLocation']}>
-														<WorkspaceLocationLine line={location.line} />
-													</span>
-												) : null}
-											</span>
-										</Button>
-										{agentOverview === undefined ? null : (
-											<Button
-												aria-expanded={agentExpanded}
-												aria-label={
-													agentExpanded ? agentOverview.collapseLabel : agentOverview.expandLabel
-												}
-												className={styles['agentDisclosure']}
-												data-navigation-reorder-excluded='true'
-												size='icon-xs'
-												variant='ghost'
-												onClick={() => toggleWorkspaceAgents(workspace.id)}
-											>
-												<span
-													aria-hidden='true'
-													className={styles['agentDisclosureIcon']}
-													data-expanded={agentExpanded || undefined}
-												>
-													<ProductIcon name='chevron-right' />
-												</span>
-											</Button>
-										)}
-										<WorkbenchSidebarDropdownMenu
-											onOpenChange={(open) => {
-												if (open) refreshWorktrees(workspace.id);
-											}}
-											entries={workspaceMenuEntries}
-											trigger={
-												<Button
-													aria-label={`${messages.workspaceOptions}: ${workspace.name}`}
-													aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-													className={styles['rowMenu']}
-													data-navigation-menu-trigger='true'
-													data-navigation-reorder-excluded='true'
-													size='icon-xs'
-													variant='ghost'
-												/>
-											}
-											triggerContent={<ProductIcon name='ellipsis' />}
-										/>
-									</ContextMenuTrigger>
-									<WorkbenchActionContextMenuContent
-										entries={workspaceMenuEntries}
-										finalFocus={() => menuFocus.finalFocus(workspace.id)}
-									/>
-								</ContextMenu>
-								{/* A dragged Workspace leaves with its row alone, as a dragged Project folds. */}
-								{agentOverview !== undefined && agentExpanded && !workspaceDragging && (
-									<WorkspaceAgentList
-										gradientPrefix={`${agentGradientPrefix}-${workspace.id}-detail`}
-										navigateAgent={(presentationId) =>
-											navigateAgent({
-												presentationId,
-												workspaceId: workspace.id,
-											})
-										}
-										overview={agentOverview}
-									/>
-								)}
-							</li>
-						);
-					})}
+					{workspaces.map((workspace) => (
+						<WorkspaceNavigationRow
+							key={workspace.id}
+							active={
+								activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspace.id
+							}
+							activateWorkspace={activateWorkspace}
+							agentOverview={workspaceAgentOverviews.find(
+								(overview) => overview.workspaceId === workspace.id,
+							)}
+							deleteWorkspace={deleteWorkspace}
+							displacement={
+								workspaceReorder.displacedItemIds.includes(workspace.id)
+									? workspaceReorder.displacementDirection
+									: null
+							}
+							dragging={workspaceReorder.draggingItemId === workspace.id}
+							location={workspaceLocations.get(workspace.id)}
+							menuFocus={menuFocus}
+							messages={messages}
+							navigateAgent={navigateAgent}
+							onPointerDown={workspaceReorder.onItemPointerDown}
+							refreshWorktrees={refreshWorktrees}
+							reorderActive={workspaceReorder.displacementAnimated}
+							setWorkspaceProject={setWorkspaceProject}
+							showWorkspaceProjectCreation={showWorkspaceProjectCreation}
+							showWorkspaceRename={showWorkspaceRename}
+							state={state}
+							toggleWorkspaceAgents={toggleWorkspaceAgents}
+							workspace={workspace}
+							worktrees={worktreeMenu(workspace.id)}
+						/>
+					))}
 				</ul>
 			)}
 		</li>

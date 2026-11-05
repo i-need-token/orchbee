@@ -10,7 +10,7 @@ import {
 	Kbd,
 	ProductIcon,
 } from '@orchbee/ui/components';
-import { useId, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { ActionExecution } from '@orchbee/actions';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
@@ -128,7 +128,6 @@ export function WorkbenchSidebar({
 	workspaceLocationSource,
 	worktreeCommands,
 }: WorkbenchSidebarProps): ReactNode {
-	const agentGradientPrefix = useId().replaceAll(':', '');
 	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState);
@@ -236,7 +235,6 @@ export function WorkbenchSidebar({
 							{navigationGroups.map((project) => (
 								<ProjectNavigationItem
 									key={project?.id ?? 'ungrouped'}
-									agentGradientPrefix={`${agentGradientPrefix}-${project?.id ?? 'ungrouped'}`}
 									activateWorkspace={(workspaceId, origin) => {
 										workspaceActivation.cancel();
 										activateWorkspace(workspaceId, origin);

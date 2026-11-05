@@ -837,6 +837,7 @@ export function useWorkbench({
 			workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
+			closeWorkspace: intl.formatMessage(workbenchMessages.workspaceDelete),
 			collapseProject: intl.formatMessage(workbenchMessages.projectCollapse),
 			collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
 			create: intl.formatMessage(workbenchMessages.resourceCreate),

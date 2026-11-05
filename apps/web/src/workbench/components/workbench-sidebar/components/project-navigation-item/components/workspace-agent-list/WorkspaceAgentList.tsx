@@ -1,67 +1,83 @@
-import { Button } from '@orchbee/ui/components';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 
-import { WorkbenchAgentIdentity } from '../../../../../workbench-agent-identity/WorkbenchAgentIdentity';
+import { WorkbenchAgentStateGlyph } from '../../../../../workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../../../types/workbench-agent-overview';
+import { SidebarTruncationTooltip } from '../../../sidebar-truncation-tooltip/SidebarTruncationTooltip';
 import styles from './WorkspaceAgentList.module.css';
 
 interface WorkspaceAgentListProps {
-	readonly gradientPrefix: string;
 	readonly navigateAgent: (presentationId: TerminalPresentationId) => void;
 	readonly overview: WorkbenchWorkspaceAgentOverviewView;
 }
 
+/**
+ * A Workspace's Agents, one line each as in the TUI: the state glyph, title · provider, and the
+ * unread dot. The glyph names its state under the pointer and the dot says Unread; Agent rows have
+ * no menu.
+ */
 export function WorkspaceAgentList({
-	gradientPrefix,
 	navigateAgent,
 	overview,
 }: WorkspaceAgentListProps): ReactNode {
 	return (
 		<ul className={styles['list']} data-slot='workbench-sidebar-workspace-agents'>
-			{overview.rows.map((row, index) => (
-				<li key={row.presentationId}>
-					<Button
-						aria-label={
-							row.unreadLabel === undefined
-								? row.accessibleLabel
-								: `${row.accessibleLabel} · ${row.unreadLabel}`
-						}
-						className={styles['item']}
+			{overview.rows.map((row, index) => {
+				const title = row.titleLabel === '' ? row.agentLabel : row.titleLabel;
+				const provider = row.titleLabel === '' ? null : row.agentLabel;
+				// Portaled tooltips are not inside the row, so only a click within it opens the Agent.
+				const open = (event: MouseEvent<HTMLLIElement>) => {
+					if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
+						navigateAgent(row.presentationId);
+					}
+				};
+				return (
+					<li
+						key={row.presentationId}
+						className={styles['row']}
+						data-current={row.current || undefined}
+						data-first={index === 0 || undefined}
+						data-last={index === overview.rows.length - 1 || undefined}
 						data-navigation-reorder-excluded='true'
-						data-slot='workbench-sidebar-workspace-agent'
-						title={row.locationLabel}
-						variant='ghost'
-						onClick={() => navigateAgent(row.presentationId)}
+						onClick={open}
 					>
-						<span className={styles['identity']}>
-							<WorkbenchAgentIdentity
-								agents={row.agents}
-								gradientPrefix={`${gradientPrefix}-${index}`}
-								status={row.status}
-							/>
-						</span>
-						<span className={styles['content']}>
-							<span className={styles['primary']}>
-								<span className={styles['provider']}>{row.agentLabel}</span>
-								<span aria-hidden='true' className={styles['separator']}>
-									·
-								</span>
-								<span className={styles['status']}>{row.status.status}</span>
-							</span>
-							<span className={styles['location']}>{row.locationLabel}</span>
-						</span>
-						<span
-							aria-hidden='true'
-							className={styles['unread']}
-							data-agent-unread={row.unreadLabel === undefined ? undefined : ''}
-							title={row.unreadLabel}
+						<button
+							aria-current={row.current ? 'true' : undefined}
+							aria-label={
+								row.unreadLabel === undefined
+									? row.accessibleLabel
+									: `${row.accessibleLabel} · ${row.unreadLabel}`
+							}
+							className={styles['rowMain']}
+							data-sidebar-nav=''
+							data-slot='workbench-sidebar-workspace-agent'
+							type='button'
+						/>
+						<Tooltip>
+							<TooltipTrigger render={<span className={styles['glyph']} />}>
+								<WorkbenchAgentStateGlyph status={row.status} />
+							</TooltipTrigger>
+							<TooltipContent side='bottom'>{row.status.status}</TooltipContent>
+						</Tooltip>
+						<SidebarTruncationTooltip
+							content={provider === null ? title : `${title} · ${provider}`}
+							render={<span className={styles['text']} />}
 						>
-							●
-						</span>
-					</Button>
-				</li>
-			))}
+							<span className={styles['title']}>{title}</span>
+							{provider === null ? null : <span className={styles['provider']}>{provider}</span>}
+						</SidebarTruncationTooltip>
+						{row.unreadLabel === undefined ? null : (
+							<Tooltip>
+								<TooltipTrigger render={<span className={styles['unread']} />}>
+									<span className={styles['dot']} />
+								</TooltipTrigger>
+								<TooltipContent side='bottom'>{row.unreadLabel}</TooltipContent>
+							</Tooltip>
+						)}
+					</li>
+				);
+			})}
 		</ul>
 	);
 }

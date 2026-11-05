@@ -1,74 +1,51 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
-import { readWorkbenchMenuReferenceInlineSize } from '../utils/readWorkbenchMenuReferenceInlineSize';
-import {
-	resolveWorkbenchSidebarDropdownMenuPlacement,
-	type WorkbenchSidebarDropdownMenuPlacement,
-} from '../utils/resolveWorkbenchSidebarDropdownMenuPlacement';
+import { takeNavigationRowMenuKeyboardOrigin } from '../../project-navigation-item/utils/navigation-row-menu';
 
-export function useWorkbenchSidebarDropdownMenuPlacement(): {
-	readonly align: 'end' | 'start';
-	readonly onOpenChange: (open: boolean) => void;
+interface WorkbenchSidebarDropdownMenuPlacement {
+	readonly alignOffset: number;
 	readonly side: 'bottom' | 'right';
+	readonly sideOffset: number;
+}
+
+/** The shared menu primitive's offset from its trigger. */
+const TRIGGER_OFFSET = 4;
+/** How far past its row's end a menu opened from the keyboard starts. */
+const ROW_OFFSET = 12;
+
+const BELOW_TRIGGER: WorkbenchSidebarDropdownMenuPlacement = {
+	alignOffset: 0,
+	side: 'bottom',
+	sideOffset: TRIGGER_OFFSET,
+};
+
+/**
+ * Where a row's menu opens. From the pointer it opens below the ⋯ or + that opened it, start edges
+ * aligned; from F2, Shift+F10 or the Menu key it opens beside its row, top edges level, as the TUI's
+ * does. The primitive's collision handling moves it where the window is too small.
+ */
+export function useWorkbenchSidebarDropdownMenuPlacement(): WorkbenchSidebarDropdownMenuPlacement & {
+	readonly onOpenChange: (open: boolean) => void;
 	readonly triggerRef: React.RefObject<HTMLButtonElement | null>;
 } {
 	const triggerRef = React.useRef<HTMLButtonElement>(null);
-	const [open, setOpen] = React.useState(false);
-	const [placement, setPlacement] =
-		React.useState<WorkbenchSidebarDropdownMenuPlacement>('right-start');
-
-	const updatePlacement = useMemoizedFn(() => {
+	const [placement, setPlacement] = React.useState(BELOW_TRIGGER);
+	const onOpenChange = useMemoizedFn((open: boolean) => {
 		const trigger = triggerRef.current;
-		if (trigger === null) {
+		if (!open || trigger === null) return;
+		const row = takeNavigationRowMenuKeyboardOrigin(trigger);
+		if (row === null) {
+			setPlacement(BELOW_TRIGGER);
 			return;
 		}
-
-		const ownerDocument = trigger.ownerDocument;
+		const rowBounds = row.getBoundingClientRect();
 		const triggerBounds = trigger.getBoundingClientRect();
-		setPlacement(
-			resolveWorkbenchSidebarDropdownMenuPlacement({
-				menuInlineSize: readWorkbenchMenuReferenceInlineSize(ownerDocument),
-				triggerInlineEnd: triggerBounds.right,
-				viewportInlineSize: ownerDocument.documentElement.clientWidth,
-			}),
-		);
+		setPlacement({
+			alignOffset: rowBounds.top - triggerBounds.top,
+			side: 'right',
+			sideOffset: rowBounds.right - triggerBounds.right + ROW_OFFSET,
+		});
 	});
-
-	const onOpenChange = useMemoizedFn((nextOpen: boolean) => {
-		setOpen(nextOpen);
-		if (nextOpen) {
-			updatePlacement();
-		}
-	});
-
-	React.useEffect(() => {
-		const trigger = triggerRef.current;
-		const ownerWindow = trigger?.ownerDocument.defaultView;
-		const ResizeObserverConstructor = ownerWindow?.ResizeObserver;
-		if (
-			!open ||
-			trigger === null ||
-			ownerWindow === null ||
-			ownerWindow === undefined ||
-			ResizeObserverConstructor === undefined
-		) {
-			return;
-		}
-
-		const resizeObserver = new ResizeObserverConstructor(updatePlacement);
-		resizeObserver.observe(trigger.ownerDocument.documentElement);
-		const sidebar = trigger.closest('[data-slot="workbench-sidebar"]');
-		if (sidebar !== null) {
-			resizeObserver.observe(sidebar);
-		}
-		return () => resizeObserver.disconnect();
-	}, [open, updatePlacement]);
-
-	return {
-		align: placement === 'right-start' ? 'start' : 'end',
-		onOpenChange,
-		side: placement === 'right-start' ? 'right' : 'bottom',
-		triggerRef,
-	};
+	return { ...placement, onOpenChange, triggerRef };
 }

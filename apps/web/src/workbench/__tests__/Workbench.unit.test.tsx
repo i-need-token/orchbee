@@ -174,13 +174,11 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-slot="workbench-sidebar-workspace"');
 		expect(markup).toContain('aria-label="Collapse project: orchbee"');
 		expect(markup).toContain('aria-expanded="true"');
-		expect(markup).toContain('data-icon="folder"');
-		expect(markup).toContain('data-icon="layout"');
 		expect(markup).not.toMatch(
-			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-active="true")[^>]*>/,
+			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*aria-current=)[^>]*>/,
 		);
 		expect(markup).toMatch(
-			/<button(?=[^>]*data-slot="workbench-sidebar-workspace")(?=[^>]*data-active="true")[^>]*>/,
+			/<button(?=[^>]*data-slot="workbench-sidebar-workspace")(?=[^>]*aria-current="page")[^>]*>/,
 		);
 		expect(markup).toContain('orchbee');
 		expect(markup).toContain('Primary');
@@ -193,7 +191,7 @@ describe('Workbench', () => {
 
 		expect(activeMarkup).toContain('aria-label="Expand project: orchbee"');
 		expect(activeMarkup).toMatch(
-			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-holds-active-workspace="true")(?![^>]*data-active=)[^>]*>/,
+			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-holds-active-workspace="true")(?![^>]*aria-current=)[^>]*>/,
 		);
 		expect(activeMarkup).not.toContain('data-slot="workbench-sidebar-workspace"');
 		expect(recentMarkup).not.toContain('data-holds-active-workspace');

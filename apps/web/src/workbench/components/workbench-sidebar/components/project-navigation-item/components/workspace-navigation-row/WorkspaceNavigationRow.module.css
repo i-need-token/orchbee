@@ -1,0 +1,268 @@
+.workspace {
+	position: relative;
+	display: grid;
+	min-width: 0;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.workspace[data-workspace-reorder-active] {
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.workspace[data-workspace-reorder-displacement='down'] {
+	transform: translateY(var(--ob-comp-workbench-navigation-reorder-shift));
+	will-change: transform;
+}
+
+.workspace[data-workspace-reorder-displacement='up'] {
+	transform: translateY(calc(var(--ob-comp-workbench-navigation-reorder-shift) * -1));
+	will-change: transform;
+}
+
+.workspace[data-dragging] {
+	min-height: var(--ob-comp-workbench-navigation-reorder-block-size);
+}
+
+/* No leading column: the name aligns with the heading's text. 38 px = 4 + 18 + 12 + 4: the name
+   line takes its type's full line height and holds the 18 px tools, 4 px from the top and the end;
+   line 2 runs 4 px under its type's line height, and its text, centered optically, overflows the
+   box but is never clipped. The end area keeps 58 px for ↑NN ↓N and the dot, and ⋯ and × use 42. */
+.row {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	padding: var(--ob-ref-space-1)
+		calc(var(--ob-ref-space-12) + var(--ob-ref-space-2) + var(--ob-ref-space-0-5))
+		var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+	cursor: grab;
+}
+
+.row:hover,
+.row[data-popup-open],
+.row:has(.tool[aria-expanded='true']) {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+/* Current sits one step above hover. */
+.row[data-current] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.row[data-current]:hover,
+.row[data-current][data-popup-open],
+.row[data-current]:has(.tool[aria-expanded='true']) {
+	background: var(--ob-sys-color-surface-selected-hover);
+}
+
+.row:has(> .rowMain:active) {
+	background: var(--ob-sys-color-surface-pressed);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.row:has(> .rowMain:focus-visible) {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.workspace[data-dragging] .row {
+	position: fixed;
+	z-index: var(--ob-ref-layer-overlay);
+	top: var(--ob-comp-workbench-navigation-reorder-block-start);
+	left: var(--ob-comp-workbench-navigation-reorder-inline-start);
+	box-sizing: border-box;
+	width: var(--ob-comp-workbench-navigation-reorder-inline-size);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow:
+		0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-default),
+		var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	transform: translateY(var(--ob-comp-workbench-navigation-reorder-translate-y));
+	cursor: grabbing;
+	pointer-events: none;
+	will-change: transform;
+}
+
+.rowMain {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: inherit;
+	background: none;
+	cursor: inherit;
+}
+
+.rowMain:focus-visible {
+	outline: none;
+}
+
+.line1,
+.line2 {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+}
+
+/* Line 1 is as tall as its row tools; line 2 is label-xs's 16 px line box less 4 px, so a row is
+   4 + 18 + 12 + 4 = 38 px. */
+.line1 {
+	height: var(--ob-ref-size-control-2xs);
+}
+
+.line2 {
+	height: var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+	white-space: nowrap;
+}
+
+/* Text beside icons sits on the icons' center line (G19): trimmed to its cap height and baseline,
+   then raised a quarter of the cap height's lead over the x-height. Lowercase no longer sits about
+   2 px low, as Segoe UI sets it, and capitals and CJK stay within a pixel. The padding keeps
+   ascenders and descenders inside the truncation clip. */
+.name,
+.lineText {
+	min-width: 0;
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+	white-space: nowrap;
+}
+
+.endInfo {
+	position: absolute;
+	top: var(--ob-ref-space-1);
+	right: var(--ob-ref-space-2);
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	height: var(--ob-ref-size-control-2xs);
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	font: var(--ob-sys-typography-label-xs);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.ahead {
+	color: var(--ob-sys-color-status-success-text);
+}
+
+.behind {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.dot {
+	flex: none;
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
+}
+
+/* ⋯ and × end 4 px from the row's end and center on the name line (G21). */
+.tools {
+	position: absolute;
+	top: var(--ob-ref-space-1);
+	right: var(--ob-ref-space-1);
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	gap: var(--ob-ref-space-0-5);
+	visibility: hidden;
+}
+
+.row:hover .tools,
+.row[data-popup-open] .tools,
+.row:has(:focus-visible) .tools,
+.row:has(.tool[aria-expanded='true']) .tools {
+	visibility: visible;
+}
+
+.row:hover .endInfo,
+.row[data-popup-open] .endInfo,
+.row:has(:focus-visible) .endInfo,
+.row:has(.tool[aria-expanded='true']) .endInfo {
+	visibility: hidden;
+}
+
+.workspace[data-dragging] .tools {
+	visibility: hidden;
+}
+
+.chevron,
+.tool {
+	position: relative;
+	display: inline-flex;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+	cursor: default;
+}
+
+.chevron {
+	color: var(--ob-sys-color-icon-muted);
+}
+
+/* The chevron always shows (ORC-285); the pointer on its row raises it. */
+.row:hover .chevron {
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.chevron:hover,
+.tool:hover,
+.tool[aria-expanded='true'] {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.chevron:active,
+.tool:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.chevron:focus-visible,
+.tool:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* × turns red under the pointer; it closes, so it never takes a red fill. */
+.tool[data-danger]:hover {
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+/* The chevron turns about its ink's center (G20): Codicon draws › right of center, at 8.75 of its
+   16 units, so a turn about the box center left ⌄ about 0.66 px below the line › sits on. */
+.chevronIcon {
+	display: inline-flex;
+	transform-origin: calc(100% * 8.75 / 16) 50%;
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.chevronIcon[data-open] {
+	transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chevronIcon {
+		transition: none;
+	}
+}

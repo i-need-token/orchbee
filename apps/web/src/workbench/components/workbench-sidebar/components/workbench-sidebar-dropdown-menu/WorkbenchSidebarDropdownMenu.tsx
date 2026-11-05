@@ -31,9 +31,11 @@ export function WorkbenchSidebarDropdownMenu({
 				{triggerContent}
 			</DropdownMenuTrigger>
 			<WorkbenchActionDropdownMenuContent
-				align={placement.align}
+				align='start'
+				alignOffset={placement.alignOffset}
 				entries={entries}
 				side={placement.side}
+				sideOffset={placement.sideOffset}
 			/>
 		</DropdownMenu>
 	);

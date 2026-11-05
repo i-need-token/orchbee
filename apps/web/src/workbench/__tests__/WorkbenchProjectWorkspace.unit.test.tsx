@@ -557,20 +557,16 @@ describe('Workbench Project and Workspace management', () => {
 		const workspaceButton = screen.getByRole('button', {
 			name: 'Primary. 1 live Agent. Codex: Ready',
 		});
-		expect(workspaceButton.querySelector('[data-agent-provider-icon="codex"]')).not.toBeNull();
+		const workspaceRow = workspaceButton.closest('[data-workspace-id]');
 		const agentName = `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`;
 		const agentButton = screen.getByRole('button', { name: agentName });
-		expect(agentButton.textContent).toContain('Codex');
-		expect(agentButton.textContent).toContain(`${targetTabTitle} · Panel 1 · Primary terminal`);
+		expect(agentButton.closest('li')?.textContent).toContain('Codex');
 
 		// Folded, the row's second line lists the states, and the fold outlasts a folded Project and a
 		// hidden sidebar.
 		fireEvent.click(screen.getByRole('button', { name: 'Hide 1 Agent in Primary' }));
 		expect(screen.queryByRole('button', { name: agentName })).toBeNull();
-		const states = workspaceButton.querySelector(
-			'[data-slot="workbench-sidebar-workspace-agent-states"]',
-		);
-		expect(states?.getAttribute('title')).toBe('Ready');
+		const states = workspaceRow?.querySelector('[data-slot="workbench-workspace-agent-status"]');
 		expect(states?.querySelectorAll('[data-agent-state-glyph]')).toHaveLength(1);
 		fireEvent.click(screen.getByRole('button', { name: 'Collapse project: orchbee' }));
 		fireEvent.click(screen.getByRole('button', { name: 'Expand project: orchbee' }));
@@ -598,7 +594,9 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() => {
 			expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
 			expect(screen.queryByRole('button', { name: /Agent in Primary/iu })).toBeNull();
-			expect(screen.getByRole('button', { name: 'Primary' }).textContent).toContain('Primary');
+			expect(
+				screen.getByRole('button', { name: 'Primary' }).closest('[data-workspace-id]')?.textContent,
+			).toContain('Primary');
 		});
 	});
 

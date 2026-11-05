@@ -26,6 +26,8 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly workspaceUngroup: string;
 	readonly cancel: string;
 	readonly close: string;
+	/** The × tool's tooltip on a Workspace row. */
+	readonly closeWorkspace: string;
 	readonly collapseProject: string;
 	readonly collapseRecents: string;
 	readonly create: string;

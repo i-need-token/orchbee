@@ -25,7 +25,7 @@ export interface WorkbenchAgentBoardRowView {
 	/** The terminal, provider, freshness and place, as one line after the status. */
 	readonly detail: string;
 	readonly ended: boolean;
-	readonly glyph: Pick<WorkbenchAgentStatusView, 'glyph' | 'tone'>;
+	readonly glyph: Pick<WorkbenchAgentStatusView, 'shape' | 'tone'>;
 	readonly sessionId: string;
 	readonly status: string;
 }
@@ -97,7 +97,7 @@ export function projectWorkbenchAgentBoardRows(
 				.filter((part) => part !== '')
 				.join(SEPARATOR),
 			ended: row.ended,
-			glyph: { glyph: glyph.glyph, tone: glyph.tone },
+			glyph: { shape: glyph.shape, tone: glyph.tone },
 			sessionId: row.sessionId,
 			status:
 				row.status.kind === 'needs-attention'

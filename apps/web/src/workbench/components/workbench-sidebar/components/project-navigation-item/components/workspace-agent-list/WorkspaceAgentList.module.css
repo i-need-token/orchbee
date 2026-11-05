@@ -1,99 +1,144 @@
 .list {
 	display: grid;
-	min-width: var(--ob-ref-space-0);
+	min-width: 0;
 	gap: var(--ob-ref-space-0-5);
-	margin: var(--ob-ref-space-0);
-	padding: var(--ob-ref-space-0);
-	padding-inline-start: var(--ob-ref-space-6);
+	margin: 0;
+	padding: 0;
 	list-style: none;
 }
 
-.list > li {
-	min-width: var(--ob-ref-space-0);
-}
-
-.item {
-	width: 100%;
-	min-width: var(--ob-ref-space-0);
-	height: auto;
-	min-height: var(--ob-ref-size-control-navigation);
-	justify-content: flex-start;
-	gap: var(--ob-ref-space-2);
-	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
-	overflow: hidden;
-	border: none;
+/* Under a 1 px guide at the Workspace name's start; each cell spans the row's height, so its
+   tooltip opens 4 px below the row. */
+.row {
+	position: relative;
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-icon-sm) minmax(0, 1fr) auto;
+	column-gap: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-size-control-sm);
+	margin-inline-start: var(--ob-ref-space-3);
+	padding: 0 var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-secondary);
-	text-align: start;
+	cursor: pointer;
 }
 
-.item:hover,
-.item:focus-visible {
+.row::before {
+	position: absolute;
+	inset-block: calc(var(--ob-ref-space-0-5) / -2);
+	inset-inline-start: calc(var(--ob-ref-space-1) * -1);
+	width: var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-subtle);
+	content: '';
+}
+
+.row[data-first]::before {
+	inset-block-start: var(--ob-ref-space-0-5);
+}
+
+.row[data-last]::before {
+	inset-block-end: var(--ob-ref-space-0-5);
+}
+
+.row:hover {
 	background: var(--ob-sys-color-surface-hovered);
 	color: var(--ob-sys-color-text-primary);
 }
 
-.identity {
-	display: inline-flex;
-	width: calc(var(--ob-ref-size-icon-sm) * 2 + var(--ob-ref-space-1));
-	flex: none;
-	align-items: center;
-	justify-content: center;
-}
-
-.content,
-.primary {
-	display: flex;
-	min-width: var(--ob-ref-space-0);
-}
-
-.content {
-	flex: 1;
-	flex-direction: column;
-	align-items: stretch;
-}
-
-.primary {
-	align-items: baseline;
-	gap: var(--ob-ref-space-1);
-	font: var(--ob-sys-typography-label-sm);
-}
-
-.provider,
-.status,
-.location {
-	min-width: var(--ob-ref-space-0);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.provider {
-	flex: none;
+.row[data-current] {
+	background: var(--ob-sys-color-surface-selected);
 	color: var(--ob-sys-color-text-primary);
 }
 
-.status {
-	flex: 1;
+.row[data-current]:hover {
+	background: var(--ob-sys-color-surface-selected-hover);
 }
 
-.separator,
-.location {
+.row:has(> .rowMain:active) {
+	background: var(--ob-sys-color-surface-pressed);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.row:has(> .rowMain:focus-visible) {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.rowMain {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: inherit;
+	background: none;
+	cursor: pointer;
+}
+
+.rowMain:focus-visible {
+	outline: none;
+}
+
+.glyph,
+.text,
+.unread {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	min-width: 0;
+	align-items: center;
+}
+
+.glyph {
+	grid-column: 1;
+	justify-content: center;
+}
+
+.text {
+	grid-column: 2;
+	font: var(--ob-sys-typography-label-sm);
+	white-space: nowrap;
+}
+
+/* Text beside icons sits on the icons' center line (G19): trimmed to its cap height and baseline,
+   then raised a quarter of the cap height's lead over the x-height; the padding keeps ascenders
+   and descenders inside the truncation clip. */
+.title,
+.provider {
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+}
+
+.title {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+/* The provider stays whole while the title truncates first (ORC-319). */
+.provider {
+	flex: 0 0 auto;
+	max-width: 70%;
 	color: var(--ob-sys-color-text-muted);
 }
 
-.location {
-	font: var(--ob-sys-typography-label-xs);
+.provider::before {
+	padding-inline: var(--ob-ref-space-1);
+	content: '·';
 }
 
+/* The dot's cell reaches 4 px past it on each side, so the pointer finds its tooltip. */
 .unread {
-	flex: none;
-	width: var(--ob-ref-size-icon-sm);
-	color: var(--ob-sys-color-status-unread);
-	font: var(--ob-sys-typography-label-sm);
-	text-align: center;
+	grid-column: 3;
+	margin-inline: calc(var(--ob-ref-space-1) * -1);
+	padding-inline: var(--ob-ref-space-1);
 }
 
-.unread:not([data-agent-unread]) {
-	visibility: hidden;
+.dot {
+	flex: none;
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
 }

@@ -14,7 +14,7 @@ interface NavigationMenuReturnTarget {
 	readonly restore: boolean;
 }
 
-interface ProjectNavigationMenuFocus {
+export interface ProjectNavigationMenuFocus {
 	readonly onOpenChange: (
 		workspaceId: string | null,
 		open: boolean,

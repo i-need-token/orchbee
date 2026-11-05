@@ -609,6 +609,7 @@ export const designTokenNames = [
 	'--ob-ref-space-8',
 	'--ob-ref-text-decoration-none',
 	'--ob-ref-text-decoration-underline',
+	'--ob-ref-text-icon-center-shift',
 	'--ob-ref-text-shadow-2xs',
 	'--ob-ref-text-shadow-lg',
 	'--ob-ref-text-shadow-md',

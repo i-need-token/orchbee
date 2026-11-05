@@ -513,6 +513,7 @@
 	--ob-ref-layer-modal: 400;
 	--ob-ref-layer-toast: 500;
 	--ob-ref-layout-reading-width: 70ch;
+	--ob-ref-text-icon-center-shift: calc((1ex - 1cap) / 4);
 }
 
 :root,

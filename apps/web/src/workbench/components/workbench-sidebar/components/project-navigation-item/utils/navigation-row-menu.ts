@@ -2,6 +2,16 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 
 import { matchesNavigationMenuShortcut } from './navigation-menu-shortcuts';
 
+/** Marks a menu trigger that a row shortcut is opening, so the menu opens beside that row. */
+const KEYBOARD_ORIGIN = 'data-navigation-menu-keyboard-origin';
+
+/** The row whose shortcut opened this trigger's menu, read once; null when the pointer opened it. */
+export function takeNavigationRowMenuKeyboardOrigin(trigger: HTMLElement): HTMLElement | null {
+	if (!trigger.hasAttribute(KEYBOARD_ORIGIN)) return null;
+	trigger.removeAttribute(KEYBOARD_ORIGIN);
+	return trigger.closest<HTMLElement>('[data-navigation-reorder-row], [data-recents-row]');
+}
+
 export function findNavigationRowMenuTrigger(row: HTMLElement): HTMLButtonElement | null {
 	const trigger = row.querySelector<HTMLButtonElement>('button[data-navigation-menu-trigger]');
 	return trigger?.isConnected === true &&
@@ -27,7 +37,9 @@ export function openNavigationRowMenuFromKeyboard(event: KeyboardEvent<HTMLDivEl
 	if (trigger === null || trigger.getAttribute('aria-expanded') === 'true') return;
 	event.preventDefault();
 	trigger.focus({ preventScroll: true });
-	if (trigger.isConnected) trigger.click();
+	if (!trigger.isConnected) return;
+	trigger.setAttribute(KEYBOARD_ORIGIN, '');
+	trigger.click();
 }
 
 export function suppressDuplicateNavigationContextMenu(event: MouseEvent<HTMLDivElement>): void {

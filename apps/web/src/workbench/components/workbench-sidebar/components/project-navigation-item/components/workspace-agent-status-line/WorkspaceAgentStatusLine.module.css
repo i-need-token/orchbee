@@ -1,20 +1,46 @@
-/*
- * One glyph per Agent, one gap apart, as the TUI leaves one blank cell between them. The line takes
- * the location line's type and is one line of it tall, so folding never moves the rows below.
- */
 .line {
 	display: flex;
-	min-width: var(--ob-ref-space-0);
-	height: 1lh;
+	min-width: 0;
 	align-items: center;
-	gap: var(--ob-ref-space-1);
-	overflow: hidden;
-	font: var(--ob-sys-typography-label-xs);
+	gap: var(--ob-ref-space-0-5);
 }
 
-.remainder {
-	flex: none;
+/* Centered optically with the glyphs, as a row's text beside icons is (G19). */
+.more {
+	margin-inline-start: var(--ob-ref-space-0-5);
+	padding-block: var(--ob-ref-space-1);
 	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-label-xs);
-	font-variant-numeric: tabular-nums;
+	text-box: trim-both cap alphabetic;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+}
+
+.legend {
+	display: grid;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.legendRow {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
+	white-space: nowrap;
+}
+
+/* The tooltip's inverse surface draws the neutral states in its own text color. */
+.legendRow [data-tone='working'],
+.legendRow [data-tone='idle'],
+.legendRow [data-tone='neutral'] {
+	color: currentColor;
+}
+
+.legendRow [data-agent-state-glyph] {
+	animation: none;
+}
+
+.unread {
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	margin-inline: calc((var(--ob-ref-size-icon-xs) - var(--ob-ref-space-1-5)) / 2);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
 }

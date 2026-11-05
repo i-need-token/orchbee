@@ -81,6 +81,12 @@ Apply these hierarchy rules:
   the layout.
 - A specialized content renderer's glyph size and line height are renderer settings, not UI
   typography tokens.
+- One-line text beside an icon or row tool centers on the icon's center line, not on its line box.
+  Trim the text box with `text-box: trim-both cap alphabetic`, shift it by
+  `translate: 0 var(--ob-ref-text-icon-center-shift)`, and keep
+  `padding-block: var(--ob-ref-space-1)` so ascenders and descenders stay inside a truncation clip.
+  The shift raises the cap-height box by a quarter of its difference from the x-height, so faces
+  that set lowercase low, such as Segoe UI, still read as centered.
 
 ## Text hierarchy
 

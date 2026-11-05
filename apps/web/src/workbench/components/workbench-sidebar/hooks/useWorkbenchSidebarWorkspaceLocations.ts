@@ -12,21 +12,29 @@ export interface WorkbenchSidebarWorkspaceLocation {
 	readonly ahead: number;
 	/** Commits to pull; the row shows a positive count. */
 	readonly behind: number;
+	/** The directory, with home shortened to `~`; the second line's tooltip shows it whole. */
+	readonly directory: string | null;
 	/** The shown counts in words, for the row's accessible name. */
 	readonly divergenceLabel: string | null;
 	readonly heldName: string | null;
-	/** The second line: the branch, otherwise the folder, which is a path. */
+	/** The second line: the branch, otherwise the directory's own folder name, or `~` for home. */
 	readonly line: { readonly kind: 'branch' | 'folder'; readonly text: string } | null;
 }
 
 const NO_LOCATIONS: ReadonlyMap<string, WorkbenchWorkspaceLocation> = new Map();
+
+/** A path's final folder, so `~/code/orchbee` reads `orchbee` and `~` stays `~`. */
+function folderName(path: string): string {
+	const parts = path.split(/[/\\]/u).filter((part) => part !== '');
+	return parts.at(-1) ?? path;
+}
 
 function locationLine(
 	location: WorkbenchWorkspaceLocation,
 ): WorkbenchSidebarWorkspaceLocation['line'] {
 	const branch = location.git?.branch ?? null;
 	if (branch !== null) return { kind: 'branch', text: branch };
-	return location.folder === null ? null : { kind: 'folder', text: location.folder };
+	return location.folder === null ? null : { kind: 'folder', text: folderName(location.folder) };
 }
 
 /** Observes Workspace locations while the sidebar shows, and words them for its rows. */
@@ -62,6 +70,7 @@ export function useWorkbenchSidebarWorkspaceLocations(
 			rows.set(workspaceId, {
 				ahead,
 				behind,
+				directory: location.folder,
 				divergenceLabel: counts.length === 0 ? null : counts.join('. '),
 				heldName: location.heldName,
 				line: locationLine(location),

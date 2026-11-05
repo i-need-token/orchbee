@@ -1,8 +1,13 @@
 .project {
 	position: relative;
 	display: grid;
-	min-width: var(--ob-ref-space-0);
+	min-width: 0;
 	gap: var(--ob-ref-space-0-5);
+}
+
+/* Groups stand 12 px apart. */
+.project + .project {
+	margin-block-start: var(--ob-ref-space-3);
 }
 
 .project[data-project-reorder-active] {
@@ -19,61 +24,43 @@
 	will-change: transform;
 }
 
-.workspace {
-	position: relative;
-	min-width: var(--ob-ref-space-0);
-}
-
-.workspace[data-workspace-reorder-active] {
-	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
-}
-
-.workspace[data-workspace-reorder-displacement='down'] {
-	transform: translateY(var(--ob-comp-workbench-navigation-reorder-shift));
-	will-change: transform;
-}
-
-.workspace[data-workspace-reorder-displacement='up'] {
-	transform: translateY(calc(var(--ob-comp-workbench-navigation-reorder-shift) * -1));
-	will-change: transform;
-}
-
-.project[data-dragging],
-.workspace[data-dragging] {
+.project[data-dragging] {
 	min-height: var(--ob-comp-workbench-navigation-reorder-block-size);
 }
 
-.project + .project {
-	margin-block-start: var(--ob-ref-space-1);
-}
-
-.projectRow,
-.workspaceRow {
+/* Group headings: Projects and Recents. Never current, never filled; the pointer lights the
+   chevron, which alone folds the group. + and ⋯ end 4 px from the row end, in the columns of a
+   Workspace's ⋯ and ×. */
+.heading {
 	position: relative;
 	display: flex;
-	min-width: var(--ob-ref-space-0);
+	min-width: 0;
+	height: var(--ob-ref-size-control-sm);
 	align-items: center;
-}
-
-.projectRow,
-.workspaceRow {
+	gap: var(--ob-ref-space-0-5);
+	padding: 0 var(--ob-ref-space-1) 0 var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
 	cursor: grab;
 }
 
-.projectRow[data-recents-row] {
+.heading[data-recents-row] {
 	cursor: default;
 }
 
-.project[data-dragging] .projectRow,
-.workspace[data-dragging] .workspaceRow {
+.heading:has(.chevron:focus-visible) {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.project[data-dragging] .heading {
 	position: fixed;
 	z-index: var(--ob-ref-layer-overlay);
 	top: var(--ob-comp-workbench-navigation-reorder-block-start);
 	left: var(--ob-comp-workbench-navigation-reorder-inline-start);
 	box-sizing: border-box;
 	width: var(--ob-comp-workbench-navigation-reorder-inline-size);
-	border-radius: var(--ob-ref-radius-ui-md);
-	background: var(--ob-sys-color-surface-canvas);
+	background: var(--ob-sys-color-surface-overlay);
 	box-shadow:
 		0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-default),
 		var(--ob-sys-shadow-overlay);
@@ -83,216 +70,104 @@
 	will-change: transform;
 }
 
-.project[data-dragging] .projectItem,
-.workspace[data-dragging] .workspaceItem {
-	background: var(--ob-sys-color-surface-selected);
-	color: var(--ob-sys-color-text-primary);
-}
-
-.projectItem,
-.workspaceItem {
-	min-width: var(--ob-ref-space-0);
-	height: var(--ob-ref-size-control-navigation);
-	flex: 1;
-	justify-content: flex-start;
-	gap: var(--ob-ref-space-1);
-	padding-inline: var(--ob-ref-space-1) var(--ob-ref-space-8);
+/* Text beside icons sits on the icons' center line (G19): trimmed to its cap height and baseline,
+   then raised a quarter of the cap height's lead over the x-height; the padding keeps ascenders and
+   descenders inside the truncation clip. */
+.headingName {
+	min-width: 0;
+	padding-block: var(--ob-ref-space-1);
 	overflow: hidden;
-	border: none;
-	border-radius: var(--ob-ref-radius-ui-md);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-body-sm);
-}
-
-.projectItem[aria-expanded='true'] {
-	background: transparent;
-	color: var(--ob-sys-color-text-secondary);
-}
-
-.projectRow:hover .projectItem,
-.projectRow:focus-within .projectItem,
-.projectRow[data-popup-open] .projectItem,
-.projectRow:has(.rowMenu[aria-expanded='true']) .projectItem {
-	background: var(--ob-sys-color-surface-subtle);
-	color: var(--ob-sys-color-text-primary);
-}
-
-.workspaceItem[data-active] {
-	background: var(--ob-sys-color-surface-selected);
-	color: var(--ob-sys-color-text-primary);
-}
-
-.workspaceRow:hover .workspaceItem,
-.workspaceRow:focus-within .workspaceItem,
-.workspaceRow[data-popup-open] .workspaceItem,
-.workspaceRow:has(.rowMenu[aria-expanded='true']) .workspaceItem {
-	background: var(--ob-sys-color-surface-hovered);
-	color: var(--ob-sys-color-text-primary);
-}
-
-.workspaceRow:hover .workspaceItem[data-active],
-.workspaceRow:focus-within .workspaceItem[data-active],
-.workspaceRow[data-popup-open] .workspaceItem[data-active],
-.workspaceRow:has(.rowMenu[aria-expanded='true']) .workspaceItem[data-active] {
-	background: var(--ob-sys-color-surface-selected-hover);
-}
-
-.projectRow:hover .icon,
-.projectRow:hover .disclosure,
-.projectRow:focus-within .icon,
-.projectRow:focus-within .disclosure,
-.projectRow[data-popup-open] .icon,
-.projectRow[data-popup-open] .disclosure,
-.workspaceRow:hover .icon,
-.workspaceRow:focus-within .icon,
-.workspaceRow[data-popup-open] .icon,
-.workspaceItem[data-active] .icon,
-.projectRow:has(.rowMenu[aria-expanded='true']) .icon,
-.projectRow:has(.rowMenu[aria-expanded='true']) .disclosure,
-.workspaceRow:has(.rowMenu[aria-expanded='true']) .icon {
-	color: var(--ob-sys-color-icon-primary);
-}
-
-.icon {
-	display: flex;
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	width: var(--ob-ref-size-icon-lg);
-	color: var(--ob-sys-color-icon-secondary);
-}
-
-.disclosure {
-	display: inline-flex;
-	flex: none;
-	align-items: center;
-	justify-content: center;
-	width: var(--ob-ref-size-icon-md);
-	color: var(--ob-sys-color-icon-secondary);
-	transform: rotate(0deg);
-	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
-}
-
-.disclosure[data-expanded] {
-	transform: rotate(90deg);
-}
-
-.projectName,
-.workspaceName {
-	min-width: var(--ob-ref-space-0);
-	overflow: hidden;
+	text-box: trim-both cap alphabetic;
 	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
 	white-space: nowrap;
 }
 
-.workspaceName {
-	flex: 1;
-	text-align: start;
-}
-
-.workspaceText {
+.tools {
 	display: flex;
-	min-width: var(--ob-ref-space-0);
-	flex: 1;
-	flex-direction: column;
-}
-
-/* The identity line keeps a lone row's height, so the icon and the row's controls stay centred on it. */
-.workspaceIdentity {
-	display: flex;
-	min-width: var(--ob-ref-space-0);
-	min-height: var(--ob-ref-size-control-navigation);
-	align-items: center;
-	gap: var(--ob-ref-space-1);
-}
-
-/* The location line rises into the identity line's lower padding and repeats that padding below. */
-.workspaceLocation {
-	display: flex;
-	min-width: var(--ob-ref-space-0);
-	margin-block-start: calc(var(--ob-ref-space-1-5) * -1);
-	padding-block-end: var(--ob-ref-space-1-5);
-}
-
-.divergence {
-	display: inline-flex;
 	flex: none;
 	gap: var(--ob-ref-space-0-5);
-	font: var(--ob-sys-typography-label-xs);
-	font-variant-numeric: tabular-nums;
-}
-
-.ahead {
-	color: var(--ob-sys-color-status-success-text);
-}
-
-.behind {
-	color: var(--ob-sys-color-status-warning-text);
-}
-
-.workspaceItem .icon {
-	width: calc(2 * var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1));
-	height: var(--ob-ref-size-control-navigation);
-	justify-content: flex-end;
-}
-
-.unread {
-	flex: none;
-	width: var(--ob-ref-size-icon-sm);
-	color: var(--ob-sys-color-status-unread);
-	font: var(--ob-sys-typography-label-sm);
-	text-align: center;
-}
-
-.unread:not([data-agent-unread]) {
+	margin-inline-start: auto;
 	visibility: hidden;
 }
 
-/* Centred on the identity line, which is the whole row unless a Workspace shows its location. */
-.rowMenu {
-	position: absolute;
-	inset-block-start: calc(var(--ob-ref-size-control-navigation) / 2);
-	inset-inline-end: var(--ob-ref-space-1);
+.heading:hover .tools,
+.heading[data-popup-open] .tools,
+.heading:has(:focus-visible) .tools,
+.heading:has(.tool[aria-expanded='true']) .tools {
+	visibility: visible;
+}
+
+.project[data-dragging] .tools {
+	visibility: hidden;
+}
+
+.chevron,
+.tool {
+	position: relative;
+	display: inline-flex;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
 	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
 	border: none;
-	color: var(--ob-sys-color-icon-muted);
-	transform: translateY(-50%);
-	transition-property: background-color, color, border-color, box-shadow;
-	pointer-events: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
 	cursor: default;
 }
 
-:is(.projectRow, .workspaceRow):not(:hover):not(:focus-within):not([data-popup-open])
-	.rowMenu:not([aria-expanded='true']) {
-	opacity: 0;
+.chevron {
+	color: var(--ob-sys-color-icon-muted);
 }
 
-.projectRow:hover .rowMenu,
-.projectRow:focus-within .rowMenu,
-.projectRow[data-popup-open] .rowMenu,
-.workspaceRow:hover .rowMenu,
-.workspaceRow:focus-within .rowMenu,
-.workspaceRow[data-popup-open] .rowMenu,
-.rowMenu[aria-expanded='true'] {
-	pointer-events: auto;
-}
-
-.rowMenu:hover,
-.rowMenu:focus-visible,
-.rowMenu[aria-expanded='true'] {
-	background: transparent;
+.heading:hover .chevron {
 	color: var(--ob-sys-color-icon-primary);
+}
+
+.chevron:hover,
+.tool:hover,
+.tool[aria-expanded='true'] {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.chevron:active,
+.tool:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+/* The heading's ring stands for its chevron's. */
+.chevron:focus-visible {
+	outline: none;
+}
+
+.tool:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* The chevron turns about its ink's center (G20): Codicon draws › right of center, at 8.75 of its
+   16 units. */
+.chevronIcon {
+	display: inline-flex;
+	transform-origin: calc(100% * 8.75 / 16) 50%;
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.chevronIcon[data-open] {
+	transform: rotate(90deg);
 }
 
 .workspaceList {
 	display: grid;
-	min-width: var(--ob-ref-space-0);
+	min-width: 0;
 	gap: var(--ob-ref-space-0-5);
-	margin: var(--ob-ref-space-0);
-	margin-inline-start: var(--ob-ref-space-3);
-	padding: var(--ob-ref-space-0);
-	padding-inline-start: var(--ob-ref-space-2);
-	border-inline-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	margin: 0;
+	padding: 0;
 	list-style: none;
 }
 
@@ -300,59 +175,8 @@
 	user-select: none;
 }
 
-.workspaceItem {
-	align-items: flex-start;
-	height: auto;
-	min-height: var(--ob-ref-size-control-navigation);
-	padding-inline-start: var(--ob-ref-space-2);
-}
-
-.workspaceItem[data-agent-summary] {
-	padding-inline-end: calc(
-		var(--ob-ref-space-8) + var(--ob-ref-size-control-xs) + var(--ob-ref-space-1)
-	);
-}
-
-.agentCount {
-	min-width: var(--ob-ref-space-4);
-	flex: none;
-	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-label-xs);
-	font-variant-numeric: tabular-nums;
-	text-align: end;
-}
-
-.agentDisclosure {
-	position: absolute;
-	inset-block-start: calc(var(--ob-ref-size-control-navigation) / 2);
-	inset-inline-end: calc(var(--ob-ref-space-1) + var(--ob-ref-size-control-xs));
-	flex: none;
-	border: none;
-	color: var(--ob-sys-color-icon-muted);
-	transform: translateY(-50%);
-	cursor: default;
-}
-
-.agentDisclosure:hover,
-.agentDisclosure:focus-visible {
-	background: transparent;
-	color: var(--ob-sys-color-icon-primary);
-}
-
-.agentDisclosureIcon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	transform: rotate(0deg);
-	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
-}
-
-.agentDisclosureIcon[data-expanded] {
-	transform: rotate(90deg);
-}
-
 @media (prefers-reduced-motion: reduce) {
-	.agentDisclosureIcon {
+	.chevronIcon {
 		transition: none;
 	}
 }
