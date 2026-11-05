@@ -9,6 +9,11 @@ import {
 } from './workbench-semantic-contract';
 
 const bytes = (value: string) => new TextEncoder().encode(value).byteLength;
+const hasControlCharacter = (value: string) =>
+	[...value].some((character) => {
+		const code = character.charCodeAt(0);
+		return code < 32 || (code >= 127 && code <= 159);
+	});
 export const ConfiguredCommandIdSchema = z
 	.string()
 	.max(120)
@@ -26,14 +31,7 @@ export const ConfiguredCommandDescriptorSchema = z
 				z
 					.string()
 					.min(1)
-					.refine(
-						(value) =>
-							bytes(value) <= 128 &&
-							![...value].some((character) => {
-								const code = character.charCodeAt(0);
-								return code < 32 || (code >= 127 && code <= 159);
-							}),
-					),
+					.refine((value) => bytes(value) <= 128 && !hasControlCharacter(value)),
 			)
 			.max(16),
 		description: z
@@ -42,6 +40,17 @@ export const ConfiguredCommandDescriptorSchema = z
 				(value) =>
 					value.trim().length > 0 &&
 					!value.includes('\0') &&
+					!/[\uD800-\uDFFF]/u.test(value) &&
+					bytes(value) <= 512,
+			)
+			.nullable(),
+		// The command line or plugin target as the TUI's key help shows it: display text only.
+		display: z
+			.string()
+			.refine(
+				(value) =>
+					value.trim().length > 0 &&
+					!hasControlCharacter(value) &&
 					!/[\uD800-\uDFFF]/u.test(value) &&
 					bytes(value) <= 512,
 			)

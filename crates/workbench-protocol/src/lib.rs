@@ -42,7 +42,7 @@ pub use command::{
     ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
     ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,
     ConfiguredCommandSelection, ConfiguredCommandSource, ConfiguredCommandTextPoint,
-    MAXIMUM_CONFIGURED_COMMAND_BYTES,
+    MAXIMUM_CONFIGURED_COMMAND_BYTES, MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES,
 };
 pub use command::{
     CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,

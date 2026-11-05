@@ -186,6 +186,7 @@
 							"action": "shell",
 							"bindings": [],
 							"description": null,
+							"display": "git status",
 							"width": null,
 							"height": null
 						},
@@ -194,6 +195,7 @@
 							"action": "pane",
 							"bindings": [],
 							"description": null,
+							"display": null,
 							"width": null,
 							"height": null
 						},
@@ -202,6 +204,7 @@
 							"action": "popup",
 							"bindings": [],
 							"description": null,
+							"display": "lazygit",
 							"width": null,
 							"height": null
 						},
@@ -210,6 +213,32 @@
 							"action": "plugin_action",
 							"bindings": [],
 							"description": null,
+							"display": "tools.refresh",
+							"width": null,
+							"height": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "catalog-display-byte-bound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"revision": "1",
+					"entries": [
+						{
+							"id": "cmd_profile_0",
+							"action": "shell",
+							"bindings": [],
+							"description": null,
+							"display": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界ab",
 							"width": null,
 							"height": null
 						}
@@ -962,6 +991,7 @@
 							"action": "shell",
 							"bindings": [],
 							"description": null,
+							"display": null,
 							"width": null,
 							"height": null
 						},
@@ -970,6 +1000,7 @@
 							"action": "pane",
 							"bindings": [],
 							"description": null,
+							"display": null,
 							"width": null,
 							"height": null
 						},
@@ -978,6 +1009,7 @@
 							"action": "popup",
 							"bindings": [],
 							"description": null,
+							"display": null,
 							"width": null,
 							"height": null
 						},
@@ -986,6 +1018,84 @@
 							"action": "plugin_action",
 							"bindings": [],
 							"description": null,
+							"display": null,
+							"width": null,
+							"height": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "display-control-character",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"revision": "1",
+					"entries": [
+						{
+							"id": "cmd_profile_0",
+							"action": "shell",
+							"bindings": [],
+							"description": null,
+							"display": "git \u001b[31mstatus",
+							"width": null,
+							"height": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "display-blank",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"revision": "1",
+					"entries": [
+						{
+							"id": "cmd_profile_0",
+							"action": "shell",
+							"bindings": [],
+							"description": null,
+							"display": "   ",
+							"width": null,
+							"height": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "display-over-byte-bound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"revision": "1",
+					"entries": [
+						{
+							"id": "cmd_profile_0",
+							"action": "shell",
+							"bindings": [],
+							"description": null,
+							"display": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界",
 							"width": null,
 							"height": null
 						}

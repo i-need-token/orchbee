@@ -8,6 +8,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 pub const MAXIMUM_CONFIGURED_COMMAND_BYTES: usize = 256 * 1024;
+/// UTF-8 bytes a descriptor's `display` text may hold.
+pub const MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,6 +28,10 @@ pub struct ConfiguredCommandDescriptor {
     pub bindings: Vec<String>,
     #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
     pub description: Option<String>,
+    /// The command line or plugin target as the TUI's key help shows it: display text only, never
+    /// an executable, bounded and free of control characters.
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub display: Option<String>,
     #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
     pub width: Option<PluginPopupSize>,
     #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
@@ -62,6 +68,11 @@ impl ConfiguredCommandDescriptor {
             })
             || self.description.as_ref().is_some_and(|value| {
                 value.trim().is_empty() || value.len() > 512 || value.contains('\0')
+            })
+            || self.display.as_ref().is_some_and(|value| {
+                value.trim().is_empty()
+                    || value.len() > MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES
+                    || value.chars().any(char::is_control)
             })
             || self.action != ConfiguredCommandKind::Popup
                 && (self.width.is_some() || self.height.is_some())

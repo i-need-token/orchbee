@@ -14,7 +14,9 @@ use orchbee_workbench_protocol::{
     Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchPanelSplitDirection, WorkbenchTerminalGeometry, WorkerId,
 };
+mod display;
 mod shell_launch;
+use display::configured_command_display;
 pub(in crate::local_terminal_service) use shell_launch::launch;
 
 pub(crate) fn descriptor(entry: &CustomCommandEntry) -> ConfiguredCommandDescriptor {
@@ -33,6 +35,7 @@ pub(crate) fn descriptor(entry: &CustomCommandEntry) -> ConfiguredCommandDescrip
             .map(orchbee_local_runtime::trigger_label)
             .collect(),
         description: command.description.clone(),
+        display: configured_command_display(&command.command),
         width: size(command.width),
         height: size(command.height),
     }

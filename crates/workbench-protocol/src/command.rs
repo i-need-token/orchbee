@@ -36,7 +36,7 @@ pub use configured_command::{
     ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
     ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,
     ConfiguredCommandSelection, ConfiguredCommandSource, ConfiguredCommandTextPoint,
-    MAXIMUM_CONFIGURED_COMMAND_BYTES,
+    MAXIMUM_CONFIGURED_COMMAND_BYTES, MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES,
 };
 pub use terminal_editor::{
     EditorPopupCapture, MAXIMUM_TERMINAL_EDITOR_BYTES, ScrollbackEditorSpec, TerminalEditorAction,

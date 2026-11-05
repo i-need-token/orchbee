@@ -76,6 +76,36 @@ fn configured_command_installed_catalog_and_source_fences_precede_effects() {
 }
 
 #[test]
+fn configured_command_display_is_the_tui_chrome_text_within_the_wire_bound() {
+    let service = installed();
+    let (_, entries) = service.configured_commands().unwrap();
+    let displays = entries
+        .iter()
+        .map(|entry| descriptor(entry).display)
+        .collect::<Vec<_>>();
+    assert_eq!(displays[0].as_deref(), Some("echo shell"));
+    assert_eq!(displays[3].as_deref(), Some("tools.refresh"));
+
+    // Controls, separators and reordering format scalars go; an escape sequence goes whole.
+    assert_eq!(
+        configured_command_display("git\u{1b}[31m status\u{1b}]0;title\u{7}\n\u{202e}-s\u{2028}")
+            .as_deref(),
+        Some("git status-s")
+    );
+    assert_eq!(configured_command_display("\u{1b}[0m \t"), None);
+
+    let bound = orchbee_workbench_protocol::MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES;
+    let fits = "a".repeat(bound);
+    assert_eq!(
+        configured_command_display(&fits).as_deref(),
+        Some(fits.as_str())
+    );
+    let cut = configured_command_display(&"界".repeat(bound)).unwrap();
+    assert!(cut.len() <= bound && cut.ends_with('…'));
+    assert!(cut.trim_end_matches('…').chars().all(|c| c == '界'));
+}
+
+#[test]
 fn configured_command_permissions_follow_execution_owner_and_preserve_failure() {
     let terminals = installed();
     let entries = terminals.configured_commands().unwrap().1;

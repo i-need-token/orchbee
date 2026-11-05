@@ -35,6 +35,7 @@ fn configured_command_cli_catalog_refusal_and_delivery_unknown_never_replay() {
                     action: ConfiguredCommandKind::Shell,
                     bindings: vec![],
                     description: Some("Background command".into()),
+                    display: Some("echo background".into()),
                     width: None,
                     height: None,
                 }]
