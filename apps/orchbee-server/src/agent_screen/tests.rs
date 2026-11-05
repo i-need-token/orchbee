@@ -83,6 +83,16 @@ fn devin_thinking_footer_is_working_and_missing_evidence_is_unknown() {
             "❭ Ask Devin to build features, fix bugs, or explain your code",
             Idle,
         ),
+        // Sampled rows lose trailing spaces, so a choice that ends its row must still match.
+        (
+            " ✱ Do you trust the authors of this directory?
+   For security, devin should not be run in directories with untrusted content.
+ ~/src/app
+ ❭ 1 Yes, trust
+   2 No, exit
+ ↑↓ select · ↵ confirm · esc cancel",
+            Blocked,
+        ),
     ] {
         let explanation = engine.explain(Provider::Devin, input(screen)).unwrap();
         explanation.validate().unwrap();

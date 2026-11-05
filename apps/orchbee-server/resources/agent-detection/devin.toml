@@ -1,7 +1,7 @@
 id = "devin"
-version = "2026.10.12.1"
+version = "2026.11.04.1"
 min_engine_version = 1
-updated_at = "2026-10-12T00:00:00Z"
+updated_at = "2026-11-04T00:00:00Z"
 aliases = ["devin-cli", "devin cli"]
 
 [[rules]]
@@ -10,7 +10,7 @@ state = "blocked"
 priority = 300
 region = "bottom_non_empty_lines(8)"
 visible_blocker = true
-contains = ["do you trust the authors of this directory?", "with untrusted content.", "yes, trust "]
+contains = ["do you trust the authors of this directory?", "with untrusted content.", "yes, trust"]
 
 [[rules]]
 id = "permission_prompt"
