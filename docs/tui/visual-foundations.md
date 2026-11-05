@@ -65,8 +65,8 @@ Theme rules:
   and reduced-color themes may use the base background, retaining hierarchy and independent markers.
 - Every native Client ships a `terminal-native` theme, shown to people as the terminal's own
   colors. By default a Client paints the named theme of the active appearance only on a truecolor
-  host whose appearance it knows, from an explicit Light or Dark setting or from the background the
-  host reports. It uses `terminal-native` when host appearance or color level is unknown, when the
+  host whose appearance it knows, from an explicit Light or Dark setting, the background the host
+  reports, or the operating-system appearance when the host does not answer. It uses `terminal-native` when host appearance or color level is unknown, when the
   host is below truecolor, and when the person chooses the terminal's own colors. Where named
   themes cannot paint, the theme choices stay visible as unavailable with the reason.
 - Named themes come from the shared theme catalog and its role resolver; a Client does not

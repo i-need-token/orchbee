@@ -39,7 +39,8 @@ pub(crate) enum TerminalReason {
     /// The host shows fewer than 24-bit colors, which collapse a theme's canvas tint and its
     /// interaction mixes.
     ReducedColor,
-    /// System appearance without a reported host background.
+    /// System appearance before the host appearance settles, or on a platform without an
+    /// appearance adapter whose terminal does not report its background.
     UnknownAppearance,
 }
 
@@ -51,7 +52,8 @@ pub(crate) enum Resolution {
 }
 
 impl Resolution {
-    /// `host` is the polarity of the outer terminal's reported default background, if any.
+    /// `host` is the settled host polarity: the outer terminal's reported default background, or
+    /// the operating system's appearance after an unanswered probe.
     pub(crate) fn of(
         preferences: ColorPreferences<'_>,
         host: Option<Polarity>,

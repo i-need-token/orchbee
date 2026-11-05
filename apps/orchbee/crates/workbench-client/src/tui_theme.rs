@@ -1621,8 +1621,8 @@ pub trait ThemeTestAccess {
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self;
-    /// The resolution of confirmed preferences on a host whose reported background has this
-    /// appearance, before the Client applies its captured outer-host colors.
+    /// The resolution of confirmed preferences on a host whose settled appearance is this one,
+    /// before the Client applies its captured outer-host colors.
     fn for_preferences(
         values: &orchbee_workbench_protocol::UserPreferencesValues,
         host: crate::host_appearance::HostAppearance,

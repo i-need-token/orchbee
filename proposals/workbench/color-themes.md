@@ -26,7 +26,7 @@ theme changes.
 ### TUI
 
 - `tui_theme/source.rs` picks what the TUI paints from the Appearance, slot and Colors
-  preferences, the outer terminal's reported background polarity, and the color level; see
+  preferences, the settled host polarity, and the color level; see
   [native themes](../../apps/orchbee/docs/native-themes.md#selection-and-ownership).
 - `tui_theme/shipped.rs` projects a catalog theme's resolved roles onto TUI styles. Orchbee Light
   and Orchbee Dark then take the shared theme colors, as the GUI's hand-authored Orchbee mapping
@@ -136,8 +136,8 @@ generated block fills the entire inventory that `docs/frontend/design-tokens.md`
   `theme = light:X,dark:Y` and Herdr's `auto_switch` with `light_name`/`dark_name` use the same
   model.
 - **System.** System follows the Client's own polarity signal: the OS appearance in the GUI, and the
-  outer terminal's reported background in the TUI. A change of that signal switches slots without
-  a restart.
+  outer terminal's reported background in the TUI, or the OS appearance when the terminal does not
+  answer. A change of that signal switches slots without a restart.
 - **Picking a theme.** Picking a theme sets the slot of its polarity. If Appearance is fixed to the
   other polarity, the pick also switches Appearance, so the choice is visible at once. Under System,
   a theme for the inactive polarity says when it applies, for example "Used when the system is

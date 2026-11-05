@@ -192,10 +192,11 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     }
 }
 
-/// System paints a slot only once the outer terminal reports its background, and only at
-/// truecolor; otherwise the TUI keeps Terminal colors.
+/// System paints the slot of the settled host appearance: the outer terminal's reported
+/// background, or the operating system's appearance once the probe expires unanswered. It paints
+/// only at truecolor; otherwise, and before the appearance settles, the TUI keeps Terminal colors.
 #[test]
-fn system_paints_the_slot_of_the_reported_background_only_on_a_truecolor_host() {
+fn system_paints_the_slot_of_the_settled_host_appearance_only_on_a_truecolor_host() {
     use crate::host_appearance::{HostAppearance, HostColors};
     use crate::tui_theme::ColorLevel;
     let values = orchbee_workbench_protocol::UserPreferencesValues {
@@ -208,15 +209,15 @@ fn system_paints_the_slot_of_the_reported_background_only_on_a_truecolor_host() 
     assert!(view.named_themes_available());
     assert_eq!(view.configured_theme().unwrap().name, "terminal-native");
     view.configure_host_appearance(HostAppearance::Dark);
-    assert_eq!(view.configured_theme().unwrap().name, "terminal-native");
+    assert_eq!(view.configured_theme().unwrap().name, "gruvbox-dark");
     view.configure_host_terminal(
-        HostAppearance::Dark,
+        HostAppearance::Light,
         HostColors {
-            foreground: Some(0xcccccc),
-            background: Some(0x0c0c0c),
+            foreground: Some(0x141414),
+            background: Some(0xfcfcfc),
         },
     );
-    assert_eq!(view.configured_theme().unwrap().name, "gruvbox-dark");
+    assert_eq!(view.configured_theme().unwrap().name, "orchbee-light");
     let mut preview_values = values.clone();
     preview_values.light_theme = "dayfox".into();
     preview_values.application_theme = orchbee_workbench_protocol::ApplicationAppearance::Light;

@@ -281,16 +281,15 @@ impl ClientView {
         crate::tui_theme::named_themes_available(self.color_level)
     }
 
-    /// System follows the outer terminal's reported background; an appearance read from the
-    /// platform alone does not describe the terminal's own colors.
+    /// System follows the settled host appearance: the outer terminal's reported background, or
+    /// the operating system's appearance once the probe expires unanswered, as the GUI follows
+    /// the operating system. A named theme paints its own canvas, so the terminal's unreported
+    /// colors need not match it.
     fn resolve_theme(
         &self,
         preferences: crate::tui_theme::ColorPreferences<'_>,
     ) -> crate::tui_theme::Theme {
-        let host = self
-            .host_colors
-            .background
-            .and(crate::tui_theme::Polarity::of_host(self.host_appearance));
+        let host = crate::tui_theme::Polarity::of_host(self.host_appearance);
         crate::tui_theme::Theme::resolve(preferences, host, self.color_level)
             .with_outer_host_colors(self.host_colors)
     }

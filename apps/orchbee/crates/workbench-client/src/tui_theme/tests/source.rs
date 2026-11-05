@@ -27,7 +27,7 @@ const LEVELS: [ColorLevel; 4] = [
 ];
 
 /// Appearance x host x color level: a named theme needs truecolor and a known polarity, which
-/// a fixed Appearance supplies itself and System takes from the host's reported background.
+/// a fixed Appearance supplies itself and System takes from the settled host appearance.
 #[test]
 fn the_resolution_matrix_paints_the_active_slot_only_on_a_truecolor_host_of_known_appearance() {
     for application in [App::System, App::Light, App::Dark] {

@@ -10,20 +10,22 @@ Host, Custom). The TUI does not change the outer host's font or appearance.
 The [source resolver](../crates/workbench-client/src/tui_theme/source.rs) decides what the TUI
 paints. The first matching row wins:
 
-| Host and preferences                                    | The TUI paints                    |
-| ------------------------------------------------------- | --------------------------------- |
-| The host is below truecolor                             | Terminal colors                   |
-| Colors is Terminal colors                               | Terminal colors                   |
-| Appearance is Light or Dark                             | The theme in that slot            |
-| Appearance is System and the host reported a background | The slot matching that background |
-| Appearance is System and no background was reported     | Terminal colors                   |
+| Host and preferences                                 | The TUI paints                    |
+| ---------------------------------------------------- | --------------------------------- |
+| The host is below truecolor                          | Terminal colors                   |
+| Colors is Terminal colors                            | Terminal colors                   |
+| Appearance is Light or Dark                          | The theme in that slot            |
+| Appearance is System and the host appearance settled | The slot matching that appearance |
+| Appearance is System and it has not settled          | Terminal colors                   |
 
-Only the outer terminal's OSC 11 background answers System; the operating-system fallback the
-Worker uses for launch colors never selects a slot. A slot id this build does not ship, or one of
+System takes the outer terminal's OSC 11 background. When the terminal does not answer before the
+probe deadline, it takes the operating system's appearance where an adapter exists (Windows
+today), as the GUI follows the operating system; a named theme paints its own canvas, so the
+terminal's unreported colors need not match it. A slot id this build does not ship, or one of
 the other polarity, paints that slot's Orchbee theme and keeps the stored id. Below truecolor the
 named themes are unavailable: a quantized canvas and ANSI palette would show a different theme, so
-Settings disables the theme rows and says why. Reaching truecolor, or the host reporting its
-background, repaints the confirmed preferences without a restart.
+Settings disables the theme rows and says why. Reaching truecolor, or the host appearance
+settling, repaints the confirmed preferences without a restart.
 
 Named themes take every role from the [shipped catalog](../../../crates/color-themes/README.md)
 through its role resolver. The [named-theme adapter](../crates/workbench-client/src/tui_theme/shipped.rs)
