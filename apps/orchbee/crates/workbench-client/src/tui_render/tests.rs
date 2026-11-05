@@ -13,6 +13,7 @@ use crate::{
 };
 
 use super::render_shell;
+use crate::tui_theme::ThemeTestAccess as _;
 
 fn status_facts(primary: &str) -> super::status_line::StatusFacts<'_> {
     super::status_line::StatusFacts {

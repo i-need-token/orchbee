@@ -1,4 +1,5 @@
 use super::*;
+use crate::tui_theme::ThemeTestAccess as _;
 use crate::{
     localization::Locale,
     terminal_viewport::ViewportWindow,

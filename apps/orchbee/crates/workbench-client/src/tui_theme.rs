@@ -1091,14 +1091,6 @@ impl Theme {
         Some((rgb(foreground)?, rgb(background)?))
     }
 
-    /// Resolves terminal default colors for this theme from confirmed preferences.
-    pub(crate) fn with_terminal_preferences(
-        self,
-        values: &orchbee_workbench_protocol::UserPreferencesValues,
-    ) -> Self {
-        self.with_terminal_appearance(ColorPreferences::from(values))
-    }
-
     /// Theme takes the painted theme's canvas. Under Terminal colors, Theme and Host defer to the
     /// outer host's own defaults; with a named theme, Host does so only under System. Custom takes
     /// the custom pair. Unbound frame consumers can still resolve a deferred choice from their
@@ -1644,7 +1636,7 @@ impl ThemeTestAccess for Theme {
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self {
-        Theme::with_terminal_preferences(self, values)
+        self.with_terminal_appearance(ColorPreferences::from(values))
     }
     fn for_preferences(
         values: &orchbee_workbench_protocol::UserPreferencesValues,

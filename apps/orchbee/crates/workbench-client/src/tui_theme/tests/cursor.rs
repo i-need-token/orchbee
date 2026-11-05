@@ -1,6 +1,7 @@
 //! Contrast decisions for displayed cells, including independent terminal and chrome themes.
 
 use super::{Color, ColorLevel, Modifier, Theme, contrast_ratio};
+use crate::tui_theme::ThemeTestAccess as _;
 use crate::tui_theme::cursor_style;
 use orchbee_workbench_protocol::{
     ApplicationAppearance, TerminalDisplayAppearance as Appearance, UserPreferencesValues,
