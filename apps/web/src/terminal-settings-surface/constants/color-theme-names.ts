@@ -9,6 +9,7 @@ export const COLOR_THEME_NAME_MESSAGES: ReadonlyMap<string, MessageDescriptor> =
 	['flexoki-light', terminalSettingsMessages.colorThemeNameFlexokiLight],
 	['gruvbox-dark', terminalSettingsMessages.colorThemeNameGruvboxDark],
 	['gruvbox-light', terminalSettingsMessages.colorThemeNameGruvboxLight],
+	['kanagawa-wave', terminalSettingsMessages.colorThemeNameKanagawaWave],
 	['nightfox', terminalSettingsMessages.colorThemeNameNightfox],
 	['orchbee-dark', terminalSettingsMessages.colorThemeNameOrchbeeDark],
 	['orchbee-light', terminalSettingsMessages.colorThemeNameOrchbeeLight],

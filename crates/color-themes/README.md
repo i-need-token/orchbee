@@ -68,6 +68,7 @@ the copyright holder, source, pinned revision, license, and use, before its file
 | `dracula`          | dracula/iterm via the iTerm2-Color-Schemes Ghostty export                                | None                                                                                            |
 | `tokyo-night`      | folke/tokyonight.nvim Ghostty extra, Night style                                         | ANSI 8 `#414868` to `#434b6b`, 2:1                                                              |
 | `tomorrow-night`   | chriskempson/tomorrow-theme via the iTerm2-Color-Schemes Ghostty export                  | ANSI 8 `#4c4c4c` to `#4f4f4f`, 2:1                                                              |
+| `kanagawa-wave`    | rebelot/kanagawa.nvim Ghostty extra                                                      | None                                                                                            |
 | `dayfox`           | EdenEast/nightfox.nvim via the iTerm2-Color-Schemes Ghostty export                       | None                                                                                            |
 | `gruvbox-light`    | morhetz/gruvbox via the iTerm2-Color-Schemes Ghostty export                              | ANSI 2 `#98971a` to `#918f08`, 3 `#d79921` to `#b98000`, and 6 `#689d6a` to `#639765`, each 3:1 |
 | `flexoki-light`    | kepano/flexoki via the iTerm2-Color-Schemes Ghostty export                               | ANSI 8 `#b7b5ac` to `#b6b5ac`, 2:1                                                              |

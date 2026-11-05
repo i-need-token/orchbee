@@ -38,6 +38,7 @@ export const terminalSettingsMessages = defineMessages({
 	colorThemeNameFlexokiLight: message('terminal.settings.colorTheme.names.flexokiLight'),
 	colorThemeNameGruvboxDark: message('terminal.settings.colorTheme.names.gruvboxDark'),
 	colorThemeNameGruvboxLight: message('terminal.settings.colorTheme.names.gruvboxLight'),
+	colorThemeNameKanagawaWave: message('terminal.settings.colorTheme.names.kanagawaWave'),
 	colorThemeNameNightfox: message('terminal.settings.colorTheme.names.nightfox'),
 	colorThemeNameOrchbeeDark: message('terminal.settings.colorTheme.names.orchbeeDark'),
 	colorThemeNameOrchbeeLight: message('terminal.settings.colorTheme.names.orchbeeLight'),

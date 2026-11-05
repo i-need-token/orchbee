@@ -37,6 +37,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.names.flexokiLight': 'Flexoki Light',
 	'terminal.settings.colorTheme.names.gruvboxDark': 'Gruvbox Dark',
 	'terminal.settings.colorTheme.names.gruvboxLight': 'Gruvbox Light',
+	'terminal.settings.colorTheme.names.kanagawaWave': 'Kanagawa Wave',
 	'terminal.settings.colorTheme.names.nightfox': 'Nightfox',
 	'terminal.settings.colorTheme.names.orchbeeDark': 'Orchbee 深色',
 	'terminal.settings.colorTheme.names.orchbeeLight': 'Orchbee 浅色',

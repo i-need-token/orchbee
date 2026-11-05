@@ -1,0 +1,39 @@
+# Kanagawa Wave, from the Ghostty extra of rebelot/kanagawa.nvim. The source publishes no cursor text
+# color; it is the canvas background.
+id = "kanagawa-wave"
+name = "Kanagawa Wave"
+family = "kanagawa"
+polarity = "dark"
+
+[source]
+url = "https://github.com/rebelot/kanagawa.nvim"
+path = "extras/ghostty/kanagawa-wave"
+revision = "bb85e4bfc8d89b0e62c8fa53ccdd13d12e2f77b3"
+license = "MIT"
+copyright = "Copyright (c) 2021 Tommaso Laurenzi"
+
+[canvas]
+background = "#1f1f28"
+foreground = "#dcd7ba"
+cursor = "#c8c093"
+cursor_text = "#1f1f28"
+selection_background = "#2d4f67"
+selection_foreground = "#c8c093"
+
+[ansi]
+black = "#16161d"
+red = "#c34043"
+green = "#76946a"
+yellow = "#c0a36e"
+blue = "#7e9cd8"
+magenta = "#957fb8"
+cyan = "#6a9589"
+white = "#c8c093"
+bright_black = "#727169"
+bright_red = "#e82424"
+bright_green = "#98bb6c"
+bright_yellow = "#e6c384"
+bright_blue = "#7fb4ca"
+bright_magenta = "#938aa9"
+bright_cyan = "#7aa89f"
+bright_white = "#dcd7ba"
