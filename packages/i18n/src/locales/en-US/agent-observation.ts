@@ -35,7 +35,7 @@ export const enUSAgentObservationMessages = {
 	'agent.observation.status.needsAttention': 'Needs attention',
 	'agent.observation.status.needsAttentionCount': 'Needs attention · {count}',
 	'agent.observation.status.ready': 'Ready',
-	'agent.observation.status.succeeded': 'Completed',
+	'agent.observation.status.succeeded': 'Done',
 	'agent.observation.status.unknown': 'Limited status',
 	'agent.observation.status.working': 'Working',
 } as const;

@@ -34,6 +34,7 @@ may omit a qualifier only when its surface makes the referent unambiguous.
 | Panel            | 面板       | A stable leaf in a Tab's layout. It owns placement of a primary terminal presentation and any admitted child presentations. Moving a Panel, changing its displayed terminal, and replacing a terminal attachment are distinct operations.                                                                          |
 | Pane             | 窗格       | A Client's rendered/attached surface for a Panel or an explicitly qualified plugin surface. A TUI `PaneKey` identifies a logical pane and `PaneRef` adds an attachment incarnation. These are not a second shared Panel identity. Use Panel for shared layout operations and Pane for the local surface lifecycle. |
 | Window           | 窗口       | An outer application or host-terminal window, qualified by its owner when necessary. It is neither a Tab nor a Panel. `Window` is a product noun; `Windows` is an operating system.                                                                                                                                |
+| Sidebar          | 边栏       | A Client's region beside the Tabs that lists Projects, Workspaces, and their Agents. Its toggle reads Hide Sidebar / Show Sidebar (隐藏边栏 / 显示边栏) in every Client; 侧栏 and 侧边栏 are not used. It is a Client projection, not a Workbench entity, and hiding it changes no Workbench state.                |
 
 ## Runtime roles
 

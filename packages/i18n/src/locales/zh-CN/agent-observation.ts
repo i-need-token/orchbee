@@ -37,7 +37,7 @@ export const zhCNAgentObservationMessages = {
 	'agent.observation.status.needsAttention': '需要处理',
 	'agent.observation.status.needsAttentionCount': '需要处理 · {count}',
 	'agent.observation.status.ready': '就绪',
-	'agent.observation.status.succeeded': '已完成',
+	'agent.observation.status.succeeded': '完成',
 	'agent.observation.status.unknown': '状态受限',
 	'agent.observation.status.working': '运行中',
 } as const satisfies Readonly<Record<AgentObservationMessageId, string>>;
