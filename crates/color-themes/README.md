@@ -16,17 +16,17 @@ styles or modifiers, localize theme names, or change the fixed Agent glyph color
 
 ## Public boundary
 
-| Item                     | Guarantee                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `shipped()`              | Every shipped theme, in a stable order, each structurally valid                           |
-| `orchbee(Polarity)`      | The Orchbee theme of that polarity, the default pair                                      |
-| `select(Polarity, id)`   | The shipped theme `id` of that polarity; an unshipped or other-polarity id gives Orchbee  |
-| `Theme`                  | Identity, declared polarity, `Canvas`, ANSI 0-15, and `Source`; read-only                 |
-| `Theme::parse(&str)`     | Admits one [theme file](#theme-files), or a `ThemeFileError`; gates are not checked here  |
-| `PaletteColor`           | A correctable color: the shipped `value()` and, when corrected, the replaced `original()` |
-| `Roles::resolve(&Theme)` | Every role in the [resolver table](#resolver), with each floor met on `surface_chrome`    |
-| `TabGroups`              | The resolved Tab-group accents, one field per shared group color                          |
-| `Rgb`                    | An 8-bit sRGB color; `u32::from` packs it as `0xRRGGBB`, `Display` writes `#rrggbb`       |
+| Item                     | Guarantee                                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `shipped()`              | Every shipped theme, in a stable order, each structurally valid                                      |
+| `orchbee(Polarity)`      | The Orchbee theme of that polarity, the default pair                                                 |
+| `select(Polarity, id)`   | The shipped theme `id` of that polarity; an unshipped or other-polarity id gives Orchbee             |
+| `Theme`                  | Identity, declared polarity, `Canvas`, ANSI 0-15, and `Source`; read-only                            |
+| `Theme::parse(&str)`     | Admits one [theme file](#theme-files), or a `ThemeFileError`; gates are not checked here             |
+| `PaletteColor`           | A correctable color: the shipped `value()` and, when corrected, the replaced `original()`            |
+| `Roles::resolve(&Theme)` | Every role in the [resolver table](#resolver), with floors on the painted surfaces in the gate table |
+| `TabGroups`              | The resolved Tab-group accents, one field per shared group color                                     |
+| `Rgb`                    | An 8-bit sRGB color; `u32::from` packs it as `0xRRGGBB`, `Display` writes `#rrggbb`                  |
 
 Theme files are embedded at build time and admitted on first use. An embedded file that fails to
 parse panics; the gate test admits every embedded file, so a verified build cannot reach it.
@@ -186,7 +186,25 @@ its floor (notably inverse text on Rose Pine Dawn focus). This and using the sel
 for ordinary selected TUI labels are vetoable decisions. Orchbee GUI blocks are still omitted;
 its hand-authored values and the TUI's explicit shared-color overrides remain unchanged.
 
-Coverage boundary pending Step 3b review: the matrix gates resolved semantic roles on shared
-surfaces, not every GUI state produced by alpha/lightness mixes. Semantic hues retained inside
-an opposite-polarity text selection also need an explicit pairing policy before claiming an
-exhaustive painted-pair gate. Ordinary selected labels are covered by the TUI rule test.
+Remaining effective-pair coverage is tracked in ORC-344: the matrix gates resolved semantic
+roles on shared surfaces, not every GUI state produced by alpha/lightness mixes or semantic hues
+on opposite-polarity selections. Ordinary selected labels are covered by the TUI rule test.
+
+## Catalog maintenance
+
+The catalog ships 16 themes (ten dark, six light), with Orchbee Light and Dark as the default pair.
+Corrected palettes retain the upstream name and record original and shipped values. Each family
+needs a [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) entry naming copyright, pinned
+source, license and use/modification; ports identify the upstream family and compilation.
+Apache-2.0 license text stays under `licenses/`. A recognizable name is not license evidence.
+
+Imported/user-authored themes and a render-time minimum-contrast filter are outside the current
+contract. ANSI 16–255 stay the standard extended palette. Family-specific chrome is not in the
+current schema: introduce it only with a real consumer, upstream UI provenance and resolved gates.
+Historical rankings and scoring proxies are not admission rules; executable gates own verification.
+
+The GUI Orchbee pair keeps its hand-authored mapping without generated CSS blocks. Its dark GUI
+canvas is `oklch(14.5% 0 none)` (about `#0a0a0a`), distinct from the gated dark terminal canvas
+`#1e1e1e`. Named themes tint GUI chrome as well as terminal canvas. Remaining effective-pair
+coverage and semantic-hue selection correction are tracked in ORC-344; this documentation change
+does not implement them or claim exhaustive GUI state-mix coverage.

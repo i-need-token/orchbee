@@ -563,3 +563,15 @@ fully disconnected SSH delivery remains out of scope.
   pending mutation, explicit user actions, remote exclusion, localization, and no automatic
   mutation.
 - No composition or Desktop window test covers Settings on the Server path.
+
+## Named theme pickers
+
+Appearance selects System, Light or Dark; Light theme and Dark theme store separate catalog ids.
+System follows this GUI Client's OS appearance and switches slots without restart. Picking a
+theme while fixed to the other polarity switches Appearance too; under System, inactive-slot
+choices identify when they apply. Pickers filter by polarity and show localized names with
+canvas/foreground/ANSI swatches. Focus previews locally, Enter/click commits, and Escape restores
+the confirmed selection. Reset restores the Orchbee pair. Preview never publishes controlling
+query colors. Unknown/wrong-polarity ids resolve to that slot's Orchbee theme without rewriting
+the stored id. The [shared preference contract](../../../crates/workbench-protocol/docs/user-preferences.md)
+owns syntax/persistence; the [theme crate](../../../crates/color-themes/README.md) owns data.

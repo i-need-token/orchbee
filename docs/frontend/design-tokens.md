@@ -153,3 +153,17 @@ Before adding or changing a token:
 After changing the Tailwind version, run `pnpm generate:tailwind-token-compat`. If Tailwind added a theme variable, the generator rejects an unknown namespace or `pnpm lint:styles` reports its missing Orchbee target token. Add that reference token deliberately, regenerate the compatibility file, update the 419-variable baseline documented and tested here, and run the full verification gate. Do not hand-edit generated compatibility output.
 
 Do not add aliases solely to preserve an unshipped name. Rename an experimental token and all consumers atomically. Once a token becomes part of a stable published package, follow the package compatibility rules in [`docs/PACKAGES.md`](../PACKAGES.md#versioning).
+
+## Named theme publication
+
+`data-theme` expresses light/dark polarity; `data-color-theme` expresses catalog identity on the
+same boundary. For example, `<html data-theme="dark" data-color-theme="gruvbox-dark">` selects
+Gruvbox Dark. Publishing `data-theme="light" data-color-theme="rose-pine-dawn"` replaces the
+complete inherited mapping. Removing `data-color-theme` restores that polarity's Orchbee mapping.
+The application resolves the shared device theme slots and publishes both attributes together;
+components consume semantic tokens and never infer catalog identity.
+
+Theme provenance, resolver rules and gates belong to
+[`crates/color-themes`](../../crates/color-themes/README.md). After changing that authority run
+`pnpm generate:color-themes`; generated CSS and terminal palettes form one update. Never edit
+generated blocks or introduce another polarity for a named theme.

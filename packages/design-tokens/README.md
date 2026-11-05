@@ -85,3 +85,11 @@ The registry owns the Agent palette below, which the TUI shares. Attention, comp
 | Completed | `#28C840`                 | `#28C840` |
 | Failed    | `#FF5F57`                 | `#FF5F57` |
 | Idle      | `--ob-ref-color-gray-600` | `#585858` |
+
+## Named theme maintenance
+
+Set polarity and identity together, for example `data-theme="dark" data-color-theme="gruvbox-dark"`.
+The Orchbee pair uses only `data-theme`; identity never replaces polarity. Reference scales and
+component tokens stay stable. `pnpm generate:color-themes` regenerates this package's CSS and the
+terminal package's palettes from the Rust authority. Its `client_files` integration check rejects
+staleness; this package and `pnpm lint:styles` check full system-color coverage and fixed colors.

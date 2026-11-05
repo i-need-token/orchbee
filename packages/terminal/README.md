@@ -1085,3 +1085,12 @@ diagnostic for before/after comparisons; it does not measure real GPU execution,
 font rasterization, driver memory, or whole-process RSS.
 
 `pnpm audit:ghostty-panel` compares the maintained renderer/font provenance and generated data with the pinned Ghostty source when `../ghostty` or `GHOSTTY_SOURCE` is available. Both audit and generation reject a checkout whose HEAD differs from the Terminal Host pin or whose worktree is dirty. Run `pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraints, sprite ranges, or sprite reference rasters change.
+
+## Theme catalog integration
+
+The [theme catalog](../../crates/color-themes/README.md) generates terminal palettes. Applications
+resolve the active light/dark slot; this package renders it without owning preferences or OS
+appearance. ANSI 0–15 tags resolve locally, so retained cells recolor without program output.
+Host-only recoloring could not serve differently themed Clients viewing one terminal. Controlling
+query-color reports are a separate application/Worker responsibility. The renderer has no
+minimum-contrast filter rewriting explicit program RGB. Regenerate with `pnpm generate:color-themes`.
