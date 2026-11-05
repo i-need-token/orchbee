@@ -171,6 +171,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
             | WorkbenchRequest::TabSetClose(_)
+            | WorkbenchRequest::TabDuplicate(_)
             | WorkbenchRequest::Configuration(_)
             | WorkbenchRequest::CloseOperationRead(_)
             | WorkbenchRequest::Settings(_)

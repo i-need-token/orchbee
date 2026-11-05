@@ -217,6 +217,13 @@ pub use validation::{
 };
 
 pub use command::{
+    MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES, MAXIMUM_TAB_DUPLICATE_MEMBERS, TabDuplicateAction,
+    TabDuplicateCopy, TabDuplicateFailure, TabDuplicateMember, TabDuplicateOutcome,
+    TabDuplicateRejection, TabDuplicateStatus, TabDuplicateUnavailable,
+    WorkbenchTabDuplicateRequest, WorkbenchTabDuplicateResult,
+};
+
+pub use command::{
     MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES, MAXIMUM_TAB_SET_CLOSE_MEMBERS, TabSetCloseAction,
     TabSetCloseChild, TabSetCloseCondition, TabSetCloseFailure, TabSetCloseMember,
     TabSetCloseObservation, TabSetCloseOutcome, TabSetCloseRejection, TabSetCloseStatus,

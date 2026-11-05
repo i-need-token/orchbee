@@ -1,0 +1,290 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-tab-duplicate:v1",
+	"$comment": "Bindings additionally enforce request16KiB/result256KiB, unique Tab members, copy Tab IDs unique and distinct from every member, a prefix of members whose copy started before any later copy, truthful Duplicated and Start receipt correlation. Existing Tab creation owns terminal geometry and outcome definitions. The Server checks current Tab order, revision and capacity.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"requestId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+		},
+		"terminalContextId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+		},
+		"tabId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+		},
+		"sessionId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
+		},
+		"revision": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "start"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabIds": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 256,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/tabId"
+							}
+						},
+						"expectedRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"geometry": {
+							"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/terminalGeometry"
+						}
+					},
+					"required": [
+						"kind",
+						"operationId",
+						"terminalContextId",
+						"tabIds",
+						"expectedRevision",
+						"geometry"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						}
+					},
+					"required": ["kind", "operationId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.tab-duplicate"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
+			"additionalProperties": false
+		},
+		"copy": {
+			"type": "object",
+			"properties": {
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				},
+				"terminal": {
+					"anyOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/terminalOutcome"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["tabId", "revision", "terminal"],
+			"additionalProperties": false
+		},
+		"member": {
+			"type": "object",
+			"properties": {
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"copy": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/copy"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["tabId", "copy"],
+			"additionalProperties": false
+		},
+		"status": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "pending"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "duplicated"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"source-unavailable",
+								"copy-refused",
+								"terminal-not-started",
+								"outcome-unknown",
+								"deadline",
+								"session-stopping",
+								"internal"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["not-found", "conflict", "denied"]
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reason": {
+							"enum": [
+								"revision-mismatch",
+								"terminal-context-unavailable",
+								"tab-unavailable",
+								"tab-order-mismatch",
+								"resource-limit"
+							]
+						}
+					},
+					"required": ["kind", "revision", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["service-unavailable", "busy", "capacity"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "available"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"status": {
+							"$ref": "#/$defs/status"
+						},
+						"members": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 256,
+							"items": {
+								"$ref": "#/$defs/member"
+							}
+						}
+					},
+					"required": ["kind", "terminalContextId", "status", "members"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.tab-duplicate.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "operationId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

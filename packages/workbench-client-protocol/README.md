@@ -209,6 +209,10 @@ corpus cover this direction. Worktree source query associations require nullable
 
 `workbench-tab-set-close-contract.ts` implements the [set contract](../../schemas/workbench/v1/workbench-tab-set-close.schema.json) and extends request/result unions. It reuses the existing child Close status/generation schemas. Start names one terminal context, 1–256 distinct Tabs, the expected revision and an `if-idle` or `confirmed` condition; Read names only the operation. The binding enforces 16 KiB requests, 1 MiB results, unique members and child IDs, absent members without a child, a finished-member prefix before any later child or absence, and Closed only when every member is closed or absent. `confirmation-required` and `rejected` carry no members because nothing was retained. The [shared corpus](../../schemas/workbench/v1/workbench-tab-set-close-conformance-v1.json) exercises the independent Rust binding and structural schema. Admission, current Tab order and monotonic publication remain Server-owned.
 
+## Tab duplication binding
+
+`workbench-tab-duplicate-contract.ts` implements the [duplication contract](../../schemas/workbench/v1/workbench-tab-duplicate.schema.json) and extends request/result unions. It reuses the existing terminal geometry and outcome schemas. Start names one terminal context, 1–256 distinct Tabs, the expected revision and the geometry every copy starts at; Read names only the operation. The binding enforces 16 KiB requests, 256 KiB results, unique members, copy Tab IDs unique and distinct from every member, no copy after the first member whose copy has not started, and Duplicated only when every copy started. `rejected` carries no members because nothing was retained. The [shared corpus](../../schemas/workbench/v1/workbench-tab-duplicate-conformance-v1.json) exercises the independent Rust binding and structural schema. Admission, current Tab order and monotonic publication remain Server-owned.
+
 ## Client view binding
 
 `workbench-client-presentation-contract.ts` validates the scalar exact current-member snapshot:

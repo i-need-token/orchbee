@@ -138,6 +138,13 @@ pub use workspace_group_close::{
     WorkspaceGroupCloseFailure, WorkspaceGroupCloseMember, WorkspaceGroupCloseObservation,
     WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus, WorkspaceGroupCloseUnavailable,
 };
+mod tab_duplicate;
+pub use tab_duplicate::{
+    MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES, MAXIMUM_TAB_DUPLICATE_MEMBERS, TabDuplicateAction,
+    TabDuplicateCopy, TabDuplicateFailure, TabDuplicateMember, TabDuplicateOutcome,
+    TabDuplicateRejection, TabDuplicateStatus, TabDuplicateUnavailable,
+    WorkbenchTabDuplicateRequest, WorkbenchTabDuplicateResult,
+};
 mod tab_set_close;
 pub use tab_set_close::{
     MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES, MAXIMUM_TAB_SET_CLOSE_MEMBERS, TabSetCloseAction,
@@ -1083,6 +1090,8 @@ pub enum WorkbenchRequest {
     WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseRequest),
     #[serde(rename = "workbench.tab-set-close")]
     TabSetClose(WorkbenchTabSetCloseRequest),
+    #[serde(rename = "workbench.tab-duplicate")]
+    TabDuplicate(WorkbenchTabDuplicateRequest),
     #[serde(rename = "workbench.worktree.query")]
     WorktreeQuery(WorkbenchWorktreeQuery),
     #[serde(rename = "workbench.worktree.operation")]
@@ -1503,6 +1512,8 @@ pub enum WorkbenchResponse {
     WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseResult),
     #[serde(rename = "workbench.tab-set-close.result")]
     TabSetClose(WorkbenchTabSetCloseResult),
+    #[serde(rename = "workbench.tab-duplicate.result")]
+    TabDuplicate(WorkbenchTabDuplicateResult),
     #[serde(rename = "workbench.worktree.query.result")]
     WorktreeQuery(WorkbenchWorktreeQueryResult),
     #[serde(rename = "workbench.worktree.operation.result")]
@@ -1591,6 +1602,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return request.validate();
     }
     if let WorkbenchRequest::TabSetClose(request) = request {
+        return request.validate();
+    }
+    if let WorkbenchRequest::TabDuplicate(request) = request {
         return request.validate();
     }
     if let WorkbenchRequest::WorktreeOperation(request) = request {
@@ -1876,6 +1890,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::TabSetClose(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::TabDuplicate(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::WorktreeQuery(result) => {

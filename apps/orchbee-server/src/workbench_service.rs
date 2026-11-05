@@ -155,6 +155,16 @@ impl WorkbenchService {
                     self.policy.manage_terminal_lifecycle
                 }
             }
+            WorkbenchRequest::TabDuplicate(request) => {
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::TabDuplicateAction::Read { .. }
+                ) {
+                    self.policy.read
+                } else {
+                    self.policy.manage_navigation && self.policy.create_terminal
+                }
+            }
             WorkbenchRequest::WorktreeOperation(request) => {
                 if matches!(
                     request.action,
@@ -284,6 +294,9 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(WorkbenchResponse::TabSetClose(
                     self.terminals.execute_tab_set_close(request.clone()),
                 ));
+            }
+            WorkbenchRequest::TabDuplicate(_) => {
+                return WorkbenchExecution::Response(unavailable_or_denied(request, false));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(
@@ -792,6 +805,21 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             })
         }
+        WorkbenchRequest::TabDuplicate(request) => WorkbenchResponse::TabDuplicate(
+            orchbee_workbench_protocol::WorkbenchTabDuplicateResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                operation_id: request.action.operation_id().clone(),
+                outcome: if denied {
+                    orchbee_workbench_protocol::TabDuplicateOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::TabDuplicateOutcome::Unavailable {
+                        reason:
+                            orchbee_workbench_protocol::TabDuplicateUnavailable::ServiceUnavailable,
+                    }
+                },
+            },
+        ),
         WorkbenchRequest::WorktreeQuery(request) => WorkbenchResponse::WorktreeQuery(
             orchbee_workbench_protocol::WorkbenchWorktreeQueryResult {
                 protocol_version: ProtocolVersion,

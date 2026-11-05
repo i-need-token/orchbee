@@ -88,6 +88,11 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES,
 } from './workbench-workspace-group-close-contract';
 import {
+	WorkbenchTabDuplicateRequestSchema,
+	WorkbenchTabDuplicateResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES,
+} from './workbench-tab-duplicate-contract';
+import {
 	WorkbenchTabSetCloseRequestSchema,
 	WorkbenchTabSetCloseResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES,
@@ -663,6 +668,7 @@ export const WorkbenchRequestSchema = z
 		PanelMetadataRequestSchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
 		WorkbenchTabSetCloseRequestSchema,
+		WorkbenchTabDuplicateRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
 	.refine((value) => {
@@ -799,6 +805,7 @@ export const WorkbenchResponseSchema = z
 		PanelMetadataResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,
 		WorkbenchTabSetCloseResultSchema,
+		WorkbenchTabDuplicateResultSchema,
 		WorkbenchClientViewResultSchema,
 	])
 	.superRefine((value, context) => {
@@ -823,6 +830,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.tab-set-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES;
+		} else if (value.kind === 'workbench.tab-duplicate.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.agent-manifests.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES;
 		} else if (value.kind === 'workbench.settings.result') {

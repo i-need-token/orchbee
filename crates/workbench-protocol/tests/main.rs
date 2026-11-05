@@ -23,6 +23,7 @@ mod settings;
 mod split_ratios;
 mod tab_configuration;
 mod tab_creation;
+mod tab_duplicate;
 mod tab_labels;
 mod tab_set_close;
 mod terminal_editor;

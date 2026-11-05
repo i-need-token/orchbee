@@ -166,6 +166,23 @@ only when every member is closed or absent. There is no set-level Resume: a fail
 Close stays retained for Tab Resume. Requests keep the 16 KiB intent cap; results have a 1 MiB
 pre-allocation cap so 256 maximum escaped labels fit.
 
+## Tab duplication
+
+`workbench.tab-duplicate` (OBWP 69/70) duplicates several Tabs of one terminal context as one
+retained Server operation. Start carries `operationId`, `terminalContextId`, 1–256 distinct
+`tabIds` in the context's current order, `expectedRevision` and the terminal `geometry` every copy
+starts at; Read carries only `operationId`. Available results echo the context with a status
+(`pending`, `duplicated`, or `failed` with a reason) and `members`: `tabId` and a required-nullable
+`copy` holding the copy's `tabId`, the `revision` that published its latest fact and a
+required-nullable `terminal` outcome, null while the launch is still being delivered. `rejected`
+carries the current revision and a reason, including `resource-limit` when the context cannot hold
+one copy of every member; it retains nothing. `TabDuplicateAction::admits` requires a Start receipt
+to name the requested context and members. Results enforce unique members, copy Tab IDs that are
+unique and differ from every member, no copy after the first member whose copy has not started,
+and Duplicated only when every copy started. There is no Cancel or Resume: a stopped operation
+leaves the copies it made and never replays one. Requests keep the 16 KiB intent cap; results have
+a 256 KiB pre-allocation cap.
+
 ## Tab configuration
 
 `tabs.configure` carries an exact context and one closed `TabConfiguration`; `tabs-configured`
