@@ -122,7 +122,7 @@ pub enum WorkbenchTabCloseMemberRuntime {
     },
     /// This exact runtime ended, or the Server's own read of its shell and processes found
     /// nothing beyond an idle shell. A conditional Workspace, Tab or Panel Close then runs the
-    /// ordinary lifecycle; the Host's idle guard does not apply, because input reached the shell.
+    /// ordinary lifecycle.
     QuietRuntime {
         target: WorkbenchTabCloseRuntimeTarget,
         observed_phase: orchbee_capability_node_protocol::LifecycleTerminalPhase,

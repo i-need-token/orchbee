@@ -86,11 +86,7 @@ fn final_page(phase: Option<LifecycleTerminalPhase>) -> TerminalLifecycleOutcome
         inventory_generation: NonZeroU64::MIN,
         next_cursor: None,
         returned_count: u16::from(phase.is_some()),
-        target: phase.map(|phase| LifecycleTargetObservation {
-            revision: 1,
-            phase,
-            close_activity: orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
-        }),
+        target: phase.map(|phase| LifecycleTargetObservation { revision: 1, phase }),
     })
 }
 
@@ -292,7 +288,6 @@ fn duplicate_exact_target_across_pages_is_nonresumable_identity_conflict() {
     let now = Instant::now();
     let mut close = core(now, None);
     let observation = LifecycleTargetObservation {
-        close_activity: orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
         revision: 1,
         phase: LifecycleTerminalPhase::Failed,
     };
@@ -414,7 +409,6 @@ fn partial_settled_observation_retained(stale_restart: bool) {
             }),
             returned_count: 1,
             target: Some(LifecycleTargetObservation {
-                close_activity: orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
                 revision: 3,
                 phase: LifecycleTerminalPhase::Exited {
                     terminate_requested: true,

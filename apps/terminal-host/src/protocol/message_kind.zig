@@ -1,7 +1,6 @@
 // Exact current-version numeric registry mirrored by the TypeScript contract
 // and generated cross-language conformance fixture.
 pub const MessageKind = struct {
-    pub const terminate_terminal_if_idle: u16 = 82;
     pub const decode_graphics_png: u16 = 80;
     pub const graphics_png_decoded: u16 = 81;
     pub const hello: u16 = 1;

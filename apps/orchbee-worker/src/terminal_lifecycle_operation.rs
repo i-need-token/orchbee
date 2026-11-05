@@ -6,11 +6,10 @@ use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{error::Error, io, time::Duration};
 
 use orchbee_capability_node_protocol::{
-    HostEpoch as CapabilityHostEpoch, LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleCloseActivity,
-    LifecycleHostFailure, LifecycleInventoryCursor, LifecycleInventoryFailure,
-    LifecycleInventoryPage, LifecycleTargetObservation, LifecycleTerminalPhase,
-    LifecycleUnknownReason, TerminalLifecycleAction, TerminalLifecycleOutcome,
-    TerminalLifecycleRequest,
+    HostEpoch as CapabilityHostEpoch, LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure,
+    LifecycleInventoryCursor, LifecycleInventoryFailure, LifecycleInventoryPage,
+    LifecycleTargetObservation, LifecycleTerminalPhase, LifecycleUnknownReason,
+    TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleRequest,
 };
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InventoryControl,
@@ -62,9 +61,6 @@ impl PreparedLifecycleOperation {
                 let control = encode_lifecycle_control(&match action {
                     TerminalLifecycleAction::Terminate => {
                         LifecycleControl::TerminateTerminal(target)
-                    }
-                    TerminalLifecycleAction::TerminateIfIdle => {
-                        LifecycleControl::TerminateTerminalIfIdle(target)
                     }
                     TerminalLifecycleAction::Force => {
                         LifecycleControl::ForceTerminateTerminal(target)
@@ -193,11 +189,7 @@ fn response_outcome(
             TerminalLifecycleAction::Dispose if failure.code == "cleanup-incomplete" => {
                 TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::CleanupIncomplete)
             }
-            TerminalLifecycleAction::TerminateIfIdle if failure.code == "confirmation-required" => {
-                TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::ConfirmationRequired)
-            }
             TerminalLifecycleAction::Terminate
-            | TerminalLifecycleAction::TerminateIfIdle
             | TerminalLifecycleAction::Force
             | TerminalLifecycleAction::Dispose => {
                 TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused)
@@ -223,9 +215,6 @@ fn response_outcome(
         )?,
     };
     let outcome = match request.action {
-        TerminalLifecycleAction::TerminateIfIdle if matches!(&accepted, LifecycleControl::TerminateTerminalIfIdleAccepted(observed) if observed == &target) => {
-            TerminalLifecycleOutcome::TerminateAccepted
-        }
         TerminalLifecycleAction::Terminate if matches!(&accepted, LifecycleControl::TerminateTerminalAccepted(observed) if observed == &target) => {
             TerminalLifecycleOutcome::TerminateAccepted
         }
@@ -236,7 +225,6 @@ fn response_outcome(
             TerminalLifecycleOutcome::Disposed
         }
         TerminalLifecycleAction::Terminate
-        | TerminalLifecycleAction::TerminateIfIdle
         | TerminalLifecycleAction::Force
         | TerminalLifecycleAction::Dispose
         | TerminalLifecycleAction::InventoryPage { .. }
@@ -286,17 +274,6 @@ fn inventory_outcome(
             target = Some(LifecycleTargetObservation {
                 revision: core.revision,
                 phase,
-                close_activity: match core.close_activity {
-                    Some(orchbee_terminal_protocol::TerminalCloseActivity::Idle) => {
-                        LifecycleCloseActivity::Idle
-                    }
-                    Some(orchbee_terminal_protocol::TerminalCloseActivity::Active) => {
-                        LifecycleCloseActivity::Active
-                    }
-                    Some(orchbee_terminal_protocol::TerminalCloseActivity::Unknown) | None => {
-                        LifecycleCloseActivity::Unknown
-                    }
-                },
             });
         }
     }

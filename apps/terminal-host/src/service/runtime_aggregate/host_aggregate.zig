@@ -122,7 +122,6 @@ pub const HostRuntimeAggregate = struct {
 
     // termination boundary.
     pub const requestTermination = termination.requestTermination;
-    pub const requestTerminationIfIdle = termination.requestTerminationIfIdle;
     pub const disposeTerminal = termination.disposeTerminal;
 
     // attachment-lifecycle boundary.

@@ -121,16 +121,16 @@ process observer. Every target pins Worker generation, binding fence and full Ho
 creation/epoch/terminal identity. Because a Workspace reads every Tab's terminals in turn, one
 four-second budget and 32-page allowance cover its whole scope; slow outstanding transport keeps
 its existing carrier response bound and cannot renew this budget. Every target requires complete
-generation-consistent inventory and exactly one match. The Host's own `closeActivity` guess decides
-nothing, so a scope whose terminals the Server cannot read asks. Final admission repeats ordinary
-guards and exact runtime matching under the Session gate.
+generation-consistent inventory and exactly one match. The inventory reports only phase, so a scope
+whose terminals the Server cannot read asks. Final admission repeats ordinary guards and exact
+runtime matching under the Session gate.
 A same-base `confirmation-required` retains no Close credit, fence, publication or runtime effect;
 revision/structural conflicts retain their ordinary precise outcomes.
 
 Accepted conditional Close installs the existing complete reservation/fence before releasing the
 gate and from then on is the ordinary Close of its scope, as an accepted Tab or Panel Close is: it
-terminates live members without the Host idle guard, because the Server's own evidence already
-decided, escalates to Force after grace, and disposes ended ones. A Host refusal parks the retained
+terminates live members, because the Server's own evidence already decided, escalates to Force
+after grace, and disposes ended ones. A Host refusal parks the retained
 operation with `HostRefused`, including partial member results. A fresh explicitly confirmed
 ordinary `workspace.close` may upgrade a resumable conditional record, retaining its canonical Close ID and all receipts while
 advancing the attempt once; outstanding or unknown signals cannot be upgraded. Exact request replay
@@ -210,8 +210,8 @@ terminal asks. A program the sample cannot see and the shell does not report sti
 screen.
 
 An accepted conditional Close is the ordinary Close of its scope from then on: it installs the
-ordinary reservation and fences, terminates live members without the Host idle guard because the
-Server's own evidence already decided, and disposes ended ones. `confirmation-required` is
+ordinary reservation and fences, terminates live members because the Server's own evidence already
+decided, and disposes ended ones. `confirmation-required` is
 definite no effect; a Client then asks and sends the ordinary `tab.close` or `panel.close` under a
 new request ID. The [owner tests](../src/local_terminal_service/tab_close/tests/leaf_idle.rs) and
 [evidence rules](../src/local_terminal_service/tab_close/evidence.rs) cover the decision table,

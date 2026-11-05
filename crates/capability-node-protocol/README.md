@@ -789,19 +789,18 @@ Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and te
 
 `TerminalGraphicsDecodeRequest` is a read-only operation on an already admitted attachment. OBNG v1 uses a 12-byte header and 64-byte identity/dimension prefix, followed by at most 16 MiB of PNG. The length bound is checked before reading or allocating the body. A result reuses the exact request/attachment-correlated viewer carrier (OBNR), containing either the bounded Host reply or a typed viewer rejection. The operation does not authorize a Host start, PTY input, lifecycle change or another connection’s attachment.
 
-## Conditional Close inspection and guard
+## Read-only Close inspection
 
-Lifecycle capability version 1 uses one current layout. Action 5 `TerminateIfIdle` maps only to Host kind 82; it accepts outcome 1 or known
-HostFailure reason 3 `ConfirmationRequired` (or the existing common failure outcomes). That new
-reason is invalid for every other action. Action 6 `InspectInventoryPage` has the same cursor and
-page representation as action 4, but is read-only and never claims, advances or replaces a retained
-Worker Close owner/ordinal/mutation receipt. It still validates Worker generation, binding fence,
-lease and complete Host identity before handoff. A preflight can therefore be followed by a fresh
-confirmed Close without a phantom lifecycle conflict.
+Lifecycle capability version 1 uses one current layout. Action 6 `InspectInventoryPage` has the
+same cursor and page representation as action 4, but is read-only and never claims, advances or
+replaces a retained Worker Close owner/ordinal/mutation receipt. It still validates Worker
+generation, binding fence, lease and complete Host identity before handoff. A preflight can
+therefore be followed by a fresh confirmed Close without a phantom lifecycle conflict. Only the
+current capability may carry action 6. Action tag 5 and HostFailure reason 3 are unassigned, and
+decoders reject them.
 
-Each matched inventory target appends one close-activity byte after its phase and
-optional termination flag: 0 unknown, 1 idle, 2 active. Missing or other bytes fail decoding.
-Worker maps missing Host metadata to unknown;
-no retained launch, terminal count or Client frame becomes idle evidence. Independent byte goldens,
-Worker receipt tests and the Server conditional-close witnesses cover these refinements. Upgrade
-and roll back the matched native cohort together; no mixed-version safety bypass is supported.
+An inspection page reports phase and revision only; it carries no idle classification. Whether a
+conditional Close asks first is the Server's own decision from its read of the terminal. Independent
+byte goldens, Worker receipt tests and the Server conditional-close witnesses cover this
+representation. Upgrade and roll back the matched native cohort together; no mixed-version safety
+bypass is supported.

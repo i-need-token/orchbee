@@ -49,9 +49,9 @@ and revision drift retain ordinary safety fences.
 
 New interactive PowerShell launches receive process-local reader markers that preserve the user's
 prompt, history and key hooks; a shell without reliable prompt markers is judged by its process
-sample alone. An accepted conditional Close then runs as the ordinary Close: termination uses no
-Host idle guard, because the Server's evidence already decided, so a program started after the read
-is terminated as an ordinary Close would terminate it. A Host refusal preserves the Close operation
+sample alone. An accepted conditional Close then runs as the ordinary Close, because the Server's
+evidence already decided, so a program started after the read is terminated as an ordinary Close
+would terminate it. A Host refusal preserves the Close operation
 and any completed members. Repeating Close on its known resumable refusal opens explicit
 confirmation, and the ordinary confirmed command resumes that same canonical operation.
 Unknown/in-flight effects remain fenced.

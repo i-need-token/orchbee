@@ -34,22 +34,6 @@ const commitHookedRuntime = harness.commitHookedRuntime;
 const LogicalCleanupClock = harness.LogicalCleanupClock;
 const readLogicalCleanupNs = harness.readLogicalCleanupNs;
 
-test "guarded termination refuses unproven or active process state without changing intent" {
-    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
-    defer aggregate.deinitChecked(false) catch unreachable;
-    const connection_id: core_module.ConnectionId = 1;
-    _ = try aggregate.core().connect(connection_id, testId(core_module.ClientId, 0x21));
-    var launch_fixture = try validatedLongRunningLaunch();
-    defer launch_fixture.deinit();
-    const terminal_id = try createSkippedTarget(&aggregate, connection_id, launch_fixture.validated);
-    // The native command/script is an active program even with a single root.
-    const runtime = aggregate.runtimeFor(terminal_id).?;
-    try std.testing.expectEqual(terminal_runtime.CompletionState.pending, runtime.completion().classification);
-    try std.testing.expectError(error.ConfirmationRequired, aggregate.requestTerminationIfIdle(connection_id, terminal_id));
-    try std.testing.expect(!aggregate.core().findTerminal(terminal_id).?.terminateRequested());
-    try std.testing.expectEqual(terminal_runtime.CompletionState.pending, runtime.completion().classification);
-}
-
 test "runtime aggregate sensors stay behind the testing seam" {
     try std.testing.expect(
         !@hasField(subject.HostRuntimeAggregate, "projection_release_decisions"),

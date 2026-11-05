@@ -201,20 +201,12 @@ pub fn resolveCloseActivity(
     return .idle;
 }
 
-/// Close admission and published inventory share one fresh process sample plus
-/// the committed semantic reader phase. Accepted Enter submissions remain
-/// pending until a later C marker acknowledges them; only a ready prompt with
-/// no pending or partial input is idle.
-pub fn sampleCloseActivityForClose(self: *state.State) contracts.TerminalCloseActivity {
-    return (sampleCloseActivity(self) catch return .unknown).activity;
-}
-
 /// Samples the independent process observation without holding a runtime
 /// mutex, then resolves it with Ghostty's committed prompt phase and accepted
-/// input accounting. This is the activity published in inventory for UI Close
-/// preflight as well as the final Host termination guard. Activity-affecting
-/// input invalidates older evidence; a later ready prompt restores idle only
-/// after all accepted submissions are acknowledged and no partial input stays.
+/// input accounting. Accepted Enter submissions remain pending until a later C
+/// marker acknowledges them. Activity-affecting input invalidates older
+/// evidence; a later ready prompt restores idle only after all accepted
+/// submissions are acknowledged and no partial input stays.
 pub fn sampleCloseActivity(
     self: *state.State,
 ) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {

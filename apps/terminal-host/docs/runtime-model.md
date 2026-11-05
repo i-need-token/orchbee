@@ -210,8 +210,8 @@ kill-on-close Job member other than the retained shell holds the Terminal consol
 started from the shell alone does not make the terminal active. A failed console reading keeps the
 Job-wide answer. A failed platform query is `unknown`. After a successful inactive platform query, current OSC 133 state may still classify a
 cursor outside the prompt/input region as `active`, covering a command executed inside the shell
-process; a cursor at the prompt/input region is `idle`. Without semantic integration, a successful
-inactive platform query falls back to `idle`. Accepted activity-affecting input invalidates the
+process; a cursor at the prompt/input region is `idle`, subject to the
+[reader evidence](#close-activity-reader-evidence) below. Accepted activity-affecting input invalidates the
 older sample immediately, but a later bounded sample may classify the current process and semantic
 prompt state again. This value is sampled for projection only: it never changes lifecycle,
 containment, or process ownership, and consumers must treat `unknown` conservatively.
@@ -1168,14 +1168,12 @@ the accepted input. A later eligible sample instead classifies the current canon
 successful platform observation of an active foreground process always publishes `active`; a failed
 platform query publishes `unknown`. After a successful inactive platform query, Ghostty's current
 semantic prompt state publishes `active` when the cursor is outside the prompt/input region and
-`idle` when it is at that region. If semantic integration has not been observed, the existing
-platform fallback publishes `idle`. The sample may therefore restore `idle` in the same terminal
-lifecycle, including while physical input delivery is still pending, because it describes current
-process and VT state rather than shell consumption of a particular input. Activity epoch exhaustion
+`idle` when it is at that region, subject to the [reader evidence](#close-activity-reader-evidence)
+below. The sample may therefore restore `idle` in the same terminal lifecycle. Activity epoch exhaustion
 remains fail-conservative: the token saturates, its exhausted bit prevents an ABA match, and the
 cache remains permanently `unknown`.
 
-Close confirmation reclassifies the current prompt state without permanently remembering prior input. Independent platform-process observation retains precedence, query failure maps to `unknown`, and the Host protocol transports a sampled three-state observation. Without shell integration, platform fallback remains available.
+Close confirmation reclassifies the current prompt state without permanently remembering prior input. Independent platform-process observation retains precedence, query failure maps to `unknown`, and the Host protocol transports a sampled three-state observation.
 
 Sampling takes `projection -> terminal`; activity-affecting input takes `projection -> input`;
 reader commits take `terminal`; and the writer accounts completion under `input` alone. No path
@@ -2038,27 +2036,25 @@ a boundary improvement.
 
 The opaque runtime handle composes a private `process_handle.zig` adapter for process sampling, completion and termination. This adapter only converts the handle to private State and delegates to the existing process/lifecycle owners; it introduces no state, ordering change, or new process authority. This keeps process-facing growth out of the general runtime facade. A private `schedule_handle.zig` adapter owns the projection scheduler's deadlines, capture readiness and activity publication decisions.
 
-## Destructive Close observations
+## Close-activity reader evidence
 
-Native inventory and guarded termination use `sampleCloseActivityForClose`, independently of the
-projection fallback described above. Idle requires a recognized interactive shell, a successful
+The close-activity sample that live frames publish also requires the shell reader's own evidence.
+Idle requires a recognized interactive shell, a successful
 inactive process observation, current semantic prompt state and no queued/in-flight client input.
 Direct commands, scripts and Agent roots remain active even when they are the only process. A
 Windows exited root with a remaining Job member that holds the Terminal console is active; members
 without the console do not keep it active. Missing prompt semantics and process
 query failure remain unknown.
 
-Accepted activity-affecting input invalidates the prior close sample. Under `input_mutex`, the Host
+Accepted activity-affecting input invalidates the prior sample. Under `input_mutex`, the Host
 counts accepted CR/LF submissions, treating CRLF as one line. A committed semantic C marker
 acknowledges at most one submission that was already published when the marker was parsed; an
 aborted reader batch acknowledges nothing. Semantic A/P markers begin a prompt and B marks the
 reader ready for input; C keeps even an in-process shell builtin active until the next ready prompt.
 Only an inactive process sample at a current ready prompt, with no unacknowledged submissions,
 exhausted accounting, partial accepted input after the latest submission, or queued/in-flight client
-input, is idle. The same evidence feeds periodic inventory and final Host Close admission, so the UI
-does not rely on a separate stale classification. Thus the prompt after command 1
-cannot authorize Close while command 2 remains buffered. Successful OS writes prove delivery, not
-consumption, and projection's reclassification and epochs remain separate from Close admission.
+input, is idle. Thus the prompt after command 1 cannot report idle while command 2 remains
+buffered. Successful OS writes prove delivery, not consumption.
 Missing or unknown reader markers, process-query failure, and incomplete prompt phases remain
 unknown; a normal post-command prompt can become idle again after its accepted line is acknowledged.
 
@@ -2085,13 +2081,11 @@ the original ScriptBlock; the recognized modern adapter calls native ReadLine wi
 and the original module execution context. Both emit C in finally and preserve input/errors.
 It preserves prompt output (including mise), PSReadLine key hooks, the user's history handler and all profile files.
 Commands, scripts and unknown shells receive no bootstrap. Missing or restricted reader
-support emits no idle proof. Existing sessions without integration require confirmation. The reader
+support emits no idle proof. Existing sessions without integration stay unknown. The reader
 hook boundary also appears in [VS Code's PowerShell integration](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1);
 Orchbee adopts read-phase markers and the bounded correlation described below; it does not report command text or environment, or remap keys.
 
-The Host owner rechecks this strict sample immediately before admitting guarded graceful dispatch;
-refusal leaves Core intent unchanged and sends no signal. The Server retains late refusal/partial
-results and never forces an unconfirmed Close. Runtime/process regressions and the recurring
+Runtime/process regressions and the recurring
 `powershell-prompt.test.mjs` check cover queued-input consumption ambiguity, builtin-vs-prompt state, direct Agent roots,
 reader output/exceptions, custom-module refusal, initializer continuation and preserved hooks.
 The bundled-ConPTY cursor suite also checks real Windows PowerShell and available PowerShell 7

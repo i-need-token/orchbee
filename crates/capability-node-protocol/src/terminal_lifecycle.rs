@@ -64,8 +64,6 @@ pub struct LifecycleInventoryCursor {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalLifecycleAction {
     Terminate,
-    /// Ends only a freshly rechecked idle shell; never grants unconditional termination.
-    TerminateIfIdle,
     Force,
     Dispose,
     InventoryPage {
@@ -75,14 +73,6 @@ pub enum TerminalLifecycleAction {
     InspectInventoryPage {
         cursor: Option<LifecycleInventoryCursor>,
     },
-}
-
-/// Host classification sampled for this inventory request, independent of lifecycle phase.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LifecycleCloseActivity {
-    Unknown,
-    Idle,
-    Active,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -108,8 +98,6 @@ pub enum LifecycleTerminalPhase {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LifecycleTargetObservation {
-    /// Fresh request-scoped classification; old cohorts yield unknown.
-    pub close_activity: LifecycleCloseActivity,
     pub revision: u64,
     pub phase: LifecycleTerminalPhase,
 }
@@ -138,8 +126,6 @@ pub enum LifecycleRejection {
 pub enum LifecycleHostFailure {
     HostRefused,
     CleanupIncomplete,
-    /// Guard rejected the signal without changing termination intent.
-    ConfirmationRequired,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -184,10 +170,7 @@ impl TerminalLifecycleResult {
         use TerminalLifecycleAction as Action;
         use TerminalLifecycleOutcome as Outcome;
         if request.authorization.capability_version != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
-            && matches!(
-                request.action,
-                Action::TerminateIfIdle | Action::InspectInventoryPage { .. }
-            )
+            && matches!(request.action, Action::InspectInventoryPage { .. })
         {
             return Err(ProtocolError::InvalidPayload);
         }
@@ -200,13 +183,6 @@ impl TerminalLifecycleResult {
         );
         let compatible = match request.action {
             Action::Terminate => matches!(outcome, Outcome::TerminateAccepted) || failed,
-            Action::TerminateIfIdle => {
-                matches!(
-                    outcome,
-                    Outcome::TerminateAccepted
-                        | Outcome::HostFailure(LifecycleHostFailure::ConfirmationRequired)
-                ) || failed
-            }
             Action::Force => matches!(outcome, Outcome::ForceAccepted) || failed,
             Action::Dispose => {
                 matches!(
@@ -218,14 +194,6 @@ impl TerminalLifecycleResult {
             Action::InventoryPage { cursor } | Action::InspectInventoryPage { cursor } => {
                 if let Outcome::InventoryPage(page) = outcome {
                     validate_page(cursor, page)?;
-                    if request.authorization.capability_version
-                        != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
-                        && page.target.is_some_and(|target| {
-                            target.close_activity != LifecycleCloseActivity::Unknown
-                        })
-                    {
-                        return Err(ProtocolError::InvalidPayload);
-                    }
                 }
                 matches!(
                     outcome,

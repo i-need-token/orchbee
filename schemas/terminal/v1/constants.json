@@ -667,16 +667,6 @@
 			"name": "GraphicsPngDecoded",
 			"request": null,
 			"response_encoding": "graphics-image"
-		},
-		{
-			"event_encoding": null,
-			"kind": 82,
-			"name": "TerminateTerminalIfIdle",
-			"request": {
-				"payload_encoding": "control-json",
-				"success_kind": 82
-			},
-			"response_encoding": "control-json"
 		}
 	],
 	"protocol_limits": {

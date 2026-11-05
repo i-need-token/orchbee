@@ -141,7 +141,6 @@ pub(super) fn drive_close_to_publication(
                             next_cursor: None,
                             returned_count: 1,
                             target: Some(LifecycleTargetObservation {
-                                close_activity: orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
                                 revision: 3,
                                 phase: LifecycleTerminalPhase::Exited {
                                     terminate_requested: false,
@@ -154,9 +153,8 @@ pub(super) fn drive_close_to_publication(
                     }
                     TerminalLifecycleAction::Force => TerminalLifecycleOutcome::ForceAccepted,
                     TerminalLifecycleAction::Dispose => TerminalLifecycleOutcome::Disposed,
-                    TerminalLifecycleAction::TerminateIfIdle
-                    | TerminalLifecycleAction::InspectInventoryPage { .. } => {
-                        panic!("guarded Close requires the dedicated idle-evidence fixture")
+                    TerminalLifecycleAction::InspectInventoryPage { .. } => {
+                        panic!("conditional Close requires the dedicated idle-evidence fixture")
                     }
                 };
                 let result = TerminalLifecycleResult::new(token.request(), outcome).unwrap();

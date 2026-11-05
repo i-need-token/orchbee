@@ -8,9 +8,7 @@ use crate::{
     },
     session_coordinator::ProcessObservationTarget,
 };
-use orchbee_capability_node_protocol::{
-    LifecycleCloseActivity, LifecycleHostFailure, LifecycleUnknownReason,
-};
+use orchbee_capability_node_protocol::{LifecycleHostFailure, LifecycleUnknownReason};
 use orchbee_workbench_protocol::{
     TabSetCloseAction, TabSetCloseCondition, TabSetCloseFailure, TabSetCloseOutcome,
     TabSetCloseStatus, TabSetCloseUnavailable, WorkbenchTabId, WorkbenchTabSetCloseRequest,
@@ -45,11 +43,7 @@ fn page(phase: LifecycleTerminalPhase) -> TerminalLifecycleOutcome {
         inventory_generation: NonZeroU64::MIN,
         next_cursor: None,
         returned_count: 1,
-        target: Some(LifecycleTargetObservation {
-            revision: 1,
-            phase,
-            close_activity: LifecycleCloseActivity::Unknown,
-        }),
+        target: Some(LifecycleTargetObservation { revision: 1, phase }),
     })
 }
 

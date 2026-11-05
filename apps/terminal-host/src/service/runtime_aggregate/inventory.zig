@@ -31,18 +31,6 @@ pub fn terminalInventory(
 ) error{InvalidInventoryOffset}!TerminalInventory {
     if (offset > self.core_state.terminalCount()) return error.InvalidInventoryOffset;
     self.synchronizeTerminalRange(offset, maximum_terminals);
-    const count = self.core_state.terminalCount();
-    const end = offset + @min(maximum_terminals, count - offset);
-    for (self.core_state.terminalKeys()[offset..end]) |terminal_id| {
-        self.core_state.synchronizeCloseActivity(terminal_id, .unknown);
-        if (self.runtimeFor(terminal_id)) |runtime| {
-            self.core_state.synchronizeCloseActivity(terminal_id, switch (runtime.sampleCloseActivityForClose()) {
-                .idle => .idle,
-                .active => .active,
-                .unknown => .unknown,
-            });
-        }
-    }
     return .{
         .generation = self.core_state.inventoryGeneration(),
         .host_epoch = self.core_state.epoch,

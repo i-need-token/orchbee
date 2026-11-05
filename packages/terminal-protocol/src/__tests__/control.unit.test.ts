@@ -1146,17 +1146,6 @@ describe('control schemas', () => {
 
 		expect(TerminalListSchema.shape.terminals.element.parse(awaitingStart)).toEqual(awaitingStart);
 		expect(TerminalListSchema.shape.terminals.element.parse(failed)).toEqual(failed);
-		for (const closeActivity of ['idle', 'active', 'unknown'] as const) {
-			expect(
-				TerminalListSchema.shape.terminals.element.parse({ ...failed, closeActivity })
-					.closeActivity,
-			).toBe(closeActivity);
-		}
-		for (const closeActivity of [null, true, 'running', 1]) {
-			expect(
-				TerminalListSchema.shape.terminals.element.safeParse({ ...failed, closeActivity }).success,
-			).toBe(false);
-		}
 		expect(TerminalFailedSchema.shape.failure.safeParse(failure).success).toBe(true);
 		expect(
 			TerminalFailedSchema.safeParse({

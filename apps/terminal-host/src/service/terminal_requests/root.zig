@@ -36,7 +36,6 @@ pub fn dispatch(
         .create_terminal => try handler.handleCreate(connection_id, envelope, correlation_id, outgoing),
         .start_terminal => try handler.handleStart(connection_id, envelope, correlation_id, outgoing),
         .terminate_terminal => try handler.handleTerminate(connection_id, envelope, correlation_id, outgoing),
-        .terminate_terminal_if_idle => try handler.handleTerminate(connection_id, envelope, correlation_id, outgoing),
         .force_terminate_terminal => try handler.handleForceTerminate(connection_id, envelope, correlation_id, outgoing),
         .dispose_terminal => try handler.handleDispose(connection_id, envelope, correlation_id, outgoing),
         .attach_terminal => try handler.handleAttach(connection_id, envelope, correlation_id, outgoing),

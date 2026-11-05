@@ -125,9 +125,7 @@ fn ack(request: TerminalLifecycleRequest) -> TestResult<Vec<u8>> {
         )?,
     };
     let control = encode_lifecycle_control(&match request.action {
-        TerminalLifecycleAction::Terminate | TerminalLifecycleAction::TerminateIfIdle => {
-            LifecycleControl::TerminateTerminalAccepted(target)
-        }
+        TerminalLifecycleAction::Terminate => LifecycleControl::TerminateTerminalAccepted(target),
         TerminalLifecycleAction::Force => LifecycleControl::ForceTerminateTerminalAccepted(target),
         TerminalLifecycleAction::Dispose => LifecycleControl::DisposeTerminalAccepted(target),
         TerminalLifecycleAction::InventoryPage { .. }
@@ -643,7 +641,6 @@ fn summary_core(
         TerminalThemeState,
     };
     Ok(TerminalSummaryCore {
-        close_activity: None,
         configuration: TerminalConfiguration {
             scrollback_bytes: 0,
         },
@@ -690,8 +687,7 @@ fn page_outcome(
 #[test]
 fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identities() -> TestResult {
     use orchbee_terminal_protocol::{
-        ExitResult, FailureContainment, ProcessObservation, RuntimeFailure, TerminalCloseActivity,
-        TerminalGeometry,
+        ExitResult, FailureContainment, ProcessObservation, RuntimeFailure, TerminalGeometry,
     };
     let request = request(TerminalLifecycleAction::InventoryPage { cursor: None })?;
     let core = summary_core(5, 2)?;
@@ -699,39 +695,30 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
         columns: 80,
         rows: 24,
     };
-    for (summary, phase, close_activity) in [
+    for (summary, phase) in [
         (
             TerminalSummary::AwaitingStart { core: core.clone() },
             LifecycleTerminalPhase::AwaitingStart,
-            LifecycleCloseActivity::Unknown,
         ),
         (
             TerminalSummary::Running {
-                core: orchbee_terminal_protocol::TerminalSummaryCore {
-                    close_activity: Some(TerminalCloseActivity::Idle),
-                    ..core.clone()
-                },
+                core: core.clone(),
                 geometry,
                 terminate_requested: true,
             },
             LifecycleTerminalPhase::Running {
                 terminate_requested: true,
             },
-            LifecycleCloseActivity::Idle,
         ),
         (
             TerminalSummary::Running {
-                core: orchbee_terminal_protocol::TerminalSummaryCore {
-                    close_activity: Some(TerminalCloseActivity::Active),
-                    ..core.clone()
-                },
+                core: core.clone(),
                 geometry,
                 terminate_requested: false,
             },
             LifecycleTerminalPhase::Running {
                 terminate_requested: false,
             },
-            LifecycleCloseActivity::Active,
         ),
         (
             TerminalSummary::Finishing {
@@ -743,7 +730,6 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
             LifecycleTerminalPhase::Finishing {
                 terminate_requested: true,
             },
-            LifecycleCloseActivity::Unknown,
         ),
         (
             TerminalSummary::ContainingFailure {
@@ -753,7 +739,6 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
                 failure_containment: FailureContainment::Stopping { process: None },
             },
             LifecycleTerminalPhase::ContainingFailure,
-            LifecycleCloseActivity::Unknown,
         ),
         (
             TerminalSummary::Exited {
@@ -765,20 +750,15 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
             LifecycleTerminalPhase::Exited {
                 terminate_requested: false,
             },
-            LifecycleCloseActivity::Unknown,
         ),
         (
             TerminalSummary::Failed {
-                core: orchbee_terminal_protocol::TerminalSummaryCore {
-                    close_activity: Some(TerminalCloseActivity::Unknown),
-                    ..core.clone()
-                },
+                core: core.clone(),
                 geometry,
                 failure: RuntimeFailure::ReadOutput,
                 process: ProcessObservation::Unavailable,
             },
             LifecycleTerminalPhase::Failed,
-            LifecycleCloseActivity::Unknown,
         ),
     ] {
         let TerminalLifecycleOutcome::InventoryPage(page) =
@@ -789,7 +769,6 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
         assert_eq!(
             page.target,
             Some(LifecycleTargetObservation {
-                close_activity,
                 revision: 42,
                 phase
             })

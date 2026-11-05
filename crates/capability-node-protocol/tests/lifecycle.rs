@@ -43,17 +43,13 @@ fn frame(payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn current_inspection_activity_and_idle_guard_have_distinct_closed_bytes() -> TestResult {
-    for (action, outcome) in [
-        (vec![5], vec![1]),
-        (vec![5], vec![6, 3]),
-        (vec![6, 0], vec![7, 3]),
-    ] {
-        let mut payload = request_payload(&action);
+fn read_only_inspection_is_current_only_and_round_trips() -> TestResult {
+    for outcome in [vec![7, 3], page_bytes(7, None, 1, Some(&[2, 0]))] {
+        let mut payload = request_payload(&[6, 0]);
         payload[2] = 2;
         assert!(
             decode_message(&frame(&payload)).is_err(),
-            "an unsupported capability cannot claim current-only actions"
+            "an unsupported capability cannot claim the current-only inspection"
         );
         payload[2] = 1;
         assert_eq!(
@@ -66,19 +62,6 @@ fn current_inspection_activity_and_idle_guard_have_distinct_closed_bytes() -> Te
             encode_message(&decode_message(&frame(&payload))?)?,
             frame(&payload)
         );
-    }
-    for activity in 0..=3 {
-        let mut payload = request_payload(&[6, 0]);
-        payload[0] = 10;
-        let mut observation = page_bytes(7, None, 1, Some(&[2, 0]));
-        *observation.last_mut().unwrap() = activity;
-        payload.extend(observation);
-        let decoded = decode_message(&frame(&payload));
-        if activity == 3 {
-            assert!(decoded.is_err());
-        } else {
-            assert_eq!(encode_message(&decoded?)?, frame(&payload));
-        }
     }
     Ok(())
 }
@@ -167,7 +150,6 @@ fn page_bytes(
             bytes.push(1);
             bytes.extend(u64::MAX.to_be_bytes());
             bytes.extend(phase);
-            bytes.push(0); // Current layout always carries close activity (unknown).
         }
     }
     bytes
@@ -304,8 +286,6 @@ fn complete_request_seal_and_six_host_phases_are_retained() -> TestResult {
                 }),
                 returned_count: 128,
                 target: Some(LifecycleTargetObservation {
-                    close_activity:
-                        orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
                     revision: u64::MAX,
                     phase
                 }),
@@ -412,7 +392,7 @@ fn every_golden_round_trips_and_streams_without_consuming_the_next_frame() -> Te
             .filter(|frame| frame[8] == 10)
             .map(Vec::len)
             .max(),
-        Some(230)
+        Some(229)
     );
     Ok(())
 }

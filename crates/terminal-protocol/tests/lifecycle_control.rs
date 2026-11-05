@@ -16,7 +16,7 @@ const CONTROL_FIXTURE: &str =
 fn host_lifecycle_acknowledgements_match_the_canonical_wire_bytes() -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     let acknowledged = fixture_string(&fixture, "/outputs/terminal_acknowledged")?;
-    for kind in [12, 13, 18, 82] {
+    for kind in [12, 13, 18] {
         assert_canonical_round_trip(kind, MessageRole::Response, acknowledged)?;
     }
     Ok(())

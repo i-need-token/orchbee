@@ -24,7 +24,6 @@ describe('control request encoding', () => {
 		).toEqual(expect.objectContaining({ ok: true }));
 		for (const kind of [
 			MessageKind.terminateTerminal,
-			MessageKind.terminateTerminalIfIdle,
 			MessageKind.forceTerminateTerminal,
 			MessageKind.disposeTerminal,
 		]) {

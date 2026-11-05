@@ -2601,7 +2601,7 @@ fn expectClosePromptReady(runtime: *TerminalRuntime, expected_lines: u64) !void 
     try std.testing.expectEqual(@as(usize, 0), runtime_state.input_queue.client_charge.entries);
 }
 
-test "destructive close returns idle after a submitted command reaches a fresh prompt" {
+test "close activity returns idle after a submitted command reaches a fresh prompt" {
     var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .started } };
     var hooks = probe.hooks();
     hooks.has_active_command = BufferedCloseCommands.inactive;
@@ -2614,9 +2614,9 @@ test "destructive close returns idle after a submitted command reaches a fresh p
         runtime.destroy();
     }
     probe.reader.wait();
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, (try runtime.sampleCloseActivity()).activity);
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"));
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
     // A suppressed encoding publishes no shell bytes and cannot leave buffered work.
     try std.testing.expectEqual(@as(usize, 0), try runtime.enqueueKeyInput(.{
         .action = .release,
@@ -2627,7 +2627,7 @@ test "destructive close returns idle after a submitted command reaches a fresh p
         .text = "",
         .unshifted_codepoint = 0,
     }));
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
     _ = try runtime.enqueueRawInput("ordinary-command\r");
     probe.probe.started.wait();
     probe.probe.started.release();
@@ -2637,19 +2637,16 @@ test "destructive close returns idle after a submitted command reaches a fresh p
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;C\x07"),
     );
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.active, runtime.sampleCloseActivityForClose());
     try std.testing.expectEqual(protocol.TerminalCloseActivity.active, (try runtime.sampleCloseActivity()).activity);
     try std.testing.expectEqual(
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"),
     );
     try expectClosePromptReady(runtime, 1);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
-    // Projection retains its separate current-prompt behavior.
     try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
 }
 
-test "destructive close keeps process activity and observation failures conservative" {
+test "close activity keeps process activity and observation failures conservative" {
     var probe: GatedReaderProbe(ActiveCommandProbe) = .{ .probe = .{ .observation = .inactive } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
@@ -2660,11 +2657,11 @@ test "destructive close keeps process activity and observation failures conserva
     }
     probe.reader.wait();
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"));
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
     probe.probe.observation = .active;
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.active, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.active, (try runtime.sampleCloseActivity()).activity);
     probe.probe.observation = .failed;
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, (try runtime.sampleCloseActivity()).activity);
 }
 
 test "read markers cannot acknowledge input published after the read returns" {
@@ -2684,37 +2681,37 @@ test "read markers cannot acknowledge input published after the read returns" {
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"),
     );
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
 
     // A C marker without a submitted line cannot consume a later CRLF input.
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;C\x07"));
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.active, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.active, (try runtime.sampleCloseActivity()).activity);
     try std.testing.expectEqual(
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"),
     );
     try expectClosePromptReady(runtime, 0);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
     _ = try runtime.enqueueRawInput("ordinary-command\r\n");
     probe.probe.started.wait();
     probe.probe.started.release();
     probe.probe.accounted.wait();
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, (try runtime.sampleCloseActivity()).activity);
     try std.testing.expectEqual(
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"),
     );
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, (try runtime.sampleCloseActivity()).activity);
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;C\x07"));
     try std.testing.expectEqual(
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"),
     );
     try expectClosePromptReady(runtime, 1);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
 }
 
-test "destructive close keeps protection for accepted partial prompt input" {
+test "close activity stays unknown for accepted partial prompt input" {
     var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .started } };
     var hooks = probe.hooks();
     hooks.has_active_command = BufferedCloseCommands.inactive;
@@ -2731,14 +2728,13 @@ test "destructive close keeps protection for accepted partial prompt input" {
         ReaderBatchOutcome.committed,
         commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"),
     );
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
 
     _ = try runtime.enqueueRawInput("unfinished-command");
     probe.probe.started.wait();
     probe.probe.started.release();
     probe.probe.accounted.wait();
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
     try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, (try runtime.sampleCloseActivity()).activity);
 }
 
@@ -2767,7 +2763,7 @@ test "fully written queued commands cannot be acknowledged by an earlier prompt 
     }
     probe.reader.wait();
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"));
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
     _ = try runtime.enqueueRawInput("first-command\r");
     probe.probe.copied.wait();
     _ = try runtime.enqueueRawInput("Start-Sleep -Seconds 30\r");
@@ -2786,7 +2782,7 @@ test "fully written queued commands cannot be acknowledged by an earlier prompt 
         try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, markers));
         try std.testing.expectEqual(
             if (index == 2) protocol.TerminalCloseActivity.idle else protocol.TerminalCloseActivity.unknown,
-            runtime.sampleCloseActivityForClose(),
+            (try runtime.sampleCloseActivity()).activity,
         );
     }
 }

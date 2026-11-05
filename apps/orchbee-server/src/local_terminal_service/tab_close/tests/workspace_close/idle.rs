@@ -2,15 +2,13 @@
 //! own, decides by the same rule, and rechecks the whole scope at final admission.
 use super::*;
 use crate::local_terminal_service::tab_close::evidence::{CloseFacts, ShellReport};
-use orchbee_capability_node_protocol::{LifecycleCloseActivity, LifecycleHostFailure};
+use orchbee_capability_node_protocol::LifecycleHostFailure;
 use orchbee_workbench_protocol::WorkbenchRejectionReason;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Case {
     /// Both shells sit at their prompts.
     Quiet,
-    /// The Host calls both idle, and nothing else is known: no sampler reads them.
-    HostIdleOnly,
     /// The second shell says nothing and its sample never came.
     SecondAsks,
     /// The second terminal ended; only the first is read.
@@ -25,7 +23,6 @@ enum Case {
 fn a_workspace_closes_unasked_only_on_the_evidence_a_tab_close_reads() {
     for case in [
         Case::Quiet,
-        Case::HostIdleOnly,
         Case::SecondAsks,
         Case::SecondEnded,
         Case::SecondMissing,
@@ -84,14 +81,8 @@ fn a_workspace_closes_unasked_only_on_the_evidence_a_tab_close_reads() {
                         terminate_requested: false,
                     }
                 };
-                let target = (index == 0 || case != Case::SecondMissing).then_some(
-                    LifecycleTargetObservation {
-                        revision: 1,
-                        phase,
-                        // The Host's own guess never decides; the Server's read does.
-                        close_activity: LifecycleCloseActivity::Idle,
-                    },
-                );
+                let target = (index == 0 || case != Case::SecondMissing)
+                    .then_some(LifecycleTargetObservation { revision: 1, phase });
                 reply(
                     &mut peer,
                     request,
@@ -118,31 +109,27 @@ fn a_workspace_closes_unasked_only_on_the_evidence_a_tab_close_reads() {
             step
         });
         let mut read = None;
-        let result = if case == Case::HostIdleOnly {
-            service.execute_workspace_close(close).unwrap()
-        } else {
-            service
-                .execute_close_if_idle_with(close, |targets, _| {
-                    read = Some(targets.len());
-                    targets
-                        .iter()
-                        .enumerate()
-                        .map(|(index, _)| CloseFacts {
-                            report: Some(if index == 1 && case == Case::SecondAsks {
-                                ShellReport::Silent
-                            } else {
-                                ShellReport::AtPrompt
-                            }),
-                            sample: None,
-                        })
-                        .collect()
-                })
-                .unwrap()
-        };
+        let result = service
+            .execute_close_if_idle_with(close, |targets, _| {
+                read = Some(targets.len());
+                targets
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| CloseFacts {
+                        report: Some(if index == 1 && case == Case::SecondAsks {
+                            ShellReport::Silent
+                        } else {
+                            ShellReport::AtPrompt
+                        }),
+                        sample: None,
+                    })
+                    .collect()
+            })
+            .unwrap();
         let expected = match case {
             Case::Quiet | Case::SecondEnded => None,
             Case::Stale => Some(WorkbenchRejectionReason::RevisionMismatch),
-            Case::HostIdleOnly | Case::SecondAsks | Case::SecondMissing => {
+            Case::SecondAsks | Case::SecondMissing => {
                 Some(WorkbenchRejectionReason::ConfirmationRequired)
             }
         };
@@ -171,12 +158,12 @@ fn a_workspace_closes_unasked_only_on_the_evidence_a_tab_close_reads() {
         let expected_read = match case {
             Case::Quiet | Case::SecondAsks | Case::Stale => Some(2),
             Case::SecondEnded => Some(1),
-            Case::HostIdleOnly | Case::SecondMissing => None,
+            Case::SecondMissing => None,
         };
         assert_eq!(read, expected_read, "{case:?}");
         done.send(()).unwrap();
         let step = peer_thread.join().unwrap();
-        // No signal waits for the Host's idle guard: the Server's evidence already decided.
+        // The accepted close terminates at once: the Server's evidence already decided.
         assert!(
             step.is_none_or(|action| matches!(
                 action,

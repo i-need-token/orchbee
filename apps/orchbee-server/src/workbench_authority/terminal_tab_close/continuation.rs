@@ -538,7 +538,6 @@ impl CloseContinuation {
             TerminalLifecycleOutcome::HostFailure(reason) => self.park_lifecycle(
                 match reason {
                     LifecycleHostFailure::HostRefused => BlockedReason::HostRefused,
-                    LifecycleHostFailure::ConfirmationRequired => BlockedReason::HostRefused,
                     LifecycleHostFailure::CleanupIncomplete => BlockedReason::CleanupIncomplete,
                 },
                 true,
@@ -609,9 +608,7 @@ impl CloseContinuation {
                 self.park_lifecycle(BlockedReason::InventoryIncomplete, true);
                 return;
             }
-            TerminalLifecycleAction::Terminate | TerminalLifecycleAction::TerminateIfIdle => {
-                UnknownPhase::Terminate
-            }
+            TerminalLifecycleAction::Terminate => UnknownPhase::Terminate,
             TerminalLifecycleAction::Force => UnknownPhase::Force,
             TerminalLifecycleAction::Dispose => UnknownPhase::Dispose,
         };

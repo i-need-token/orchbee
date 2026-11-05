@@ -91,12 +91,12 @@ pub use terminal_launch::{
     TerminalStartResult, WorkerGeneration,
 };
 pub use terminal_lifecycle::{
-    LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleCloseActivity, LifecycleHostFailure,
-    LifecycleInventoryCursor, LifecycleInventoryFailure, LifecycleInventoryPage,
-    LifecycleRejection, LifecycleStepOrdinal, LifecycleTargetObservation, LifecycleTerminalPhase,
-    LifecycleUnknownReason, TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalLifecycleAction,
-    TerminalLifecycleAuthorization, TerminalLifecycleCapabilityVersion, TerminalLifecycleOutcome,
-    TerminalLifecycleRequest, TerminalLifecycleResult,
+    LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure, LifecycleInventoryCursor,
+    LifecycleInventoryFailure, LifecycleInventoryPage, LifecycleRejection, LifecycleStepOrdinal,
+    LifecycleTargetObservation, LifecycleTerminalPhase, LifecycleUnknownReason,
+    TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalLifecycleAction, TerminalLifecycleAuthorization,
+    TerminalLifecycleCapabilityVersion, TerminalLifecycleOutcome, TerminalLifecycleRequest,
+    TerminalLifecycleResult,
 };
 
 #[cfg(test)]

@@ -2,7 +2,7 @@
 //! that evidence only for the exact runtime and revision it was read from.
 use super::*;
 use crate::local_terminal_service::tab_close::evidence::{CloseFacts, ShellReport};
-use orchbee_capability_node_protocol::{LifecycleCloseActivity, LifecycleHostFailure};
+use orchbee_capability_node_protocol::LifecycleHostFailure;
 use orchbee_server::{WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget};
 use orchbee_workbench_protocol::{PanelNode, WorkbenchRejectionReason};
 
@@ -65,12 +65,7 @@ fn inventory(peer: &mut UnixStream, phase: LifecycleTerminalPhase) {
             inventory_generation: NonZeroU64::MIN,
             next_cursor: None,
             returned_count: 1,
-            target: Some(LifecycleTargetObservation {
-                revision: 1,
-                phase,
-                // The Host's own guess never decides a Tab or Panel; the Server's read does.
-                close_activity: LifecycleCloseActivity::Unknown,
-            }),
+            target: Some(LifecycleTargetObservation { revision: 1, phase }),
         }),
     );
 }
@@ -177,7 +172,7 @@ fn a_tab_or_panel_closes_unasked_only_on_the_servers_own_evidence() {
         }
         // The inventory alone settles an ended terminal; a live one is read.
         assert_eq!(read, !matches!(case, Case::Ended), "{case:?}");
-        // Without the Host's idle guard: the Server's evidence already decided.
+        // The accepted close terminates at once: the Server's evidence already decided.
         assert_eq!(
             step,
             match case {

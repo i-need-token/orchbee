@@ -397,12 +397,6 @@ pub fn findTerminal(self: anytype, terminal_id: TerminalId) ?*const TerminalSess
     return self.terminal_registry.get(terminal_id);
 }
 
-/// Refreshes only the request-scoped process sample, never a lifecycle/revision fact.
-pub fn synchronizeCloseActivity(self: anytype, terminal_id: TerminalId, activity: @import("../terminal_session.zig").CloseActivity) void {
-    const terminal = self.terminal_registry.find(terminal_id) orelse return;
-    terminal.close_activity = activity;
-}
-
 pub fn terminalCount(self: anytype) usize {
     return self.terminal_registry.count();
 }

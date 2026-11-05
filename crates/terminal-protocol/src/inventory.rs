@@ -1,4 +1,4 @@
-//! Generation-scoped live terminal inventory and strict close-activity metadata.
+//! Generation-scoped live terminal inventory.
 //! These sampled facts grant neither process control nor disposal authority.
 use std::num::NonZeroU64;
 
@@ -27,15 +27,6 @@ use crate::{
 
 const LIST_TERMINALS_KIND: u16 = 10;
 
-/// Fresh Host process/prompt classification; absence never establishes idle.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum TerminalCloseActivity {
-    Idle,
-    Active,
-    Unknown,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ColorScheme {
     Dark,
@@ -60,8 +51,6 @@ pub struct TerminalThemeState {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalSummaryCore {
-    /// Request-scoped Host sample; absent metadata is unknown, never idle.
-    pub close_activity: Option<TerminalCloseActivity>,
     pub configuration: TerminalConfiguration,
     pub configuration_revision: u64,
     pub identity: TerminalIdentity,
@@ -252,8 +241,6 @@ struct TerminalInventoryCursorWire {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TerminalSummaryWire {
-    #[serde(default, deserialize_with = "optional_close_activity")]
-    close_activity: Option<TerminalCloseActivity>,
     configuration: TerminalConfigurationWire,
     configuration_revision: String,
     identity: TerminalIdentityWire,
@@ -273,12 +260,6 @@ struct TerminalSummaryWire {
     #[serde(default)]
     rows: RequiredNullable<SafeInteger>,
     terminate_requested: bool,
-}
-
-fn optional_close_activity<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<TerminalCloseActivity>, D::Error> {
-    TerminalCloseActivity::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize, Serialize)]
@@ -468,9 +449,6 @@ fn serialize_summary_core<State>(
 where
     State: SerializeStruct,
 {
-    if let Some(activity) = core.close_activity {
-        state.serialize_field("closeActivity", &activity)?;
-    }
     state.serialize_field("configuration", &configuration_to_wire(&core.configuration))?;
     state.serialize_field(
         "configurationRevision",
@@ -537,7 +515,6 @@ fn terminal_list_from_wire(wire: TerminalListWire) -> Result<InventoryControl, P
 
 fn terminal_summary_from_wire(wire: TerminalSummaryWire) -> Result<TerminalSummary, ProtocolError> {
     let core = TerminalSummaryCore {
-        close_activity: wire.close_activity,
         configuration: configuration_from_wire(wire.configuration)?,
         configuration_revision: canonical_u64(&wire.configuration_revision)?,
         identity: identity_from_wire(wire.identity)?,

@@ -932,26 +932,6 @@ control geometry contract. Otherwise both dimensions are positive; mixed zero/po
 invalid. Grid and pixel-extent bounds remain unchanged. A terminal snapshot never invents pixel
 dimensions merely to export text or styles.
 
-## Conditional idle termination
-
-Kind 82 `TerminateTerminalIfIdle` is a control-JSON request/response with the same exact
-`{ terminalId }` schema as ordinary termination. Success echoes that target and accepts only a
-guarded graceful request; it does not establish exit or disposal. Immediately before dispatch the
-Host refreshes authoritative process/prompt state. Active, unknown, queued input or unacknowledged
-input returns non-retryable typed `confirmation-required` without changing termination intent or
-signaling. A successful inventory pre-read never replaces this guard. Old cohorts reject kind 82;
-there is no fallback to kind 12 or Force.
-
-Inventory summaries optionally carry `closeActivity: "idle" | "active" | "unknown"`.
-The Host refreshes this close-only observation for every serialized page, including unattached
-terminals. Absence means unknown, never idle; explicit null and other values are malformed. The
-sample is independent of content revision and inventory membership generation. Its idle state
-requires current semantic prompt evidence and no previously accepted activity-affecting input bytes.
-Accepted activity bytes latch live idle evidence unknown until terminal replacement or proven
-settlement: even fully accounted OS writes and later C/A prompt cycles do not prove shell-buffer
-consumption. Ordinary projection close-activity fallback does not grant destructive authority. TypeScript/Rust codecs and
-the Zig registry share the closed discriminants and existing canonical target-ACK fixture.
-
 ## Correlated command observation extension
 
 Optional OBTF extension kind `5` contains a positive output-origin epoch (`u64`), reader-ready (`u8`, 0/1), and invocation phase (`u8`, 0 absent, 1 running, 2 completed). An absent invocation is exactly 10 bytes. Otherwise its 66-byte payload appends: nonzero 16-byte invocation ID; start row `u64`, start column `u16`, end row `u64`, end column `u16`, positive start generation `u64`, positive start output epoch `u64`, and signed `i32` status, all integers little-endian. A running invocation has zero end coordinates and status. Duplicates, illegal phases/booleans, zero identities/epochs/generations and incorrect lengths reject the frame in consumers that understand this extension.

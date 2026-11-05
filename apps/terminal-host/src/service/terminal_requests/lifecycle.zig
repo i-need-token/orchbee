@@ -14,7 +14,6 @@ const protocol = @import("terminal-protocol");
 const terminal_configuration = model.configuration;
 
 const Context = host_request_context.Context;
-const MessageKind = protocol.MessageKind;
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
 
@@ -41,17 +40,12 @@ pub fn handleTerminate(
         self.context.hostEpoch(),
     );
     defer response.deinit();
-    const termination = if (envelope.kind == MessageKind.terminate_terminal_if_idle)
-        self.context.runtime_aggregate.requestTerminationIfIdle(connection_id, terminal_id)
-    else
-        self.context.runtime_aggregate.requestTermination(
-            connection_id,
-            terminal_id,
-            .graceful,
-        );
-    _ = termination catch |err| {
+    _ = self.context.runtime_aggregate.requestTermination(
+        connection_id,
+        terminal_id,
+        .graceful,
+    ) catch |err| {
         response.commitFailure(switch (err) {
-            error.ConfirmationRequired => .{ .code = "confirmation-required", .message = "current program state requires confirmation", .retryable = false },
             error.TerminalRuntimeMissing => unreachable,
             error.TerminationDispatchFailed => .{ .code = "termination-failed", .message = "platform termination request failed", .retryable = true },
             else => host_failure.fromCore(@errorCast(err)),

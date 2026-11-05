@@ -262,15 +262,6 @@ pub fn terminalSummary(
     host_epoch: anytype,
     terminal: anytype,
 ) ![]u8 {
-    const Value = switch (@typeInfo(@TypeOf(terminal))) {
-        .pointer => |pointer| pointer.child,
-        else => @TypeOf(terminal),
-    };
-    const close_activity_json = if (@hasDecl(Value, "closeActivity")) switch (terminal.closeActivity()) {
-        .unknown => "",
-        .idle => "\"closeActivity\":\"idle\",",
-        .active => "\"closeActivity\":\"active\",",
-    } else "";
     var creation_buffer: [32]u8 = undefined;
     var epoch_buffer: [32]u8 = undefined;
     var terminal_buffer: [32]u8 = undefined;
@@ -300,9 +291,8 @@ pub fn terminalSummary(
     defer allocator.free(theme_json);
     return std.fmt.allocPrint(
         allocator,
-        "{{{s}\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
+        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
         .{
-            close_activity_json,
             columns_json,
             configuration.scrollback_bytes,
             terminal.configurationRevision(),

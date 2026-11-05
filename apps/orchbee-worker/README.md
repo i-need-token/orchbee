@@ -788,8 +788,6 @@ closed viewers cannot add Host requests to a lifecycle step. Preflight Host loss
 result delivery, including Host or Server loss after that observation. Inventory requests ask for
 at most 128 terminals in one page, also subject to the Host control-record byte bound. Every decoded
 row, identity collision, cursor generation and offset is checked before projecting the target.
-The current lifecycle capability preserves Host-reported `idle`, `active`, and `unknown` close
-activity; absent activity remains `unknown`, without a historical-version fallback.
 
 [Target cleanup](src/host_connection/target_cleanup.rs) captures up to eight exact viewer IDs and
 one exact controller ID before Host I/O. It reserves one generation-local retired-target cell,
@@ -947,7 +945,7 @@ reader assets. Host builds consume those same bytes and recognize the exact prep
 interactive shell without injecting it twice. The `-Command` switch alone never grants this
 classification: a modified script, extra command operand or noninteractive flag remains a program.
 The reader admits only standard PSReadLine module/export identity and known definition fingerprints;
-custom or unsupported definitions remain untouched and unknown for guarded Close. A/B/C markers
+custom or unsupported definitions remain untouched and emit no prompt markers. A/B/C markers
 preserve the preceding command's status, reader results and key hooks. History keeps the user's
 own lines and handler; a line submitted with the Orchbee run prefix is withheld from PSReadLine
 history for that read only. Skipped or repeated installation cannot abort surrounding
