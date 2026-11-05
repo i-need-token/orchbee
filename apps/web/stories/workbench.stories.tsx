@@ -38,6 +38,7 @@ const staticStoryAuthority: WorkbenchAuthority = {
 	create: () => Promise.resolve({ kind: 'unsupported' }),
 	createPanelTerminal: () => Promise.resolve({ kind: 'unsupported' }),
 	createTab: () => Promise.resolve({ kind: 'unsupported' }),
+	duplicateTabs: () => Promise.resolve({ kind: 'unsupported' }),
 	minimumSplitPercent: 10,
 	stoppedTabClose: () => null,
 	watchClose: () => () => undefined,
