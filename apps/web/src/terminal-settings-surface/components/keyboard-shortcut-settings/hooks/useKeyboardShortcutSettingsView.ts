@@ -29,6 +29,8 @@ interface KeyboardShortcutSettingsRowView {
 	readonly actionName: string;
 	readonly availability: string;
 	readonly chord: string;
+	/** Says which configured command runs this shortcut's default chord instead of it. */
+	readonly configuredCommandNote: string | null;
 	readonly error: string | null;
 	readonly recording: boolean;
 	readonly resetLabel: string;
@@ -69,11 +71,14 @@ interface KeyboardShortcutSearchView {
 interface UseKeyboardShortcutSettingsViewOptions {
 	readonly controller: KeyboardShortcutSettingsController;
 	readonly platform: KeyboardShortcutPlatform;
+	/** The configured command holding each default shortcut it took, by shortcut id. */
+	readonly takenByConfiguredCommands?: ReadonlyMap<string, string> | undefined;
 }
 
 export function useKeyboardShortcutSettingsView({
 	controller,
 	platform,
+	takenByConfiguredCommands,
 }: UseKeyboardShortcutSettingsViewOptions): KeyboardShortcutSettingsView {
 	const intl = useOrchbeeIntl();
 	const actionNameFor = (declaration: KeyboardShortcutDeclaration): string =>
@@ -175,10 +180,18 @@ export function useKeyboardShortcutSettingsView({
 		.filter((row) => matchingShortcutIds.has(row.declaration.shortcutId))
 		.map((row) => {
 			const { actionName, availability, chord, declaration, scope, source, sourceKind } = row;
+			const configuredCommand = takenByConfiguredCommands?.get(declaration.shortcutId);
 			return {
 				actionName,
 				availability,
 				chord,
+				configuredCommandNote:
+					configuredCommand === undefined
+						? null
+						: intl.formatMessage(keyboardShortcutMessages.takenByConfiguredCommand, {
+								command: configuredCommand,
+								shortcut: chord,
+							}),
 				error: errors[declaration.shortcutId] ?? null,
 				recording: recordingShortcutId === declaration.shortcutId,
 				resetLabel: intl.formatMessage(keyboardShortcutMessages.reset),

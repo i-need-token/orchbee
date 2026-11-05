@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 
-import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import { cleanup, renderHook } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
+import { OrchbeeI18nProvider, useOrchbeeIntl } from '@orchbee/i18n';
+import { act, cleanup, renderHook } from '@testing-library/react';
+import { createElement, useMemo, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KeyboardShortcutSettingsController } from '../../../../../keyboard-shortcuts';
+import {
+	KeyboardShortcutSettingsController,
+	keyboardShortcutClaims,
+	useKeyboardShortcutSettings,
+} from '../../../../../keyboard-shortcuts';
+import {
+	useWorkbenchConfiguredCommandKeys,
+	type WorkbenchConfiguredCommands,
+} from '../../../../../workbench';
 import { useKeyboardShortcutSettingsView } from '../useKeyboardShortcutSettingsView';
 
 function I18nWrapper({ children }: { readonly children: ReactNode }) {
@@ -181,6 +189,51 @@ describe('useKeyboardShortcutSettingsView', () => {
 			chord: 'Ctrl+Shift+.',
 			scope: 'Workbench',
 		});
+		controller.dispose();
+	});
+
+	it('notes a default a configured command took until the person overrides it', () => {
+		const controller = new KeyboardShortcutSettingsController({
+			platform: 'standard',
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
+		const catalog = [
+			{ bindings: ['ctrl+shift+p'], description: 'deploy', display: null, id: 'deploy' },
+		];
+		const commands: WorkbenchConfiguredCommands = {
+			getSnapshot: () => catalog,
+			run: () => Promise.resolve({ kind: 'accepted' }),
+			subscribe: () => () => undefined,
+		};
+		const view = renderHook(
+			() => {
+				const intl = useOrchbeeIntl();
+				const snapshot = useKeyboardShortcutSettings(controller);
+				const claims = useMemo(() => keyboardShortcutClaims(snapshot, intl), [intl, snapshot]);
+				const keys = useWorkbenchConfiguredCommandKeys({ claims, commands, platform: 'standard' });
+				return useKeyboardShortcutSettingsView({
+					controller,
+					platform: 'standard',
+					takenByConfiguredCommands: keys.takenBy,
+				});
+			},
+			{ wrapper: I18nWrapper },
+		);
+		const searchRow = () =>
+			view.result.current.rows.find((row) => row.shortcutId === 'workbench.search.actions.open');
+
+		expect(searchRow()?.configuredCommandNote).toContain('deploy');
+		expect(
+			view.result.current.rows.filter((row) => row.configuredCommandNote !== null),
+		).toHaveLength(1);
+
+		act(() => {
+			controller.setShortcut('workbench.search.actions.open', {
+				code: 'KeyK',
+				modifiers: ['mod', 'alt'],
+			});
+		});
+		expect(searchRow()?.configuredCommandNote).toBeNull();
 		controller.dispose();
 	});
 });

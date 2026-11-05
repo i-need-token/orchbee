@@ -33,7 +33,7 @@ import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
-import { useWorkbenchConfiguredCommandKeys } from './hooks/useWorkbenchConfiguredCommandKeys';
+import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type { WorkbenchAuthority } from './types/workbench-authority';
 import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
@@ -42,7 +42,6 @@ import type {
 	WorkbenchNavigationPort,
 	WorkbenchTerminalFontSizeChangeCallback,
 } from './types/workbench-host-actions';
-import type { WorkbenchShortcutClaim } from './types/workbench-shortcut-claims';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
@@ -57,7 +56,11 @@ import {
 } from './utils/workbench-shortcuts';
 import styles from './Workbench.module.css';
 
-const NO_SHORTCUT_CLAIMS: readonly WorkbenchShortcutClaim[] = [];
+const NO_CONFIGURED_COMMAND_KEYS: WorkbenchConfiguredCommandKeysView = {
+	catalog: [],
+	keys: { chords: new Map(), heldLabels: new Set(), notes: new Map(), taken: new Map() },
+	takenBy: new Map(),
+};
 
 interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
@@ -65,6 +68,11 @@ interface WorkbenchProps {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	/** Decides the shared Workbench structure. */
 	readonly authority: WorkbenchAuthority;
+	/**
+	 * What `useWorkbenchConfiguredCommandKeys` follows for the authority's configured commands, so the
+	 * shortcut settings read the same result; without it the window offers no configured command.
+	 */
+	readonly configuredCommandKeys?: WorkbenchConfiguredCommandKeysView | undefined;
 	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
@@ -74,11 +82,6 @@ interface WorkbenchProps {
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
-	/**
-	 * Every chord the window's shortcuts hold now, and whether the person set it; configured commands
-	 * take a default's chord and yield to the person's own. Keep it stable across renders.
-	 */
-	readonly shortcutClaims?: readonly WorkbenchShortcutClaim[] | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
@@ -91,6 +94,7 @@ export function Workbench({
 	agentNotificationObserver,
 	agentObservationSource,
 	authority,
+	configuredCommandKeys = NO_CONFIGURED_COMMAND_KEYS,
 	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
@@ -100,7 +104,6 @@ export function Workbench({
 	projectFolderAcquisition,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
-	shortcutClaims = NO_SHORTCUT_CLAIMS,
 	shortcutPlatform,
 	terminalActionShortcutLabels,
 	terminalSurface,
@@ -109,11 +112,6 @@ export function Workbench({
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
 		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
-	const configuredCommandKeys = useWorkbenchConfiguredCommandKeys({
-		claims: shortcutClaims,
-		commands: authority.configuredCommands,
-		platform: shortcutPlatform,
-	});
 	const shortcutLabelForAction = useWorkbenchActionShortcutLabel({
 		configuredCommandKeys: configuredCommandKeys.keys,
 		shortcutBindings: effectiveShortcutBindings,

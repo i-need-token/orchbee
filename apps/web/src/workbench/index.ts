@@ -1,4 +1,5 @@
 export { Workbench } from './Workbench';
+export { useWorkbenchConfiguredCommandKeys } from './hooks/useWorkbenchConfiguredCommandKeys';
 
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';

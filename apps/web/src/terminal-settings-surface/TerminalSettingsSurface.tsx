@@ -31,6 +31,8 @@ export interface TerminalSettingsSurfaceProps {
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
+	/** The configured command holding each default shortcut it took, by shortcut id. */
+	readonly keyboardShortcutsTakenByConfiguredCommands?: ReadonlyMap<string, string> | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
 
@@ -57,6 +59,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 			controller={props.controller}
 			keyboardShortcutController={props.keyboardShortcutController}
 			keyboardShortcutPlatform={props.keyboardShortcutPlatform}
+			keyboardShortcutsTakenByConfiguredCommands={props.keyboardShortcutsTakenByConfiguredCommands}
 			macosTerminalInputSettingsController={props.macosTerminalInputSettingsController}
 			onRequestClose={props.onRequestClose}
 			terminalFeedbackSettingsController={props.terminalFeedbackSettingsController}
@@ -90,6 +93,7 @@ function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): Re
 			<KeyboardShortcutSettings
 				controller={props.keyboardShortcutController}
 				platform={props.keyboardShortcutPlatform}
+				takenByConfiguredCommands={props.keyboardShortcutsTakenByConfiguredCommands}
 			/>
 		);
 	} else if (view.category === 'remote-development') {

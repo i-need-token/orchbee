@@ -111,5 +111,9 @@ export const keyboardShortcutMessages = defineMessages({
 	scopeWorkbench: message('keyboard.shortcuts.scope.workbench'),
 	sourceCustom: message('keyboard.shortcuts.source.custom'),
 	sourceDefault: message('keyboard.shortcuts.source.default'),
+	takenByConfiguredCommand: message(
+		'keyboard.shortcuts.takenByConfiguredCommand',
+		'Inline note on a default shortcut a configured command now runs instead. shortcut is a localized chord; command is the configured command name as written.',
+	),
 	title: message('keyboard.shortcuts.title'),
 });

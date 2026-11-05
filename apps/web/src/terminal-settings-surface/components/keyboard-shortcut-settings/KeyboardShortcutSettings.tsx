@@ -17,13 +17,20 @@ import styles from './KeyboardShortcutSettings.module.css';
 interface KeyboardShortcutSettingsProps {
 	readonly controller: KeyboardShortcutSettingsController;
 	readonly platform: KeyboardShortcutPlatform;
+	/** The configured command holding each default shortcut it took, by shortcut id. */
+	readonly takenByConfiguredCommands?: ReadonlyMap<string, string> | undefined;
 }
 
 export function KeyboardShortcutSettings({
 	controller,
 	platform,
+	takenByConfiguredCommands,
 }: KeyboardShortcutSettingsProps): React.ReactNode {
-	const view = useKeyboardShortcutSettingsView({ controller, platform });
+	const view = useKeyboardShortcutSettingsView({
+		controller,
+		platform,
+		takenByConfiguredCommands,
+	});
 
 	return (
 		<div className={styles['root']} data-slot='keyboard-shortcut-settings'>
@@ -102,6 +109,14 @@ export function KeyboardShortcutSettings({
 									<span aria-hidden='true'>·</span>
 									<span>{row.availability}</span>
 								</div>
+								{row.configuredCommandNote === null ? null : (
+									<div
+										className={styles['error']}
+										id={`keyboard-shortcuts.${row.shortcutId}.configured-command`}
+									>
+										{row.configuredCommandNote}
+									</div>
+								)}
 								{row.recording ? (
 									<div className={styles['recording']} role='status'>
 										{view.recordingInstruction}
@@ -118,6 +133,11 @@ export function KeyboardShortcutSettings({
 									{row.source}
 								</span>
 								<button
+									aria-describedby={
+										row.configuredCommandNote === null
+											? undefined
+											: `keyboard-shortcuts.${row.shortcutId}.configured-command`
+									}
 									aria-label={view.changeLabel(row.actionName)}
 									aria-pressed={row.recording}
 									className={styles['recorder']}

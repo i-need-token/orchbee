@@ -98,6 +98,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.scope.workbench': 'Workbench',
 	'keyboard.shortcuts.source.custom': 'Custom',
 	'keyboard.shortcuts.source.default': 'Default',
+	'keyboard.shortcuts.takenByConfiguredCommand':
+		'{shortcut} is used by configured command "{command}".',
 	'keyboard.shortcuts.title': 'Keyboard shortcuts',
 } as const;
 

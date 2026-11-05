@@ -11,6 +11,7 @@ import {
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
 	type WorkbenchWorkspaceLocationSource,
+	useWorkbenchConfiguredCommandKeys,
 } from '../workbench';
 import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
 import { useOrchbeeIntl } from '@orchbee/i18n';
@@ -92,6 +93,11 @@ export function WebApplication({
 		() => keyboardShortcutClaims(keyboardShortcuts, intl),
 		[intl, keyboardShortcuts],
 	);
+	const configuredCommandKeys = useWorkbenchConfiguredCommandKeys({
+		claims: shortcutClaims,
+		commands: authority.configuredCommands,
+		platform: shortcutPlatform,
+	});
 	const terminalActionShortcutLabels: WorkbenchTerminalActionShortcutLabels = {
 		[PROJECTED_TERMINAL_SHORTCUTS.clear.actionId]: formatProjectedTerminalActionShortcut(
 			PROJECTED_TERMINAL_SHORTCUTS.clear.actionId,
@@ -131,6 +137,7 @@ export function WebApplication({
 					agentNotificationObserver={terminalFeedbackSettingsController}
 					agentObservationSource={agentObservationSource}
 					authority={authority}
+					configuredCommandKeys={configuredCommandKeys}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
 					navigation={navigation}
@@ -139,7 +146,6 @@ export function WebApplication({
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
 					shortcutBindings={keyboardShortcuts.bindings}
-					shortcutClaims={shortcutClaims}
 					shortcutPlatform={shortcutPlatform}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
@@ -152,6 +158,7 @@ export function WebApplication({
 				controller={terminalSettingsController}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}
+				keyboardShortcutsTakenByConfiguredCommands={configuredCommandKeys.takenBy}
 				keyboardShortcutPlatform={shortcutPlatform}
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
 				onRequestClose={view.closeSettings}

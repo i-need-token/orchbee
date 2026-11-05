@@ -28,6 +28,8 @@ export interface WorkbenchConfiguredCommandKeys {
 	/** The labels of those chords; no window shortcut shows one of them while a command holds it. */
 	readonly heldLabels: ReadonlySet<string>;
 	readonly notes: ReadonlyMap<string, WorkbenchConfiguredCommandKeyNote>;
+	/** The command holding each window default it took, by the claim's id. */
+	readonly taken: ReadonlyMap<string, string>;
 }
 
 /** The label order the TUI writes; a label out of this order did not come from it. */
@@ -144,6 +146,7 @@ export function resolveWorkbenchConfiguredCommandKeys(
 	const heldLabels = new Set<string>();
 	const chords = new Map<string, readonly KeyboardShortcutChord[]>();
 	const notes = new Map<string, WorkbenchConfiguredCommandKeyNote>();
+	const taken = new Map<string, string>();
 	for (const command of commands) {
 		const bound: KeyboardShortcutChord[] = [];
 		let note: WorkbenchConfiguredCommandKeyNote | undefined;
@@ -162,7 +165,10 @@ export function resolveWorkbenchConfiguredCommandKeys(
 				note ??= { action: claim.action, kind: 'yielded', shortcut };
 				continue;
 			}
-			if (claim !== undefined) note ??= { action: claim.action, kind: 'took', shortcut };
+			if (claim !== undefined) {
+				note ??= { action: claim.action, kind: 'took', shortcut };
+				taken.set(claim.id, command.id);
+			}
 			held.add(key);
 			heldLabels.add(shortcut);
 			bound.push(chord);
@@ -173,7 +179,7 @@ export function resolveWorkbenchConfiguredCommandKeys(
 		}
 		if (note !== undefined) notes.set(command.id, note);
 	}
-	return { chords, heldLabels, notes };
+	return { chords, heldLabels, notes, taken };
 }
 
 /** The configured command a key press runs, if any. */

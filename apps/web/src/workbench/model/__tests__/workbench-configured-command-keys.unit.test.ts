@@ -67,8 +67,18 @@ describe('resolveWorkbenchConfiguredCommandKeys', () => {
 				command('later', ['alt+b']),
 			],
 			[
-				{ action: 'Find', chord: { code: 'KeyF', modifiers: ['mod', 'alt'] }, personal: false },
-				{ action: 'Paste', chord: { code: 'KeyV', modifiers: ['mod', 'alt'] }, personal: true },
+				{
+					action: 'Find',
+					chord: { code: 'KeyF', modifiers: ['mod', 'alt'] },
+					id: 'find',
+					personal: false,
+				},
+				{
+					action: 'Paste',
+					chord: { code: 'KeyV', modifiers: ['mod', 'alt'] },
+					id: 'paste',
+					personal: true,
+				},
 			],
 			'standard',
 		);

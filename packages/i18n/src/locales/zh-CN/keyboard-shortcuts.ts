@@ -92,5 +92,6 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.scope.workbench': '工作台',
 	'keyboard.shortcuts.source.custom': '自定义',
 	'keyboard.shortcuts.source.default': '默认',
+	'keyboard.shortcuts.takenByConfiguredCommand': '{shortcut} 已被配置的命令“{command}”占用。',
 	'keyboard.shortcuts.title': '键盘快捷键',
 } as const satisfies Readonly<Record<KeyboardShortcutMessageId, string>>;
