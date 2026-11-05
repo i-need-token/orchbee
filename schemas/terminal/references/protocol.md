@@ -511,7 +511,7 @@ The current optional extension registry is:
 |  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code. |
 |  `5` | `10` or `66` | Row-origin epoch and the latest correlated Shell invocation; see the extension contract below.                                                       |
 |  `6` |          `8` | Real-time start of the invocation in the same frame's kind `5`; see the extension contract below.                                                    |
-|  `7` |          `9` | The program's current OSC 7501 root-record state and the real time the Host received it; see the program status extension below.                    |
+|  `7` |          `9` | The program's current OSC 7501 root-record state and the real time the Host received it; see the program status extension below.                     |
 
 Kind `1` is unassigned.
 
