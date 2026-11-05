@@ -483,13 +483,17 @@ impl Picker {
             unread: rows().any(|r| !r.seen),
         })
     }
-    pub(crate) fn workspace_unread(&self, row: &Row) -> bool {
+    pub(crate) fn workspace_unread(
+        &self,
+        row: &Row,
+        painted: impl Fn(&crate::machine_agents::Row) -> bool,
+    ) -> bool {
         row.context.as_ref().is_some_and(|context| {
             self.agent_observations.iter().any(|(choice, observation)| {
                 *choice == row.choice
                     && matches!(observation, crate::machine_agents::checkpoint::Observation::Ready(cp)
                         if cp.session_id == context.target.session_id
-                            && cp.rows.iter().any(|agent| agent.target.context == context.target && !agent.seen))
+                            && cp.rows.iter().any(|agent| agent.target.context == context.target && !agent.seen && !painted(agent)))
             })
         })
     }

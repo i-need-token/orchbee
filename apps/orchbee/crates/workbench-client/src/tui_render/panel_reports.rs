@@ -46,14 +46,16 @@ pub(super) fn agent_state(view: PanelReportView<'_>) -> Option<MetadataState> {
         .as_ref()
         .map(|v| v.as_str())
         .or_else(|| report.and_then(|r| r.agent.as_deref()))?;
-    Some(match report.map_or(PanelAgentState::Unknown, |r| r.state) {
-        PanelAgentState::Idle => MetadataState::Idle,
-        PanelAgentState::Working => MetadataState::Working,
-        PanelAgentState::Done => MetadataState::Done,
-        PanelAgentState::Error => MetadataState::Error,
-        PanelAgentState::Blocked => MetadataState::Blocked,
-        PanelAgentState::Unknown => MetadataState::Unknown,
-    })
+    Some(
+        match report.map_or(PanelAgentState::Unknown, |r| r.display_state()) {
+            PanelAgentState::Idle => MetadataState::Idle,
+            PanelAgentState::Working => MetadataState::Working,
+            PanelAgentState::Done => MetadataState::Done,
+            PanelAgentState::Error => MetadataState::Error,
+            PanelAgentState::Blocked => MetadataState::Blocked,
+            PanelAgentState::Unknown => MetadataState::Unknown,
+        },
+    )
 }
 
 #[cfg(test)]

@@ -3,6 +3,13 @@
 use super::Locale;
 
 impl Locale {
+    pub(crate) const fn terminal_back_to_live(self) -> &'static str {
+        match self {
+            Self::EnUs => "Back to live",
+            Self::ZhCn => "返回实时画面",
+        }
+    }
+
     /// The right-edge badge a pane carries while its retained-history core
     /// owns the leaf.
     pub(crate) const fn terminal_history_badge(self) -> &'static str {

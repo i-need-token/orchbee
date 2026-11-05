@@ -61,6 +61,15 @@ at-most-16-KiB suffixes replace capacity above 64 KiB, preserving a partial adja
 keeping the old large scratch allocation. The large-record trace in `src/multiplex/tests.rs`
 covers this release.
 
+## Panel Agent completion
+
+Panel Agent report views and physical snapshots carry the Server-owned completion fact alongside
+raw provider state. `AgentCompletion::display` shares its presentation rule with native consumers;
+an accepted edit acknowledges completion for all Clients while leaving raw idle and semantic
+sequence unchanged. The [shared Panel Agent contract](../../schemas/workbench/README.md#workspace-metadata)
+owns wire compatibility and the [attention owner](../../apps/orchbee/docs/native-client-attention.md)
+owns physical identity, transitions and Client seen state.
+
 ## Shared user preferences
 
 [The common preference contract](docs/user-preferences.md) owns the GUI/TUI inventory,

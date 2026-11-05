@@ -266,6 +266,7 @@ pub(super) fn fixture(
             .map(|panel_id| {
                 let binding = expected(snapshot, &panel_id).unwrap();
                 let report = binding.as_ref().map(|_| PanelAgentView {
+                    completion: Default::default(),
                     agent: None,
                     state: orchbee_workbench_protocol::PanelAgentState::Unknown,
                     authority_source: None,

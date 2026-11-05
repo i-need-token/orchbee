@@ -495,6 +495,85 @@ fn painted(ui: &WorkbenchClientUi) -> String {
 }
 
 #[test]
+fn retained_history_exposes_its_return_key_on_badge_hover_in_both_locales() {
+    use crate::{
+        localization::Locale,
+        tui_hit_map::{HitMapBuilder, TooltipContent},
+        tui_theme::Theme,
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+    let (ui, _, _) = reading_ui();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let view = crate::client_view::ClientView::new(120);
+        let mut hits = HitMapBuilder::new();
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &view,
+                    locale,
+                    Some(ui.view()),
+                    &Theme::terminal_native(),
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let (x, y) = (0..40)
+            .find_map(|y| {
+                let mut row = String::new();
+                let mut x = 0;
+                while x < 120 {
+                    let cell = &terminal.backend().buffer()[(x, y)];
+                    row.push_str(cell.symbol());
+                    x += ratatui::buffer::CellWidth::cell_width(cell).max(1);
+                }
+                let prefix = &row[..row.find(locale.terminal_history_badge())?];
+                Some((
+                    u16::try_from(crate::terminal_text::display_width(prefix)).unwrap(),
+                    y,
+                ))
+            })
+            .expect("history badge is painted");
+        assert!(
+            matches!(hits.tooltip_content_at(x, y), Some(
+            TooltipContent::Action { label, key: Some(key) }) if !label.is_empty() && key == "Esc"),
+            "history must expose the return-to-live action without a persistent footer"
+        );
+        let key = hits.finish().tooltip_at(x, y).unwrap();
+        let projection = crate::tui_hit_map::PointerProjection::default().with_tooltip(Some(
+            crate::tui_hit_map::tooltip::Shown {
+                key,
+                pointer: (x, y),
+            },
+        ));
+        let mut hits = HitMapBuilder::with_pointer(projection);
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &view,
+                    locale,
+                    Some(ui.view()),
+                    &Theme::terminal_native(),
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let text: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .flat_map(|cell| cell.symbol().chars())
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        assert!(text.contains("Esc"));
+        assert!(text.contains(&locale.terminal_back_to_live().replace(' ', "")));
+    }
+}
+
+#[test]
 fn returning_bookmark_paints_its_last_window_instead_of_the_live_tail() {
     let (mut ui, mailbox, _) = reading_ui();
     ui.clear_projections();

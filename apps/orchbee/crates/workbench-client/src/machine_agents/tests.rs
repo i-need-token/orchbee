@@ -69,6 +69,7 @@ fn state(member: &TerminalPresentationId) -> TerminalAgentStateRow {
     TerminalAgentStateRow {
         presentation_id: member.clone(),
         snapshot: Some(TerminalAgentStateSnapshot {
+            completion: Default::default(),
             binding: physical(n),
             sequence: WorkbenchRevision::new(8),
             agent: (n == 12 || n == 23).then(|| "codex".into()),
@@ -438,6 +439,7 @@ fn enrich(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bo
                             panel_id: WorkbenchPanelId::parse(&id(n / 10 * 10 + 1)).unwrap(),
                             binding: presentation(n).binding,
                             report: Some(PanelAgentView {
+                                completion: Default::default(),
                                 authority_source: agent.as_ref().map(|_| "hook".into()),
                                 agent,
                                 state: PanelAgentState::Working,

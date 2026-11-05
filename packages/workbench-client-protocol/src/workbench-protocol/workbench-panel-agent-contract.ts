@@ -132,10 +132,14 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
+/** Server-owned completion acknowledgement, independent of provider status and Client unread state. */
+const AgentCompletionSchema = z.enum(['none', 'awaiting-input', 'acknowledged']);
+
 export const PanelAgentViewSchema = z
 	.strictObject({
 		agent: normalizedLabel.nullable(),
 		state: PanelAgentStateSchema,
+		completion: AgentCompletionSchema.optional(),
 		authoritySource: z.string().nullable(),
 		message: z.string().nullable(),
 	})
@@ -503,6 +507,7 @@ const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 									sequence: WorkbenchRevisionSchema,
 									agent: normalizedLabel.nullable(),
 									state: PanelAgentStateSchema,
+									completion: AgentCompletionSchema.optional(),
 								})
 								.readonly()
 								.nullable(),

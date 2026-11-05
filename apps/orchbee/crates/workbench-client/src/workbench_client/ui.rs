@@ -290,6 +290,8 @@ const fn client_notice(notice: ViewportNotice) -> ClientNotice {
 }
 
 pub struct WorkbenchClientView<'a> {
+    outer_focused: bool,
+    attention_visible: bool,
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
     settings: Option<&'a settings::Coordinator>,
     duplication: Option<crate::localization::DuplicateProgress>,
@@ -1170,6 +1172,8 @@ impl<'a> WorkbenchClientView<'a> {
     /// Empty, unobstructed Native surface for consumers whose test owns no Client state.
     pub fn notification_test_view() -> Self {
         Self {
+            outer_focused: false,
+            attention_visible: false,
             worktree: None,
             menu: None,
             settings: None,
@@ -1210,6 +1214,8 @@ impl<'a> WorkbenchClientView<'a> {
         projection_status: ClientProjectionStatus,
     ) -> Self {
         Self {
+            outer_focused: false,
+            attention_visible: false,
             worktree: None,
             menu: None,
             settings: None,
@@ -1564,6 +1570,8 @@ impl WorkbenchClientUi {
                 projection.status
             });
         WorkbenchClientView {
+            outer_focused: self.outer_focused == Some(true),
+            attention_visible: false,
             resize: None,
             state: state.map(WorkbenchClientState::view),
             panes: &self.projections,
@@ -1901,6 +1909,7 @@ impl WorkbenchClientUi {
             {
                 changed |= self.drive_focus_control();
             }
+            changed |= self.drain_focus_input();
             if self
                 .publications
                 .as_ref()
@@ -2031,6 +2040,12 @@ impl WorkbenchClientUi {
 
     pub(super) fn observe_focus(&mut self, focused: bool) {
         self.inherit_host_focus(Some(focused));
+    }
+    pub(super) fn observe_keyboard(&mut self) {
+        // Windows Terminal can route keys before its FocusIn bytes. A later identical report
+        // must preserve this activation and its unsent keys.
+        self.inherit_host_focus(Some(true));
+        self.focus_control.keyboard();
     }
     pub(super) fn inherit_host_focus(&mut self, focused: Option<bool>) {
         if self.outer_focused != focused {
@@ -2266,6 +2281,9 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn forward(&mut self, input: &[u8]) -> bool {
+        if let Some(admitted) = self.hold_focus_input(input) {
+            return admitted;
+        }
         if self.retirement_failure.is_some() || self.navigation_pending() {
             return false;
         }
@@ -3731,6 +3749,14 @@ impl WorkbenchClientUi {
             // publications that settle state directly instead of depositing a
             // causal reply.
             let applied = match event {
+                WorkerEvent::ControllerObserved {
+                    key,
+                    mode,
+                    geometry,
+                } => self
+                    .state
+                    .as_mut()
+                    .is_some_and(|state| state.observe_controller(&key, mode, geometry)),
                 WorkerEvent::PaneDetached { key } => {
                     self.clear_pane_projection(&key);
                     self.state
@@ -4042,7 +4068,8 @@ impl WorkbenchClientUi {
                 | WorkerEvent::RefreshSnapshotResult { .. }
                 | WorkerEvent::PollResult { .. }
                 | WorkerEvent::PaneDetached { .. }
-                | WorkerEvent::PaneFailed { .. } => {
+                | WorkerEvent::PaneFailed { .. }
+                | WorkerEvent::ControllerObserved { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
             };

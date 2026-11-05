@@ -11,7 +11,7 @@ pub(super) const HELP_CONFIG_CHECK_EN: crate::cli_text::HelpDetails =
 pub(super) const HELP_CONFIG_CHECK_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee config check [--format text|json]",
-        "运行五项本地检查（runtime-base、runtime-directory、cohort、locale、\nsockets），逐项报告 pass/warning/fail/not-applicable。只要没有检查失败就退出 0，包括 user-config 仅含已接纳字段警告时；致命检查退出 1。Windows\nuser-config 读取 APPDATA/Orchbee/config.toml 或 ORCHBEE_CONFIG_FILE 指定的绝对文件。文件不可读、过大、非 UTF-8、TOML 无效或已支持的环境覆盖无效均为致命错误。未知字段会警告并忽略；已支持叶字段无效时会警告并使用其安全默认值。错误快捷键只禁用对应的显式动作。支持的设置包括终端默认值/cwd、worktree 根目录、更新策略、按键、标题、通知与两种侧栏 profile。JSON v1 包含有界诊断及精确省略数。\nserver reload-config 原子发布已接纳设置和诊断。显式创建参数覆盖已接纳设置。默认文件不存在时使用默认值；显式文件不存在则失败。",
+        "运行五项本地检查（runtime-base、runtime-directory、cohort、locale、\nsockets），逐项报告 pass/warning/fail/not-applicable。只要没有检查失败就退出 0，包括 user-config 仅含已接纳字段警告时；致命检查退出 1。Windows\nuser-config 读取 APPDATA/Orchbee/config.toml 或 ORCHBEE_CONFIG_FILE 指定的绝对文件。文件不可读、过大、非 UTF-8、TOML 无效或已支持的环境覆盖无效均为致命错误。未知字段会警告并忽略；已支持叶字段无效时会警告并使用其安全默认值。错误快捷键只禁用对应的显式动作。支持的设置包括终端默认值/cwd、worktree 根目录、更新策略、按键、标题、通知与两种边栏 profile。JSON v1 包含有界诊断及精确省略数。\nserver reload-config 原子发布已接纳设置和诊断。显式创建参数覆盖已接纳设置。默认文件不存在时使用默认值；显式文件不存在则失败。",
     );
 
 pub(super) const HELP_CONFIG_RESET_KEYS_EN: crate::cli_text::HelpDetails =

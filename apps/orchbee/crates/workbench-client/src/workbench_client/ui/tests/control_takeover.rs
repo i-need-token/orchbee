@@ -18,6 +18,41 @@ use std::sync::atomic::Ordering;
 const SNAPSHOT: &[u8] =
     include_bytes!("../../../../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 
+#[test]
+fn published_controller_changes_reach_the_client_without_disconnect_or_discarding_its_picture() {
+    let (mut ui, mailbox, clock, _) = ready_ui();
+    let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    let picture = ui.state.as_ref().unwrap().focus_accepted_frame();
+    let owner = ControllerMode::Controlling(ControllerId::parse(&"33".repeat(16)).unwrap());
+    for (mode, geometry) in [
+        (
+            owner,
+            Some(orchbee_client_server_protocol::Geometry::new(80, 24, 8, 16).unwrap()),
+        ),
+        (ControllerMode::ReadOnly, None),
+    ] {
+        mailbox
+            .publish_notice_before(
+                WorkerEvent::ControllerObserved {
+                    key: key.clone(),
+                    mode: mode.clone(),
+                    geometry,
+                },
+                clock.now() + OPERATION_TOTAL,
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(
+            ui.retirement_failure.is_none(),
+            "ownership publication must not disconnect a Client"
+        );
+        let state = ui.state.as_ref().unwrap();
+        assert_eq!(state.controller_mode(), Some(&mode));
+        assert_eq!(state.focus_accepted_frame(), picture);
+    }
+}
+
 fn poll_snapshot(
     ui: &mut WorkbenchClientUi,
     mailbox: &CommandMailbox,
@@ -74,6 +109,188 @@ fn poll_snapshot(
 }
 
 #[test]
+fn returning_to_a_controlled_terminal_preserves_typing_and_its_current_frame() {
+    let (mut ui, mailbox, clock, _) = super::move_membership::ready_ui_with_mode(
+        super::membership::snapshot(2, 1),
+        ControllerMode::Controlling(
+            ControllerId::parse("00000000000000000000000000000001").unwrap(),
+        ),
+    );
+    ui.observe_focus(true);
+    assert!(!ui.drive_focus_control());
+    ui.observe_focus(false);
+    ui.observe_focus(true);
+    assert!(ui.drive_focus_control());
+    assert!(
+        ui.state.as_ref().unwrap().takeover_input_ready(),
+        "returning while already controlling must not fence input"
+    );
+    assert!(
+        ui.forward(b"git st"),
+        "input during the ownership observation must be retained"
+    );
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("ownership observation");
+    };
+    let operation = marker.takeover().unwrap().clone();
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(operation.generation)
+            .unwrap(),
+        MutationResult::Applied
+    );
+    let evidence = TakeoverEvidence {
+        operation: operation.clone(),
+        result: TakeoverResult::Unchanged(
+            ControllerId::parse("00000000000000000000000000000001").unwrap(),
+        ),
+    };
+    assert!(mailbox.retain_takeover_result(&operation, evidence.result.clone()));
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::ControlTakeoverResult { evidence },
+            EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(ui.state.as_ref().unwrap().takeover_input_ready());
+    assert!(
+        ui.view().takeover_status().is_none(),
+        "the unchanged owner needs no control notice or new frame"
+    );
+    let input = mailbox.try_recv().unwrap().unwrap();
+    assert!(
+        matches!(input.record(), QueuedCommand::Input(tagged) if tagged.value().as_bytes() == b"git st")
+    );
+    mailbox.finish_lease(input).unwrap();
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn keys_in_the_same_packet_as_focus_gain_wait_for_the_activation() {
+    let (mut ui, mailbox, _, _) = ready_ui();
+    ui.observe_focus(true);
+    assert!(
+        ui.forward(b"echo immediate\r"),
+        "the first packet must not require an intervening UI tick"
+    );
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "unsubmitted activation input must not reach an old controller"
+    );
+    assert!(ui.drive_focus_control());
+    assert!(!ui.drive_focus_control());
+}
+
+#[test]
+fn focus_takeover_keeps_early_keys_until_frame_feedback_then_forwards_the_whole_command() {
+    let (mut ui, mailbox, clock, _) = ready_ui();
+    let route = inspect_terminal_frame_route(SNAPSHOT).unwrap();
+    let frame = decode_terminal_text_frame(SNAPSHOT).unwrap();
+    ui.observe_geometry(
+        Geometry::new(
+            frame.geometry.columns,
+            frame.geometry.rows,
+            frame.geometry.cell_pixel_width,
+            frame.geometry.cell_pixel_height,
+        )
+        .unwrap(),
+    );
+    let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    ui.projections.push(KeyedProjection::for_test(
+        key,
+        TerminalProjection::new(route.attachment_id, route.host_epoch),
+        ClientProjectionStatus::Empty,
+    ));
+    ui.observe_focus(false);
+    ui.observe_keyboard();
+    assert!(ui.forward(b"ec"));
+    ui.observe_focus(true);
+    assert!(ui.drive_focus_control());
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("focus activation");
+    };
+    let operation = marker.takeover().unwrap().clone();
+    mailbox
+        .mark_refresh_in_flight(operation.generation)
+        .unwrap();
+    let evidence = TakeoverEvidence {
+        operation: operation.clone(),
+        result: TakeoverResult::Ready(ControllerId::parse(&"77".repeat(16)).unwrap()),
+    };
+    assert!(mailbox.retain_takeover_result(&operation, evidence.result.clone()));
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::ControlTakeoverResult { evidence },
+            EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(ui.forward(b"ho\r"));
+    poll_snapshot(&mut ui, &mailbox, &clock, 1);
+    ui.tick();
+    let input = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the accepted activation releases its unsent keys");
+    assert!(
+        matches!(input.record(), QueuedCommand::Input(tagged) if tagged.value().as_bytes() == b"echo\r"),
+        "the complete command must survive the frame gate: {:?}",
+        input.record()
+    );
+}
+
+#[test]
+fn an_unknown_focus_transfer_does_not_loop_and_a_later_activation_can_reconcile_it() {
+    let (mut ui, mailbox, clock, _) = ready_ui();
+    ui.observe_focus(true);
+    assert!(ui.drive_focus_control());
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("activation");
+    };
+    let operation = marker.takeover().unwrap().clone();
+    mailbox
+        .mark_refresh_in_flight(operation.generation)
+        .unwrap();
+    let evidence = TakeoverEvidence {
+        operation: operation.clone(),
+        result: TakeoverResult::Unknown,
+    };
+    assert!(mailbox.retain_takeover_result(&operation, evidence.result.clone()));
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::ControlTakeoverResult { evidence },
+            EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(
+        !ui.drive_focus_control(),
+        "uncertainty must not rearm this activation"
+    );
+    assert!(!ui.forward(b"uncertain grant"));
+    ui.observe_focus(false);
+    ui.observe_focus(true);
+    assert!(
+        ui.drive_focus_control(),
+        "a new activation reads Server authority again"
+    );
+    assert!(!ui.drive_focus_control());
+}
+
+#[test]
 fn focus_activation_queues_one_transfer_and_focus_loss_cancels_unsubmitted_intent() {
     let (mut ui, mailbox, _, _) = ready_ui();
     ui.observe_focus(false);
@@ -93,7 +310,6 @@ fn focus_activation_queues_one_transfer_and_focus_loss_cancels_unsubmitted_inten
     assert!(
         matches!(lease.record(), QueuedCommand::Refresh(marker) if marker.takeover().is_some())
     );
-    assert!(!ui.forward(b"never replay blocked input"));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 

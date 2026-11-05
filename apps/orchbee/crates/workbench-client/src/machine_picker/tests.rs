@@ -565,6 +565,7 @@ fn workspace_search_names_same_labelled_workspaces_alone_with_their_grouping() {
 }
 fn agent_row() -> crate::machine_agents::checkpoint::Row {
     crate::machine_agents::checkpoint::Row {
+        completion: Default::default(),
         seen: true,
         name: None,
         order: crate::machine_agents::PlacementOrder::default(),

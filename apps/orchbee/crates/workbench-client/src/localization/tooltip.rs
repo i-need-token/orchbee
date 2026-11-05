@@ -29,9 +29,9 @@ impl Locale {
             (Self::EnUs, TooltipLabel::LaterTabs) => "Show later Tabs",
             (Self::ZhCn, TooltipLabel::LaterTabs) => "显示后面的标签页",
             (Self::EnUs, TooltipLabel::HideSidebar) => "Hide sidebar",
-            (Self::ZhCn, TooltipLabel::HideSidebar) => "隐藏侧栏",
+            (Self::ZhCn, TooltipLabel::HideSidebar) => "隐藏边栏",
             (Self::EnUs, TooltipLabel::ShowSidebar) => "Show sidebar",
-            (Self::ZhCn, TooltipLabel::ShowSidebar) => "显示侧栏",
+            (Self::ZhCn, TooltipLabel::ShowSidebar) => "显示边栏",
             (Self::EnUs, TooltipLabel::Shortcuts) => "Shortcuts",
             (Self::ZhCn, TooltipLabel::Shortcuts) => "快捷键",
         }

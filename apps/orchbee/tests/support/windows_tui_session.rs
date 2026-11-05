@@ -264,8 +264,9 @@ impl Fixture {
             &launcher,
             format!(
                 "@echo off\r\nset ORCHBEE_TERMINAL_ID=\r\nset ORCHBEE_WORKER_ID=\r\n\
-                 set ORCHBEE_RUNTIME_SCOPE=\r\nset ORCHBEE_SESSION=\r\n\"{}\" tui\r\n",
-                self.root.join("cohort/orchbee.exe").display()
+                 set ORCHBEE_RUNTIME_SCOPE=\r\nset ORCHBEE_SESSION=\r\nset NO_COLOR=\r\nset COLORTERM=truecolor\r\n\"{}\" tui 2>\"{}\"\r\n",
+                self.root.join("cohort/orchbee.exe").display(),
+                self.root.join(format!("tui-{}.stderr", existing.len())).display()
             ),
         )
         .unwrap();
@@ -363,6 +364,87 @@ impl Fixture {
         assert_eq!(sent.code, Some(0), "{sent}");
     }
 
+    /// The actual foreground of the state cell immediately before `label`.
+    /// Working and Done may share a glyph; SGR color remains observable through the real Host.
+    pub fn state_color(&self, terminal: &str, label: &str) -> Option<Vec<u16>> {
+        let read = self.run(&[
+            "terminal",
+            "read",
+            "--session",
+            "host",
+            terminal,
+            "--source",
+            "visible",
+            "--ansi",
+        ]);
+        assert_eq!(read.code, Some(0), "{read}");
+        let line = read.document["result"]["content"]["text"]
+            .as_str()?
+            .lines()
+            .find(|line| line.contains(label))?;
+        let mut foreground = vec![39];
+        let mut text = String::new();
+        let mut colors = Vec::new();
+        let mut chars = line.chars();
+        while let Some(ch) = chars.next() {
+            if ch != '\x1b' {
+                text.push(ch);
+                colors.push(foreground.clone());
+                continue;
+            }
+            if chars.next() != Some('[') {
+                return None;
+            }
+            let mut parameters = String::new();
+            for ch in chars.by_ref() {
+                if ch.is_ascii_alphabetic() {
+                    break;
+                }
+                parameters.push(ch);
+            }
+            let codes: Vec<u16> = parameters
+                .split(';')
+                .map(|p| {
+                    p.split(':')
+                        .next()
+                        .and_then(|p| p.parse().ok())
+                        .unwrap_or(0)
+                })
+                .collect();
+            let mut index = 0;
+            while let Some(&code) = codes.get(index) {
+                match code {
+                    0 | 39 => foreground = vec![39],
+                    30..=37 | 90..=97 => foreground = vec![code],
+                    38 | 48 => {
+                        let count = match codes.get(index + 1) {
+                            Some(2) => 5,
+                            Some(5) => 3,
+                            _ => return None,
+                        };
+                        let color = codes.get(index..index + count)?;
+                        if code == 38 {
+                            foreground = color.to_vec();
+                        }
+                        index += count;
+                        continue;
+                    }
+                    _ => {}
+                }
+                index += 1;
+            }
+        }
+        let before = text[..text.find(label)?].chars().count();
+        Some(
+            text.chars()
+                .zip(colors)
+                .take(before)
+                .filter(|(ch, _)| !ch.is_whitespace())
+                .last()?
+                .1,
+        )
+    }
+
     /// The visible text of a `host` terminal, as its Host currently shows it.
     pub fn screen(&self, terminal: &str) -> String {
         let read = self.run(&[
@@ -452,6 +534,44 @@ impl Drop for Fixture {
         // staged CLI starts Sessions; after a failed staging, running the missing CLI would panic
         // again and abort the test process before the staging failure is reported.
         if self.root.join("cohort/orchbee.exe").is_file() {
+            if thread::panicking() {
+                for entry in fs::read_dir(&self.root).into_iter().flatten().flatten() {
+                    if entry
+                        .path()
+                        .extension()
+                        .is_some_and(|extension| extension == "stderr")
+                        && let Ok(text) = fs::read_to_string(entry.path())
+                    {
+                        eprintln!(
+                            "TUI stderr {}:\n{}",
+                            entry.path().display(),
+                            text.chars().take(16000).collect::<String>()
+                        );
+                    }
+                }
+                let listed = self.run(&["terminal", "list", "--session", "host"]);
+                if let Some(terminals) = listed.document["result"]["terminals"].as_array() {
+                    for terminal in terminals
+                        .iter()
+                        .take(8)
+                        .filter_map(|entry| entry["terminalId"].as_str())
+                    {
+                        eprintln!(
+                            "Failed TUI screen: {}",
+                            self.run(&[
+                                "terminal",
+                                "read",
+                                "--session",
+                                "host",
+                                terminal,
+                                "--source",
+                                "visible",
+                                "--ansi"
+                            ])
+                        );
+                    }
+                }
+            }
             for session in ["host", "default"] {
                 let stopped = self.run(&["server", "stop", "--confirm", "--session", session]);
                 if !thread::panicking() {

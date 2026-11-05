@@ -179,6 +179,15 @@ impl<'de> Deserialize<'de> for TerminalRgb {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalControlAction {
+    /// Read the Server's current ownership and recent focus order without acquiring control.
+    Observe {
+        attachment_id: ViewerId,
+    },
+    /// Record one foreground activation and the geometry to restore if this viewer is promoted.
+    Activate {
+        attachment_id: ViewerId,
+        geometry: Geometry,
+    },
     Acquire {
         attachment_id: ViewerId,
     },
@@ -240,6 +249,13 @@ pub enum TerminalControlAction {
     deny_unknown_fields
 )]
 enum WireControlAction {
+    Observe {
+        attachment_id: ViewerId,
+    },
+    Activate {
+        attachment_id: ViewerId,
+        geometry: Geometry,
+    },
     Acquire {
         attachment_id: ViewerId,
     },
@@ -290,6 +306,16 @@ enum WireControlAction {
 impl Serialize for TerminalControlAction {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
+            Self::Observe { attachment_id } => WireControlAction::Observe {
+                attachment_id: attachment_id.clone(),
+            },
+            Self::Activate {
+                attachment_id,
+                geometry,
+            } => WireControlAction::Activate {
+                attachment_id: attachment_id.clone(),
+                geometry: *geometry,
+            },
             Self::Takeover { attachment_id } => WireControlAction::Takeover {
                 attachment_id: attachment_id.clone(),
             },
@@ -366,6 +392,14 @@ impl Serialize for TerminalControlAction {
 impl<'de> Deserialize<'de> for TerminalControlAction {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(match WireControlAction::deserialize(deserializer)? {
+            WireControlAction::Observe { attachment_id } => Self::Observe { attachment_id },
+            WireControlAction::Activate {
+                attachment_id,
+                geometry,
+            } => Self::Activate {
+                attachment_id,
+                geometry,
+            },
             WireControlAction::Clear { attachment_id } => Self::Clear { attachment_id },
             WireControlAction::Reset { attachment_id } => Self::Reset { attachment_id },
             WireControlAction::Acquire { attachment_id } => Self::Acquire { attachment_id },
@@ -438,6 +472,13 @@ impl TerminalControlAction {
                 | TerminalControlOutcome::OutcomeUnknown {}
         );
         match self {
+            Self::Observe { attachment_id } | Self::Activate { attachment_id, .. } => {
+                matches!(outcome, TerminalControlOutcome::Observed { state }
+                    if state.recent_focus.len() <= 8
+                    && state.recent_focus.iter().collect::<std::collections::BTreeSet<_>>().len() == state.recent_focus.len()
+                    && (state.controller_id.is_none() || state.controller.as_ref() == Some(attachment_id)))
+                    || failed
+            }
             Self::Acquire { .. } | Self::Takeover { .. } => {
                 matches!(outcome, TerminalControlOutcome::Acquired { .. }) || failed
             }
@@ -466,7 +507,9 @@ impl TerminalControlAction {
     #[must_use]
     pub const fn attachment_id(&self) -> &ViewerId {
         match self {
-            Self::Acquire { attachment_id }
+            Self::Observe { attachment_id }
+            | Self::Activate { attachment_id, .. }
+            | Self::Acquire { attachment_id }
             | Self::Clear { attachment_id }
             | Self::Reset { attachment_id }
             | Self::Takeover { attachment_id }
@@ -510,6 +553,9 @@ pub enum ControlUnavailableReason {
     deny_unknown_fields
 )]
 pub enum TerminalControlOutcome {
+    Observed {
+        state: Box<TerminalControlState>,
+    },
     Acquired {
         controller_id: ControllerId,
     },
@@ -543,6 +589,61 @@ pub enum TerminalControlOutcome {
         reason: ControlUnavailableReason,
     },
     OutcomeUnknown {},
+}
+
+/// Published attachment identities are readable by every attached Client. A controller grant is
+/// included only for the requesting attachment that already owns it; observation grants nothing.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    rename_all = "camelCase",
+    deny_unknown_fields,
+    try_from = "WireTerminalControlState"
+)]
+pub struct TerminalControlState {
+    pub controller: Option<ViewerId>,
+    pub controller_id: Option<ControllerId>,
+    #[serde(with = "crate::number::decimal")]
+    pub sequence: u64,
+    pub geometry: Option<Geometry>,
+    pub recent_focus: Vec<ViewerId>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WireTerminalControlState {
+    #[serde(deserialize_with = "Option::deserialize")]
+    controller: Option<ViewerId>,
+    #[serde(deserialize_with = "Option::deserialize")]
+    controller_id: Option<ControllerId>,
+    #[serde(with = "crate::number::decimal")]
+    sequence: u64,
+    #[serde(deserialize_with = "Option::deserialize")]
+    geometry: Option<Geometry>,
+    recent_focus: Vec<ViewerId>,
+}
+impl TryFrom<WireTerminalControlState> for TerminalControlState {
+    type Error = ProtocolError;
+    fn try_from(wire: WireTerminalControlState) -> Result<Self, Self::Error> {
+        if wire.recent_focus.len() > 8
+            || wire
+                .recent_focus
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != wire.recent_focus.len()
+            || (wire.controller.is_none() && wire.controller_id.is_some())
+            || (wire.controller_id.is_none() && (wire.sequence != 0 || wire.geometry.is_some()))
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self {
+            controller: wire.controller,
+            controller_id: wire.controller_id,
+            sequence: wire.sequence,
+            geometry: wire.geometry,
+            recent_focus: wire.recent_focus,
+        })
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalControlRequest {

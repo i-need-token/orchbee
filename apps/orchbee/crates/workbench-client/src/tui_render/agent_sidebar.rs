@@ -38,6 +38,7 @@ pub(super) enum SidebarInput {
 }
 
 pub(super) struct RenderContext<'a> {
+    pub(super) native: Option<&'a crate::workbench_client::WorkbenchClientView<'a>>,
     pub(super) view: &'a ClientView,
     pub(super) sidebar_surface: crate::client_view::SidebarSurface,
     pub(super) locale: Locale,
@@ -238,6 +239,7 @@ pub(super) fn render(
     mut hits: Option<&mut HitMapBuilder>,
 ) {
     let RenderContext {
+        native,
         view,
         sidebar_surface,
         locale,
@@ -362,6 +364,7 @@ pub(super) fn render(
         frame,
         area,
         super::workspace_sidebar::RenderContext {
+            native,
             view,
             locale,
             theme,

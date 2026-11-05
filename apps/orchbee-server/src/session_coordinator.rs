@@ -102,6 +102,32 @@ impl SessionCoordinator {
         Some(self.workbench.as_mut()?.workspace_metadata(request, now))
     }
 
+    pub(crate) fn acknowledge_terminal_input(
+        &mut self,
+        target: crate::terminal_coordinator::BindingViewerTarget,
+    ) {
+        let Ok(facts) = self.terminal_agent_bindings() else {
+            return;
+        };
+        let terminal = format!(
+            "{:032x}",
+            u128::from_be_bytes(target.terminal_id.as_bytes())
+        );
+        let worker = format!(
+            "{:032x}",
+            u128::from_be_bytes(target.worker.worker_id.as_bytes())
+        );
+        if let Some(fact) = facts.iter().find(|fact| {
+            fact.identity == target.identity
+                && fact.worker_generation == target.worker.generation
+                && fact.binding.terminal_id.as_str() == terminal
+                && fact.binding.worker_id.as_str() == worker
+        }) && let Some(workbench) = self.workbench.as_mut()
+        {
+            let _ = workbench.acknowledge_terminal_agent_input(fact);
+        }
+    }
+
     fn terminal_agent_bindings(
         &self,
     ) -> Result<

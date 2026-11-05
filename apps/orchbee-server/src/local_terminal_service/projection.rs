@@ -72,6 +72,12 @@ impl ViewerProjection {
             self.content_version = None;
         }
     }
+    pub(super) fn paused(&mut self) {
+        self.flight = None;
+        self.needs_snapshot = true;
+        self.blocked_revision = None;
+        self.content_version = None;
+    }
     pub(super) fn receive(&mut self, record: &[u8]) -> Result<(), ()> {
         let envelope = decode_transport_envelope(record).map_err(|_| ())?;
         if self.flight.is_some()

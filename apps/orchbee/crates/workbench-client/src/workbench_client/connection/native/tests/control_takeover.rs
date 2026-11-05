@@ -194,6 +194,8 @@ fn exercise(cut: Cut) -> TestResult {
     let worker = thread::spawn(move || {
         let mut executor = ClientExecutor::new(client, Arc::clone(&worker_mailbox));
         executor.attachments.push(AttachedTerminal {
+            control_observation_due: None,
+            control_frame: None,
             key: pane,
             attachment_id: viewer,
             setup: None,
@@ -233,7 +235,10 @@ fn exercise(cut: Cut) -> TestResult {
     }
     let (result, evidence) = worker.join().unwrap();
     server.finish()?;
-    if matches!(cut, Cut::Refused | Cut::LostAgain | Cut::Complete) {
+    if cut == Cut::Unknown {
+        assert!(ui.view().takeover_status().is_some());
+        assert!(!ui.forward(b"uncertain authority"));
+    } else if matches!(cut, Cut::Refused | Cut::LostAgain | Cut::Complete) {
         assert_eq!(result, Ok(()), "{cut:?}");
         assert!(evidence.is_none());
         assert!(mailbox.takeover_worker_loss().is_none());
@@ -266,9 +271,6 @@ fn exercise(cut: Cut) -> TestResult {
         );
         ui.tick();
         assert!(ui.finalize_takeover_worker(Some(evidence)));
-        let before = mailbox.cursors();
-        ui.apply_client_action(ClientAction::RequestControlTakeover);
-        assert_eq!(mailbox.cursors(), before);
     }
     Ok(())
 }

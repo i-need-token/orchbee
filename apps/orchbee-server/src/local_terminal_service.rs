@@ -43,6 +43,7 @@ mod checkpoint;
 pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
 mod controller_connection;
+mod controller_focus;
 mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
@@ -81,6 +82,7 @@ const AGENT_DRAIN_READ_WINDOW: Duration = Duration::from_secs(4);
 const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
+    controller_focus: Mutex<controller_focus::FocusRegistry>,
     preferences: std::sync::OnceLock<orchbee_local_runtime::UserPreferencesStore>,
     configuration: configuration::Registry,
     observer: observation::Observer,
@@ -125,6 +127,7 @@ impl LocalTerminalService {
         workbench: Option<orchbee_server::WorkbenchAuthority>,
     ) -> Self {
         Self {
+            controller_focus: Mutex::default(),
             preferences: std::sync::OnceLock::new(),
             configuration: configuration::Registry::default(),
             observer: observation::Observer::default(),

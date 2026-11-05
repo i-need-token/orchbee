@@ -624,6 +624,15 @@ sequence/head/current-state consistency. Exact cursor coverage belongs to reques
 
 Panel reports admit idle, working, blocked, done, error and unknown. Done and error require explicit state reports; screen rules cannot assert outcomes. Client read acknowledgement is independent and never converts idle into completion. The shared corpus carries explicit done/error requests and unknown fallback explanations.
 
+Report views and physical state snapshots additionally publish `completion`: `none`,
+`awaiting-input` or `acknowledged` (omission decodes as `none`). The Server retains this fact for
+the exact physical binding and Agent incarnation, including working through temporary unknown
+observations to idle. An accepted edit or paste consumes it for every Client without changing
+the raw state or provider semantic sequence. A completion change advances the report revision.
+Clients use the shared presentation projection for this fact; per-Client unread acknowledgement
+remains separate. [Native attention](../../apps/orchbee/docs/native-client-attention.md) records
+the staged GUI consumer and acceptance boundary.
+
 Physical `explain` uses the same exact binding and read permission. Its `explained` result keeps
 current report view separate from raw screen-rule prediction, with a required physical sample and
 required nullable manifest, winner and publication skip/fallback fields. Rust/TypeScript enforce

@@ -81,7 +81,7 @@ impl Locale {
             (Self::EnUs, "collapsed") => "Collapsed",
             (Self::ZhCn, "collapsed") => "已折叠",
             (Self::EnUs, _) => "Sidebar symbols",
-            (Self::ZhCn, _) => "侧栏符号",
+            (Self::ZhCn, _) => "边栏符号",
         }
     }
     pub(crate) const fn shortcut_group_name(self, group: ShortcutHelpGroup) -> &'static str {
@@ -190,7 +190,7 @@ impl Locale {
     pub(crate) const fn shortcut_context(self, context: ShortcutContext) -> &'static str {
         match (self, context) {
             (Self::EnUs, ShortcutContext::Sidebar) => "sidebar navigation",
-            (Self::ZhCn, ShortcutContext::Sidebar) => "侧栏导航",
+            (Self::ZhCn, ShortcutContext::Sidebar) => "边栏导航",
             (Self::EnUs, ShortcutContext::Copy) => "copy mode",
             (Self::ZhCn, ShortcutContext::Copy) => "复制模式",
             (Self::EnUs, ShortcutContext::Resize) => "resize mode",
@@ -381,7 +381,7 @@ impl Locale {
             .to_owned(),
             ShortcutLabel::Sidebar => match self {
                 Self::EnUs => "Toggle sidebar",
-                Self::ZhCn => "切换侧栏",
+                Self::ZhCn => "切换边栏",
             }
             .to_owned(),
             ShortcutLabel::Navigator => match self {
@@ -473,7 +473,7 @@ impl Locale {
             (Self::EnUs, A::Select) => "select",
             (Self::ZhCn, A::Select) => "选择",
             (Self::EnUs, A::Sidebar) => "sidebar",
-            (Self::ZhCn, A::Sidebar) => "侧栏",
+            (Self::ZhCn, A::Sidebar) => "边栏",
             (Self::EnUs, A::Navigator) => "navigate",
             (Self::ZhCn, A::Navigator) => "导航",
             (Self::EnUs, A::Agent) => "agent",

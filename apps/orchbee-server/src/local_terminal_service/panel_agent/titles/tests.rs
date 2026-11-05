@@ -18,6 +18,7 @@ fn result(binding: AgentLaunchBinding) -> PanelAgentResult {
                 presentation_id: TerminalPresentationId::parse(binding.presentation_id.as_str())
                     .unwrap(),
                 snapshot: Some(TerminalAgentStateSnapshot {
+                    completion: Default::default(),
                     binding,
                     sequence: WorkbenchRevision::new(7),
                     agent: Some("codex".into()),

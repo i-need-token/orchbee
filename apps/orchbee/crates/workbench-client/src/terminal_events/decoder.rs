@@ -25,33 +25,6 @@ pub struct DecodedItem {
 }
 
 impl DecodedItem {
-    /// Editing intent is classified before encoding: navigation, mouse reports and focus are not edits.
-    pub(crate) fn edits_terminal(&self) -> bool {
-        match &self.kind {
-            DecodedKind::Paste { text } => !text.is_empty(),
-            DecodedKind::Key(event) if event.kind != KeyKind::Release => {
-                let modifiers = event.mods;
-                match event.code {
-                    KeyCode::Backspace | KeyCode::Delete => !modifiers.super_,
-                    KeyCode::Enter | KeyCode::Tab | KeyCode::Space => {
-                        !modifiers.alt && !modifiers.super_
-                    }
-                    KeyCode::Char(c) if modifiers.ctrl => {
-                        !modifiers.alt
-                            && !modifiers.super_
-                            && matches!(
-                                c.to_ascii_lowercase(),
-                                'd' | 'h' | 'i' | 'j' | 'k' | 'm' | 'u' | 'w' | 'y'
-                            )
-                    }
-                    KeyCode::Char(c) => !c.is_control() && !modifiers.alt && !modifiers.super_,
-                    _ => false,
-                }
-            }
-            _ => false,
-        }
-    }
-
     fn key(event: KeyEvent, raw: &[u8], owned: bool) -> Self {
         Self {
             kind: DecodedKind::Key(event),

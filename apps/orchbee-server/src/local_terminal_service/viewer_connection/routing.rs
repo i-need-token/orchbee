@@ -100,6 +100,9 @@ impl LocalTerminalConnection<'_> {
         {
             return self.release_viewer(index, request.action());
         }
+        if matches!(request.action(), Action::Poll { .. }) {
+            self.service.promote_focused_viewer(viewer);
+        }
         // A pending frame flight no longer short-circuits Poll: the Worker
         // still holds the frame record until its feedback, while queued
         // HistoryChanged events stay deliverable through the same action.
@@ -336,6 +339,15 @@ impl LocalTerminalConnection<'_> {
                     }
                 }
                 WorkerOutcome::FeedbackAccepted => {
+                    if matches!(
+                        request.action(),
+                        Action::SetProjectionDemand {
+                            demand: ProjectionDemand::Paused,
+                            ..
+                        }
+                    ) {
+                        viewer.projection.paused();
+                    }
                     if matches!(
                         request.action(),
                         Action::FrameApplied { .. } | Action::NeedSnapshot { .. }

@@ -140,6 +140,52 @@ fn event(report: &Report) -> Result<Event, Failure> {
     })
 }
 impl WorkbenchAuthority {
+    /// Consumes completion only after input was accepted for this exact physical generation.
+    /// Provider status and its unread sequence remain unchanged.
+    pub fn acknowledge_terminal_agent_input(
+        &mut self,
+        target: &TerminalAgentBinding,
+    ) -> Result<bool, Failure> {
+        let key = key(&target.binding);
+        let Some(prior) = self
+            .panel_agent
+            .resources
+            .get(&key)
+            .filter(|r| &r.physical == target)
+        else {
+            return Ok(false);
+        };
+        let before = prior.reports.view();
+        let mut reports = prior.reports.clone();
+        if !reports.acknowledge_input() {
+            return Ok(false);
+        }
+        let candidate = Resource::prepare(
+            target.clone(),
+            reports,
+            prior.explicit_revision,
+            Some(prior),
+        )?;
+        let bytes = self
+            .panel_agent
+            .bytes
+            .checked_sub(prior.bytes)
+            .and_then(|n| n.checked_add(candidate.bytes))
+            .filter(|n| *n <= MAXIMUM_BYTES)
+            .ok_or(Failure::ResourceLimit)?;
+        let revision = self
+            .panel_agent
+            .revision
+            .checked_add(1)
+            .ok_or(Failure::RevisionExhausted)?;
+        let after = candidate.reports.view();
+        self.panel_agent.resources.insert(key, candidate);
+        self.panel_agent.bytes = bytes;
+        self.panel_agent.revision = revision;
+        self.publish_agent_change(&target.binding, &before, &after);
+        Ok(true)
+    }
+
     fn publish_agent_change(
         &self,
         binding: &PresentationBinding,

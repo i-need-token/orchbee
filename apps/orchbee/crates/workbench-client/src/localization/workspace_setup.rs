@@ -280,7 +280,7 @@ impl Locale {
             (Self::EnUs, SetupStatus::EmptyProjectDissolved) => "Project dissolved",
             (Self::ZhCn, SetupStatus::EmptyProjectDissolved) => "项目已解散",
             (Self::EnUs, SetupStatus::NavigationConfigured) => "Sidebar organization updated",
-            (Self::ZhCn, SetupStatus::NavigationConfigured) => "侧栏排序和分组已更新",
+            (Self::ZhCn, SetupStatus::NavigationConfigured) => "边栏排序和分组已更新",
             (Self::EnUs, SetupStatus::TabsConfigured) => "Tabs updated",
             (Self::ZhCn, SetupStatus::TabsConfigured) => "标签页已更新",
             (Self::EnUs, SetupStatus::TabsNotApplied) => {

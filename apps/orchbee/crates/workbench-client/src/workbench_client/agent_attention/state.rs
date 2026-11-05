@@ -15,7 +15,6 @@ pub(super) struct Entry {
     pub(super) summary: AgentSessionSummary,
     pub(super) version: u64,
     acknowledged: Option<u64>,
-    edited_completion: Option<AgentSafeInteger>,
 }
 
 impl Entry {
@@ -48,47 +47,6 @@ pub(super) struct AttentionState {
 }
 
 impl AttentionState {
-    pub(super) fn edit_completed(&mut self, presentation: &str) -> bool {
-        if !self.readable {
-            return false;
-        }
-        let mut changed = false;
-        for entry in self.entries.values_mut() {
-            if matches!(
-                entry.summary.status,
-                orchbee_agent_observation_protocol::AgentSemanticStatus::Succeeded {}
-            ) && entry.summary.lifecycle
-                == orchbee_agent_observation_protocol::AgentLifecycle::Live
-                && entry
-                    .summary
-                    .presentation_attachments
-                    .iter()
-                    .any(|attachment| {
-                        attachment.navigable && attachment.presentation_id.as_str() == presentation
-                    })
-                && entry.edited_completion != Some(entry.summary.observation.sequence)
-            {
-                entry.edited_completion = Some(entry.summary.observation.sequence);
-                changed = true;
-            }
-        }
-        changed
-    }
-
-    pub(super) fn completion_edited(
-        &self,
-        session: &AgentSessionId,
-        generation: AgentSafeInteger,
-        sequence: AgentSafeInteger,
-    ) -> bool {
-        self.readable
-            && self.entries.get(session).is_some_and(|entry| {
-                entry.summary.observation.generation == generation
-                    && entry.summary.observation.sequence == sequence
-                    && entry.edited_completion == Some(sequence)
-            })
-    }
-
     pub(super) fn focus_matches(
         &self,
         session: &AgentSessionId,
@@ -180,7 +138,6 @@ impl AttentionState {
                         summary: row.clone(),
                         version: round.revision,
                         acknowledged: (first && !round.reset).then_some(round.revision),
-                        edited_completion: None,
                     },
                 );
             }
@@ -198,11 +155,9 @@ impl AttentionState {
                         summary: (*row).clone(),
                         version: revision,
                         acknowledged: None,
-                        edited_completion: None,
                     });
                 if meaningful_change(&entry.summary, &change.session) {
                     entry.version = revision;
-                    entry.edited_completion = None;
                 }
                 apply_change(&mut entry.summary, &change.session);
             }

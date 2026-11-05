@@ -182,7 +182,7 @@ impl super::CliText {
             ),
             HelpTopic::Family(Family::AgentView) => (
                 "Choose which Agents appear in the sidebar.",
-                "选择侧边栏显示的智能体。",
+                "选择边栏显示的智能体。",
             ),
             HelpTopic::Command(CommandPath::AgentViewGet) => {
                 ("Show the Agent view settings.", "显示智能体视图设置。")

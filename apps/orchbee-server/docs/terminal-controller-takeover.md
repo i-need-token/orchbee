@@ -50,27 +50,56 @@ is dropped outside those locks; its cleanup never touches the replacement. A sti
 Active self grant is returned as Acquired without allocating or submitting another grant.
 Ordinary Acquire retains its controller-busy behavior.
 
+## Published ownership and recent focus
+
+OBCS Observe reads current controlling Viewer identity and recent focus order for an exact attached
+physical terminal. Activate records one foreground activation and content geometry without granting
+control. Only the actual owning attachment receives its private controller ID, consumed sequence
+and last acknowledged resize geometry. Public identities and focus order are readable by every
+attached Client; observing a peer never discloses or grants its capability.
+
+Focus entries live only as long as their Viewer and never cross Worker generation or Host identity.
+On controller departure, confirmed release makes the reservation vacant. The preferred surviving
+Viewer's next poll may promote it through the existing acquire and resize path. Admission rechecks
+vacancy and current focus preference while holding the reservation gate, before IPC. Promotion
+cannot steal a concurrent grant. Pending release or acquisition remains fenced. The remembered
+geometry follows activation and acknowledged resize, without moving operating-system focus.
+
+Native focus activation reads this state first. An unchanged owner at unchanged geometry preserves
+its frame and grant and shows no control-acquired notice. While a known owner's focus observation
+is in flight at the accepted geometry, input remains in the ordinary ordered mailbox rather than
+entering the takeover hold buffer. Server validation remains authoritative; a genuine transfer
+still waits for its grant and compatible frame. Active native viewers continue reading
+ownership, including revocation and promotion. The GUI counterpart is staged under ORC-309, owned
+by Claude; parity requires its controller, focus and geometry projections to consume these facts.
+
 ## Sizing across Clients
 
-Only the controller's surface sizes the terminal. Acquiring a vacant terminal or an explicit
-takeover resizes it once to the new controller's surface; afterwards only changes to that surface
-resize it. Typing, pointer input, selection, focus changes and viewing never acquire control or
-resize, so Clients of different sizes never contend for the geometry, and a takeover leaves the old
-controller an ordinary Viewer. A Viewer keeps the controller's grid and adapts locally: a smaller
+Only the controller's surface sizes the terminal. A transfer or Server promotion restores that
+controller's recorded content geometry; afterwards its surface changes resize it. A focus
+activation may request a transfer. A routed key can supply foreground evidence before the
+emulator's delayed focus report; ordinary input submission, selection and observation grant no
+authority themselves.
+A takeover leaves the old controller an ordinary Viewer. A Viewer keeps the controller's grid and adapts locally: a smaller
 surface shows the cells around the visible cursor, or the bottom-left corner while the cursor is
 hidden, and says the view is cropped; a larger surface draws the grid from its top-left corner. The
 native Client implements this in its
 [smaller live viewers](../../orchbee/docs/native-terminal-viewport.md#smaller-live-viewers), and
 the GUI in the [projected terminal](../../../packages/terminal/README.md)'s live crop.
 
+An acknowledged projection pause abandons that Viewer's outstanding frame flight in Host,
+Worker and Server. Relays release queued projection bytes, reject old feedback and keep the
+monotonic sequence fence; history/lifecycle events and neighboring Viewers remain independent.
+Reactivation requires a fresh full frame, even when the terminal revision is unchanged.
+
 ## Compatibility and evidence
 
-This additive unshipped OBCS v1 action and private OBCN action tag 5 require one development cohort.
+The unpublished OBCS observation, activation and takeover shapes require one development cohort.
 Older peers reject the action; there is no fallback that disconnects another Client or retries an
 uncertain effect. No new Host protocol or dependency is needed. Native stream control and attach
 consume this authority. The Windows native Client's explicit `Ctrl+B t` integration is governed by
 [native controller takeover](../../orchbee/docs/native-control-takeover.md); the old Client's
-label updates on its next rejected input/resize, without a new proactive notification.
+label follows subsequent ownership observations without waiting for rejected input/resize.
 
 Protocol corpus checks cover strict action decoding and correlation. Reservation tests cover
 pending exclusion, cleanup ownership and stale removal. Windows-capable Worker local-pipe checks cover acknowledged

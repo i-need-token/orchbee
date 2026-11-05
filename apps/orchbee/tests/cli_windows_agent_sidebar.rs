@@ -53,6 +53,22 @@ fn listed_agents_stay_listed_and_follow_their_terminals_while_they_work() {
     // The first row must also hold while the second Agent is being created.
     start_codex(&fixture, "alpha", "work/alpha");
     sidebar.until_listed(1);
+    // One Agent must visibly change color before another row can supply a different state.
+    // Compare chromatic families so a Working pulse cannot masquerade as a state change.
+    let mut state_colors = std::collections::BTreeSet::new();
+    let deadline = Instant::now() + LISTED;
+    while !(state_colors.contains(&1) && (state_colors.contains(&0) || state_colors.contains(&2))) {
+        sidebar.sample();
+        if let Some(color) = fixture.state_color(&tui.terminal, "fake")
+            && let Some(family) = chromatic_family(&color)
+        {
+            state_colors.insert(family);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the same Agent's state cell never followed Working and completion colors: {state_colors:?}"
+        );
+    }
     start_codex(&fixture, "beta", "work/beta");
     sidebar.until_listed(2);
 
@@ -72,6 +88,33 @@ fn listed_agents_stay_listed_and_follow_their_terminals_while_they_work() {
         screen.contains(BRANCH),
         "Git never reached the sidebar:\n{screen}"
     );
+}
+
+/// Ignore brightness animation while distinguishing green Done from native or blue Working.
+fn chromatic_family(color: &[u16]) -> Option<usize> {
+    match color {
+        [32 | 92] => Some(1),
+        [34 | 94] => Some(2),
+        [39 | 30 | 37 | 90 | 97] => Some(0),
+        [31 | 91] => Some(3),
+        [38, 5, 2 | 10] => Some(1),
+        [38, 5, 4 | 12] => Some(2),
+        [38, 5, 0 | 7 | 8 | 15] => Some(0),
+        [38, 2, r, g, b] => {
+            let channels = [*r, *g, *b];
+            let maximum = *channels.iter().max()?;
+            let minimum = *channels.iter().min()?;
+            if maximum.saturating_sub(minimum) <= 16 {
+                Some(0)
+            } else {
+                channels
+                    .iter()
+                    .position(|c| *c == maximum)
+                    .map(|channel| if channel == 0 { 3 } else { channel })
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Reads one TUI's screen and records every listed row that went missing.

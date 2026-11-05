@@ -37,22 +37,76 @@ impl ClientExecutor {
         let cutoff = self.effective_lease_cutoff(lease, operation.deadlines.forward_cutoff())?;
         let viewer = self.viewer_id_for(&operation.key)?;
         self.ensure_before(cutoff)?;
-        self.retain_takeover_result(&operation, TakeoverResult::Unknown)?;
-        let outcome = match self.client.submit_terminal_control_before(
-            TerminalControlRequest::new(
-                operation.request_id.clone(),
-                TerminalControlAction::Takeover {
+        let observed_grant = if operation.automatic {
+            let state = match self.control_once(
+                TerminalControlAction::Activate {
                     attachment_id: viewer.clone(),
+                    geometry: operation.geometry,
                 },
-            ),
-            cutoff,
-        ) {
-            Ok(reply) => reply.into_outcome(),
-            Err(error) => {
-                if !matches!(error, SubmissionError::OutcomeUnknown { .. }) {
-                    self.retain_takeover_result(&operation, TakeoverResult::NotSubmitted)?;
+                cutoff,
+            ) {
+                Ok(TerminalControlOutcome::Observed { state }) => state,
+                Ok(
+                    TerminalControlOutcome::Rejected { .. }
+                    | TerminalControlOutcome::Unavailable { .. },
+                ) => {
+                    self.retain_takeover_result(&operation, TakeoverResult::Refused)?;
+                    return self.finish_control_activation(lease, marker, cutoff);
                 }
-                return Err(submission(error));
+                Ok(TerminalControlOutcome::OutcomeUnknown {})
+                | Err(CarrierFailure::OutcomeUnknown) => {
+                    self.retain_takeover_result(&operation, TakeoverResult::Unknown)?;
+                    return self.finish_control_activation(
+                        lease,
+                        marker,
+                        operation.deadlines.total(),
+                    );
+                }
+                Err(failure) => return Err(failure),
+                _ => return Err(CarrierFailure::Protocol),
+            };
+            self.attached_mut(&operation.key)?.control_observation_due =
+                Some(self.clock.now() + std::time::Duration::from_millis(250));
+            if let Some(id) = &state.controller_id {
+                let attached = self.attached_mut(&operation.key)?;
+                attached.next_sequence = attached.next_sequence.max(state.sequence);
+                if attached.mode == Some(ControllerMode::Controlling(id.clone()))
+                    && attached.accepted_geometry == Some(operation.geometry)
+                    && attached.control_frame.is_none()
+                {
+                    self.retain_takeover_result(&operation, TakeoverResult::Unchanged(id.clone()))?;
+                    return self.finish_control_activation(lease, marker, cutoff);
+                }
+            }
+            state.controller_id
+        } else {
+            None
+        };
+        self.retain_takeover_result(&operation, TakeoverResult::Unknown)?;
+        let outcome = if let Some(controller_id) = observed_grant {
+            TerminalControlOutcome::Acquired { controller_id }
+        } else {
+            match self.client.submit_terminal_control_before(
+                TerminalControlRequest::new(
+                    operation.request_id.clone(),
+                    TerminalControlAction::Takeover {
+                        attachment_id: viewer.clone(),
+                    },
+                ),
+                cutoff,
+            ) {
+                Ok(reply) => reply.into_outcome(),
+                Err(error) => {
+                    if matches!(error, SubmissionError::OutcomeUnknown { .. }) {
+                        return self.finish_control_activation(
+                            lease,
+                            marker,
+                            operation.deadlines.total(),
+                        );
+                    }
+                    self.retain_takeover_result(&operation, TakeoverResult::NotSubmitted)?;
+                    return Err(submission(error));
+                }
             }
         };
         match outcome {
@@ -73,6 +127,8 @@ impl ClientExecutor {
                     controller_id.clone(),
                     cutoff,
                 ))?;
+                self.attached_mut(&operation.key)?.control_frame =
+                    Some(super::ControlFrame::Request);
                 self.ensure_before(cutoff)?;
                 let sequence = self.next_control_sequence(&operation.key)?;
                 let resized = self.control_once(
@@ -85,6 +141,9 @@ impl ClientExecutor {
                     cutoff,
                 )?;
                 match resized {
+                    TerminalControlOutcome::Observed { .. } => {
+                        return Err(CarrierFailure::Protocol);
+                    }
                     TerminalControlOutcome::Resized { geometry }
                         if geometry == operation.geometry =>
                     {
@@ -113,6 +172,8 @@ impl ClientExecutor {
                                 }
                             }
                         }
+                        self.attached_mut(&operation.key)?.control_frame =
+                            Some(super::ControlFrame::Waiting);
                         self.retain_takeover_result(
                             &operation,
                             TakeoverResult::Ready(controller_id),
@@ -128,7 +189,7 @@ impl ClientExecutor {
                         )?;
                     }
                     TerminalControlOutcome::OutcomeUnknown {} => {
-                        return Err(CarrierFailure::OutcomeUnknown);
+                        return self.finish_control_activation(lease, marker, cutoff);
                     }
                     TerminalControlOutcome::Acquired { .. }
                     | TerminalControlOutcome::InputAccepted {}
@@ -148,15 +209,24 @@ impl ClientExecutor {
                 self.retain_takeover_result(&operation, TakeoverResult::Refused)?
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
-                return Err(CarrierFailure::OutcomeUnknown);
+                return self.finish_control_activation(lease, marker, cutoff);
             }
-            TerminalControlOutcome::InputAccepted {}
+            TerminalControlOutcome::Observed { .. }
+            | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::ResetAccepted { .. } => return Err(CarrierFailure::Protocol),
         }
+        self.finish_control_activation(lease, marker, cutoff)
+    }
+    fn finish_control_activation(
+        &mut self,
+        lease: &CommandLease,
+        marker: RefreshMarker,
+        cutoff: std::time::Instant,
+    ) -> Result<()> {
         let evidence = self
             .pending_takeover
             .clone()
@@ -174,6 +244,115 @@ impl ClientExecutor {
             self.pending_takeover = None;
         }
         result
+    }
+    pub(super) fn observe_controller(
+        &mut self,
+        lease: &CommandLease,
+        key: &crate::workbench_state::PaneRef,
+        deadline: std::time::Instant,
+    ) -> super::ReadyResult<()> {
+        if self
+            .attached_ref(key)?
+            .control_observation_due
+            .is_none_or(|due| self.clock.now() < due)
+        {
+            return Ok(());
+        }
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        let outcome = self.control_once(
+            TerminalControlAction::Observe {
+                attachment_id: self.viewer_id_for(key)?,
+            },
+            cutoff,
+        )?;
+        let sampled = self.clock.now();
+        let attached = self.attached_mut(key)?;
+        attached.control_observation_due = Some(sampled + std::time::Duration::from_millis(250));
+        let TerminalControlOutcome::Observed { state } = outcome else {
+            return Ok(());
+        };
+        let (mode, geometry) = match (state.controller_id, state.geometry) {
+            (Some(id), Some(geometry)) => (ControllerMode::Controlling(id), Some(geometry)),
+            _ => (ControllerMode::ReadOnly, None),
+        };
+        attached.next_sequence = attached.next_sequence.max(state.sequence);
+        if attached.mode.as_ref() == Some(&mode) && attached.accepted_geometry == geometry {
+            return Ok(());
+        }
+        attached.control_frame =
+            matches!(mode, ControllerMode::Controlling(_)).then_some(super::ControlFrame::Request);
+        attached.mode = Some(mode.clone());
+        attached.accepted_geometry = geometry;
+        attached.reported_host_colors = None;
+        // Keep the accepted picture while a newly learned grant waits for a compatible,
+        // drawn frame. Ownership alone cannot open the input gate.
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::ControllerObserved {
+                    key: key.clone(),
+                    mode: ControllerMode::ReadOnly,
+                    geometry: None,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, key, deadline, error))?;
+        Ok(())
+    }
+    pub(super) fn prepare_control_frame(
+        &mut self,
+        lease: &CommandLease,
+        key: &crate::workbench_state::PaneRef,
+        deadline: std::time::Instant,
+    ) -> super::ReadyResult<()> {
+        if self.attached_ref(key)?.control_frame != Some(super::ControlFrame::Request) {
+            return Ok(());
+        }
+        for demand in [ProjectionDemand::Paused, ProjectionDemand::Active] {
+            let Some((_, outcome)) = self.viewer_for_ready_lease(
+                lease,
+                key,
+                TerminalViewerAction::SetProjectionDemand {
+                    attachment_id: self.viewer_id_for(key)?,
+                    demand,
+                },
+                deadline,
+            )?
+            else {
+                return Ok(());
+            };
+            if !matches!(outcome, TerminalViewerOutcome::FeedbackAccepted {}) {
+                return Err(CarrierFailure::Protocol.into());
+            }
+        }
+        self.attached_mut(key)?.control_frame = Some(super::ControlFrame::Waiting);
+        Ok(())
+    }
+    pub(super) fn finish_control_frame(
+        &mut self,
+        lease: &CommandLease,
+        key: &crate::workbench_state::PaneRef,
+        deadline: std::time::Instant,
+    ) -> super::ReadyResult<()> {
+        let attached = self.attached_mut(key)?;
+        if attached.control_frame.take().is_none() {
+            return Ok(());
+        }
+        let mode = attached.mode.clone().ok_or(CarrierFailure::Protocol)?;
+        let geometry = attached.accepted_geometry;
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::ControllerObserved {
+                    key: key.clone(),
+                    mode,
+                    geometry,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, key, deadline, error))?;
+        Ok(())
     }
     fn retain_takeover_result(
         &mut self,

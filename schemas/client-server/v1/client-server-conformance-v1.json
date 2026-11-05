@@ -2483,6 +2483,42 @@
 			"name": "control-host-colors-cursor-overflow-rgb",
 			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"cursor\":16777216,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}",
 			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-duplicate-focus",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":null,\"controllerId\":null,\"sequence\":\"0\",\"geometry\":null,\"recentFocus\":[\"33333333333333333333333333333333\",\"33333333333333333333333333333333\"]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-too-many-viewers",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":null,\"controllerId\":null,\"sequence\":\"0\",\"geometry\":null,\"recentFocus\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\",\"00000000000000000000000000000003\",\"00000000000000000000000000000004\",\"00000000000000000000000000000005\",\"00000000000000000000000000000006\",\"00000000000000000000000000000007\",\"00000000000000000000000000000008\",\"00000000000000000000000000000009\"]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-grant-without-owner",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":null,\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"0\",\"geometry\":null,\"recentFocus\":[]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-peer-sequence",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":\"44444444444444444444444444444444\",\"controllerId\":null,\"sequence\":\"2\",\"geometry\":null,\"recentFocus\":[]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-ungranted-geometry",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":\"44444444444444444444444444444444\",\"controllerId\":null,\"sequence\":\"0\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16},\"recentFocus\":[]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-noncanonical-sequence",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":null,\"controllerId\":null,\"sequence\":\"00\",\"geometry\":null,\"recentFocus\":[]}}}",
+			"boundary": "schema"
 		}
 	],
 	"workingDirectoryCases": [
@@ -2763,7 +2799,11 @@
 		{
 			"field": "argv",
 			"name": "argument-vector",
-			"value": ["sh", "-c", "pwd"]
+			"value": [
+				"sh",
+				"-c",
+				"pwd"
+			]
 		},
 		{
 			"field": "env",
@@ -2953,6 +2993,33 @@
 		{
 			"name": "send-stroke-invalid-truncated",
 			"frameHex": "4f42534e000100000000004611111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600040000"
+		}
+	],
+	"controlObservationMessages": [
+		{
+			"direction": "client-to-server",
+			"name": "control-observe",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"observe\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-activate",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"activate\",\"attachmentId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-self",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"7\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16},\"recentFocus\":[\"33333333333333333333333333333333\",\"44444444444444444444444444444444\"]}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-peer",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":\"44444444444444444444444444444444\",\"controllerId\":null,\"sequence\":\"0\",\"geometry\":null,\"recentFocus\":[\"44444444444444444444444444444444\",\"33333333333333333333333333333333\"]}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-observation-vacant",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"observed\",\"state\":{\"controller\":null,\"controllerId\":null,\"sequence\":\"0\",\"geometry\":null,\"recentFocus\":[]}}}"
 		}
 	]
 }

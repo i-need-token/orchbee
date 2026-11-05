@@ -740,7 +740,6 @@ impl WorkbenchClientUi {
                 )
             });
         }
-        actions = sidebar::actions(&entry, actions, self.menus.discovery());
         if tab_creation {
             actions = vec![
                 MenuAction::NewTab,
@@ -765,7 +764,7 @@ impl WorkbenchClientUi {
                 .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone())))
                 .collect();
         }
-        actions.retain(|action| {
+        actions = sidebar::actions(&entry, actions, self.menus.discovery(), |action| {
             !action_availability(
                 self.capabilities,
                 state,

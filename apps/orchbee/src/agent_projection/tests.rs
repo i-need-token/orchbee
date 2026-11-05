@@ -4,6 +4,7 @@ use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
 
 pub(crate) fn state(n: u64, agent: Option<&str>) -> TerminalAgentStateSnapshot {
     TerminalAgentStateSnapshot {
+        completion: Default::default(),
         binding: orchbee_workbench_client::test_support::machine_agents::physical(n),
         sequence: WorkbenchRevision::new(4),
         agent: agent.map(str::to_owned),

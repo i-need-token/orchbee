@@ -249,6 +249,7 @@ fn narrow_sidebar_regions_drop_the_icons_before_their_actions_without_overlap() 
                             layer: SidebarLayer::Docked,
                         },
                         RenderContext {
+                            native: None,
                             view: &view,
                             sidebar_surface: view.sidebar_surface(),
                             locale,

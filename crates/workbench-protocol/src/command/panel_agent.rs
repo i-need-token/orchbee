@@ -206,18 +206,44 @@ pub struct PanelAgentView {
     #[serde(deserialize_with = "nullable")]
     pub agent: Option<String>,
     pub state: PanelAgentState,
+    #[serde(default)]
+    pub completion: AgentCompletion,
     #[serde(deserialize_with = "nullable")]
     pub authority_source: Option<String>,
     #[serde(deserialize_with = "nullable")]
     pub message: Option<String>,
 }
 impl PanelAgentView {
+    #[must_use]
+    pub fn display_state(&self) -> PanelAgentState {
+        self.completion.display(self.state)
+    }
     pub(super) fn valid(&self) -> bool {
         self.agent
             .as_ref()
             .is_none_or(|agent| !agent.is_empty() && agent.trim() == agent)
             && (self.authority_source.is_none() || self.agent.is_some())
             && (self.message.is_none() || self.authority_source.is_some())
+    }
+}
+
+/// Server-owned completion acknowledgement, separate from provider status and Client unread state.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentCompletion {
+    #[default]
+    None,
+    AwaitingInput,
+    Acknowledged,
+}
+impl AgentCompletion {
+    #[must_use]
+    pub fn display(self, state: PanelAgentState) -> PanelAgentState {
+        match (self, state) {
+            (Self::AwaitingInput, PanelAgentState::Idle) => PanelAgentState::Done,
+            (Self::Acknowledged, PanelAgentState::Done) => PanelAgentState::Idle,
+            _ => state,
+        }
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

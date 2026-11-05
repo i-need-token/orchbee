@@ -302,9 +302,14 @@ impl Discovery {
         self.known_git
     }
 
-    /// A current refusal removes Git-only actions from the open menu too.
-    pub(super) fn outside_git(&self) -> bool {
-        matches!(self.shown(), DiscoveryState::NotGit)
+    /// Git actions require positive evidence for the currently addressed directory.
+    pub(super) fn git_known(&self) -> bool {
+        self.recognized().is_some()
+            || (self.known_git
+                && matches!(
+                    self.shown(),
+                    DiscoveryState::Waiting | DiscoveryState::Querying
+                ))
     }
 
     /// The answer about where the first terminal stands now, which an action runs against.

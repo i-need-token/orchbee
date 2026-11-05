@@ -42,8 +42,5 @@ state = "idle"
 priority = 50
 region = "bottom_non_empty_lines(4)"
 visible_idle = true
-line_regex = [
-	'^─{3,}',
-	'(?:^|\s)(?:\d+(?:\.\d+)?%|\?)/\d+(?:\.\d+)?[kM]?(?: \(auto\))?(?:\s|$)',
-]
+line_regex = ['^─{3,}', '(?:^|\s)(?:\d+(?:\.\d+)?%|\?)/\d+(?:\.\d+)?[kM]?(?: \(auto\))?(?:\s|$)']
 not = [{ line_regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \S'] }]

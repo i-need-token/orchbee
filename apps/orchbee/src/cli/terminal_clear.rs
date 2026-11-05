@@ -106,7 +106,8 @@ fn execute(
         | TerminalControlOutcome::OutcomeUnknown {} => 8,
         TerminalControlOutcome::Rejected { .. } => 3,
         TerminalControlOutcome::Unavailable { .. } => 4,
-        TerminalControlOutcome::Acquired { .. }
+        TerminalControlOutcome::Observed { .. }
+        | TerminalControlOutcome::Acquired { .. }
         | TerminalControlOutcome::InputAccepted {}
         | TerminalControlOutcome::Resized { .. }
         | TerminalControlOutcome::Pasted { .. }

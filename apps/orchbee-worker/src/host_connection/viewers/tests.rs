@@ -14,6 +14,82 @@ use std::{error::Error, num::NonZeroU64};
 type TestResult = Result<(), Box<dyn Error>>;
 
 #[test]
+fn pausing_projection_retires_unacknowledged_frames_without_losing_events_or_other_viewers()
+-> TestResult {
+    for delivered in [false, true] {
+        let mut viewers = HostViewers::default();
+        let first = request(1)?;
+        let other = request(2)?;
+        for request in [&first, &other] {
+            viewers.admit(request).map_err(|e| format!("{e:?}"))?;
+        }
+        let epoch = HostEpoch::from_bytes([3; 16])?;
+        viewers.receive(frame(1, 1, epoch)?, epoch)?;
+        let neighbor = frame(2, 1, epoch)?;
+        viewers.receive(neighbor.clone(), epoch)?;
+        let event = history(1, 1, epoch)?;
+        viewers.receive(event.clone(), epoch)?;
+        if delivered {
+            assert!(matches!(
+                viewers.poll(first.attachment_id),
+                TerminalViewerOutcome::Record(_)
+            ));
+        }
+        viewers.set_demand(first.attachment_id, ProjectionDemand::Paused);
+        assert_eq!(
+            viewers.retained_record_bytes(),
+            neighbor.len() + event.len(),
+            "pause releases only its own pending projection bytes"
+        );
+        let old_feedback = TerminalViewerRequest {
+            action: TerminalViewerAction::FrameApplied {
+                sequence: NonZeroU64::MIN,
+                generation: NonZeroU64::MIN,
+                revision: 5,
+            },
+            ..first
+        };
+        assert_eq!(
+            viewers.feedback(&old_feedback),
+            Err(ViewerRejection::FeedbackMismatch)
+        );
+        assert_eq!(
+            viewers.poll(first.attachment_id),
+            TerminalViewerOutcome::Record(event)
+        );
+        viewers.set_demand(first.attachment_id, ProjectionDemand::Active);
+        let fresh = frame(1, 2, epoch)?;
+        viewers.receive(fresh.clone(), epoch)?;
+        assert!(viewers.open(first.attachment_id));
+        assert_eq!(
+            viewers.poll(first.attachment_id),
+            TerminalViewerOutcome::Record(fresh)
+        );
+        let fresh_feedback = TerminalViewerRequest {
+            action: TerminalViewerAction::FrameApplied {
+                sequence: NonZeroU64::new(2).unwrap(),
+                generation: NonZeroU64::MIN,
+                revision: 5,
+            },
+            ..first
+        };
+        viewers
+            .feedback(&fresh_feedback)
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(
+            viewers.poll(other.attachment_id),
+            TerminalViewerOutcome::Record(neighbor)
+        );
+        assert_eq!(viewers.retained_record_bytes(), 0);
+        assert!(
+            viewers.receive(frame(1, 1, epoch)?, epoch).is_err(),
+            "pause must not reset sequence fencing"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn settlement_is_terminal_scoped_and_releases_its_budget_without_settling_a_frame() -> TestResult {
     use orchbee_terminal_protocol::{
         CreationId, ExitResult, LifecycleControl, TerminalExited, TerminalIdentity,

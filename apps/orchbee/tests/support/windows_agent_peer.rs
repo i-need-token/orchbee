@@ -1274,6 +1274,7 @@ pub(super) fn snapshot_after_metadata(
                         .map(|id| {
                             let (panel_id, binding) = exact(id);
                             let report = binding.as_ref().map(|_| PanelAgentView {
+                                completion: Default::default(),
                                 agent: None,
                                 state: PanelAgentState::Unknown,
                                 authority_source: None,
@@ -1320,6 +1321,7 @@ pub(super) fn snapshot_after_metadata(
                             .find_map(|tab| binding(&tab.root, id))
                             .expect("known panel");
                         let report = binding.as_ref().map(|_| PanelAgentView {
+                            completion: Default::default(),
                             agent: None,
                             state: PanelAgentState::Unknown,
                             authority_source: None,

@@ -1,6 +1,6 @@
 //! Admits Client takeover actions and consumes correlated results into UI controller state
 //! while retaining evidence across connection-task loss. It does not grant Server authority or
-//! submit a second takeover after unknown delivery.
+//! replay a submitted input effect. A fresh focus activation may reconcile an uncertain grant.
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::ClientActionDisposition;
@@ -19,6 +19,13 @@ pub(super) struct FocusControl {
     pane: Option<crate::workbench_state::PaneRef>,
     pending: Option<FocusActivation>,
     activated: bool,
+    input: Option<FocusInput>,
+}
+
+struct FocusInput {
+    pane: crate::workbench_state::PaneRef,
+    deadline: std::time::Instant,
+    bytes: Vec<u8>,
 }
 
 enum FocusActivation {
@@ -27,7 +34,13 @@ enum FocusActivation {
 }
 
 impl FocusControl {
+    pub(super) fn keyboard(&mut self) {
+        if matches!(self.pending, Some(FocusActivation::Initial)) {
+            self.pending = Some(FocusActivation::Return);
+        }
+    }
     pub(super) fn activate(&mut self, focused: bool) {
+        self.input = None;
         self.pending = focused.then_some(if self.activated {
             FocusActivation::Return
         } else {
@@ -46,17 +59,17 @@ impl WorkbenchClientUi {
     pub(super) fn drive_focus_control(&mut self) -> bool {
         let pane = self.state.as_ref().and_then(|state| state.focus_pane_ref());
         if pane != self.focus_control.pane {
-            self.focus_control.pane = pane;
-            // Selecting an already controlled pane needs no barrier. In particular a fresh
-            // startup grant must not fence the first click or its selection/drag continuation.
-            if self.outer_focused == Some(true)
-                && self.state.as_ref().is_some_and(|state| {
-                    matches!(
-                        state.controller_mode(),
-                        Some(crate::workbench_state::ControllerMode::ReadOnly)
-                    )
-                })
+            if self
+                .focus_control
+                .input
+                .as_ref()
+                .is_some_and(|input| Some(&input.pane) != pane.as_ref())
             {
+                self.focus_control.input = None;
+            }
+            self.focus_control.pane = pane;
+            // Arm before Acquire has resolved the new pane's controller mode.
+            if self.outer_focused == Some(true) {
                 self.focus_control
                     .pending
                     .get_or_insert(FocusActivation::Return);
@@ -94,10 +107,122 @@ impl WorkbenchClientUi {
         let (Some(mailbox), Some(state)) = (&self.mailbox, &mut self.state) else {
             return false;
         };
-        if mailbox.try_enqueue_takeover_for(state, deadlines, &self.clock) {
+        if mailbox.try_enqueue_focus_activation(state, deadlines, &self.clock) {
+            if self.focus_control.input.is_none() && !state.takeover_input_ready() {
+                self.focus_control.input = state.focus_pane_ref().map(|pane| FocusInput {
+                    pane,
+                    deadline: deadlines.total(),
+                    bytes: Vec::new(),
+                });
+            }
             self.focus_control.pending = None;
             return true;
         }
+        false
+    }
+
+    /// These bytes have never been submitted. They belong only to the activation's exact pane,
+    /// and are discarded on focus loss, replacement, refusal, retirement, or the fixed deadline.
+    pub(super) fn hold_focus_input(&mut self, bytes: &[u8]) -> Option<bool> {
+        // Known owners keep ordinary input admission. Queue the focus observation first even
+        // when focus and typing arrive in one decoder packet; Server validation stays authoritative.
+        if self.focus_control.input.is_none()
+            && self.state.as_ref().is_some_and(|state| {
+                state.takeover_input_ready()
+                    && matches!(
+                        state.controller_mode(),
+                        Some(crate::workbench_state::ControllerMode::Controlling(_))
+                    )
+            })
+        {
+            self.drive_focus_control();
+            if self
+                .state
+                .as_ref()
+                .is_some_and(|state| state.takeover_input_ready())
+            {
+                return None;
+            }
+        }
+        // A focus event and its first keys may arrive in one decoder packet, before the next tick.
+        if self.focus_control.input.is_none()
+            && self.focus_control.pending.is_some()
+            && !(matches!(self.focus_control.pending, Some(FocusActivation::Initial))
+                && self.state.as_ref().is_some_and(|state| {
+                    matches!(
+                        state.controller_mode(),
+                        Some(crate::workbench_state::ControllerMode::Controlling(_))
+                    )
+                }))
+            && let Some(pane) = self.state.as_ref().and_then(|state| state.focus_pane_ref())
+            && let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now())
+        {
+            self.focus_control.input = Some(FocusInput {
+                pane,
+                deadline: deadlines.total(),
+                bytes: Vec::new(),
+            });
+        }
+        let input = self.focus_control.input.as_mut()?;
+        let state = self.state.as_ref()?;
+        if self.outer_focused == Some(false)
+            || state.focus_pane_ref().as_ref() != Some(&input.pane)
+            || self.clock.now() >= input.deadline
+            || self.retirement_failure.is_some()
+        {
+            self.focus_control.input = None;
+            return Some(false);
+        }
+        if input.bytes.len().saturating_add(bytes.len())
+            > orchbee_client_server_protocol::MAXIMUM_CONTROL_INPUT_BYTES
+        {
+            return Some(false);
+        }
+        input.bytes.extend_from_slice(bytes);
+        Some(true)
+    }
+
+    pub(super) fn drain_focus_input(&mut self) -> bool {
+        let captured =
+            self.modal_owns_input() || self.action_menu_active() || self.focus_viewport_non_live();
+        let Some(input) = self.focus_control.input.as_ref() else {
+            return false;
+        };
+        if self.outer_focused == Some(false)
+            || captured
+            || self.retirement_failure.is_some()
+            || self.clock.now() >= input.deadline
+            || self
+                .state
+                .as_ref()
+                .and_then(|state| state.focus_pane_ref())
+                .as_ref()
+                != Some(&input.pane)
+        {
+            self.focus_control.input = None;
+            return false;
+        }
+        if self.focus_control.pending.is_some() {
+            return false;
+        }
+        let Some(accepted) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_input_settlement())
+        else {
+            return false;
+        };
+        let Some(input) = self.focus_control.input.take() else {
+            return false;
+        };
+        if !accepted || input.bytes.is_empty() {
+            return false;
+        }
+        if self.forward(&input.bytes) {
+            return true;
+        }
+        // Admission refusal is known to have no effect; the same bounded activation still owns it.
+        self.focus_control.input = Some(input);
         false
     }
 

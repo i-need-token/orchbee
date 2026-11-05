@@ -88,15 +88,14 @@ fn reload_receipts_survive_duplicates_failures_and_stop_without_replaying() {
     );
     assert_eq!(registry.execute(&action), applied);
     assert!(registry.take().is_none());
+    let installed = registry.execute(&Action::Current {});
     registry.execute(&Action::Reload {
         operation_id: id(2),
     });
     registry.complete(id(2), Err("bad bundle".into()), |_| {
         panic!("must retain old engine")
     });
-    assert!(
-        matches!(registry.execute(&Action::Current {}), Outcome::Current { snapshot } if snapshot.revision.value() == 2 && snapshot.manifests.len() == 22)
-    );
+    assert_eq!(registry.execute(&Action::Current {}), installed);
     registry.execute(&Action::Reload {
         operation_id: id(3),
     });

@@ -22,6 +22,30 @@ fn enable_shared_notifications(
 }
 
 #[test]
+fn focused_completion_first_paint_has_no_unread_flash_and_seen_still_waits_for_the_draw() {
+    use orchbee_workbench_protocol::{AgentCompletion, PanelAgentState, WorkbenchRevision};
+    let (mut ui, pane, mut state) = physical_fixture();
+    ui.observe_focus(true);
+    state.sequence = WorkbenchRevision::new(2);
+    state.state = PanelAgentState::Idle;
+    state.completion = AgentCompletion::AwaitingInput;
+    publish_physical(&mut ui, &state);
+    assert!(!physical_seen(&ui, &state));
+    {
+        let mut view = ui.view();
+        view.set_attention_visible(true);
+        assert!(view.will_see_agent(&state.binding, state.sequence));
+        assert_eq!(view.panel_unseen_count(pane.pane().panel()), 0);
+    }
+    assert!(
+        !physical_seen(&ui, &state),
+        "visual suppression must not pre-acknowledge a failed draw"
+    );
+    ui.after_close_draw(draw(&ui, 120, 40, &ClientView::new(120)));
+    assert!(physical_seen(&ui, &state));
+}
+
+#[test]
 fn shared_never_remains_disabled_after_legacy_notification_reload() {
     use orchbee_workbench_protocol::{
         AgentReminderMode, PanelAgentState, UserPreferencesValues, WorkbenchRevision,

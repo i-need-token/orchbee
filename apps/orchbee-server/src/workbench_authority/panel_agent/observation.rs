@@ -61,6 +61,7 @@ impl WorkbenchAuthority {
                             .map_or_else(|| WorkbenchRevision::new(0), |r| r.semantic.sequence()),
                         agent: view.agent,
                         state: view.state,
+                        completion: view.completion,
                     })
                 })
                 .transpose()?;

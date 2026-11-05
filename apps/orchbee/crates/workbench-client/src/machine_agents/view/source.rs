@@ -104,7 +104,7 @@ impl View {
 }
 impl Row {
     pub(crate) fn status(&self) -> &'static str {
-        match self.state {
+        match self.completion.display(self.state) {
             PanelAgentState::Done => "done",
             PanelAgentState::Error => "error",
             PanelAgentState::Idle => "idle",

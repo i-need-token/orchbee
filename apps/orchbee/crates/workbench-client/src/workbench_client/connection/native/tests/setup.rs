@@ -1458,6 +1458,9 @@ impl UiDriver {
     ) -> TestResult<UiEvent> {
         let (wait_key, event) = taken.into_parts();
         match event {
+            WorkerEvent::ControllerObserved { .. } => {
+                panic!("unexpected ownership observation in setup fixture")
+            }
             WorkerEvent::PaneDetached { key } => {
                 if let Some(state) = self.state.as_mut() {
                     assert!(state.settle_pane_detached(&key));

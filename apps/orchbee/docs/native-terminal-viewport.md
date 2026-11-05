@@ -30,6 +30,11 @@ copy/export, and ordinary Help's nonmodal input behavior remain unchanged. The c
 [Workbench navigator](native-context-selection.md#capturing-navigator) consumes these
 keys for local row paging while it owns input.
 
+Retained history keeps content through the bottom row. Its localized HISTORY badge offers a
+hover tooltip with the Esc return-to-live action in English and Chinese; no persistent navigation
+footer occupies terminal rows. The tooltip belongs to that exact pane and badge, including a
+restored retained image, and yields to copy mode and covering surfaces.
+
 ## Smaller live viewers
 
 The native Client's `terminal_live_view::LiveView` projects a physical grid into a smaller local

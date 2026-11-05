@@ -56,6 +56,7 @@ fn observe(harness: &Harness, target: &machine_agents::Target, changed: bool) ->
                 presentations: vec![TerminalAgentStateRow {
                     presentation_id: target.member.clone(),
                     snapshot: Some(TerminalAgentStateSnapshot {
+                        completion: Default::default(),
                         binding,
                         sequence: WorkbenchRevision::new(8),
                         agent: Some(target.agent.clone()),

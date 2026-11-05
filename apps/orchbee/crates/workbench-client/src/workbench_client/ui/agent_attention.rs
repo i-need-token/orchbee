@@ -4,42 +4,28 @@ use crate::workbench_client::agent_attention::{AgentAttentionDraw, PaintedPane};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl WorkbenchClientView<'_> {
-    /// Exact physical versions with a Client completion projection; the boolean records input
-    /// acknowledgement. Consumers never substitute these display facts for observed Agent status.
-    pub fn completion_presentations(
+    pub(crate) fn set_attention_visible(&mut self, visible: bool) {
+        self.attention_visible = visible;
+    }
+
+    /// Visual acknowledgement of the current paint candidate, without advancing Client seen state.
+    pub(crate) fn will_see_agent(
         &self,
-    ) -> Vec<(
-        orchbee_agent_observation_protocol::AgentLaunchBinding,
-        orchbee_workbench_protocol::WorkbenchRevision,
-        bool,
-    )> {
-        self.attention
-            .filter(|_| self.retirement.is_none())
-            .map_or_else(Vec::new, |attention| attention.completion_presentations())
+        binding: &orchbee_agent_observation_protocol::AgentLaunchBinding,
+        sequence: orchbee_workbench_protocol::WorkbenchRevision,
+    ) -> bool {
+        self.attention_visible
+            && self.outer_focused
+            && self.attention_uncovered()
+            && self
+                .focus_panel_id()
+                .and_then(|panel| self.pane_ref_for_panel(panel))
+                .and_then(|pane| self.painted_attention_pane(&pane))
+                .is_some_and(|pane| pane.matches(binding))
+            && self
+                .attention
+                .is_some_and(|attention| attention.physical_current(binding, sequence))
     }
-
-    pub(crate) fn panel_completion_edited(&self, panel: &WorkbenchPanelId) -> bool {
-        let Some(pane) = self
-            .pane_ref_for_panel(panel)
-            .and_then(|pane| self.bound_attention_pane(&pane))
-        else {
-            return false;
-        };
-        self.attention
-            .is_some_and(|attention| attention.completion_edited(&pane))
-    }
-
-    pub(crate) fn panel_completion_pending(&self, panel: &WorkbenchPanelId) -> bool {
-        let Some(pane) = self
-            .pane_ref_for_panel(panel)
-            .and_then(|pane| self.bound_attention_pane(&pane))
-        else {
-            return false;
-        };
-        self.attention
-            .is_some_and(|attention| attention.completion_pending(&pane))
-    }
-
     pub fn machine_attention_version(&self) -> Option<(u64, usize)> {
         if self.retirement.is_some() {
             return None;
@@ -90,7 +76,9 @@ impl WorkbenchClientView<'_> {
     }
 
     fn painted_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {
-        if self.pane_viewport(pane.pane().panel()).is_some() {
+        if self.pane_viewport(pane.pane().panel()).is_some()
+            || self.pane_history_stand_in(pane.pane().panel()).is_some()
+        {
             return None;
         }
         self.bound_attention_pane(pane)
@@ -139,24 +127,23 @@ impl WorkbenchClientView<'_> {
             .filter_map(|index| tab.panel(index))
             .find(|entry| entry.panel_id() == panel)
             .map_or(0, |entry| {
+                if self.attention_visible
+                    && self.outer_focused
+                    && self.attention_uncovered()
+                    && self.focus_panel_id() == Some(panel)
+                    && self
+                        .pane_ref_for_panel(panel)
+                        .and_then(|pane| self.painted_attention_pane(&pane))
+                        .is_some_and(|pane| pane.presentation == entry.presentation_id().as_str())
+                {
+                    return 0;
+                }
                 attention.unseen_in(entry.presentation_id().as_str())
             })
     }
 }
 
 impl WorkbenchClientUi {
-    pub(in crate::workbench_client) fn terminal_edited(&mut self) {
-        let Some(pane) = self
-            .state
-            .as_ref()
-            .and_then(|state| state.focus_pane_ref())
-            .and_then(|pane| self.view().bound_attention_pane(&pane))
-        else {
-            return;
-        };
-        self.attention.terminal_edited(&pane);
-    }
-
     pub(in crate::workbench_client) fn configure_agent_notifications(
         &mut self,
         revision: u64,

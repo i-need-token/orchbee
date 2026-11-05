@@ -613,13 +613,6 @@ fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current(
         let cursors = mailbox.cursors();
         assert!(open(&mut ui, project));
         open_creation(&mut ui);
-        let row = action_row(&ui, MenuAction::NewWorktree);
-        assert_eq!(
-            ui.view().action_menu().unwrap().unavailable[row],
-            Some(MenuUnavailable::WorktreeChecking)
-        );
-        let token = arm(&mut ui);
-        activate_row(&mut ui, token, row);
         assert_eq!(ui.take_action_menu_action(false), None);
         assert!(matches!(ui.menus.intent().unwrap().stage(), Stage::Open));
         assert_eq!(Origin::capture(ui.state.as_ref()), origin);
@@ -709,24 +702,6 @@ fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_
             let cursors = mailbox.cursors();
             assert!(open(&mut ui, &snapshot.navigation.projects[target]));
             open_creation(&mut ui);
-            if empty {
-                assert_eq!(
-                    ui.view().action_menu().unwrap().actions,
-                    &[MenuAction::QuickWorkspace, MenuAction::NewWorktree],
-                    "an empty Project has no folder, so its quick path leads"
-                );
-            }
-            let row = action_row(&ui, MenuAction::NewWorktree);
-            assert_eq!(
-                ui.view().action_menu().unwrap().unavailable[row],
-                Some(if empty {
-                    MenuUnavailable::WorktreeUnavailable
-                } else {
-                    MenuUnavailable::WorktreeChecking
-                })
-            );
-            let token = arm(&mut ui);
-            activate_row(&mut ui, token, row);
             assert_eq!(ui.take_action_menu_action(false), None);
             assert!(matches!(ui.menus.intent().unwrap().stage(), Stage::Open));
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);

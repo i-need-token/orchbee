@@ -87,14 +87,14 @@ impl super::CliText {
     pub(crate) fn cli_workbench_agent_status(self, status: Option<&str>) -> &'static str {
         match (self.locale, status) {
             (Locale::EnUs, Some("blocked")) => "needs attention",
-            (Locale::EnUs, Some("done")) => "completed",
+            (Locale::EnUs, Some("done")) => "Done",
             (Locale::EnUs, Some("error")) => "error",
             (Locale::EnUs, Some("working")) => "working",
             (Locale::EnUs, Some("idle")) => "idle",
             (Locale::EnUs, None) => "state unavailable",
             (Locale::EnUs, _) => "unknown",
             (Locale::ZhCn, Some("blocked")) => "需要处理",
-            (Locale::ZhCn, Some("done")) => "已完成",
+            (Locale::ZhCn, Some("done")) => "完成",
             (Locale::ZhCn, Some("error")) => "错误",
             (Locale::ZhCn, Some("working")) => "工作中",
             (Locale::ZhCn, Some("idle")) => "空闲",

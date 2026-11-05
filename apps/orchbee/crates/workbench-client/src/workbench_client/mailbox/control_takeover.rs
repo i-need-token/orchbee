@@ -21,6 +21,23 @@ impl CommandMailbox {
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
     ) -> bool {
+        self.enqueue_control_activation(canonical, deadlines, clock, false)
+    }
+    pub(in crate::workbench_client) fn try_enqueue_focus_activation(
+        &self,
+        canonical: &mut WorkbenchClientState,
+        deadlines: OperationDeadlines,
+        clock: &dyn MailboxClock,
+    ) -> bool {
+        self.enqueue_control_activation(canonical, deadlines, clock, true)
+    }
+    fn enqueue_control_activation(
+        &self,
+        canonical: &mut WorkbenchClientState,
+        deadlines: OperationDeadlines,
+        clock: &dyn MailboxClock,
+        automatic: bool,
+    ) -> bool {
         let Some((mut state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
             return false;
         };
@@ -51,9 +68,10 @@ impl CommandMailbox {
         let Some(generation) = state.refresh_generation.checked_add(1) else {
             return false;
         };
-        let Some(operation) = canonical.plan_takeover(request_id, generation, deadlines) else {
+        let Some(mut operation) = canonical.plan_takeover(request_id, generation, deadlines) else {
             return false;
         };
+        operation.automatic = automatic;
         if clock.now() >= deadlines.forward_cutoff() || !canonical.begin_takeover(operation.clone())
         {
             return false;

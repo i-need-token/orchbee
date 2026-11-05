@@ -32,7 +32,7 @@ pub use control::{
     ControlInput, ControlRejectedReason, ControlUnavailableReason, MAXIMUM_CONTROL_INPUT_BYTES,
     MAXIMUM_PASTE_CONTENT_BYTES, MAXIMUM_SEMANTIC_INPUT_BYTES, PasteAcceptedBytes, PasteContent,
     SemanticInputKind, SemanticInputPayload, TerminalControlAction, TerminalControlOutcome,
-    TerminalControlRequest, TerminalControlResult, TerminalRgb,
+    TerminalControlRequest, TerminalControlResult, TerminalControlState, TerminalRgb,
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use geometry::{

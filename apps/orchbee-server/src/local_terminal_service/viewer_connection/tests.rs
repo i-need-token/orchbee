@@ -483,6 +483,83 @@ fn poll_delivers_a_history_event_while_a_frame_flight_is_pending() {
 }
 
 #[test]
+fn pausing_projection_retires_its_old_feedback_flight_and_admits_the_next_full_frame() {
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
+        WorkerOutcome::Record(frame_record(1)),
+        WorkerOutcome::FeedbackAccepted,
+        WorkerOutcome::FeedbackAccepted,
+        WorkerOutcome::Record(frame_record(2)),
+        WorkerOutcome::FeedbackAccepted,
+    ]));
+    let mut connection = service.client_connection();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        connection.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    let id = "88888888888888888888888888888881";
+    let attachment_id = poll().attachment_id().unwrap().clone();
+    assert!(matches!(
+        execute_viewer(&mut connection, id, poll()).outcome(),
+        Outcome::Record(_)
+    ));
+    let paused = execute_viewer(
+        &mut connection,
+        id,
+        Action::SetProjectionDemand {
+            attachment_id: attachment_id.clone(),
+            demand: orchbee_client_server_protocol::ProjectionDemand::Paused,
+        },
+    );
+    assert_eq!(paused.outcome(), &Outcome::FeedbackAccepted {});
+    let old = execute_viewer(
+        &mut connection,
+        id,
+        Action::FrameApplied {
+            attachment_id: attachment_id.clone(),
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 1,
+        },
+    );
+    assert_eq!(
+        old.outcome(),
+        &Outcome::Rejected {
+            reason: Rejected::FeedbackMismatch
+        },
+        "a paused flight cannot still be acknowledged"
+    );
+    let active = execute_viewer(
+        &mut connection,
+        id,
+        Action::SetProjectionDemand {
+            attachment_id: attachment_id.clone(),
+            demand: orchbee_client_server_protocol::ProjectionDemand::Active,
+        },
+    );
+    assert_eq!(active.outcome(), &Outcome::FeedbackAccepted {});
+    assert!(matches!(
+        execute_viewer(&mut connection, id, poll()).outcome(),
+        Outcome::Record(_)
+    ));
+    let fresh = execute_viewer(
+        &mut connection,
+        id,
+        Action::FrameApplied {
+            attachment_id,
+            sequence: NonZeroU64::new(2).unwrap(),
+            generation: NonZeroU64::MIN,
+            revision: 2,
+        },
+    );
+    assert_eq!(fresh.outcome(), &Outcome::FeedbackAccepted {});
+    drop(connection);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+#[test]
 fn a_history_record_on_any_action_but_poll_is_a_strict_route_violation() {
     let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
         WorkerOutcome::Record(frame_record(1)),
@@ -747,6 +824,44 @@ fn explicit_takeover_transfers_cleanup_and_old_connection_cannot_dispatch_effect
             let COutcome::Acquired { controller_id } = run(&service, &mut old, old_action) else {
                 panic!("old acquire")
             };
+            let geometry = orchbee_client_server_protocol::Geometry::new(80, 24, 8, 16).unwrap();
+            let activation = CAction::Activate {
+                attachment_id: old.attachment_id.clone(),
+                geometry,
+            };
+            let COutcome::Observed { state } = run(&service, &mut old, activation) else {
+                panic!("published owner");
+            };
+            assert_eq!(state.controller.as_ref(), Some(&old.attachment_id));
+            assert_eq!(state.controller_id.as_ref(), Some(&controller_id));
+            let observe = CAction::Observe {
+                attachment_id: new.attachment_id.clone(),
+            };
+            let COutcome::Observed { state } = run(&service, &mut new, observe) else {
+                panic!("peer read");
+            };
+            assert_eq!(state.controller.as_ref(), Some(&old.attachment_id));
+            assert!(
+                state.controller_id.is_none(),
+                "reading a peer never discloses its grant"
+            );
+            assert_eq!(state.recent_focus, [old.attachment_id.clone()]);
+            let activate = CAction::Activate {
+                attachment_id: new.attachment_id.clone(),
+                geometry,
+            };
+            let COutcome::Observed { state } = run(&service, &mut new, activate) else {
+                panic!("focus order");
+            };
+            assert_eq!(
+                state.recent_focus,
+                [new.attachment_id.clone(), old.attachment_id.clone()]
+            );
+            assert_eq!(
+                state.controller.as_ref(),
+                Some(&old.attachment_id),
+                "activation itself does not acquire"
+            );
             let new_action = CAction::Takeover {
                 attachment_id: new.attachment_id.clone(),
             };

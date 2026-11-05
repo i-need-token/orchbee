@@ -101,6 +101,8 @@ pub(super) struct Reports {
     visible_blocker: bool,
     observed_at: Option<u64>,
     recent_exit: Option<(String, u64)>,
+    worked: bool,
+    completion: orchbee_workbench_protocol::AgentCompletion,
 }
 impl Reports {
     pub(super) fn transition(&self, event: Event, at: u64) -> Transition {
@@ -134,6 +136,30 @@ impl Reports {
                 result.0
             }
         };
+        let before = self.effective();
+        let after = next.effective();
+        if before.agent != after.agent || after.agent.is_none() {
+            next.worked = false;
+            next.completion = orchbee_workbench_protocol::AgentCompletion::None;
+        }
+        match after.status {
+            Status::Working if after.agent.is_some() => {
+                next.worked = true;
+                next.completion = orchbee_workbench_protocol::AgentCompletion::None;
+            }
+            Status::Idle if next.worked => {
+                next.worked = false;
+                next.completion = orchbee_workbench_protocol::AgentCompletion::AwaitingInput;
+            }
+            Status::Done
+                if after.agent.is_some()
+                    && (before.status != Status::Done || before.agent != after.agent) =>
+            {
+                next.worked = false;
+                next.completion = orchbee_workbench_protocol::AgentCompletion::AwaitingInput;
+            }
+            _ => {}
+        }
         Transition {
             changed: next != *self,
             next,
@@ -319,9 +345,17 @@ impl Reports {
         orchbee_workbench_protocol::PanelAgentView {
             agent: effective.agent,
             state: effective.status,
+            completion: self.completion,
             authority_source: effective.authority_source,
             message: effective.message,
         }
+    }
+    pub(super) fn acknowledge_input(&mut self) -> bool {
+        if self.completion != orchbee_workbench_protocol::AgentCompletion::AwaitingInput {
+            return false;
+        }
+        self.completion = orchbee_workbench_protocol::AgentCompletion::Acknowledged;
+        true
     }
     pub(super) fn admitted_bytes(
         &self,

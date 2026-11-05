@@ -14,8 +14,8 @@ use std::time::{Duration, Instant};
 
 use orchbee_agent_observation_protocol::{
     AgentGetOutcome, AgentLifecycle, AgentObservationFreshness, AgentPresentationAttachment,
-    AgentPresentationVisibility, AgentProviderId, AgentSafeInteger, AgentSemanticStatus,
-    AgentSessionId, AgentSessionRejectionReason, AgentSessionSummary,
+    AgentPresentationVisibility, AgentProviderId, AgentSemanticStatus, AgentSessionId,
+    AgentSessionRejectionReason, AgentSessionSummary,
 };
 
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
@@ -50,8 +50,6 @@ pub struct AgentBoardRow {
     status: AgentSemanticStatus,
     lifecycle: AgentLifecycle,
     freshness: AgentObservationFreshness,
-    generation: AgentSafeInteger,
-    sequence: AgentSafeInteger,
     attachments: Box<[AgentPresentationAttachment]>,
 }
 
@@ -63,8 +61,6 @@ impl AgentBoardRow {
             status: summary.status,
             lifecycle: summary.lifecycle,
             freshness: summary.observation.freshness,
-            generation: summary.observation.generation,
-            sequence: summary.observation.sequence,
             attachments: summary.presentation_attachments.into_boxed_slice(),
         }
     }
@@ -706,14 +702,11 @@ pub(crate) enum AgentBoardReadEvent {
 pub(crate) trait AgentRowAttention {
     /// Whether the session has attention the user has not seen.
     fn session_unread(&self, session: &AgentSessionId) -> bool;
-    /// Whether the user edited the session after this exact completion
-    /// observation.
-    fn session_completion_edited(
+    /// The Server's completion fact for this exact presentation generation.
+    fn presentation_completion(
         &self,
-        session: &AgentSessionId,
-        generation: AgentSafeInteger,
-        sequence: AgentSafeInteger,
-    ) -> bool;
+        attachment: &AgentPresentationAttachment,
+    ) -> Option<orchbee_workbench_protocol::AgentCompletion>;
 }
 
 /// An accepted jump in progress. `serial` is the generation the lane's
@@ -1853,12 +1846,23 @@ impl<'a> AgentBoardView<'a> {
         &self,
         row: &'row AgentBoardRow,
     ) -> &'row AgentSemanticStatus {
-        if matches!(row.status(), AgentSemanticStatus::Succeeded {})
-            && self.attention.is_some_and(|attention| {
-                attention.session_completion_edited(row.session_id(), row.generation, row.sequence)
-            })
-        {
-            return &AgentSemanticStatus::Idle {};
+        if matches!(
+            row.status(),
+            AgentSemanticStatus::Succeeded {} | AgentSemanticStatus::Idle {}
+        ) && let Some(completion) = self.attention.and_then(|attention| {
+            row.attachments()
+                .iter()
+                .find_map(|attachment| attention.presentation_completion(attachment))
+        }) {
+            match completion {
+                orchbee_workbench_protocol::AgentCompletion::AwaitingInput => {
+                    return &AgentSemanticStatus::Succeeded {};
+                }
+                orchbee_workbench_protocol::AgentCompletion::Acknowledged => {
+                    return &AgentSemanticStatus::Idle {};
+                }
+                orchbee_workbench_protocol::AgentCompletion::None => {}
+            }
         }
         row.status()
     }

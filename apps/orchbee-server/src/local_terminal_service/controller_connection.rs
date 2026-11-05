@@ -46,9 +46,9 @@ pub(super) enum ReservationPhase {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct ControllerReservation {
-    controller_id: OperationId,
-    viewer_id: OperationId,
-    phase: ReservationPhase,
+    pub(super) controller_id: OperationId,
+    pub(super) viewer_id: OperationId,
+    pub(super) phase: ReservationPhase,
 }
 
 #[cfg(test)]
@@ -73,9 +73,16 @@ pub(super) struct ControllerLease<'service> {
     armed: bool,
     superseded: Option<WorkerRequest>,
     sequence: u64,
+    geometry: Option<orchbee_client_server_protocol::Geometry>,
 }
 
 impl ControllerLease<'_> {
+    pub(super) const fn sequence(&self) -> u64 {
+        self.sequence
+    }
+    pub(super) const fn geometry(&self) -> Option<orchbee_client_server_protocol::Geometry> {
+        self.geometry
+    }
     pub(super) fn disarm_known_disposed(&mut self) {
         self.armed = false;
         self.superseded = None;
@@ -123,6 +130,22 @@ pub(super) fn execute<'service>(
     if !service.viewer_worker_is_current(&viewer.handle) {
         viewer.controller.take();
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
+    }
+    match request.action() {
+        Action::Observe { .. } | Action::Activate { .. } => {
+            if service.target_lifecycle(viewer.target) == Some(TargetLifecycle::Disposed) {
+                viewer.controller.take();
+                return unavailable(Unavailable::TerminalRuntimeUnavailable);
+            }
+            return service.control_observation(
+                viewer,
+                match request.action() {
+                    Action::Activate { geometry, .. } => Some(*geometry),
+                    _ => None,
+                },
+            );
+        }
+        _ => {}
     }
     if matches!(
         request.action(),
@@ -172,7 +195,9 @@ pub(super) fn execute<'service>(
             sequence,
             ..
         } => (controller_id, *sequence),
-        Action::Acquire { .. }
+        Action::Observe { .. }
+        | Action::Activate { .. }
+        | Action::Acquire { .. }
         | Action::Takeover { .. }
         | Action::Clear { .. }
         | Action::Reset { .. } => {
@@ -253,7 +278,9 @@ pub(super) fn execute<'service>(
             Ok(colors) => WorkerAction::HostColors { sequence, colors },
             Err(_) => return rejected(Rejected::HostRejected),
         },
-        Action::Acquire { .. }
+        Action::Observe { .. }
+        | Action::Activate { .. }
+        | Action::Acquire { .. }
         | Action::Takeover { .. }
         | Action::Clear { .. }
         | Action::Reset { .. } => {
@@ -306,7 +333,21 @@ pub(super) fn execute<'service>(
         .request(WorkerOperationRequest::Control(command))
     {
         Ok(WorkerOperationResult::Control(result)) => match result.outcome {
-            WorkerOutcome::InputAccepted => Outcome::InputAccepted {},
+            WorkerOutcome::InputAccepted => {
+                if matches!(
+                    request.action(),
+                    Action::Input { .. }
+                        | Action::SemanticInput {
+                            input_kind: orchbee_client_server_protocol::SemanticInputKind::Key
+                                | orchbee_client_server_protocol::SemanticInputKind::Text,
+                            ..
+                        }
+                ) && let Ok(mut coordinator) = service.coordinator.lock()
+                {
+                    coordinator.acknowledge_terminal_input(controller.target);
+                }
+                Outcome::InputAccepted {}
+            }
             WorkerOutcome::HostColorsAccepted => Outcome::HostColorsAccepted {},
             WorkerOutcome::Resized(geometry) => {
                 match orchbee_client_server_protocol::Geometry::new(
@@ -315,7 +356,15 @@ pub(super) fn execute<'service>(
                     geometry.cell_pixel_width(),
                     geometry.cell_pixel_height(),
                 ) {
-                    Ok(geometry) => Outcome::Resized { geometry },
+                    Ok(geometry) => {
+                        controller.geometry = Some(geometry);
+                        service.remember_control_geometry(
+                            &viewer.attachment_id,
+                            ControlTarget::from(controller.target),
+                            geometry,
+                        );
+                        Outcome::Resized { geometry }
+                    }
                     Err(_) => {
                         viewer.controller.take();
                         Outcome::OutcomeUnknown {}
@@ -326,7 +375,12 @@ pub(super) fn execute<'service>(
             WorkerOutcome::Pasted { accepted_bytes } => {
                 match orchbee_client_server_protocol::PasteAcceptedBytes::new(accepted_bytes.get())
                 {
-                    Ok(accepted_bytes) => Outcome::Pasted { accepted_bytes },
+                    Ok(accepted_bytes) => {
+                        if let Ok(mut coordinator) = service.coordinator.lock() {
+                            coordinator.acknowledge_terminal_input(controller.target);
+                        }
+                        Outcome::Pasted { accepted_bytes }
+                    }
                     Err(_) => {
                         viewer.controller.take();
                         Outcome::OutcomeUnknown {}
@@ -355,12 +409,28 @@ pub(super) fn execute<'service>(
         }
     }
 }
-fn acquire<'service>(
+pub(super) fn acquire<'service>(
     service: &'service LocalTerminalService,
     viewer: &mut ViewerAttachment<'service>,
     takeover: bool,
 ) -> Outcome {
-    if viewer.controller.is_some() && !takeover {
+    acquire_candidate(service, viewer, takeover, false)
+}
+
+pub(super) fn acquire_promoted<'service>(
+    service: &'service LocalTerminalService,
+    viewer: &mut ViewerAttachment<'service>,
+) -> Outcome {
+    acquire_candidate(service, viewer, false, true)
+}
+
+fn acquire_candidate<'service>(
+    service: &'service LocalTerminalService,
+    viewer: &mut ViewerAttachment<'service>,
+    takeover: bool,
+    promotion: bool,
+) -> Outcome {
+    if viewer.controller.is_some() && !takeover && !promotion {
         return rejected(Rejected::ControllerBusy);
     }
     let Some(template) = viewer.cleanup else {
@@ -387,6 +457,16 @@ fn acquire<'service>(
         let Ok(mut owners) = service.controllers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
+        if promotion {
+            let Ok(focus) = service.controller_focus.lock() else {
+                return unavailable(Unavailable::ServerBusy);
+            };
+            if owners.contains_key(&ControlTarget::from(viewer.target))
+                || !focus.prefers(ControlTarget::from(viewer.target), &viewer.attachment_id)
+            {
+                return rejected(Rejected::ControllerBusy);
+            }
+        }
         if let Some(lease) = viewer.controller.as_ref() {
             match owners.get(&ControlTarget::from(lease.target)) {
                 Some(owner) if owner.controller_id == lease.cleanup.controller_id => {
@@ -440,6 +520,7 @@ fn acquire<'service>(
     };
     drop(revoked_lease);
     let mut lease = ControllerLease {
+        geometry: None,
         service,
         handle: viewer.handle.clone(),
         target: viewer.target,

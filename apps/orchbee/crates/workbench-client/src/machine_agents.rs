@@ -280,7 +280,10 @@ pub(crate) fn read_at(
             let terminal_title = titles.remove(&placement.member).ok_or(())?;
             let extra = metadata.remove(&placement.member).ok_or(())?;
             let report = extra.report.ok_or(())?;
-            if report.agent.as_ref() != Some(&agent) || report.state != state.state {
+            if report.agent.as_ref() != Some(&agent)
+                || report.state != state.state
+                || report.completion != state.completion
+            {
                 return Err(());
             }
             let effective = extra
@@ -316,6 +319,7 @@ pub(crate) fn read_at(
                 tab_label: placement.tab_label,
                 terminal_title,
                 state: state.state,
+                completion: state.completion,
             });
         }
     }

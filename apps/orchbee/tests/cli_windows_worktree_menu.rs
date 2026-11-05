@@ -87,6 +87,17 @@ fn a_plain_workspace_first_menu_hides_git_actions_and_moves_between_new_projects
         previous,
         "cancel preserves membership"
     );
+    fixture.workspace_in("fresh-plain", "plain");
+    let deadline = Instant::now() + DISCOVERY;
+    while !fixture.screen(&tui.terminal).contains("fresh-plain") {
+        assert!(
+            Instant::now() < deadline,
+            "new non-Git Workspace never reached the sidebar"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+    open_menu(&fixture, &tui, &mut control, "fresh-plain");
+    no_worktree_rows(&fixture, &tui);
     control.release();
 }
 
@@ -292,11 +303,11 @@ fn a_workspace_that_left_its_repository_offers_no_worktree_rows() {
     control.release();
 }
 
-/// A menu opened again on a repository Git answered has every row enabled and its one height from
+/// A menu opened again on a repository Git answered keeps its Git actions enabled from
 /// its first paint, through Git's answer, and through a `cd` inside the repository with the Git read
 /// it starts.
 #[test]
-fn a_menu_on_a_known_repository_stays_enabled_at_one_height_through_a_directory_change() {
+fn a_menu_on_a_known_repository_keeps_its_actions_enabled_through_a_directory_change() {
     let fixture = Fixture::new("orchbee-worktree-refresh-", &["repo"]);
     repository(&fixture);
     std::fs::create_dir_all(fixture.path("repo/sub")).unwrap();
@@ -312,21 +323,21 @@ fn a_menu_on_a_known_repository_stays_enabled_at_one_height_through_a_directory_
     close_menu(&fixture, &tui, &mut control);
 
     open_menu(&fixture, &tui, &mut control, "source");
-    let height = menu_is_steady(&fixture, &tui, None);
+    menu_rows_are_enabled(&fixture, &tui);
     // Spans Git's answer.
     let watch = Instant::now() + Duration::from_secs(3);
     while Instant::now() < watch {
-        menu_is_steady(&fixture, &tui, Some(height));
+        menu_rows_are_enabled(&fixture, &tui);
     }
     let command = format!("cd \"{}\"", fixture.path("repo/sub"));
     enter(&fixture, &terminal_of(&fixture, &created), &command);
     // Spans the commit of the new directory and the Git read after it.
     let watch = Instant::now() + Duration::from_secs(3);
     while Instant::now() < watch {
-        menu_is_steady(&fixture, &tui, Some(height));
+        menu_rows_are_enabled(&fixture, &tui);
     }
     stands_in(&fixture, source, "repo/sub");
-    menu_is_steady(&fixture, &tui, Some(height));
+    menu_rows_are_enabled(&fixture, &tui);
     choose(&fixture, &tui, &mut control, OPEN_WORKTREE, |screen| {
         menu_row(screen, LINKED_BRANCH).is_some()
     });
@@ -593,22 +604,21 @@ fn shows_branch(fixture: &Fixture, tui: &Tui, expected: bool) {
     }
 }
 
-/// A current refusal removes Git-only actions without requiring the person to reopen the menu.
+/// The first observed menu paint and subsequent discovery paints must all omit Git-only actions.
 fn no_worktree_rows(fixture: &Fixture, tui: &Tui) {
-    let deadline = Instant::now() + DISCOVERY;
+    let deadline = Instant::now() + Duration::from_secs(2);
     loop {
         let read = MenuRead::first(fixture, tui);
-        if [NEW_WORKTREE, OPEN_WORKTREE]
-            .iter()
-            .all(|text| read.row(text).is_none())
-        {
-            return;
-        }
         assert!(
-            Instant::now() < deadline,
-            "non-Git menu kept Git actions:\n{}",
+            [NEW_WORKTREE, OPEN_WORKTREE]
+                .iter()
+                .all(|text| read.row(text).is_none()),
+            "non-Git menu advertised Git actions before discovery settled:\n{}",
             read.text()
         );
+        if Instant::now() >= deadline {
+            return;
+        }
         thread::sleep(Duration::from_millis(100));
     }
 }
@@ -721,23 +731,6 @@ impl MenuRead {
         plain(&self.0)
     }
 
-    /// The frame's rows from its top edge to its bottom edge.
-    fn height(&self) -> usize {
-        let lines: Vec<_> = self.0.lines().map(plain).collect();
-        let first = lines
-            .iter()
-            .position(|line| line.contains("Move to Project"))
-            .unwrap_or_else(|| panic!("no menu:\n{}", self.text()));
-        let top = (0..first)
-            .rev()
-            .find(|index| lines[*index].contains('┌'))
-            .unwrap_or_else(|| panic!("no top edge:\n{}", self.text()));
-        let bottom = (first..lines.len())
-            .find(|index| lines[*index].contains('└'))
-            .unwrap_or_else(|| panic!("no bottom edge:\n{}", self.text()));
-        bottom - top + 1
-    }
-
     /// Whether the row of `text` colors as Rename, which is always enabled here.
     fn enabled(&self, text: &str) -> bool {
         let style = |text: &str| {
@@ -750,17 +743,9 @@ impl MenuRead {
     }
 }
 
-/// Every row of the open Workspace menu must color as an enabled one, and the frame must keep
-/// `height`. Returns the height it read.
-fn menu_is_steady(fixture: &Fixture, tui: &Tui, height: Option<usize>) -> usize {
+/// Known repository actions remain usable while a current-directory refresh runs.
+fn menu_rows_are_enabled(fixture: &Fixture, tui: &Tui) {
     let read = MenuRead::first(fixture, tui);
-    let measured = read.height();
-    assert_eq!(
-        height.unwrap_or(measured),
-        measured,
-        "the menu changed height:\n{}",
-        read.text()
-    );
     for text in ["Move to Project", NEW_WORKTREE, OPEN_WORKTREE] {
         assert!(
             read.enabled(text),
@@ -768,7 +753,6 @@ fn menu_is_steady(fixture: &Fixture, tui: &Tui, height: Option<usize>) -> usize 
             read.text()
         );
     }
-    measured
 }
 
 /// `line` without its escape sequences.

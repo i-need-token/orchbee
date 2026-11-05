@@ -49,6 +49,59 @@ fn observation(presentation: u128, after: Option<u64>) -> Action {
 }
 
 #[test]
+fn completion_is_a_server_fact_visible_to_a_client_that_never_observed_working() {
+    let mut a = owner();
+    let facts = [physical(1, 1)];
+    invoke(&mut a, state("custom", "1"), &facts);
+    invoke(
+        &mut a,
+        report(
+            json!({"kind":"state","source":"custom","agent":"Team Agent",
+        "state":"unknown","message":null,"sequence":"2"}),
+        ),
+        &facts,
+    );
+    invoke(
+        &mut a,
+        report(
+            json!({"kind":"state","source":"custom","agent":"Team Agent",
+        "state":"idle","message":null,"sequence":"3"}),
+        ),
+        &facts,
+    );
+    let checkpoint = || Action::States {
+        presentation_ids: vec![
+            orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{:032x}", 4))
+                .unwrap(),
+        ],
+    };
+    let answer = serde_json::to_value(invoke(&mut a, checkpoint(), &facts)).unwrap();
+    assert_eq!(answer["presentations"][0]["snapshot"]["state"], "idle");
+    assert_eq!(
+        answer["presentations"][0]["snapshot"]["completion"], "awaiting-input",
+        "a late Client must read completion from the Server, while raw Idle remains Idle"
+    );
+    assert!(!a.acknowledge_terminal_agent_input(&physical(1, 2)).unwrap());
+    assert!(a.acknowledge_terminal_agent_input(&facts[0]).unwrap());
+    let acknowledged = serde_json::to_value(invoke(&mut a, checkpoint(), &facts)).unwrap();
+    let before = &answer["presentations"][0]["snapshot"];
+    let after = &acknowledged["presentations"][0]["snapshot"];
+    assert_eq!(after["completion"], "acknowledged");
+    assert_eq!(after["state"], before["state"]);
+    assert_eq!(
+        after["sequence"], before["sequence"],
+        "input must not create unread provider activity"
+    );
+    assert!(!a.acknowledge_terminal_agent_input(&facts[0]).unwrap());
+    let replacement =
+        serde_json::to_value(invoke(&mut a, checkpoint(), &[physical(1, 2)])).unwrap();
+    assert_eq!(
+        replacement["presentations"][0]["snapshot"]["completion"],
+        "none"
+    );
+}
+
+#[test]
 fn compact_states_cover_primary_child_unavailable_and_replaced_physical_generations() {
     let mut a = owner();
     let facts = [physical(1, 1), physical(2, 1)];

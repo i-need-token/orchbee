@@ -32,6 +32,10 @@ fn wait<T>(description: &str, mut observe: impl FnMut() -> Option<T>) -> T {
 /// One input submission must execute in the shared shell; echoed command text is insufficient.
 fn probe(fixture: &Fixture, control: &mut Control, terminal: &str, marker: &str) {
     control.input(format!("echo {marker}\r").as_bytes());
+    executed(fixture, terminal, marker);
+}
+
+fn executed(fixture: &Fixture, terminal: &str, marker: &str) {
     wait(
         &format!("focused Client failed to execute {marker}"),
         || {
@@ -53,9 +57,10 @@ fn activate(
     terminal: &str,
     marker: &str,
 ) -> Value {
-    control.input(b"\x1b[I");
+    // Real Windows Terminal can route keys before its FocusIn record.
+    control.input(format!("echo {marker}\r\x1b[I").as_bytes());
+    executed(fixture, terminal, marker);
     fixture.settle_ready(&tui.client);
-    probe(fixture, control, terminal, marker);
     let observed = read(fixture, terminal)["observed"].clone();
     assert!(observed["columns"].as_u64().is_some(), "{observed}");
     assert!(observed["screenRows"].as_u64().is_some(), "{observed}");
@@ -144,13 +149,18 @@ fn five_clients_transfer_input_resize_and_restore_after_the_recent_client_closes
             .any(|client| client["clientId"] == clients[3].client))
         .then_some(())
     });
-    let geometry = activate(
-        &fixture,
-        &clients[4],
-        &mut controls[4],
-        &terminal,
-        "RESTORED-FIVE",
+    // No focus event: the Server must promote the most recently focused surviving Viewer.
+    let geometry = wait(
+        "Server did not restore the surviving Viewer's dimensions",
+        || {
+            let observed = read(&fixture, &terminal)["observed"].clone();
+            let geometry =
+                serde_json::json!({"columns":observed["columns"], "rows":observed["screenRows"]});
+            (geometry == geometries[4]).then_some(geometry)
+        },
     );
+    fixture.settle_ready(&clients[4].client);
+    probe(&fixture, &mut controls[4], &terminal, "RESTORED-FIVE");
     assert_eq!(
         geometry, geometries[4],
         "restored focus must restore its own dimensions"
@@ -206,15 +216,8 @@ fn attention(fixture: &Fixture, tui: &Tui, panel: &str, seen: bool) {
     });
 }
 
-fn agent_glyph(fixture: &Fixture, tui: &Tui) -> Option<char> {
-    fixture
-        .screen(&tui.terminal)
-        .lines()
-        .find(|line| line.contains("decision-agent"))
-        .and_then(|line| {
-            line.chars()
-                .find(|c| !c.is_whitespace() && !"│┃├└─".contains(*c))
-        })
+fn agent_color(fixture: &Fixture, tui: &Tui) -> Option<Vec<u16>> {
+    fixture.state_color(&tui.terminal, "decision-panel")
 }
 
 #[test]
@@ -244,7 +247,15 @@ fn a_visible_split_stays_unread_until_focused_and_completion_survives_viewing_un
         fixture.client(&tui.client)["view"]["selection"]["panelId"],
         first
     );
+    report(&fixture, &second, "done");
+    let completed_color = wait(
+        "explicit completion never acquired a colored state cell",
+        || agent_color(&fixture, &tui),
+    );
     report(&fixture, &second, "working");
+    wait("Working kept the completed cell color", || {
+        agent_color(&fixture, &tui).filter(|color| color != &completed_color)
+    });
     attention(&fixture, &tui, &second, false);
     report(&fixture, &second, "idle");
     let completed = fixture.run(&["agent", "get", "--panel", &second]);
@@ -260,24 +271,34 @@ fn a_visible_split_stays_unread_until_focused_and_completion_survives_viewing_un
         (fixture.client(&tui.client)["view"]["selection"]["panelId"] == second).then_some(())
     });
     attention(&fixture, &tui, &second, true);
-    let completed_glyph = wait("completion never reached the sidebar", || {
-        agent_glyph(&fixture, &tui)
+    wait(
+        "quiescent completion never acquired the Done cell color",
+        || agent_color(&fixture, &tui).filter(|color| color == &completed_color),
+    );
+    // This Client has never observed Working; it must still read the same completion from Server.
+    let late = fixture.start_tui(160, 40);
+    wait("late Client missed Server completion", || {
+        agent_color(&fixture, &late).filter(|color| color == &completed_color)
     });
     control.input(b"\x1b[<0;60;10M\x1b[<0;60;10m");
     wait("pointer did not return to the left pane", || {
         (fixture.client(&tui.client)["view"]["selection"]["panelId"] == first).then_some(())
     });
     assert_eq!(
-        agent_glyph(&fixture, &tui),
-        Some(completed_glyph),
+        agent_color(&fixture, &tui),
+        Some(completed_color.clone()),
         "viewing must not clear completion"
     );
     control.input(b"\x1b[<0;130;10M\x1b[<0;130;10m");
     fixture.settle_ready(&tui.client);
     control.input(b"x");
     wait(
-        "terminal input did not clear the Client's completed display",
-        || agent_glyph(&fixture, &tui).filter(|glyph| *glyph != completed_glyph),
+        "accepted terminal input did not clear completion for the typing Client",
+        || agent_color(&fixture, &tui).filter(|color| color != &completed_color),
+    );
+    wait(
+        "input in one Client did not clear the peer's completion",
+        || agent_color(&fixture, &late).filter(|color| color != &completed_color),
     );
     report(&fixture, &second, "working");
     report(&fixture, &second, "idle");

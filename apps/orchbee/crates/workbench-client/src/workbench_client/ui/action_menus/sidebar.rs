@@ -205,12 +205,12 @@ pub(super) fn actions(
     entry: &MenuTarget,
     actions: Vec<MenuAction>,
     episode: Option<&Discovery>,
+    visible: impl Fn(&MenuAction) -> bool,
 ) -> Vec<MenuAction> {
     let episode = episode.filter(|episode| belongs(entry, episode));
     let ready = episode.and_then(Discovery::recognized);
-    // A refusal removes Git-only rows, including from the first menu opened here.
-    let outside_git = episode.is_some_and(Discovery::outside_git);
-    match entry {
+    let outside_git = !episode.is_some_and(Discovery::git_known);
+    let actions = match entry {
         // Checkouts join the submenu when discovery proves them; New Worktree… waits disabled.
         MenuTarget::WorkspaceCreation(_) => {
             let mut actions: Vec<_> = actions
@@ -265,7 +265,8 @@ pub(super) fn actions(
             actions
         }
         _ => actions,
-    }
+    };
+    actions.into_iter().filter(visible).collect()
 }
 
 pub(super) fn unavailable(
@@ -494,12 +495,9 @@ impl WorkbenchClientUi {
         } else {
             view.actions.to_vec()
         };
-        let actions = actions(intent.entry(), base, discovery)
-            .into_iter()
-            .filter(|action| {
-                !intent_availability(intent, state, discovery, action.clone()).is_hidden()
-            })
-            .collect::<Vec<_>>();
+        let actions = actions(intent.entry(), base, discovery, |action| {
+            !intent_availability(intent, state, discovery, action.clone()).is_hidden()
+        });
         let labels = ChoiceLabels::new(&actions, discovery);
         if actions == view.actions {
             menu.set_labels(|action| labels.label(&action));

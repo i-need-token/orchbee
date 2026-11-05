@@ -98,7 +98,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     projects: "项目",
     shell_only_detail: "连接会话后即可使用终端和智能体。",
     shortcut_title: "键盘快捷键",
-    sidebar_hint: "Ctrl+B b · 侧边栏",
+    sidebar_hint: "Ctrl+B b · 边栏",
     session_section: "会话",
     no_workspace: "未打开工作区",
     tabs_unavailable: "无共享标签页 · 会话不可用",

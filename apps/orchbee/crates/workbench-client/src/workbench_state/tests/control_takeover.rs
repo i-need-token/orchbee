@@ -65,7 +65,22 @@ fn explicit_takeover_keeps_incarnation_and_uses_read_only_leaf_geometry() {
         TakeoverStatus::WaitingForFrame
     );
     assert_eq!(state.expected_frame_geometry(&key), Some(geometry(53)));
-    // A refused later gesture cannot bypass the first grant's pending frame admission.
+    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(2)));
+    assert!(state.takeover_input_ready());
+    assert_eq!(state.expected_frame_geometry(&key), None);
+    // Once the handoff's first frame is accepted, ordinary frame updates must not drop typing.
+    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(3)));
+    assert!(state.takeover_input_ready());
+    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(3)));
+    assert_eq!(
+        state
+            .live_pane_record(&key)
+            .unwrap()
+            .last_accepted_geometry(),
+        Some(geometry(53))
+    );
+    // A refused later gesture leaves the Client viewing its current picture.
     let retry = state
         .plan_takeover(
             RequestId::parse(&id(603)).unwrap(),
@@ -81,20 +96,13 @@ fn explicit_takeover_keeps_incarnation_and_uses_read_only_leaf_geometry() {
         },
         Instant::now(),
     ));
-    assert!(!state.takeover_input_ready());
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(2)));
-    assert!(state.takeover_input_ready());
-    assert_eq!(state.expected_frame_geometry(&key), None);
-    // Once the handoff's first frame is accepted, ordinary frame updates must not drop typing.
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(3)));
-    assert!(state.takeover_input_ready());
-    assert_eq!(
+    assert_eq!(state.controller_mode(), Some(&ControllerMode::ReadOnly));
+    assert!(
         state
             .live_pane_record(&key)
             .unwrap()
-            .last_accepted_geometry(),
-        Some(geometry(53))
+            .accepted_frame()
+            .is_some()
     );
     assert!(state.invariant_holds());
 }

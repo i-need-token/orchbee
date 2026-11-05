@@ -40,6 +40,7 @@ pub struct Row {
     pub(crate) tab_label: Option<String>,
     pub(crate) terminal_title: TerminalTitleObservation,
     pub(crate) state: PanelAgentState,
+    pub(crate) completion: orchbee_workbench_protocol::AgentCompletion,
     pub(crate) sequence: WorkbenchRevision,
     pub(crate) metadata: PanelMetadataEffective,
     pub(crate) tokens: MetadataTokens,

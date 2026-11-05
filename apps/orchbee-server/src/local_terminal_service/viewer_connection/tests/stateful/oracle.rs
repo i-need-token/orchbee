@@ -75,6 +75,7 @@ fn tag(message: &ServerMessage) -> String {
             Outcome::Unavailable { reason } => format!("unavailable:{reason:?}"),
         },
         ServerMessage::TerminalControlResult(result) => match result.outcome() {
+            ControlOutcome::Observed { .. } => "observed".into(),
             ControlOutcome::Acquired { .. } => "acquired".into(),
             ControlOutcome::InputAccepted {} => "input".into(),
             ControlOutcome::Resized { .. } => "resize".into(),

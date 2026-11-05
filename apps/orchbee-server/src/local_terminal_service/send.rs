@@ -77,12 +77,17 @@ impl LocalTerminalService {
                 }
             }
         };
-        let (_prepared, handle, worker_request, target) = prepared;
+        let (prepared, handle, worker_request, target) = prepared;
         let outcome = match handle.request(WorkerOperationRequest::Send(worker_request)) {
             Ok(WorkerOperationResult::Send(result)) => worker_outcome(result.outcome()),
             Ok(_) => unreachable!("send request returned another operation result"),
             Err(error) => carrier_outcome(error),
         };
+        if outcome.progress().records_accepted() > 0
+            && let Ok(mut coordinator) = self.coordinator.lock()
+        {
+            coordinator.acknowledge_terminal_input(prepared.target);
+        }
         send_result(&request_id, Some(target), outcome)
     }
 }

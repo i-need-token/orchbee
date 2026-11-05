@@ -1428,6 +1428,9 @@
 							"type": "null"
 						}
 					]
+				},
+				"completion": {
+					"enum": ["none", "awaiting-input", "acknowledged"]
 				}
 			},
 			"required": ["agent", "state", "authoritySource", "message"]

@@ -178,6 +178,7 @@ fn actual_report_context_selects_guarded_metadata_without_rewriting_canonical_fi
     ] {
         doc.reports = Some(reports::fixture(&state, [panel.clone()]).with_view(
             orchbee_workbench_protocol::PanelAgentView {
+                completion: Default::default(),
                 agent: Some(agent.into()),
                 state: orchbee_workbench_protocol::PanelAgentState::Blocked,
                 authority_source: Some(authority.into()),

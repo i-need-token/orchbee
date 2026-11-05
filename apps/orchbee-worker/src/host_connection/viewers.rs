@@ -147,6 +147,14 @@ impl HostViewers {
     pub(crate) fn set_demand(&mut self, id: OperationId, demand: ProjectionDemand) {
         if let Some(viewer) = self.viewers.get_mut(&id.as_bytes()) {
             viewer.demand = demand;
+            if demand == ProjectionDemand::Paused {
+                // Host pause abandons its flight. Retire the matching relay state before
+                // reactivation can deliver a new snapshot; event and lifecycle queues survive.
+                self.retained_record_bytes -= viewer.record.take().map_or(0, |record| record.len());
+                viewer.flight = None;
+                viewer.needs_snapshot = true;
+                viewer.blocked_revision = None;
+            }
         }
     }
 

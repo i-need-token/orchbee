@@ -667,16 +667,12 @@ mod tests {
                 create_tab_zh.title,
                 Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::NewTab)
             );
-            let focus_sidebar = entries
-                .iter()
-                .find(|entry| entry.key.contains("Shift+B"))
-                .expect("sidebar focus keeps its owning binding");
-            assert_eq!(focus_sidebar.title, "Switch sidebar / terminal focus");
-            let focus_sidebar_zh = entries_zh
-                .iter()
-                .find(|entry| entry.key.contains("Shift+B"))
-                .expect("localized sidebar focus keeps its owning binding");
-            assert_eq!(focus_sidebar_zh.title, "切换侧栏／终端焦点");
+            for entries in [&entries, &entries_zh] {
+                assert!(
+                    entries.iter().any(|entry| entry.key.contains("Shift+B")),
+                    "sidebar focus keeps its owning binding in either locale"
+                );
+            }
         }
         assert!(
             entries

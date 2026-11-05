@@ -16,6 +16,8 @@ pub struct TerminalAgentStateSnapshot {
     #[serde(deserialize_with = "nullable")]
     pub agent: Option<String>,
     pub state: PanelAgentState,
+    #[serde(default)]
+    pub completion: super::AgentCompletion,
 }
 impl TerminalAgentStateSnapshot {
     pub(super) fn valid(&self) -> bool {

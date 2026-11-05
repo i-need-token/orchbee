@@ -55,17 +55,16 @@ pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
     )
 }
 
-fn forward_edit_or_report(
+fn forward_or_report(
     view: &mut ClientView,
     input: &[u8],
-    editing: bool,
     terminal_input: &mut (impl TerminalInputPort + ?Sized),
 ) {
     if navigation_holds_input(view, terminal_input) {
         return;
     }
+    terminal_input.observe_terminal(TerminalObservation::KeyboardIntent);
     match terminal_input.forward(input) {
-        Ok(()) if editing => terminal_input.observe_terminal(TerminalObservation::TerminalEdited),
         Ok(()) => {}
         Err(_) => view.report_terminal_input_unavailable(),
     }

@@ -233,16 +233,43 @@ fn render_content(
 
 /// The right-aligned mode badge on the leaf's first row — the only
 /// chrome this surface owns.
+fn badge_rect(area: Rect, label: &str) -> Option<Rect> {
+    let width = u16::try_from(display_width(label).saturating_add(2)).ok()?;
+    (!area.is_empty() && width <= area.width)
+        .then(|| Rect::new(area.right() - width, area.y, width, 1))
+}
+
+pub(super) fn record_history_tooltip(
+    hits: &mut crate::tui_hit_map::HitMapBuilder,
+    area: Rect,
+    pane: crate::workbench_state::PaneRef,
+    locale: Locale,
+) {
+    let Some(rect) = badge_rect(area, locale.terminal_history_badge()) else {
+        return;
+    };
+    hits.record_target_part_tooltip(
+        crate::tui_hit_map::HitLayer::Foreground,
+        rect,
+        area,
+        crate::tui_hit_map::HitTarget::Pane {
+            pane,
+            content: area,
+        },
+        crate::tui_hit_map::TooltipContent::Action {
+            label: locale.terminal_back_to_live().to_owned(),
+            key: Some("Esc".to_owned()),
+        },
+    );
+}
+
 fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
-    if area.width == 0 || area.height == 0 {
+    let Some(rect) = badge_rect(area, label) else {
         return;
-    }
+    };
     let label = format!(" {label} ");
-    let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
-    if width == 0 || width > area.width {
-        return;
-    }
-    let x = area.x + area.width - width;
+    let width = rect.width;
+    let x = rect.x;
     if x > area.x
         && let Some(cell) = frame.buffer_mut().cell_mut((x - 1, area.y))
         && cell.cell_width() > 1

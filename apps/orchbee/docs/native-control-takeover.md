@@ -1,90 +1,78 @@
 # Native controller takeover
 
-## Ownership and interaction
+## Ownership and activation
 
-Host focus gain automatically requests control of the focused attached native pane. Selecting a read-only
-pane while the Client is active does the same. The first activation preserves a fresh controlling
-startup grant so that a first click or drag is not fenced by a redundant self-transfer. Repeated
-reports of the same focus state are idempotent. An activation waits for attachment readiness and
-Client capture to clear, then submits at most one transfer through the existing serialized barrier.
-Focus loss cancels an activation not yet submitted. Failure or an unknown result never rearms it;
-a later focus activation is a new intent. The built-in `Ctrl+B t` remains an explicit alternative.
-Ordinary typing and Viewer polling do not request takeover or replay blocked input. The Server
-remains the authority for grants through OBCS v1 Takeover; the Client does not select another
-Client's identity. Terminal, program and Viewer attachments survive the handoff.
+The Server publishes the current controlling Viewer and its live recent-focus order through
+OBCS `Observe`. `Activate` records one foreground activation and that Viewer's content geometry;
+it does not acquire or resize a terminal. The returned private grant, consumed sequence and
+acknowledged geometry are included only for the observing attachment that actually owns them.
+Every attached Client can read the public ownership and focus order.
 
-The outer terminal emulator owns which window or tab receives focus after a close. Its restored
-focus event admits the same transfer and restores that Client's content geometry. Orchbee does not
-maintain a second operating-system window focus queue.
+Host focus gain and foreground pane changes arm one activation, including while the new pane's
+controller mode is still unknown. The activation waits for attachment readiness and capture to
+clear. It reads Server ownership before requesting Takeover. Verified self ownership at the same
+geometry keeps the current frame, grant and input sequence without another Host acquisition,
+projection reactivation or control-acquired notice. The first activation also preserves a fresh
+startup grant, so initial pointer selection and drag do not acquire a redundant barrier.
 
-The successful requester supplies its pane content geometry. The previous controller
-keeps receiving output; its next input or resize rejection changes its displayed mode to
-read-only. A stationary Client's control label can lag until that interaction. The status
-line preserves the known read-only explanation and takeover key when input is blocked.
-Blocked input is discarded and never replayed. A later focus activation or explicit gesture can transfer control back
-using the same Viewer. Repeating the gesture while still the actual controller preserves
-the verified current grant. An ended terminal accepts no controller: the gesture submits nothing,
-and the status line keeps the retained exit fact and offers a new Tab instead of the takeover key.
+Routed keyboard input may precede the emulator's FocusIn report. It supplies foreground evidence
+early enough to start the same activation and hold its first keys; the later identical focus
+report cannot rearm it. Background pointer motion and host-query replies supply no such evidence.
 
-After a matching resize reply, the requester pauses and reactivates projection demand on
-that same Viewer, under the original operation deadline. Reactivation requests a full frame
-even for an idle terminal, a same-size handoff or a self-grant. The UI reports a display wait
-until that frame has been drawn and its feedback accepted; a resize receipt alone never
-reports input readiness. Failure in either demand leg retains the known controller grant
-and reports incomplete display synchronization without replaying the operation or input.
+An activation submits at most one transfer. Repeated focus reports are idempotent. Refusal and
+uncertainty never rearm it; a later focus activation is a new intent that may reconcile Server
+ownership. `Ctrl+B t` remains an explicit alternative. A known grant never regresses to unknown
+within its operation. Exact operation, pane incarnation and original deadlines qualify receipts.
 
-Once Ready, a valid full snapshot determines display geometry even when it differs from
-this Client's last resize receipt. A peer may have taken control without this Client yet
-receiving a control rejection. The snapshot never grants input or resize authority; initial
-setup and the handoff's first frame keep their acknowledged-geometry gates. Ordinary deltas
-still require the exact accepted base, generation and geometry. Thus the former controller
-continues viewing new output without a local resize or reselection.
+## Input and display
 
-## Operation model
+Input typed during an automatic activation has not reached the program. The Client holds at most
+4,096 bytes for that exact pane until the operation settles and, for a new grant, the compatible
+frame has been drawn and acknowledged. Focus loss, a different pane, capture, refusal, uncertainty,
+retirement or the fixed deadline cancels those unsent bytes. No submitted input effect is replayed.
+Explicit takeover retains its ordinary blocked-input refusal. Uncertain authority blocks input;
+a new activation may read and reconcile it without resubmitting the previous operation.
 
-The native session owns one pending operation: exact pane incarnation, refresh generation,
-request identity, captured pane geometry and the original forward/total deadlines. Admission
-uses the existing serialized refresh barrier, excluding concurrent structural operations.
-While pending, input and selection of another native context are fenced. The marker has
-one typed purpose; takeover does not pretend to be a Workbench snapshot mutation.
+A transferred or newly learned grant resizes to the requesting pane's content geometry, then
+pauses and reactivates projection demand on the same Viewer. The first compatible draw and
+feedback complete the handoff gate. Established full snapshots subsequently follow the Host's
+actual grid, including a peer's different dimensions; deltas still require their exact base.
+A former controller keeps viewing output. Ownership observations update local controller mode
+without invalidating terminal content. Activated Viewers continue reading these published facts
+through ordinary polling, so revocation and Server promotion do not require failed typing.
 
-| State     | Evidence and permitted transition                                                           |
-| --------- | ------------------------------------------------------------------------------------------- |
-| Idle      | A focus activation or explicit action on a current attached Ready pane admits an operation. |
-| Queued    | No submission yet; one original deadline covers queueing and execution.                     |
-| Submitted | Missing reply is unknown; no automatic second takeover or reacquisition.                    |
-| Granted   | Retain the exact returned controller before allocation, resize or UI settlement.            |
-| Ready     | Resize and projection reactivation are acknowledged; UI awaits drawn frame feedback.        |
-| Refused   | Preserve attachment and focus; report that control was not obtained.                        |
-| Unknown   | Preserve operation identity and any known grant; retire the carrier when necessary.         |
+A confirmed pause retires the Host frame flight in Worker and Server relays as well. Its queued
+projection bytes are released, exact old feedback becomes stale, and reactivation requires a full
+snapshot with a newer sequence. History, lifecycle and other Viewers keep their independent state.
 
-A known grant cannot regress to unknown or be replaced by another grant in the same
-operation. Loss during delivery retains evidence in both the executor and mailbox until
-the UI consumes it. Receipt settlement must match the operation and pane incarnation.
-Accepted frame and geometry gates still determine when input may reach the program;
-takeover waits for its first compatible draw/feedback before input. Once accepted, ordinary
-frame updates follow the existing Ready input rules and do not reopen that handoff gate. Pending indication uses
-the injected clock after 200 ms and localized status, without a modal prompt.
+## Departure and recent focus
 
-## Evidence and limits
+Server owns the recent-focus order for each exact Worker generation and Host terminal. When the
+controller departs and its release fence settles, the preferred surviving Viewer may acquire on
+its next poll. Admission rechecks both vacancy and that Viewer being the current preference under
+the reservation gate. A competitor cannot be stolen from, and stale cleanup cannot release the
+successor. Promotion restores the surviving Viewer's recorded content geometry. A pending or
+uncertain release remains fenced rather than looking vacant.
 
-The serialized native handoff uses controlled implementation evidence; it has no separate TLA
-model. Its executable witnesses exercise the actual state, framed carrier, reservation and Host
-operation boundaries:
+The outer emulator owns operating-system window and tab focus. Server promotion does not move
+that focus. An actual restored focus activation reads the already published owner, or requests a
+transfer when needed. Terminal processes and viewing attachments survive these handoffs.
 
-| Claim                                                                                                                   | Maintained evidence                                                                                                                          |
-| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Explicit admission, captured geometry, frame-before-input and monotone receipts after exit                              | [`workbench_state/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_state/tests/control_takeover.rs)                      |
-| Refusal, unknown outcomes without resubmission, retained grants after resize/demand loss and UI delivery loss           | [`connection/native/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/connection/native/tests/control_takeover.rs) |
-| Draw/feedback restores input without replay; peer geometry never grants authority                                       | [`ui/tests/control_takeover.rs`](../crates/workbench-client/src/workbench_client/ui/tests/control_takeover.rs)                               |
-| Pending reservations exclude competitors; late cleanup preserves replacement grants                                     | [Server reservation tests](../../orchbee-server/src/local_terminal_service/controller_connection/tests.rs)                                   |
-| Acknowledged detach precedes attach; failures cannot restore old authority; old input, resize and cleanup remain fenced | [Worker local-pipe tests](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                                             |
+## Evidence and staged delivery
 
-The retained [`ConnectionViewerOwnership`](../../orchbee-server/formal/tla/ConnectionViewerOwnership.tla)
-model separately checks shared Viewer/grant ownership and cleanup under its own bounds; it does
-not model the native handoff sequence. The implementation traces above do not establish exhaustive
-interleavings, fairness or crash recovery. Windows process evidence uses two native ConPTY Clients
-with different pane sizes and verifies uninterrupted program identity and bidirectional input
-transfer. These checks do not establish physical Windows Terminal or real Agent-provider
-acceptance, nor proactive control-label notification. Same-author review is not independent
-confirmation.
+State, carrier and UI regressions cover unchanged-owner typing, no repeated activation, fresh
+activation after uncertainty, frame-before-input, receipt monotonicity and peer geometry.
+Server tests cover public/private observation, recent focus, exact reservation and cleanup.
+The Windows process witness in `tests/cli_windows_terminal_viewer_session/focus_control.rs`
+checks transfer, recent-Viewer restoration and shared completion; physical Windows Terminal
+acceptance additionally covers immediate Alt-Tab typing and two tabs of the same Session.
+These are bounded implementation witnesses, not a proof of all interleavings or crash recovery.
+
+The [Server transfer model](../../orchbee-server/docs/terminal-controller-takeover.md) owns the
+shared authority. The retained `ConnectionViewerOwnership` TLA model covers its existing Viewer
+and grant cleanup bounds; activation and MRU behavior use the executable witnesses above.
+
+GUI adoption is staged under ORC-309, owned by Claude. Its focus/control projection must consume
+the same published ownership and focus order and match self-owner and recent-Viewer behavior.
+Until that work lands, native acceptance does not establish GUI parity. `apps/web` is outside
+this delivery's authorized implementation scope. All four native binaries remain one cohort.

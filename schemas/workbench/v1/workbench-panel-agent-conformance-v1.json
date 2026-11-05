@@ -1196,6 +1196,243 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "physical contiguous changes completion none",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "1",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"completion": "none"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "compact-states-result completion none",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "states",
+					"workbenchRevision": "1",
+					"reportRevision": "9",
+					"presentations": [
+						{
+							"presentationId": "33333333333333333333333333333333",
+							"snapshot": {
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "55555555555555555555555555555555",
+									"hostEpoch": "66666666666666666666666666666666",
+									"hostTerminalId": "77777777777777777777777777777777"
+								},
+								"sequence": "8",
+								"agent": "pi",
+								"state": "idle",
+								"completion": "none"
+							}
+						},
+						{
+							"presentationId": "44444444444444444444444444444444",
+							"snapshot": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "physical contiguous changes completion awaiting-input",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "1",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"completion": "awaiting-input"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "compact-states-result completion awaiting-input",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "states",
+					"workbenchRevision": "1",
+					"reportRevision": "9",
+					"presentations": [
+						{
+							"presentationId": "33333333333333333333333333333333",
+							"snapshot": {
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "55555555555555555555555555555555",
+									"hostEpoch": "66666666666666666666666666666666",
+									"hostTerminalId": "77777777777777777777777777777777"
+								},
+								"sequence": "8",
+								"agent": "pi",
+								"state": "idle",
+								"completion": "awaiting-input"
+							}
+						},
+						{
+							"presentationId": "44444444444444444444444444444444",
+							"snapshot": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "physical contiguous changes completion acknowledged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "1",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"completion": "acknowledged"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "compact-states-result completion acknowledged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "states",
+					"workbenchRevision": "1",
+					"reportRevision": "9",
+					"presentations": [
+						{
+							"presentationId": "33333333333333333333333333333333",
+							"snapshot": {
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "55555555555555555555555555555555",
+									"hostEpoch": "66666666666666666666666666666666",
+									"hostTerminalId": "77777777777777777777777777777777"
+								},
+								"sequence": "8",
+								"agent": "pi",
+								"state": "idle",
+								"completion": "acknowledged"
+							}
+						},
+						{
+							"presentationId": "44444444444444444444444444444444",
+							"snapshot": null
+						}
+					]
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -5024,6 +5261,43 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "unknown-server-completion",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "states",
+					"workbenchRevision": "1",
+					"reportRevision": "9",
+					"presentations": [
+						{
+							"presentationId": "33333333333333333333333333333333",
+							"snapshot": {
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "55555555555555555555555555555555",
+									"hostEpoch": "66666666666666666666666666666666",
+									"hostTerminalId": "77777777777777777777777777777777"
+								},
+								"sequence": "8",
+								"agent": "pi",
+								"state": "idle",
+								"completion": "finished"
+							}
+						},
+						{
+							"presentationId": "44444444444444444444444444444444",
+							"snapshot": null
+						}
+					]
+				}
+			},
+			"boundary": "schema"
 		}
 	]
 }

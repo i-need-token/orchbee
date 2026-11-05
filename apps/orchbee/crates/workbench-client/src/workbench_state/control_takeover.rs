@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TakeoverOperation {
+    pub(crate) automatic: bool,
     pub(crate) key: PaneRef,
     pub(crate) request_id: RequestId,
     pub(crate) generation: u64,
@@ -21,18 +22,20 @@ pub(crate) enum TakeoverResult {
     Unknown,
     Granted(ControllerId),
     Ready(ControllerId),
+    Unchanged(ControllerId),
     Lost(ControllerId),
 }
 impl TakeoverResult {
     fn grant(&self) -> Option<&ControllerId> {
         match self {
-            Self::Granted(id) | Self::Ready(id) | Self::Lost(id) => Some(id),
+            Self::Granted(id) | Self::Ready(id) | Self::Unchanged(id) | Self::Lost(id) => Some(id),
             _ => None,
         }
     }
     pub(crate) fn retains(&self, prior: &Self) -> bool {
         prior.grant().is_none_or(|id| self.grant() == Some(id))
-            && (!matches!(prior, Self::Ready(_) | Self::Lost(_)) || self == prior)
+            && (!matches!(prior, Self::Ready(_) | Self::Unchanged(_) | Self::Lost(_))
+                || self == prior)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -50,11 +53,67 @@ pub(super) struct TakeoverState {
 }
 pub(crate) use crate::localization::TakeoverStatus;
 impl WorkbenchClientState {
+    /// A read of Server ownership changes authority without invalidating terminal content.
+    pub(crate) fn observe_controller(
+        &mut self,
+        key: &PaneRef,
+        mode: ControllerMode,
+        geometry: Option<Geometry>,
+    ) -> bool {
+        if matches!(mode, ControllerMode::Controlling(_)) != geometry.is_some() {
+            return false;
+        }
+        // A later structural/transfer operation owns its own correlated configuration.
+        if self.pending_refresh.is_some() || self.pending_membership.is_some() {
+            return true;
+        }
+        let focused = self.focus_pane_ref().as_ref() == Some(key);
+        let Some(record) = self
+            .live_pane_record_mut(key)
+            .filter(|record| !record.departing)
+        else {
+            return true;
+        };
+        let Some(attachment) = record.attachment.as_mut() else {
+            return true;
+        };
+        attachment.mode = Some(mode.clone());
+        attachment.last_accepted_geometry = geometry;
+        record.last_admitted_geometry = geometry;
+        if record.fault == Some(super::PaneFault::ControlLost) {
+            record.fault = None;
+        }
+        if focused && let ClientPhase::Ready(ready) = &mut self.phase {
+            ready.mode = mode;
+        }
+        true
+    }
     pub(crate) fn takeover_pending(&self) -> bool {
         self.takeover.pending.is_some()
     }
+    fn focus_retains_grant(&self) -> bool {
+        // A focus observation is not a transfer while the accepted grant and geometry remain
+        // ours. Input stays in the ordinary ordered mailbox, behind that observation.
+        self.takeover.pending.as_ref().is_some_and(|operation| {
+            operation.automatic
+                && self.focus_pane_ref().as_ref() == Some(&operation.key)
+                && matches!(self.controller_mode(), Some(ControllerMode::Controlling(_)))
+                && self
+                    .live_pane_record(&operation.key)
+                    .and_then(|record| record.last_accepted_geometry())
+                    == Some(operation.geometry)
+        })
+    }
     pub(crate) fn takeover_input_ready(&self) -> bool {
-        if self.takeover_pending() {
+        if (self.takeover_pending() && !self.focus_retains_grant())
+            || self.takeover.evidence.as_ref().is_some_and(|evidence| {
+                self.focus_pane_ref().as_ref() == Some(&evidence.operation.key)
+                    && matches!(
+                        evidence.result,
+                        TakeoverResult::Unknown | TakeoverResult::Granted(_)
+                    )
+            })
+        {
             return false;
         }
         self.takeover
@@ -87,12 +146,6 @@ impl WorkbenchClientState {
             || self.panel_close.confirmation().is_some()
             || !self.close.permits_retired_membership()
             || !matches!(self.phase, ClientPhase::Ready(_))
-            || self.takeover.evidence.as_ref().is_some_and(|evidence| {
-                matches!(
-                    evidence.result,
-                    TakeoverResult::Unknown | TakeoverResult::Granted(_)
-                )
-            })
         {
             return None;
         }
@@ -102,6 +155,7 @@ impl WorkbenchClientState {
             return None;
         }
         Some(TakeoverOperation {
+            automatic: false,
             key,
             request_id,
             generation,
@@ -116,6 +170,10 @@ impl WorkbenchClientState {
                 operation.generation,
                 operation.deadlines,
             )
+            .map(|mut planned| {
+                planned.automatic = operation.automatic;
+                planned
+            })
             .as_ref()
             != Some(&operation)
         {
@@ -135,13 +193,11 @@ impl WorkbenchClientState {
             .pending
             .as_ref()
             .is_some_and(|next| next.generation > evidence.operation.generation)
-            && matches!(
-                evidence.result,
-                TakeoverResult::Ready(_)
-                    | TakeoverResult::Lost(_)
-                    | TakeoverResult::Refused
-                    | TakeoverResult::NotSubmitted
-            )
+            || self
+                .takeover
+                .evidence
+                .as_ref()
+                .is_some_and(|next| next.operation.generation > evidence.operation.generation)
         {
             return true;
         }
@@ -178,9 +234,22 @@ impl WorkbenchClientState {
             if self.focus_pane_ref().as_ref() != Some(&evidence.operation.key) {
                 return false;
             }
+            if let TakeoverResult::Unchanged(id) = &evidence.result {
+                self.pending_refresh = None;
+                if !self.observe_controller(
+                    &evidence.operation.key,
+                    ControllerMode::Controlling(id.clone()),
+                    Some(evidence.operation.geometry),
+                ) {
+                    return false;
+                }
+                self.takeover.pending = None;
+                self.takeover.status_until = None;
+                return true;
+            }
             let mode = match &evidence.result {
                 TakeoverResult::Ready(id) => Some(ControllerMode::Controlling(id.clone())),
-                TakeoverResult::Lost(_) => Some(ControllerMode::ReadOnly),
+                TakeoverResult::Lost(_) | TakeoverResult::Refused => Some(ControllerMode::ReadOnly),
                 _ => None,
             };
             if let Some(mode) = mode {
@@ -200,7 +269,9 @@ impl WorkbenchClientState {
                 if let Some(attachment) = &mut record.attachment {
                     attachment.mode = Some(mode);
                     attachment.last_accepted_geometry = accepted_geometry;
-                    attachment.void_frames();
+                    if matches!(evidence.result, TakeoverResult::Ready(_)) {
+                        attachment.void_frames();
+                    }
                 }
             }
             self.pending_refresh = None;
@@ -219,6 +290,7 @@ impl WorkbenchClientState {
             return true;
         }
         if !self.takeover.show_pending
+            && !self.focus_retains_grant()
             && self.takeover.pending.as_ref().is_some_and(|operation| {
                 sampled
                     >= operation.deadlines.total() - super::OPERATION_TOTAL
@@ -250,6 +322,7 @@ impl WorkbenchClientState {
             return None;
         }
         let status = match &evidence.result {
+            TakeoverResult::Unchanged(_) => return None,
             TakeoverResult::NotSubmitted | TakeoverResult::Refused => TakeoverStatus::Refused,
             TakeoverResult::Unknown => TakeoverStatus::Unknown,
             TakeoverResult::Granted(_) => TakeoverStatus::Granted,
@@ -269,6 +342,29 @@ impl WorkbenchClientState {
             TakeoverResult::Lost(_) => TakeoverStatus::Lost,
         };
         Some((status, &evidence.operation.request_id))
+    }
+    pub(crate) fn focus_input_settlement(&self) -> Option<bool> {
+        let evidence = self
+            .takeover
+            .evidence
+            .as_ref()
+            .filter(|e| e.operation.automatic)?;
+        if self.takeover.pending.is_some() {
+            return None;
+        }
+        if !matches!(
+            evidence.result,
+            TakeoverResult::Ready(_) | TakeoverResult::Unchanged(_)
+        ) {
+            return Some(false);
+        }
+        if !self.takeover_input_ready() {
+            return None;
+        }
+        Some(matches!(
+            evidence.result,
+            TakeoverResult::Ready(_) | TakeoverResult::Unchanged(_)
+        ))
     }
     pub(super) fn takeover_invariant_holds(&self) -> bool {
         self.takeover.pending.as_ref().is_none_or(|operation| {

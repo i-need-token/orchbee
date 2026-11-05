@@ -72,19 +72,7 @@ pub(super) fn paint(
     };
     let (state, unread) = match (ended, panel) {
         (None, Some(panel)) => (
-            super::panel_reports::agent_state(native.panel_report(panel)).map(|state| {
-                if state == orchbee_workbench_protocol::MetadataState::Idle
-                    && native.panel_completion_pending(panel.panel_id())
-                {
-                    orchbee_workbench_protocol::MetadataState::Done
-                } else if state == orchbee_workbench_protocol::MetadataState::Done
-                    && native.panel_completion_edited(panel.panel_id())
-                {
-                    orchbee_workbench_protocol::MetadataState::Idle
-                } else {
-                    state
-                }
-            }),
+            super::panel_reports::agent_state(native.panel_report(panel)),
             native.panel_unseen_count(panel.panel_id()) > 0,
         ),
         _ => (None, false),

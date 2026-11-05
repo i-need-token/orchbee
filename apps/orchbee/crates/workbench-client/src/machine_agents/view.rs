@@ -241,7 +241,7 @@ impl Row {
         }
     }
     pub(crate) fn state_label(&self) -> Option<&str> {
-        let state = match self.state {
+        let state = match self.completion.display(self.state) {
             PanelAgentState::Done => MetadataState::Done,
             PanelAgentState::Error => MetadataState::Error,
             PanelAgentState::Blocked => MetadataState::Blocked,

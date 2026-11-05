@@ -115,6 +115,7 @@ fn controller_cleanup_preserves_replacements_and_requires_both_transfer_receipts
         });
         let cleanup_id = cleanup.request_id;
         drop(ControllerLease {
+            geometry: None,
             service: &service,
             handle: handle.clone(),
             target: BindingViewerTarget {

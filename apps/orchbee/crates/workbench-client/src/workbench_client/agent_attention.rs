@@ -35,7 +35,10 @@ pub(super) struct PaintedPane {
     pub(super) host_terminal_id: Option<String>,
 }
 impl PaintedPane {
-    fn matches(&self, binding: &orchbee_agent_observation_protocol::AgentLaunchBinding) -> bool {
+    pub(super) fn matches(
+        &self,
+        binding: &orchbee_agent_observation_protocol::AgentLaunchBinding,
+    ) -> bool {
         self.presentation == binding.presentation_id.as_str()
             && self.route.host_epoch.to_text() == binding.host_epoch.as_str()
             && self.host_terminal_id.as_deref() == Some(binding.host_terminal_id.as_str())
@@ -65,48 +68,22 @@ impl crate::agent_board::AgentRowAttention for AgentAttention {
     fn session_unread(&self, session: &orchbee_agent_observation_protocol::AgentSessionId) -> bool {
         self.state.session_unread(session)
     }
-
-    fn session_completion_edited(
+    fn presentation_completion(
         &self,
-        session: &orchbee_agent_observation_protocol::AgentSessionId,
-        generation: orchbee_agent_observation_protocol::AgentSafeInteger,
-        sequence: orchbee_agent_observation_protocol::AgentSafeInteger,
-    ) -> bool {
-        self.state.completion_edited(session, generation, sequence)
+        attachment: &orchbee_agent_observation_protocol::AgentPresentationAttachment,
+    ) -> Option<orchbee_workbench_protocol::AgentCompletion> {
+        self.physical.state.presentation_completion(attachment)
     }
 }
 
 impl AgentAttention {
-    pub(super) fn terminal_edited(&mut self, pane: &PaintedPane) {
-        self.redraw |= self.state.edit_completed(&pane.presentation);
-        self.redraw |= self
-            .physical
-            .state
-            .edit_completed(|binding| pane.matches(binding));
-    }
-
-    pub(super) fn completion_presentations(
+    pub(super) fn physical_current(
         &self,
-    ) -> Vec<(
-        orchbee_agent_observation_protocol::AgentLaunchBinding,
-        orchbee_workbench_protocol::WorkbenchRevision,
-        bool,
-    )> {
-        self.physical.state.completion_presentations()
+        binding: &orchbee_agent_observation_protocol::AgentLaunchBinding,
+        sequence: orchbee_workbench_protocol::WorkbenchRevision,
+    ) -> bool {
+        self.physical.state.current(binding, sequence)
     }
-
-    pub(super) fn completion_edited(&self, pane: &PaintedPane) -> bool {
-        self.physical
-            .state
-            .completion_edited(|binding| pane.matches(binding))
-    }
-
-    pub(super) fn completion_pending(&self, pane: &PaintedPane) -> bool {
-        self.physical
-            .state
-            .completion_pending(|binding| pane.matches(binding))
-    }
-
     pub(super) fn agent_in_terminal(
         &self,
         presentation: &str,

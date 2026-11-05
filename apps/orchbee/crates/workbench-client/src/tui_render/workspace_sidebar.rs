@@ -626,6 +626,7 @@ fn entry_height(view: &ClientView, row: &SidebarRow<'_>, locale: Locale) -> u16 
 }
 
 pub(super) struct RenderContext<'a> {
+    pub(super) native: Option<&'a crate::workbench_client::WorkbenchClientView<'a>>,
     pub(super) view: &'a ClientView,
     pub(super) locale: Locale,
     pub(super) theme: &'a Theme,
@@ -1112,6 +1113,7 @@ pub(super) fn render(
     mut hits: Option<&mut HitMapBuilder>,
 ) {
     let RenderContext {
+        native,
         view,
         locale,
         theme,
@@ -1364,9 +1366,19 @@ pub(super) fn render(
         };
         // A Workspace repeats its Agents' unread marker only while those Agent rows are hidden.
         let unread = match row {
-            SidebarRow::Agent { row, .. } => row.sidebar_agent().is_some_and(|agent| !agent.seen),
+            SidebarRow::Agent { row, .. } => row.sidebar_agent().is_some_and(|agent| {
+                !agent.seen
+                    && !native.is_some_and(|native| {
+                        native.will_see_agent(&agent.target.physical, agent.sequence)
+                    })
+            }),
             SidebarRow::Context { row, .. } => {
-                expanded != Some(true) && view.machines.workspace_unread(row)
+                expanded != Some(true)
+                    && view.machines.workspace_unread(row, |agent| {
+                        native.is_some_and(|native| {
+                            native.will_see_agent(&agent.target.physical, agent.sequence)
+                        })
+                    })
             }
             SidebarRow::Project { .. } | SidebarRow::Recents { .. } => false,
         };

@@ -64,6 +64,8 @@ impl RenameServer {
                 serve_native_controlling_frame(&mut stream, geometry)?;
                 accept_native_frame_feedback(&mut stream)?;
                 let mut successor_stage = 0;
+                let mut control_sequence = 1;
+                let mut control_geometry = geometry;
                 loop {
                     let mut magic = [0; 4];
                     if stream.read_exact(&mut magic).is_err() {
@@ -259,6 +261,16 @@ impl RenameServer {
                         }
                         ClientMessage::TerminalControl(request) => {
                             let outcome = match request.action() {
+                                TerminalControlAction::Observe { attachment_id }
+                                | TerminalControlAction::Activate { attachment_id, .. } => TerminalControlOutcome::Observed {
+                                    state: Box::new(orchbee_client_server_protocol::TerminalControlState {
+                                        controller: Some(attachment_id.clone()),
+                                        controller_id: Some(orchbee_client_server_protocol::ControllerId::parse(ID).map_err(io::Error::other)?),
+                                        sequence: control_sequence,
+                                        geometry: Some(control_geometry),
+                                        recent_focus: vec![attachment_id.clone()],
+                                    }),
+                                },
                                 TerminalControlAction::Clear { .. }
                                 | TerminalControlAction::Reset { .. } => {
                                     panic!("unexpected screen control in controller fixture")
@@ -276,6 +288,7 @@ impl RenameServer {
                                     assert_eq!(attachment_id, &binding_viewer_id()?);
                                     assert_eq!(successor_stage, 1);
                                     successor_stage = 2;
+                                    control_sequence = 0;
                                     TerminalControlOutcome::Acquired {
                                         controller_id:
                                             orchbee_client_server_protocol::ControllerId::parse(ID)
@@ -285,21 +298,26 @@ impl RenameServer {
                                 TerminalControlAction::Input {
                                     attachment_id,
                                     bytes,
+                                    sequence,
                                     ..
                                 } => {
                                     assert_eq!(attachment_id, &binding_viewer_id()?);
                                     forwarded.lock().unwrap().extend(bytes.as_bytes());
+                                    control_sequence = sequence.get();
                                     TerminalControlOutcome::InputAccepted {}
                                 }
                                 TerminalControlAction::Resize {
                                     attachment_id,
                                     geometry,
+                                    sequence,
                                     ..
                                 } => {
                                     assert_eq!(attachment_id, &binding_viewer_id()?);
                                     if successor_stage == 2 {
                                         successor_stage = 3;
                                     }
+                                    control_sequence = sequence.get();
+                                    control_geometry = *geometry;
                                     TerminalControlOutcome::Resized {
                                         geometry: *geometry,
                                     }

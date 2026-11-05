@@ -6,6 +6,7 @@ use orchbee_workbench_protocol::{
 };
 fn row() -> Row {
     Row {
+        completion: Default::default(),
         seen: true,
         name: None,
         order: crate::machine_agents::PlacementOrder::default(),

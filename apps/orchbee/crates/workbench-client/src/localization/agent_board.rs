@@ -261,8 +261,8 @@ impl Locale {
                 Self::ZhCn => "失败".to_owned(),
             },
             AgentSemanticStatus::Succeeded {} => match self {
-                Self::EnUs => "succeeded".to_owned(),
-                Self::ZhCn => "已完成".to_owned(),
+                Self::EnUs => "Done".to_owned(),
+                Self::ZhCn => "完成".to_owned(),
             },
             AgentSemanticStatus::Canceled {} => match self {
                 Self::EnUs => "canceled".to_owned(),

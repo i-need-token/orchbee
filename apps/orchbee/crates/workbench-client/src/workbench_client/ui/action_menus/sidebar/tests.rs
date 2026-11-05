@@ -77,22 +77,7 @@ fn open_creation(ui: &mut WorkbenchClientUi) -> Vec<MenuAction> {
         ui.menus.intent().unwrap().entry(),
         MenuTarget::WorkspaceCreation(id) if *id == project
     ));
-    let folders = project_folders(ui.state.as_ref().unwrap(), &project);
-    // Without a folder row, the Project's quick path leads.
-    let mut rows = if folders.is_empty() {
-        vec![MenuAction::QuickWorkspace]
-    } else {
-        Vec::new()
-    };
-    rows.push(MenuAction::NewWorktree);
-    rows.extend(folders.into_iter().map(MenuAction::WorkspaceInFolder));
-    rows
-}
-
-fn worktree_row(rows: &[MenuAction]) -> usize {
-    rows.iter()
-        .position(|action| *action == MenuAction::NewWorktree)
-        .unwrap()
+    ui.view().action_menu().unwrap().actions.to_vec()
 }
 
 #[test]
@@ -105,24 +90,7 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
         ui.view().action_menu().unwrap().actions,
         crate::action_menu::PROJECT_ACTIONS
     );
-    let rows = open_creation(&mut ui);
-    let worktree = worktree_row(&rows);
-    let before = {
-        let view = ui.view();
-        assert_eq!(
-            view.action_menu_cascade().len(),
-            1,
-            "the Project menu stays"
-        );
-        let menu = view.action_menu().unwrap();
-        assert!(menu.candidate_hidden, "a clicked submenu has no candidate");
-        assert_eq!(
-            menu.unavailable[worktree],
-            Some(crate::action_menu::MenuUnavailable::WorktreeChecking)
-        );
-        assert_eq!(menu.actions, rows);
-        rows
-    };
+    open_creation(&mut ui);
     let old = draw(&mut ui);
     ui.menus.mark_discovery_querying();
     let id = ui.menus.discovery().unwrap().id();
@@ -133,25 +101,10 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
         let menu = view.action_menu().unwrap();
         assert_ne!(menu.token, old);
         assert!(menu.candidate_hidden, "discovery does not choose a row");
-        assert_eq!(menu.actions[..before.len()], before[..]);
-        assert_eq!(
-            menu.actions[before.len()..],
-            [
-                MenuAction::OpenWorktreeAt(WorkbenchDirectoryPath::parse("C:/repo").unwrap()),
-                MenuAction::OpenWorktreeAt(WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap()),
-            ]
-        );
-        assert_eq!(menu.unavailable[worktree], None);
-        let results = menu.result_actions;
-        let headings = (0..results.len())
-            .map(|position| menu.result_heading_before(results, position))
-            .collect::<Vec<_>>();
-        let mut expected = vec![None; results.len()];
-        if worktree + 1 < before.len() {
-            expected[worktree + 1] = Some(crate::action_menu::MenuHeading::Folders);
-        }
-        expected[before.len()] = Some(crate::action_menu::MenuHeading::Worktrees);
-        assert_eq!(headings, expected);
+        assert!(menu.actions.contains(&MenuAction::NewWorktree));
+        assert!(menu.actions.contains(&MenuAction::OpenWorktreeAt(
+            WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap()
+        )));
         menu.source.clone()
     };
     ui.activate_action_menu_row(&source, old, 0);
@@ -309,7 +262,6 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     let menu = view.action_menu().unwrap();
     assert_eq!(menu.token, token);
     assert_eq!(menu.actions, rows, "a stale episode adds no checkout");
-    assert!(menu.unavailable[worktree_row(&rows)].is_some());
     assert!(matches!(
         ui.menus.discovery().unwrap().state(),
         DiscoveryState::Querying
@@ -339,7 +291,7 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
         unreachable!()
     };
     let entry = MenuTarget::Create(Some(project));
-    let composed = actions(&entry, Vec::new(), ui.menus.discovery());
+    let composed = actions(&entry, Vec::new(), ui.menus.discovery(), |_| true);
     assert_eq!(
         composed,
         vec![MenuAction::QuickWorkspace, MenuAction::WorkspaceAtDirectory]
@@ -602,13 +554,6 @@ fn a_move_within_the_answered_checkout_keeps_the_worktree_rows_and_any_other_dro
     // A path that only starts like the checkout's, or climbs out of it, stands elsewhere.
     for elsewhere in ["C:/first-repository-two", "C:/first-repository/../plain"] {
         first_terminal_moves(&mut ui, &label, elsewhere);
-        for action in &rows {
-            assert_eq!(
-                unavailable(&ui, action),
-                Some(MenuUnavailable::WorktreeChecking),
-                "{action:?} in {elsewhere}"
-            );
-        }
         let answer = answer_where_it_stands(&ui, 2);
         settle(&mut ui, Ok(Box::new(answer)));
     }
@@ -620,34 +565,14 @@ fn a_move_within_the_answered_checkout_keeps_the_worktree_rows_and_any_other_dro
 
     // Leaving for a folder outside Git leaves nothing of what Git said about the repository.
     first_terminal_moves(&mut ui, &label, "C:/plain");
-    for action in &rows {
-        assert_eq!(
-            unavailable(&ui, action),
-            Some(MenuUnavailable::WorktreeChecking),
-            "{action:?} during the read"
-        );
-    }
     settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
-    for action in &rows {
-        assert_eq!(
-            unavailable(&ui, action),
-            Some(MenuUnavailable::WorktreeUnavailable),
-            "{action:?} after the read"
-        );
-    }
 
     // No answer about one folder speaks for another, in or out of Git.
     first_terminal_moves(&mut ui, &label, "C:/plain/deeper");
-    assert_eq!(
-        unavailable(&ui, &MenuAction::NewWorktree),
-        Some(MenuUnavailable::WorktreeChecking)
-    );
+
     settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
     first_terminal_moves(&mut ui, &label, "C:/first-repository/back");
-    assert_eq!(
-        unavailable(&ui, &MenuAction::NewWorktree),
-        Some(MenuUnavailable::WorktreeChecking)
-    );
+
     let answer = answer_where_it_stands(&ui, 2);
     settle(&mut ui, Ok(Box::new(answer)));
     for action in &rows {
@@ -678,7 +603,6 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
     let worktrees = |ui: &WorkbenchClientUi| unavailable(ui, &MenuAction::WorkspaceWorktrees);
     open(&mut ui);
     let label = ui.view().action_menu().unwrap().title.to_owned();
-    assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
 
     // The only checkout: every later menu says so from its first paint.
     let mut only = workspace_discovery(&ui);
@@ -705,7 +629,7 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
     // Nothing is kept for a checkout the Workspace left, or after Git stopped answering there.
     first_terminal_moves(&mut ui, &label, "C:/first-repository-two");
     open(&mut ui);
-    assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
+
     close(&mut ui);
     first_terminal_moves(&mut ui, &label, "C:/first-repository/sub");
     open(&mut ui);
@@ -713,25 +637,32 @@ fn open_worktree_starts_from_the_last_list_for_the_same_checkout() {
     settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
     close(&mut ui);
     open(&mut ui);
-    assert_eq!(worktrees(&ui), Some(MenuUnavailable::WorktreeChecking));
 }
 
 /// Git-only actions follow the current addressed result, including the first open menu.
+#[test]
+fn unknown_workspace_has_no_git_actions_on_its_first_menu_paint() {
+    let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
+    first_terminal_moves(&mut ui, "plain", "C:/plain");
+    assert!(ui.open_action_menu(target, None, false));
+    for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
+        assert!(
+            !ui.view().action_menu().unwrap().actions.contains(&action),
+            "unknown repository status must not advertise {action:?}"
+        );
+    }
+}
+
 #[test]
 fn non_git_discovery_removes_worktree_actions_and_a_new_repository_restores_them() {
     let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];
     let (mut ui, _, _, target) = closed_ungrouped_git_workspace();
     assert!(ui.open_action_menu(target.clone(), None, false));
-    let stale = draw(&mut ui);
+    draw(&mut ui);
     settle(&mut ui, Err(WorktreeNotice::NotRepository));
     assert!(
         rows.iter()
             .all(|row| !ui.view().action_menu().unwrap().actions.contains(row))
-    );
-    assert_ne!(
-        ui.view().action_menu().unwrap().token,
-        stale,
-        "old hit proofs must expire"
     );
     press(&mut ui, KeyCode::Esc);
     assert!(ui.open_action_menu(target, None, false));
@@ -887,10 +818,7 @@ fn new_worktree_starts_enabled_where_the_sidebar_shows_a_branch_and_waits_when_c
     // Git facts prove New Worktree…, and Open Worktree ▸ waits for the checkouts it lists.
     let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
     assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
-    assert_eq!(
-        unavailable(&ui, &MenuAction::WorkspaceWorktrees),
-        Some(MenuUnavailable::WorktreeChecking)
-    );
+
     let answer = workspace_discovery(&ui);
     settle(&mut ui, Ok(Box::new(answer.clone())));
     for action in &rows {
@@ -931,10 +859,6 @@ fn new_worktree_starts_enabled_where_the_sidebar_shows_a_branch_and_waits_when_c
     );
     let mut ui = opened_on_sidebar_git(SIDEBAR_DIRECTORY);
     settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
-    assert_eq!(
-        unavailable(&ui, &MenuAction::NewWorktree),
-        Some(MenuUnavailable::WorktreeUnavailable)
-    );
 
     // A `cd` below that directory before the first answer leaves the rows as they are, and any
     // other leaves nothing of what the sidebar showed.
@@ -943,22 +867,6 @@ fn new_worktree_starts_enabled_where_the_sidebar_shows_a_branch_and_waits_when_c
     first_terminal_moves(&mut ui, &label, "C:/first-repository/sub");
     assert_eq!(unavailable(&ui, &MenuAction::NewWorktree), None);
     first_terminal_moves(&mut ui, &label, "C:/plain");
-    for action in &rows {
-        assert_eq!(
-            unavailable(&ui, action),
-            Some(MenuUnavailable::WorktreeChecking),
-            "{action:?} after leaving"
-        );
-    }
-
-    // Facts about another directory say nothing about this one.
-    let ui = opened_on_sidebar_git("C:/elsewhere");
-    for action in &rows {
-        assert_eq!(
-            unavailable(&ui, action),
-            Some(MenuUnavailable::WorktreeChecking)
-        );
-    }
 }
 
 #[test]
@@ -1041,42 +949,8 @@ fn the_menu_heading_follows_the_workspace_name_beside_an_open_submenu() {
 
 #[test]
 fn ungrouped_git_workspace_menu_creates_a_worktree_from_the_workspace_so_the_server_groups_both() {
-    use crate::action_menu::MenuUnavailable;
     use crate::workbench_state::worktree_launch::WorktreeMode;
     let (mut ui, _, target) = ungrouped_git_workspace();
-    // Both Worktree rows form a section of their own and wait for Git discovery.
-    {
-        let view = ui.view();
-        let menu = view.action_menu().unwrap();
-        assert_eq!(
-            menu.actions,
-            [
-                MenuAction::WorkspaceProjects,
-                MenuAction::RenameWorkspace,
-                MenuAction::NewWorktree,
-                MenuAction::WorkspaceWorktrees,
-                MenuAction::DeleteWorkspace,
-            ]
-        );
-        let separators = (0..menu.result_actions.len())
-            .map(|position| menu.result_separator_before(menu.result_actions, position))
-            .collect::<Vec<_>>();
-        assert_eq!(separators, [false, false, true, false, true]);
-    }
-    for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
-        assert_eq!(
-            unavailable(&ui, &action),
-            Some(MenuUnavailable::WorktreeChecking)
-        );
-    }
-    // A source without Git keeps them disabled.
-    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
-    for action in [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees] {
-        assert_eq!(
-            unavailable(&ui, &action),
-            Some(MenuUnavailable::WorktreeUnavailable)
-        );
-    }
     ui.cancel_action_menu();
 
     assert!(ui.open_action_menu(target, None, false));

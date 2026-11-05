@@ -20,6 +20,7 @@ const CORPUS: &str =
 struct Corpus {
     contract_version: u8,
     valid_messages: Vec<MessageFixture>,
+    control_observation_messages: Vec<MessageFixture>,
     equivalent_messages: Vec<EquivalentFixture>,
     invalid_messages: Vec<InvalidFixture>,
     working_directory_cases: Vec<WorkingDirectoryFixture>,
@@ -249,6 +250,9 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         );
     }
     let expected = BTreeSet::from([
+        "control-observe",
+        "control-activate",
+        "control-observed",
         "control-acquire",
         "control-clear",
         "control-cleared",
@@ -606,7 +610,11 @@ fn decoded_path_and_geometry_boundaries_match_the_language_neutral_contract()
 }
 
 fn read_corpus() -> Result<Corpus, serde_json::Error> {
-    serde_json::from_str(CORPUS)
+    let mut corpus: Corpus = serde_json::from_str(CORPUS)?;
+    corpus
+        .valid_messages
+        .append(&mut corpus.control_observation_messages);
+    Ok(corpus)
 }
 
 fn decode(direction: Direction, payload: &[u8]) -> Result<DecodedMessage, ProtocolError> {
@@ -642,6 +650,8 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
         DecodedMessage::Client(ClientMessage::TerminalControl(request)) => {
             use orchbee_client_server_protocol::TerminalControlAction as Action;
             reached.insert(match request.action() {
+                Action::Observe { .. } => "control-observe",
+                Action::Activate { .. } => "control-activate",
                 Action::Acquire { .. } => "control-acquire",
                 Action::Takeover { .. } => "control-takeover",
                 Action::Clear { .. } => "control-clear",
@@ -659,6 +669,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 TerminalControlOutcome as Outcome,
             };
             reached.insert(match result.outcome() {
+                Outcome::Observed { .. } => "control-observed",
                 Outcome::Acquired { .. } => "control-acquired",
                 Outcome::InputAccepted {} => "control-input-accepted",
                 Outcome::Resized { .. } => "control-resized",

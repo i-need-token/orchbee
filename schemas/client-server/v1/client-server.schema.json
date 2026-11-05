@@ -1526,6 +1526,35 @@
 							"$ref": "#/$defs/viewerId"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "observe"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "geometry"],
+					"properties": {
+						"kind": {
+							"const": "activate"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"geometry": {
+							"$ref": "#/$defs/geometry"
+						}
+					}
 				}
 			]
 		},
@@ -1674,6 +1703,19 @@
 						},
 						"cleanupConfirmed": {
 							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "state"],
+					"properties": {
+						"kind": {
+							"const": "observed"
+						},
+						"state": {
+							"$ref": "#/$defs/controlState"
 						}
 					}
 				}
@@ -2485,6 +2527,91 @@
 					},
 					"minContains": 0,
 					"maxContains": 1
+				}
+			]
+		},
+		"controlState": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["controller", "controllerId", "sequence", "geometry", "recentFocus"],
+			"properties": {
+				"controller": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/viewerId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"controllerId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/controllerId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"sequence": {
+					"$ref": "#/$defs/projectionUnsigned"
+				},
+				"geometry": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/geometry"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"recentFocus": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/viewerId"
+					},
+					"maxItems": 8,
+					"uniqueItems": true
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"controllerId": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"sequence": {
+								"const": "0"
+							},
+							"geometry": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"controller": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"controllerId": {
+								"type": "null"
+							}
+						}
+					}
 				}
 			]
 		}

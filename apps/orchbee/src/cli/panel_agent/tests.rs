@@ -33,6 +33,7 @@ fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() 
             disposition: PanelAgentDisposition::Applied,
             changed: true,
             view: Box::new(orchbee_workbench_protocol::PanelAgentView {
+                completion: Default::default(),
                 agent: None,
                 state: orchbee_workbench_protocol::PanelAgentState::Unknown,
                 authority_source: None,

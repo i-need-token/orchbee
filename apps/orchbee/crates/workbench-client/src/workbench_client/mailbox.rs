@@ -743,6 +743,11 @@ pub(super) enum WorkerEvent {
         mode: ControllerMode,
         applied_geometry: Option<Geometry>,
     },
+    ControllerObserved {
+        key: PaneRef,
+        mode: ControllerMode,
+        geometry: Option<Geometry>,
+    },
     SwitchEntryExpired {
         key: PaneRef,
         target_index: usize,
@@ -855,6 +860,17 @@ pub(super) enum CreatePrecommitOutcome {
 }
 
 impl WorkerEvent {
+    fn is_notice(&self) -> bool {
+        matches!(
+            self,
+            Self::PaneDetached { .. }
+                | Self::PaneFailed { .. }
+                | Self::ViewportOutcome { .. }
+                | Self::SelectionOutcome { .. }
+                | Self::ControllerObserved { .. }
+        )
+    }
+
     fn wait_key(&self, serial: u64) -> Option<UiWaitKey> {
         let (correlation, reply_kind) = match self {
             Self::CloseReconciliationSnapshot { marker, .. } => (
@@ -985,6 +1001,7 @@ impl WorkerEvent {
                 UiReplyKind::CleanupApplied,
             ),
             Self::PaneDetached { .. }
+            | Self::ControllerObserved { .. }
             | Self::PaneFailed { .. }
             | Self::PollResult { .. }
             | Self::ViewportOutcome { .. }
@@ -2683,7 +2700,7 @@ impl CommandMailbox {
     }
 
     /// Deposits a fire-and-forget pane notice (`PaneDetached`/`PaneFailed`/
-    /// `ViewportOutcome`): no wait key is minted and no UI reply is expected —
+    /// `ViewportOutcome`/`ControllerObserved`): no wait key is minted and no UI reply is expected —
     /// the UI settles the notice straight into the state on take. Stale
     /// notices are still delivered; the state's settle functions discard
     /// non-matching incarnations, so the worker never has to guess whether the
@@ -2694,13 +2711,7 @@ impl CommandMailbox {
         cutoff: Instant,
         clock: &dyn MailboxClock,
     ) -> Result<MutationResult, EventError> {
-        debug_assert!(matches!(
-            event,
-            WorkerEvent::PaneDetached { .. }
-                | WorkerEvent::PaneFailed { .. }
-                | WorkerEvent::ViewportOutcome { .. }
-                | WorkerEvent::SelectionOutcome { .. }
-        ));
+        debug_assert!(event.is_notice());
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         if state.desired.awaiting_bootstrap() {
             return Err(self.close_protocol(&mut state));
@@ -2928,13 +2939,7 @@ impl CommandMailbox {
             // same publication arm — `run_viewport` deposits it through
             // `publish_notice_before` — so a taken outcome is as legitimate as
             // a detach/failure notice.
-            if !matches!(
-                &*event,
-                WorkerEvent::PaneDetached { .. }
-                    | WorkerEvent::PaneFailed { .. }
-                    | WorkerEvent::ViewportOutcome { .. }
-                    | WorkerEvent::SelectionOutcome { .. }
-            ) {
+            if !event.is_notice() {
                 return Err(self.close_protocol(&mut state));
             }
             state.event_deadline = EventDeadline::Unbounded;

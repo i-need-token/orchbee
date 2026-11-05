@@ -24,7 +24,7 @@ use super::{
     SettingsAction, SetupAction, SetupEdit, SetupToken, SurfaceAction, SurfaceInput, TabAction,
     TerminalInputPort, TerminalObservation, TextEntry, WorktreeAction,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
-    forward_edit_or_report,
+    forward_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
 };
 
@@ -68,7 +68,6 @@ pub struct InputDispatcher {
     /// Decoded bytes of the in-flight packet that still owe an ordered
     /// forward; always drained before `dispatch`/`synchronize` returns.
     pending: Vec<u8>,
-    pending_edit: bool,
     /// An open confirmation captured the current packet whole, so every
     /// later item of the same read stays swallowed.
     confirm_packet: bool,
@@ -1886,7 +1885,7 @@ impl InputDispatcher {
                     // the pane owns it in original order. The interrupted
                     // chord retires before later typed input reaches the pane.
                     view.cancel_prefix();
-                    forward_edit_or_report(view, &item.raw, item.edits_terminal(), port);
+                    forward_or_report(view, &item.raw, port);
                     return Ok(DispatchOutcome::Continue);
                 }
                 DecodedKind::RejectedPaste => {
@@ -2191,7 +2190,6 @@ impl InputDispatcher {
                 return self.decide(view, port, now, item, after_layout, mode);
             }
             _ => {
-                self.pending_edit |= item.edits_terminal();
                 self.pending.extend_from_slice(&item.raw);
             }
         }
@@ -2419,14 +2417,9 @@ impl InputDispatcher {
                 if let Some(item) = item
                     && let Some(byte) = literal_chord_byte(item)
                 {
-                    forward_edit_or_report(
-                        view,
-                        std::slice::from_ref(&byte),
-                        item.edits_terminal(),
-                        port,
-                    );
+                    forward_or_report(view, std::slice::from_ref(&byte), port);
                 } else if let Some(item) = item {
-                    forward_edit_or_report(view, &item.raw, item.edits_terminal(), port);
+                    forward_or_report(view, &item.raw, port);
                 }
             }
             ShellCommand::None => {}
@@ -2443,8 +2436,7 @@ impl InputDispatcher {
             return;
         }
         let bytes = std::mem::take(&mut self.pending);
-        let editing = std::mem::take(&mut self.pending_edit);
-        forward_edit_or_report(view, &bytes, editing, port);
+        forward_or_report(view, &bytes, port);
     }
 
     fn capture_sidebar_redraw(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {

@@ -74,8 +74,8 @@ pub enum TerminalObservation {
     HostGraphics(crate::terminal_graphics::Facts),
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.
     InputIntent,
-    /// Terminal-bound editing input that `forward` admitted.
-    TerminalEdited,
+    /// Input routed to the terminal proves keyboard delivery even if FocusIn arrives later.
+    KeyboardIntent,
     /// The host window changed size: painted close, rename, setup and worktree decisions stay
     /// stale until their next draw.
     DisplayInvalidated,

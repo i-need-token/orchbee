@@ -121,6 +121,7 @@ pub fn row(n: u64) -> Row {
     target.terminal = presentation(n).binding.unwrap();
     target.physical = physical(n);
     Row {
+        completion: Default::default(),
         seen: true,
         name: None,
         order: PlacementOrder::default(),

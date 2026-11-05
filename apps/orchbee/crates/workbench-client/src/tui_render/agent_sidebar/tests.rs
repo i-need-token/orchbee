@@ -1030,6 +1030,7 @@ fn sidebar_input_ownership_never_moves_settings_or_adds_a_hint_row() {
                             frame,
                             sidebar,
                             RenderContext {
+                                native: None,
                                 held: None,
                                 creation: None,
                                 view: &view,
@@ -1115,6 +1116,7 @@ fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forget
                     frame,
                     sidebar,
                     RenderContext {
+                        native: None,
                         held: None,
                         creation: None,
                         view: &view,

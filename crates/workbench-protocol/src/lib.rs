@@ -247,9 +247,9 @@ pub use command::{
 };
 
 pub use command::{
-    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest, AgentDetectionRule,
-    AgentDetectionSample, AgentManifestSource, AgentManifestWarning, AgentManifestWarningKind,
-    AgentScreenExplanation, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES,
+    AgentCompletion, AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest,
+    AgentDetectionRule, AgentDetectionSample, AgentManifestSource, AgentManifestWarning,
+    AgentManifestWarningKind, AgentScreenExplanation, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES,
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_TERMINAL_AGENT_CHANGES,
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS,
     PanelAgentAction, PanelAgentDisposition, PanelAgentFailure, PanelAgentOutcome,

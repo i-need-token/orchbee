@@ -298,6 +298,11 @@ It shares Acquire's Acquired result and rejection/unavailability/unknown classes
 [Server's transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md) owns
 reservation, revocation and cleanup. This additive action requires a same-development cohort.
 
+`Observe` and `Activate` publish current Viewer ownership and recent focus order. Activate records
+focus and content geometry without acquiring control. The observing owner alone receives its private
+grant, consumed sequence and acknowledged geometry. The language-neutral Session-controller
+contract above owns the closed shape and bounds; Server owns promotion and cleanup.
+
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
 
 ## Plugin terminal display environment

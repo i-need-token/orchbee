@@ -136,21 +136,36 @@ the trigger matrix, delay, configuration, sink and correctness contract.
 
 ## Completion presentation
 
-For one physical Agent, a Client-observed working-to-idle transition keeps a completed display
-until terminal input acknowledges that exact binding and semantic version. Focus and reading clear
-unread independently and do not consume completion. New work, blocked/error/unknown status, Agent
-replacement, or physical replacement clears the prior completion. Explicit Done keeps its existing
-input acknowledgement rule. Initial idle without observed work remains idle.
+Server owns completion for each retained physical binding. A Working observation records work;
+subsequent Idle records `awaiting-input`, including when an Unknown state occurred between them.
+Initial Idle has no completion. Explicit Done also records completion. New work, Agent ownership
+changes and physical replacement retire the previous fact. A Client need not have observed the
+work or have been connected when it finished.
 
-The native attention owner and machine/sidebar projection share the deterministic
-`agent_completion::Completion` transition. The shell joins Client completion and input acknowledgements
-to exact sidebar versions, including when the two observation lanes settle at different times.
-An input acknowledgement cannot regress to pending for that same version. Source observations,
-semantic sequences, notification transitions and CLI idle/succeeded conditions remain unchanged;
-a completed display is not provider-success evidence. A Client that never observed a transient
-working state cannot infer it from an idle baseline alone.
+`PanelAgentView.completion` and physical state checkpoints publish `none`, `awaiting-input` or
+`acknowledged`. The report revision versions completion changes independently of the provider's
+semantic sequence. All Clients read the same fact. The single shared display projection maps
+awaiting-input Idle to Done and acknowledged explicit Done to Idle. Raw provider state, semantic
+history, CLI idle/succeeded conditions and notification transitions remain unchanged; completion
+presentation never asserts provider success.
 
-Controlled physical-attention and machine-projection traces cover observation, viewing, input,
-replacement and version fencing. The real-process split witness in
-`tests/cli_windows_terminal_viewer_session/focus_control.rs` also checks that the Server still reports
-Idle while the Client retains completed presentation and clears it only after input.
+Only confirmed accepted input for the exact retained physical generation acknowledges completion.
+Accepted controller bytes, semantic key/text, paste and the confirmed prefix of a one-shot send
+use this Server boundary. Focus, reading, local selection and unaccepted or unknown input do not
+consume it. Input arriving before a Client sees Idle still updates the fact at its Server owner.
+Native pane titles, sidebar rows and the Agent board consume this fact without Client transition
+synthesis or cross-lane input-acknowledgement copies.
+
+Unread acknowledgement remains per Client and per exact painted version. A focused live paint
+candidate omits its unread marker while rendering, so completion does not introduce a one-frame
+dot. This visual projection does not change `seen`: only successful draw receipts acknowledge it.
+Hidden, covered, history and unfocused panes retain unread attention.
+
+Authority tests cover Working/Unknown/Idle, late readers, accepted input without provider sequence
+changes and replacement fencing. Colored-cell render and Windows process witnesses cover actual
+Working/Done distinctions, late Clients and clearing completion across Clients.
+
+GUI projection adoption is staged in ORC-309, owned by Claude. The shared Rust/TypeScript contract
+already exposes completion; GUI must render that fact and retain independent focused-pane unread
+acknowledgement. Native evidence does not establish GUI parity; this limitation ends when GUI
+consumes the same binding-qualified fact and passes its corresponding interaction checks.

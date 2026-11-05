@@ -197,6 +197,13 @@ is detached, and the Worker reports the cleanup failure instead of claiming succ
 
 ## Live viewer relay refinement
 
+After Host acknowledges a projection pause, Worker drops that Viewer's pending projection record,
+frame flight and blocked marker while preserving event/lifecycle queues and its sequence cursor.
+This mirrors Host abandonment: old feedback cannot settle the reactivated projection, and the next
+full snapshot cannot collide with an obsolete relay flight. The pause regression in
+`src/host_connection/viewers/tests.rs` covers queued and delivered frames, event preservation,
+byte-budget release, neighboring Viewers and sequence fencing.
+
 The Worker owns one Host broker; Server alone issues viewer attachments. Each generation-scoped viewer has read capability, an independent bounded delivery slot and at most one frame awaiting exact Client feedback. Worker validates the envelope and fixed routing metadata, retaining the opaque Host record without decoding rows, VT or history. Attach/poll/feedback/detach serialize with Launch/Start on the admitted Server connection. Poll transfers ready records without awaiting terminal output; downstream delivery cannot retain the Worker operation slot. The Server relay core abstracts lane isolation; concrete carrier tests check this integration.
 
 When a viewer's record or event first becomes pollable, the Worker's server transport writes one

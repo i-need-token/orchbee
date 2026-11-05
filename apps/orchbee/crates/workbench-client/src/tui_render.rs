@@ -263,6 +263,9 @@ pub fn render_terminal_shell_with_resize<'a>(
             .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay);
     let graphics_uncovered = position_uncovered
         && !status_overlay_visible(view, workbench_client.as_ref(), capture_owner);
+    if let Some(native) = workbench_client.as_mut() {
+        native.set_attention_visible(position_uncovered);
+    }
     if !graphics_uncovered && let Some(native) = workbench_client.as_ref() {
         native.cover_graphics();
     }
@@ -455,6 +458,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                     frame,
                     sidebar,
                     agent_sidebar::RenderContext {
+                        native: workbench_client.as_ref(),
                         view,
                         sidebar_surface,
                         locale,
@@ -1522,13 +1526,19 @@ fn render_native_workbench(
                     render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
                 }
                 let link_source = native.painted_link_source(panel.panel_id());
+                let retained_history = native.pane_viewport(panel.panel_id()).is_some()
+                    || native.pane_history_stand_in(panel.panel_id()).is_some();
                 let target = native
                     .pane_ref_for_panel(panel.panel_id())
                     .map(|pane| HitTarget::Pane {
                         pane,
-                        content: native
-                            .pane_live_view(panel.panel_id())
-                            .map_or(leaf.content, |crop| crop.content(leaf.content)),
+                        content: if retained_history {
+                            leaf.content
+                        } else {
+                            native
+                                .pane_live_view(panel.panel_id())
+                                .map_or(leaf.content, |crop| crop.content(leaf.content))
+                        },
                     })
                     .or_else(|| {
                         native
@@ -1543,6 +1553,15 @@ fn render_native_workbench(
                         HitTarget::Pane { content, .. } => *content,
                         _ => leaf.leaf,
                     };
+                    if let HitTarget::Pane { pane, .. } = &target
+                        && (matches!(
+                            native.pane_viewport(panel.panel_id()),
+                            Some(crate::workbench_client::ViewportSurface::Window { .. })
+                        ) || native.pane_history_stand_in(panel.panel_id()).is_some())
+                        && native.copy_mode().is_none()
+                    {
+                        viewport::record_history_tooltip(hits, body, pane.clone(), locale);
+                    }
                     hits.record(HitLayer::Foreground, body, target);
                 }
                 scrollbar::render(
@@ -1659,10 +1678,17 @@ fn render_native_workbench(
                     HitLayer::Foreground,
                     content_area,
                     HitTarget::Pane {
-                        pane,
+                        pane: pane.clone(),
                         content: content_area,
                     },
                 );
+                if matches!(
+                    surface,
+                    crate::workbench_client::ViewportSurface::Window { .. }
+                ) && native.copy_mode().is_none()
+                {
+                    viewport::record_history_tooltip(hits, content_area, pane, locale);
+                }
                 if let Some(source) = native
                     .focus_panel_id()
                     .and_then(|panel| native.painted_link_source(panel))

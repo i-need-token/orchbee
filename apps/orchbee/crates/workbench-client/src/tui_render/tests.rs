@@ -1263,11 +1263,6 @@ fn history_window_preserves_rows_with_its_mode_badge() {
     );
 }
 
-// The bottom line and indicators localize with the session locale.
-
-// A narrow leaf degrades on grapheme boundaries: the return hint keeps
-// priority while the position truncates first.
-
 // `AwaitingWindow` and `Recovering` clear the leaf and paint their own
 // indicator — no position without a validated window, never stale rows.
 #[test]

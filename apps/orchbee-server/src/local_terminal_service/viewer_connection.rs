@@ -56,6 +56,12 @@ struct IssuedViewer<'service> {
 
 impl Drop for ViewerAttachment<'_> {
     fn drop(&mut self) {
+        if let Ok(mut focus) = self.service.controller_focus.lock() {
+            focus.remove(
+                super::controller_connection::ControlTarget::from(self.target),
+                &self.attachment_id,
+            );
+        }
         self.controller.take();
         if self.cleanup.is_some()
             && self.service.target_lifecycle(self.target) == Some(TargetLifecycle::Disposed)

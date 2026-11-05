@@ -267,7 +267,8 @@ control messages, while binding tests cover binary boundaries and opaque byte pr
 `terminal.control` contains `protocolVersion`, a fresh `requestId`, and one closed `action`.
 Every control action requires in-action `attachmentId`. `acquire` has no other field and requires
 that exact attached viewer in the submitting Session. Server explicitly grants one
-combined input-and-resize controller per terminal, without automatic promotion. Ordinary Acquire
+combined input-and-resize controller per terminal. Confirmed departure permits promotion of the
+most recently focused surviving Viewer through the same fenced grant path. Ordinary Acquire
 refuses an occupied terminal; explicit `takeover` carries the same sole `attachmentId` field and
 replaces an active incumbent. It refuses pending acquisitions/transfers. Server owns fresh grant
 identities and fences the old grant before transfer; Worker acknowledges exact old Host detach
@@ -277,6 +278,19 @@ unknown cleanup retains a fence. See the [takeover model](../../apps/orchbee-ser
 This additive action requires the same development cohort; older peers reject it. The
 `acquired` result carries a fresh `controllerId`, using the nonzero 32-character lowercase hex
 identity format. The grant is bound to that Session, viewer, Worker generation, and Host terminal.
+
+`observe` carries only `attachmentId`; `activate` also carries complete `geometry` and records one
+foreground activation without acquiring or resizing. Both return `observed` with `state` containing
+required `controller`, `controllerId`, `geometry`, `sequence` and `recentFocus` members. Controller,
+grant and geometry are nullable. `recentFocus` is most-recent-first, unique and bounded to eight
+Viewer IDs. Only the observing owner receives a private grant and its acknowledged geometry and
+consumed decimal u64 sequence; other observers receive null grant/geometry and sequence `"0"`.
+An observation grants no authority. All native binaries must use the matching development cohort.
+The corpus keeps these opt-in request/response cases in `controlObservationMessages`; the Rust
+conformance reader includes them in the same schema, round-trip, direction and variant checks.
+The GUI carrier binds its currently used control actions and does not send `observe` or `activate`
+yet, so its existing response corpus stays in `validMessages` until that adoption lands. No
+unsolicited `observed` result is sent to an older action's caller.
 
 `input` additionally contains `controllerId`, `sequence`, and `bytes`; `resize` additionally contains `controllerId`,
 `sequence`, and complete `geometry`. Input bytes are 1 through 4,096 raw bytes encoded as an even,

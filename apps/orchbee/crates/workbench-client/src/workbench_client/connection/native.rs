@@ -238,7 +238,15 @@ impl SetupTarget {
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ControlFrame {
+    Request,
+    Waiting,
+}
+
 struct AttachedTerminal {
+    control_observation_due: Option<Instant>,
+    control_frame: Option<ControlFrame>,
     key: PaneRef,
     attachment_id: orchbee_client_server_protocol::ViewerId,
     /// `Some` while the setup pipeline is unfinished — including a reconcile
@@ -538,6 +546,8 @@ impl ClientExecutor {
             };
         };
         self.attachments.push(AttachedTerminal {
+            control_observation_due: None,
+            control_frame: None,
             key: target.key.clone(),
             attachment_id: attachment_id.clone(),
             setup: Some(target.clone()),
@@ -662,6 +672,7 @@ impl ClientExecutor {
             )?
             .ok_or(CarrierFailure::Deadline)?;
         let mode = match acquire {
+            TerminalControlOutcome::Observed { .. } => return Err(CarrierFailure::Protocol),
             TerminalControlOutcome::Acquired { controller_id } => {
                 ControllerMode::Controlling(controller_id)
             }
@@ -963,6 +974,7 @@ impl ClientExecutor {
             deadline,
         )?;
         match outcome {
+            TerminalControlOutcome::Observed { .. } => Err(CarrierFailure::Protocol.into()),
             TerminalControlOutcome::InputAccepted {} => Ok(()),
             TerminalControlOutcome::OutcomeUnknown {} => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
@@ -1023,6 +1035,7 @@ impl ClientExecutor {
             deadline,
         )?;
         match outcome {
+            TerminalControlOutcome::Observed { .. } => return Err(CarrierFailure::Protocol.into()),
             TerminalControlOutcome::Resized { geometry: actual } if actual == geometry => {}
             TerminalControlOutcome::OutcomeUnknown {} => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown));
@@ -1454,6 +1467,7 @@ impl ClientExecutor {
         if let Some(controller) = self.controller_for(&key)? {
             self.sync_host_colors_for_lease(lease, &key, controller, deadline)?;
         }
+        self.prepare_control_frame(lease, &key, deadline)?;
         let Some((request_id, outcome)) = self.viewer_for_ready_lease(
             lease,
             &key,
@@ -1466,6 +1480,9 @@ impl ClientExecutor {
             return Ok(());
         };
         let current = self.pane_admitted(lease, &key)?;
+        if current {
+            self.observe_controller(lease, &key, deadline)?;
+        }
         if current
             && matches!(
                 outcome,
@@ -1589,6 +1606,7 @@ impl ClientExecutor {
                 }
                 _ => return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol)),
             }
+            self.finish_control_frame(lease, &key, deadline)?;
         }
         Ok(())
     }
@@ -2425,6 +2443,7 @@ impl ClientExecutor {
             return Ok(false);
         };
         match outcome {
+            TerminalControlOutcome::Observed { .. } => return Err(CarrierFailure::Protocol),
             TerminalControlOutcome::Resized { geometry: actual } if actual == geometry => {}
             TerminalControlOutcome::Rejected {
                 reason: ControlRejectedReason::HostRejected,
@@ -2995,7 +3014,9 @@ impl ClientExecutor {
                 cursor,
                 palette,
             }),
-            action @ (TerminalControlAction::Acquire { .. }
+            action @ (TerminalControlAction::Observe { .. }
+            | TerminalControlAction::Activate { .. }
+            | TerminalControlAction::Acquire { .. }
             | TerminalControlAction::Takeover { .. }
             | TerminalControlAction::Clear { .. }
             | TerminalControlAction::Reset { .. }) => Ok(action),
@@ -3061,6 +3082,7 @@ impl ClientExecutor {
             return Ok(());
         };
         match self.control_for_setup(owner, key, action, cutoff)? {
+            Some(TerminalControlOutcome::Observed { .. }) => Err(CarrierFailure::Protocol),
             Some(TerminalControlOutcome::OutcomeUnknown {}) => Err(CarrierFailure::OutcomeUnknown),
             Some(
                 TerminalControlOutcome::Acquired { .. }
@@ -3092,6 +3114,7 @@ impl ClientExecutor {
             return Ok(());
         };
         match self.control_for_lease(lease, key, action, deadline)? {
+            TerminalControlOutcome::Observed { .. } => Err(CarrierFailure::Protocol.into()),
             TerminalControlOutcome::OutcomeUnknown {} => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
             }

@@ -10,6 +10,89 @@ use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
 
 #[test]
+fn completion_state_cells_use_server_facts_even_without_a_client_working_observation() {
+    use orchbee_workbench_protocol::{AgentCompletion, MetadataState, PanelAgentState};
+    let source = super::super::tests::publication_hint::split_snapshot(1);
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let shell = ClientView::new(120);
+    for (state, completion, expected) in [
+        (
+            PanelAgentState::Working,
+            AgentCompletion::None,
+            MetadataState::Working,
+        ),
+        (
+            PanelAgentState::Idle,
+            AgentCompletion::AwaitingInput,
+            MetadataState::Done,
+        ),
+        (
+            PanelAgentState::Idle,
+            AgentCompletion::Acknowledged,
+            MetadataState::Idle,
+        ),
+    ] {
+        let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
+        let row = PanelReport {
+            report: Some(orchbee_workbench_protocol::PanelAgentView {
+                agent: Some("test-agent".into()),
+                state,
+                completion,
+                ..Default::default()
+            }),
+            metadata: serde_json::from_value(
+                json!({"title":"completion-title","displayAgent":null,"stateLabels":{}}),
+            )
+            .unwrap(),
+            tokens: Default::default(),
+        };
+        ui.reports.publish_for_test(Round {
+            rows: scope
+                .panels
+                .iter()
+                .map(|p| (p.panel_id.clone(), row.clone()))
+                .collect(),
+            scope,
+        });
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &shell,
+                    Locale::EnUs,
+                    Some(ui.view()),
+                    &theme,
+                    &mut HitMapBuilder::new(),
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let (y, x) = (0..40)
+            .find_map(|y| {
+                let text: String = (0..120).map(|x| buffer[(x, y)].symbol()).collect();
+                let prefix = &text[..text.find("completion-title")?];
+                let title_x = crate::terminal_text::display_width(prefix);
+                let glyph = theme.agent_glyph(expected);
+                Some((
+                    y,
+                    u16::try_from(title_x - crate::terminal_text::display_width(glyph) - 1)
+                        .unwrap(),
+                ))
+            })
+            .expect("a visible state cell accompanies the Agent's title");
+        assert_eq!(
+            Some(buffer[(x, y)].fg),
+            theme
+                .agent_style(expected, shell.machines.working_frame())
+                .fg,
+            "the state cell must use the semantic color; glyph identity alone cannot distinguish Working and Done"
+        );
+    }
+}
+
+#[test]
 fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geometry() {
     use crate::client_view::{ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixInput};
     use crate::machine_picker::Choice;
