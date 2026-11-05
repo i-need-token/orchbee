@@ -2,6 +2,8 @@
 export interface WorkbenchConfiguredCommand {
 	/** The configured description; null when the configuration gives none. */
 	readonly description: string | null;
+	/** The command line or plugin target the TUI's key help shows; null when nothing visible remains. */
+	readonly display: string | null;
 	/** Opaque, and different once anything in the configured commands changes. */
 	readonly id: string;
 }
