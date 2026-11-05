@@ -587,7 +587,9 @@ export function useWorkbenchActions({
 					typedRuntime.execute(definition.id, definition.input, invocation);
 					return true;
 				}
+				case 'newWorkspace':
 				case 'settings':
+				case 'shortcuts':
 				case 'closeActiveTerminal':
 				case 'newTerminalInCurrentDirectory':
 				case 'decreaseTerminalFontSize':

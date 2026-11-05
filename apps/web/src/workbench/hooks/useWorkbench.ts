@@ -231,6 +231,8 @@ interface WorkbenchView {
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
 	readonly newWorkspaceLabel: string;
+	readonly newWorkspaceShortcutId: string;
+	readonly newWorkspaceShortcutLabel: string | undefined;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectCreation: WorkbenchProjectCreationView;
 	readonly projectCreationMessages: WorkbenchProjectCreationMessages;
@@ -263,6 +265,8 @@ interface WorkbenchView {
 	readonly settings: (() => void) | undefined;
 	readonly shortcuts: (() => void) | undefined;
 	readonly shortcutsLabel: string;
+	readonly shortcutsShortcutId: string;
+	readonly shortcutsShortcutLabel: string | undefined;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
@@ -983,6 +987,10 @@ export function useWorkbench({
 		sidebarLabel: intl.formatMessage(workbenchMessages.sidebarLabel),
 		projectLabel: intl.formatMessage(workbenchMessages.project),
 		newWorkspaceLabel: intl.formatMessage(workbenchMessages.sidebarNewWorkspace),
+		newWorkspaceShortcutId: WORKBENCH_SHORTCUTS.newWorkspace.id,
+		newWorkspaceShortcutLabel: visibleShortcutLabel(
+			formatWorkbenchShortcut('newWorkspace', shortcutPlatform, shortcutBindings),
+		),
 		projectNavigationMessages: {
 			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
 			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
@@ -1109,6 +1117,10 @@ export function useWorkbench({
 						actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
 					},
 		shortcutsLabel: intl.formatMessage(workbenchMessages.shortcuts),
+		shortcutsShortcutId: WORKBENCH_SHORTCUTS.shortcuts.id,
+		shortcutsShortcutLabel: visibleShortcutLabel(
+			formatWorkbenchShortcut('shortcuts', shortcutPlatform, shortcutBindings),
+		),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),

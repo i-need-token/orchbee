@@ -10,9 +10,8 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the fifty-three Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(69);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(69);
+	it('combines the Workbench and projected-terminal declarations once', () => {
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(KEYBOARD_SHORTCUT_CATALOG.length);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },

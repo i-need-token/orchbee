@@ -12,7 +12,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { TerminalSettingsSurface } from '../TerminalSettingsSurface';
 import { ApplicationLocaleController } from '../../application-locale';
 import { ApplicationLocaleProvider } from '../../application-locale-provider';
-import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import {
+	KEYBOARD_SHORTCUT_CATALOG,
+	KeyboardShortcutSettingsController,
+} from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import { TerminalSettingsController } from '../../terminal-settings';
@@ -766,7 +769,9 @@ describe('TerminalSettingsSurface', () => {
 			),
 		);
 		await act(async () => keyboardCategory.click());
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(69);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(
+			KEYBOARD_SHORTCUT_CATALOG.length,
+		);
 		expect(container.textContent).toContain('Ctrl+Shift+T');
 		expect(container.textContent).toContain('New terminal in current directory');
 		expect(container.textContent).toContain('Ctrl+Alt+Enter');
@@ -805,7 +810,9 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'Focused terminal');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(69);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(
+			KEYBOARD_SHORTCUT_CATALOG.length,
+		);
 		expect(
 			container.querySelectorAll('[data-settings-search-result]').length,
 		).toBeGreaterThanOrEqual(3);

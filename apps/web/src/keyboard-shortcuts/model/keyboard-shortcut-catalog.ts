@@ -81,6 +81,7 @@ type KeyboardShortcutName =
 	| 'move-tab-forward'
 	| 'new-terminal'
 	| 'new-terminal-current-directory'
+	| 'new-workspace'
 	| 'next-prompt'
 	| 'next-tab'
 	| 'show-last-command-output'
@@ -99,6 +100,7 @@ type KeyboardShortcutName =
 	| 'select-all'
 	| 'set-tab-title'
 	| 'settings'
+	| 'shortcuts'
 	| 'split-below'
 	| 'split-right'
 	| 'swap-panel-visible'
@@ -240,6 +242,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'new-terminal',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.newWorkspace.id,
+		actionInput: WORKBENCH_SHORTCUTS.newWorkspace.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.newWorkspace.defaults,
+		feature: 'workbench',
+		name: 'new-workspace',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.newWorkspace.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.id,
@@ -532,6 +544,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'settings',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.settings.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.shortcuts.id,
+		actionInput: WORKBENCH_SHORTCUTS.shortcuts.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.shortcuts.defaults,
+		feature: 'workbench',
+		name: 'shortcuts',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.shortcuts.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.toggleSidebar.id,

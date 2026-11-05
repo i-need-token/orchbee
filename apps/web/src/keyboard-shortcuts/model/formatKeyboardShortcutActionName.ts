@@ -20,6 +20,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.newTerminal);
 		case 'new-terminal-current-directory':
 			return intl.formatMessage(keyboardShortcutMessages.newTerminalCurrentDirectory);
+		case 'new-workspace':
+			return intl.formatMessage(keyboardShortcutMessages.newWorkspace);
 		case 'next-tab':
 			return intl.formatMessage(keyboardShortcutMessages.nextTab);
 		case 'move-tab-backward':
@@ -66,6 +68,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.movePanelUp);
 		case 'settings':
 			return intl.formatMessage(keyboardShortcutMessages.settings);
+		case 'shortcuts':
+			return intl.formatMessage(keyboardShortcutMessages.shortcuts);
 		case 'split-below':
 			return intl.formatMessage(keyboardShortcutMessages.splitBelow);
 		case 'split-right':

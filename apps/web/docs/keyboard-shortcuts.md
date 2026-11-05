@@ -43,6 +43,8 @@ those surfaces owns another binding copy.
 | `workbench.panel.active.split-below`          | Active panel                      | `Cmd+Shift+D`            | `Ctrl+Shift+E`         |
 | `workbench.search.all.open`                   | Workbench                         | `Cmd+Shift+F`            | `Ctrl+Shift+K`         |
 | `workbench.settings.open`                     | Workbench                         | `Cmd+,`                  | `Ctrl+,`               |
+| `workbench.shortcuts.open`                    | Workbench                         | `Cmd+/`                  | `Ctrl+Shift+/`         |
+| `workbench.workspace.create`                  | Workbench                         | `Cmd+Shift+N`            | `Ctrl+Shift+N`         |
 | `workbench.sidebar.toggle`                    | Workbench                         | `Cmd+B`                  | `Ctrl+Shift+B`         |
 | `terminal.search.open`                        | Focused terminal or Find          | `Cmd+F`                  | `Ctrl+Shift+F`         |
 | `terminal.hints.open`                         | Focused terminal                  | `Cmd+Shift+O`            | `Ctrl+Shift+O`         |
@@ -67,6 +69,8 @@ Standard defaults deliberately leave unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `C
 to the shell, terminal applications, and multiplexers. A user may deliberately record another
 supported custom chord. Product conflicts remain prohibited even when an Action is temporarily
 unavailable.
+
+New Workspace and the shortcut reference carry the TUI's `Ctrl+B Shift+N` and `Ctrl+B ?` with the platform modifier: `Cmd+Shift+N` and `Ctrl+Shift+N` create a Workspace as the sidebar's New workspace row does, where the focused Panel stands, and `Ctrl+Shift+/` opens Settings on the shortcut reference, as the sidebar's Shortcuts button does. Apple takes `Cmd+/` because `Cmd+?` opens the system's Help search. The sidebar toggle stays `Cmd+B` on Apple but `Ctrl+Shift+B` on Standard, where `Ctrl+B` is the TUI's prefix and readline's backward-char. A browser that keeps `Ctrl+Shift+N` for its own private window never delivers it to the page; Desktop receives it, and the row and Search still create a Workspace.
 
 Prompt navigation uses physical `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).
 

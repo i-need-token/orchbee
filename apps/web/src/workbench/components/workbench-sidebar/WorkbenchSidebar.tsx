@@ -43,6 +43,8 @@ interface WorkbenchSidebarProps {
 	readonly focusRequest: number;
 	readonly label: string;
 	readonly newWorkspaceLabel: string;
+	readonly newWorkspaceShortcutId: string;
+	readonly newWorkspaceShortcutLabel: string | undefined;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
 	readonly onShortcuts?: (() => void) | undefined;
@@ -69,6 +71,8 @@ interface WorkbenchSidebarProps {
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
 	readonly shortcutsLabel: string;
+	readonly shortcutsShortcutId: string;
+	readonly shortcutsShortcutLabel: string | undefined;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
@@ -89,6 +93,8 @@ export function WorkbenchSidebar({
 	focusRequest,
 	label,
 	newWorkspaceLabel,
+	newWorkspaceShortcutId,
+	newWorkspaceShortcutLabel,
 	onSearch,
 	onSettings,
 	onShortcuts,
@@ -111,6 +117,8 @@ export function WorkbenchSidebar({
 	settingsShortcutId,
 	settingsShortcutLabel,
 	shortcutsLabel,
+	shortcutsShortcutId,
+	shortcutsShortcutLabel,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
@@ -183,6 +191,7 @@ export function WorkbenchSidebar({
 					<li>
 						<Button
 							className={styles['primaryItem']}
+							data-shortcut-action={newWorkspaceShortcutId}
 							data-slot='workbench-sidebar-new-workspace'
 							size='sm'
 							variant='ghost'
@@ -195,6 +204,9 @@ export function WorkbenchSidebar({
 								<ProductIcon name='add' />
 							</span>
 							<span className={styles['label']}>{newWorkspaceLabel}</span>
+							{newWorkspaceShortcutLabel === undefined ? null : (
+								<Kbd className={styles['shortcut']}>{newWorkspaceShortcutLabel}</Kbd>
+							)}
 						</Button>
 					</li>
 					<li>
@@ -311,6 +323,7 @@ export function WorkbenchSidebar({
 									aria-disabled={onShortcuts === undefined}
 									aria-label={shortcutsLabel}
 									className={styles['help']}
+									data-shortcut-action={shortcutsShortcutId}
 									data-slot='workbench-sidebar-shortcuts'
 									type='button'
 									onClick={onShortcuts}
@@ -319,7 +332,10 @@ export function WorkbenchSidebar({
 						>
 							<ProductIcon name='question' />
 						</TooltipTrigger>
-						<TooltipContent side='top'>{shortcutsLabel}</TooltipContent>
+						<TooltipContent side='top'>
+							{shortcutsLabel}
+							{shortcutsShortcutLabel === undefined ? null : <Kbd>{shortcutsShortcutLabel}</Kbd>}
+						</TooltipContent>
 					</Tooltip>
 				</div>
 			</aside>

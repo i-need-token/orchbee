@@ -6,6 +6,7 @@ import { createElement, useMemo, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+	KEYBOARD_SHORTCUT_CATALOG,
 	KeyboardShortcutSettingsController,
 	keyboardShortcutClaims,
 	useKeyboardShortcutSettings,
@@ -36,7 +37,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(69);
+		expect(allRows.result.current.rows).toHaveLength(KEYBOARD_SHORTCUT_CATALOG.length);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',

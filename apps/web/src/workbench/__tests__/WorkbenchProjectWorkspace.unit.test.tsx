@@ -438,14 +438,14 @@ describe('Workbench Project and Workspace management', () => {
 			projectWorkspaceRuntime: runtime,
 			shortcutPlatform: 'standard',
 		});
-		const newWorkspace = screen.getByRole('button', { name: 'New workspace' });
+		const newWorkspace = screen.getByRole('button', { name: /^New workspace/ });
 		const fixedActions = newWorkspace.closest('[data-slot="workbench-sidebar-actions"]');
 		if (!(fixedActions instanceof HTMLElement)) throw new Error('Expected fixed sidebar actions.');
 		expect(
 			within(fixedActions)
 				.getAllByRole('button')
 				.map((button) => button.textContent),
-		).toEqual(['New workspace', expect.stringContaining('Search')]);
+		).toEqual([expect.stringContaining('New workspace'), expect.stringContaining('Search')]);
 		expect(fixedActions.closest('[data-navigation-reorder-scroll]')).toBeNull();
 		// The list has no heading; only a group with Workspaces shows its own.
 		expect(screen.getByRole('list', { name: 'Workspaces' })).toBeTruthy();

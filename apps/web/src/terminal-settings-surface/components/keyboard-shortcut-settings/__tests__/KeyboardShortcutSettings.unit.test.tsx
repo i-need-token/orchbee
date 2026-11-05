@@ -5,7 +5,10 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { KeyboardShortcutSettingsController } from '../../../../keyboard-shortcuts';
+import {
+	KEYBOARD_SHORTCUT_CATALOG,
+	KeyboardShortcutSettingsController,
+} from '../../../../keyboard-shortcuts';
 import { KeyboardShortcutSettings } from '../KeyboardShortcutSettings';
 
 beforeAll(() => {
@@ -28,7 +31,7 @@ describe('KeyboardShortcutSettings', () => {
 		const input = requiredElement<HTMLInputElement>(
 			harness.container.querySelector("input[aria-label='Search actions or shortcuts']"),
 		);
-		expect(shortcutRows(harness.container)).toHaveLength(69);
+		expect(shortcutRows(harness.container)).toHaveLength(KEYBOARD_SHORTCUT_CATALOG.length);
 
 		await changeInput(input, 'terminal current');
 		expect(shortcutRows(harness.container)).toHaveLength(1);
@@ -44,7 +47,7 @@ describe('KeyboardShortcutSettings', () => {
 		);
 		await act(async () => clear.click());
 		expect(input.value).toBe('');
-		expect(shortcutRows(harness.container)).toHaveLength(69);
+		expect(shortcutRows(harness.container)).toHaveLength(KEYBOARD_SHORTCUT_CATALOG.length);
 
 		await changeInput(input, 'no such shortcut');
 		expect(shortcutRows(harness.container)).toHaveLength(0);
@@ -54,7 +57,7 @@ describe('KeyboardShortcutSettings', () => {
 				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
 			);
 		});
-		expect(shortcutRows(harness.container)).toHaveLength(69);
+		expect(shortcutRows(harness.container)).toHaveLength(KEYBOARD_SHORTCUT_CATALOG.length);
 
 		await harness.dispose();
 	});

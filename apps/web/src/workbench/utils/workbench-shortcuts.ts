@@ -17,6 +17,7 @@ interface WorkbenchShortcutDefinition {
 	readonly id:
 		| typeof WORKBENCH_ACTION_IDS.closeActiveTerminal
 		| typeof WORKBENCH_ACTION_IDS.createTerminal
+		| typeof WORKBENCH_ACTION_IDS.createWorkspace
 		| typeof WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory
 		| typeof WORKBENCH_ACTION_IDS.decreaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.equalizeActivePanels
@@ -40,6 +41,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.setTabTitle
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
+		| typeof WORKBENCH_ACTION_IDS.openShortcuts
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.resizeActivePanel
 		| typeof WORKBENCH_ACTION_IDS.selectNextTab
@@ -264,6 +266,18 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.moveActiveTabForward,
 	},
+	// New Workspace and the shortcut reference carry the TUI's Ctrl+B Shift+N and Ctrl+B ? with the
+	// platform modifier, as the sidebar canvas proposes; Apple takes Cmd+/ because Cmd+? opens the
+	// system's Help search.
+	newWorkspace: {
+		defaults: {
+			apple: chord('KeyN', ['mod', 'shift']),
+			standard: chord('KeyN', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.createWorkspace,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.createWorkspace,
+	},
 	setTabTitle: {
 		defaults: {
 			apple: chord('KeyI', ['mod', 'shift']),
@@ -345,6 +359,15 @@ export const WORKBENCH_SHORTCUTS = {
 	selectTab7: positionalTabShortcut(7),
 	selectTab8: positionalTabShortcut(8),
 	selectTab9: positionalTabShortcut(9),
+	shortcuts: {
+		defaults: {
+			apple: chord('Slash', ['mod']),
+			standard: chord('Slash', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.openShortcuts,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.openShortcuts,
+	},
 	settings: {
 		defaults: {
 			apple: chord('Comma', ['mod']),
@@ -440,6 +463,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'setTabTitle',
 	'newTerminal',
 	'newTerminalInCurrentDirectory',
+	'newWorkspace',
 	'search',
 	'resetTerminalFontSize',
 	'resizeActivePanel',
@@ -455,6 +479,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'selectTab8',
 	'selectTab9',
 	'settings',
+	'shortcuts',
 	'splitActivePanelBelow',
 	'splitActivePanelRight',
 	'swapActivePanelVisible',
@@ -570,6 +595,10 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
 			return formatWorkbenchShortcut('settings', platform, bindings);
+		case WORKBENCH_ACTION_IDS.openShortcuts:
+			return formatWorkbenchShortcut('shortcuts', platform, bindings);
+		case WORKBENCH_ACTION_IDS.createWorkspace:
+			return formatWorkbenchShortcut('newWorkspace', platform, bindings);
 		case WORKBENCH_ACTION_IDS.selectNextTab:
 			return formatWorkbenchShortcut('selectNextTab', platform, bindings);
 		case WORKBENCH_ACTION_IDS.selectPreviousTab:
@@ -679,6 +708,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.defaults[platform],
+		[WORKBENCH_SHORTCUTS.newWorkspace.shortcutId]:
+			WORKBENCH_SHORTCUTS.newWorkspace.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults[platform],
@@ -698,6 +729,7 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 		[WORKBENCH_SHORTCUTS.selectTab8.shortcutId]: WORKBENCH_SHORTCUTS.selectTab8.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectTab9.shortcutId]: WORKBENCH_SHORTCUTS.selectTab9.defaults[platform],
 		[WORKBENCH_SHORTCUTS.settings.shortcutId]: WORKBENCH_SHORTCUTS.settings.defaults[platform],
+		[WORKBENCH_SHORTCUTS.shortcuts.shortcutId]: WORKBENCH_SHORTCUTS.shortcuts.defaults[platform],
 		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]:
 			WORKBENCH_SHORTCUTS.splitActivePanelBelow.defaults[platform],
 		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]:

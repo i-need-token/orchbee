@@ -131,6 +131,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.newWorkspace.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.newWorkspace.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.search.shortcutId),
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId,
@@ -172,6 +175,9 @@ export function createKeyboardShortcutBindings(
 			WORKBENCH_SHORTCUTS.selectTab9.shortcutId,
 		),
 		[WORKBENCH_SHORTCUTS.settings.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.settings.shortcutId),
+		[WORKBENCH_SHORTCUTS.shortcuts.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.shortcuts.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId,
 		),

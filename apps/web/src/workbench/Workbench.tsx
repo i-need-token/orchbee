@@ -182,8 +182,12 @@ export function Workbench({
 				resizeSidebar={view.resizeSidebar}
 				returnToTerminal={view.returnToTerminal}
 				shortcutsLabel={view.shortcutsLabel}
+				shortcutsShortcutId={view.shortcutsShortcutId}
+				shortcutsShortcutLabel={view.shortcutsShortcutLabel}
 				projectLabel={view.projectLabel}
 				newWorkspaceLabel={view.newWorkspaceLabel}
+				newWorkspaceShortcutId={view.newWorkspaceShortcutId}
+				newWorkspaceShortcutLabel={view.newWorkspaceShortcutLabel}
 				projectNavigationMessages={view.projectNavigationMessages}
 				projectWorkspaceState={view.projectWorkspaceState}
 				workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
