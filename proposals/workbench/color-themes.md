@@ -400,9 +400,12 @@ The fixed glyph colors are not distinguishable by hue alone for every viewer:
 - Failed against Completed is ΔE 2.8 under deuteranopia.
 - Needs attention against Completed is ΔE 3.5 under protanopia.
 
-The visual-foundations standard already keeps each state distinct by its word and its shape
-fallback. This proposal does not change the hues. It records the measurement so that shape stays a
-required cue.
+At every color level above monochrome, the TUI draws Needs attention, Completed, and Failed with
+the same filled hexagon `⬢` (`Theme::agent_glyph`); the distinct `#`, `+`, and `x` shapes appear only
+in ASCII, no-color, and monochrome output. Needs attention also pulses, so in a sidebar row Completed
+and Failed differ by hue alone, which a deuteranope sees as ΔE 2.8. The state word appears in
+tooltips and legends, not in the row. No theme can repair this, because the hues are fixed in every
+theme, and this proposal does not change them. Open decision 12 proposes a shape cue.
 
 ## Settings
 
@@ -521,3 +524,8 @@ Each decision is listed with a recommendation and is vetoable:
     warnings rather than refusing the import.
 11. **Scoring script.** Keep it out of the repository. The gate test in `crates/color-themes`
     becomes the durable check, and the ranking proxies remain proposal evidence only.
+12. **Outcome shape in color modes.** Give Completed and Failed distinct shapes at every color
+    level, for example by reusing the existing outcome fallbacks or a checked and crossed hexagon
+    pair, while keeping the fixed hues. The alternative, an opt-in accessibility setting, leaves the
+    default sidebar ambiguous for viewers with red-green color vision deficiency. This decision
+    belongs to the TUI and GUI status owners rather than to theming.
