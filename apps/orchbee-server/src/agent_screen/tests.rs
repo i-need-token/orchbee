@@ -93,6 +93,21 @@ fn devin_thinking_footer_is_working_and_missing_evidence_is_unknown() {
  ↑↓ select · ↵ confirm · esc cancel",
             Blocked,
         ),
+        // A first-run choice must be answered before Devin proceeds; the question alone is not one.
+        (
+            "3    }
+Detected light theme but configured for dark. Switch?
+❭ 1 Yes, switch theme
+  2 No, keep current
+  3 Yes, always auto-detect
+  4 No, don't ask again
+↑↓ select · ↵ confirm",
+            Blocked,
+        ),
+        (
+            "The log says: Detected light theme but configured for dark. Switch?",
+            Unknown,
+        ),
     ] {
         let explanation = engine.explain(Provider::Devin, input(screen)).unwrap();
         explanation.validate().unwrap();
