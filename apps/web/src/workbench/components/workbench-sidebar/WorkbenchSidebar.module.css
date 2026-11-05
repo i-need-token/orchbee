@@ -53,11 +53,15 @@
 	color: var(--ob-sys-color-icon-secondary);
 }
 
+/* The fixed rows' labels sit on their icons' center line as the list's text does (G19). */
 .label {
 	min-width: var(--ob-ref-space-0);
+	padding-block: var(--ob-ref-space-1);
 	text-align: start;
 	overflow: hidden;
+	text-box: trim-both cap alphabetic;
 	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
 	white-space: nowrap;
 }
 
