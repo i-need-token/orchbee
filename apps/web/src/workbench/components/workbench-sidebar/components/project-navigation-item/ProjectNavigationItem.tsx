@@ -14,7 +14,7 @@ import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../mode
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
-import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
+import type { SidebarDragItem } from '../../model/sidebar-drag-destination';
 import type { WorkbenchSidebarWorkspaceLocation } from '../../hooks/useWorkbenchSidebarWorkspaceLocations';
 import type { ProjectWorktreeRows, WorkspaceWorktreeMenu } from '../../hooks/useWorkspaceWorktrees';
 import type {
@@ -44,9 +44,11 @@ interface ProjectNavigationItemProps {
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
-	readonly displacement: 'down' | 'up' | null;
+	/** Held by a drag: a Project keeps its look and moves with its Workspaces. */
 	readonly dragging: boolean;
 	readonly expanded: boolean;
+	/** The Workspace a drag holds; a folded group shows it alone while it stands there. */
+	readonly heldWorkspaceId: string | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly project: WorkbenchProject | null;
@@ -56,12 +58,7 @@ interface ProjectNavigationItemProps {
 	 * and a Project menu for the Project's first Workspace.
 	 */
 	readonly refreshWorktrees: (workspaceId: string) => void;
-	readonly onPointerDown: (projectId: string, event: PointerEvent<HTMLDivElement>) => void;
-	readonly reorderActive: boolean;
-	readonly reorderWorkspace: (
-		workspaceId: string,
-		beforeWorkspaceId: string | null,
-	) => Promise<unknown>;
+	readonly onEntryPointerDown: (item: SidebarDragItem, event: PointerEvent<HTMLElement>) => void;
 	readonly removeProject: (projectId: string) => void;
 	readonly showProjectRename: (projectId: string) => void;
 	readonly showWorkspaceRename: (workspaceId: string) => void;
@@ -90,17 +87,15 @@ export function ProjectNavigationItem({
 	setWorkspaceProject,
 	showWorkspaceProjectCreation,
 	deleteWorkspace,
-	displacement,
 	dragging,
 	expanded,
+	heldWorkspaceId,
 	messages,
 	navigateAgent,
 	project,
 	projectWorktreeRows,
 	refreshWorktrees,
-	onPointerDown,
-	reorderActive,
-	reorderWorkspace,
+	onEntryPointerDown,
 	removeProject,
 	showProjectRename,
 	showWorkspaceRename,
@@ -120,11 +115,10 @@ export function ProjectNavigationItem({
 		!expanded &&
 		activeLocation.kind === 'workspace' &&
 		workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
-	// A held Workspace becomes current as the drag starts and stays current wherever it lands.
-	const workspaceReorder = useNavigationReorderDrag(workspaces, reorderWorkspace, (workspaceId) => {
-		if (activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspaceId) return;
-		activateWorkspace(workspaceId, 'other');
-	});
+	// A folded group stays folded under a drag, yet shows the held Workspace standing in it.
+	const shownWorkspaces = expanded
+		? workspaces
+		: workspaces.filter((workspace) => workspace.id === heldWorkspaceId);
 	// A Project's Worktree rows read the repository of its first Workspace, as the TUI's do.
 	const worktreeSourceId = workspaces[0]?.id ?? null;
 	const refreshProjectWorktrees = (open: boolean) => {
@@ -209,13 +203,10 @@ export function ProjectNavigationItem({
 		<li
 			className={styles['project']}
 			data-dragging={dragging || undefined}
-			data-navigation-reorder-id={project?.id}
 			data-project-id={project?.id}
-			data-project-reorder-active={reorderActive || undefined}
-			data-project-reorder-displacement={displacement ?? undefined}
 		>
 			{project === null || newWorkspaceMenu === null ? (
-				// Recents only folds: it has no menu and neither starts nor receives a drag.
+				// Recents only folds: it has no menu and is neither held nor a destination.
 				<div className={styles['heading']} data-recents-row='true'>
 					{headingContent}
 				</div>
@@ -230,11 +221,15 @@ export function ProjectNavigationItem({
 						render={
 							<div
 								className={styles['heading']}
+								data-drag-entry='project'
+								data-drag-id={project.id}
 								data-navigation-reorder-row='true'
 								data-project-reorder-row='true'
 								onContextMenuCapture={suppressDuplicateNavigationContextMenu}
 								onKeyDown={openNavigationRowMenuFromKeyboard}
-								onPointerDown={(event) => onPointerDown(project.id, event)}
+								onPointerDown={(event) =>
+									onEntryPointerDown({ id: project.id, kind: 'project' }, event)
+								}
 							/>
 						}
 					>
@@ -292,13 +287,9 @@ export function ProjectNavigationItem({
 					/>
 				</ContextMenu>
 			)}
-			{expanded && (
-				<ul
-					ref={workspaceReorder.listRef}
-					className={styles['workspaceList']}
-					data-workspace-reorder-dragging={workspaceReorder.draggingItemId ?? undefined}
-				>
-					{workspaces.map((workspace) => (
+			{shownWorkspaces.length > 0 && (
+				<ul className={styles['workspaceList']}>
+					{shownWorkspaces.map((workspace) => (
 						<WorkspaceNavigationRow
 							key={workspace.id}
 							active={
@@ -309,19 +300,15 @@ export function ProjectNavigationItem({
 								(overview) => overview.workspaceId === workspace.id,
 							)}
 							deleteWorkspace={deleteWorkspace}
-							displacement={
-								workspaceReorder.displacedItemIds.includes(workspace.id)
-									? workspaceReorder.displacementDirection
-									: null
-							}
-							dragging={workspaceReorder.draggingItemId === workspace.id}
+							dragging={workspace.id === heldWorkspaceId}
 							location={workspaceLocations.get(workspace.id)}
 							menuFocus={menuFocus}
 							messages={messages}
 							navigateAgent={navigateAgent}
-							onPointerDown={workspaceReorder.onItemPointerDown}
+							onPointerDown={(event) =>
+								onEntryPointerDown({ id: workspace.id, kind: 'workspace' }, event)
+							}
 							refreshWorktrees={refreshWorktrees}
-							reorderActive={workspaceReorder.displacementAnimated}
 							setWorkspaceProject={setWorkspaceProject}
 							showWorkspaceProjectCreation={showWorkspaceProjectCreation}
 							showWorkspaceRename={showWorkspaceRename}

@@ -125,22 +125,16 @@ function changeAction(
 				projectId: change.projectId,
 				workspaceId: change.workspaceId,
 			});
-		case 'workspace-reordered': {
-			const workspace = snapshot.navigation.workspaces.find(
-				(candidate) => candidate.workspaceId === change.workspaceId,
-			);
-			return workspace === undefined
-				? null
-				: readServerWorkbenchAction({
-						kind: 'navigation.configure',
-						operation: {
-							beforeWorkspaceId: change.beforeWorkspaceId,
-							kind: 'move-workspace',
-							projectId: workspace.projectId,
-							workspaceId: change.workspaceId,
-						},
-					});
-		}
+		case 'workspace-moved':
+			return readServerWorkbenchAction({
+				kind: 'navigation.configure',
+				operation: {
+					beforeWorkspaceId: change.beforeWorkspaceId,
+					kind: 'move-workspace',
+					projectId: change.projectId,
+					workspaceId: change.workspaceId,
+				},
+			});
 		case 'workspace-updated':
 			return readServerWorkbenchAction({
 				kind: 'workspace.rename',

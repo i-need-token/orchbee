@@ -30,7 +30,7 @@
 		"apps/web/src/workbench/components/workbench-sidebar/hooks/useWorkspaceWorktrees.ts",
 		"apps/web/src/workbench/actions/registerWorkbenchWorktreeActions.ts",
 		"apps/web/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarWorkspaceLocations.ts",
-		"apps/web/src/workbench/components/workbench-sidebar/hooks/useNavigationReorderDrag.ts",
+		"apps/web/src/workbench/components/workbench-sidebar/hooks/useSidebarDrag.ts",
 		"apps/web/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
 		"apps/web/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-navigation-row/WorkspaceNavigationRow.tsx",
 		"apps/web/src/workbench/components/workbench-sidebar/components/sidebar-truncation-tooltip/SidebarTruncationTooltip.tsx",
@@ -48,9 +48,16 @@
 				"Inspect expanded and collapsed Projects and the trailing Recents group, current and default Workspace rows, and the Agent rows' guide line; headings take no fill, and a heading folded around the current Workspace takes no current fill.",
 				"Tab into the list and verify it enters at the current Workspace and leaves on the next Tab; move with ↑ ↓ Home End, fold and enter rows with → and ←, open a row with Enter and land in its terminal, and return with Esc. Inspect pointer hover and open-menu disclosure at wide and compact sizes; a Workspace's ↑↓ and unread dot give way to its ⋯ and ×.",
 				"Hover Project and Workspace rows, open their menus from ⋯ or +, right-click them, and inspect retained owner-row interaction states; a pointer-opened menu starts below its trigger, a keyboard-opened one beside its row with top edges level.",
-				"Open a Project's New Workspace submenu and inspect New Worktree, the Folders group of the directories its Workspaces record, and the Git Worktrees group once Git answers; a Project that records no folder leads with New Workspace.",
-				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
-				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following copy 8 px right of the press, midpoint squeeze, one-row edge scrolling every 120 ms, release settlement, and cancellation; the held Workspace becomes current as the drag starts and stays current after release or cancellation, and Project disclosure is unchanged."
+				"Open a Project's New Workspace submenu and inspect New Worktree, the Folders group of the directories its Workspaces record, and the Git Worktrees group once Git answers; a Project that records no folder leads with New Workspace."
+			]
+		},
+		{
+			"exportName": "ProjectWorkspaceDrag",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--project-workspace-drag",
+			"states": [
+				"Drag a Project across the other Projects and onto End of Projects: it moves as one group with its Workspaces and keeps its look, a raised copy follows the pointer 8 px right of the press, touching a heading moves it past that heading, and the list scrolls one row every 120 ms at its edges.",
+				"Drag a Workspace within its Project, into another Project, onto a folded Project's heading, and onto No Project: it stands at its destination with the current fill and without its chevron or Agent rows, a folded destination shows it alone, No Project turns solid while the pointer is on it, and Esc restores the order; the held Workspace becomes current as the drag latches and stays current after release or Esc, and Project disclosure is unchanged."
 			]
 		},
 		{
@@ -103,7 +110,7 @@
 				"Compare a Workspace on a branch with commits to push and pull, one with only commits to pull, one with no divergence, and one outside Git that names its folder; verify ↑ counts take the success color and ↓ counts the warning color in the row's end area.",
 				"Narrow the sidebar to 200px and verify the name and the long branch truncate at their end while ↑↓ and the chevron keep their room; hover the second line for the full directory.",
 				"Verify the chevron and row tools stay centred on the name line, and that every Workspace row is 38 px, with or without a location.",
-				"Drag a Workspace across its siblings and verify each squeeze moves by the dragged row's height without overlap or gaps.",
+				"Drag a Workspace across its siblings and verify the rows close up around it without overlap or gaps.",
 				"Scroll a long list and verify a hairline marks each edge with rows out of sight and the overlay thumb shows while the pointer is over the list.",
 				"Narrow the window below 731px and verify the sidebar steps aside, the toggle opens it at full height over an undimmed terminal, and Esc, a click outside, or choosing a row closes it; widen the window and verify it docks as it was left."
 			]
@@ -132,7 +139,7 @@
 		"New workspace and Search occupy separate full-width fixed rows in that order. The independently scrolling list has no heading of its own and retains the trailing Project creation menu.",
 		"While no Workspace exists, the main area stays blank, with no title, onboarding statement, or second creation control: the fixed New workspace, Search, and Settings rows remain the ways forward, and a plain New Tab runs New Workspace while New Tab in a group, at a position, or with a launch profile stays unavailable.",
 		"Projects come first in their order, then the Workspaces outside any Project under a Recents heading, always last and absent while it would be empty; no group heading shows a member count.",
-		"Project and Recents headings are never current, even folded around the active Workspace. Recents folds like a Project but has no menu and neither starts nor receives a drag; activating or creating one of its Workspaces opens it, as it opens a Project.",
+		"Project and Recents headings are never current, even folded around the active Workspace. Recents folds like a Project but has no menu and is neither held nor a destination of a drag; activating or creating one of its Workspaces opens it, as it opens a Project.",
 		"The list is one tab stop: Tab enters at the current Workspace, else the heading folded around it, and leaves for the next region; row tools are never tab stops and have no pointer hit target while hidden. Inside, the TUI's keys apply: ↑ ↓ Home End move, → unfolds or enters, ← folds or leaves, Enter opens, Shift+N starts a Workspace, / searches, F1 opens Shortcuts, Ctrl+↑↓ (⌘ on macOS) reorders, Shift+←→ and 0 set the width, and Esc returns to the terminal.",
 		"Exact row-local F2, Shift+F10 and unmodified ContextMenu open the existing options dropdown for that row, beside the row; composing, repeated, extra-modifier, and portaled-menu input never opens another menu or reaches a different object's actions.",
 		"Context-menu dismissal returns to the row's valid explicit options trigger through the shared primitive, while outside interaction, dialog handoff, and row removal cannot cause late focus theft.",
@@ -150,11 +157,11 @@
 		"Remove Worktree… appears only for a checkout the authority proves the Workspace may remove, asks once through the shared destructive Action confirmation, and keeps the branch; a stopped removal asks again before it resumes, and Resume Worktree Removal… takes Remove Worktree…'s place while the authority keeps it.",
 		"Every Workspace row is two lines and 38 px. The end area is reserved at all times, so the name truncates at one width: it shows ↑N and ↓N only when positive and the folded unread dot at rest, and ⋯ and × under the pointer or focus. The second line names the branch, otherwise the folder name, ~ for home, and stays blank while neither is known.",
 		"A held name, folder, and Git facts from the location source stand together, so a moved row changes all three at once; Workbench never decides location facts and observes a source only while the sidebar is mounted.",
-		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze by its measured footprint into its vacated slot, and completion does not replay the previous displacement.",
-		"Workspace reordering stays within the source nullable group and preserves terminal ownership, identity, and Project disclosure; a held Workspace becomes current as the drag starts, as in the TUI, and stays current whether the drag commits or is cancelled.",
+		"A drag follows the TUI's destination rules and shows the canonical order with its one navigation.configure operation applied; only release asks the Server for that move, and the list keeps showing it until the move settles.",
+		"A Workspace drag may land in any Project or outside every Project and preserves terminal ownership, identity, and Project disclosure; a held Workspace becomes current as the drag latches, as in the TUI, and stays current whether the drag commits or is cancelled. Every key belongs to a live drag, and Esc cancels it.",
 		"A Workspace with no live Agent shows no fold chevron; retained ended Sessions never leave an Agent count, status, or detail row.",
 		"A Workspace Agent summary counts deduplicated live Sessions and exposes its resolved status through text or an accessible label as well as color.",
-		"Every Workspace lists its Agent rows until this Client folds them, each Workspace independently; a fold is client-local, lasts while its Workspace exists through regrouping, a collapsed Project, a hidden sidebar, and Agents ending, and only the dragged Workspace hides its rows during reorder.",
+		"Every Workspace lists its Agent rows until this Client folds them, each Workspace independently; a fold is client-local, lasts while its Workspace exists through regrouping, a collapsed Project, a hidden sidebar, and Agents ending, and only the held Workspace hides its rows during a drag.",
 		"A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first, at most five or four and a muted +N; the line's tooltip legend and the row's accessible name say each distinct state in words, and only a folded Workspace row repeats its Agents' unread marker.",
 		"Expanded Agent detail is a flat list only: it never repeats Tabs, terminal-only rows, panel thumbnails, prompts, commands, provider errors, or internal identifiers.",
 		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",

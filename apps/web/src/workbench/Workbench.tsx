@@ -193,7 +193,7 @@ export function Workbench({
 				workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
 				removeProject={view.removeProject}
 				reorderProject={view.reorderProject}
-				reorderWorkspace={view.reorderWorkspace}
+				moveWorkspace={view.moveWorkspace}
 				renameProject={view.renameProject}
 				searchLabel={view.searchLabel}
 				searchShortcutId={view.searchShortcutId}

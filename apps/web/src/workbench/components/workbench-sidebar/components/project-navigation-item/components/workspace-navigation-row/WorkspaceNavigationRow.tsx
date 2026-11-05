@@ -56,15 +56,14 @@ interface WorkspaceNavigationRowProps {
 	) => void;
 	readonly agentOverview: WorkbenchWorkspaceAgentOverviewView | undefined;
 	readonly deleteWorkspace: (workspaceId: string) => void;
-	readonly displacement: 'down' | 'up' | null;
+	/** Held by a drag: it stands where it would land, its disclosure and Agent rows tucked away. */
 	readonly dragging: boolean;
 	readonly location: WorkbenchSidebarWorkspaceLocation | undefined;
 	readonly menuFocus: ProjectNavigationMenuFocus;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
-	readonly onPointerDown: (workspaceId: string, event: PointerEvent<HTMLDivElement>) => void;
+	readonly onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
 	readonly refreshWorktrees: (workspaceId: string) => void;
-	readonly reorderActive: boolean;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
 	readonly showWorkspaceRename: (workspaceId: string) => void;
@@ -84,7 +83,6 @@ export function WorkspaceNavigationRow({
 	activateWorkspace,
 	agentOverview,
 	deleteWorkspace,
-	displacement,
 	dragging,
 	location,
 	menuFocus,
@@ -92,7 +90,6 @@ export function WorkspaceNavigationRow({
 	navigateAgent,
 	onPointerDown,
 	refreshWorktrees,
-	reorderActive,
 	setWorkspaceProject,
 	showWorkspaceProjectCreation,
 	showWorkspaceRename,
@@ -151,10 +148,9 @@ export function WorkspaceNavigationRow({
 		<li
 			className={styles['workspace']}
 			data-dragging={dragging || undefined}
-			data-navigation-reorder-id={workspace.id}
+			data-drag-entry='workspace'
+			data-drag-id={workspace.id}
 			data-workspace-id={workspace.id}
-			data-workspace-reorder-active={reorderActive || undefined}
-			data-workspace-reorder-displacement={displacement ?? undefined}
 		>
 			<ContextMenu
 				onOpenChange={(open, details) => {
@@ -171,7 +167,7 @@ export function WorkspaceNavigationRow({
 							onClick={activate}
 							onContextMenuCapture={suppressDuplicateNavigationContextMenu}
 							onKeyDown={openNavigationRowMenuFromKeyboard}
-							onPointerDown={(event) => onPointerDown(workspace.id, event)}
+							onPointerDown={onPointerDown}
 						/>
 					}
 				>
@@ -200,7 +196,7 @@ export function WorkspaceNavigationRow({
 						>
 							{name}
 						</SidebarTruncationTooltip>
-						{agentOverview === undefined ? null : (
+						{agentOverview === undefined || dragging ? null : (
 							<Tooltip>
 								<TooltipTrigger
 									render={
@@ -300,7 +296,7 @@ export function WorkspaceNavigationRow({
 					finalFocus={() => menuFocus.finalFocus(workspace.id)}
 				/>
 			</ContextMenu>
-			{/* A dragged Workspace leaves with its row alone, as a dragged Project folds. */}
+			{/* A held Workspace moves as its row alone; its Agent rows return where it lands. */}
 			{agentOverview !== undefined && expanded && !dragging && (
 				<WorkspaceAgentList
 					navigateAgent={(presentationId) =>

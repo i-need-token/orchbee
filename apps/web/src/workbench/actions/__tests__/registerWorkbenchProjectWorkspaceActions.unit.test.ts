@@ -146,7 +146,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		});
 	});
 
-	it('asks the authority to reorder Workspaces and leaves the read model to its publication', async () => {
+	it('asks the authority to move Workspaces within and across Projects and leaves the read model to its publication', async () => {
 		const change = vi.fn<WorkbenchAuthority['change']>(() =>
 			Promise.resolve({ kind: 'completed' }),
 		);
@@ -160,23 +160,32 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			]),
 		);
 		const before = projectWorkspaceRuntime.getSnapshot();
+		const moves = [
+			{ beforeWorkspaceId: PRIMARY_WORKSPACE_ID, projectId: FIRST_PROJECT_ID },
+			// Out of every Project, to the end of that list.
+			{ beforeWorkspaceId: null, projectId: null },
+		];
 
-		await expect(
-			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
-				beforeWorkspaceId: PRIMARY_WORKSPACE_ID,
+		for (const move of moves) {
+			await expect(
+				execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
+					...move,
+					workspaceId: FEATURE_WORKSPACE_ID,
+				}),
+			).resolves.toEqual({ kind: 'completed' });
+		}
+
+		expect(change.mock.calls.map(([, requested]) => requested)).toEqual(
+			moves.map((move) => ({
+				...move,
+				type: 'workspace-moved',
 				workspaceId: FEATURE_WORKSPACE_ID,
-			}),
-		).resolves.toEqual({ kind: 'completed' });
-
-		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-			beforeWorkspaceId: PRIMARY_WORKSPACE_ID,
-			type: 'workspace-reordered',
-			workspaceId: FEATURE_WORKSPACE_ID,
-		});
+			})),
+		);
 		expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
 	});
 
-	it('rejects stale reorder targets without asking the authority', async () => {
+	it('rejects stale move targets without asking the authority', async () => {
 		const change = vi.fn<WorkbenchAuthority['change']>(() =>
 			Promise.resolve({ kind: 'completed' }),
 		);
@@ -192,11 +201,14 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		);
 
 		for (const input of [
-			// The only Workspace of its Project.
-			{ beforeWorkspaceId: null, workspaceId: OTHER_WORKSPACE_ID },
-			// A Workspace of another Project.
-			{ beforeWorkspaceId: OTHER_WORKSPACE_ID, workspaceId: FEATURE_WORKSPACE_ID },
-			{ beforeWorkspaceId: null, workspaceId: 'workspace-missing' },
+			// An anchor outside the destination Project.
+			{
+				beforeWorkspaceId: OTHER_WORKSPACE_ID,
+				projectId: FIRST_PROJECT_ID,
+				workspaceId: FEATURE_WORKSPACE_ID,
+			},
+			{ beforeWorkspaceId: null, projectId: 'project-missing', workspaceId: FEATURE_WORKSPACE_ID },
+			{ beforeWorkspaceId: null, projectId: FIRST_PROJECT_ID, workspaceId: 'workspace-missing' },
 		]) {
 			await expect(execute(WORKBENCH_ACTION_IDS.reorderWorkspace, input)).resolves.toMatchObject({
 				code: 'action-unavailable',

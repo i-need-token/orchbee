@@ -5,24 +5,6 @@
 	gap: var(--ob-ref-space-0-5);
 }
 
-.workspace[data-workspace-reorder-active] {
-	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
-}
-
-.workspace[data-workspace-reorder-displacement='down'] {
-	transform: translateY(var(--ob-comp-workbench-navigation-reorder-shift));
-	will-change: transform;
-}
-
-.workspace[data-workspace-reorder-displacement='up'] {
-	transform: translateY(calc(var(--ob-comp-workbench-navigation-reorder-shift) * -1));
-	will-change: transform;
-}
-
-.workspace[data-dragging] {
-	min-height: var(--ob-comp-workbench-navigation-reorder-block-size);
-}
-
 /* No leading column: the name aligns with the heading's text. 38 px = 4 + 18 + 12 + 4: the name
    line takes its type's full line height and holds the 18 px tools, 4 px from the top and the end;
    line 2 runs 4 px under its type's line height, and its text, centered optically, overflows the
@@ -68,7 +50,9 @@
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
-.workspace[data-dragging] .row {
+/* The raised copy of a held row. The held Workspace itself stands in the list with the current
+   fill, since it became current as the drag latched. */
+.row[data-drag-ghost] {
 	position: fixed;
 	z-index: var(--ob-ref-layer-overlay);
 	top: var(--ob-comp-workbench-navigation-reorder-block-start);
@@ -199,7 +183,8 @@
 	visibility: hidden;
 }
 
-.workspace[data-dragging] .tools {
+.row[data-drag-ghost] .tools,
+.row[data-drag-ghost] .chevron {
 	visibility: hidden;
 }
 

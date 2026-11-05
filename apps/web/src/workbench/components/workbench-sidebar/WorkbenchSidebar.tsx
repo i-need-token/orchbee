@@ -6,7 +6,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from '@orchbee/ui/components';
-import type { ReactNode } from 'react';
+import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
@@ -14,7 +14,7 @@ import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/work
 import { NameDialog } from '../name-dialog/NameDialog';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
-import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
+import { useSidebarDrag } from './hooks/useSidebarDrag';
 import { useSidebarScrollEdges } from './hooks/useSidebarScrollEdges';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
@@ -56,8 +56,10 @@ interface WorkbenchSidebarProps {
 	/** The modifier that moves a row with ↑ and ↓: ⌘ on macOS, where ⌃↑ opens Mission Control. */
 	readonly reorderModifier: 'ctrl' | 'meta';
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
-	readonly reorderWorkspace: (
+	/** Moves a Workspace before another of `projectId`'s, or to the end of that list when null. */
+	readonly moveWorkspace: (
 		workspaceId: string,
+		projectId: string | null,
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
@@ -105,7 +107,7 @@ export function WorkbenchSidebar({
 	removeProject,
 	reorderModifier,
 	reorderProject,
-	reorderWorkspace,
+	moveWorkspace,
 	renameProject,
 	resetSidebarWidth,
 	resizeSidebar,
@@ -126,7 +128,7 @@ export function WorkbenchSidebar({
 	workspaceAgentOverviews,
 	workspaceLocationSource,
 	worktreeCommands,
-}: WorkbenchSidebarProps): ReactNode {
+}: WorkbenchSidebarProps): React.ReactNode {
 	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState);
@@ -139,21 +141,38 @@ export function WorkbenchSidebar({
 		kind: 'refuse',
 		reason: projectNavigationMessages.nameRequired,
 	} as const;
-	const projectReorder = useNavigationReorderDrag(projectWorkspaceState.projects, reorderProject);
-	// Recents, the Workspaces outside any Project, is the last group, listed only while it has one.
-	const navigationGroups = projectWorkspaceState.workspaces.some(
-		(workspace) => workspace.projectId === null,
-	)
-		? [...projectWorkspaceState.projects, null]
-		: projectWorkspaceState.projects;
-	const projectRename = view.projectRename;
-	const workspaceProjectCreation = view.workspaceProjectCreation;
-	const workspaceRename = view.workspaceRename;
 	const workspaceActivation = useWorkspaceCreationActivation({
 		subscribeNavigation,
 		activateWorkspace: (workspaceId) => activateWorkspace(workspaceId, 'other'),
 		projectWorkspaceState,
 	});
+	const drag = useSidebarDrag({
+		holdWorkspace: (workspaceId) => {
+			const { activeLocation } = projectWorkspaceState;
+			if (activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspaceId) return;
+			workspaceActivation.cancel();
+			activateWorkspace(workspaceId, 'other');
+		},
+		moveWorkspace,
+		reorderProject,
+		state: projectWorkspaceState,
+	});
+	// While a drag shows a move, the list shows its order; everything else stays canonical.
+	const shownState = React.useMemo(
+		() =>
+			drag.order === projectWorkspaceState
+				? projectWorkspaceState
+				: { ...projectWorkspaceState, ...drag.order },
+		[drag.order, projectWorkspaceState],
+	);
+	const heldWorkspaceId = drag.held?.kind === 'workspace' ? drag.held.id : null;
+	// Recents, the Workspaces outside any Project, is the last group, listed only while it has one.
+	const navigationGroups = shownState.workspaces.some((workspace) => workspace.projectId === null)
+		? [...shownState.projects, null]
+		: shownState.projects;
+	const projectRename = view.projectRename;
+	const workspaceProjectCreation = view.workspaceProjectCreation;
+	const workspaceRename = view.workspaceRename;
 	const keyboard = useWorkbenchSidebarKeyboard({
 		activateWorkspace: (workspaceId) => {
 			workspaceActivation.cancel();
@@ -167,7 +186,7 @@ export function WorkbenchSidebar({
 		onShortcuts,
 		reorderModifier,
 		reorderProject,
-		reorderWorkspace,
+		moveWorkspace,
 		resetSidebarWidth,
 		resizeSidebar,
 		returnToTerminal,
@@ -239,10 +258,9 @@ export function WorkbenchSidebar({
 					>
 						{/* Project and Recents headings name the groups; the list shows no heading of its own. */}
 						<ul
-							ref={projectReorder.listRef}
 							aria-label={projectLabel}
 							className={styles['projectList']}
-							data-project-reorder-dragging={projectReorder.draggingItemId ?? undefined}
+							data-sidebar-dragging={drag.held === null ? undefined : drag.held.kind}
 						>
 							{navigationGroups.map((project) => (
 								<ProjectNavigationItem
@@ -254,18 +272,15 @@ export function WorkbenchSidebar({
 									activeLocation={projectWorkspaceState.activeLocation}
 									createWorkspace={createWorkspace}
 									deleteWorkspace={deleteWorkspace}
-									displacement={
-										project !== null && projectReorder.displacedItemIds.includes(project.id)
-											? projectReorder.displacementDirection
-											: null
-									}
 									expanded={
 										project === null
 											? projectWorkspaceState.recentsExpanded
-											: projectWorkspaceState.expandedProjectIds.includes(project.id) &&
-												projectReorder.draggingItemId !== project.id
+											: projectWorkspaceState.expandedProjectIds.includes(project.id)
 									}
-									dragging={projectReorder.draggingItemId === project?.id}
+									dragging={
+										project !== null && drag.held?.kind === 'project' && drag.held.id === project.id
+									}
+									heldWorkspaceId={heldWorkspaceId}
 									messages={projectNavigationMessages}
 									navigateAgent={(input) => {
 										workspaceActivation.cancel();
@@ -274,9 +289,7 @@ export function WorkbenchSidebar({
 									project={project}
 									projectWorktreeRows={workspaceWorktrees.projectRows}
 									refreshWorktrees={workspaceWorktrees.refresh}
-									onPointerDown={projectReorder.onItemPointerDown}
-									reorderActive={projectReorder.displacementAnimated}
-									reorderWorkspace={reorderWorkspace}
+									onEntryPointerDown={drag.onEntryPointerDown}
 									removeProject={removeProject}
 									showProjectRename={view.showProjectRename}
 									showWorkspaceRename={view.showWorkspaceRename}
@@ -286,17 +299,31 @@ export function WorkbenchSidebar({
 									workspaceAgentOverviews={workspaceAgentOverviews}
 									workspaceLocations={workspaceLocations}
 									worktreeMenu={workspaceWorktrees.menu}
-									state={projectWorkspaceState}
+									state={shownState}
 									setWorkspaceProject={setWorkspaceProject}
 									showWorkspaceProjectCreation={view.showWorkspaceProjectCreation}
 								/>
 							))}
 						</ul>
+						{/* Drop areas exist only while dragging: out of every Project, or after the last. */}
+						{drag.dropArea === null ? null : (
+							<div
+								className={styles['dropArea']}
+								data-hovered={drag.dropAreaHovered || undefined}
+								data-sidebar-drop-area={drag.dropArea}
+							>
+								{drag.dropArea === 'workspace'
+									? projectNavigationMessages.dropNoProject
+									: projectNavigationMessages.dropEndOfProjects}
+							</div>
+						)}
 					</div>
 					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='start' />
 					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='end' />
 					<span aria-hidden='true' className={styles['scrollThumb']} />
 				</div>
+				{/* Holds the raised copy of a dragged row, so it outlives the row's move between lists. */}
+				<div aria-hidden='true' className={styles['dragLayer']} data-sidebar-drag-layer='true' />
 				<div className={styles['footer']}>
 					<Button
 						aria-disabled={onSettings === undefined}

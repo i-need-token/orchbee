@@ -255,6 +255,7 @@ describe('workbench action contracts', () => {
 		).toEqual({
 			data: {
 				beforeWorkspaceId: 'workspace-2',
+				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			},
 			success: true,

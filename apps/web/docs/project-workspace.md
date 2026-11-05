@@ -113,7 +113,7 @@ while it would be empty. The list has no heading of its own, and no group headin
 count. A heading is never current, even folded around the active Workspace, although a sidebar focus
 request lands on that heading while the active Workspace is hidden. Recents folds like a Project
 through `recentsExpanded`, which this client's view keeps beside `expandedProjectIds` and opens by
-default; it has no menu and neither starts nor receives a drag. Activating a Workspace, or creating one
+default; it has no menu and is neither held nor a destination of a drag. Activating a Workspace, or creating one
 here, opens its Project or Recents.
 
 ## Workspace locations
@@ -197,60 +197,63 @@ The Workspace menu holds Move to Project ▸ and Rename, then New Worktree… an
 
 The initiating client captures an activation intent before an async Folder creation or a Worktree creation or opening begins. Completion names an exact Workspace and waits for its publication, in either response/publication order. Only the newest live intent may activate it once. Workspace, Tab or Panel navigation, explicit same-row navigation, a newer creation or unmount retires the old intent. Grouping changes and publication of another context do not count as navigation. No Project identity participates in readiness, and a closed source cannot be resurrected by completion. Readiness and focus use committed React projections; a suspended or discarded render cannot publish membership or redirect an operation. A late completion still observes the latest committed projection.
 
-## Project and Workspace reorder gestures
+## Project and Workspace drag
 
-The sidebar supports primary mouse or pen pointer reordering for two or more top-level Projects and
-for two or more Workspace rows within one current group, including ungrouped Workspaces. Project and Workspace ellipsis controls,
-cross-Project drag movement, cross-section movement, Project nesting, touch long-press, and
-keyboard sorting remain outside this delivery. The initial Workspace created with a Project has no
-fixed ordering role; every Workspace in the same group participates in the same ordering model.
+The sidebar drags as the TUI does (`apps/orchbee/docs/tui-shell-layout.md`), with one drag state for
+the whole list rather than one per group. A primary mouse or pen press holds a Project heading or a
+Workspace row; chevrons, +, ⋯, ×, Agent rows and Recents never start a drag, and touch long-press
+stays outside this delivery. Movement of at least four CSS pixels latches the drag; until then a
+release is an ordinary click. The gesture state is `idle`, `armed`, `dragging` with the move it
+shows, or `settling`, and `sidebar-drag-state` holds its transitions.
 
-As in the TUI, a held Workspace becomes current the moment the press turns into a drag, without
-moving keyboard focus, and stays current whether the drag commits or is cancelled; a Project is never
-current. The semantic gesture state is `idle`, `armed`, or `dragging`. `armed` records the pointer identity,
-source identity, owning reorder scope, and activation origin without changing authoritative order or
-Project disclosure. Movement of at least four CSS pixels activates `dragging`. The DOM adapter
-projects stable direct sibling-row layout offsets into viewport coordinates and reports the first
-non-source sibling whose vertical midpoint is below the dragged source row's vertical midpoint as
-the nullable `beforeId`; no such sibling means the end of that list. Offset parents outside the list
-must not be counted twice, and the pointer's grab position cannot delay or advance a squeeze crossing.
-Project hit testing uses only top-level Project rows. Workspace hit testing uses only the Workspace
-rows with the source Workspace's current nullable Project membership.
+**Destinations.** `sidebar-drag-destination` mirrors the TUI's destination rules over the canonical
+order, and `readSidebarDragHit` reads what the pointer is over from the list as shown:
 
-While dragging, authoritative order and DOM sibling order remain unchanged. The source row follows
-the pointer vertically as a translated, elevated surface, while its original compact row slot keeps
-list geometry stable. Each time the dragged row's midpoint crosses a sibling row's vertical midpoint,
-the siblings between the source and target animate into the vacated slot, including the final sibling
-when moving to the end. This squeeze motion is the same ordering language used by horizontal and
-vertical Tabs; neither Project nor Workspace reorder uses a separate insertion marker. Sibling
-displacement uses the source row's own footprint, its height plus the gap to its neighbor, measured
-once when the drag activates, rather than a live transformed rectangle, so one-line and two-line
-Workspace rows squeeze by what they occupy. If the source Project was expanded, only its dragged presentation is compact: authoritative
-`expandedProjectIds` is never changed. Workspace dragging never changes Project disclosure. Near the
-top or bottom of the shared Project viewport, proportional automatic scrolling recomputes the scoped
-target without detaching the source row from the pointer.
+- On a Workspace entry, its Agent rows included, the upper half places the held Workspace before it
+  and the lower half after it, and the held Workspace joins that entry's group, Recents included.
+- A Project heading is one line, so the side away from the held entry decides, as the TUI's one-line
+  rule does. A heading with no other Workspace shown under it, such as a folded Project's, takes a
+  held Workspace in at the end of its list. Otherwise the heading is its Project's top edge: reached
+  from above, the Workspace becomes the Project's first; reached from below, it follows the Workspace
+  shown just above the heading.
+- Projects land only on Project headings; a Project on a Workspace changes nothing.
+- The drop area after the list, with the free space below it, ends the list: **No Project** moves a
+  held Workspace out of every Project, to the end of Recents, and **End of Projects** makes a held
+  Project last. It exists only while a drag is latched, 30 px tall with a dashed strong border, and
+  turns solid on the hovered surface while the pointer is on it.
+- Over the held entry, gaps, Recents' heading and destinations the order refuses, the shown move stays,
+  so a pointer at rest never makes the list oscillate. Outside the list, and on a destination that
+  changes nothing, the canonical order shows.
 
-Pointer movement updates the visible squeeze target. Pointer release commits that last previewed
-target through exactly one Project-reorder or Workspace-reorder Action and returns to `idle`; release
-jitter cannot silently replace the visible target with an unpreviewed placement. A Workspace-reorder
-transition changes only the
-global `workspaces` order within the current membership; it preserves Workspace identities, active location,
-terminal contexts, Project order, Project disclosure, and all Workspace fields. Missing source or target Workspace identities and a target in a different group reject atomically. Self-targeted and
-already-satisfied placements are unchanged. The adapter synchronously removes the active
-displacement transition before the Action changes DOM order, so the committed layout cannot replay
-the old transform.
-Pointer capture begins only after drag activation, so an armed press does not retarget an ordinary
-Project disclosure or Workspace activation click. Release before activation is an ordinary click and
-performs no reorder. A press leaves keyboard focus where it is, so a terminal or the narrow-window
-overlay keeps the keyboard through the drag.
-As in the TUI, a plain Esc cancels an armed or activated drag wherever focus is, and that Esc never
-reaches the focused terminal. Esc, `pointercancel`, unexpected lost pointer capture, unmount, a stale source, or a stale target
-cancels without an Action or order mutation and restores the same disclosure intent. After either
-commit, cancellation, or identity invalidation of an activated drag, the adapter suppresses the
-browser's synthetic trailing click at the document capture boundary so disclosure or activation
-cannot move to another row when pointer capture is unavailable. Repeated, self-targeted, and
-already-satisfied moves are unchanged; missing source or target identities reject without partial
-mutation.
+**Live order.** Each destination is one `navigation.configure` operation, `move-workspace` with its
+destination Project or `move-project`, and the list shows the canonical order with that operation
+applied as the Server would apply it: a Workspace move refills only its destination group's places in
+the global order, and every other group keeps its exact positions. The held entry stands at its
+destination and the other rows close up; a raised copy of the pressed row, on the overlay surface with
+a ring and shadow, follows the pointer 8 px to its right, and nothing dims. A held Workspace becomes
+current as the drag latches, without moving keyboard focus, keeps the current fill, and tucks away its
+disclosure and Agent rows until it lands; a folded group shows the held Workspace alone under its
+heading while it stands there. A held Project, never current, keeps its look and moves with its
+Workspaces. Holding the list's top or bottom edge scrolls it one row every 120 ms. The shown order is
+client presentation only; the canonical order changes only through the Server's publication.
+
+**Commit and cancel.** Release commits the shown move through exactly one Action:
+`workbench.workspace.reorder`, whose input carries the destination Project and the Workspace to land
+before, or `workbench.project.reorder`. Its authority change is the Server's own `move-workspace` or
+`move-project` operation, the same one the TUI sends; Move to Project in the Workspace menu keeps its
+own `workspace.set-project` operation. The list keeps showing the move until the Action settles, so the
+old order never flashes. A release outside the list, Esc, `pointercancel`, lost pointer capture,
+window blur, a resize, unmount, or a canonical change of Project or Workspace order or membership
+cancels without an Action and shows the canonical order again. A Workspace the drag made current stays
+current however the drag ends. Pointer capture moves to the list's scroll region when the drag latches,
+so a held row may leave one group's list for another's, and the browser's synthetic trailing click is
+suppressed after a latched drag or an Esc that cancels a press.
+
+**Keys.** While a press or drag holds the pointer, every key belongs to it, as in the TUI: the window's
+capture phase takes each `keydown`, `keypress` and `keyup` before a terminal or the list sees it and
+prevents its default, and a plain Esc cancels. Keys the browser or the operating system reserves, such
+as closing a browser tab or switching windows, cannot be held back; switching windows blurs the window,
+which cancels the drag.
 
 ## Workspace Agent overview
 
@@ -258,7 +261,7 @@ The sidebar renders zero or more Agent rows directly beneath each Workspace, gro
 
 A Workspace with no Agent has no Agent disclosure. Each Agent row is one line, as in the TUI: its state glyph, what names the Agent and then its provider in quieter text, and the unread dot; the glyph names its state in a tooltip, and Agent rows have no menu. What names the Agent follows the TUI's rule: the Panel name a person chose, then what the terminal's own title names once this window has read it, then the label the Server gave the terminal at creation. Blank text, an automatic number, a console's launch path, and text that only names the provider, as an Agent's idle title does, name nothing, and the provider then stands alone. The TUI first takes a name a person gave the Agent and an Agent report's title; a Client does not read those from the Server, and it reads a terminal's title only from a terminal it has attached. The glyph and color mapping keeps a Done slot, which waits for the Server's Done state. Status priority is blocked, error, done, working, idle, unknown, with no color-only or animated status.
 
-As in the TUI, every Workspace lists its Agent rows until this Client folds them, and each Workspace folds on its own. A fold is client-local and lasts while its Workspace exists: through regrouping, ungrouping, dissolution, a collapsed Project, a hidden sidebar, and Agents that end and start again. A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first and otherwise in row order, one gap apart; more than five show four and a muted `+N`. The line's tooltip names each distinct state in that order, and while the Agent rows are hidden the Workspace row carries their unread marker and its accessible name says those states and unread. A dragged Workspace hides its own Agent rows until the drag ends, as a dragged Project folds; its siblings keep theirs.
+As in the TUI, every Workspace lists its Agent rows until this Client folds them, and each Workspace folds on its own. A fold is client-local and lasts while its Workspace exists: through regrouping, ungrouping, dissolution, a collapsed Project, a hidden sidebar, and Agents that end and start again. A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first and otherwise in row order, one gap apart; more than five show four and a muted `+N`. The line's tooltip names each distinct state in that order, and while the Agent rows are hidden the Workspace row carries their unread marker and its accessible name says those states and unread. A held Workspace tucks away its own Agent rows until the drag ends; its siblings keep theirs.
 
 `workbench.agent.navigate` targets only Workspace and terminal Presentation identity, confirms that the terminal still holds an Agent in that Workspace, re-resolves current topology and then selects the exact Tab, Panel and child, removing conflicting zoom. Its existing Action/projection coordinator rejects stale or superseded focus. Agent listing and navigation never start an Agent.
 

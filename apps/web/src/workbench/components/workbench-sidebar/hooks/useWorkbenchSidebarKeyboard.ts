@@ -35,8 +35,9 @@ interface UseWorkbenchSidebarKeyboardOptions {
 	readonly onShortcuts: (() => void) | undefined;
 	readonly reorderModifier: 'ctrl' | 'meta';
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
-	readonly reorderWorkspace: (
+	readonly moveWorkspace: (
 		workspaceId: string,
+		projectId: string | null,
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
 	readonly resetSidebarWidth: (() => void) | undefined;
@@ -113,7 +114,7 @@ export function useWorkbenchSidebarKeyboard({
 	onShortcuts,
 	reorderModifier,
 	reorderProject,
-	reorderWorkspace,
+	moveWorkspace,
 	resetSidebarWidth,
 	resizeSidebar,
 	returnToTerminal,
@@ -158,7 +159,7 @@ export function useWorkbenchSidebarKeyboard({
 			workspace.id,
 			direction,
 		);
-		if (move !== undefined) void reorderWorkspace(workspace.id, move.beforeId);
+		if (move !== undefined) void moveWorkspace(workspace.id, workspace.projectId, move.beforeId);
 		return true;
 	};
 

@@ -189,18 +189,19 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => `workspace-order:${workspaceFor(input)?.projectId}`,
+					// A move can leave one Project's list for another's, so every move shares one queue.
+					concurrencyKey: () => 'workspace-order',
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) => {
-					const workspace = workspaceFor(input);
-					const members = projectWorkspaceRuntime
+					// The place must exist: the destination Project, and an anchor in its list.
+					const destinationMembers = projectWorkspaceRuntime
 						.getSnapshot()
-						.workspaces.filter((candidate) => candidate.projectId === workspace?.projectId);
-					return workspace !== undefined &&
-						members.length > 1 &&
+						.workspaces.filter((candidate) => candidate.projectId === input.projectId);
+					return workspaceFor(input) !== undefined &&
+						(input.projectId === null || projectFor(input.projectId) !== undefined) &&
 						(input.beforeWorkspaceId === null ||
-							members.some((member) => member.id === input.beforeWorkspaceId))
+							destinationMembers.some((member) => member.id === input.beforeWorkspaceId))
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
 				},
@@ -208,7 +209,8 @@ export function registerWorkbenchProjectWorkspaceActions({
 					execute: (context, input) =>
 						commit(context, {
 							beforeWorkspaceId: input.beforeWorkspaceId,
-							type: 'workspace-reordered',
+							projectId: input.projectId,
+							type: 'workspace-moved',
 							workspaceId: input.workspaceId,
 						}),
 				},

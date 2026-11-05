@@ -31,6 +31,10 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly collapseRecents: string;
 	readonly create: string;
 	readonly createWorkspace: string;
+	/** The drop area that ends a Project drag at the end of the list. */
+	readonly dropEndOfProjects: string;
+	/** The drop area that moves a dragged Workspace out of every Project. */
+	readonly dropNoProject: string;
 	readonly expandProject: string;
 	readonly expandRecents: string;
 	readonly nameRequired: string;

@@ -30,9 +30,11 @@ export type WorkbenchAuthorityNavigationChange =
 			readonly workspaceId: string;
 			readonly projectId: string | null;
 	  }
+	/** Moves a Workspace to its place in a Project's list, or among those outside any Project. */
 	| {
-			readonly type: 'workspace-reordered';
+			readonly type: 'workspace-moved';
 			readonly workspaceId: string;
+			readonly projectId: string | null;
 			readonly beforeWorkspaceId: string | null;
 	  }
 	| {

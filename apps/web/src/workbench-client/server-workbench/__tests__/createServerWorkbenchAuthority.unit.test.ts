@@ -279,10 +279,11 @@ describe('createServerWorkbenchAuthority', () => {
 			},
 		],
 		[
-			'moves a Workspace within the Project holding it',
+			'moves a Workspace to a place in a Project',
 			{
 				beforeWorkspaceId: SECOND_WORKSPACE,
-				type: 'workspace-reordered',
+				projectId: PROJECT,
+				type: 'workspace-moved',
 				workspaceId: FIRST_WORKSPACE,
 			},
 			{
@@ -291,6 +292,24 @@ describe('createServerWorkbenchAuthority', () => {
 					beforeWorkspaceId: SECOND_WORKSPACE,
 					kind: 'move-workspace',
 					projectId: PROJECT,
+					workspaceId: FIRST_WORKSPACE,
+				},
+			},
+		],
+		[
+			'moves a Workspace out of every Project, to the end of that list',
+			{
+				beforeWorkspaceId: null,
+				projectId: null,
+				type: 'workspace-moved',
+				workspaceId: FIRST_WORKSPACE,
+			},
+			{
+				kind: 'navigation.configure',
+				operation: {
+					beforeWorkspaceId: null,
+					kind: 'move-workspace',
+					projectId: null,
 					workspaceId: FIRST_WORKSPACE,
 				},
 			},

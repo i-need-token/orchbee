@@ -175,8 +175,11 @@ interface WorkbenchWorkspaceUpdateInput extends WorkbenchWorkspaceInput {
 	readonly name: string;
 }
 
+/** A place in navigation: before a Workspace of `projectId`'s list, or at its end when null. */
 interface WorkbenchWorkspaceReorderInput extends WorkbenchWorkspaceInput {
 	readonly beforeWorkspaceId: string | null;
+	/** The destination Project, or null for the Workspaces outside any Project. */
+	readonly projectId: string | null;
 }
 
 interface WorkbenchTabStripOrientationInput {
@@ -696,12 +699,13 @@ export const workbenchWorkspaceReorderInput: ActionInputValidation<WorkbenchWork
 		parse: (input) =>
 			isRecord(input) &&
 			(input['beforeWorkspaceId'] === null || typeof input['beforeWorkspaceId'] === 'string') &&
+			(input['projectId'] === null || typeof input['projectId'] === 'string') &&
 			typeof input['workspaceId'] === 'string'
 				? {
 						success: true,
 						data: {
 							beforeWorkspaceId: input['beforeWorkspaceId'],
-
+							projectId: input['projectId'],
 							workspaceId: input['workspaceId'],
 						},
 					}

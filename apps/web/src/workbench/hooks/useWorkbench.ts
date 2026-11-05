@@ -246,8 +246,9 @@ interface WorkbenchView {
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly removeProject: (projectId: string) => void;
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
-	readonly reorderWorkspace: (
+	readonly moveWorkspace: (
 		workspaceId: string,
+		projectId: string | null,
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
@@ -1002,6 +1003,8 @@ export function useWorkbench({
 			collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
 			create: intl.formatMessage(workbenchMessages.resourceCreate),
 			createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
+			dropEndOfProjects: intl.formatMessage(workbenchMessages.sidebarDropEndOfProjects),
+			dropNoProject: intl.formatMessage(workbenchMessages.sidebarDropNoProject),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
 			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
 			nameRequired: intl.formatMessage(workbenchMessages.nameRequired),
@@ -1080,10 +1083,10 @@ export function useWorkbench({
 		reorderProject: (projectId, beforeProjectId) =>
 			actions.invoke(WORKBENCH_ACTION_IDS.reorderProject, { beforeProjectId, projectId }, 'pointer')
 				.completion,
-		reorderWorkspace: (workspaceId, beforeWorkspaceId) =>
+		moveWorkspace: (workspaceId, projectId, beforeWorkspaceId) =>
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.reorderWorkspace,
-				{ beforeWorkspaceId, workspaceId },
+				{ beforeWorkspaceId, projectId, workspaceId },
 				'pointer',
 			).completion,
 		renameProject: (projectId, name) => {

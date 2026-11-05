@@ -844,6 +844,18 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.recents.actions.expand'],
 		description: 'Action that expands the Recents group in the Workbench sidebar.',
 	},
+	sidebarDropNoProject: {
+		id: 'workbench.sidebar.drop.noProject',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.drop.noProject'],
+		description:
+			'Drop area shown after the sidebar list while a Workspace is dragged; dropping there moves the Workspace out of every Project.',
+	},
+	sidebarDropEndOfProjects: {
+		id: 'workbench.sidebar.drop.endOfProjects',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.drop.endOfProjects'],
+		description:
+			'Drop area shown after the sidebar list while a Project is dragged; dropping there makes it the last Project.',
+	},
 	recentsToggleExpansion: {
 		id: 'workbench.recents.actions.toggleExpansion',
 		defaultMessage: enUSWorkbenchMessages['workbench.recents.actions.toggleExpansion'],
@@ -1030,7 +1042,8 @@ export const workbenchMessages = defineMessages({
 	workspaceReorder: {
 		id: 'workbench.workspaces.actions.reorder',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.reorder'],
-		description: 'Action that reorders a Workspace inside its owning Project.',
+		description:
+			'Action that moves a Workspace to a place in the sidebar: inside a Project, or among the Workspaces outside any Project.',
 	},
 	searchActionsNeedContext: {
 		id: 'workbench.search.actions.needsContext',

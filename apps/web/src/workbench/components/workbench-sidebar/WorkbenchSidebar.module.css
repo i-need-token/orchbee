@@ -198,6 +198,33 @@
 	list-style: none;
 }
 
-.projectList[data-project-reorder-dragging] {
+.projectList[data-sidebar-dragging] {
 	user-select: none;
+}
+
+/* The drop area exists only while dragging, after the list: dashed at rest, solid and filled while
+   the pointer is on it. */
+.dropArea {
+	display: flex;
+	box-sizing: border-box;
+	height: var(--ob-ref-size-control-navigation);
+	align-items: center;
+	justify-content: center;
+	margin-block-start: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) dashed var(--ob-sys-color-border-strong);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	user-select: none;
+}
+
+.dropArea[data-hovered] {
+	border-style: solid;
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+/* Lays nothing out: the raised copy it holds is fixed to the pointer. */
+.dragLayer {
+	display: contents;
 }

@@ -218,6 +218,26 @@ const orchbeeProject = (
 const createPopulatedProjectWorkspaceRuntime = () =>
 	createStoryWorkbench({ projects: [orchbeeProject()] }).runtime;
 
+/** Every drag destination: two listed Projects, a folded one, and a Workspace outside any Project. */
+const createDragProjectWorkspaceRuntime = () =>
+	createStoryWorkbench({
+		projects: [
+			orchbeeProject(),
+			{
+				collapsed: true,
+				name: 'orchbee-design',
+				workspaces: [
+					{ folder: '/workspace/orchbee-design', name: 'Brand', titles: ['Terminal 1'] },
+				],
+			},
+			{
+				name: 'tui-design-kit',
+				workspaces: [{ folder: '/workspace/tui-design-kit', name: 'Kit', titles: ['Terminal 1'] }],
+			},
+		],
+		workspaces: [{ folder: '/workspace/scratch', name: 'Scratch', titles: ['Terminal 1'] }],
+	}).runtime;
+
 const createSidebarFocusRevealRuntime = (collapsed: boolean) =>
 	createStoryWorkbench({
 		projects: [
@@ -535,6 +555,21 @@ export const ProjectWorkspaceNavigation: Story = {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
+		shortcutPlatform: 'apple',
+		terminalSurface: FocusStoryTerminalSurface,
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const ProjectWorkspaceDrag: Story = {
+	args: {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createDragProjectWorkspaceRuntime(),
 		shortcutPlatform: 'apple',
 		terminalSurface: FocusStoryTerminalSurface,
 	},

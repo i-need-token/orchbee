@@ -10,24 +10,6 @@
 	margin-block-start: var(--ob-ref-space-3);
 }
 
-.project[data-project-reorder-active] {
-	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
-}
-
-.project[data-project-reorder-displacement='down'] {
-	transform: translateY(var(--ob-comp-workbench-navigation-reorder-shift));
-	will-change: transform;
-}
-
-.project[data-project-reorder-displacement='up'] {
-	transform: translateY(calc(var(--ob-comp-workbench-navigation-reorder-shift) * -1));
-	will-change: transform;
-}
-
-.project[data-dragging] {
-	min-height: var(--ob-comp-workbench-navigation-reorder-block-size);
-}
-
 /* Group headings: Projects and Recents. Never current, never filled; the pointer lights the
    chevron, which alone folds the group. + and ⋯ end 4 px from the row end, in the columns of a
    Workspace's ⋯ and ×. */
@@ -53,7 +35,8 @@
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
-.project[data-dragging] .heading {
+/* The raised copy of a held heading; the held Project itself keeps its look in the list. */
+.heading[data-drag-ghost] {
 	position: fixed;
 	z-index: var(--ob-ref-layer-overlay);
 	top: var(--ob-comp-workbench-navigation-reorder-block-start);
@@ -102,7 +85,7 @@
 	visibility: visible;
 }
 
-.project[data-dragging] .tools {
+.heading[data-drag-ghost] .tools {
 	visibility: hidden;
 }
 
@@ -173,10 +156,6 @@
 	margin: 0;
 	padding: 0;
 	list-style: none;
-}
-
-.workspaceList[data-workspace-reorder-dragging] {
-	user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

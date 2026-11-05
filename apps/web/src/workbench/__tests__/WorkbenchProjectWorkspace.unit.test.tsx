@@ -214,6 +214,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
 
@@ -1478,425 +1479,258 @@ describe('Workbench Project and Workspace management', () => {
 		);
 	}, 10_000);
 
-	it('previews Project reorder compactly, commits on release, and restores expansion on completion or cancellation', async () => {
-		const projectsIn = (revision: number, order: readonly number[]) => {
-			const names = ['Alpha', 'Beta', 'Gamma'];
-			return navigationSnapshot(
-				revision,
-				[1, 2, 3].map((sequence) => snapshotProject(sequence, names[sequence - 1])),
-				[1, 2, 3].map((sequence) => ({
-					label: `${names[sequence - 1] ?? ''} Workspace`,
-					projectId: fixtureProjectId(sequence),
-					sequence,
-				})),
-				{ projectOrder: order.map(fixtureProjectId) },
-			);
-		};
-		const projectWorkspaceRuntime = createSnapshotRuntime(projectsIn(1, [1, 2, 3]));
-		const change = vi.fn<WorkbenchAuthority['change']>(async () => {
-			publishSnapshot(projectWorkspaceRuntime, projectsIn(2, [3, 1, 2]));
-			return { kind: 'completed' };
-		});
-		renderWorkbench({ authority: inertWorkbenchAuthority({ change }), projectWorkspaceRuntime });
-
-		const projectItems = () =>
-			Array.from(document.querySelectorAll<HTMLElement>('[data-project-id]'));
-		for (const item of projectItems()) {
-			const row = item.querySelector<HTMLElement>('[data-project-reorder-row]');
-			expect(row).not.toBeNull();
-			if (row === null) continue;
-			row.getBoundingClientRect = () => {
-				const index = projectItems().indexOf(item);
-				return projectRowRectangle(index * 40);
-			};
-		}
-		const gammaItem = document.querySelector<HTMLElement>(
-			`[data-project-id="${fixtureProjectId(3)}"]`,
-		);
-		const gammaRow = gammaItem?.querySelector<HTMLElement>('[data-project-reorder-row]');
-		const gammaButton = screen.getByRole('button', { name: 'Collapse project: Gamma' });
-		expect(gammaItem).not.toBeNull();
-		expect(gammaRow).toBeDefined();
-		if (gammaItem === null || gammaRow === null || gammaRow === undefined) {
-			throw new Error('Expected the Gamma Project row.');
-		}
-
-		fireEvent.pointerDown(gammaRow, {
-			button: 0,
-			clientX: 10,
-			clientY: 100,
-			pointerId: 7,
-			pointerType: 'mouse',
-		});
-		fireEvent.pointerMove(document, {
-			clientX: 14,
-			clientY: 50,
-			pointerId: 7,
-			pointerType: 'mouse',
-		});
-
-		await waitFor(() => expect(gammaItem.getAttribute('data-dragging')).toBe('true'));
-		expect(
-			projectItems().every((item) => item.getAttribute('data-project-reorder-active') === 'true'),
-		).toBe(true);
-		expect(gammaButton.getAttribute('aria-expanded')).toBe('false');
-		expect(gammaItem.querySelector('[data-slot="workbench-sidebar-workspace"]')).toBeNull();
-		expect(
-			document
-				.querySelector<HTMLElement>(`[data-project-id="${fixtureProjectId(1)}"]`)
-				?.getAttribute('data-project-reorder-displacement'),
-		).toBeNull();
-		expect(
-			document
-				.querySelector<HTMLElement>(`[data-project-id="${fixtureProjectId(2)}"]`)
-				?.getAttribute('data-project-reorder-displacement'),
-		).toBe('down');
-
-		fireEvent.pointerMove(document, {
-			clientX: 14,
-			clientY: 1,
-			pointerId: 7,
-			pointerType: 'mouse',
-		});
-		expect(projectItems().map((item) => item.dataset['projectId'])).toEqual([
-			fixtureProjectId(1),
-			fixtureProjectId(2),
-			fixtureProjectId(3),
-		]);
-		expect(
-			document
-				.querySelector<HTMLElement>(`[data-project-id="${fixtureProjectId(1)}"]`)
-				?.getAttribute('data-project-reorder-displacement'),
-		).toBe('down');
-		expect(
-			document
-				.querySelector<HTMLElement>(`[data-project-id="${fixtureProjectId(2)}"]`)
-				?.getAttribute('data-project-reorder-displacement'),
-		).toBe('down');
-		expect(
-			gammaRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
-		).toBe('-99px');
-		expect(projectWorkspaceRuntime.getSnapshot().projects.map((project) => project.id)).toEqual([
-			fixtureProjectId(1),
-			fixtureProjectId(2),
-			fixtureProjectId(3),
-		]);
-		expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toContain(fixtureProjectId(3));
-
-		fireEvent.pointerUp(document, {
-			clientX: 14,
-			clientY: 21,
-			pointerId: 7,
-			pointerType: 'mouse',
-		});
-		expect(
-			projectItems().every((item) => item.getAttribute('data-project-reorder-active') === null),
-		).toBe(true);
-		fireEvent.click(gammaButton);
-		await waitFor(() => {
-			expect(projectWorkspaceRuntime.getSnapshot().projects.map((project) => project.id)).toEqual([
-				fixtureProjectId(3),
-				fixtureProjectId(1),
-				fixtureProjectId(2),
-			]);
-			expect(gammaItem.getAttribute('data-dragging')).toBeNull();
-			expect(
-				projectItems().every((item) => item.getAttribute('data-project-reorder-active') === null),
-			).toBe(true);
-			expect(gammaItem.querySelector('[data-slot="workbench-sidebar-workspace"]')).not.toBeNull();
-		});
-		expect(gammaButton.getAttribute('aria-expanded')).toBe('true');
-		expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toContain(fixtureProjectId(3));
-
-		const alphaItem = document.querySelector<HTMLElement>(
-			`[data-project-id="${fixtureProjectId(1)}"]`,
-		);
-		const alphaRow = alphaItem?.querySelector<HTMLElement>('[data-project-reorder-row]');
-		expect(alphaItem).not.toBeNull();
-		expect(alphaRow).toBeDefined();
-		if (alphaItem === null || alphaRow === null || alphaRow === undefined) {
-			throw new Error('Expected the Alpha Project row.');
-		}
-		fireEvent.pointerDown(alphaRow, {
-			button: 0,
-			clientX: 10,
-			clientY: 60,
-			pointerId: 8,
-			pointerType: 'pen',
-		});
-		fireEvent.pointerMove(document, {
-			clientX: 10,
-			clientY: 200,
-			pointerId: 8,
-			pointerType: 'pen',
-		});
-		await waitFor(() => expect(alphaItem.getAttribute('data-dragging')).toBe('true'));
-		fireEvent.keyDown(document, { key: 'Escape' });
-
-		await waitFor(() => {
-			expect(projectItems().map((item) => item.dataset['projectId'])).toEqual([
-				fixtureProjectId(3),
-				fixtureProjectId(1),
-				fixtureProjectId(2),
-			]);
-			expect(alphaItem.getAttribute('data-dragging')).toBeNull();
-			expect(alphaItem.querySelector('[data-slot="workbench-sidebar-workspace"]')).not.toBeNull();
-		});
-		expect(
-			screen.getByRole('button', { name: 'Collapse project: Alpha' }).getAttribute('aria-expanded'),
-		).toBe('true');
-		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-			beforeProjectId: fixtureProjectId(1),
-			projectId: fixtureProjectId(3),
-			type: 'project-reordered',
-		});
-	});
-
-	it('reorders Workspace siblings with scoped squeeze motion and makes the held Workspace current through release or cancellation', async () => {
-		const workspacesIn = (revision: number, order: readonly number[]) => {
-			const names = ['Primary', 'Feature', 'Review'];
-			return navigationSnapshot(
-				revision,
-				[snapshotProject(1, 'Orchbee')],
-				[1, 2, 3].map((sequence) => ({ label: names[sequence - 1] ?? '', sequence })),
-				{ workspaceOrder: order.map(fixtureWorkspaceId) },
-			);
-		};
-		const projectWorkspaceRuntime = createSnapshotRuntime(workspacesIn(1, [1, 2, 3]));
+	it('drags a Workspace into another Project through the shown list and commits one move', async () => {
+		const projectWorkspaceRuntime = createSnapshotRuntime(dragSnapshot(1));
 		projectWorkspaceRuntime.transition({
 			type: 'workspace-activated',
-			workspaceId: fixtureWorkspaceId(3),
+			workspaceId: fixtureWorkspaceId(2),
 		});
 		const change = vi.fn<WorkbenchAuthority['change']>(async () => {
-			publishSnapshot(projectWorkspaceRuntime, workspacesIn(2, [3, 1, 2]));
+			publishSnapshot(
+				projectWorkspaceRuntime,
+				dragSnapshot(2, { 1: fixtureProjectId(2) }, [2, 3, 1, 4]),
+			);
 			return { kind: 'completed' };
 		});
-		const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
-		const expandedProjectIds = projectWorkspaceRuntime.getSnapshot().expandedProjectIds;
 		renderWorkbench({ authority: inertWorkbenchAuthority({ change }), projectWorkspaceRuntime });
+		layOutSidebar();
 
-		const workspaceItems = () =>
-			Array.from(
-				document.querySelectorAll<HTMLElement>(
-					`[data-project-id="${fixtureProjectId(1)}"] [data-workspace-id]`,
-				),
-			);
-		for (const item of workspaceItems()) {
-			const row = item.querySelector<HTMLElement>('[data-navigation-reorder-row]');
-			expect(row).not.toBeNull();
-			if (row === null) continue;
-			row.getBoundingClientRect = () => {
-				const index = workspaceItems().indexOf(item);
-				return projectRowRectangle(100 + index * 40);
-			};
-		}
-		const reviewItem = document.querySelector<HTMLElement>(
-			`[data-workspace-id="${fixtureWorkspaceId(3)}"]`,
-		);
-		const reviewRow = reviewItem?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
-		expect(reviewItem).not.toBeNull();
-		expect(reviewRow).toBeDefined();
-		if (reviewItem === null || reviewRow === null || reviewRow === undefined) {
-			throw new Error('Expected the Review Workspace row.');
-		}
-
-		fireEvent.pointerDown(reviewRow, {
-			button: 0,
-			clientX: 20,
-			clientY: 200,
-			pointerId: 11,
-			pointerType: 'mouse',
-		});
-		fireEvent.pointerMove(document, {
-			clientX: 20,
-			clientY: 119,
-			pointerId: 11,
-			pointerType: 'mouse',
-		});
-
-		await waitFor(() => expect(reviewItem.getAttribute('data-dragging')).toBe('true'));
-		expect(
-			workspaceItems().every(
-				(item) => item.getAttribute('data-workspace-reorder-active') === 'true',
-			),
-		).toBe(true);
-		expect(
-			document
-				.querySelector<HTMLElement>(`[data-workspace-id="${fixtureWorkspaceId(1)}"]`)
-				?.getAttribute('data-workspace-reorder-displacement'),
-		).toBe('down');
-		expect(
-			document
-				.querySelector<HTMLElement>(`[data-workspace-id="${fixtureWorkspaceId(2)}"]`)
-				?.getAttribute('data-workspace-reorder-displacement'),
-		).toBe('down');
-		expect(
-			reviewRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
-		).toBe('-81px');
-		expect(
-			projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
-		).toEqual([fixtureWorkspaceId(1), fixtureWorkspaceId(2), fixtureWorkspaceId(3)]);
-
-		fireEvent.pointerUp(document, {
-			clientX: 20,
-			clientY: 119,
-			pointerId: 11,
-			pointerType: 'mouse',
-		});
-		expect(
-			workspaceItems().every((item) => item.getAttribute('data-workspace-reorder-active') === null),
-		).toBe(true);
-		await waitFor(() => {
-			expect(
-				projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
-			).toEqual([fixtureWorkspaceId(3), fixtureWorkspaceId(1), fixtureWorkspaceId(2)]);
-			expect(workspaceItems().map((item) => item.dataset['workspaceId'])).toEqual([
-				fixtureWorkspaceId(3),
-				fixtureWorkspaceId(1),
-				fixtureWorkspaceId(2),
-			]);
-			expect(reviewItem.getAttribute('data-dragging')).toBeNull();
-		});
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual(activeLocation);
-		expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toEqual(expandedProjectIds);
-
-		const primaryItem = document.querySelector<HTMLElement>(
-			`[data-workspace-id="${fixtureWorkspaceId(1)}"]`,
-		);
-		const primaryRow = primaryItem?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
-		const primaryButton = screen.getByRole('button', { name: 'Primary' });
-		expect(primaryItem).not.toBeNull();
-		expect(primaryRow).toBeDefined();
-		if (primaryItem === null || primaryRow === null || primaryRow === undefined) {
-			throw new Error('Expected the Primary Workspace row.');
-		}
-		fireEvent.pointerDown(primaryRow, {
-			button: 0,
-			clientX: 20,
-			clientY: 140,
-			pointerId: 12,
-			pointerType: 'pen',
-		});
-		fireEvent.pointerMove(document, {
-			clientX: 20,
-			clientY: 260,
-			pointerId: 12,
-			pointerType: 'pen',
-		});
-		await waitFor(() => expect(primaryItem.getAttribute('data-dragging')).toBe('true'));
-		// Held, a Workspace that was not current becomes current, and stays so when the drag is cancelled.
-		const heldLocation = { kind: 'workspace', workspaceId: fixtureWorkspaceId(1) };
+		pressRow(dragRow('workspace', 1), 50);
+		movePointer(54);
 		await waitFor(() =>
-			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual(heldLocation),
+			expect(dragEntry('workspace', 1)?.hasAttribute('data-dragging')).toBe(true),
 		);
-		fireEvent.keyDown(document, { key: 'Escape' });
-		fireEvent.click(primaryButton);
-
-		await waitFor(() => {
-			expect(
-				projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
-			).toEqual([fixtureWorkspaceId(3), fixtureWorkspaceId(1), fixtureWorkspaceId(2)]);
-			expect(primaryItem.getAttribute('data-dragging')).toBeNull();
+		// Held, a Workspace that was not current becomes current, and keeps the current fill.
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: fixtureWorkspaceId(1),
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual(heldLocation);
-		expect(
-			screen
-				.getByRole('button', { name: 'Collapse project: Orchbee' })
-				.getAttribute('aria-expanded'),
-		).toBe('true');
+		// The lower half of Review, in Beta, places it after Review; Beta takes it in.
+		movePointer(195);
+		await waitFor(() => expect(listedWorkspaces(2)).toEqual([3, 1]));
+		expect(listedWorkspaces(1)).toEqual([2]);
+		expect(dropArea()?.textContent).toBe('No Project');
+		expect(dropArea()?.hasAttribute('data-hovered')).toBe(false);
+		expect(projectWorkspaceRuntime.getSnapshot().workspaces[0]?.projectId).toBe(
+			fixtureProjectId(1),
+		);
+
+		releasePointer(195);
+		await waitFor(() =>
+			expect(dragEntry('workspace', 1)?.hasAttribute('data-dragging')).toBe(false),
+		);
 		expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-			beforeWorkspaceId: fixtureWorkspaceId(1),
-			type: 'workspace-reordered',
-			workspaceId: fixtureWorkspaceId(3),
+			beforeWorkspaceId: null,
+			projectId: fixtureProjectId(2),
+			type: 'workspace-moved',
+			workspaceId: fixtureWorkspaceId(1),
+		});
+		expect(listedWorkspaces(2)).toEqual([3, 1]);
+		expect(dropArea()).toBeNull();
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: fixtureWorkspaceId(1),
 		});
 	});
 
-	it('cancels a held Workspace drag on Esc from wherever focus is, without passing the key on', async () => {
-		const order = [1, 2, 3].map(fixtureWorkspaceId);
-		const projectWorkspaceRuntime = createSnapshotRuntime(
-			navigationSnapshot(
-				1,
-				[snapshotProject(1, 'Orchbee')],
-				['Primary', 'Feature', 'Review'].map((label, index) => ({ label, sequence: index + 1 })),
-				{ workspaceOrder: order },
-			),
-		);
-		const change = vi.fn<WorkbenchAuthority['change']>(async () => ({ kind: 'completed' }));
+	it('moves a Workspace out of every Project through No Project, and a Project last through End of Projects', async () => {
+		const projectWorkspaceRuntime = createSnapshotRuntime(dragSnapshot(1));
+		const change = completingChange();
 		renderWorkbench({ authority: inertWorkbenchAuthority({ change }), projectWorkspaceRuntime });
-		const items = Array.from(
-			document.querySelectorAll<HTMLElement>(
-				`[data-project-id="${fixtureProjectId(1)}"] [data-workspace-id]`,
-			),
+		layOutSidebar();
+
+		pressRow(dragRow('workspace', 2), 90);
+		movePointer(94);
+		await waitFor(() => expect(dropArea()).not.toBeNull());
+		movePointer(290);
+		await waitFor(() => expect(dropArea()?.hasAttribute('data-hovered')).toBe(true));
+		// It stands at the end of Recents, the list of Workspaces outside any Project.
+		expect(listedRecents()).toEqual([4, 2]);
+		releasePointer(290);
+		await waitFor(() => expect(dropArea()).toBeNull());
+
+		pressRow(dragRow('project', 1), 10);
+		movePointer(14);
+		await waitFor(() => expect(dropArea()?.textContent).toBe('End of Projects'));
+		// A held Project moves as one group, its Workspaces still listed.
+		expect(listedWorkspaces(1)).toEqual([1, 2]);
+		movePointer(290);
+		await waitFor(() =>
+			expect(
+				Array.from(
+					document.querySelectorAll<HTMLElement>('[data-project-id]'),
+					(item) => item.dataset['projectId'],
+				),
+			).toEqual([fixtureProjectId(2), fixtureProjectId(1)]),
 		);
-		for (const [index, item] of items.entries()) {
-			const row = item.querySelector<HTMLElement>('[data-navigation-reorder-row]');
-			if (row !== null) row.getBoundingClientRect = () => projectRowRectangle(100 + index * 40);
-		}
-		const reviewItem = items[2];
-		const reviewRow = reviewItem?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
-		if (reviewItem === undefined || reviewRow === null || reviewRow === undefined) {
-			throw new Error('Expected the Review Workspace row.');
-		}
+		releasePointer(290);
+		await waitFor(() => expect(dropArea()).toBeNull());
+
+		expect(change.mock.calls.map(([, requested]) => requested)).toEqual([
+			{
+				beforeWorkspaceId: null,
+				projectId: null,
+				type: 'workspace-moved',
+				workspaceId: fixtureWorkspaceId(2),
+			},
+			{ beforeProjectId: null, projectId: fixtureProjectId(1), type: 'project-reordered' },
+		]);
+	});
+
+	it('gives every key to a live drag and cancels it on Esc, restoring the order', async () => {
+		const projectWorkspaceRuntime = createSnapshotRuntime(dragSnapshot(1));
+		const change = completingChange();
+		renderWorkbench({ authority: inertWorkbenchAuthority({ change }), projectWorkspaceRuntime });
+		layOutSidebar();
 		// Focus outside the sidebar, in an input that keeps its keys as a terminal does.
 		const focusedInput = document.createElement('textarea');
 		const terminalKeys: string[] = [];
-		focusedInput.addEventListener('keydown', (event) => {
-			terminalKeys.push(event.key);
-			event.stopPropagation();
-		});
+		for (const type of ['keydown', 'keyup'] as const) {
+			focusedInput.addEventListener(type, (event) => {
+				terminalKeys.push(`${type}:${event.key}`);
+				event.stopPropagation();
+			});
+		}
 		document.body.append(focusedInput);
 		focusedInput.focus();
 
 		try {
-			fireEvent.pointerDown(reviewRow, {
-				button: 0,
-				clientX: 20,
-				clientY: 200,
-				pointerId: 21,
-				pointerType: 'mouse',
-			});
-			fireEvent.pointerMove(document, {
-				clientX: 20,
-				clientY: 119,
-				pointerId: 21,
-				pointerType: 'mouse',
-			});
-			await waitFor(() => expect(reviewItem.getAttribute('data-dragging')).toBe('true'));
+			pressRow(dragRow('workspace', 1), 50);
+			movePointer(54);
+			movePointer(195);
+			await waitFor(() => expect(listedWorkspaces(2)).toEqual([3, 1]));
+
+			fireEvent.keyDown(focusedInput, { key: 'a' });
+			fireEvent.keyUp(focusedInput, { key: 'a' });
+			fireEvent.keyDown(focusedInput, { key: 'Enter' });
+			fireEvent.keyDown(focusedInput, { key: 'ArrowDown', metaKey: true });
+			fireEvent.keyDown(focusedInput, { key: 'Escape', shiftKey: true });
+			expect(terminalKeys).toEqual([]);
+			expect(listedWorkspaces(2)).toEqual([3, 1]);
 
 			fireEvent.keyDown(focusedInput, { key: 'Escape' });
-			fireEvent.pointerUp(document, {
-				clientX: 20,
-				clientY: 119,
-				pointerId: 21,
-				pointerType: 'mouse',
+			await waitFor(() => expect(listedWorkspaces(2)).toEqual([3]));
+			expect(listedWorkspaces(1)).toEqual([1, 2]);
+			expect(dropArea()).toBeNull();
+			releasePointer(195);
+			expect(change).not.toHaveBeenCalled();
+			expect(document.activeElement).toBe(focusedInput);
+			// A Workspace the drag made current stays current.
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				workspaceId: fixtureWorkspaceId(1),
 			});
 
-			await waitFor(() => expect(reviewItem.getAttribute('data-dragging')).toBeNull());
-			expect(change).not.toHaveBeenCalledWith(
-				expect.anything(),
-				expect.objectContaining({ type: 'workspace-reordered' }),
-			);
-			expect(
-				projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
-			).toEqual(order);
-			expect(terminalKeys).toEqual([]);
-			expect(document.activeElement).toBe(focusedInput);
+			fireEvent.keyDown(focusedInput, { key: 'b' });
+			expect(terminalKeys).toEqual(['keydown:b']);
 		} finally {
 			focusedInput.remove();
 		}
 	});
 });
 
-function projectRowRectangle(top: number): DOMRect {
-	return {
-		bottom: top + 40,
-		height: 40,
+/**
+ * Alpha holds Primary and Feature, Beta holds Review, and Scratch is outside any Project.
+ * `projects` moves Workspaces between Projects; `order` is the global Workspace order.
+ */
+function dragSnapshot(
+	revision: number,
+	projects: Readonly<Record<number, string | null>> = {},
+	order: readonly number[] = [1, 2, 3, 4],
+): WorkbenchSnapshot {
+	const fixtures = [
+		{ label: 'Primary', projectId: fixtureProjectId(1), sequence: 1 },
+		{ label: 'Feature', projectId: fixtureProjectId(1), sequence: 2 },
+		{ label: 'Review', projectId: fixtureProjectId(2), sequence: 3 },
+		{ label: 'Scratch', projectId: null, sequence: 4 },
+	];
+	return navigationSnapshot(
+		revision,
+		[snapshotProject(1, 'Alpha'), snapshotProject(2, 'Beta')],
+		fixtures.map((fixture) => {
+			const moved = projects[fixture.sequence];
+			return { ...fixture, projectId: moved === undefined ? fixture.projectId : moved };
+		}),
+		{ workspaceOrder: order.map(fixtureWorkspaceId) },
+	);
+}
+
+const SIDEBAR_ROWS = '[data-drag-entry], [data-recents-row], [data-sidebar-drop-area]';
+
+/** Lays the sidebar out as 40 px rows in document order, in a list region 1000 px tall. */
+function layOutSidebar(): void {
+	const bounds = (top: number, height: number): DOMRect => ({
+		bottom: top + height,
+		height,
 		left: 0,
 		right: 240,
+		toJSON: () => ({}),
 		top,
 		width: 240,
 		x: 0,
 		y: top,
-		toJSON: () => ({}),
-	};
+	});
+	vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+		function (this: HTMLElement) {
+			if (this.hasAttribute('data-navigation-reorder-scroll')) return bounds(0, 1000);
+			const region = this.closest('[data-navigation-reorder-scroll]');
+			if (region === null || !this.matches(SIDEBAR_ROWS)) return bounds(0, 0);
+			return bounds(Array.from(region.querySelectorAll(SIDEBAR_ROWS)).indexOf(this) * 40, 40);
+		},
+	);
+}
+
+function dragEntry(kind: 'project' | 'workspace', sequence: number): HTMLElement | null {
+	const id = kind === 'project' ? fixtureProjectId(sequence) : fixtureWorkspaceId(sequence);
+	return document.querySelector<HTMLElement>(`[data-drag-entry="${kind}"][data-drag-id="${id}"]`);
+}
+
+function dragRow(kind: 'project' | 'workspace', sequence: number): HTMLElement {
+	const entry = dragEntry(kind, sequence);
+	const row =
+		kind === 'project' ? entry : entry?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
+	if (row === null || row === undefined) throw new Error(`Expected the ${kind} row ${sequence}.`);
+	return row;
+}
+
+function pressRow(row: HTMLElement, clientY: number): void {
+	fireEvent.pointerDown(row, {
+		button: 0,
+		clientX: 20,
+		clientY,
+		pointerId: 7,
+		pointerType: 'mouse',
+	});
+}
+
+function movePointer(clientY: number): void {
+	fireEvent.pointerMove(document, { clientX: 20, clientY, pointerId: 7, pointerType: 'mouse' });
+}
+
+function releasePointer(clientY: number): void {
+	fireEvent.pointerUp(document, { clientX: 20, clientY, pointerId: 7, pointerType: 'mouse' });
+}
+
+function sequencesIn(group: Element | null | undefined): readonly number[] {
+	return Array.from(
+		group?.querySelectorAll<HTMLElement>('[data-workspace-id]') ?? [],
+		(item) =>
+			[1, 2, 3, 4].find(
+				(sequence) => fixtureWorkspaceId(sequence) === item.dataset['workspaceId'],
+			) ?? 0,
+	);
+}
+
+function listedWorkspaces(projectSequence: number): readonly number[] {
+	return sequencesIn(
+		document.querySelector(`[data-project-id="${fixtureProjectId(projectSequence)}"]`),
+	);
+}
+
+function listedRecents(): readonly number[] {
+	return sequencesIn(document.querySelector('[data-recents-row]')?.closest('li'));
+}
+
+function dropArea(): HTMLElement | null {
+	return document.querySelector<HTMLElement>('[data-sidebar-drop-area]');
 }
