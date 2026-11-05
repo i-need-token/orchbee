@@ -32,6 +32,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.light.systemNotice': '系统为浅色时使用。',
 	'terminal.settings.colorTheme.names.catppuccinMocha': 'Catppuccin Mocha',
 	'terminal.settings.colorTheme.names.dayfox': 'Dayfox',
+	'terminal.settings.colorTheme.names.dracula': 'Dracula',
 	'terminal.settings.colorTheme.names.flexokiDark': 'Flexoki Dark',
 	'terminal.settings.colorTheme.names.flexokiLight': 'Flexoki Light',
 	'terminal.settings.colorTheme.names.gruvboxDark': 'Gruvbox Dark',

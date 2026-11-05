@@ -1,0 +1,39 @@
+# Dracula by Dracula Theme (https://github.com/dracula/iterm, MIT), as the iTerm2-Color-Schemes
+# Ghostty export publishes it.
+id = "dracula"
+name = "Dracula"
+family = "dracula"
+polarity = "dark"
+
+[source]
+url = "https://github.com/mbadolato/iTerm2-Color-Schemes"
+path = "ghostty/Dracula"
+revision = "38bd77ce06b376f2e49e78bd318cf1255d87719b"
+license = "MIT"
+copyright = "Copyright (c) 2013-present Dracula Theme; iTerm2-Color-Schemes compilation Copyright (c) 2011 to Present Mark Badolato"
+
+[canvas]
+background = "#282a36"
+foreground = "#f8f8f2"
+cursor = "#f8f8f2"
+cursor_text = "#282a36"
+selection_background = "#44475a"
+selection_foreground = "#ffffff"
+
+[ansi]
+black = "#21222c"
+red = "#ff5555"
+green = "#50fa7b"
+yellow = "#f1fa8c"
+blue = "#bd93f9"
+magenta = "#ff79c6"
+cyan = "#8be9fd"
+white = "#f8f8f2"
+bright_black = "#6272a4"
+bright_red = "#ff6e6e"
+bright_green = "#69ff94"
+bright_yellow = "#ffffa5"
+bright_blue = "#d6acff"
+bright_magenta = "#ff92df"
+bright_cyan = "#a4ffff"
+bright_white = "#ffffff"

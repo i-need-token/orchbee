@@ -37,6 +37,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.light.systemNotice': 'Used when the system is light.',
 	'terminal.settings.colorTheme.names.catppuccinMocha': 'Catppuccin Mocha',
 	'terminal.settings.colorTheme.names.dayfox': 'Dayfox',
+	'terminal.settings.colorTheme.names.dracula': 'Dracula',
 	'terminal.settings.colorTheme.names.flexokiDark': 'Flexoki Dark',
 	'terminal.settings.colorTheme.names.flexokiLight': 'Flexoki Light',
 	'terminal.settings.colorTheme.names.gruvboxDark': 'Gruvbox Dark',
