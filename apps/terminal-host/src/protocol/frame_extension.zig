@@ -11,6 +11,21 @@ pub const TerminalProgress = struct {
     value: ?u8 = null,
 };
 
+/// The OSC 7501 root-record state a program reported about itself; never Agent identity.
+pub const TerminalProgramStatusState = enum(u8) {
+    idle = 1,
+    working = 2,
+    blocked = 3,
+    done = 4,
+    @"error" = 5,
+};
+
+pub const TerminalProgramStatus = struct {
+    state: TerminalProgramStatusState,
+    /// Nonzero real-time Unix nanoseconds read after the Host received the report.
+    reported_at_nanoseconds: u64,
+};
+
 pub const TerminalCommandCompletion = struct {
     sequence: u64,
     duration_milliseconds: u64,

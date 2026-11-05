@@ -27,7 +27,8 @@ Terminal Host owns:
   revisions, and generations;
 - broker-scoped attachments, demand, delivery flights, bell cursors, history anchors, selections, and exports;
 - bounded OSC 52 plain-text write intent, bounded private-APC application-signal transport, current
-  terminal progress, and latest semantic command completion facts derived from Ghostty output;
+  terminal progress, the current OSC 7501 program status root record, and latest semantic command
+  completion facts derived from terminal output;
 - a private local IPC endpoint protected by operating-system user identity; and
 - typed native adaptation of the shared terminal protocol.
 
@@ -119,6 +120,14 @@ The accepted contract requires these externally visible properties:
   Public notification channels such as OSC 9 and OSC 777 are ignored by this transport.
 - Ghostty progress reports project only the terminal's current bounded local sample; they do not
   assert process completion or request a system notification.
+- OSC 7501 program status, which the pinned Ghostty ignores, is recognized beside its parser. The
+  Host answers the query `OSC 7501 ; ?` with `?` in stream order, using the query's terminator, and
+  keeps only the root record's state with the real time it read the report. Sequences over 4096
+  bytes, with control or non-ASCII bytes, or ended by anything but BEL or ST are dropped; reports
+  that exceed a field limit or carry undecodable or control text are discarded whole. Records with
+  an `id` and the display fields are validated and dropped. `state=clear`, RIS, and Host reset
+  remove the record; a new shell prompt removes `idle`, `working`, and `blocked`. The Host projects
+  the record as a program's claim and never derives Agent semantics from it.
 - OSC 133 `C` and `D` actions transactionally retain only one terminal-local completion sequence,
   monotonic duration, wall-clock completion timestamp, and normalized exit code. The Host never
   retains or projects command text, arguments, directory, environment, or output for reminders;

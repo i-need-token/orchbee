@@ -13,6 +13,7 @@ const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
 const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
+const program_status_feed = @import("program_status_feed.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 const terminal_reply = @import("terminal_reply.zig");
 
@@ -86,7 +87,9 @@ pub fn modeChangedEffect(
 }
 
 pub fn fullResetEffect(handler: *terminal_stream.Handler) void {
-    _ = mode_effects.resetLocked(runtimeFromHostHandler(handler));
+    const self = runtimeFromHostHandler(handler);
+    _ = mode_effects.resetLocked(self);
+    program_status_feed.resetLocked(self);
 }
 
 pub fn colorSchemeEffect(
@@ -333,7 +336,7 @@ fn commitObservedReaderBatch(
     const previous_clear = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = false;
     const cursor_was_visible = self.terminal.modes.get(.cursor_visible);
-    self.stream.nextSlice(bytes);
+    program_status_feed.feedLocked(self, bytes);
     mode_effects.noteCursorVisibilityLocked(self, cursor_was_visible);
     const screen_reset = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = previous_clear or screen_reset;

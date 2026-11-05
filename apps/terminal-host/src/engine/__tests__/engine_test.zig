@@ -6,6 +6,7 @@ comptime {
     _ = @import("input_queue_test.zig");
     _ = @import("launch_test.zig");
     _ = @import("powershell_history_test.zig");
+    _ = @import("program_status_test.zig");
     _ = @import("projection_test.zig");
     _ = @import("projection_wrap_topology_test.zig");
     _ = @import("runtime_completion_test.zig");

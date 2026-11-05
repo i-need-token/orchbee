@@ -186,6 +186,7 @@ pub fn encodeProjectionFrameOwned(
     const generation = self.generation;
     const read_commit_epoch = self.read_commit_epoch;
     const progress = self.progress;
+    const program_status = self.program_status;
     const command_completion = self.command_completion;
     self.command_observation.refresh(&self.terminal) catch {
         self.terminal_mutex.unlock();
@@ -215,6 +216,7 @@ pub fn encodeProjectionFrameOwned(
     }
     var projection_request = request;
     projection_request.progress = progress;
+    projection_request.program_status = program_status;
     projection_request.command_completion = command_completion;
     projection_request.command_observation = command_observation;
     var frame = self.projection.encodeOwned(

@@ -62,6 +62,7 @@ pub const FrameSummary = struct {
     host_epoch: [16]u8,
     kind: FrameKind,
     progress: contract.TerminalProgress,
+    program_status: ?contract.TerminalProgramStatus,
     revision: u64,
     row_count: u16,
     rows: u16,
@@ -305,6 +306,7 @@ pub fn validateTerminalFrame(
     var command_completion: ?contract.TerminalCommandCompletion = null;
     var command_observation: ?contract.TerminalCommandObservation = null;
     var command_started_at: ?u64 = null;
+    var program_status: ?contract.TerminalProgramStatus = null;
     for (0..extension_count) |_| {
         const extension_kind = try reader.readInt(u16);
         const extension_flags = try reader.readInt(u16);
@@ -384,6 +386,17 @@ pub fn validateTerminalFrame(
             if (command_started_at != null or extension.len != 8) return error.InvalidField;
             command_started_at = std.mem.readInt(u64, extension[0..8], .little);
             if (command_started_at == 0) return error.InvalidField;
+        } else if (extension_kind == contract.terminal_frame_extension_program_status) {
+            if (program_status != null or extension.len != 9) return error.InvalidField;
+            const status: contract.TerminalProgramStatus = .{
+                .state = std.enums.fromInt(
+                    contract.TerminalProgramStatusState,
+                    extension[0],
+                ) orelse return error.InvalidField,
+                .reported_at_nanoseconds = std.mem.readInt(u64, extension[1..9], .little),
+            };
+            if (status.reported_at_nanoseconds == 0) return error.InvalidField;
+            program_status = status;
         }
     }
     if (reader.offset != bytes.len) return error.LengthMismatch;
@@ -415,6 +428,7 @@ pub fn validateTerminalFrame(
         .host_epoch = host_epoch,
         .kind = kind,
         .progress = progress orelse .{},
+        .program_status = program_status,
         .revision = revision,
         .row_count = row_count,
         .rows = rows,

@@ -56,7 +56,8 @@ pub fn encodeOwned(
     const extension_count: u16 = 2 +
         @as(u16, @intFromBool(request.command_completion != null)) +
         @as(u16, @intFromBool(request.command_observation != null)) +
-        @as(u16, @intFromBool(command_started));
+        @as(u16, @intFromBool(command_started)) +
+        @as(u16, @intFromBool(request.program_status != null));
     if (!snapshot and base_revision.? >= self.captured_revision) return error.ProjectionTooLarge;
 
     var strings = StringTable.init(self.allocator);
@@ -233,6 +234,13 @@ pub fn encodeOwned(
     try writer.appendInt(u32, 2);
     try writer.appendInt(u8, @intFromEnum(request.progress.state));
     try writer.appendInt(u8, request.progress.value orelse std.math.maxInt(u8));
+    if (request.program_status) |status| {
+        try writer.appendInt(u16, protocol.terminal_frame_extension_program_status);
+        try writer.appendInt(u16, 0);
+        try writer.appendInt(u32, 9);
+        try writer.appendInt(u8, @intFromEnum(status.state));
+        try writer.appendInt(u64, status.reported_at_nanoseconds);
+    }
     if (request.command_completion) |completion| {
         try writer.appendInt(u16, protocol.terminal_frame_extension_command_completion);
         try writer.appendInt(u16, 0);

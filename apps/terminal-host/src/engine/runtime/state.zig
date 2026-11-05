@@ -13,6 +13,7 @@ const terminal_projection = @import("../projection/root.zig");
 const terminal_runtime_containment = @import("../runtime_containment.zig");
 const terminal_runtime_startup = @import("../runtime_startup.zig");
 const terminal_stream = @import("../terminal_stream.zig");
+const program_status = @import("../program_status.zig");
 const contracts = @import("contracts.zig");
 
 pub const State = struct {
@@ -108,6 +109,10 @@ pub const State = struct {
     profile: contracts.OwnedProfile,
     progress: contracts.TerminalProgress = .{},
     progress_staged: ?contracts.TerminalProgress = null,
+    /// The committed OSC 7501 root record; staged with each reader batch.
+    program_status: ?contracts.TerminalProgramStatus = null,
+    program_status_staged: ?contracts.TerminalProgramStatus = null,
+    program_status_scanner: program_status.Scanner = .{},
     // projection_mutex gives one encoder ownership of projection capture state.
     // The Host owner alone updates the projection cadence timestamp; engine
     // workers never read it.

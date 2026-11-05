@@ -1,5 +1,4 @@
 const std = @import("std");
-const thread_sync = @import("terminal-host-platform").thread_sync;
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
 const terminal_stream = @import("../terminal_stream.zig");
@@ -8,6 +7,7 @@ const state = @import("state.zig");
 const clock = @import("clock.zig");
 const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
+const program_status_feed = @import("program_status_feed.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
 const max_application_signal_bytes = protocol.Limits.terminal_application_signal_bytes;
@@ -29,7 +29,7 @@ pub fn privateApplicationSignalEffect(
             &self.terminal,
             self.generation,
             apc.content,
-            wallTimeNanoseconds(self) orelse 0,
+            clock.wallTimeNanoseconds(self) orelse 0,
         ) catch {
             self.feedback_sequence_overflow_pending = true;
             return;
@@ -114,6 +114,7 @@ pub fn semanticPromptEffect(
     const self = runtimeFromHandler(handler);
     std.debug.assert(self.reader_commit_in_progress);
     std.debug.assert(self.command_batch_active);
+    program_status_feed.shellPromptLocked(self, command);
     switch (command.action) {
         .end_input_start_output => {
             self.command_observation.staged.ready = false;
@@ -160,6 +161,7 @@ pub fn beginReaderBatch(self: *state.State) void {
     self.command_sequence_staged = self.command_sequence;
     self.command_started_at_ns_staged = self.command_started_at_ns;
     self.application_signal_sequence_staged = self.application_signal_sequence;
+    program_status_feed.beginBatch(self);
 }
 
 pub fn abortReaderBatch(self: *state.State) void {
@@ -220,6 +222,7 @@ pub fn commitReaderBatch(self: *state.State) void {
     self.command_observation.commit();
     self.command_completion = self.command_completion_staged;
     self.command_sequence = self.command_sequence_staged;
+    program_status_feed.commitBatch(self);
     self.command_batch_active = false;
     self.command_completion_staged = null;
     self.command_sequence_staged = 0;
@@ -324,19 +327,7 @@ fn validClipboardText(text: []const u8) bool {
 }
 
 fn wallTimeMilliseconds(self: *state.State) ?u64 {
-    return (wallTimeNanoseconds(self) orelse return null) / std.time.ns_per_ms;
-}
-
-fn wallTimeNanoseconds(self: *state.State) ?u64 {
-    if (comptime @import("builtin").is_test) {
-        if (self.testing_hooks.wall_time_milliseconds) |read| {
-            return std.math.mul(u64, read(self.testing_hooks.context.?), std.time.ns_per_ms) catch null;
-        }
-    }
-    return std.math.cast(
-        u64,
-        std.Io.Timestamp.now(thread_sync.io(), .real).toNanoseconds(),
-    );
+    return (clock.wallTimeNanoseconds(self) orelse return null) / std.time.ns_per_ms;
 }
 
 fn runtimeFromHandler(handler: *terminal_stream.Handler) *state.State {

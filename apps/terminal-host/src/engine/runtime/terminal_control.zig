@@ -8,6 +8,7 @@ const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
 const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
+const program_status_feed = @import("program_status_feed.zig");
 
 pub fn applyTerminalControl(
     self: *state.State,
@@ -51,6 +52,7 @@ pub fn applyTerminalControl(
         .reset => {
             self.terminal.fullReset();
             std.debug.assert(mode_effects.resetLocked(self));
+            program_status_feed.resetLocked(self);
             terminal_stream.restoreResetDefaults(&self.terminal);
             self.profile.applyCursorDefaults(&self.terminal);
         },

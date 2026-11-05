@@ -29,6 +29,7 @@ pub const EncodeRequest = struct {
     sequence: u64,
     theme_revision: u64 = 0,
     progress: TerminalProgress = .{},
+    program_status: ?protocol.TerminalProgramStatus = null,
     command_completion: ?TerminalCommandCompletion = null,
     command_observation: ?protocol.TerminalCommandObservation = null,
 };

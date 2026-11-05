@@ -510,6 +510,8 @@ The current optional extension registry is:
 |  `3` |          `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                               |
 |  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code. |
 |  `5` | `10` or `66` | Row-origin epoch and the latest correlated Shell invocation; see the extension contract below.                                                       |
+|  `6` |          `8` | Real-time start of the invocation in the same frame's kind `5`; see the extension contract below.                                                    |
+|  `7` |          `9` | The program's current OSC 7501 root-record state and the real time the Host received it; see the program status extension below.                    |
 
 Kind `1` is unassigned.
 
@@ -918,3 +920,19 @@ Optional OBTF extension kind `5` contains a positive output-origin epoch (`u64`)
 The observation is the latest cooperative Shell invocation, with no command text. It does not replace kind 4's presentation metadata. Coordinates belong to retained physical rows only while generation and output epoch still agree. The Host changes output epoch when its oldest retained-row pin loses continuity; clients must never infer continuity from a saturated row count. Older consumers skip this optional extension. The Windows CLI combines it with terminal identity and Host epoch to fence opaque output cursors.
 
 Optional OBTF extension kind `6` is exactly 8 bytes: a nonzero little-endian `u64` of real-time Unix nanoseconds read after the Host received that invocation's start marker. It annotates the invocation in the same frame's kind `5` and appears only when the Host read its clock. Because the Shell writes the marker before running the command, a process created later than this time started after the marker. Duplicates, zero, incorrect lengths, or a frame whose kind `5` carries no invocation reject the frame in consumers that understand this extension; older consumers skip it.
+
+## Program status extension
+
+Optional OBTF extension kind `7` is exactly 9 bytes: a state byte (`1` idle, `2` working, `3`
+blocked, `4` done, `5` error) followed by a nonzero little-endian `u64` of real-time Unix
+nanoseconds read after the Host received the report. It carries the root record of the
+[OSC 7501 Program Status protocol](https://www.superlogical.com/rex/docs/build/program-status), a
+program's report about itself, and is present only while that record exists. Records addressed by
+an `id` and the display fields `app`, `msg`, and `title` are not carried. The Host removes the
+record on `state=clear`, RIS, and its reset control; a new shell prompt (OSC 133 `A`, `N`, or a
+primary `P`) removes `idle`, `working`, and `blocked` but keeps `done` and `error`. Switching
+between primary and alternate screens has no effect. Because the program writes the report before
+the Host reads the clock, a process created later than this time did not send it. Duplicates,
+unknown states, zero, or incorrect lengths reject the frame in consumers that understand this
+extension; older consumers skip it. The record is a program's claim, not process, lifecycle, or
+Agent identity authority.

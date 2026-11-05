@@ -167,6 +167,7 @@ pub const MouseInput = terminal_input.MouseInput;
 pub const DeviceAttributes = terminal_profile.DeviceAttributes;
 pub const TerminalProgress = protocol.TerminalProgress;
 pub const TerminalCommandCompletion = protocol.TerminalCommandCompletion;
+pub const TerminalProgramStatus = protocol.TerminalProgramStatus;
 
 pub const MetadataEvent = struct {
     allocator: std.mem.Allocator,
