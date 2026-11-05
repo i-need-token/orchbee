@@ -15,4 +15,5 @@ export const COLOR_THEME_NAME_MESSAGES: ReadonlyMap<string, MessageDescriptor> =
 	['rose-pine', terminalSettingsMessages.colorThemeNameRosePine],
 	['rose-pine-dawn', terminalSettingsMessages.colorThemeNameRosePineDawn],
 	['tokyo-night', terminalSettingsMessages.colorThemeNameTokyoNight],
+	['tomorrow-night', terminalSettingsMessages.colorThemeNameTomorrowNight],
 ]);

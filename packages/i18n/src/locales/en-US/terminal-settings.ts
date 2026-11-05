@@ -48,6 +48,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.names.rosePine': 'Rosé Pine',
 	'terminal.settings.colorTheme.names.rosePineDawn': 'Rosé Pine Dawn',
 	'terminal.settings.colorTheme.names.tokyoNight': 'Tokyo Night',
+	'terminal.settings.colorTheme.names.tomorrowNight': 'Tomorrow Night',
 	'terminal.settings.language.automaticFallbackNotice':
 		'Orchbee uses your system or browser language until you choose here. Your choice is saved on this device.',
 	'terminal.settings.language.english': 'English',
