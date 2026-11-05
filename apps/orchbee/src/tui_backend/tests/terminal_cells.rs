@@ -43,10 +43,14 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
     source.background = 0x9abcde;
     source.geometry.columns = 16;
     source.geometry.rows = 2;
-    let mut default_style = source.rows[0].cells[0].style;
-    default_style.foreground = 0x0100_0000;
-    default_style.background = 0x0100_0000;
-    default_style.flags = 0;
+    // This case paints plain input; the shared protocol corpus also exercises decorated cells.
+    let default_style = orchbee_terminal_protocol::TerminalTextStyle {
+        foreground: orchbee_terminal_protocol::COLOR_DEFAULT,
+        background: orchbee_terminal_protocol::COLOR_DEFAULT,
+        underline_color: orchbee_terminal_protocol::COLOR_NONE,
+        flags: 0,
+        underline: 0,
+    };
     source.rows = vec![TerminalTextRow {
         index: 0,
         flags: 0,

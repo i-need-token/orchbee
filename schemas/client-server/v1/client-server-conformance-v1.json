@@ -2799,11 +2799,7 @@
 		{
 			"field": "argv",
 			"name": "argument-vector",
-			"value": [
-				"sh",
-				"-c",
-				"pwd"
-			]
+			"value": ["sh", "-c", "pwd"]
 		},
 		{
 			"field": "env",
