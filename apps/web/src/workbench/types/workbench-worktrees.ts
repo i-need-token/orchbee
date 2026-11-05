@@ -1,3 +1,5 @@
+import type { WorkbenchPanelTerminal } from './workbench-focused-panel';
+
 /** One Git checkout a Workspace can open, other than the one it stands in. */
 interface WorkbenchWorktreeCheckout {
 	/** The checked-out branch without `refs/heads/`, or null when HEAD is detached. */
@@ -16,7 +18,7 @@ export interface WorkbenchWorktreeRemoval {
 
 /**
  * What Git reported for the repository a Workspace stands in. The authority keeps the latest one for
- * each Workspace, and a command acts on it.
+ * each source it read, the Workspace or one of its Panels, and a command acts on it.
  */
 export interface WorkbenchWorktreeDiscovery {
 	/** Every other non-bare checkout of the repository, in Git's order. */
@@ -43,7 +45,10 @@ export type WorkbenchWorktreeDiscoveryResult =
 			readonly stoppedRemoval: WorkbenchWorktreeStoppedRemoval | null;
 	  };
 
-/** Why a Worktree command stopped, in terms a person can act on. */
+/**
+ * Why a Worktree command stopped, in terms a person can act on. `not-repository` and
+ * `listing-unavailable` stop a creation from the focused Panel, which reads Git first.
+ */
 export type WorkbenchWorktreeFailureCause =
 	| 'checkout-in-use'
 	| 'checkout-not-found'
@@ -55,7 +60,9 @@ export type WorkbenchWorktreeFailureCause =
 	| 'git'
 	| 'git-failed'
 	| 'internal'
+	| 'listing-unavailable'
 	| 'main-checkout'
+	| 'not-repository'
 	| 'not-submitted'
 	| 'session-stopping'
 	| 'source-changed'
@@ -71,13 +78,27 @@ export interface WorkbenchWorktreeStoppedRemoval {
 
 /**
  * A command names the Workspace and, where it acts on one, the checkout the person was shown. The
- * authority refuses it as `source-changed` once its latest discovery for that Workspace no longer
- * offers that checkout.
+ * authority refuses it as `source-changed` once its latest discovery for that source no longer
+ * offers that checkout. A `panel` makes the source that Panel's terminal rather than the Workspace's
+ * first terminal.
  */
 export type WorkbenchWorktreeCommand =
-	/** Creates a checkout with Git's and the configuration's defaults and opens it in a Workspace. */
-	| { readonly kind: 'create'; readonly label: string; readonly workspaceId: string }
-	| { readonly kind: 'open'; readonly path: string; readonly workspaceId: string }
+	/**
+	 * Creates a checkout with Git's and the configuration's defaults and opens it in a Workspace. From
+	 * a Panel, which showed the person nothing, the authority reads Git there first.
+	 */
+	| {
+			readonly kind: 'create';
+			readonly label: string;
+			readonly panel?: WorkbenchPanelTerminal;
+			readonly workspaceId: string;
+	  }
+	| {
+			readonly kind: 'open';
+			readonly panel?: WorkbenchPanelTerminal;
+			readonly path: string;
+			readonly workspaceId: string;
+	  }
 	/** Closes the Workspace, then deletes its checkout. The branch stays. */
 	| { readonly kind: 'remove'; readonly path: string; readonly workspaceId: string }
 	| { readonly kind: 'resume'; readonly operationId: string };
@@ -95,7 +116,14 @@ export type WorkbenchWorktreeOutcome =
 
 /** Git Worktrees for Workspaces, decided by the authority that owns the Workbench. */
 export interface WorkbenchWorktrees {
-	discover(workspaceId: string): Promise<WorkbenchWorktreeDiscoveryResult>;
+	/**
+	 * Reads Git where the Workspace's first terminal stands, or where the terminal shown in `panel`
+	 * stands, as the TUI's `Ctrl+B W` and `Ctrl+B O` read their focused Panel.
+	 */
+	discover(
+		workspaceId: string,
+		panel?: WorkbenchPanelTerminal,
+	): Promise<WorkbenchWorktreeDiscoveryResult>;
 	/** Settles when the operation does, or when it can no longer be observed. */
 	run(command: WorkbenchWorktreeCommand): Promise<WorkbenchWorktreeOutcome>;
 }

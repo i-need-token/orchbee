@@ -3,9 +3,13 @@ import type { IntlShape } from '@orchbee/i18n';
 import * as React from 'react';
 
 import { projectWorkbenchSearchCatalog } from '../model/project-workbench-search-catalog';
-import type { WorkbenchSearchCatalog } from '../model/workbench-search-result';
+import type {
+	WorkbenchSearchArgumentPicker,
+	WorkbenchSearchCatalog,
+} from '../model/workbench-search-result';
 
 interface UseWorkbenchSearchCatalogOptions {
+	readonly argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined;
 	readonly intl: IntlShape;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
@@ -13,6 +17,7 @@ interface UseWorkbenchSearchCatalogOptions {
 }
 
 export function useWorkbenchSearchCatalog({
+	argumentPickerForAction,
 	intl,
 	runtime,
 	scope,
@@ -33,10 +38,11 @@ export function useWorkbenchSearchCatalog({
 	return React.useMemo(() => {
 		void runtimeRevision;
 		return projectWorkbenchSearchCatalog({
+			argumentPickerForAction,
 			intl,
 			runtime,
 			scope,
 			shortcutLabelForAction,
 		});
-	}, [intl, runtime, runtimeRevision, scope, shortcutLabelForAction]);
+	}, [argumentPickerForAction, intl, runtime, runtimeRevision, scope, shortcutLabelForAction]);
 }

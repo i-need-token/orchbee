@@ -16,11 +16,16 @@ import {
 } from '../model/workbench-search-state';
 import type {
 	WorkbenchSearchProvider,
+	WorkbenchSearchProviderArgumentPicker,
+	WorkbenchSearchProviderArgumentRead,
 	WorkbenchSearchProviderSection,
 } from '../../../types/workbench-search-provider';
 import { WorkbenchSearchSurface } from '../WorkbenchSearchSurface';
 
 interface SearchHarnessProps {
+	readonly argumentPickerForAction?:
+		| ((actionId: string) => WorkbenchSearchProviderArgumentPicker | undefined)
+		| undefined;
 	readonly filter?: 'actions' | 'all';
 	readonly providers?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly runtime: ActionRuntime;
@@ -28,6 +33,7 @@ interface SearchHarnessProps {
 }
 
 function SearchHarness({
+	argumentPickerForAction,
 	filter = 'actions',
 	providers,
 	runtime,
@@ -43,6 +49,7 @@ function SearchHarness({
 		<WorkbenchSearchSurface
 			actionRuntime={runtime}
 			actionScope={scope}
+			argumentPickerForAction={argumentPickerForAction}
 			providers={providers}
 			shortcutLabelForAction={() => undefined}
 			state={state}
@@ -68,6 +75,76 @@ function createProvider(
 }
 
 function noop(): void {}
+
+interface PendingRead {
+	readonly reject: (reason: unknown) => void;
+	readonly resolve: (read: WorkbenchSearchProviderArgumentRead) => void;
+	readonly signal: AbortSignal;
+}
+
+/** An Action whose one choice comes from a picker that reads when it opens. */
+function renderReadPicker() {
+	const reads: PendingRead[] = [];
+	const chosen = vi.fn<(value: string) => void>();
+	const runtime = new ActionRuntime();
+	const scope = runtime.createScope('workbench');
+	runtime.register(
+		scope,
+		defineAction({
+			category: { id: 'projects', title: workbenchMessages.actionCategoryProjects },
+			execution: { concurrency: 'parallel', concurrencyKey: () => 'pick', mode: 'foreground' },
+			getAvailability: () => ({ kind: 'enabled' }),
+			getDiscoveryAvailability: () => ({ kind: 'enabled' }),
+			handler: {
+				execute: (_context, input) => {
+					chosen(input.value);
+					return { kind: 'completed' };
+				},
+			},
+			id: 'test.pick',
+			input: {
+				name: 'PickInput',
+				parse: (input: unknown) =>
+					typeof input === 'object' &&
+					input !== null &&
+					'value' in input &&
+					typeof input.value === 'string'
+						? { data: { value: input.value }, success: true }
+						: { code: 'expected-pick-input', success: false },
+			},
+			title: workbenchMessages.worktreeOpen,
+		}),
+	);
+	const picker: WorkbenchSearchProviderArgumentPicker = {
+		kind: 'read',
+		placeholder: 'Search checkouts…',
+		prompt: 'Choose a checkout',
+		read: (signal) =>
+			new Promise((resolve, reject) => {
+				reads.push({ reject, resolve, signal });
+			}),
+		readFailed: 'Checkouts unavailable',
+		reading: 'Reading repository…',
+	};
+	const rendered = render(
+		<OrchbeeI18nProvider locale='en-US'>
+			<SearchHarness
+				argumentPickerForAction={(actionId) => (actionId === 'test.pick' ? picker : undefined)}
+				runtime={runtime}
+				scope={scope}
+			/>
+		</OrchbeeI18nProvider>,
+	);
+	return { chosen, reads, unmount: rendered.unmount };
+}
+
+function onlyOption(): HTMLElement {
+	const options = screen.getAllByRole('option');
+	expect(options).toHaveLength(1);
+	const [option] = options;
+	if (option === undefined) throw new Error('Expected one option.');
+	return option;
+}
 
 afterEach(() => cleanup());
 
@@ -151,6 +228,63 @@ describe('WorkbenchSearchSurface', () => {
 		fireEvent.click(screen.getByRole('option', { name: /Vertical tabs/u }));
 		await waitFor(() => expect(execute).toHaveBeenCalledWith('vertical'));
 		expect(screen.queryByRole('dialog')).toBeNull();
+	});
+
+	it('reads a picker once per opening, shows one disabled row until it can offer choices, and drops a read it left', async () => {
+		const { chosen, reads } = renderReadPicker();
+		const input = await screen.findByRole('combobox', { name: 'Search Orchbee' });
+		const enter = async (count: number) => {
+			fireEvent.keyDown(input, { key: 'Enter' });
+			await waitFor(() => expect(reads).toHaveLength(count));
+		};
+		const back = () => fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+		fireEvent.change(input, { target: { value: 'Open Worktree' } });
+
+		await enter(1);
+		expect(screen.getByText('Choose a checkout')).toBeDefined();
+		expect(onlyOption().textContent).toContain('Reading repository…');
+		expect(onlyOption().getAttribute('aria-disabled')).toBe('true');
+		back();
+		expect(reads[0]?.signal.aborted).toBe(true);
+		reads[0]?.resolve({ kind: 'unavailable', label: 'Too late' });
+
+		// A new opening reads again instead of showing what an earlier one learned.
+		await enter(2);
+		expect(onlyOption().textContent).toContain('Reading repository…');
+		reads[1]?.reject(new Error('lost'));
+		await waitFor(() => expect(onlyOption().textContent).toContain('Checkouts unavailable'));
+		expect(onlyOption().getAttribute('aria-disabled')).toBe('true');
+		expect(screen.queryByText('Too late')).toBeNull();
+
+		back();
+		await enter(3);
+		reads[2]?.resolve({ kind: 'unavailable', label: 'Not in a Git repository' });
+		await waitFor(() => expect(onlyOption().textContent).toContain('Not in a Git repository'));
+		fireEvent.click(onlyOption());
+		expect(chosen).not.toHaveBeenCalled();
+
+		back();
+		await enter(4);
+		reads[3]?.resolve({
+			kind: 'options',
+			options: [{ id: 'main', input: { value: 'main' }, keywords: [], label: 'main' }],
+		});
+		await waitFor(() => expect(onlyOption().getAttribute('aria-disabled')).not.toBe('true'));
+		fireEvent.click(onlyOption());
+		await waitFor(() => expect(chosen).toHaveBeenCalledExactlyOnceWith('main'));
+		expect(screen.queryByRole('dialog')).toBeNull();
+	});
+
+	it('abandons a picker read when Search closes', async () => {
+		const { reads, unmount } = renderReadPicker();
+		const input = await screen.findByRole('combobox', { name: 'Search Orchbee' });
+		fireEvent.change(input, { target: { value: 'Open Worktree' } });
+		fireEvent.keyDown(input, { key: 'Enter' });
+		await waitFor(() => expect(reads).toHaveLength(1));
+
+		unmount();
+
+		expect(reads[0]?.signal.aborted).toBe(true);
 	});
 
 	it('renders asynchronous provider progress and invokes the provider-owned Action token', async () => {

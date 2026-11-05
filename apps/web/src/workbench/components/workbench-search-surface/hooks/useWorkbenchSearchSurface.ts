@@ -13,12 +13,17 @@ import {
 	resolveWorkbenchSearchHighlight,
 	selectWorkbenchSearchSections,
 } from '../model/workbench-search-ranking';
-import type { WorkbenchSearchResult } from '../model/workbench-search-result';
+import type {
+	WorkbenchSearchArgumentPicker,
+	WorkbenchSearchResult,
+} from '../model/workbench-search-result';
 import type { WorkbenchSearchEvent, WorkbenchSearchState } from '../model/workbench-search-state';
+import { useWorkbenchSearchArgumentRead } from './useWorkbenchSearchArgumentRead';
 import { useWorkbenchSearchCatalog } from './useWorkbenchSearchCatalog';
 import { useWorkbenchSearchProviders } from './useWorkbenchSearchProviders';
 
 interface UseWorkbenchSearchSurfaceOptions {
+	readonly argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined;
 	readonly providers: readonly WorkbenchSearchProvider[];
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
@@ -99,7 +104,10 @@ interface WorkbenchSearchSurfaceView {
 	readonly showEmpty: boolean;
 }
 
+const PICKER_STATUS_ID = 'argument-status';
+
 export function useWorkbenchSearchSurface({
+	argumentPickerForAction,
 	providers,
 	runtime,
 	scope,
@@ -113,6 +121,7 @@ export function useWorkbenchSearchSurface({
 	const inputElement = React.useRef<HTMLInputElement | null>(null);
 	const resultsElement = React.useRef<HTMLDivElement | null>(null);
 	const catalog = useWorkbenchSearchCatalog({
+		argumentPickerForAction,
 		intl,
 		runtime,
 		scope,
@@ -156,21 +165,27 @@ export function useWorkbenchSearchSurface({
 		pickerAction?.invocation.kind === 'requires-input'
 			? (pickerAction.invocation.picker ?? null)
 			: null;
+	const pickerChoices = useWorkbenchSearchArgumentRead(
+		picker,
+		state.kind === 'picking-argument' ? `${state.sessionId}:${state.actionResultId}` : null,
+	);
 	const pickerOptions = React.useMemo(
 		() =>
-			state.kind === 'picking-argument' && picker !== null
-				? filterWorkbenchSearchArgumentOptions(picker.options, state.query)
+			state.kind === 'picking-argument' && pickerChoices?.kind === 'options'
+				? filterWorkbenchSearchArgumentOptions(pickerChoices.options, state.query)
 				: [],
-		[picker, state],
+		[pickerChoices, state],
 	);
+	/** A picker still reading, or with nothing to choose, says so in one disabled row. */
+	const pickerStatus = pickerChoices?.kind === 'status' ? pickerChoices.label : null;
+	const optionIds = pickerOptions.map((option) => `argument:${option.id}`);
+	const pickerIds = pickerStatus === null ? optionIds : [PICKER_STATUS_ID];
 	const resultIds =
-		state.kind === 'browsing'
-			? browsingResults.map((result) => result.id)
-			: pickerOptions.map((option) => `argument:${option.id}`);
+		state.kind === 'browsing' ? browsingResults.map((result) => result.id) : pickerIds;
 	const enabledResultIds =
 		state.kind === 'browsing'
 			? browsingResults.filter(isWorkbenchSearchResultEnabled).map((result) => result.id)
-			: resultIds;
+			: optionIds;
 	const highlightedResultId = resolveWorkbenchSearchHighlight(
 		state.highlightedResultId,
 		resultIds,
@@ -204,9 +219,7 @@ export function useWorkbenchSearchSurface({
 		) {
 			return;
 		}
-		const option = pickerAction.invocation.picker.options.find(
-			(candidate) => candidate.id === optionId,
-		);
+		const option = pickerOptions.find((candidate) => candidate.id === optionId);
 		if (option === undefined) {
 			return;
 		}
@@ -220,6 +233,18 @@ export function useWorkbenchSearchSurface({
 	});
 	const sections = React.useMemo<readonly WorkbenchSearchSectionView[]>(() => {
 		if (state.kind === 'picking-argument') {
+			const statusRow = (label: string): WorkbenchSearchRowView => ({
+				disabled: true,
+				elementId: `workbench-search-option-${state.sessionId}-${PICKER_STATUS_ID}`,
+				icon: 'layout',
+				id: PICKER_STATUS_ID,
+				label,
+				onInvoke: () => setLiveMessage(label),
+				onPointerDown: (event) => event.preventDefault(),
+				onPointerMove: () => undefined,
+				selected: false,
+				showsPicker: false,
+			});
 			return picker === null
 				? []
 				: [
@@ -227,30 +252,35 @@ export function useWorkbenchSearchSurface({
 							id: 'arguments',
 							label: intl.formatMessage(workbenchMessages.searchArgumentOptions),
 							labelId: `workbench-search-group-${state.sessionId}-arguments`,
-							rows: pickerOptions.map((option) => {
-								const id = `argument:${option.id}`;
-								const selected = highlightedResultId === id;
-								return {
-									...(option.description === undefined ? {} : { description: option.description }),
-									disabled: false,
-									elementId: `workbench-search-option-${state.sessionId}-${id}`,
-									...(selected
-										? {
-												elementRef: (element: HTMLDivElement | null) => {
-													highlightedElement.current = element;
-												},
-											}
-										: {}),
-									icon: 'layout',
-									id,
-									label: option.label,
-									onInvoke: () => invokePickerOption(option.id),
-									onPointerDown: (event) => event.preventDefault(),
-									onPointerMove: () => update({ resultId: id, type: 'highlight' }),
-									selected,
-									showsPicker: false,
-								};
-							}),
+							rows: [
+								...(pickerStatus === null ? [] : [statusRow(pickerStatus)]),
+								...pickerOptions.map((option): WorkbenchSearchRowView => {
+									const id = `argument:${option.id}`;
+									const selected = highlightedResultId === id;
+									return {
+										...(option.description === undefined
+											? {}
+											: { description: option.description }),
+										disabled: false,
+										elementId: `workbench-search-option-${state.sessionId}-${id}`,
+										...(selected
+											? {
+													elementRef: (element: HTMLDivElement | null) => {
+														highlightedElement.current = element;
+													},
+												}
+											: {}),
+										icon: 'layout',
+										id,
+										label: option.label,
+										onInvoke: () => invokePickerOption(option.id),
+										onPointerDown: (event) => event.preventDefault(),
+										onPointerMove: () => update({ resultId: id, type: 'highlight' }),
+										selected,
+										showsPicker: false,
+									};
+								}),
+							],
 						},
 					];
 		}
@@ -298,6 +328,7 @@ export function useWorkbenchSearchSurface({
 		invokePickerOption,
 		picker,
 		pickerOptions,
+		pickerStatus,
 		state,
 		update,
 	]);

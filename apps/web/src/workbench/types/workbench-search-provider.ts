@@ -22,11 +22,33 @@ export interface WorkbenchSearchProviderArgumentOption {
 	readonly label: string;
 }
 
-export interface WorkbenchSearchProviderArgumentPicker {
-	readonly options: readonly WorkbenchSearchProviderArgumentOption[];
+/** What a picker read: its options, or why it has none, which shows as one disabled row. */
+export type WorkbenchSearchProviderArgumentRead =
+	| {
+			readonly kind: 'options';
+			readonly options: readonly WorkbenchSearchProviderArgumentOption[];
+	  }
+	| { readonly kind: 'unavailable'; readonly label: string };
+
+export type WorkbenchSearchProviderArgumentPicker = {
 	readonly placeholder: string;
 	readonly prompt: string;
-}
+} & (
+	| {
+			readonly kind: 'options';
+			readonly options: readonly WorkbenchSearchProviderArgumentOption[];
+	  }
+	/**
+	 * Options read each time the picker opens; the signal aborts once it closes or goes back. Until
+	 * the read settles one disabled row says `reading`, and a read that rejects says `readFailed`.
+	 */
+	| {
+			readonly kind: 'read';
+			readonly read: (signal: AbortSignal) => Promise<WorkbenchSearchProviderArgumentRead>;
+			readonly readFailed: string;
+			readonly reading: string;
+	  }
+);
 
 export type WorkbenchSearchProviderResultInvocation =
 	| {

@@ -39,11 +39,13 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
+import type { WorkbenchSearchProviderArgumentPicker } from '../types/workbench-search-provider';
 import type {
 	WorkbenchProjectNavigationMessages,
 	WorkbenchWorktreeCommands,
 } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import { createFocusedPanelWorktreePicker } from '../model/createFocusedPanelWorktreePicker';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
 import {
 	projectWorkbenchEmptyWorkspace,
@@ -211,6 +213,10 @@ interface WorkbenchView {
 	readonly searchLabel: string;
 	readonly search: (returnFocus: HTMLElement) => void;
 	readonly searchState: WorkbenchSearchState;
+	/** Pickers for Search's Actions whose choices the Workbench reads when the picker opens. */
+	readonly searchArgumentPickerForAction: (
+		actionId: string,
+	) => WorkbenchSearchProviderArgumentPicker | undefined;
 	readonly updateSearch: React.Dispatch<WorkbenchSearchEvent>;
 	readonly searchShortcutId: string;
 	readonly searchShortcutLabel: string;
@@ -557,6 +563,14 @@ export function useWorkbench({
 		worktreeLabel,
 	});
 	const worktrees = authorityNotice.authority.worktrees;
+	const searchArgumentPickerForAction = React.useMemo(() => {
+		const worktreePicker =
+			worktrees === undefined
+				? undefined
+				: createFocusedPanelWorktreePicker({ intl, projectWorkspaceRuntime, worktrees });
+		return (actionId: string) =>
+			actionId === WORKBENCH_ACTION_IDS.openFocusedPanelWorktree ? worktreePicker : undefined;
+	}, [intl, projectWorkspaceRuntime, worktrees]);
 	const invokeAction = actions.invoke;
 	const closeResume = React.useMemo<TabStripCloseResume>(() => {
 		const decider = authorityNotice.authority;
@@ -882,6 +896,7 @@ export function useWorkbench({
 			searchReturnFocus.current = returnFocus;
 			actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
 		},
+		searchArgumentPickerForAction,
 		searchState,
 		searchLabel: intl.formatMessage(workbenchMessages.search),
 		searchShortcutId: WORKBENCH_SHORTCUTS.search.id,

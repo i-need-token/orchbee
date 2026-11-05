@@ -1,4 +1,5 @@
 import type {
+	WorkbenchPanelTerminal,
 	WorkbenchWorktreeCommand,
 	WorkbenchWorktreeDiscovery,
 	WorkbenchWorktreeDiscoveryResult,
@@ -18,6 +19,7 @@ import {
 
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import type { ServerWorkbenchAnswer, ServerWorkbenchSession } from './ServerWorkbenchSession';
+import { shownPanelTerminal } from './shownPanelTerminal';
 import { DEFAULT_TERMINAL_GEOMETRY } from './workspace-launch';
 import { sameDirectorySpelling, worktreeDestination } from './worktree-paths';
 
@@ -129,10 +131,25 @@ function boundTerminals(node: WorkbenchPanelNode): number {
 	).length;
 }
 
+/** Discoveries and their commands meet on the source they read: the Workspace, or one Panel's terminal. */
+function sourceKey(workspaceId: string, panel: WorkbenchPanelTerminal | undefined): string {
+	return panel === undefined
+		? workspaceId
+		: `${workspaceId}/${panel.panelId}/${panel.presentationId}`;
+}
+
+/**
+ * Where the Workspace's first terminal stands, or the terminal shown in `panel`. A Panel the
+ * Workspace no longer holds gets no answer, as the Server would refuse it.
+ */
 async function currentDirectory(
 	session: WorktreeSession,
 	workspaceId: string,
+	panel: WorkbenchPanelTerminal | undefined,
 ): Promise<string | null> {
+	const shown =
+		panel === undefined ? undefined : shownPanelTerminal(session.snapshot, workspaceId, panel);
+	if (shown === null) return null;
 	const requestId = createWorkbenchRequestId();
 	const request = readRequest({
 		kind: 'workbench.current-directory',
@@ -140,6 +157,7 @@ async function currentDirectory(
 		requestId,
 		sessionId: session.snapshot.sessionId,
 		workspaceId,
+		...(shown === undefined ? {} : { panel: shown }),
 	});
 	if (request === null) return null;
 	const answer = await session.ask(request, CURRENT_DIRECTORY_MILLISECONDS);
@@ -248,7 +266,7 @@ function failed(cause: WorkbenchWorktreeFailureCause): WorkbenchWorktreeOutcome 
  * requests and rules, so every Client offers, starts and follows the same operations.
  */
 export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktrees {
-	/** The latest discovery of each Workspace, which its commands act on. */
+	/** The latest discovery of each source, which its commands act on. */
 	const discoveries = new Map<string, DiscoveryFacts>();
 	const readings = new Map<string, number>();
 	/** Oldest first, so the newest of a Workspace is the last one listed. */
@@ -439,7 +457,21 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 			}
 			return outcome;
 		}
-		const facts = discoveries.get(command.workspaceId);
+		let facts: DiscoveryFacts | undefined;
+		if (command.kind === 'create' && command.panel !== undefined) {
+			// The person was shown nothing, so the creation reads Git where the Panel stands first.
+			const reading = await discoverSource(command.workspaceId, command.panel);
+			if (reading.kind === 'failed') {
+				return failed(
+					reading.reason === 'not-repository' ? 'not-repository' : 'listing-unavailable',
+				);
+			}
+			facts = reading.facts;
+		} else {
+			facts = discoveries.get(
+				sourceKey(command.workspaceId, command.kind === 'remove' ? undefined : command.panel),
+			);
+		}
 		if (facts === undefined) return failed('source-changed');
 		const operationId = createWorkbenchRequestId();
 		const launch = {
@@ -516,10 +548,13 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 		}
 	}
 
-	async function listCheckouts(workspaceId: string): Promise<DiscoveryReading> {
+	async function listCheckouts(
+		workspaceId: string,
+		panel: WorkbenchPanelTerminal | undefined,
+	): Promise<DiscoveryReading> {
 		const unavailable: DiscoveryReading = { kind: 'failed', reason: 'unavailable' };
 		const deadline = performance.now() + DISCOVERY_MILLISECONDS;
-		const observed = await currentDirectory(session, workspaceId);
+		const observed = await currentDirectory(session, workspaceId, panel);
 		const source = workspaceSource(session.snapshot, workspaceId, observed);
 		const remaining = deadline - performance.now();
 		if (source === null || remaining <= 0) return unavailable;
@@ -567,16 +602,28 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 		};
 	}
 
+	async function discoverSource(
+		workspaceId: string,
+		panel: WorkbenchPanelTerminal | undefined,
+	): Promise<DiscoveryReading> {
+		const key = sourceKey(workspaceId, panel);
+		const reading = (readings.get(key) ?? 0) + 1;
+		readings.set(key, reading);
+		const result = await listCheckouts(workspaceId, panel);
+		// Only the newest read speaks for the source, as only it reaches the menu or picker.
+		if (readings.get(key) === reading) {
+			if (result.kind === 'discovered') discoveries.set(key, result.facts);
+			else discoveries.delete(key);
+		}
+		return result;
+	}
+
 	return {
-		async discover(workspaceId: string): Promise<WorkbenchWorktreeDiscoveryResult> {
-			const reading = (readings.get(workspaceId) ?? 0) + 1;
-			readings.set(workspaceId, reading);
-			const result = await listCheckouts(workspaceId);
-			// Only the newest read speaks for the Workspace, as only it reaches the menu.
-			if (readings.get(workspaceId) === reading) {
-				if (result.kind === 'discovered') discoveries.set(workspaceId, result.facts);
-				else discoveries.delete(workspaceId);
-			}
+		async discover(
+			workspaceId: string,
+			panel?: WorkbenchPanelTerminal,
+		): Promise<WorkbenchWorktreeDiscoveryResult> {
+			const result = await discoverSource(workspaceId, panel);
 			const stoppedRemoval = stoppedRemovalOf(workspaceId);
 			return result.kind === 'discovered'
 				? { kind: 'discovered', discovery: result.facts.discovery, stoppedRemoval }

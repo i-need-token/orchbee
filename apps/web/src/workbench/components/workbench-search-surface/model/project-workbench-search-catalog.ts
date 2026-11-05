@@ -15,6 +15,8 @@ import type {
 } from './workbench-search-result';
 
 interface ProjectWorkbenchSearchCatalogOptions {
+	/** Pickers the composition supplies for Actions whose choices only it can read. */
+	readonly argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined;
 	readonly intl: IntlShape;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
@@ -22,6 +24,7 @@ interface ProjectWorkbenchSearchCatalogOptions {
 }
 
 export function projectWorkbenchSearchCatalog({
+	argumentPickerForAction,
 	intl,
 	runtime,
 	scope,
@@ -38,7 +41,13 @@ export function projectWorkbenchSearchCatalog({
 	);
 	const needsContext = intl.formatMessage(workbenchMessages.searchActionsNeedContext);
 	const actionResults = discovery.map((result) =>
-		projectActionResult(result, intl, shortcutLabelForAction, needsContext),
+		projectActionResult(
+			result,
+			intl,
+			shortcutLabelForAction,
+			argumentPickerForAction,
+			needsContext,
+		),
 	);
 	const settingsResults = actionResults
 		.filter((result) => result.actionId === WORKBENCH_ACTION_IDS.openSettings)
@@ -64,12 +73,12 @@ function projectActionResult(
 	result: ActionDiscoveryResult,
 	intl: IntlShape,
 	shortcutLabelForAction: (actionId: string) => string | undefined,
+	argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined,
 	needsContext: string,
 ): WorkbenchSearchResult {
 	const picker =
-		result.kind === 'requires-input' &&
-		result.descriptor.id === WORKBENCH_ACTION_IDS.setTabStripOrientation
-			? createTabOrientationPicker(intl)
+		result.kind === 'requires-input'
+			? argumentPicker(result.descriptor.id, intl, argumentPickerForAction)
 			: undefined;
 	const invocation =
 		result.kind === 'ready'
@@ -168,8 +177,19 @@ function isRecommendedAction(actionId: string): boolean {
 	);
 }
 
+function argumentPicker(
+	actionId: string,
+	intl: IntlShape,
+	argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined,
+): WorkbenchSearchArgumentPicker | undefined {
+	return actionId === WORKBENCH_ACTION_IDS.setTabStripOrientation
+		? createTabOrientationPicker(intl)
+		: argumentPickerForAction(actionId);
+}
+
 function createTabOrientationPicker(intl: IntlShape): WorkbenchSearchArgumentPicker {
 	return {
+		kind: 'options',
 		options: [
 			{
 				id: 'horizontal',

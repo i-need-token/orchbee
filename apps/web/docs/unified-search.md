@@ -83,8 +83,17 @@ Raw exceptions never enter product presentation.
 | Retry provider         | Failed run is current                                             | Increment only that provider attempt and start a replacement run                             |
 | Provider model changed | Provider remains applicable                                       | Replace only that provider run; other providers and current highlight remain stable          |
 | Start argument picker  | Current result carries supported unbound input                    | Preserve the browsing snapshot and enter the nested picker                                   |
+| Picker read settled    | The same picker entry is still open                               | Replace the one disabled reading row with the choices, or with one disabled row saying why   |
 | Back                   | Picking an argument                                               | Restore filter, query, revision, highlight, provider projection, and measured scroll         |
 | Close or unmount       | Surface is open                                                   | Cancel provider work, clear the mounted projection, restore semantic focus, invoke nothing   |
+
+A picker either carries its options or reads them. The composition supplies a reading picker for an
+Action whose choices only it can see, such as the checkouts Git lists where the focused Panel stands.
+It reads once per entry into the picker; going back, closing, or unmounting aborts the read and
+discards its answer, so entering again reads again. Until the read settles, one disabled row says it
+is reading; a read with nothing to offer, or one that rejects, leaves one disabled row in the
+picker's words, which invokes nothing. A catalog projection that replaces the picker object while
+it is open does not start another read.
 
 An `AbortController` is disposal assistance, not correctness authority. Every completion is checked
 against the exact active execution as well as session, revision, provider ID, and attempt even when
@@ -128,6 +137,7 @@ to the engineering caller and never become raw product copy.
 | Completion order is observationally irrelevant | Canonical data | Permuted provider-completion property tests                                                        | Ranking inputs are held equal                                                 |
 | Retry is provider-local                        | Transitions    | Failed-group retry timeline tests                                                                  | Retry policy beyond explicit user retry is excluded                           |
 | Selection invokes at most once                 | Invariants     | Prepared-invocation integration tests                                                              | Action-domain result correctness is excluded                                  |
+| A picker read belongs to its entry             | Transitions    | Reading, rejected, empty, choices, back-while-reading and close-while-reading surface tests        | The reading port's own correctness is excluded                                |
 | Focus survives late completion                 | Ownership      | Deterministic browser trace with semantic focus checkpoints                                        | Supported desktop browser environment                                         |
 
 ## Maintenance

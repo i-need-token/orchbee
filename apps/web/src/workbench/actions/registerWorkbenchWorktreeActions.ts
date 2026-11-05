@@ -1,5 +1,6 @@
 import {
 	defineAction,
+	noActionInput,
 	type ActionDisposable,
 	type ActionExecutionContext,
 	type ActionResult,
@@ -15,10 +16,12 @@ import type {
 	WorkbenchWorktreeOutcome,
 	WorkbenchWorktrees,
 } from '../types/workbench-worktrees';
+import { resolveFocusedPanel } from '../utils/resolveFocusedPanel';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
 	type WorkbenchWorktreeOpening,
+	workbenchFocusedPanelWorktreeCheckoutInput,
 	workbenchWorkspaceInput,
 	workbenchWorktreeCheckoutInput,
 	workbenchWorktreeRemovalInput,
@@ -56,9 +59,10 @@ function openingResult(outcome: WorkbenchWorktreeOutcome): ActionResult<Workbenc
 }
 
 /**
- * The Workspace menu's Worktree commands. The authority owns Git and the operation, and its notices
- * report progress and outcomes; these Actions own the person's decisions. Removal asks first, and a
- * removal that stops where it may continue asks again before it continues.
+ * The Workspace menu's Worktree commands, and the TUI's `Ctrl+B W` and `Ctrl+B O` as Search's
+ * commands from the focused Panel. The authority owns Git and the operation, and its notices report
+ * progress and outcomes; these Actions own the person's decisions. Removal asks first, and a removal
+ * that stops where it may continue asks again before it continues.
  */
 export function registerWorkbenchWorktreeActions({
 	projectWorkspaceRuntime,
@@ -79,6 +83,11 @@ export function registerWorkbenchWorktreeActions({
 			.workspaces.find((workspace) => workspace.id === workspaceId)?.name;
 	const workspaceAvailability = (input: { readonly workspaceId: string }) =>
 		workspaceName(input.workspaceId) === undefined
+			? { kind: 'disabled' as const, reason: workbenchMessages.actionUnavailable }
+			: { kind: 'enabled' as const };
+	/** Search offers the focused Panel's commands only while a Panel is focused. */
+	const focusedPanelAvailability = () =>
+		resolveFocusedPanel(projectWorkspaceRuntime) === null
 			? { kind: 'disabled' as const, reason: workbenchMessages.actionUnavailable }
 			: { kind: 'enabled' as const };
 	const send = (context: ActionExecutionContext, command: WorkbenchWorktreeCommand) => {
@@ -151,6 +160,60 @@ export function registerWorkbenchWorktreeActions({
 				},
 				id: WORKBENCH_ACTION_IDS.openWorktree,
 				input: workbenchWorktreeCheckoutInput,
+				title: workbenchMessages.worktreeOpen,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
+					concurrency: 'reject-duplicate',
+					concurrencyKey: () => 'focused-panel',
+					mode: 'foreground',
+				},
+				getAvailability: focusedPanelAvailability,
+				handler: {
+					execute: async (context) => {
+						const focused = resolveFocusedPanel(projectWorkspaceRuntime);
+						if (focused === null) return { kind: 'blocked', code: 'focused-panel-unavailable' };
+						// Git's answer is unknown until the authority reads where the Panel stands.
+						return openingResult(
+							await send(context, {
+								kind: 'create',
+								label: defaultLabel(),
+								panel: { panelId: focused.panelId, presentationId: focused.presentationId },
+								workspaceId: focused.workspaceId,
+							}),
+						);
+					},
+				},
+				id: WORKBENCH_ACTION_IDS.createFocusedPanelWorktree,
+				input: noActionInput,
+				title: workbenchMessages.worktreeNew,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: workspaceExecution,
+				getAvailability: (_context, input) => workspaceAvailability(input),
+				// Search picks the checkout from what Git listed where the focused Panel stands.
+				getDiscoveryAvailability: focusedPanelAvailability,
+				handler: {
+					execute: async (context, input) =>
+						openingResult(
+							await send(context, {
+								kind: 'open',
+								panel: { panelId: input.panelId, presentationId: input.presentationId },
+								path: input.path,
+								workspaceId: input.workspaceId,
+							}),
+						),
+				},
+				id: WORKBENCH_ACTION_IDS.openFocusedPanelWorktree,
+				input: workbenchFocusedPanelWorktreeCheckoutInput,
 				title: workbenchMessages.worktreeOpen,
 			}),
 		),

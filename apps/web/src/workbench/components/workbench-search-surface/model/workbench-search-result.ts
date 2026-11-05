@@ -3,12 +3,15 @@ import type { ProductIconName } from '@orchbee/ui/components';
 import type {
 	WorkbenchSearchProviderArgumentOption,
 	WorkbenchSearchProviderArgumentPicker,
+	WorkbenchSearchProviderArgumentRead,
 	WorkbenchSearchProviderResultInvocation,
 } from '../../../types/workbench-search-provider';
 
 export type WorkbenchSearchArgumentOption = WorkbenchSearchProviderArgumentOption;
 
 export type WorkbenchSearchArgumentPicker = WorkbenchSearchProviderArgumentPicker;
+
+export type WorkbenchSearchArgumentRead = WorkbenchSearchProviderArgumentRead;
 
 type WorkbenchSearchResultInvocation = WorkbenchSearchProviderResultInvocation;
 

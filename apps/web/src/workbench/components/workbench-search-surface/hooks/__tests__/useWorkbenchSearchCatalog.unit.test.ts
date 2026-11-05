@@ -45,6 +45,7 @@ describe('useWorkbenchSearchCatalog', () => {
 		const rendered = renderHook(
 			() =>
 				useWorkbenchSearchCatalog({
+					argumentPickerForAction: () => undefined,
 					intl: useOrchbeeIntl(),
 					runtime,
 					scope,
@@ -65,6 +66,7 @@ describe('useWorkbenchSearchCatalog', () => {
 			() => {
 				const intl = useOrchbeeIntl();
 				return useWorkbenchSearchCatalog({
+					argumentPickerForAction: () => undefined,
 					intl,
 					runtime,
 					scope,

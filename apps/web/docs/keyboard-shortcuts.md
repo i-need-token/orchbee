@@ -401,6 +401,8 @@ between ordinary keybinding search and an explicit Record Keys mode. Orchbee del
 one physical chord rather than VS Code's chord sequences, uses its own effective catalog and
 localized metadata, and makes the recording path discovery-only rather than an editing command.
 
+New Worktree and Open Worktree from the focused Panel (`workbench.worktree.active.create` and `workbench.worktree.active.open`), the counterparts of the TUI's `Ctrl+B W` and `Ctrl+B O`, have no default key and run from Action search. Standard `Ctrl+Shift+W` already closes the active terminal and `Mod+Shift+O` shows keyboard hints, and a `Ctrl+Alt` chord types an AltGr character on many Windows layouts, so no chord carries the TUI's mnemonic without taking one from the terminal or another command.
+
 ## Chord and conflict model
 
 `@orchbee/keyboard-shortcuts` provides only the pure physical-chord mechanism. A chord contains one

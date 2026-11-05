@@ -57,6 +57,7 @@ describe('Workbench search catalog projection', () => {
 		);
 
 		const catalog = projectWorkbenchSearchCatalog({
+			argumentPickerForAction: () => undefined,
 			intl: createOrchbeeIntl('en-US'),
 			runtime,
 			scope,
@@ -85,6 +86,7 @@ describe('Workbench search catalog projection', () => {
 			invocation: {
 				kind: 'requires-input',
 				picker: {
+					kind: 'options',
 					options: [{ id: 'horizontal' }, { id: 'vertical' }],
 				},
 			},

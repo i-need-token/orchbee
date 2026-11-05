@@ -88,7 +88,9 @@ describe('workbench action contracts', () => {
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
 			createWorktree: 'workbench.worktree.create',
+			createFocusedPanelWorktree: 'workbench.worktree.active.create',
 			openWorktree: 'workbench.worktree.open',
+			openFocusedPanelWorktree: 'workbench.worktree.active.open',
 			removeWorktree: 'workbench.worktree.remove',
 			resumeWorktreeRemoval: 'workbench.worktree.resume-removal',
 		});

@@ -366,6 +366,7 @@ export function Workbench({
 				<WorkbenchSearchSurface
 					actionRuntime={actionRuntime}
 					actionScope={view.actionScope}
+					argumentPickerForAction={view.searchArgumentPickerForAction}
 					providers={searchProviders}
 					shortcutLabelForAction={shortcutLabelForAction}
 					state={view.searchState}

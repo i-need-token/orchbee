@@ -3,7 +3,10 @@ import { Dialog, DialogContent, Kbd, ProductIcon } from '@orchbee/ui/components'
 import * as React from 'react';
 
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from '../../constants/search-providers';
-import type { WorkbenchSearchProvider } from '../../types/workbench-search-provider';
+import type {
+	WorkbenchSearchProvider,
+	WorkbenchSearchProviderArgumentPicker,
+} from '../../types/workbench-search-provider';
 import type { WorkbenchSearchEvent, WorkbenchSearchState } from './model/workbench-search-state';
 import { useWorkbenchSearchSurface } from './hooks/useWorkbenchSearchSurface';
 import styles from './WorkbenchSearchSurface.module.css';
@@ -11,21 +14,31 @@ import styles from './WorkbenchSearchSurface.module.css';
 interface WorkbenchSearchSurfaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
+	/** Pickers for Actions whose choices only the composition can read. */
+	readonly argumentPickerForAction?:
+		| ((actionId: string) => WorkbenchSearchProviderArgumentPicker | undefined)
+		| undefined;
 	readonly providers?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
 	readonly update: React.Dispatch<WorkbenchSearchEvent>;
 }
 
+function noArgumentPicker(): undefined {
+	return undefined;
+}
+
 export function WorkbenchSearchSurface({
 	actionRuntime,
 	actionScope,
+	argumentPickerForAction = noArgumentPicker,
 	providers = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutLabelForAction,
 	state,
 	update,
 }: WorkbenchSearchSurfaceProps): React.ReactNode {
 	const view = useWorkbenchSearchSurface({
+		argumentPickerForAction,
 		providers,
 		runtime: actionRuntime,
 		scope: actionScope,

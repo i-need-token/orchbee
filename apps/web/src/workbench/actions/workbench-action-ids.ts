@@ -81,7 +81,9 @@ export const WORKBENCH_ACTION_IDS = {
 	toggleSidebar: 'workbench.sidebar.toggle',
 	updateWorkspace: 'workbench.workspace.update',
 	createWorktree: 'workbench.worktree.create',
+	createFocusedPanelWorktree: 'workbench.worktree.active.create',
 	openWorktree: 'workbench.worktree.open',
+	openFocusedPanelWorktree: 'workbench.worktree.active.open',
 	removeWorktree: 'workbench.worktree.remove',
 	resumeWorktreeRemoval: 'workbench.worktree.resume-removal',
 } as const;
@@ -103,6 +105,12 @@ interface WorkbenchProjectCreateInput {
 export interface WorkbenchWorktreeCheckoutInput {
 	readonly path: string;
 	readonly workspaceId: string;
+}
+
+/** A checkout Git listed where the focused Panel's terminal stands, read for that Panel. */
+export interface WorkbenchFocusedPanelWorktreeCheckoutInput extends WorkbenchWorktreeCheckoutInput {
+	readonly panelId: string;
+	readonly presentationId: string;
 }
 
 /** The Workspace's own checkout as its menu showed it, which the confirmation repeats. */
@@ -288,8 +296,16 @@ export interface WorkbenchActionCatalog {
 		WorkbenchWorkspaceInput,
 		WorkbenchWorktreeOpening
 	>;
+	readonly [WORKBENCH_ACTION_IDS.createFocusedPanelWorktree]: ActionSignature<
+		void,
+		WorkbenchWorktreeOpening
+	>;
 	readonly [WORKBENCH_ACTION_IDS.openWorktree]: ActionSignature<
 		WorkbenchWorktreeCheckoutInput,
+		WorkbenchWorktreeOpening
+	>;
+	readonly [WORKBENCH_ACTION_IDS.openFocusedPanelWorktree]: ActionSignature<
+		WorkbenchFocusedPanelWorktreeCheckoutInput,
 		WorkbenchWorktreeOpening
 	>;
 	readonly [WORKBENCH_ACTION_IDS.removeWorktree]: ActionSignature<WorkbenchWorktreeRemovalInput>;
@@ -589,6 +605,27 @@ export const workbenchWorktreeCheckoutInput: ActionInputValidation<WorkbenchWork
 			typeof input['workspaceId'] === 'string'
 				? { success: true, data: { path: input['path'], workspaceId: input['workspaceId'] } }
 				: { success: false, code: 'expected-workbench-worktree-checkout-input' },
+	};
+
+export const workbenchFocusedPanelWorktreeCheckoutInput: ActionInputValidation<WorkbenchFocusedPanelWorktreeCheckoutInput> =
+	{
+		name: 'WorkbenchFocusedPanelWorktreeCheckoutInput',
+		parse: (input) =>
+			isRecord(input) &&
+			typeof input['panelId'] === 'string' &&
+			typeof input['path'] === 'string' &&
+			typeof input['presentationId'] === 'string' &&
+			typeof input['workspaceId'] === 'string'
+				? {
+						success: true,
+						data: {
+							panelId: input['panelId'],
+							path: input['path'],
+							presentationId: input['presentationId'],
+							workspaceId: input['workspaceId'],
+						},
+					}
+				: { success: false, code: 'expected-workbench-focused-panel-worktree-checkout-input' },
 	};
 
 export const workbenchWorktreeRemovalInput: ActionInputValidation<WorkbenchWorktreeRemovalInput> = {

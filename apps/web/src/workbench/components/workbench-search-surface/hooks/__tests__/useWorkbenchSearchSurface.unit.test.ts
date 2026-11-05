@@ -56,6 +56,7 @@ describe('useWorkbenchSearchSurface', () => {
 		const rendered = renderHook(
 			() =>
 				useWorkbenchSearchSurface({
+					argumentPickerForAction: () => undefined,
 					providers,
 					runtime,
 					scope,

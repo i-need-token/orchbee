@@ -87,7 +87,7 @@ function reportingWorktrees(
 	setNotice: React.Dispatch<React.SetStateAction<WorkbenchAuthorityNotice | null>>,
 ): WorkbenchWorktrees {
 	return {
-		discover: (workspaceId) => worktrees.discover(workspaceId),
+		discover: (workspaceId, panel) => worktrees.discover(workspaceId, panel),
 		run: async (command) => {
 			const progress = workbenchWorktreeProgressNotice(command);
 			setNotice(progress);
