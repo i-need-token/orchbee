@@ -4,12 +4,13 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, System, English or Simplified-Chinese display-language selection, explicit Desktop Agent-integration, shell-profile and scrollback-default management over the Session's shared preferences, device-shared common preferences with source-bound drafts and confirmed persistence, host-local appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, Shell-integration completion-reminder policy, and a read-only remote-shell diagnostic without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, System, English or Simplified-Chinese display-language selection, explicit Desktop Agent-integration, shell-profile and scrollback-default management over the Session's shared preferences, device-shared common preferences with source-bound drafts and confirmed persistence, Light and Dark theme slot pickers with in-place preview, host-local appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, Shell-integration completion-reminder policy, and a read-only remote-shell diagnostic without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"choose-application-display-language",
 		"configure-application-appearance",
+		"choose-color-theme",
 		"configure-terminal-display",
 		"configure-terminal-interaction",
 		"configure-desktop-terminal-defaults",
@@ -32,9 +33,11 @@
 		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-launch-profile-settings/TerminalLaunchProfileSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-settings-sections/TerminalSettingsSections.tsx",
+		"apps/web/src/terminal-settings-surface/components/terminal-settings-sections/components/color-theme-picker/ColorThemePicker.tsx",
 		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
 		"apps/web/src/terminal-settings-surface/constants/terminal-settings-search-catalog.ts",
 		"apps/web/src/terminal-settings-surface/constants/terminal-settings-information-architecture.ts",
+		"apps/web/src/terminal-settings-surface/utils/buildColorThemePickerViews.ts",
 		"apps/web/src/terminal-settings-surface/utils/buildTerminalSettingsSearchCatalog.ts",
 		"apps/web/src/terminal-settings-surface/utils/resolveTerminalSettingsSearch.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-search.ts",
@@ -57,6 +60,7 @@
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
 				"Inspect the light English Desktop surface with a centered bounded shell, quiet grouped rail with subdued localized labels, neutral selected category, focused search, direct setting rows with hairline separators, stable section rhythm, and compact trailing immediate controls. Switch Display language to Simplified Chinese and back to verify immediate mounted-copy replacement and explicit persistence, then inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type language or font while the current page remains complete, then activate a setting to restore navigation and move focus to its stable destination. Resize below the medium breakpoint to verify one-pane category/content navigation and its Back path.",
+				"Open Appearance to inspect the Light theme and Dark theme pickers: each lists the Orchbee theme and a test-only fixture theme of its polarity with a swatch of canvas, text, and ANSI 1-5 and a check on the effective theme. Arrow keys preview the highlighted theme, Enter or a click commits it, and Escape or leaving the list restores the committed theme.",
 				"Open Keyboard shortcuts to inspect localized text filtering, current Apple chord aliases, a zero-result state, polite result counts, and Record keys as an exact lookup that never edits or persists a binding.",
 				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
 				"Open Shell integration to inspect completion-reminder and Agent-notification policy, explicit notification-permission control, and reset.",
@@ -70,6 +74,7 @@
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
 				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration and Remote-development navigation, the absence of roadmap-only categories or controls.",
+				"Open Appearance to inspect the localized Light theme and Dark theme pickers in the dark appearance.",
 				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor.",
 				"Inspect System appearance and locale, notification sound, and the shared save/conflict/reload/reset status of the Session's device preferences."
 			]
@@ -78,7 +83,7 @@
 	"uses": [],
 	"useWhen": [
 		"A user explicitly chooses English or Simplified Chinese after automatic system or Browser locale resolution.",
-		"A client changes local Orchbee appearance, terminal font, font weights, ligatures, padding, copy-on-select, effective default terminal colors, or default-background opacity.",
+		"A client changes local Orchbee appearance, the Light or Dark color theme, terminal font, font weights, ligatures, padding, copy-on-select, effective default terminal colors, or default-background opacity.",
 		"A user searches all available Settings categories and rows without first knowing their owning category.",
 		"A client searches, records-to-find, reviews, or changes one of the frequent Workbench or focused-terminal shortcuts.",
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
@@ -99,6 +104,7 @@
 		"An empty search shows the grouped available-category rail; a non-empty search replaces only the rail with globally ranked current category and setting results while the current content page remains complete and preferences remain unchanged.",
 		"Search activation clears the query, restores navigation, selects the owning category, reveals the stable category or setting target, and moves focus to its heading, row, or management target without activating its control; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
+		"Each theme picker lists the themes of its polarity and marks the slot's effective theme. Moving through it previews the theme on the application and every mounted terminal without saving; Enter or a click commits it to its slot, also switching an Appearance fixed to the other polarity, and keeps it shown until the Session answers; Escape, leaving the list, closing Settings, or a refused save restores the committed theme. Under System each picker says when it applies.",
 		"Font family, size, regular and bold weights, ligatures, terminal padding, and copy-on-select update mounted projected terminals without replacing their attachments; presentation and interaction preferences persist independently.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
 		"Shortcut discovery filters localized visible text, stable identifiers and current chord aliases; Record keys compares one captured canonical chord exactly, while search, capture, clearing and cancellation never edit or persist a binding.",
@@ -113,7 +119,7 @@
 		"The surface never reads or edits a shell startup file, executes a source command, or requests notification permission without the settings-page button.",
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
-		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells for Light, Dark, and Custom through defaultColorOverride. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
+		"No current composition runs a Host-owned terminal-theme transaction: a Desktop window, as a Server Client, paints default-coded cells through defaultColorOverride, with the selected color theme's canvas for Theme and Host and the custom pair for Custom. Explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
 		"The complete strict appearance and interaction preference records are local to one browser origin and all product copy ships in English and Simplified Chinese.",
 		"Navigation and search project only currently implemented categories, settings, and management entries whose required composition capabilities are present; roadmap-only categories and controls remain absent."
 	],

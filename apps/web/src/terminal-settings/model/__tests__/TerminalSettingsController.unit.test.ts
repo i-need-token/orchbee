@@ -10,7 +10,7 @@ import {
 	colorThemesWithFixtures,
 	fixtureDarkTheme,
 	fixtureLightTheme,
-} from '../../../__tests__/colorThemeFixtures';
+} from '../../../__tests__/color-theme-fixtures';
 import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 import { TerminalSettingsController } from '../TerminalSettingsController';
 import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../terminal-appearance-preferences';
@@ -199,6 +199,90 @@ describe('TerminalSettingsController', () => {
 		expect(participant).toHaveBeenLastCalledWith(
 			expect.objectContaining({ colorTheme: orchbeeTerminalColorTheme('dark') }),
 		);
+		controller.dispose();
+	});
+
+	it('previews a theme at its polarity without saving, and cancelling or closing restores', () => {
+		const target = document.createElement('div');
+		const preferences = memoryUserPreferences({ applicationTheme: 'light' });
+		const update = vi.spyOn(preferences, 'update');
+		const controller = new TerminalSettingsController({
+			colorThemes: colorThemesWithFixtures,
+			storage: createStorage(null),
+			themeTarget: target,
+			userPreferences: preferences,
+		});
+		controller.open();
+
+		controller.previewColorTheme({ polarity: 'dark', themeId: fixtureDarkTheme.id });
+		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+		controller.previewColorTheme(null);
+		expect({ ...target.dataset }).toEqual({ theme: 'light' });
+
+		controller.previewColorTheme({ polarity: 'light', themeId: fixtureLightTheme.id });
+		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureLightTheme.id, theme: 'light' });
+		controller.close();
+		expect({ ...target.dataset }).toEqual({ theme: 'light' });
+
+		expect(update).not.toHaveBeenCalled();
+		expect(controller.getSnapshot().preferences).toMatchObject({
+			applicationTheme: 'light',
+			darkTheme: 'orchbee-dark',
+			lightTheme: 'orchbee-light',
+		});
+		controller.dispose();
+	});
+
+	it('commits a pick to its polarity slot, switching only a fixed Appearance of the other polarity', async () => {
+		const target = document.createElement('div');
+		const preferences = memoryUserPreferences({ applicationTheme: 'light' });
+		const controller = new TerminalSettingsController({
+			colorThemes: colorThemesWithFixtures,
+			storage: createStorage(null),
+			themeTarget: target,
+			userPreferences: preferences,
+		});
+
+		controller.selectColorTheme('dark', fixtureDarkTheme.id);
+		// The pick shows at once and stays shown through the save.
+		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+		await vi.waitFor(() =>
+			expect(preferences.getSnapshot().snapshot?.values).toMatchObject({
+				applicationTheme: 'dark',
+				darkTheme: fixtureDarkTheme.id,
+			}),
+		);
+		expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+
+		// Under System, a pick for the inactive polarity waits for the system to match.
+		controller.update({ applicationTheme: 'system' });
+		await vi.waitFor(() => expect(target.dataset['theme']).toBe('light'));
+		controller.selectColorTheme('dark', orchbeeTerminalColorTheme('dark').id);
+		await vi.waitFor(() =>
+			expect(preferences.getSnapshot().snapshot?.values).toMatchObject({
+				applicationTheme: 'system',
+				darkTheme: 'orchbee-dark',
+			}),
+		);
+		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'light' }));
+		controller.dispose();
+	});
+
+	it('restores the committed theme when the Session refuses a pick', async () => {
+		const target = document.createElement('div');
+		const preferences = memoryUserPreferences({ applicationTheme: 'dark' });
+		vi.spyOn(preferences, 'update').mockResolvedValue({ kind: 'refused', reason: 'unavailable' });
+		const controller = new TerminalSettingsController({
+			colorThemes: colorThemesWithFixtures,
+			storage: createStorage(null),
+			themeTarget: target,
+			userPreferences: preferences,
+		});
+
+		controller.selectColorTheme('dark', fixtureDarkTheme.id);
+		expect(target.dataset['colorTheme']).toBe(fixtureDarkTheme.id);
+		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'dark' }));
+		expect(controller.getSnapshot().preferences.darkTheme).toBe('orchbee-dark');
 		controller.dispose();
 	});
 

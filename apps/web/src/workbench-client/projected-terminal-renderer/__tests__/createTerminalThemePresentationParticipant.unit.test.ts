@@ -15,7 +15,7 @@ import {
 import { CanonicalUint64TextSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { fixtureDarkTheme } from '../../../__tests__/colorThemeFixtures';
+import { fixtureDarkTheme } from '../../../__tests__/color-theme-fixtures';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import { createTerminalThemePresentationParticipant } from '../createTerminalThemePresentationParticipant';
 

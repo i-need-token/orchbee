@@ -13,6 +13,7 @@ import type { TerminalSettingsSurfaceView } from '../../types/terminal-settings-
 import { SettingsSection } from '../settings-section/SettingsSection';
 import { TerminalSettingsRow } from '../terminal-settings-row/TerminalSettingsRow';
 import { ColorRow } from './components/color-row/ColorRow';
+import { ColorThemePicker } from './components/color-theme-picker/ColorThemePicker';
 import { FieldControl } from './components/field-control/FieldControl';
 import styles from './TerminalSettingsSections.module.css';
 
@@ -103,6 +104,27 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 						</NativeSelectOption>
 					</NativeSelect>
 				</TerminalSettingsRow>
+				{view.colorThemePickers.map((picker) => {
+					const noticeId = picker.notice === null ? undefined : `${picker.settingId}-notice`;
+					return (
+						<TerminalSettingsRow
+							description={picker.description}
+							key={picker.settingId}
+							label={picker.label}
+							settingId={picker.settingId}
+							visible={view.applicationThemeVisible}
+						>
+							<div className={styles['stackedControl']}>
+								<ColorThemePicker describedBy={noticeId} picker={picker} />
+								{picker.notice === null ? null : (
+									<span className={styles['deviceNotice']} id={noticeId}>
+										{picker.notice}
+									</span>
+								)}
+							</div>
+						</TerminalSettingsRow>
+					);
+				})}
 			</SettingsSection>
 			<SettingsSection
 				title={view.messages.terminalLayoutSection}

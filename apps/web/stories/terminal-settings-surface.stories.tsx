@@ -30,6 +30,7 @@ import {
 import { ApplicationLocaleController } from '../src/application-locale';
 import { ApplicationLocaleProvider } from '../src/application-locale-provider';
 import type { UserPreferencesControl } from '../src/user-preferences';
+import { colorThemesWithFixtures } from '../src/__tests__/color-theme-fixtures';
 import { memoryUserPreferences } from '../src/__tests__/memoryUserPreferences';
 
 const englishPreferences = memoryUserPreferences({ locale: 'en-US' });
@@ -106,7 +107,7 @@ export const EnglishLight: Story = {
 		docs: {
 			description: {
 				story:
-					'Inspect the centered bounded shell, quiet grouped rail with subdued localized labels, neutral selection, compact content measure, direct setting rows with hairline separators, and stable trailing controls. Switch Display language to verify immediate mounted-copy replacement, then inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage local system and Fish launches, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type language or font to see global General or Text results without blanking the current page, then activate a setting to move focus to its stable destination. Resize below the medium breakpoint to verify one-pane category/content navigation. Open Keyboard shortcuts to search localized action copy or current Apple chords and use Record keys as an exact discovery-only lookup. Capability-backed categories remain visible while roadmap-only categories and controls are absent; Shell integration explains automatic Desktop scope and exact manual fallbacks, and Remote development remains read-only.',
+					'Inspect the centered bounded shell, quiet grouped rail with subdued localized labels, neutral selection, compact content measure, direct setting rows with hairline separators, and stable trailing controls. Switch Display language to verify immediate mounted-copy replacement, then inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage local system and Fish launches, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Open Appearance and move through the Light theme and Dark theme pickers with the arrow keys; each lists a test-only fixture theme beside the shipped Orchbee theme, with a swatch of canvas, text, and ANSI 1-5, and Enter commits while Escape restores. Type language or font to see global General or Text results without blanking the current page, then activate a setting to move focus to its stable destination. Resize below the medium breakpoint to verify one-pane category/content navigation. Open Keyboard shortcuts to search localized action copy or current Apple chords and use Record keys as an exact discovery-only lookup. Capability-backed categories remain visible while roadmap-only categories and controls are absent; Shell integration explains automatic Desktop scope and exact manual fallbacks, and Remote development remains read-only.',
 			},
 		},
 	},
@@ -163,6 +164,8 @@ function createStoryController(
 	hostRecord: string | null = null,
 ): TerminalSettingsController {
 	const controller = new TerminalSettingsController({
+		// The fixture pair proves the theme pickers; the build ships only the Orchbee pair.
+		colorThemes: colorThemesWithFixtures,
 		storage: {
 			getItem: () => hostRecord,
 			setItem: () => undefined,

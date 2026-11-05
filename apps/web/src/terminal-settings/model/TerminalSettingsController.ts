@@ -58,6 +58,17 @@ export type TerminalSettingsUpdateResult =
 	| { readonly kind: 'pending' }
 	| { readonly kind: 'unchanged' };
 
+/** A theme shown in place of its slot's committed theme until it is committed or cancelled. */
+export interface TerminalColorThemePreview {
+	readonly polarity: TerminalColorTheme['polarity'];
+	readonly themeId: string;
+}
+
+interface ActiveColorThemePreview extends TerminalColorThemePreview {
+	/** A committed pick stays shown until the Session answers, so it never flashes the old theme. */
+	readonly committing: boolean;
+}
+
 export type TerminalSettingsVisibilityResult =
 	| { readonly kind: 'changed' }
 	| { readonly kind: 'disposed' }
@@ -85,7 +96,8 @@ type PresentationListener = (configuration: TerminalPresentationConfiguration) =
 export class TerminalSettingsController
 	implements TerminalAppearancePresentationSource, TerminalThemePresentationSource
 {
-	readonly #colorThemes: readonly TerminalColorTheme[];
+	/** The themes a slot may name, for pickers; the shipped themes unless a test supplies more. */
+	readonly colorThemes: readonly TerminalColorTheme[];
 	readonly #presentationListeners = new Set<PresentationListener>();
 	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
@@ -102,6 +114,7 @@ export class TerminalSettingsController
 	#revision = 0;
 	#snapshot: TerminalSettingsSnapshot;
 	#themePresentationEpoch = 0;
+	#themePreview: ActiveColorThemePreview | null = null;
 
 	constructor({
 		colorThemes = terminalColorThemes,
@@ -110,7 +123,7 @@ export class TerminalSettingsController
 		userPreferences,
 		systemTheme,
 	}: TerminalSettingsControllerOptions) {
-		this.#colorThemes = colorThemes;
+		this.colorThemes = colorThemes;
 		this.#storage = storage;
 		this.userPreferences = userPreferences;
 		this.#systemTheme = systemTheme;
@@ -166,6 +179,7 @@ export class TerminalSettingsController
 	close(): TerminalSettingsVisibilityResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (!this.#snapshot.open) return { kind: 'unchanged' };
+		if (this.#themePreview?.committing === false) this.previewColorTheme(null);
 		this.#snapshot = snapshot(
 			false,
 			null,
@@ -225,6 +239,48 @@ export class TerminalSettingsController
 		return commonPending ? { kind: 'pending' } : this.#currentUpdateResult();
 	}
 
+	/**
+	 * Shows a theme in place of its slot's committed theme, at its own polarity, without saving
+	 * anything; null restores the committed presentation.
+	 */
+	previewColorTheme(preview: TerminalColorThemePreview | null): void {
+		if (this.#disposed) return;
+		const current = this.#themePreview;
+		if (preview === null ? current === null : sameColorThemePreview(current, preview)) return;
+		const before = this.#presented(this.#snapshot.preferences);
+		this.#themePreview =
+			preview === null
+				? null
+				: { committing: false, polarity: preview.polarity, themeId: preview.themeId };
+		this.#presentIfChanged(before);
+	}
+
+	/**
+	 * Picking a theme sets the slot of its polarity. When Appearance is fixed to the other polarity,
+	 * the pick switches Appearance too, so it shows at once; under System it applies when the system
+	 * matches.
+	 */
+	selectColorTheme(polarity: TerminalColorTheme['polarity'], themeId: string): void {
+		if (this.#disposed) return;
+		const slot = polarity === 'dark' ? 'darkTheme' : 'lightTheme';
+		const { applicationTheme } = this.#snapshot.preferences;
+		const changes: UserPreferencesPatch = {
+			[slot]: themeId,
+			...(applicationTheme === 'system' || applicationTheme === polarity
+				? {}
+				: { applicationTheme: polarity }),
+		};
+		const before = this.#presented(this.#snapshot.preferences);
+		const preview: ActiveColorThemePreview = { committing: true, polarity, themeId };
+		this.#themePreview = preview;
+		this.#presentIfChanged(before);
+		const settle = (): void => {
+			if (this.#disposed || this.#themePreview !== preview) return;
+			this.previewColorTheme(null);
+		};
+		void this.userPreferences.update(changes).then(settle, settle);
+	}
+
 	/** Settings resets the shared appearance keys itself, together with the interaction keys. */
 	resetHostAppearance(): TerminalSettingsUpdateResult {
 		const {
@@ -271,7 +327,7 @@ export class TerminalSettingsController
 		return resolveTerminalColorTheme(
 			polarity,
 			polarity === 'dark' ? preferences.darkTheme : preferences.lightTheme,
-			this.#colorThemes,
+			this.colorThemes,
 		);
 	}
 
@@ -279,6 +335,28 @@ export class TerminalSettingsController
 	 * `data-theme` keeps its polarity meaning; a named theme adds `data-color-theme` on the same
 	 * element, and the Orchbee pair sets none, so the hand-authored mapping applies.
 	 */
+	/** The preferences presented now: the committed ones with any previewed theme in its slot. */
+	#presented(preferences: TerminalAppearancePreferences): TerminalAppearancePreferences {
+		const preview = this.#themePreview;
+		if (preview === null) return preferences;
+		return {
+			...preferences,
+			applicationTheme: preview.polarity,
+			[preview.polarity === 'dark' ? 'darkTheme' : 'lightTheme']: preview.themeId,
+		};
+	}
+
+	#presentIfChanged(before: TerminalAppearancePreferences): void {
+		const after = this.#presented(this.#snapshot.preferences);
+		if (
+			this.#polarity(before) === this.#polarity(after) &&
+			this.#colorTheme(before).id === this.#colorTheme(after).id
+		) {
+			return;
+		}
+		this.#startThemePresentation(this.#snapshot.preferences);
+	}
+
 	#applyTheme(preferences: TerminalAppearancePreferences): void {
 		const polarity = this.#polarity(preferences);
 		const theme = this.#colorTheme(preferences);
@@ -302,7 +380,8 @@ export class TerminalSettingsController
 		this.#emitSnapshot();
 	}
 
-	#startThemePresentation(preferences: TerminalAppearancePreferences): void {
+	#startThemePresentation(committed: TerminalAppearancePreferences): void {
+		const preferences = this.#presented(committed);
 		const applicationTheme = this.#polarity(preferences);
 		const colorTheme = this.#colorTheme(preferences);
 		const epoch = ++this.#themePresentationEpoch;
@@ -412,6 +491,18 @@ export class TerminalSettingsController
 			}
 		}
 	}
+}
+
+function sameColorThemePreview(
+	current: ActiveColorThemePreview | null,
+	next: TerminalColorThemePreview,
+): boolean {
+	return (
+		current !== null &&
+		!current.committing &&
+		current.polarity === next.polarity &&
+		current.themeId === next.themeId
+	);
 }
 
 function snapshot(

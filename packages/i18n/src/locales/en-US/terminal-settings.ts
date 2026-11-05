@@ -27,6 +27,16 @@ export const enUSTerminalSettingsMessages = {
 		'Choose a light or dark appearance, or follow the system.',
 	'terminal.settings.applicationTheme.label': 'Application theme',
 	'terminal.settings.applicationTheme.light': 'Light',
+	'terminal.settings.colorTheme.dark.description':
+		'Colors for the interface and terminals when the appearance is dark.',
+	'terminal.settings.colorTheme.dark.label': 'Dark theme',
+	'terminal.settings.colorTheme.dark.systemNotice': 'Used when the system is dark.',
+	'terminal.settings.colorTheme.light.description':
+		'Colors for the interface and terminals when the appearance is light.',
+	'terminal.settings.colorTheme.light.label': 'Light theme',
+	'terminal.settings.colorTheme.light.systemNotice': 'Used when the system is light.',
+	'terminal.settings.colorTheme.names.orchbeeDark': 'Orchbee Dark',
+	'terminal.settings.colorTheme.names.orchbeeLight': 'Orchbee Light',
 	'terminal.settings.language.automaticFallbackNotice':
 		'Orchbee uses your system or browser language until you choose here. Your choice is saved on this device.',
 	'terminal.settings.language.english': 'English',

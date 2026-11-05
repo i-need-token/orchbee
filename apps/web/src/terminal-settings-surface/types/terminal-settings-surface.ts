@@ -61,6 +61,31 @@ interface TerminalSettingsSearchResultView extends TerminalSettingsSearchEntry {
 	readonly onFocus: () => void;
 }
 
+/** One swatch cell: a theme's canvas, its text, or one of ANSI 1-5. */
+interface TerminalColorThemeSwatchView {
+	readonly color: string;
+	readonly role: 'background' | 'blue' | 'foreground' | 'green' | 'magenta' | 'red' | 'yellow';
+}
+
+export interface TerminalColorThemeOptionView {
+	readonly id: string;
+	readonly name: string;
+	readonly swatch: readonly TerminalColorThemeSwatchView[];
+}
+
+/** One theme slot's picker: the themes of its polarity, the effective pick, and its intents. */
+export interface TerminalColorThemePickerView {
+	readonly description: string;
+	readonly label: string;
+	/** Under System, when this slot applies; otherwise null. */
+	readonly notice: string | null;
+	readonly options: readonly TerminalColorThemeOptionView[];
+	readonly selectedId: string;
+	readonly settingId: 'appearance.dark-theme' | 'appearance.light-theme';
+	readonly onCommit: (themeId: string) => void;
+	readonly onPreview: (themeId: string | null) => void;
+}
+
 export interface TerminalSettingsSurfaceMessages {
 	readonly applicationAppearanceSection: string;
 	readonly applicationThemeDark: string;
@@ -174,6 +199,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly backgroundInvalid: boolean;
 	readonly backgroundVisible: boolean;
 	readonly category: TerminalSettingsCategory;
+	readonly colorThemePickers: readonly TerminalColorThemePickerView[];
 	readonly contentReference: React.RefObject<HTMLElement | null>;
 	readonly copyOnSelect: boolean;
 	readonly copyOnSelectVisible: boolean;

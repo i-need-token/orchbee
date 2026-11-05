@@ -1,6 +1,7 @@
 /* Generated from tokens.css by scripts/generate-design-token-inventory.mjs. */
 export const designTokenNames = [
 	'--ob-comp-projected-terminal-progress-value',
+	'--ob-comp-settings-color-theme-swatch-inline-size',
 	'--ob-comp-tab-strip-alert-fade-duration',
 	'--ob-comp-tab-strip-block-size',
 	'--ob-comp-tab-strip-block-start',

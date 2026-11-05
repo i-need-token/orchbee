@@ -32,7 +32,8 @@ the locale, and no earlier browser record is read or deleted.
 
 ## Appearance and interaction preferences
 
-Application theme, terminal display theme and the two custom colors are shared preferences. The
+Application theme, the Light and Dark theme slots, terminal display theme and the two custom
+colors are shared preferences. The
 appearance controller writes only the seven host leaves to
 `orchbee:web:terminal-host-appearance:v1`, because fonts, weights, ligatures, padding and opacity
 fit this device's display. Its value is one complete JSON object with no unknown fields:
@@ -66,13 +67,15 @@ The complete product default is:
 | Field                  | Default                                                            |
 | ---------------------- | ------------------------------------------------------------------ |
 | Application theme      | `system`                                                           |
+| Light theme            | `orchbee-light`                                                    |
+| Dark theme             | `orchbee-dark`                                                     |
 | Font family            | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
 | Font size              | `13`                                                               |
 | Regular font weight    | `400`                                                              |
 | Bold font weight       | `700`                                                              |
 | Font ligatures         | `true`                                                             |
 | Terminal padding       | `0`                                                                |
-| Terminal display theme | `host`                                                             |
+| Terminal display theme | `theme`                                                            |
 | Custom foreground      | `#141414`                                                          |
 | Custom background      | `#fcfcfc`                                                          |
 | Background opacity     | `100`                                                              |
@@ -109,14 +112,13 @@ request is unchanged. The behavior is application-wide rather than per Panel.
 Terminal display themes derive one complete candidate from the latest reconciled Host state without
 modifying the stored custom pair:
 
-| Theme    | Host terminal candidate                                                                                                      |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `host`   | Keep the complete current Host color scheme, defaults, nullable cursor color, and 256-color palette.                         |
-| `light`  | Set scheme `light` and defaults `#141414` / `#fcfcfc`; preserve the current Host cursor color and complete palette.          |
-| `dark`   | Set scheme `dark` and defaults `#d4d4d4` / `#1e1e1e`; preserve the current Host cursor color and complete palette.           |
-| `custom` | Set defaults from `customForeground` / `customBackground`; preserve the current Host scheme, cursor color, and full palette. |
+| Theme    | Host terminal candidate                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `theme`  | Take the active color theme's scheme, default colors, cursor, selection, and ANSI 0–15; keep the current Host palette from index 16. |
+| `host`   | Keep the complete current Host color scheme, defaults, nullable cursor color, and 256-color palette.                                 |
+| `custom` | Set defaults from `customForeground` / `customBackground`; preserve the current Host scheme, cursor color, and full palette.         |
 
-Changing among Host, Light, and Dark retains the Custom values. Custom color controls are editable
+Changing between Theme and Host retains the Custom values. Custom color controls are editable
 only while Custom is selected. Application theme, terminal display theme, complete fixed overlay
 colors, and the Host-assigned theme revision form one publication transaction. A successful barrier
 commits every mounted terminal before updating `data-theme` in the same JavaScript task.
@@ -258,7 +260,7 @@ update retries a complete write and clears that issue after success. One termina
 failure retains every mounted terminal and the application surface at their previously committed
 complete presentation without rolling back the preference.
 
-Reset restores the host leaves through this algorithm and sends null for the four common
+Reset restores the host leaves through this algorithm and sends null for the six common
 appearance keys and the two interaction keys in one shared reset:
 
 - Different host leaves become the product default, write once, and publish at most one terminal
@@ -270,6 +272,33 @@ appearance keys and the two interaction keys in one shared reset:
 Disposal clears subscribers and rejects later semantic updates, including Reset, as disposed.
 No late update can change theme, storage, or a presentation source after disposal. If host-reset
 publication retires the appearance controller, it cannot then start a common Reset.
+
+## Color themes
+
+The active color theme is the Light slot or the Dark slot, chosen by the polarity Application theme
+resolves to; System follows the operating system. `@orchbee/terminal` resolves a slot id, falling
+back to the Orchbee theme of the slot's polarity for an id this build does not ship or one of the
+other polarity. The controller sets `data-theme` to the polarity and `data-color-theme` to a named
+theme's id on the theme target; the Orchbee pair sets no `data-color-theme`. Both attributes change
+with the terminal publication transaction above.
+
+The Appearance section holds Application theme, then the Light theme and Dark theme pickers. Each
+picker is a listbox of the themes of its polarity; every option shows the theme's localized name
+(the id for an unnamed test fixture), a swatch of canvas, foreground, and ANSI 1–5, and a check on
+the slot's effective theme, so an unknown stored id shows the Orchbee theme it resolves to. Under
+System, each picker says when it applies.
+
+| Interaction                               | Result                                                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Arrow keys, Home, End                     | Highlight a theme and preview it at its own polarity on the application and every mounted terminal; nothing is saved      |
+| Enter, Space, or a click                  | Commit the theme to its slot; when Appearance is fixed to the other polarity, also set Appearance to the theme's polarity |
+| Escape with a preview                     | Restore the committed theme and keep Settings open; without a preview, Escape closes Settings as usual                    |
+| Focus leaves the list, or Settings closes | Restore the committed theme                                                                                               |
+
+A committed pick stays shown until the Session answers, so a confirmed pick never flashes the
+previous theme; a refused or failed save restores the committed theme. Reset returns both slots to
+the Orchbee pair. Only the Orchbee pair ships; tests and Stories prove the pickers with a test-only
+fixture pair.
 
 ## Effective terminal colors and opacity
 
@@ -489,7 +518,10 @@ fully disconnected SSH delivery remains out of scope.
   both choices, product-copy updates, and search discovery.
 - Source tests prove complete single presentation publication, independent interaction publication,
   live attachment updates, application-theme isolation, terminal-setting isolation, stable
-  subscription, and disposal.
+  subscription, and disposal. Color-theme tests use a fixture pair to cover the
+  `data-color-theme` boundary, unknown and wrong-polarity fallback, preview without a write,
+  cancel and close restoring, commit to the polarity slot with the Appearance switch, and a refused
+  save restoring; a component test covers keyboard preview, Escape, Enter, and Reset.
 - The Server-path preference client has no unit test of its own; the retired Desktop client's
   MessageChannel tests left with it. Its current evidence is the Settings runs recorded under step 4
   of the [native runtime topology proposal](../../../proposals/platform/native-runtime-topology.md):

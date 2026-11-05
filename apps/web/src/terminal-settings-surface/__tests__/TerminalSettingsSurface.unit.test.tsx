@@ -24,6 +24,7 @@ import type {
 	TerminalDefaultSettingsClientSnapshot,
 	TerminalDefaultSettingsControl,
 } from '../../terminal-default-settings-control';
+import { colorThemesWithFixtures, fixtureDarkTheme } from '../../__tests__/color-theme-fixtures';
 import { memoryUserPreferences } from '../../__tests__/memoryUserPreferences';
 
 type TerminalAppearanceStorage = ConstructorParameters<
@@ -265,6 +266,99 @@ describe('TerminalSettingsSurface', () => {
 		).toBe('theme');
 	});
 
+	it('previews a theme while moving through a picker, restores it on Escape, and commits on Enter', async () => {
+		const container = trackContainer(document.createElement('div'));
+		document.body.append(container);
+		const storage = memoryStorage();
+		const themeTarget = document.createElement('div');
+		const userPreferences = memoryUserPreferences({ applicationTheme: 'light' });
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				colorThemes: colorThemesWithFixtures,
+				storage,
+				themeTarget,
+				userPreferences,
+			}),
+		);
+		controller.open();
+		const close = vi.fn<() => void>();
+		const root = trackRoot(createRoot(container));
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
+						controller,
+						keyboardShortcutController: trackDisposable(
+							new KeyboardShortcutSettingsController({ platform: 'apple', storage }),
+						),
+						keyboardShortcutPlatform: 'apple',
+						onRequestClose: close,
+					}),
+				),
+			);
+		});
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='appearance']"),
+			).click(),
+		);
+		const darkThemes = requiredElement<HTMLElement>(
+			container.querySelector("[role='listbox'][aria-label='Dark theme']"),
+		);
+		const press = async (key: string): Promise<void> => {
+			await act(async () => {
+				darkThemes.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }));
+			});
+		};
+		const savedValues = () => userPreferences.getSnapshot().snapshot?.values;
+		await act(async () => darkThemes.focus());
+
+		await press('ArrowDown');
+		expect({ ...themeTarget.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+		expect(savedValues()).toMatchObject({ applicationTheme: 'light', darkTheme: 'orchbee-dark' });
+
+		await press('Escape');
+		expect({ ...themeTarget.dataset }).toEqual({ theme: 'light' });
+		expect(close).not.toHaveBeenCalled();
+
+		await press('ArrowDown');
+		await press('Enter');
+		await vi.waitFor(() =>
+			expect(savedValues()).toMatchObject({
+				applicationTheme: 'dark',
+				darkTheme: fixtureDarkTheme.id,
+			}),
+		);
+		expect({ ...themeTarget.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' });
+		expect(
+			darkThemes
+				.querySelector("[role='option'][aria-selected='true']")
+				?.id.endsWith(fixtureDarkTheme.id),
+		).toBe(true);
+
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='general']"),
+			).click(),
+		);
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				[...container.querySelectorAll('button')].find(
+					(button) => button.textContent?.trim() === 'Reset',
+				),
+			).click(),
+		);
+		await vi.waitFor(() =>
+			expect(savedValues()).toMatchObject({
+				darkTheme: 'orchbee-dark',
+				lightTheme: 'orchbee-light',
+			}),
+		);
+	});
+
 	it('switches the mounted Settings copy and persists an explicit display language', async () => {
 		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
@@ -378,6 +472,10 @@ describe('TerminalSettingsSurface', () => {
 				?.getAttribute('data-active'),
 		).toBe('true');
 
+		const secondResult = container
+			.querySelectorAll('[data-settings-search-result]')[1]
+			?.getAttribute('data-settings-search-result');
+		if (secondResult === null || secondResult === undefined) throw new Error('Missing result.');
 		await act(async () => {
 			search.dispatchEvent(
 				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowDown' }),
@@ -385,7 +483,7 @@ describe('TerminalSettingsSurface', () => {
 		});
 		expect(
 			container
-				.querySelector("[data-settings-search-result='colors.display-theme']")
+				.querySelector(`[data-settings-search-result='${secondResult}']`)
 				?.getAttribute('data-active'),
 		).toBe('true');
 		await act(async () => {
@@ -394,9 +492,9 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 		expect(search.value).toBe('');
-		expect(document.activeElement?.id).toBe('colors.display-theme');
-		expect(container.querySelector('[data-settings-content="colors"]')).not.toBeNull();
-		expect(container.querySelector("[id='colors.display-theme']")).not.toBeNull();
+		expect(document.activeElement?.id).toBe(secondResult);
+		const destination = `[data-settings-content="${secondResult.split('.')[0]}"]`;
+		expect(container.querySelector(destination)).not.toBeNull();
 
 		await act(async () => {
 			setInputValue(search, 'font');
@@ -409,7 +507,7 @@ describe('TerminalSettingsSurface', () => {
 		});
 		expect(search.value).toBe('');
 		expect(close).not.toHaveBeenCalled();
-		expect(container.querySelector('[data-settings-content="colors"]')).not.toBeNull();
+		expect(container.querySelector(destination)).not.toBeNull();
 
 		await act(async () => {
 			search.dispatchEvent(

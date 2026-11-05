@@ -20,6 +20,7 @@ import type {
 	TerminalSettingsSurfaceView,
 	UseTerminalSettingsSurfaceOptions,
 } from '../types/terminal-settings-surface';
+import { buildColorThemePickerViews } from '../utils/buildColorThemePickerViews';
 import { buildTerminalSettingsSearchCatalog } from '../utils/buildTerminalSettingsSearchCatalog';
 import { buildTerminalSettingsSurfaceMessages } from '../utils/buildTerminalSettingsSurfaceMessages';
 import { resolveTerminalSettingsSearch } from '../utils/resolveTerminalSettingsSearch';
@@ -337,6 +338,15 @@ export function useTerminalSettingsSurface({
 			? messages.scrollbackBytesControlUnavailableWarning
 			: null;
 
+	const colorThemePickers = buildColorThemePickerViews({
+		colorThemes: controller.colorThemes,
+		formatMessage: (descriptor) => intl.formatMessage(descriptor),
+		preferences: snapshot.preferences,
+		onCommit: (polarity, themeId) => controller.selectColorTheme(polarity, themeId),
+		onPreview: (polarity, themeId) =>
+			controller.previewColorTheme(themeId === null ? null : { polarity, themeId }),
+	});
+
 	return {
 		activeSearchResultId,
 		applicationThemeVisible,
@@ -344,6 +354,7 @@ export function useTerminalSettingsSurface({
 		backgroundInvalid,
 		backgroundVisible,
 		category,
+		colorThemePickers,
 		contentReference,
 		copyOnSelect: interactionSnapshot.preferences.copyOnSelect,
 		copyOnSelectVisible,
@@ -462,6 +473,8 @@ export function useTerminalSettingsSurface({
 			controller.resetHostAppearance();
 			void controller.userPreferences.reset([
 				'applicationTheme',
+				'lightTheme',
+				'darkTheme',
 				'terminalDisplayTheme',
 				'customForeground',
 				'customBackground',
