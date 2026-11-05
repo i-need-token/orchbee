@@ -281,6 +281,33 @@ fn reading_a_current_record_preserves_values_source_and_bytes() {
 }
 
 #[test]
+fn a_record_without_theme_slots_reads_with_the_orchbee_themes() {
+    let fixture = Fixture::new();
+    let record = Record {
+        version: 1,
+        values: UserPreferencesValues {
+            sound_enabled: true,
+            ..UserPreferencesValues::default()
+        },
+        claimed: BTreeSet::from([PreferenceKey::SoundEnabled]),
+    };
+    let mut document = serde_json::to_value(&record).unwrap();
+    let values = document["values"].as_object_mut().unwrap();
+    values.remove("lightTheme").unwrap();
+    values.remove("darkTheme").unwrap();
+    let original = serde_json::to_vec_pretty(&document).unwrap();
+    let path = fixture.store.scope.directory.join(RECORD_NAME);
+    fs::create_dir_all(&fixture.store.scope.directory).unwrap();
+    fs::write(&path, &original).unwrap();
+
+    let observed = fixture.store.read().unwrap();
+    assert!(observed.values.sound_enabled);
+    assert_eq!(observed.values.light_theme, "orchbee-light");
+    assert_eq!(observed.values.dark_theme, "orchbee-dark");
+    assert_eq!(fs::read(&path).unwrap(), original);
+}
+
+#[test]
 fn explicitly_claimed_application_appearances_are_preserved() {
     use orchbee_workbench_protocol::ApplicationAppearance as Appearance;
 

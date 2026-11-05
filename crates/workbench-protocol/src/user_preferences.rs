@@ -130,11 +130,13 @@ pub struct UserPreferencesValues {
     pub locale: PreferencesLocale,
     pub application_theme: ApplicationAppearance,
     /// The color-theme id of the light slot. Any well-formed id is admitted; a Client or Worker
-    /// resolves one this build does not ship to the Orchbee theme of the slot's polarity.
-    #[serde(deserialize_with = "color_theme_id")]
+    /// resolves one this build does not ship to the Orchbee theme of the slot's polarity. An
+    /// omitted slot reads as Orchbee Light.
+    #[serde(default = "default_light_theme", deserialize_with = "color_theme_id")]
     pub light_theme: String,
-    /// The color-theme id of the dark slot, admitted and resolved like `light_theme`.
-    #[serde(deserialize_with = "color_theme_id")]
+    /// The color-theme id of the dark slot, admitted and resolved like `light_theme`. An omitted
+    /// slot reads as Orchbee Dark.
+    #[serde(default = "default_dark_theme", deserialize_with = "color_theme_id")]
     pub dark_theme: String,
     pub terminal_display_theme: TerminalDisplayAppearance,
     #[serde(deserialize_with = "color_value")]
@@ -157,8 +159,8 @@ impl Default for UserPreferencesValues {
         Self {
             locale: PreferencesLocale::System,
             application_theme: ApplicationAppearance::System,
-            light_theme: "orchbee-light".into(),
-            dark_theme: "orchbee-dark".into(),
+            light_theme: default_light_theme(),
+            dark_theme: default_dark_theme(),
             terminal_display_theme: TerminalDisplayAppearance::Theme,
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),
@@ -371,6 +373,12 @@ fn valid_color(value: &str) -> bool {
         && value.as_bytes()[1..]
             .iter()
             .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+}
+fn default_light_theme() -> String {
+    "orchbee-light".into()
+}
+fn default_dark_theme() -> String {
+    "orchbee-dark".into()
 }
 fn color_theme_id<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
     let value = String::deserialize(deserializer)?;
