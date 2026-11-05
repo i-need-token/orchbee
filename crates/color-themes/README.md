@@ -52,7 +52,8 @@ rejected rather than rewritten. `original` is the source's value or, for a slot 
 not publish, such as the Orchbee cursor, the value Orchbee shipped before the correction.
 
 Every shipped family needs a [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) entry naming
-the copyright holder, source, pinned revision, license, and use, before its file ships.
+the copyright holder, source, pinned revision, license, and use, before its file ships. A license
+whose text must travel with the values, such as Apache-2.0, keeps that text in `licenses/`.
 
 ## Shipped themes
 
