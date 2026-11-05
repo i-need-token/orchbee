@@ -8,7 +8,7 @@ The private engine accepts a known provider or absence, recent live terminal tex
 
 Bundled TOML files are retained under `resources/agent-detection` with their Apache-2.0 license and source attribution. Server maintainers own review and pinned updates. Parsing rejects unknown fields, invalid states/regions, empty rule identifiers, unsupported engine versions, invalid skip-state combinations and excessive complexity before compiling any executable rule set. Each manifest allows at most 128 rules, 512 gates, depth 8 and 1,024 matchers; each gate allows 32 direct matchers of at most 512 Unicode characters. Regex compilation has explicit memory limits. The already locked `regex` and `toml` packages supply syntax that the standard library cannot implement; no new versions or runtime framework are required.
 
-Idle rules need positive live composer chrome and lose to any busy or question chrome; a bare word, a clipped footer or an unknown title stays unknown. Opencode 2.x idle needs the prompt-box bottom and the command footer without an interrupt hint, progress squares or question footer; an interrupt hint in that footer is working. Pi 1.x idle needs the editor border and the footer context-usage line without a status spinner; status loaders for turns, shell commands, retries and compaction are working. Omp 18.x writes its state into the OSC title as `π <glyph> <label>`: `>` idle, `!` attention (blocked), a spinner frame or `:` working; a disabled title animation (`π: <label>`) carries no state. Its screen rules mark the Working row, the shell Running border and a spinner status line as working, and the `π ·` status line under the composer as idle, so a lagging idle title cannot hide a visible turn. `agent_screen/tests.rs` covers these rules with redacted screens from opencode 2.2.5, pi 1.5.0 and omp 18.16.0. All three upstream versions also implement the OSC 7501 program-status protocol, which the Host does not yet parse; screen rules remain the fallback.
+Idle rules need positive live composer chrome and lose to any busy or question chrome; a bare word, a clipped footer or an unknown title stays unknown. Opencode 2.x idle needs the prompt-box bottom and the command footer without an interrupt hint, progress squares or question footer; an interrupt hint in that footer is working. Pi 1.x idle needs the editor border and the footer context-usage line without a status spinner; status loaders for turns, shell commands, retries and compaction are working. Omp 18.x writes its state into the OSC title as `π <glyph> <label>`: `>` idle, `!` attention (blocked), a spinner frame or `:` working; a disabled title animation (`π: <label>`) carries no state. Its screen rules mark the Working row, the shell Running border and a spinner status line as working, and the `π ·` status line under the composer as idle, so a lagging idle title cannot hide a visible turn. `agent_screen/tests.rs` covers these rules with redacted screens from opencode 2.2.5, pi 1.5.0 and omp 18.16.0. All three upstream versions also report their own state through OSC 7501, which outranks these rules while it is fresh; see [Program status precedence](#program-status-precedence).
 
 The bundled Devin Thinking rule requires an anchored live footer with elapsed time and an interrupt hint; a transcript mention or the word Thinking alone is insufficient. A startup choice that the user must answer before the Agent proceeds is a visible blocker. Devin's workspace trust prompt and its first-run theme question (`Detected light theme but configured for dark. Switch?`) need the question and the live choice footer; the question text alone stays unknown. Sampled rows lose trailing whitespace, so needles must not depend on a trailing space. Screen manifests reject `done` and `error`: those outcomes require explicit state authority, not text inference.
 
@@ -20,6 +20,41 @@ readiness from a generic title. Replacing the login screen with the ready compos
 again; process exit keeps its existing precedence. `agent_screen/tests.rs` covers context, clipped
 context, separate OSC conflicts, transcript mentions and the ready-screen replacement. This is
 physical-screen fallback and never creates or changes a canonical Agent Session.
+
+## Program status precedence
+
+Programs that implement the [OSC 7501 Program Status protocol](https://www.superlogical.com/rex/docs/build/program-status)
+report their own state; opencode, pi and omp do. The Host answers the protocol's query and projects
+the terminal's root record in optional OBTF kind 7 with the real time it received the report, and
+removes it on `state=clear`, RIS, Host reset and, for `idle`, `working` and `blocked`, at the next
+shell prompt (see the [Host runtime model](../../terminal-host/docs/runtime-model.md)).
+
+For the Agent process a sample selects, the sampler uses the record from the same fresh frame
+instead of reading rows and applying screen rules when the record is fresh: its receipt time,
+converted to process creation-time units and rounded down, is no earlier than that process's
+creation time. A record received before the process existed was left by an earlier program in the
+same terminal, such as an Agent that exited without clearing it, and is stale. An absent or stale
+record leaves the decision to the screen rules. There is no time-based expiry, because the
+protocol forbids requiring a heartbeat, and switching screens does not end a record. Process exit
+needs no record rule: without a selected Agent there is no screen evidence, and a later Agent
+process is newer than any record it did not send.
+
+| Program state | Panel state | Evidence                                                                 |
+| ------------- | ----------- | ------------------------------------------------------------------------ |
+| `idle`        | Idle        | Visible idle: no startup grace and no idle hold                          |
+| `working`     | Working     | Visible working                                                          |
+| `blocked`     | Blocked     | Visible blocker, with a visible blocker's precedence over custom reports |
+| `done`        | Done        | Explicit, without startup grace                                          |
+| `error`       | Error       | Explicit, without startup grace                                          |
+
+A record is the program's explicit report, so unlike screen rules it may publish Done and Error.
+It is still fallback: it enters the same stability, startup and publication path as screen
+evidence, both surrounding process samples must select the same Agent, custom report authority
+keeps its precedence, and process exit keeps its own. The record is unauthenticated: any program
+writing to the terminal after the Agent started, including a tool the Agent runs in the same
+console, can change it. It only changes the Panel state, never identity, provider or authority.
+Physical `agent explain` evaluates screen rules only; when its state differs from the reported
+state and no custom report source is present, a program status record decided.
 
 ## Deterministic decisions
 

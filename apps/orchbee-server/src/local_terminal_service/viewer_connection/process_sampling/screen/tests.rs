@@ -60,3 +60,83 @@ fn progress_keeps_unknown_absence_distinct_from_explicit_removal() {
     assert_eq!(progress(Some(TerminalProgress::Set(None))), "4;1;-1");
     assert_eq!(progress(Some(TerminalProgress::Indeterminate)), "4;3;0");
 }
+
+#[test]
+fn a_program_status_report_decides_only_after_the_agent_process_was_created() {
+    use crate::agent_screen::Detection;
+    use orchbee_terminal_protocol::{TerminalProgramState, TerminalProgramStatus};
+    use orchbee_workbench_protocol::PanelAgentState;
+    // 2026-01-01T00:00:00Z as Unix nanoseconds and as a Windows FILETIME.
+    let unix = 1_767_225_600_000_000_000_u64;
+    let created = 134_116_992_000_000_000_u64;
+    let status = |state, nanoseconds: u64| {
+        Some(TerminalProgramStatus {
+            state,
+            reported_at_nanoseconds: std::num::NonZeroU64::new(nanoseconds).unwrap(),
+        })
+    };
+    assert_eq!(reported_detection(None, created), None);
+    // Same 100 ns tick and later reports are the Agent's; an earlier one is another program's.
+    for (nanoseconds, decides) in [
+        (unix - 1, false),
+        (unix - 100, false),
+        (unix, true),
+        (unix + 99, true),
+        (unix + 60_000_000_000, true),
+    ] {
+        assert_eq!(
+            reported_detection(status(TerminalProgramState::Working, nanoseconds), created)
+                .is_some(),
+            decides,
+            "{nanoseconds}"
+        );
+    }
+    for (state, expected, idle, blocker, working) in [
+        (
+            TerminalProgramState::Idle,
+            PanelAgentState::Idle,
+            true,
+            false,
+            false,
+        ),
+        (
+            TerminalProgramState::Working,
+            PanelAgentState::Working,
+            false,
+            false,
+            true,
+        ),
+        (
+            TerminalProgramState::Blocked,
+            PanelAgentState::Blocked,
+            false,
+            true,
+            false,
+        ),
+        (
+            TerminalProgramState::Done,
+            PanelAgentState::Done,
+            true,
+            false,
+            false,
+        ),
+        (
+            TerminalProgramState::Error,
+            PanelAgentState::Error,
+            true,
+            false,
+            false,
+        ),
+    ] {
+        assert_eq!(
+            reported_detection(status(state, unix), created),
+            Some(Detection {
+                state: expected,
+                skip: false,
+                visible_idle: idle,
+                visible_blocker: blocker,
+                visible_working: working,
+            })
+        );
+    }
+}

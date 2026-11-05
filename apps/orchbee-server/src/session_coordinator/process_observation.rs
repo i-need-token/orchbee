@@ -26,6 +26,10 @@ impl Selected {
     pub(crate) fn pid(self) -> u32 {
         self.pid
     }
+    /// The process creation time in sample row units.
+    pub(crate) fn created(self) -> u64 {
+        self.created
+    }
 }
 pub(super) struct Sample {
     target: TerminalAgentBinding,
@@ -91,6 +95,12 @@ fn open_invocation(
                 .checked_add(UNIX_EPOCH_FILETIME)
         }),
     }
+}
+
+/// Converts a Host real-time reading to row creation-time units, rounded down so that a process
+/// created no later than the reading never compares after it.
+pub(crate) fn host_time_as_creation(unix_nanoseconds: std::num::NonZeroU64) -> Option<u64> {
+    (unix_nanoseconds.get() / 100).checked_add(UNIX_EPOCH_FILETIME)
 }
 
 fn evaluate(sample: &TerminalProcessInfo) -> (Vec<AgentProcessRow>, AgentSampleVerdict) {

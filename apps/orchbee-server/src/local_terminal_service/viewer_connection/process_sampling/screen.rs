@@ -4,14 +4,14 @@ use super::super::{
     WorkerOutcome, WorkerRequest, routing,
 };
 use crate::{
-    agent_screen::{ScreenDetector, ScreenInput},
+    agent_screen::{Detection, ScreenDetector, ScreenInput},
     local_terminal_service::tab_close::evidence::{CloseFacts, CloseSample, ShellReport},
-    session_coordinator::identify_host_agent,
+    session_coordinator::{host_time_as_creation, identify_host_agent},
 };
 use orchbee_capability_node_protocol::{OperationId, ViewerRowDetail, ViewerSnapshotReason};
 use orchbee_terminal_protocol::{
-    TerminalProcessInfo, TerminalProgress, TerminalTextFrame, decode_terminal_text_frame,
-    decode_terminal_text_row_window, decode_transport_envelope,
+    TerminalProcessInfo, TerminalProgramStatus, TerminalProgress, TerminalTextFrame,
+    decode_terminal_text_frame, decode_terminal_text_row_window, decode_transport_envelope,
 };
 use std::{
     sync::atomic::{AtomicBool, Ordering},
@@ -520,13 +520,19 @@ pub(super) fn observe(
     };
     let selected = identify_host_agent(&before);
     let (sample, detection) = if let Some(selected) = selected {
-        let detection = projection
-            .and_then(|frame| capture_frame(viewer, template, stop, frame))
-            .and_then(|captured| {
-                detector
-                    .detect(Some(selected.provider), captured.input())
-                    .ok()
-            });
+        let reported = reported_detection(
+            projection.as_ref().and_then(|frame| frame.program_status),
+            selected.created(),
+        );
+        let detection = reported.or_else(|| {
+            projection
+                .and_then(|frame| capture_frame(viewer, template, stop, frame))
+                .and_then(|captured| {
+                    detector
+                        .detect(Some(selected.provider), captured.input())
+                        .ok()
+                })
+        });
         match process(viewer, template, stop) {
             Some(after) => {
                 let detection = detection.filter(|_| identify_host_agent(&after) == Some(selected));
@@ -548,6 +554,17 @@ pub(super) fn observe(
             started,
         );
     }
+}
+
+/// The program status report decides when the Host received it after the Agent process was
+/// created; an absent report, or one an earlier program left behind, leaves it to screen rules.
+fn reported_detection(
+    status: Option<TerminalProgramStatus>,
+    agent_created: u64,
+) -> Option<Detection> {
+    let status = status?;
+    (host_time_as_creation(status.reported_at_nanoseconds)? >= agent_created)
+        .then(|| Detection::reported(status.state))
 }
 
 fn checkpoint_directory(

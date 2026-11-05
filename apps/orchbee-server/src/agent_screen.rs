@@ -1,5 +1,7 @@
-//! Bounded pure provider screen rules; neither terminal identity nor explicit report authority is inferred.
+//! Bounded pure provider screen rules and the program status reports that outrank them; neither
+//! terminal identity nor explicit report authority is inferred.
 use orchbee_agent_observation_protocol::AgentReportProvider;
+use orchbee_terminal_protocol::TerminalProgramState;
 use orchbee_workbench_protocol::{AgentScreenExplanation, PanelAgentState};
 
 mod loading;
@@ -35,6 +37,27 @@ impl Detection {
             visible_idle: false,
             visible_blocker: false,
             visible_working: false,
+        }
+    }
+    /// A program's own OSC 7501 state. It is explicit evidence: no state waits for the startup
+    /// grace or the idle hold, and `blocked` keeps a visible blocker's precedence.
+    pub(crate) fn reported(state: TerminalProgramState) -> Self {
+        let state = match state {
+            TerminalProgramState::Idle => PanelAgentState::Idle,
+            TerminalProgramState::Working => PanelAgentState::Working,
+            TerminalProgramState::Blocked => PanelAgentState::Blocked,
+            TerminalProgramState::Done => PanelAgentState::Done,
+            TerminalProgramState::Error => PanelAgentState::Error,
+        };
+        Self {
+            state,
+            skip: false,
+            visible_idle: matches!(
+                state,
+                PanelAgentState::Idle | PanelAgentState::Done | PanelAgentState::Error
+            ),
+            visible_blocker: state == PanelAgentState::Blocked,
+            visible_working: state == PanelAgentState::Working,
         }
     }
 }
