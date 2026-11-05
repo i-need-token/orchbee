@@ -1,0 +1,39 @@
+# Dayfox, the light sibling of Nightfox, by James Simpson (https://github.com/EdenEast/nightfox.nvim,
+# MIT), as the iTerm2-Color-Schemes Ghostty export publishes it.
+id = "dayfox"
+name = "Dayfox"
+family = "nightfox"
+polarity = "light"
+
+[source]
+url = "https://github.com/mbadolato/iTerm2-Color-Schemes"
+path = "ghostty/Dayfox"
+revision = "38bd77ce06b376f2e49e78bd318cf1255d87719b"
+license = "MIT"
+copyright = "Copyright (c) 2021 James Simpson; iTerm2-Color-Schemes compilation Copyright (c) 2011 to Present Mark Badolato"
+
+[canvas]
+background = "#f6f2ee"
+foreground = "#3d2b5a"
+cursor = "#3d2b5a"
+cursor_text = "#f6f2ee"
+selection_background = "#e7d2be"
+selection_foreground = "#3d2b5a"
+
+[ansi]
+black = "#352c24"
+red = "#a5222f"
+green = "#396847"
+yellow = "#ac5402"
+blue = "#2848a9"
+magenta = "#6e33ce"
+cyan = "#287980"
+white = "#bfb6ae"
+bright_black = "#534c45"
+bright_red = "#b3434e"
+bright_green = "#577f63"
+bright_yellow = "#b86e28"
+bright_blue = "#4863b6"
+bright_magenta = "#8452d5"
+bright_cyan = "#488d93"
+bright_white = "#f4ece6"
