@@ -4,6 +4,8 @@ type WorkbenchTerminalCurrentDirectoryObservation =
 
 export interface WorkbenchTerminalMetadataObservation {
 	readonly currentDirectory: WorkbenchTerminalCurrentDirectoryObservation;
+	/** What the natural title names for an Agent row; absent where the Client does not read it. */
+	readonly naturalTask?: string | null | undefined;
 	readonly naturalTitle: string | null;
 }
 

@@ -375,6 +375,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 			...(observation.currentDirectory.kind === 'reported'
 				? { currentCwd: observation.currentDirectory.currentCwd }
 				: {}),
+			naturalTask: observation.naturalTask ?? null,
 			naturalTitle: observation.naturalTitle,
 			presentationId,
 			tabId: match.tabId,
@@ -635,6 +636,7 @@ function observedTerminal(
 		: {
 				...published,
 				currentCwd: observed.currentCwd,
+				naturalTask: observed.naturalTask,
 				naturalTitle: observed.naturalTitle,
 			};
 }

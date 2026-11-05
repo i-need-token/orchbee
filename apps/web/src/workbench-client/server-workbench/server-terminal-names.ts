@@ -34,6 +34,20 @@ export function nameServerTerminalTitle(title: string, intl: IntlShape): string 
 }
 
 /**
+ * What a terminal's title names for its Agent, as the TUI's Agent rows read it: the title without
+ * its elevation prefix and activity mark, or null when nothing is left or a console host's launch
+ * path names only the program, which is launch identity rather than a task.
+ */
+export function readServerTerminalTask(title: string): string | null {
+	const stripped = stripTerminalTitle(title);
+	if (stripped === null || consoleProgramPath(stripped)) return null;
+	for (const separator of stripped.matchAll(/ - /gu)) {
+		if (consoleProgramPath(stripped.slice(0, separator.index))) return null;
+	}
+	return stripped;
+}
+
+/**
  * Names the program at a path written with either separator by one rule on every platform: a known
  * shell by its product, anything else by its file name without a Windows executable extension.
  */
@@ -56,11 +70,13 @@ function stripTerminalTitle(title: string): string | null {
 }
 
 /** A console default title is an absolute drive or UNC path to a Windows executable. */
-function nameConsoleProgram(title: string, intl: IntlShape): string | null {
+function consoleProgramPath(title: string): boolean {
 	const absolute = ABSOLUTE_DRIVE_PATH.test(title) || title.startsWith('\\\\');
-	return absolute && executableStem(fileName(title)) !== null
-		? nameServerTerminalProgram(title, intl)
-		: null;
+	return absolute && executableStem(fileName(title)) !== null;
+}
+
+function nameConsoleProgram(title: string, intl: IntlShape): string | null {
+	return consoleProgramPath(title) ? nameServerTerminalProgram(title, intl) : null;
 }
 
 /**

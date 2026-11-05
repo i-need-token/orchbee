@@ -1,7 +1,11 @@
 import { createOrchbeeIntl, type IntlShape } from '@orchbee/i18n';
 import { describe, expect, it } from 'vitest';
 
-import { nameServerTerminalProgram, nameServerTerminalTitle } from '../server-terminal-names';
+import {
+	nameServerTerminalProgram,
+	nameServerTerminalTitle,
+	readServerTerminalTask,
+} from '../server-terminal-names';
 
 // The same cases as the TUI's terminal title tests, so both Clients give a terminal one name. Each
 // result stays beside its input, so a failure names the case.
@@ -99,6 +103,30 @@ describe('nameServerTerminalTitle', () => {
 		expect(named(nameServerTerminalTitle, written, ZH_CN)).toEqual(
 			written.map((raw) => [raw, raw]),
 		);
+	});
+});
+
+describe('readServerTerminalTask', () => {
+	it('keeps what a program titled and drops a console launch path, as an Agent row reads it', () => {
+		const read = (titles: readonly string[]) =>
+			titles.map((title) => [title, readServerTerminalTask(title)] as const);
+		const launchPaths = [
+			'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+			'Administrator: C:\\WINDOWS\\system32\\cmd.exe',
+			'C:\\WINDOWS\\system32\\cmd.exe - codex',
+			'C:\\My - Tools\\app.exe - run',
+			'\\\\server\\share\\tool.exe',
+			'⠋ C:\\Windows\\System32\\wsl.exe',
+			'⠋   ',
+		];
+		expect(read(launchPaths)).toEqual(launchPaths.map((title) => [title, null]));
+		expect(
+			read(['✳ Fix the login bug', 'Administrator: make test', 'PS C:\\work\\app.exe']),
+		).toEqual([
+			['✳ Fix the login bug', 'Fix the login bug'],
+			['Administrator: make test', 'make test'],
+			['PS C:\\work\\app.exe', 'PS C:\\work\\app.exe'],
+		]);
 	});
 });
 

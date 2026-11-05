@@ -36,6 +36,28 @@ const PROVIDER_LABELS: ReadonlyMap<string, string> = new Map<string, string>([
 	['qwen-code', 'qwen'],
 ]);
 
+/** The commands that start a provider where they differ from its report label and registry ID. */
+const PROVIDER_COMMANDS: ReadonlyMap<string, string> = new Map<string, string>([
+	['cursor', 'agent'],
+	['kiro', 'kiro-cli'],
+	['qodercli', 'qoder'],
+]);
+
+/**
+ * Every name that only names this Agent's provider, as the TUI compares them: its report label,
+ * its product name, its provider-registry ID and the command that starts it.
+ */
+export function listWorkbenchAgentProviderNames(intl: IntlShape, agent: string): readonly string[] {
+	const registryIds = [...PROVIDER_LABELS].flatMap(([id, label]) => (label === agent ? [id] : []));
+	const command = PROVIDER_COMMANDS.get(agent);
+	return [
+		agent,
+		formatWorkbenchAgentName(intl, agent),
+		...registryIds,
+		...(command === undefined ? [] : [command]),
+	];
+}
+
 /** A custom report's Agent keeps the name it reported. */
 export function formatWorkbenchAgentName(intl: IntlShape, agent: string): string {
 	const name = AGENT_NAMES.get(agent);

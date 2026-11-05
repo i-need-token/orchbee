@@ -10,10 +10,7 @@ interface WorkbenchWorkspaceAgentRowView {
 	readonly current: boolean;
 	readonly presentationId: TerminalPresentationId;
 	readonly status: WorkbenchAgentStatusView;
-	/**
-	 * What the row names before the provider: its Tab's title, standing in for the terminal's own
-	 * title until each terminal's title reaches the Client.
-	 */
+	/** What names the Agent before its provider, by the TUI's rule; empty leaves the provider alone. */
 	readonly titleLabel: string;
 	readonly unreadLabel?: string | undefined;
 }

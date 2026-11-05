@@ -7,6 +7,7 @@ import type {
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentState,
 } from '../types/workbench-agent-observation';
+import type { WorkbenchAgentTitleSource } from './resolveWorkbenchAgentTitle';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
 
 type WorkbenchAgentTerminalPosition =
@@ -22,6 +23,8 @@ export interface WorkbenchAgentDestination {
 	readonly tabId: string;
 	readonly tabTitle: string;
 	readonly terminalContextId: string;
+	/** The terminal's names that an Agent row's title comes from. */
+	readonly terminalNames: WorkbenchAgentTitleSource;
 	readonly terminalPosition: WorkbenchAgentTerminalPosition;
 	readonly workspaceId: string;
 	readonly workspaceName: string;
@@ -158,12 +161,14 @@ function collectWorkspaceDestinations(
 			destinations.push({
 				...location,
 				presentationId: panel.primaryPresentation.presentationId,
+				terminalNames: panel.primaryPresentation,
 				terminalPosition: { kind: 'primary' },
 			});
 			for (const [childIndex, child] of panel.childPresentations.entries()) {
 				destinations.push({
 					...location,
 					presentationId: child.presentationId,
+					terminalNames: child,
 					terminalPosition: { kind: 'child', position: childIndex + 1 },
 				});
 			}

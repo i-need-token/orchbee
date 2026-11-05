@@ -45,6 +45,7 @@ import {
 	findServerPresentation,
 	findServerTerminalBinding,
 	nameServerTerminalTitle,
+	readServerTerminalTask,
 	presentServerTerminalColors,
 	projectServerSnapshot,
 	serverHostColors,
@@ -275,6 +276,8 @@ export function createServerWorkbenchRuntime({
 		const observation = resolveTerminalMetadataObservation(metadata, terminalHostName);
 		projectWorkspaceRuntime.applyTerminalMetadataObservation(presentationId, {
 			...observation,
+			naturalTask:
+				observation.naturalTitle === null ? null : readServerTerminalTask(observation.naturalTitle),
 			naturalTitle:
 				observation.naturalTitle === null
 					? null

@@ -14,6 +14,7 @@ import {
 	projectWorkbenchAgentOverview,
 	type WorkbenchAgentNavigationInput,
 } from '../model/project-workbench-agent-overview';
+import { resolveWorkbenchAgentTitle } from '../model/resolveWorkbenchAgentTitle';
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
 import type {
 	WorkbenchAgentState,
@@ -24,6 +25,7 @@ import { formatWorkbenchAgentLocation } from '../utils/formatWorkbenchAgentLocat
 import {
 	formatWorkbenchAgentGroupName,
 	formatWorkbenchAgentName,
+	listWorkbenchAgentProviderNames,
 } from '../utils/workbench-agent-names';
 import { formatWorkbenchAgentStatus } from '../utils/formatWorkbenchAgentStatus';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
@@ -221,7 +223,11 @@ export function useWorkbenchAgentPresentation({
 							current: destination.presentationId === currentPresentationId,
 							presentationId: destination.presentationId,
 							status,
-							titleLabel: destination.tabTitle,
+							titleLabel:
+								resolveWorkbenchAgentTitle(
+									destination.terminalNames,
+									listWorkbenchAgentProviderNames(intl, observation.agent),
+								) ?? '',
 							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
 						};
 					}),

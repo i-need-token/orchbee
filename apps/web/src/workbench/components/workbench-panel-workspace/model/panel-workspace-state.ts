@@ -64,6 +64,7 @@ export type PanelWorkspaceEvent =
 	  }
 	| {
 			readonly currentCwd?: string | null | undefined;
+			readonly naturalTask?: string | null | undefined;
 			readonly naturalTitle: string | null;
 			readonly presentationId: TerminalPresentationId;
 			readonly tabId: string;
@@ -195,14 +196,22 @@ function mapTerminal(
 function mapTerminalMetadata(
 	node: PanelLayoutNode,
 	presentationId: TerminalPresentationId,
-	naturalTitle: string | null,
-	currentCwd?: string | null,
+	{
+		currentCwd,
+		naturalTask = null,
+		naturalTitle,
+	}: Pick<
+		Extract<PanelWorkspaceEvent, { readonly type: 'terminal-metadata-changed' }>,
+		'currentCwd' | 'naturalTask' | 'naturalTitle'
+	>,
 ): TreeUpdate {
 	return mapTerminal(node, presentationId, (terminal) => {
 		const nextCurrentCwd = currentCwd === undefined ? terminal.currentCwd : currentCwd;
-		return terminal.currentCwd === nextCurrentCwd && terminal.naturalTitle === naturalTitle
+		return terminal.currentCwd === nextCurrentCwd &&
+			terminal.naturalTitle === naturalTitle &&
+			(terminal.naturalTask ?? null) === naturalTask
 			? terminal
-			: { ...terminal, currentCwd: nextCurrentCwd, naturalTitle };
+			: { ...terminal, currentCwd: nextCurrentCwd, naturalTask, naturalTitle };
 	});
 }
 
@@ -488,12 +497,7 @@ export function transitionPanelWorkspace(
 	}
 
 	if (event.type === 'terminal-metadata-changed') {
-		const result = mapTerminalMetadata(
-			tab.root,
-			event.presentationId,
-			event.naturalTitle,
-			event.currentCwd,
-		);
+		const result = mapTerminalMetadata(tab.root, event.presentationId, event);
 		if (!result.changed) {
 			return findTerminalInNode(tab.root, event.presentationId) === null
 				? rejected(state, 'terminal-not-found')

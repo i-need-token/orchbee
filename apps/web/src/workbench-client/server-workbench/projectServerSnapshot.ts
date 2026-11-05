@@ -193,7 +193,7 @@ function projectPanelNode(node: WorkbenchPanelNode, projection: PanelProjection)
 
 /**
  * The program comes from the Server's launch of the current binding, else from its failed launch;
- * the Server's raw label is not a name a person chose, so it never shows.
+ * the Server's raw label is not a name a person chose, so it names only an Agent row.
  */
 function projectPresentation(
 	presentation: WorkbenchPresentation,
@@ -201,6 +201,7 @@ function projectPresentation(
 ): WorkbenchTerminalPresentation {
 	const launched = presentation.launchProgram ?? presentation.launchFailure?.executable ?? null;
 	return {
+		creationLabel: presentation.label,
 		currentCwd: null,
 		...(presentation.customLabel === null ? {} : { customTitle: presentation.customLabel }),
 		lifecycle: projectTerminalLifecycle(presentation, observedEnds),
