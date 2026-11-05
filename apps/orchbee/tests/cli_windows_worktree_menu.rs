@@ -918,13 +918,24 @@ fn terminal_of(fixture: &Fixture, created: &Value) -> String {
 
 /// Runs `command` in `terminal`'s shell.
 fn enter(fixture: &Fixture, terminal: &str, command: &str) {
-    for words in [
-        ["terminal", "send", terminal, "--text", command],
-        ["terminal", "send", terminal, "--key", "enter"],
-    ] {
-        let sent = fixture.run(&words);
-        assert_eq!(sent.code, Some(0), "{sent}");
+    // Client readiness does not establish that PowerShell finished initializing its input editor.
+    let deadline = Instant::now() + DISCOVERY;
+    loop {
+        let read = fixture.run(&["terminal", "read", terminal, "--source", "visible"]);
+        if read.code == Some(0)
+            && read.document["result"]["content"]["text"]
+                .as_str()
+                .and_then(|text| text.lines().rfind(|line| !line.trim().is_empty()))
+                .is_some_and(|line| line.trim_end().ends_with('>'))
+        {
+            break;
+        }
+        assert!(Instant::now() < deadline, "shell prompt not ready: {read}");
+        thread::sleep(Duration::from_millis(100));
     }
+    // Text and Enter belong to one controlling attachment, as one user command does.
+    let sent = fixture.run(&["terminal", "send", terminal, "--text", command, "--enter"]);
+    assert_eq!(sent.code, Some(0), "{sent}");
 }
 
 /// Waits for the Server to follow the Workspace's first terminal into `directory`.
@@ -938,11 +949,30 @@ fn stands_in(fixture: &Fixture, workspace: &str, directory: &str) {
     };
     let deadline = Instant::now() + DISCOVERY;
     while !followed(&record(fixture, workspace)["terminalDirectory"]) {
-        assert!(
-            Instant::now() < deadline,
-            "the first terminal never reached {expected}: {}",
-            snapshot(fixture)
-        );
+        if Instant::now() >= deadline {
+            let context = record(fixture, workspace)["terminalContextId"].clone();
+            let listed = fixture.run(&["terminal", "list"]);
+            let terminal = listed.document["result"]["terminals"]
+                .as_array()
+                .and_then(|terminals| {
+                    terminals
+                        .iter()
+                        .find(|terminal| terminal["boundTo"]["terminalContextId"] == context)
+                })
+                .and_then(|terminal| terminal["terminalId"].as_str());
+            let screen = terminal.map_or_else(
+                || listed.to_string(),
+                |terminal| {
+                    fixture
+                        .run(&["terminal", "read", terminal, "--source", "visible"])
+                        .to_string()
+                },
+            );
+            panic!(
+                "the first terminal never reached {expected}: {}\nterminal: {screen}",
+                snapshot(fixture)
+            );
+        }
         thread::sleep(Duration::from_millis(200));
     }
 }

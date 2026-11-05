@@ -60,9 +60,10 @@ fn a_live_client_keeps_its_input_and_answers_queries_while_another_client_commit
     let alpha = fixture.workspace_in("alpha", "work/alpha");
     let beta = fixture.workspace_in("beta", "work/beta");
     let renamed = fixture.workspace_in("gamma", "work/gamma");
-    fixture.background_output();
     // A second Panel gives `Ctrl+B z` a Panel to zoom and the pointer a divider to drag.
     split(&fixture, text(&alpha, "panelId"));
+    // Finish structural setup before the noise terminal's metadata can contend with its revision.
+    fixture.background_output();
     let tui = fixture.start_tui(112, 32);
     fixture.settle_ready(&tui.client);
     // The host terminal reports focus; the TUI starts without one.
@@ -534,8 +535,32 @@ fn split(fixture: &Fixture, panel: &str) {
     ];
     let environment = fixture.terminal_environment();
     words.extend(environment.iter().map(String::as_str));
-    let split = fixture.run(&words);
-    assert_eq!(split.code, Some(0), "{split}");
+    // Shell initialization may publish unrelated metadata before the contention scenario starts.
+    // Only an explicit no-effect revision refusal permits a fresh command; unknown effects stop.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        assert!(!remaining.is_zero(), "Panel split setup did not settle");
+        let timeout = remaining.as_millis().max(1).to_string();
+        let mut attempt = words.clone();
+        attempt.extend(["--timeout", &timeout]);
+        let split = fixture.run(&attempt);
+        if split.code == Some(0) {
+            return;
+        }
+        assert!(
+            split.code == Some(3)
+                && split.document["schema"] == "orchbee.cli.failure"
+                && split.document["source"]["kind"] == "workbench-command"
+                && split.document["failure"]["kind"] == "rejected"
+                && split.document["failure"]["details"]["stage"] == "command"
+                && split.document["failure"]["details"]["reason"] == "revision-mismatch"
+                && Instant::now() < deadline,
+            "{split}"
+        );
+        eprintln!("Setup revision refused without effect; using a fresh preflight: {split}");
+        thread::sleep(Duration::from_millis(50));
+    }
 }
 
 /// Makes `workspace` current through the CLI, which other commits may refuse for a moment.
