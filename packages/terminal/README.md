@@ -382,8 +382,11 @@ foreground/background pair. `backgroundOpacity` is a source-neutral `0..1` confi
 the composing client applies it to its own default-background root rather than to the terminal
 surface. The override remains a source-neutral compatibility projection for clients that do not
 participate in the Host runtime-theme transaction. Orchbee's shared Web/Desktop composition always
-sets it to `null`; its Light, Dark, and Custom choices become a complete Host-owned terminal theme
-instead. There are no runtime partial setters. `updatePresentationConfiguration` validates and
+sets it to `null`; its Theme, Host, and Custom choices become a complete Host-owned terminal theme
+instead. `terminalColorThemes` carries every shipped color theme's canvas, cursor, selection, and
+ANSI 0–15, generated from [`crates/color-themes`](../../crates/color-themes/README.md#gui-files);
+`resolveTerminalColorTheme` turns a stored slot id into a theme, falling back to the Orchbee theme of
+the slot's polarity, and `terminalColorThemeAnsi` lists its ANSI colors in palette order. There are no runtime partial setters. `updatePresentationConfiguration` validates and
 isolates the whole candidate, awaits its regular and bold font descriptions, and then prepares
 renderer measurements before publishing any field. Requests are latest-wins: superseded or
 disposed preparation returns a typed cancellation, and validation, font, or renderer preparation

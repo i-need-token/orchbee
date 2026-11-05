@@ -18,6 +18,10 @@ const expectedRuntimeExports = [
 	'normalizePermittedExternalTerminalUrl',
 	'normalizeTerminalInteractionConfiguration',
 	'normalizeTerminalPresentationConfiguration',
+	'orchbeeTerminalColorTheme',
+	'resolveTerminalColorTheme',
+	'terminalColorThemeAnsi',
+	'terminalColorThemes',
 ];
 
 const packageRoot = resolve(import.meta.dirname, '..');

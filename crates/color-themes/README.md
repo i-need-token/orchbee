@@ -3,8 +3,9 @@
 `orchbee-color-themes` is the single authority for Orchbee color themes: the theme file schema,
 the shipped theme data, the palette-to-role resolver, and the gates every shipped theme passes.
 The [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) takes each terminal's
-launch palette from the Orchbee pair. The native Client theme module and the GUI token generator
-are planned consumers under the [color-theme proposal](../../proposals/workbench/color-themes.md).
+launch palette from the device's selected theme slots, and the GUI's [generated files](#gui-files)
+come from this crate. The native Client theme module is a planned consumer under the
+[color-theme proposal](../../proposals/workbench/color-themes.md).
 
 It is admitted as one deliberately independent contract: the Worker, the native Client, and the
 GUI generator are separate applications that must read one theme authority, and applications never
@@ -21,6 +22,7 @@ styles or modifiers, localize theme names, or change the fixed Agent glyph color
 | `orchbee(Polarity)`      | The Orchbee theme of that polarity, the default pair                                      |
 | `select(Polarity, id)`   | The shipped theme `id` of that polarity; an unshipped or other-polarity id gives Orchbee  |
 | `Theme`                  | Identity, declared polarity, `Canvas`, ANSI 0-15, and `Source`; read-only                 |
+| `Theme::parse(&str)`     | Admits one [theme file](#theme-files), or a `ThemeFileError`; gates are not checked here  |
 | `PaletteColor`           | A correctable color: the shipped `value()` and, when corrected, the replaced `original()` |
 | `Roles::resolve(&Theme)` | Every role in the [resolver table](#resolver), with each floor met on `surface_chrome`    |
 | `Rgb`                    | An 8-bit sRGB color; `u32::from` packs it as `0xRRGGBB`, `Display` writes `#rrggbb`       |
@@ -112,13 +114,40 @@ palettes disagree on which end of the gray axis they invert. The glyph gate is r
 the fixed attention yellow is about 1.2:1 on Orchbee Light's current surface, which the product
 accepts, and the glyph hues never change for contrast.
 
+## GUI files
+
+The GUI cannot run Rust, so `tests/client_files.rs` generates two tracked files from the shipped
+themes and fails when either is stale:
+
+| File                                                                                                                                 | Content                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`packages/design-tokens/src/color-themes.generated.css`](../../packages/design-tokens/src/color-themes.generated.css)               | One `[data-theme='<polarity>'][data-color-theme='<id>']` block per named theme, overriding every system color token. The Orchbee pair has no block |
+| [`packages/terminal/src/color-themes/color-themes.generated.ts`](../../packages/terminal/src/color-themes/color-themes.generated.ts) | Every shipped theme's id, family, polarity, canvas, cursor, resolved selection, and ANSI 0-15 for `@orchbee/terminal`                              |
+
+A block takes surfaces, text, frames, accents, and statuses from the resolver: canvas, chrome as
+`surface-raised`, overlay, the text steps, the frame steps as borders, `accent-action` and
+`accent-link`, and the four status roles. States follow the hand-authored mapping's proportions,
+with hover lighter and pressed darker in both polarities. The brand honey, the scrim, and every
+Agent status glyph color keep their polarity's hand-authored reference; `pnpm lint:styles` checks
+that each block declares exactly its polarity's system colors and keeps those fixed values.
+
+Regenerate after changing a theme file or the generator, and review an unshipped theme file
+without adding it:
+
+```sh
+pnpm generate:color-themes
+pnpm generate:color-themes --out-dir <directory> --theme <file.toml>
+```
+
 ## Verification
 
 `tests/gates.rs` evaluates every shipped theme against the gates; it asserts rules, never a
 theme's values, so adding, removing, or retuning a theme never edits test expectations.
 `tests/colorimetry.rs` implements the gate color science independently of the resolver and checks
 it against published WCAG, APCA, CIEDE2000, Machado, and OKLab reference values.
-`src/theme/tests.rs` checks that malformed theme files are rejected. Run from the repository root:
+`src/theme/tests.rs` checks that malformed theme files are rejected. `tests/client_files.rs` fails
+when a generated GUI file is stale; verification selects this crate when either file changes. Run
+from the repository root:
 
 ```sh
 cargo test -p orchbee-color-themes --all-targets --locked

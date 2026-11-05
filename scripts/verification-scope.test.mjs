@@ -163,6 +163,17 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	assert.ok(designTokens.pnpm.includes('@orchbee/design-tokens'));
 	// The native theme reads the shared theme colors, not the CSS registry.
 	assert.equal(designTokens.cargo.length, 0);
+	for (const generated of [
+		'packages/design-tokens/src/color-themes.generated.css',
+		'packages/terminal/src/color-themes/color-themes.generated.ts',
+	]) {
+		const selected = selectVerificationScope(actual, [generated]);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		assert.ok(
+			selected.cargo.includes('orchbee-color-themes'),
+			generated + ' must select its generator',
+		);
+	}
 	for (const [contract, packages] of [
 		[
 			'schemas/workbench/v1/workbench-action-identities-v1.json',

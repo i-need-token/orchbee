@@ -1,0 +1,67 @@
+// Generated from crates/color-themes by `pnpm generate:color-themes`; do not edit.
+import type { TerminalColorTheme, TerminalColorThemePair } from './terminal-color-theme';
+
+/** The Orchbee pair, the default theme of each polarity. */
+export const orchbeeTerminalColorThemes: TerminalColorThemePair = {
+	dark: {
+		id: 'orchbee-dark',
+		family: 'orchbee',
+		polarity: 'dark',
+		background: 0x1e_1e_1e,
+		foreground: 0xd4_d4_d4,
+		cursor: 0x57_be_f8,
+		cursorText: 0x1e_1e_1e,
+		selectionBackground: 0x41_55_76,
+		selectionForeground: 0xd4_d4_d4,
+		ansi: {
+			black: 0x00_00_00,
+			red: 0xcd_31_31,
+			green: 0x0d_bc_79,
+			yellow: 0xe5_e5_10,
+			blue: 0x24_72_c8,
+			magenta: 0xbc_3f_bc,
+			cyan: 0x11_a8_cd,
+			white: 0xe5_e5_e5,
+			brightBlack: 0x66_66_66,
+			brightRed: 0xf1_4c_4c,
+			brightGreen: 0x23_d1_8b,
+			brightYellow: 0xf5_f5_43,
+			brightBlue: 0x3b_8e_ea,
+			brightMagenta: 0xd6_70_d6,
+			brightCyan: 0x29_b8_db,
+			brightWhite: 0xe5_e5_e5,
+		},
+	},
+	light: {
+		id: 'orchbee-light',
+		family: 'orchbee',
+		polarity: 'light',
+		background: 0xfc_fc_fc,
+		foreground: 0x14_14_14,
+		cursor: 0x2e_9c_d4,
+		cursorText: 0xfc_fc_fc,
+		selectionBackground: 0xc6_da_fb,
+		selectionForeground: 0x14_14_14,
+		ansi: {
+			black: 0x00_00_00,
+			red: 0xcd_31_31,
+			green: 0x10_7c_10,
+			yellow: 0x94_98_00,
+			blue: 0x04_51_a5,
+			magenta: 0xbc_05_bc,
+			cyan: 0x05_98_bc,
+			white: 0x55_55_55,
+			brightBlack: 0x66_66_66,
+			brightRed: 0xcd_31_31,
+			brightGreen: 0x14_ce_14,
+			brightYellow: 0xb5_ba_00,
+			brightBlue: 0x04_51_a5,
+			brightMagenta: 0xbc_05_bc,
+			brightCyan: 0x05_98_bc,
+			brightWhite: 0xa5_a5_a5,
+		},
+	},
+};
+
+/** Every other shipped theme, in the crate's stable order. */
+export const namedTerminalColorThemes: readonly TerminalColorTheme[] = [];

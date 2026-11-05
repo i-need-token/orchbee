@@ -13,6 +13,9 @@ import {
 
 const TOKEN_NAME = /^--ob-(?:ref|sys|comp)-[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const CSS_SOURCE_EXTENSION = '.css';
+const GENERATED_COLOR_THEMES_PATH = 'packages/design-tokens/src/color-themes.generated.css';
+const NAMED_THEME_SELECTOR =
+	/^\[data-theme='(light|dark)'\]\[data-color-theme='[a-z0-9]+(?:-[a-z0-9]+)*'\]$/u;
 const SCRIPT_SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
 const RAW_COLOR = /#[\da-f]{3,8}\b|\b(?:color|hsl|hsla|lab|lch|oklab|oklch|rgb|rgba)\(/iu;
 const RAW_DIMENSION =
@@ -210,6 +213,115 @@ export function validateRegistrySource({ path, source, publicTokens }) {
 	}
 
 	diagnostics.push(...validateTokenReferences(path, source, registeredTokens));
+	return diagnostics;
+}
+
+// System colors a named theme never changes: the brand honey, the scrim, and every Agent status
+// glyph color keep their polarity's hand-authored value.
+const FIXED_THEME_COLORS = [
+	'--ob-sys-color-brand-accent',
+	'--ob-sys-color-brand-accent-hover',
+	'--ob-sys-color-brand-on-accent',
+	'--ob-sys-color-surface-scrim',
+	'--ob-sys-color-status-attention',
+	'--ob-sys-color-status-working',
+	'--ob-sys-color-status-agent-idle',
+	'--ob-sys-color-status-agent-done',
+	'--ob-sys-color-status-agent-error',
+];
+
+function normalizedValue(value) {
+	return value.replaceAll(/\s+/gu, ' ').replaceAll('( ', '(').replaceAll(' )', ')').trim();
+}
+
+function registryRulePolarity(selectors) {
+	const trimmed = new Set(selectors.map((selector) => selector.trim()));
+	if (trimmed.has("[data-theme='dark']")) return 'dark';
+	if (trimmed.has("[data-theme='light']")) return 'light';
+	return undefined;
+}
+
+/** The system colors each polarity's registry rule declares, by token name. */
+function registryThemeColors(registrySource) {
+	const colors = new Map([
+		['light', new Map()],
+		['dark', new Map()],
+	]);
+	parseCss(registrySource).walkRules((rule) => {
+		const polarity = registryRulePolarity(rule.selectors);
+		if (polarity === undefined) return;
+		rule.walkDecls(/^--ob-sys-color-/u, (declaration) => {
+			colors.get(polarity).set(declaration.prop, normalizedValue(declaration.value));
+		});
+	});
+	return colors;
+}
+
+/**
+ * The generated named-theme blocks hold concrete colors by design. Each rule is one theme boundary
+ * that declares exactly its polarity's registry system colors, so no token falls through to the
+ * Orchbee mapping, and keeps the fixed colors. The crate's staleness test owns the values.
+ */
+function validateGeneratedColorThemesSource({ path, source, registeredTokens, registrySource }) {
+	const diagnostics = validateTokenReferences(path, source, registeredTokens);
+	const registryColors = registryThemeColors(registrySource);
+	const root = parseCss(source, { from: path });
+	for (const node of root.nodes) {
+		const index = node.source?.start?.offset ?? 0;
+		if (node.type === 'comment') continue;
+		const polarity =
+			node.type === 'rule' ? NAMED_THEME_SELECTOR.exec(node.selector)?.[1] : undefined;
+		if (polarity === undefined) {
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					index,
+					'Generated color themes contain only [data-theme][data-color-theme] rules.',
+				),
+			);
+			continue;
+		}
+		const expected = registryColors.get(polarity);
+		const declared = new Map();
+		for (const child of node.nodes) {
+			if (child.type === 'decl' && expected.has(child.prop) && !declared.has(child.prop)) {
+				declared.set(child.prop, normalizedValue(child.value));
+				continue;
+			}
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					child.source?.start?.offset ?? index,
+					`A generated ${polarity} theme declares each ${polarity} system color once and nothing else.`,
+				),
+			);
+		}
+		const missing = [...expected.keys()].filter((token) => !declared.has(token));
+		if (missing.length > 0) {
+			diagnostics.push(
+				diagnostic(
+					path,
+					source,
+					index,
+					`Generated theme "${node.selector}" omits ${missing.join(', ')}; update the generator in crates/color-themes.`,
+				),
+			);
+		}
+		for (const token of FIXED_THEME_COLORS) {
+			if (declared.has(token) && declared.get(token) !== expected.get(token)) {
+				diagnostics.push(
+					diagnostic(
+						path,
+						source,
+						index,
+						`Generated theme "${node.selector}" must keep the fixed ${polarity} value of ${token}.`,
+					),
+				);
+			}
+		}
+	}
 	return diagnostics;
 }
 
@@ -537,11 +649,16 @@ export function validateCssSource({
 	registeredTokens,
 	breakpointValues,
 	isRegistry = false,
+	isGeneratedColorThemes = false,
+	registrySource = '',
 	isShadcnCompatibility = false,
 	isTailwindCompatibility = false,
 	publicTokens = registeredTokens,
 }) {
 	if (isRegistry) return validateRegistrySource({ path, source, publicTokens });
+	if (isGeneratedColorThemes) {
+		return validateGeneratedColorThemesSource({ path, source, registeredTokens, registrySource });
+	}
 	if (isShadcnCompatibility) {
 		return validateShadcnCompatibilitySource({ path, source, registeredTokens });
 	}
@@ -1317,6 +1434,8 @@ export async function checkStyleContract(repositoryRoot) {
 					registeredTokens,
 					breakpointValues,
 					isRegistry: sourcePath === registryPath,
+					isGeneratedColorThemes: path === GENERATED_COLOR_THEMES_PATH,
+					registrySource,
 					isShadcnCompatibility: path === 'packages/ui/src/styles.css',
 					isTailwindCompatibility: path === 'packages/design-tokens/src/tailwind-compat.css',
 					publicTokens,

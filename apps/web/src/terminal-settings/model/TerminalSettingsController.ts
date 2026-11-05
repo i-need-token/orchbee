@@ -1,4 +1,10 @@
-import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
+import {
+	orchbeeTerminalColorTheme,
+	resolveTerminalColorTheme,
+	terminalColorThemes,
+	type TerminalColorTheme,
+	type TerminalPresentationConfiguration,
+} from '@orchbee/terminal';
 import {
 	DEFAULT_USER_PREFERENCES,
 	type UserPreferencesPatch,
@@ -58,6 +64,8 @@ export type TerminalSettingsVisibilityResult =
 	| { readonly kind: 'unchanged' };
 
 export interface TerminalSettingsControllerOptions {
+	/** The themes a stored slot id may name; the shipped themes unless a test supplies a fixture. */
+	readonly colorThemes?: readonly TerminalColorTheme[];
 	readonly storage: TerminalAppearanceStorage;
 	readonly themeTarget: Pick<HTMLElement, 'dataset'>;
 	readonly userPreferences: UserPreferencesControl;
@@ -77,6 +85,7 @@ type PresentationListener = (configuration: TerminalPresentationConfiguration) =
 export class TerminalSettingsController
 	implements TerminalAppearancePresentationSource, TerminalThemePresentationSource
 {
+	readonly #colorThemes: readonly TerminalColorTheme[];
 	readonly #presentationListeners = new Set<PresentationListener>();
 	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
@@ -95,11 +104,13 @@ export class TerminalSettingsController
 	#themePresentationEpoch = 0;
 
 	constructor({
+		colorThemes = terminalColorThemes,
 		storage,
 		themeTarget,
 		userPreferences,
 		systemTheme,
 	}: TerminalSettingsControllerOptions) {
+		this.#colorThemes = colorThemes;
 		this.#storage = storage;
 		this.userPreferences = userPreferences;
 		this.#systemTheme = systemTheme;
@@ -108,7 +119,7 @@ export class TerminalSettingsController
 		const preferences = commonAppearance(restored.preferences, userPreferences);
 		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
 		this.#snapshot = snapshot(false, null, restored.issue, preferences);
-		this.#applyApplicationTheme(preferences.applicationTheme);
+		this.#applyTheme(preferences);
 		this.#removeUserPreferences = userPreferences.subscribe(() => this.#syncUserPreferences());
 		systemTheme?.addEventListener('change', this.#handleSystemTheme);
 	}
@@ -248,9 +259,33 @@ export class TerminalSettingsController
 		this.#themeParticipants.clear();
 	}
 
-	#applyApplicationTheme(theme: TerminalAppearancePreferences['applicationTheme']): void {
-		this.#themeTarget.dataset['theme'] =
-			theme === 'system' ? (this.#systemTheme?.matches === true ? 'dark' : 'light') : theme;
+	/** The polarity Appearance resolves to now: System follows the operating system. */
+	#polarity(preferences: TerminalAppearancePreferences): 'dark' | 'light' {
+		if (preferences.applicationTheme !== 'system') return preferences.applicationTheme;
+		return this.#systemTheme?.matches === true ? 'dark' : 'light';
+	}
+
+	/** The active slot's theme; an id this build does not ship resolves to the slot's Orchbee theme. */
+	#colorTheme(preferences: TerminalAppearancePreferences): TerminalColorTheme {
+		const polarity = this.#polarity(preferences);
+		return resolveTerminalColorTheme(
+			polarity,
+			polarity === 'dark' ? preferences.darkTheme : preferences.lightTheme,
+			this.#colorThemes,
+		);
+	}
+
+	/**
+	 * `data-theme` keeps its polarity meaning; a named theme adds `data-color-theme` on the same
+	 * element, and the Orchbee pair sets none, so the hand-authored mapping applies.
+	 */
+	#applyTheme(preferences: TerminalAppearancePreferences): void {
+		const polarity = this.#polarity(preferences);
+		const theme = this.#colorTheme(preferences);
+		const { dataset } = this.#themeTarget;
+		dataset['theme'] = polarity;
+		if (theme.id === orchbeeTerminalColorTheme(polarity).id) delete dataset['colorTheme'];
+		else dataset['colorTheme'] = theme.id;
 	}
 
 	readonly #handleSystemTheme = (): void => {
@@ -268,13 +303,12 @@ export class TerminalSettingsController
 	}
 
 	#startThemePresentation(preferences: TerminalAppearancePreferences): void {
-		const systemAppearance = this.#systemTheme?.matches === true ? 'dark' : 'light';
-		const applicationTheme =
-			preferences.applicationTheme === 'system' ? systemAppearance : preferences.applicationTheme;
+		const applicationTheme = this.#polarity(preferences);
+		const colorTheme = this.#colorTheme(preferences);
 		const epoch = ++this.#themePresentationEpoch;
 		const participants = [...this.#themeParticipants];
 		if (participants.length === 0) {
-			this.#applyApplicationTheme(preferences.applicationTheme);
+			this.#applyTheme(preferences);
 			return;
 		}
 		void Promise.all(
@@ -283,6 +317,7 @@ export class TerminalSettingsController
 					return await participant.prepareThemePresentation({
 						...preferences,
 						applicationTheme,
+						colorTheme,
 					});
 				} catch {
 					return { code: 'theme-preparation-rejected', kind: 'failed', retryable: true };
@@ -302,7 +337,7 @@ export class TerminalSettingsController
 				return;
 			}
 			for (const commit of prepared) commit.commit();
-			this.#applyApplicationTheme(preferences.applicationTheme);
+			this.#applyTheme(preferences);
 		});
 	}
 

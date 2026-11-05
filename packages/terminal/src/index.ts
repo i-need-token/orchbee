@@ -66,6 +66,18 @@ export {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 	normalizeTerminalPresentationConfiguration,
 } from './presentation-configuration';
+
+export {
+	orchbeeTerminalColorTheme,
+	resolveTerminalColorTheme,
+	terminalColorThemeAnsi,
+	terminalColorThemes,
+} from './color-themes';
+export type {
+	TerminalAnsiColors,
+	TerminalColorTheme,
+	TerminalColorThemePolarity,
+} from './color-themes';
 export type {
 	TerminalPresentationConfiguration,
 	TerminalPresentationConfigurationUpdateResult,

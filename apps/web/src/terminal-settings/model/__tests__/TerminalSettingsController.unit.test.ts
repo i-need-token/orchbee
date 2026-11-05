@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 
-import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
+import {
+	orchbeeTerminalColorTheme,
+	type TerminalPresentationConfiguration,
+} from '@orchbee/terminal';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+	colorThemesWithFixtures,
+	fixtureDarkTheme,
+	fixtureLightTheme,
+} from '../../../__tests__/colorThemeFixtures';
 import { memoryUserPreferences } from '../../../__tests__/memoryUserPreferences';
 import { TerminalSettingsController } from '../TerminalSettingsController';
 import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../terminal-appearance-preferences';
@@ -149,6 +157,49 @@ describe('TerminalSettingsController', () => {
 		expect(target.dataset['theme']).toBe('dark');
 		expect(presentationListener).not.toHaveBeenCalled();
 		expect(storage.setItem).not.toHaveBeenCalled();
+	});
+
+	it('marks only a named theme of the active slot on the theme boundary', async () => {
+		const target = document.createElement('div');
+		const controller = new TerminalSettingsController({
+			colorThemes: colorThemesWithFixtures,
+			storage: createStorage(null),
+			themeTarget: target,
+			userPreferences: memoryUserPreferences({
+				applicationTheme: 'light',
+				darkTheme: fixtureDarkTheme.id,
+			}),
+		});
+		const participant = vi.fn<TerminalThemePresentationParticipant['prepareThemePresentation']>(
+			async () => ({ commit: themeCommit().commit, kind: 'prepared' }),
+		);
+		controller.registerThemeParticipant({ prepareThemePresentation: participant });
+		// The light slot holds the Orchbee theme: no named theme attribute.
+		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'light' }));
+
+		controller.update({ applicationTheme: 'dark' });
+		await vi.waitFor(() =>
+			expect({ ...target.dataset }).toEqual({ colorTheme: fixtureDarkTheme.id, theme: 'dark' }),
+		);
+		expect(participant).toHaveBeenLastCalledWith(
+			expect.objectContaining({ applicationTheme: 'dark', colorTheme: fixtureDarkTheme }),
+		);
+
+		// An id this build does not ship falls back to the Orchbee theme of the slot's polarity, and
+		// so does a theme of the other polarity stored in the slot.
+		controller.update({ darkTheme: 'not-shipped' });
+		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'dark' }));
+		expect(participant).toHaveBeenLastCalledWith(
+			expect.objectContaining({ colorTheme: orchbeeTerminalColorTheme('dark') }),
+		);
+		controller.update({ darkTheme: fixtureDarkTheme.id });
+		await vi.waitFor(() => expect(target.dataset['colorTheme']).toBe(fixtureDarkTheme.id));
+		controller.update({ darkTheme: fixtureLightTheme.id });
+		await vi.waitFor(() => expect({ ...target.dataset }).toEqual({ theme: 'dark' }));
+		expect(participant).toHaveBeenLastCalledWith(
+			expect.objectContaining({ colorTheme: orchbeeTerminalColorTheme('dark') }),
+		);
+		controller.dispose();
 	});
 
 	it('publishes one complete presentation for one terminal-derived change', () => {

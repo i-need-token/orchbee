@@ -2,7 +2,7 @@
 
 | Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Steps 1, 2, and 4 of the implementation plan are delivered; the rest is a proposal under review. The inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                                                   |
+| Status             | Steps 1, 2, 4, and 6 of the implementation plan are delivered; the rest is a proposal under review. The inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                                                |
 | Owner              | Theme data and resolver maintainers, the native theme module in `apps/orchbee`, `@orchbee/design-tokens`, `@orchbee/terminal`, the terminal protocol and Host, and the user-preference owners                                                                                                                                                                                                                                                                                                                          |
 | Current authority  | [`crates/color-themes`](../../crates/color-themes/README.md) owns theme data, the resolver, and the gates; the [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) owns the launch palette; [`docs/tui/visual-foundations.md`](../../docs/tui/visual-foundations.md) owns TUI roles and the theme contract; [`docs/frontend/design-tokens.md`](../../docs/frontend/design-tokens.md) owns the CSS registry; [`docs/INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) owns GUI/TUI correspondence |
 | Decision authority | The product owner decides the default pair, the shipped list, the TUI default color source, and settings presentation; the terminal-protocol owner decides the palette-index cell encoding; this proposal decides the theme data model, the resolver, and the gates                                                                                                                                                                                                                                                    |
@@ -464,8 +464,12 @@ Each step is one commit, or a small series, that leaves `main` working:
    Clients map ANSI colors themselves.
 5. **TUI.** Resolve roles from the crate, add the Colors source with truecolor gating, retire the
    test-only One pair, and keep `terminal-native` emitting `Reset` and `Indexed`.
-6. **GUI.** Generate the CSS and the terminal module, add the `data-color-theme` boundary, and point
-   the terminal renderer at the theme's ANSI.
+6. **GUI. Done.** The crate's [GUI files](../../crates/color-themes/README.md#gui-files) test
+   generates the theme CSS and the `@orchbee/terminal` color module and fails when either is stale;
+   `pnpm lint:styles` checks each block against the registry. The application boundary sets
+   `data-color-theme` for a named theme only, and the projected terminal's Theme mode publishes the
+   selected theme's canvas, cursor, selection, and ANSI 0–15. Server-backed terminals take the
+   selected canvas; their ANSI arrives with the launch palette until step 3.
 7. **Settings.** Add the pickers with preview, commit, and reset in both Clients, with `en-US` and
    `zh-CN` copy.
 8. **Named themes.** Import the 14 named themes and their notice entries, one commit per family.
@@ -516,8 +520,9 @@ Each decision is listed with a recommendation and is vetoable:
     pair, while keeping the fixed hues. The alternative, an opt-in accessibility setting, leaves the
     default sidebar ambiguous for viewers with red-green color vision deficiency. This decision
     belongs to the TUI and GUI status owners rather than to theming.
-13. **Orchbee Dark canvas.** The GUI's dark canvas is `oklch(14.5% 0 none)`, about `#0a0a0a`, while
-    Orchbee Dark and the shipped dark terminal default use `#1e1e1e`. Pinning the hand-authored GUI
-    chrome in the theme file would pair near-black chrome with a lighter canvas. Keep `#1e1e1e`,
-    the gated terminal canvas, until step 6 decides whether the GUI dark canvas moves to it or the
-    theme canvas moves to the GUI; either change re-runs the gates.
+13. **Orchbee Dark canvas. Decided in step 6.** The GUI's dark canvas is `oklch(14.5% 0 none)`,
+    about `#0a0a0a`, while Orchbee Dark and the shipped dark terminal default use `#1e1e1e`. Step 6
+    keeps both: `#1e1e1e` stays the gated terminal canvas, and the Orchbee pair keeps its reviewed
+    hand-authored GUI mapping with no generated block, so the default look does not move. Named
+    themes take their GUI canvas from the theme. Moving either Orchbee value, or pinning Orchbee
+    chrome in the theme files, remains a later change that re-runs the gates.

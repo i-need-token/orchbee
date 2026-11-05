@@ -1,4 +1,8 @@
-import type { ProjectedTerminal, TerminalThemeOverlayPresentation } from '@orchbee/terminal';
+import {
+	terminalColorThemeAnsi,
+	type ProjectedTerminal,
+	type TerminalThemeOverlayPresentation,
+} from '@orchbee/terminal';
 import type {
 	ProjectedAttachmentBootstrap,
 	ProjectedTerminalEvent,
@@ -48,8 +52,6 @@ interface PendingPreparation {
 	settled: boolean;
 }
 
-const LIGHT_DEFAULTS = Object.freeze({ background: 0xfc_fc_fc, foreground: 0x14_14_14 });
-const DARK_DEFAULTS = Object.freeze({ background: 0x1e_1e_1e, foreground: 0xd4_d4_d4 });
 const SELECTION_ACCENT_RGB = 0x76_a7_fa;
 const SELECTION_ACCENT_WEIGHT = 2;
 const SELECTION_BACKGROUND_WEIGHT = 3;
@@ -413,18 +415,23 @@ function snapshotFromPreferences(
 ): TerminalThemeSnapshot {
 	const current = state.host.terminal;
 	let terminal: TerminalThemeSnapshot['terminal'];
+	let selection: Pick<TerminalThemeOverlayPresentation, 'selectionBackgroundRgb'> | undefined;
 	switch (preferences.terminalDisplayTheme) {
 		case 'host':
 			terminal = { ...current, ...hostDefaultColors };
 			break;
 		case 'theme': {
-			const defaults = preferences.applicationTheme === 'dark' ? DARK_DEFAULTS : LIGHT_DEFAULTS;
+			// The whole theme replaces the local palette: canvas, cursor, selection, and ANSI 0-15.
+			const theme = preferences.colorTheme;
 			terminal = {
 				...current,
-				colorScheme: preferences.applicationTheme,
-				defaultBackgroundRgb: defaults.background,
-				defaultForegroundRgb: defaults.foreground,
+				colorScheme: theme.polarity,
+				defaultBackgroundRgb: theme.background,
+				defaultCursorRgb: theme.cursor,
+				defaultForegroundRgb: theme.foreground,
+				palette: [...terminalColorThemeAnsi(theme), ...current.palette.slice(16)],
 			};
+			selection = { selectionBackgroundRgb: theme.selectionBackground };
 			break;
 		}
 		case 'custom':
@@ -437,7 +444,7 @@ function snapshotFromPreferences(
 	}
 	return normalizeTerminalThemeSnapshot({
 		application: { colorScheme: preferences.applicationTheme },
-		overlays: clientThemeOverlays(terminal),
+		overlays: clientThemeOverlays(terminal, selection),
 		terminal,
 	});
 }
@@ -447,6 +454,7 @@ function clientThemeOverlays(
 		TerminalThemeSnapshot['terminal'],
 		'defaultBackgroundRgb' | 'defaultForegroundRgb'
 	>,
+	selection?: Pick<TerminalThemeOverlayPresentation, 'selectionBackgroundRgb'>,
 ): TerminalThemeOverlayPresentation {
 	return Object.freeze({
 		cursorAccentRgb: 0xfc_fc_fc,
@@ -454,7 +462,9 @@ function clientThemeOverlays(
 		searchActiveMatchForegroundRgb: 0x1e_1e_1e,
 		searchMatchBackgroundRgb: 0x51_5c_6a,
 		searchMatchForegroundRgb: 0xff_ff_ff,
-		selectionBackgroundRgb: compositeSelectionBackground(terminal.defaultBackgroundRgb),
+		selectionBackgroundRgb:
+			selection?.selectionBackgroundRgb ??
+			compositeSelectionBackground(terminal.defaultBackgroundRgb),
 		selectionForegroundRgb: terminal.defaultForegroundRgb,
 	});
 }

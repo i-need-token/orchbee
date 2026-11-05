@@ -20,6 +20,9 @@ const foreignDependencies = [
 const foreignPaths = [
 	['crates/local-runtime/src/directory/windows/initialization.ps1', 'apps/terminal-host'],
 	['crates/local-runtime/src/directory/windows/reader.ps1', 'apps/terminal-host'],
+	// The theme crate's staleness test reads the files it generates.
+	['packages/design-tokens/src/color-themes.generated.css', 'crates/color-themes'],
+	['packages/terminal/src/color-themes/color-themes.generated.ts', 'crates/color-themes'],
 ];
 // Language-neutral parity sources with exact consumers; other shared schema inputs keep the
 // full gate until their consumers are recorded here.

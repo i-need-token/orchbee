@@ -1,18 +1,11 @@
-import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
+import {
+	resolveTerminalColorTheme,
+	type TerminalPresentationConfiguration,
+} from '@orchbee/terminal';
 
 import type { TerminalPresentationConfigurationSource } from '../../terminal-presentation';
 import type { TerminalAppearancePreferences } from '../../terminal-settings';
 import type { ServerHostColors, ServerHostColorsSource } from '../server-connection';
-
-/** The Worker's shipped Light and Dark terminal defaults, so a terminal launched under either matches. */
-const LIGHT_TERMINAL_COLORS: ServerHostColors = Object.freeze({
-	background: 0xfc_fc_fc,
-	foreground: 0x14_14_14,
-});
-const DARK_TERMINAL_COLORS: ServerHostColors = Object.freeze({
-	background: 0x1e_1e_1e,
-	foreground: 0xd4_d4_d4,
-});
 
 interface ServerTerminalColors {
 	/** Paints every terminal's default-coded cells, as the TUI substitutes the selected theme's. */
@@ -30,7 +23,12 @@ interface ThemePreferencesSource {
 	getSnapshot(): {
 		readonly preferences: Pick<
 			TerminalAppearancePreferences,
-			'applicationTheme' | 'customBackground' | 'customForeground' | 'terminalDisplayTheme'
+			| 'applicationTheme'
+			| 'customBackground'
+			| 'customForeground'
+			| 'darkTheme'
+			| 'lightTheme'
+			| 'terminalDisplayTheme'
 		>;
 	};
 	subscribeSnapshot(listener: () => void): () => void;
@@ -38,8 +36,9 @@ interface ThemePreferencesSource {
 
 /**
  * Resolves the theme preferences as the Worker resolves a launch's colors, with the system's
- * appearance where a TUI has its outer terminal. Theme and Host with the System application theme
- * launch a terminal that follows its controller, so only then does the window have colors to report.
+ * appearance where a TUI has its outer terminal: Theme and Host take the canvas of the selected
+ * theme of that polarity. Theme and Host with the System application theme launch a terminal that
+ * follows its controller, so only then does the window have colors to report.
  */
 export function createServerTerminalColorsSource(
 	preferences: ThemePreferencesSource,
@@ -47,8 +46,14 @@ export function createServerTerminalColorsSource(
 ): ServerTerminalColorsSource {
 	return {
 		current: () => {
-			const { applicationTheme, customBackground, customForeground, terminalDisplayTheme } =
-				preferences.getSnapshot().preferences;
+			const {
+				applicationTheme,
+				customBackground,
+				customForeground,
+				darkTheme,
+				lightTheme,
+				terminalDisplayTheme,
+			} = preferences.getSnapshot().preferences;
 			switch (terminalDisplayTheme) {
 				case 'custom':
 					return {
@@ -62,11 +67,15 @@ export function createServerTerminalColorsSource(
 				case 'theme':
 					break;
 			}
-			if (applicationTheme !== 'system') {
-				const display = applicationTheme === 'dark' ? DARK_TERMINAL_COLORS : LIGHT_TERMINAL_COLORS;
-				return { display, host: null };
-			}
-			const system = systemTheme.matches ? DARK_TERMINAL_COLORS : LIGHT_TERMINAL_COLORS;
+			const canvas = (polarity: 'dark' | 'light'): ServerHostColors => {
+				const theme = resolveTerminalColorTheme(
+					polarity,
+					polarity === 'dark' ? darkTheme : lightTheme,
+				);
+				return { background: theme.background, foreground: theme.foreground };
+			};
+			if (applicationTheme !== 'system') return { display: canvas(applicationTheme), host: null };
+			const system = canvas(systemTheme.matches ? 'dark' : 'light');
 			return { display: system, host: system };
 		},
 		subscribe: (listener) => {

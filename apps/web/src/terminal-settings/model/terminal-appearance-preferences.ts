@@ -1,4 +1,4 @@
-import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
+import type { TerminalColorTheme, TerminalPresentationConfiguration } from '@orchbee/terminal';
 
 import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
@@ -38,6 +38,8 @@ export type TerminalResolvedThemePreferences = Omit<
 	'applicationTheme'
 > & {
 	readonly applicationTheme: 'dark' | 'light';
+	/** The active slot's theme, resolved once by the controller; its polarity is `applicationTheme`. */
+	readonly colorTheme: TerminalColorTheme;
 };
 
 const productPresentation = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current();

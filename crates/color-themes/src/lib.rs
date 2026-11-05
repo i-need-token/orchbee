@@ -12,4 +12,4 @@ mod theme;
 pub use catalog::{orchbee, select, shipped};
 pub use rgb::Rgb;
 pub use roles::Roles;
-pub use theme::{Canvas, PaletteColor, Polarity, Source, Theme};
+pub use theme::{Canvas, PaletteColor, Polarity, Source, Theme, ThemeFileError};

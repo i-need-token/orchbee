@@ -130,9 +130,15 @@ impl Theme {
         &self.source
     }
 
-    /// Admits one theme file.
-    pub(crate) fn parse(text: &str) -> Result<Self, ThemeFileError> {
-        let file: ThemeFile = toml::from_str(text).map_err(ThemeFileError::Syntax)?;
+    /// Admits one theme file in the README's theme file schema. Admission checks structure only;
+    /// whether the theme meets the legibility gates is the gate test's question.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ThemeFileError`] for text that is not a well-formed theme file.
+    pub fn parse(text: &str) -> Result<Self, ThemeFileError> {
+        let file: ThemeFile =
+            toml::from_str(text).map_err(|error| ThemeFileError::Syntax(error.to_string()))?;
         let identifier = |field: &'static str, value: String| {
             if is_kebab_case(&value) {
                 Ok(value)
@@ -207,9 +213,9 @@ impl Theme {
 
 /// Why a theme file was not admitted.
 #[derive(Debug)]
-pub(crate) enum ThemeFileError {
-    /// Not TOML, a missing or unknown key, or a value of the wrong shape.
-    Syntax(toml::de::Error),
+pub enum ThemeFileError {
+    /// Not TOML, a missing or unknown key, or a value of the wrong shape, with the parser's message.
+    Syntax(String),
     /// The named field holds a malformed color, identifier, text, URL, or a correction that
     /// changes nothing.
     Invalid(&'static str),
@@ -223,6 +229,8 @@ impl fmt::Display for ThemeFileError {
         }
     }
 }
+
+impl std::error::Error for ThemeFileError {}
 
 fn color(field: &'static str, text: &str) -> Result<Rgb, ThemeFileError> {
     Rgb::parse_hex(text).ok_or(ThemeFileError::Invalid(field))

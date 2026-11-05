@@ -308,7 +308,49 @@ export function Panel({ active, width }: { active: boolean; width: string }) {
 
 		expect(diagnostics).toEqual([]);
 	});
+
+	it('admits a generated color theme only as the complete system colors of its polarity, glyphs fixed', () => {
+		const registrySource = `:root,
+[data-theme='light'] {
+	--ob-sys-color-text-primary: var(--ob-ref-space-4);
+	--ob-sys-color-status-attention: var(--ob-ref-font-size-sm);
+}
+[data-theme='dark'] {
+	--ob-sys-color-text-primary: var(--ob-ref-space-4);
+	--ob-sys-color-status-attention: var(--ob-ref-font-size-sm);
+}`;
+		const validate = (source: string) =>
+			validateCssSource({
+				path: 'packages/design-tokens/src/color-themes.generated.css',
+				source,
+				registeredTokens,
+				breakpointValues: new Set(),
+				isGeneratedColorThemes: true,
+				registrySource,
+			});
+		const attention = '--ob-sys-color-status-attention: var(--ob-ref-font-size-sm);';
+		const complete = `--ob-sys-color-text-primary: #d8dee9;\n${attention}`;
+
+		expect(validate(`/* Generated. */\n${colorThemeBlock(complete)}`)).toEqual([]);
+		const invalid = [
+			colorThemeBlock(complete, ':root'),
+			colorThemeBlock(complete, "[data-color-theme='nord']"),
+			colorThemeBlock(attention),
+			colorThemeBlock(
+				'--ob-sys-color-text-primary: #d8dee9;\n--ob-sys-color-status-attention: #ffff00;',
+			),
+			colorThemeBlock(`${complete}\ncolor: #d8dee9;`),
+		];
+		expect(invalid.map((source) => validate(source).length)).toEqual(invalid.map(() => 1));
+	});
 });
+
+function colorThemeBlock(
+	declarations: string,
+	selector = "[data-theme='dark'][data-color-theme='nord']",
+): string {
+	return `${selector} {\n${declarations}\n}`;
+}
 
 describe('design-token inventory', () => {
 	it('deduplicates theme overrides and sorts token names deterministically', () => {

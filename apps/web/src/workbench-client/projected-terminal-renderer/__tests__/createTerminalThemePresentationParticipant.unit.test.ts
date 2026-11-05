@@ -1,5 +1,13 @@
-import type { TerminalAppearancePreferences } from '../../../terminal-settings';
-import type { ProjectedTerminal } from '@orchbee/terminal';
+import type {
+	TerminalAppearancePreferences,
+	TerminalResolvedThemePreferences,
+} from '../../../terminal-settings';
+import {
+	orchbeeTerminalColorTheme,
+	terminalColorThemeAnsi,
+	type ProjectedTerminal,
+	type TerminalColorTheme,
+} from '@orchbee/terminal';
 import {
 	ProjectedAttachmentBootstrapSchema,
 	type ProjectedTerminalCommand,
@@ -7,6 +15,7 @@ import {
 import { CanonicalUint64TextSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import { fixtureDarkTheme } from '../../../__tests__/colorThemeFixtures';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import { createTerminalThemePresentationParticipant } from '../createTerminalThemePresentationParticipant';
 
@@ -71,18 +80,16 @@ describe('createTerminalThemePresentationParticipant', () => {
 				commands.push(command);
 			}),
 		});
-		const preparation = participant.prepareThemePresentation({
-			...appearancePreferences,
-			applicationTheme: 'light',
-			terminalDisplayTheme: 'host',
-		});
+		const preparation = participant.prepareThemePresentation(
+			resolved('light', { terminalDisplayTheme: 'host' }),
+		);
 		const apply = commands[0];
 		if (apply?.kind !== 'apply-terminal-theme') throw new Error('Missing Host restore');
 		expect(apply.payload.terminal).toEqual(bootstrap.theme.terminal);
 		participant.dispose();
 		await expect(preparation).resolves.toEqual({ kind: 'cancelled' });
 	});
-	it('preflights the renderer before sending one valid Host operation and publishes its exact revision', async () => {
+	it('publishes the selected theme canvas, cursor, selection, and ANSI after a renderer preflight', async () => {
 		const order: string[] = [];
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = terminalDriver({
@@ -108,11 +115,9 @@ describe('createTerminalThemePresentationParticipant', () => {
 			transport,
 		});
 
-		const preparation = participant.prepareThemePresentation({
-			...appearancePreferences,
-			applicationTheme: 'dark',
-			terminalDisplayTheme: 'theme',
-		});
+		const preparation = participant.prepareThemePresentation(
+			resolved('dark', { terminalDisplayTheme: 'theme' }, fixtureDarkTheme),
+		);
 		expect(order).toEqual(['renderer-prepare', 'host-send']);
 		const apply = commands[0];
 		if (apply?.kind !== 'apply-terminal-theme') {
@@ -123,15 +128,20 @@ describe('createTerminalThemePresentationParticipant', () => {
 			operationId: '55'.repeat(16),
 			terminal: {
 				colorScheme: 'dark',
-				defaultBackgroundRgb: 0x1e_1e_1e,
-				defaultForegroundRgb: 0xd4_d4_d4,
+				defaultBackgroundRgb: fixtureDarkTheme.background,
+				defaultCursorRgb: fixtureDarkTheme.cursor,
+				defaultForegroundRgb: fixtureDarkTheme.foreground,
+				palette: [
+					...terminalColorThemeAnsi(fixtureDarkTheme),
+					...bootstrap.theme.terminal.palette.slice(16),
+				],
 			},
 		});
 		expect(terminal.prepareThemePresentation).toHaveBeenCalledWith(
 			'55'.repeat(16),
 			expect.objectContaining({
-				selectionBackgroundRgb: 0x41_55_76,
-				selectionForegroundRgb: 0xd4_d4_d4,
+				selectionBackgroundRgb: fixtureDarkTheme.selectionBackground,
+				selectionForegroundRgb: fixtureDarkTheme.foreground,
 			}),
 		);
 
@@ -177,11 +187,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 		});
 
 		await expect(
-			participant.prepareThemePresentation({
-				...appearancePreferences,
-				applicationTheme: 'dark',
-				terminalDisplayTheme: 'theme',
-			}),
+			participant.prepareThemePresentation(resolved('dark', { terminalDisplayTheme: 'theme' })),
 		).resolves.toEqual({
 			code: 'renderer-preparation-failed',
 			kind: 'failed',
@@ -201,10 +207,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 			transport: transportFixture(),
 		});
 
-		const preparation = participant.prepareThemePresentation({
-			...appearancePreferences,
-			applicationTheme: 'dark',
-		});
+		const preparation = participant.prepareThemePresentation(resolved('dark'));
 		expect(terminal.prepareThemePresentation).toHaveBeenCalledWith(
 			'77'.repeat(16),
 			expect.objectContaining({
@@ -261,3 +264,11 @@ const appearancePreferences: TerminalAppearancePreferences = {
 	terminalPadding: 0,
 	terminalDisplayTheme: 'host',
 };
+
+function resolved(
+	applicationTheme: 'dark' | 'light',
+	overrides: Partial<TerminalAppearancePreferences> = {},
+	colorTheme: TerminalColorTheme = orchbeeTerminalColorTheme(applicationTheme),
+): TerminalResolvedThemePreferences {
+	return { ...appearancePreferences, ...overrides, applicationTheme, colorTheme };
+}

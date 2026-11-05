@@ -42,7 +42,7 @@ The runtime registry deliberately uses standard custom properties. Tailwind's `@
 
 Reference tokens (`--ob-ref-*`) are stable visual scales. System tokens (`--ob-sys-*`) give those values interface meaning and change under explicit `[data-theme='light']` and `[data-theme='dark']` boundaries; `:root` supplies the light fallback. Components consume system color tokens so theme changes do not alter component CSS.
 
-System colors enumerate surface, content, border, action, status, and interaction states. Every system color has explicit light and dark mappings. Semantic typography tokens combine family, size, weight, and line height for body, label, heading, and code roles:
+System colors enumerate surface, content, border, action, status, and interaction states. Every system color has explicit light and dark mappings. A named color theme adds `data-color-theme` beside `data-theme`; [`src/color-themes.generated.css`](src/color-themes.generated.css), imported by `tokens.css` and generated from [`crates/color-themes`](../../crates/color-themes/README.md#gui-files), overrides every system color for each named theme. The Orchbee pair has no generated block. Semantic typography tokens combine family, size, weight, and line height for body, label, heading, and code roles:
 
 ```css
 .title {
