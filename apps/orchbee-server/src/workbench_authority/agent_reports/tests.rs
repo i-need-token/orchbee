@@ -410,3 +410,41 @@ fn presence_preserves_screen_age_and_replacement_clears_it() {
     step(&mut current, observation(Provider::Pi, None, false, 80), 80);
     assert_eq!(current.effective().status, Status::Unknown);
 }
+
+#[test]
+fn accepted_input_before_idle_does_not_recreate_an_unanswered_completion() {
+    for transient_unknown in [false, true] {
+        let mut current = Reports::default();
+        let agent = Provider::lookup("codex").unwrap();
+        step(
+            &mut current,
+            process(Some(agent), Status::Working, false),
+            1,
+        );
+        assert!(current.acknowledge_input());
+        // Repeated screen observations are not a new work turn.
+        step(
+            &mut current,
+            process(Some(agent), Status::Working, false),
+            2,
+        );
+        if transient_unknown {
+            step(
+                &mut current,
+                process(Some(agent), Status::Unknown, false),
+                3,
+            );
+        }
+        step(&mut current, process(Some(agent), Status::Idle, false), 4);
+        assert_eq!(current.view().display_state(), Status::Idle);
+        step(
+            &mut current,
+            process(Some(agent), Status::Working, false),
+            5,
+        );
+        step(&mut current, process(Some(agent), Status::Idle, false), 6);
+        assert_eq!(current.view().display_state(), Status::Done);
+        assert!(current.acknowledge_input());
+        assert_eq!(current.view().display_state(), Status::Idle);
+    }
+}

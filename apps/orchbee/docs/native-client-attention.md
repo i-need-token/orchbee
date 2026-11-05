@@ -152,7 +152,11 @@ presentation never asserts provider success.
 Only confirmed accepted input for the exact retained physical generation acknowledges completion.
 Accepted controller bytes, semantic key/text, paste and the confirmed prefix of a one-shot send
 use this Server boundary. Focus, reading, local selection and unaccepted or unknown input do not
-consume it. Input arriving before a Client sees Idle still updates the fact at its Server owner.
+consume it. Input arriving before a Client sees Idle still updates the fact at its Server owner. Input accepted
+while the Server still observes Working also acknowledges that turn: repeated Working screen
+samples, including a transient Unknown, cannot recreate Done at the later Idle. A new
+Idle-to-Working edge or an accepted fresh explicit Working report starts a new turn. Explicit
+Done (including the OSC 7501 program-status path) uses the same Server completion projection.
 Native pane titles, sidebar rows and the Agent board consume this fact without Client transition
 synthesis or cross-lane input-acknowledgement copies.
 
