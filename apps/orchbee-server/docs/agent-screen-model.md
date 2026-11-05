@@ -111,6 +111,33 @@ or interruption. Status recovery never resubmits a mutation. Receipts end with t
 this is not durable replay across Server restart. Explicit remote Update and its separate cache/activation outcomes are specified below.
 Automatic scheduling follows the configuration and ownership rules below.
 
+## Live Agent self-test
+
+Rerun the live self-test after an Agent CLI upgrade or a bundled rule change, from a staged Windows
+cohort:
+
+```sh
+node apps/orchbee-server/scripts/agent-detection-self-test.mjs --orchbee <cohort>\orchbee.exe --scratch <new directory> [--agents opencode,pi,omp] [--path-prepend <dir>]
+```
+
+The script creates the scratch directory, points `APPDATA`, `LOCALAPPDATA` and
+`ORCHBEE_RUNTIME_BASE` into it, starts its own Session and opens each Agent in a `cmd.exe`
+workspace. `--path-prepend` adds directories, such as a Node toolchain, to that shell because Worker
+terminals start from the user's registry environment. It drives terminals only through
+`orchbee terminal send` and records the Panel's reported state and detection screen for each step:
+launch (idle, or blocked by a trust or login prompt), one turn (working, then idle), and for opencode
+a question (blocked, then idle after Escape), and exit (no reported Agent). A turn sends one trivial
+model request through the Agent's existing login, or a local `ping` shell command for pi and omp. The
+script types nothing unless launch reported idle, never accepts a trust, login or approval prompt,
+and leaves prompts only with Escape or the CLI's quit keys. Prompt text and Enter are sent
+separately, because some composers treat one burst as a paste; quit keys go in one burst for CLIs
+that need a quick double press. A step passes when the reported transitions match its expectation;
+a failure needs its capture reviewed before it is called a detector defect, because CLI quotas,
+missing models, first-run prompts and slow exits also fail steps. It stops its Session and writes
+`report.json` and per-step captures into the scratch directory; the caller deletes it. Captures
+contain local paths and account details, so a regression fixture must be redacted before it enters
+`agent_screen/tests.rs`.
+
 ## Remote update ownership
 
 Orchbee ships no default rule catalog. Remote maintenance runs only when the Server starts with
