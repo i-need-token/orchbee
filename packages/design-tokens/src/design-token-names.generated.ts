@@ -576,6 +576,7 @@ export const designTokenNames = [
 	'--ob-ref-shadow-sm',
 	'--ob-ref-shadow-xl',
 	'--ob-ref-shadow-xs',
+	'--ob-ref-size-control-2xs',
 	'--ob-ref-size-control-lg',
 	'--ob-ref-size-control-md',
 	'--ob-ref-size-control-navigation',

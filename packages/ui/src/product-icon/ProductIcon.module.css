@@ -87,6 +87,10 @@
 	composes: codicon-pinned from global;
 }
 
+.question {
+	composes: codicon-question from global;
+}
+
 .search {
 	composes: codicon-search from global;
 }

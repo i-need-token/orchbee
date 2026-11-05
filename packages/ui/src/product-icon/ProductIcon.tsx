@@ -26,6 +26,7 @@ export type ProductIconName =
 	| 'new-folder'
 	| 'panels'
 	| 'pin'
+	| 'question'
 	| 'search'
 	| 'screen-full'
 	| 'screen-normal'
@@ -38,7 +39,7 @@ export type ProductIconName =
 
 interface ProductIconProps {
 	readonly name: ProductIconName;
-	readonly size?: 'menu-leading' | 'section-action';
+	readonly size?: 'disclosure' | 'menu-leading' | 'section-action';
 }
 
 export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
@@ -68,6 +69,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'new-folder' && styles['newFolder'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
+				name === 'question' && styles['question'],
 				name === 'search' && styles['search'],
 				name === 'screen-full' && styles['screenFull'],
 				name === 'screen-normal' && styles['screenNormal'],

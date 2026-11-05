@@ -194,6 +194,7 @@ width or height locally.
 
 | Variable                            | Value   | Use when                                                                       |
 | ----------------------------------- | ------- | ------------------------------------------------------------------------------ |
+| `--ob-ref-size-control-2xs`         | `18px`  | Row tool inside a dense navigation row, such as fold, add, more, or close      |
 | `--ob-ref-size-control-xs`          | `24px`  | Small button, inline action, compact icon button, or dense utility control     |
 | `--ob-ref-size-control-sm`          | `28px`  | Toolbar, compact select, or secondary desktop control                          |
 | `--ob-ref-size-control-navigation`  | `30px`  | Persistent sidebar navigation rows that need a distinct compact rhythm         |
@@ -210,7 +211,8 @@ width or height locally.
 | `--ob-ref-size-scrollbar-thumb`     | `6px`   | Native scrollbar thumb across rest, hover, and pressed states                  |
 
 Use one icon size within a control. A compact section-heading action uses `icon-section-action`;
-a dense `control-xs` or `control-sm` normally uses `icon-xs` or `icon-sm`; a default `control-md`
+a `control-2xs` row tool uses `icon-sm`, or `icon-xs` for a fold chevron beside compact text; a
+dense `control-xs` or `control-sm` normally uses `icon-xs` or `icon-sm`; a default `control-md`
 normally uses `icon-sm` or `icon-md`. An icon next to text
 uses a `space-1-5` or `space-2` gap. Do not enlarge a decorative icon to create emphasis; promote
 the action or text role instead. The visible control may be `24px` while its reusable component
@@ -256,8 +258,11 @@ layout space for an outer indicator.
 | `--ob-sys-color-surface-overlay`        | `#fcfcfc`       | Menu, popover, dialog, or temporary floating surface  |
 | `--ob-sys-color-surface-subtle`         | `#141414 @ 4%`  | Quiet grouped card or inset region                    |
 | `--ob-sys-color-surface-hovered`        | `#141414 @ 8%`  | Hover feedback for a neutral interactive region       |
-| `--ob-sys-color-surface-selected`       | `#141414 @ 8%`  | Current navigation item or selected neutral region    |
-| `--ob-sys-color-surface-selected-hover` | `#141414 @ 12%` | Hover feedback for an already selected neutral region |
+| `--ob-sys-color-surface-selected`       | `#141414 @ 11%` | Current navigation item or selected neutral region    |
+| `--ob-sys-color-surface-selected-hover` | `#141414 @ 14%` | Hover feedback for an already selected neutral region |
+
+The selected surface sits one step above hover, and its hover one step above that, in both themes,
+so a current row under the pointer still reads as current.
 
 Prefer a surface change or divider over a shadow in persistent shell chrome. Use
 `--ob-sys-shadow-raised` for persistent raised content and `--ob-sys-shadow-overlay` for

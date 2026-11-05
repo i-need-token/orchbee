@@ -12,6 +12,10 @@
 	font-size: var(--ob-ref-size-icon-sm);
 }
 
+.codicon[class*='codicon-'][data-icon-size='disclosure'] {
+	font-size: var(--ob-ref-size-icon-xs);
+}
+
 .codicon[class*='codicon-'][data-icon-size='section-action'] {
 	font-size: var(--ob-ref-size-icon-section-action);
 }

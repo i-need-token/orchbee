@@ -461,6 +461,7 @@
 	--ob-ref-size-icon-sm: 0.875rem;
 	--ob-ref-size-icon-md: 1rem;
 	--ob-ref-size-icon-lg: 1.25rem;
+	--ob-ref-size-control-2xs: 1.125rem;
 	--ob-ref-size-control-xs: 1.5rem;
 	--ob-ref-size-control-sm: 1.75rem;
 	--ob-ref-size-control-navigation: 1.875rem;
@@ -546,12 +547,12 @@
 	);
 	--ob-sys-color-surface-selected: color-mix(
 		in srgb,
-		var(--ob-ref-color-orchbee-light-text) 8%,
+		var(--ob-ref-color-orchbee-light-text) 11%,
 		transparent
 	);
 	--ob-sys-color-surface-selected-hover: color-mix(
 		in srgb,
-		var(--ob-ref-color-orchbee-light-text) 12%,
+		var(--ob-ref-color-orchbee-light-text) 14%,
 		transparent
 	);
 	--ob-sys-color-surface-disabled: color-mix(
@@ -947,7 +948,11 @@
 	--ob-sys-color-surface-inverse: var(--ob-ref-color-neutral-50);
 	--ob-sys-color-surface-hovered: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-surface-pressed: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-surface-selected: var(--ob-ref-color-neutral-800);
+	--ob-sys-color-surface-selected: color-mix(
+		in oklch,
+		var(--ob-ref-color-neutral-800),
+		var(--ob-ref-color-neutral-700)
+	);
 	--ob-sys-color-surface-selected-hover: var(--ob-ref-color-neutral-700);
 	--ob-sys-color-surface-disabled: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-surface-scrim: color-mix(
