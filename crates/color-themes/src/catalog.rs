@@ -5,11 +5,13 @@ use std::sync::LazyLock;
 
 use crate::{Polarity, Theme};
 
-const FILES: [&str; 4] = [
+const FILES: [&str; 6] = [
     include_str!("../themes/orchbee-light.toml"),
     include_str!("../themes/orchbee-dark.toml"),
     include_str!("../themes/gruvbox-dark.toml"),
+    include_str!("../themes/rose-pine.toml"),
     include_str!("../themes/gruvbox-light.toml"),
+    include_str!("../themes/rose-pine-dawn.toml"),
 ];
 
 // Indexes into `FILES` for the default pair.
