@@ -64,7 +64,11 @@
 	box-shadow:
 		0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-default),
 		var(--ob-sys-shadow-overlay);
-	transform: translateY(var(--ob-comp-workbench-navigation-reorder-translate-y));
+	/* The raised copy follows the pointer 8 px to the right of where it was held. */
+	transform: translate(
+		var(--ob-ref-space-2),
+		var(--ob-comp-workbench-navigation-reorder-translate-y)
+	);
 	cursor: grabbing;
 	pointer-events: none;
 	will-change: transform;

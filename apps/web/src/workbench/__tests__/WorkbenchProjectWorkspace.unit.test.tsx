@@ -1606,7 +1606,7 @@ describe('Workbench Project and Workspace management', () => {
 		});
 	});
 
-	it('reorders Workspace siblings with scoped squeeze motion and preserves activation on release or cancellation', async () => {
+	it('reorders Workspace siblings with scoped squeeze motion and makes the held Workspace current through release or cancellation', async () => {
 		const workspacesIn = (revision: number, order: readonly number[]) => {
 			const names = ['Primary', 'Feature', 'Review'];
 			return navigationSnapshot(
@@ -1738,6 +1738,11 @@ describe('Workbench Project and Workspace management', () => {
 			pointerType: 'pen',
 		});
 		await waitFor(() => expect(primaryItem.getAttribute('data-dragging')).toBe('true'));
+		// Held, a Workspace that was not current becomes current, and stays so when the drag is cancelled.
+		const heldLocation = { kind: 'workspace', workspaceId: fixtureWorkspaceId(1) };
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual(heldLocation),
+		);
 		fireEvent.keyDown(document, { key: 'Escape' });
 		fireEvent.click(primaryButton);
 
@@ -1747,7 +1752,7 @@ describe('Workbench Project and Workspace management', () => {
 			).toEqual([fixtureWorkspaceId(3), fixtureWorkspaceId(1), fixtureWorkspaceId(2)]);
 			expect(primaryItem.getAttribute('data-dragging')).toBeNull();
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual(activeLocation);
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual(heldLocation);
 		expect(
 			screen
 				.getByRole('button', { name: 'Collapse project: Orchbee' })

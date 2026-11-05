@@ -32,8 +32,9 @@ describe('navigation-reorder-drag-state', () => {
 			pointerId: 7,
 			type: 'pointer-moved',
 		});
+		// The press becoming a drag is what makes a held Workspace current.
 		expect(activated).toEqual({
-			command: null,
+			command: { itemId: 'item-1', type: 'navigation-drag-started' },
 			state: {
 				beforeItemId: 'item-2',
 				itemId: 'item-1',

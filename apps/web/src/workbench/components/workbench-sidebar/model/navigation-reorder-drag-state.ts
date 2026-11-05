@@ -53,8 +53,14 @@ interface NavigationReorderCommitCommand {
 	readonly type: 'commit-navigation-reorder';
 }
 
+/** A press just became a drag: a held Workspace becomes current until it lands (ORC-324). */
+interface NavigationReorderDragStartedCommand {
+	readonly itemId: string;
+	readonly type: 'navigation-drag-started';
+}
+
 interface NavigationReorderDragTransition {
-	readonly command: NavigationReorderCommitCommand | null;
+	readonly command: NavigationReorderCommitCommand | NavigationReorderDragStartedCommand | null;
 	readonly state: NavigationReorderDragState;
 }
 
@@ -113,7 +119,7 @@ export function transitionNavigationReorderDrag(
 		return deltaX * deltaX + deltaY * deltaY < 16
 			? { command: null, state }
 			: {
-					command: null,
+					command: { itemId: state.itemId, type: 'navigation-drag-started' },
 					state: {
 						beforeItemId: event.beforeItemId,
 						itemId: state.itemId,

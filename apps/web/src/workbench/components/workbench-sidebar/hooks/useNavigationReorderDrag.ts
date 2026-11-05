@@ -54,14 +54,19 @@ function measureReorderSlot(row: HTMLElement): {
 	return { blockSize, shift: blockSize + Math.max(0, spacing) };
 }
 
+/** Holding the list's top or bottom edge scrolls it by about one row this often. */
+const EDGE_SCROLL_INTERVAL_MS = 120;
+
 /** A released row holds the place it was dropped until `reorderItem` settles, so the list never shows the old order in between. */
 export function useNavigationReorderDrag(
 	items: readonly NavigationReorderItem[],
 	reorderItem: (itemId: string, beforeItemId: string | null) => Promise<unknown>,
+	onDragStarted?: ((itemId: string) => void) | undefined,
 ): NavigationReorderDragView {
 	const listRef = React.useRef<HTMLUListElement>(null);
 	const itemsRef = React.useRef(items);
 	const reorderItemRef = React.useRef(reorderItem);
+	const onDragStartedRef = React.useRef(onDragStarted);
 	const finishRef = React.useRef<
 		((commit: boolean, synchronous?: boolean | undefined) => void) | null
 	>(null);
@@ -71,6 +76,7 @@ export function useNavigationReorderDrag(
 	const [session, setSession] = React.useState<NavigationReorderDragSession | null>(null);
 	itemsRef.current = items;
 	reorderItemRef.current = reorderItem;
+	onDragStartedRef.current = onDragStarted;
 
 	const onItemPointerDown = useMemoizedFn(
 		(itemId: string, event: React.PointerEvent<HTMLDivElement>) => {
@@ -119,6 +125,7 @@ export function useNavigationReorderDrag(
 			itemId: session.itemId,
 		};
 		let animationFrame: number | null = null;
+		let lastEdgeScroll = Number.NEGATIVE_INFINITY;
 		let finished = false;
 		let latestClientX = session.clientX;
 		let latestClientY = session.clientY;
@@ -200,7 +207,7 @@ export function useNavigationReorderDrag(
 			if (wasDragging) suppressTrailingClick();
 			const command = transition.command;
 			const reorderAdmitted =
-				command !== null &&
+				command?.type === 'commit-navigation-reorder' &&
 				itemsRef.current.some((item) => item.id === command.itemId) &&
 				(command.beforeItemId === null ||
 					itemsRef.current.some((item) => item.id === command.beforeItemId));
@@ -233,6 +240,9 @@ export function useNavigationReorderDrag(
 			});
 			semanticState = transition.state;
 			if (semanticState !== previousState) setDragState(semanticState);
+			if (transition.command?.type === 'navigation-drag-started') {
+				onDragStartedRef.current?.(transition.command.itemId);
+			}
 			if (semanticState.kind !== 'dragging') return;
 			if (previousState.kind !== 'dragging') {
 				if (typeof session.captureElement.setPointerCapture === 'function') {
@@ -280,16 +290,17 @@ export function useNavigationReorderDrag(
 			let didScroll = false;
 			if (scrollElement !== null) {
 				const bounds = scrollElement.getBoundingClientRect();
-				const edgeSize = Math.min(48, bounds.height / 4);
+				// One row, as the source's own height, every interval while the pointer holds an edge.
+				const rowSize = session.captureElement.getBoundingClientRect().height;
+				const edgeSize = Math.min(rowSize, bounds.height / 4);
 				const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+				const now = ownerDocument.defaultView?.performance.now() ?? 0;
 				let scrollStep = 0;
-				if (edgeSize > 0 && latestClientY < bounds.top + edgeSize) {
-					const pressure = Math.min(1, (bounds.top + edgeSize - latestClientY) / edgeSize);
-					scrollStep = -Math.max(2, Math.ceil(12 * pressure));
-				} else if (edgeSize > 0 && latestClientY > bounds.bottom - edgeSize) {
-					const pressure = Math.min(1, (latestClientY - (bounds.bottom - edgeSize)) / edgeSize);
-					scrollStep = Math.max(2, Math.ceil(12 * pressure));
-				}
+				if (edgeSize > 0 && latestClientY < bounds.top + edgeSize) scrollStep = -rowSize;
+				else if (edgeSize > 0 && latestClientY > bounds.bottom - edgeSize) scrollStep = rowSize;
+				if (scrollStep === 0) lastEdgeScroll = Number.NEGATIVE_INFINITY;
+				else if (now - lastEdgeScroll < EDGE_SCROLL_INTERVAL_MS) scrollStep = 0;
+				else lastEdgeScroll = now;
 				if (scrollStep !== 0) {
 					const previousScrollTop = scrollElement.scrollTop;
 					scrollElement.scrollTop = Math.max(

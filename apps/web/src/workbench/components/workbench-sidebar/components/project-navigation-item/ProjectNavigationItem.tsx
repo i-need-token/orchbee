@@ -120,7 +120,11 @@ export function ProjectNavigationItem({
 		!expanded &&
 		activeLocation.kind === 'workspace' &&
 		workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
-	const workspaceReorder = useNavigationReorderDrag(workspaces, reorderWorkspace);
+	// A held Workspace becomes current as the drag starts and stays current wherever it lands.
+	const workspaceReorder = useNavigationReorderDrag(workspaces, reorderWorkspace, (workspaceId) => {
+		if (activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspaceId) return;
+		activateWorkspace(workspaceId, 'other');
+	});
 	// A Project's Worktree rows read the repository of its first Workspace, as the TUI's do.
 	const worktreeSourceId = workspaces[0]?.id ?? null;
 	const refreshProjectWorktrees = (open: boolean) => {
