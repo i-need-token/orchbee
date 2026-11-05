@@ -1,6 +1,6 @@
 //! Capture the next terminal's launch intent from one confirmed snapshot. The device that executes
 //! the launch resolves the System shell; this capture never discovers a program.
-use super::{UserPreferencesStore, UserTerminalColors};
+use super::{UserColorThemes, UserPreferencesStore, UserTerminalColors};
 use orchbee_workbench_protocol::{PreferencesFailure, UserLaunchCommand};
 
 pub struct UserTerminalLaunchIntent {
@@ -8,8 +8,11 @@ pub struct UserTerminalLaunchIntent {
     /// executable and arguments.
     pub program: Option<UserLaunchCommand>,
     pub scrollback_bytes: u32,
-    /// Frozen with the launch facts; absent only for Host with System appearance.
+    /// Frozen with the launch facts; absent when Theme or Host follows the System appearance.
     pub colors: Option<UserTerminalColors>,
+    /// The slots whose theme supplies the cursor and ANSI colors for the polarity the terminal's
+    /// default colors take, including colors that follow the Host.
+    pub themes: UserColorThemes,
 }
 
 impl UserPreferencesStore {
@@ -30,15 +33,18 @@ impl UserPreferencesStore {
         } else {
             None
         };
+        let themes = UserColorThemes::from_values(&values);
         Ok(UserTerminalLaunchIntent {
             program,
             scrollback_bytes: values.scrollback_bytes,
             colors: UserTerminalColors::resolve(
                 values.application_theme,
                 values.terminal_display_theme,
+                &themes,
                 &values.custom_foreground,
                 &values.custom_background,
             )?,
+            themes,
         })
     }
 }

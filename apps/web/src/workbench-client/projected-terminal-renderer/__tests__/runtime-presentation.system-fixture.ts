@@ -265,7 +265,7 @@ releaseButton.addEventListener('click', () => {
 prepareThemeButton.addEventListener('click', () => {
 	if (pendingThemeCommand !== undefined) return;
 	root.dataset['projectedTerminalThemeState'] = 'preparing';
-	const result = settings.update({ applicationTheme: 'dark', terminalDisplayTheme: 'dark' });
+	const result = settings.update({ applicationTheme: 'dark', terminalDisplayTheme: 'theme' });
 	root.dataset['witnessThemeUpdateResult'] = result.kind;
 	prepareThemeButton.disabled = true;
 });

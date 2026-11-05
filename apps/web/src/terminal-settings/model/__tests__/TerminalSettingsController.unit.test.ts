@@ -20,6 +20,8 @@ interface StorageFixture extends TerminalAppearanceStorage {
 
 const {
 	applicationTheme: _applicationTheme,
+	darkTheme: _darkTheme,
+	lightTheme: _lightTheme,
 	terminalDisplayTheme: _terminalDisplayTheme,
 	customForeground: _customForeground,
 	customBackground: _customBackground,
@@ -170,7 +172,7 @@ describe('TerminalSettingsController', () => {
 		expect(
 			controller.update({
 				backgroundOpacityPercent: 75,
-				terminalDisplayTheme: 'dark',
+				terminalDisplayTheme: 'host',
 			}),
 		).toEqual({ kind: 'pending' });
 		expect(presentationListener).toHaveBeenCalledOnce();

@@ -1,5 +1,5 @@
 use orchbee_color_themes::{Polarity, orchbee};
-use orchbee_local_runtime::UserTerminalColors;
+use orchbee_local_runtime::{UserColorThemes, UserTerminalColors};
 use orchbee_terminal_protocol::ColorScheme;
 
 use super::effective;
@@ -9,7 +9,9 @@ use super::effective;
 /// canvas, and a dark-tuned yellow would be as unreadable on a light one.
 #[test]
 fn each_scheme_gets_the_cursor_and_ansi_colors_of_its_own_theme() {
-    let shared = effective(UserTerminalColors::LIGHT).palette;
+    // An unshipped id and an id of the other polarity both take that slot's Orchbee theme.
+    let themes = UserColorThemes::new("orchbee-dark".into(), "not-shipped".into());
+    let shared = effective(UserTerminalColors::LIGHT, &themes).palette;
     for (colors, polarity) in [
         (UserTerminalColors::LIGHT, Polarity::Light),
         (UserTerminalColors::DARK, Polarity::Dark),
@@ -22,7 +24,7 @@ fn each_scheme_gets_the_cursor_and_ansi_colors_of_its_own_theme() {
             Polarity::Light,
         ),
     ] {
-        let terminal = effective(colors);
+        let terminal = effective(colors, &themes);
         let theme = orchbee(polarity);
         let scheme = match polarity {
             Polarity::Light => ColorScheme::Light,

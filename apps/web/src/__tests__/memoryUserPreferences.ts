@@ -75,6 +75,8 @@ function applyPatch(
 			current.applicationTheme,
 			DEFAULT_USER_PREFERENCES.applicationTheme,
 		),
+		lightTheme: choose(changes.lightTheme, current.lightTheme, DEFAULT_USER_PREFERENCES.lightTheme),
+		darkTheme: choose(changes.darkTheme, current.darkTheme, DEFAULT_USER_PREFERENCES.darkTheme),
 		terminalDisplayTheme: choose(
 			changes.terminalDisplayTheme,
 			current.terminalDisplayTheme,

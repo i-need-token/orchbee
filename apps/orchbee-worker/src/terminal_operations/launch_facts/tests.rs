@@ -27,6 +27,7 @@ fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Resul
                     background: 0x1e1e1e,
                     dark: true,
                 }),
+                TerminalLaunchThemes::new("orchbee-light".into(), "orchbee-dark".into()).unwrap(),
                 (!explicit).then(|| {
                     DefaultLaunchProgram::Custom(
                         DefaultCustomProgram::new(

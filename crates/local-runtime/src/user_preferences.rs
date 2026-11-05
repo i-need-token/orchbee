@@ -1,7 +1,7 @@
 //! One durable device/configuration preference authority for native and Desktop clients.
 mod launch_admission;
 mod terminal_colors;
-pub use terminal_colors::UserTerminalColors;
+pub use terminal_colors::{UserColorThemes, UserTerminalColors};
 mod terminal_defaults;
 pub use terminal_defaults::UserTerminalLaunchIntent;
 mod scope;
@@ -72,7 +72,10 @@ impl UserPreferencesStore {
     /// One bounded operation; callers own transport deadlines and live application acknowledgments.
     pub fn execute(&self, request: &UserPreferencesRequest) -> UserPreferencesResponse {
         match self.perform(request) {
-            Ok((snapshot, changed)) => UserPreferencesResponse::Snapshot { snapshot, changed },
+            Ok((snapshot, changed)) => UserPreferencesResponse::Snapshot {
+                snapshot: Box::new(snapshot),
+                changed,
+            },
             Err(CommitError::Refused(reason)) => UserPreferencesResponse::Refused { reason },
             #[cfg(unix)]
             Err(CommitError::OutcomeUnknown) => UserPreferencesResponse::OutcomeUnknown {},

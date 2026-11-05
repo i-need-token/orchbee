@@ -63,7 +63,7 @@ export const terminalSettingsMessages = defineMessages({
 	macosOptionKeySection: message('terminal.settings.macosInput.sections.optionKey'),
 	currentDeviceOnlyNotice: message(
 		'terminal.settings.colors.displayTheme.currentDeviceOnlyNotice',
-		'Boundary notice that non-Host display themes affect only the current client device.',
+		'Boundary notice that custom terminal colors affect only the current client device.',
 	),
 	description: message('terminal.settings.description'),
 	copyOnSelectDescription: message('terminal.settings.interaction.copyOnSelect.description'),
@@ -247,11 +247,10 @@ export const terminalSettingsMessages = defineMessages({
 	terminalLayoutSection: message('terminal.settings.sections.terminalLayout'),
 	terminalTextShapingSection: message('terminal.settings.sections.terminalTextShaping'),
 	terminalDisplayThemeCustom: message('terminal.settings.colors.displayTheme.custom'),
-	terminalDisplayThemeDark: message('terminal.settings.colors.displayTheme.dark'),
 	terminalDisplayThemeDescription: message('terminal.settings.colors.displayTheme.description'),
 	terminalDisplayThemeHost: message('terminal.settings.colors.displayTheme.host'),
 	terminalDisplayThemeLabel: message('terminal.settings.colors.displayTheme.label'),
-	terminalDisplayThemeLight: message('terminal.settings.colors.displayTheme.light'),
+	terminalDisplayThemeTheme: message('terminal.settings.colors.displayTheme.theme'),
 	terminalTypographySection: message('terminal.settings.sections.terminalTypography'),
 	title: message('terminal.settings.title'),
 });

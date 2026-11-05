@@ -265,8 +265,11 @@ mode. Tag 0 (`Absent`) leaves the System shell, Host colors and Host scrollback 
 Node; it serves adapters without a Session preference owner. Tag 1 (`Unavailable`) states that the
 Session could not read or bound its confirmed snapshot, and the Worker refuses that creation before
 Host effects. Tag 2 (`Available`) is followed by `u32` scrollback bytes of at most 1,000,000,000,
-a u8 color tag and a u8 program tag. Color tag 0 follows the Host's colors; tags 1 (light scheme)
-and 2 (dark scheme) add `u32` foreground and background values within 24-bit RGB. Program tag 0
+a u8 color tag, the theme selection and a u8 program tag. Color tag 0 follows the Host's colors;
+tags 1 (light scheme) and 2 (dark scheme) add `u32` foreground and background values within 24-bit
+RGB. The theme selection is the light then the dark color-theme id, each a u8 length of 1 to 64
+followed by UTF-8 bytes; it stays literal intent, and the Capability Node resolves an id it does
+not ship to its default theme of that polarity. Program tag 0
 accompanies every explicit kind. Kind 0 requires program tag 1, the System shell followed by a u8
 login flag of 0 or 1, or tag 2, a custom program encoded like an explicit selection. A custom
 program keeps the preference store's literal path and shares the 30 KiB selection budget. Unknown

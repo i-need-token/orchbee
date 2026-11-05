@@ -58,7 +58,7 @@ describe('MountedTerminalProjectionRequest', () => {
 		);
 		unregister();
 		prepare.mockClear();
-		settings.update({ terminalDisplayTheme: 'dark' });
+		settings.update({ terminalDisplayTheme: 'theme' });
 		await Promise.resolve();
 		expect(prepare).not.toHaveBeenCalled();
 		request.release();

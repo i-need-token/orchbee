@@ -32,14 +32,18 @@ pub enum ApplicationAppearance {
 }
 
 /// These change default colors only; explicit application colors retain their terminal authority.
+/// Theme takes the active theme's canvas colors, Host the host's own defaults where a Client has
+/// a host to follow, and Custom the custom pair.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TerminalDisplayAppearance {
+    Theme,
     Host,
-    Light,
-    Dark,
     Custom,
 }
+
+/// The longest admitted color-theme id, in bytes.
+pub const MAXIMUM_COLOR_THEME_ID_BYTES: usize = 64;
 
 /// Hidden means no attachment currently presents the Agent's terminal in a focused client.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -64,6 +68,8 @@ pub enum CompletionReminderMode {
 pub enum PreferenceKey {
     Locale,
     ApplicationTheme,
+    LightTheme,
+    DarkTheme,
     TerminalDisplayTheme,
     CustomForeground,
     CustomBackground,
@@ -78,9 +84,11 @@ pub enum PreferenceKey {
 }
 impl PreferenceKey {
     /// Complete closed inventory; adapters cannot silently omit an admitted common value.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 15] = [
         Self::Locale,
         Self::ApplicationTheme,
+        Self::LightTheme,
+        Self::DarkTheme,
         Self::TerminalDisplayTheme,
         Self::CustomForeground,
         Self::CustomBackground,
@@ -98,6 +106,8 @@ impl PreferenceKey {
         match self {
             Self::Locale => "locale",
             Self::ApplicationTheme => "applicationTheme",
+            Self::LightTheme => "lightTheme",
+            Self::DarkTheme => "darkTheme",
             Self::TerminalDisplayTheme => "terminalDisplayTheme",
             Self::CustomForeground => "customForeground",
             Self::CustomBackground => "customBackground",
@@ -119,6 +129,13 @@ impl PreferenceKey {
 pub struct UserPreferencesValues {
     pub locale: PreferencesLocale,
     pub application_theme: ApplicationAppearance,
+    /// The color-theme id of the light slot. Any well-formed id is admitted; a Client or Worker
+    /// resolves one this build does not ship to the Orchbee theme of the slot's polarity.
+    #[serde(deserialize_with = "color_theme_id")]
+    pub light_theme: String,
+    /// The color-theme id of the dark slot, admitted and resolved like `light_theme`.
+    #[serde(deserialize_with = "color_theme_id")]
+    pub dark_theme: String,
     pub terminal_display_theme: TerminalDisplayAppearance,
     #[serde(deserialize_with = "color_value")]
     pub custom_foreground: String,
@@ -140,7 +157,9 @@ impl Default for UserPreferencesValues {
         Self {
             locale: PreferencesLocale::System,
             application_theme: ApplicationAppearance::System,
-            terminal_display_theme: TerminalDisplayAppearance::Host,
+            light_theme: "orchbee-light".into(),
+            dark_theme: "orchbee-dark".into(),
+            terminal_display_theme: TerminalDisplayAppearance::Theme,
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),
             copy_on_select: true,
@@ -159,6 +178,8 @@ impl UserPreferencesValues {
     pub fn validate(&self) -> Result<(), PreferencesFailure> {
         if !valid_color(&self.custom_foreground)
             || !valid_color(&self.custom_background)
+            || !valid_color_theme_id(&self.light_theme)
+            || !valid_color_theme_id(&self.dark_theme)
             || !(1..=3600).contains(&self.completion_reminder_minimum_seconds)
             || self.scrollback_bytes > 1_000_000_000
         {
@@ -282,7 +303,8 @@ pub enum PreferencesFailure {
 #[serde(deny_unknown_fields, tag = "kind", rename_all = "kebab-case")]
 pub enum UserPreferencesResponse {
     Snapshot {
-        snapshot: UserPreferencesSnapshot,
+        // Boxed so the refusal and unknown-outcome variants stay small.
+        snapshot: Box<UserPreferencesSnapshot>,
         changed: bool,
     },
     Refused {
@@ -349,6 +371,25 @@ fn valid_color(value: &str) -> bool {
         && value.as_bytes()[1..]
             .iter()
             .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+}
+fn color_theme_id<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    if valid_color_theme_id(&value) {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom("invalid color theme id"))
+    }
+}
+/// Lowercase kebab-case, as theme files spell their ids, within the byte bound.
+fn valid_color_theme_id(value: &str) -> bool {
+    value.len() <= MAXIMUM_COLOR_THEME_ID_BYTES
+        && !value.is_empty()
+        && value.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        })
 }
 fn minimum_seconds<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u16, D::Error> {
     let value = u16::deserialize(deserializer)?;

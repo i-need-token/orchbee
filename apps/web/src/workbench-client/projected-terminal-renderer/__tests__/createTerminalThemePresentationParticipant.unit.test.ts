@@ -111,7 +111,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 		const preparation = participant.prepareThemePresentation({
 			...appearancePreferences,
 			applicationTheme: 'dark',
-			terminalDisplayTheme: 'dark',
+			terminalDisplayTheme: 'theme',
 		});
 		expect(order).toEqual(['renderer-prepare', 'host-send']);
 		const apply = commands[0];
@@ -179,8 +179,8 @@ describe('createTerminalThemePresentationParticipant', () => {
 		await expect(
 			participant.prepareThemePresentation({
 				...appearancePreferences,
-				applicationTheme: 'light',
-				terminalDisplayTheme: 'dark',
+				applicationTheme: 'dark',
+				terminalDisplayTheme: 'theme',
 			}),
 		).resolves.toEqual({
 			code: 'renderer-preparation-failed',
@@ -251,11 +251,13 @@ const appearancePreferences: TerminalAppearancePreferences = {
 	backgroundOpacityPercent: 100,
 	customBackground: '#fcfcfc',
 	customForeground: '#141414',
+	darkTheme: 'orchbee-dark',
 	fontFamily: 'monospace',
 	fontLigatures: true,
 	fontSize: 14,
 	fontWeight: 400,
 	fontWeightBold: 700,
+	lightTheme: 'orchbee-light',
 	terminalPadding: 0,
 	terminalDisplayTheme: 'host',
 };

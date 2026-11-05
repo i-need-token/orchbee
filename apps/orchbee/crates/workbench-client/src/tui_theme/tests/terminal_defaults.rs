@@ -4,16 +4,15 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
-fn host_defaults_follow_resolved_application_appearance_without_replacing_explicit_choices() {
+fn theme_and_host_defaults_follow_resolved_application_appearance_and_custom_wins() {
     for (application, host_pair) in [
         (App::Light, (0x141414, 0xfcfcfc)),
         (App::Dark, (0xd4d4d4, 0x1e1e1e)),
         (App::System, (0xabcdef, 0x102030)),
     ] {
         for (terminal, explicit) in [
+            (Terminal::Theme, None),
             (Terminal::Host, None),
-            (Terminal::Light, Some((0x141414, 0xfcfcfc))),
-            (Terminal::Dark, Some((0xd4d4d4, 0x1e1e1e))),
             (Terminal::Custom, Some((0x123456, 0x654321))),
         ] {
             let chrome = Theme::application_with_host(
@@ -110,14 +109,14 @@ fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
         Theme::application_with_host(App::Light, HostAppearance::Dark, ColorLevel::Truecolor)
             .with_terminal_appearance_for_application(
                 App::Light,
-                Terminal::Dark,
+                Terminal::Theme,
                 "#123456",
                 "#654321",
             );
     assert_eq!(explicit.name, "one-light");
     assert_eq!(
         explicit.terminal_defaults(),
-        (Color::Rgb(0xd4, 0xd4, 0xd4), Color::Rgb(0x1e, 0x1e, 0x1e))
+        (Color::Rgb(0x14, 0x14, 0x14), Color::Rgb(0xfc, 0xfc, 0xfc))
     );
 }
 
@@ -125,9 +124,8 @@ fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
 fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_preferences() {
     use crate::host_appearance::{HostAppearance, HostColors};
     for (terminal, expected) in [
+        (Terminal::Theme, (0xcccccc, 0x0c0c0c)),
         (Terminal::Host, (0xcccccc, 0x0c0c0c)),
-        (Terminal::Light, (0x141414, 0xfcfcfc)),
-        (Terminal::Dark, (0xd4d4d4, 0x1e1e1e)),
         (Terminal::Custom, (0x123456, 0x654321)),
     ] {
         let theme =
@@ -147,7 +145,7 @@ fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_prefer
                 )
                 .with_host_terminal_colors(0x141414, 0xfcfcfc);
         assert_eq!(theme.terminal_rgb_defaults(), Some(expected));
-        if terminal == Terminal::Host {
+        if terminal != Terminal::Custom {
             assert_eq!(theme.terminal_defaults(), (Color::Reset, Color::Reset));
         } else {
             assert_eq!(

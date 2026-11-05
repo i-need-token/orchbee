@@ -3,14 +3,15 @@
 ## Selection and ownership
 
 The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
-separate application appearance (Light, Dark, System) from terminal defaults (Host, Light, Dark,
+separate application appearance (Light, Dark, System) from terminal defaults (Theme, Host,
 Custom). Application System is the common default. System resolves TUI accents and overlays to One
 Light or One Dark from an observed outer-terminal background; without that observation it uses
 terminal-native contrast, even when the operating-system fallback reports a light or dark appearance.
 The TUI does not change the outer host's font or appearance.
 
-Terminal Host follows explicit application Light/Dark through the shared shipped terminal defaults.
-With application System, Host paints terminal defaults with `Color::Reset`. System canvas,
+Terminal Theme and Host follow explicit application Light/Dark through the canvas of that polarity's
+theme; the native theme module resolves the Orchbee pair until it consumes the shared theme slots.
+With application System, Theme and Host paint terminal defaults with `Color::Reset`. System canvas,
 persistent chrome and inactive surfaces also use the host-default background, including empty
 cells, so the Client meets the host's surrounding padding without an RGB query or quantization.
 Once the host background is observed, System derives the Tab strip and interaction fills from the
@@ -27,8 +28,8 @@ fallbacks. `surface-selection` keeps the named palette. A single
 unframed terminal thus stays distinct from navigation on any host background. Without that
 observation System resolves to terminal-native, which paints no strip or related fill.
 Captured foreground/background values remain available as descriptive RGB in Settings; they never
-replace host-relative painting. Retained child-frame launch defaults cannot replace this local choice. Explicit
-terminal Light/Dark and Custom retain precedence; Custom uses the validated RGB pair. Only
+replace host-relative painting. Retained child-frame launch defaults cannot replace this local choice. Custom
+retains precedence and uses the validated RGB pair. Only
 default-marked cells are substituted.
 Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
 retain their captured authority in live and retained rows. Empty canvas uses the selected terminal
@@ -285,7 +286,7 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 | Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                                                                     |
 | Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                                                                  |
 | Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate                                                     |
-| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Host/Light/Dark/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate                                                    |
+| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Theme/Host/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate                                                         |
 | Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                                                                     |
 | Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                                                                        |
 

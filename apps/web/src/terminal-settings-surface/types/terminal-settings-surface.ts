@@ -142,11 +142,10 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly terminalPaddingLabel: string;
 	readonly terminalTextShapingSection: string;
 	readonly terminalDisplayThemeCustom: string;
-	readonly terminalDisplayThemeDark: string;
 	readonly terminalDisplayThemeDescription: string;
 	readonly terminalDisplayThemeHost: string;
 	readonly terminalDisplayThemeLabel: string;
-	readonly terminalDisplayThemeLight: string;
+	readonly terminalDisplayThemeTheme: string;
 	readonly terminalTypographySection: string;
 	readonly title: string;
 }

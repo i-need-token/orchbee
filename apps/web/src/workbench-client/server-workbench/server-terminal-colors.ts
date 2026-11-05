@@ -38,9 +38,8 @@ interface ThemePreferencesSource {
 
 /**
  * Resolves the theme preferences as the Worker resolves a launch's colors, with the system's
- * appearance where a TUI has its outer terminal. Only the Host terminal theme with the System
- * application theme launches a terminal that follows its controller, so only then does the window
- * have colors to report.
+ * appearance where a TUI has its outer terminal. Theme and Host with the System application theme
+ * launch a terminal that follows its controller, so only then does the window have colors to report.
  */
 export function createServerTerminalColorsSource(
 	preferences: ThemePreferencesSource,
@@ -59,11 +58,8 @@ export function createServerTerminalColorsSource(
 						},
 						host: null,
 					};
-				case 'dark':
-					return { display: DARK_TERMINAL_COLORS, host: null };
-				case 'light':
-					return { display: LIGHT_TERMINAL_COLORS, host: null };
 				case 'host':
+				case 'theme':
 					break;
 			}
 			if (applicationTheme !== 'system') {

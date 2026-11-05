@@ -287,24 +287,21 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 							value={view.preferences.terminalDisplayTheme}
 							onChange={view.onTerminalDisplayThemeChange}
 						>
+							<NativeSelectOption value='theme'>
+								{view.messages.terminalDisplayThemeTheme}
+							</NativeSelectOption>
 							<NativeSelectOption value='host'>
 								{view.messages.terminalDisplayThemeHost}
-							</NativeSelectOption>
-							<NativeSelectOption value='light'>
-								{view.messages.terminalDisplayThemeLight}
-							</NativeSelectOption>
-							<NativeSelectOption value='dark'>
-								{view.messages.terminalDisplayThemeDark}
 							</NativeSelectOption>
 							<NativeSelectOption value='custom'>
 								{view.messages.terminalDisplayThemeCustom}
 							</NativeSelectOption>
 						</NativeSelect>
-						{view.preferences.terminalDisplayTheme === 'host' ? null : (
+						{view.preferences.terminalDisplayTheme === 'custom' ? (
 							<span className={styles['deviceNotice']}>
 								{view.messages.currentDeviceOnlyNotice}
 							</span>
-						)}
+						) : null}
 					</div>
 				</TerminalSettingsRow>
 				<ColorRow

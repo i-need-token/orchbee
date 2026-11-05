@@ -369,14 +369,19 @@ observation, so the eventual Host execution boundary still owns typed launch fai
 ### Terminal launch palette
 
 The effective default colors also choose the rest of the launch theme. Their scheme selects the
-Orchbee theme of that polarity from [`orchbee-color-themes`](../../crates/color-themes/README.md),
-and the launch profile carries that theme's cursor and ANSI 0–15, then the standard xterm color
-cube and 24-step gray ramp. A dark terminal therefore never inherits the light-tuned ANSI colors.
-The theme never replaces the default colors: the shipped Light and Dark defaults equal the Orchbee
-canvases, so they launch exactly the pairs the crate's gates measured, while a Custom or observed
-Host pair keeps its values and takes the theme of its luminance-derived scheme. When a
-Host-following terminal is recolored through `host-colors`, the Worker applies the complete theme
-of the new colors, so a change of polarity also replaces the cursor and ANSI colors.
+slot of that polarity from the launch capture's `lightTheme` and `darkTheme` ids, and
+[`orchbee_color_themes::select`](../../crates/color-themes/README.md) resolves the slot's id to a
+shipped theme; an id this build does not ship, or one of the other polarity, takes the Orchbee theme
+of that polarity. A launch without a Session capture uses the Orchbee pair. The launch profile
+carries the theme's cursor and ANSI 0–15, then the standard xterm color cube and 24-step gray ramp,
+so a dark terminal never inherits light-tuned ANSI colors. The theme never replaces the default
+colors: Theme and Host under an explicit appearance capture the selected theme's canvas, while a
+Custom or observed Host pair keeps its values and takes the theme of its luminance-derived scheme.
+A Host-following terminal keeps the slots captured at its launch; when `host-colors` recolors it,
+the Worker applies the complete theme of the new colors from those slots, so a change of polarity
+also replaces the cursor and ANSI colors. A slot changed after launch reaches that terminal's ANSI
+colors only through a new launch until the palette-index cell tag lets each Client map ANSI colors
+itself.
 
 ## Worker-local authorized Host-operation kernel
 

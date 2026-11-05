@@ -160,10 +160,9 @@ pub fn draft_appearance_reaches_background_chrome_and_program_defaults_without_r
                 ui.settings.editor.edit(Edit::Adjust(true));
                 ui.settings.editor.edit(Edit::Select(Row::TerminalTheme));
                 for appearance in [
-                    TerminalDisplayAppearance::Light,
-                    TerminalDisplayAppearance::Dark,
-                    TerminalDisplayAppearance::Custom,
                     TerminalDisplayAppearance::Host,
+                    TerminalDisplayAppearance::Custom,
+                    TerminalDisplayAppearance::Theme,
                 ] {
                     ui.settings.editor.edit(Edit::Adjust(true));
                     let preview = ui.view().settings_appearance_preview().unwrap();

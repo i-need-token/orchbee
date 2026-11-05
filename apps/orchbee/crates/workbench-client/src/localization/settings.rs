@@ -226,13 +226,10 @@ impl Locale {
             }
             Choice::Locale(PreferencesLocale::EnUs) => "English",
             Choice::Locale(PreferencesLocale::ZhCn) => "简体中文",
-            Choice::ApplicationTheme(ApplicationAppearance::Light)
-            | Choice::TerminalTheme(TerminalDisplayAppearance::Light) => {
-                self.setting("Light", "浅色")
-            }
-            Choice::ApplicationTheme(ApplicationAppearance::Dark)
-            | Choice::TerminalTheme(TerminalDisplayAppearance::Dark) => {
-                self.setting("Dark", "深色")
+            Choice::ApplicationTheme(ApplicationAppearance::Light) => self.setting("Light", "浅色"),
+            Choice::ApplicationTheme(ApplicationAppearance::Dark) => self.setting("Dark", "深色"),
+            Choice::TerminalTheme(TerminalDisplayAppearance::Theme) => {
+                self.setting("Theme", "主题")
             }
             Choice::TerminalTheme(TerminalDisplayAppearance::Host) => {
                 self.setting("Host default", "宿主默认")

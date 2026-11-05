@@ -9,7 +9,7 @@ mod rgb;
 mod roles;
 mod theme;
 
-pub use catalog::{orchbee, shipped};
+pub use catalog::{orchbee, select, shipped};
 pub use rgb::Rgb;
 pub use roles::Roles;
 pub use theme::{Canvas, PaletteColor, Polarity, Source, Theme};

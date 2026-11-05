@@ -240,10 +240,12 @@ fn only_interactive_shell_launches_close_after_a_normal_exit() {
 fn a_default_launch_closes_by_the_default_program_its_capture_dispatched() {
     use orchbee_capability_node_protocol::{
         DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, TerminalLaunchPreferences,
+        TerminalLaunchThemes,
     };
     let preferences = |program| {
+        let themes = TerminalLaunchThemes::new("l".into(), "d".into()).unwrap();
         LaunchPreferences::Available(
-            TerminalLaunchPreferences::new(1_000, None, Some(program)).unwrap(),
+            TerminalLaunchPreferences::new(1_000, None, themes, Some(program)).unwrap(),
         )
     };
     let custom = |executable: &str, arguments: &[&str]| {

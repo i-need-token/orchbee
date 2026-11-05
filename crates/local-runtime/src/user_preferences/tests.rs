@@ -19,7 +19,7 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
             .unwrap()
             .colors
             .is_none(),
-        "a fresh System + Host preference does not invent terminal colors"
+        "a fresh System + Theme preference does not invent terminal colors"
     );
     let executable = std::env::current_exe()
         .unwrap()
@@ -148,7 +148,7 @@ impl Drop for Fixture {
 }
 fn accepted(response: UserPreferencesResponse) -> UserPreferencesSnapshot {
     match response {
-        UserPreferencesResponse::Snapshot { snapshot, .. } => snapshot,
+        UserPreferencesResponse::Snapshot { snapshot, .. } => *snapshot,
         response => panic!("unexpected response: {response:?}"),
     }
 }
@@ -365,7 +365,7 @@ fn shared_preferences_ignore_configuration_bytes_before_first_save() {
     );
     assert_eq!(
         without_file.values.terminal_display_theme,
-        orchbee_workbench_protocol::TerminalDisplayAppearance::Host
+        orchbee_workbench_protocol::TerminalDisplayAppearance::Theme
     );
     assert_eq!(
         without_file.values.agent_notification_mode,

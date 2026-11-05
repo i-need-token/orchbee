@@ -560,7 +560,7 @@ fn settings_footer_click_and_prefix_binding_open_the_same_editor_and_capture_the
 fn machine_cover_keeps_retained_settings_recovery_and_owns_its_close_packet_tail() {
     let mut port = Port::ready();
     port.editor.edit(Edit::Select(Row::TerminalTheme));
-    for _ in 0..3 {
+    for _ in 0..2 {
         port.editor.edit(Edit::Adjust(true));
     }
     port.editor.edit(Edit::Select(Row::Foreground));
@@ -651,7 +651,7 @@ fn settings_save_consumes_repeated_enter_and_paste_without_forwarding_or_replay(
 fn settings_text_paste_is_bounded_atomic_and_never_forwarded_to_the_terminal() {
     let mut port = Port::ready();
     port.editor.edit(Edit::Select(Row::TerminalTheme));
-    for _ in 0..3 {
+    for _ in 0..2 {
         port.editor.edit(Edit::Adjust(true));
     }
     port.editor.edit(Edit::Select(Row::Foreground));

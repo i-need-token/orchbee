@@ -59,11 +59,15 @@ default shell resolution while retaining the shared scrollback default. POSIX lo
 Windows login is refused. Invalid shared storage fails the operation before Host handoff.
 
 `UserTerminalColors` resolves terminal default colors for both native presentation and new Worker
-profiles. Host follows explicit application Light/Dark; System leaves Host defaults with their
-runtime owner, which builds them with `UserTerminalColors::from_rgb`. Explicit terminal
-Light/Dark/Custom take precedence; Custom and `from_rgb` derive the dark or light scheme from
-background luminance. The launch snapshot freezes
-this result with scrollback and launch selection; the resolver performs no terminal mutation.
+profiles. Theme and Host take the canvas of the active slot's theme when application appearance is
+explicitly Light or Dark; System leaves Host defaults with their runtime owner, which builds them
+with `UserTerminalColors::from_rgb`. Custom takes precedence under every appearance; Custom and
+`from_rgb` derive the dark or light scheme from background luminance, and a theme canvas keeps its
+declared polarity. `UserColorThemes` carries the stored `lightTheme` and `darkTheme` ids unchanged
+and resolves each through `orchbee_color_themes::select`, so an id this build does not ship, or one
+of the other polarity, takes the Orchbee theme of the slot's polarity. The launch snapshot freezes
+the colors and both slots with scrollback and launch selection; the resolver performs no terminal
+mutation.
 Retained query state and reversible Client appearance follow the [native theme boundary](../../apps/orchbee/docs/native-themes.md).
 
 `NotificationSettings` owns portable bounded delivery/sound policy. Windows configuration

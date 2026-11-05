@@ -379,13 +379,13 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
         ),
         (
             Application::Light,
-            Appearance::Light,
+            Appearance::Theme,
             Color::Rgb(20, 20, 20),
             Color::Rgb(252, 252, 252),
         ),
         (
-            Application::Light,
-            Appearance::Dark,
+            Application::Dark,
+            Appearance::Theme,
             Color::Rgb(212, 212, 212),
             Color::Rgb(30, 30, 30),
         ),

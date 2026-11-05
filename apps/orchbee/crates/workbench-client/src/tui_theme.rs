@@ -1135,9 +1135,11 @@ impl Theme {
         custom_foreground: &str,
         custom_background: &str,
     ) -> Self {
+        // The native theme module resolves the Orchbee pair until it consumes the theme slots.
         let colors = orchbee_local_runtime::UserTerminalColors::resolve(
             application,
             appearance,
+            &orchbee_local_runtime::UserColorThemes::default(),
             custom_foreground,
             custom_background,
         )

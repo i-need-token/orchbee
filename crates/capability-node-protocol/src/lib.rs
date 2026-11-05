@@ -16,7 +16,8 @@ mod identity;
 mod launch_preferences;
 pub use launch_preferences::{
     DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, MAXIMUM_LAUNCH_SCROLLBACK_BYTES,
-    TerminalLaunchColors, TerminalLaunchPreferences,
+    MAXIMUM_LAUNCH_THEME_ID_BYTES, TerminalLaunchColors, TerminalLaunchPreferences,
+    TerminalLaunchThemes,
 };
 mod plugin_job;
 pub use plugin_job::{

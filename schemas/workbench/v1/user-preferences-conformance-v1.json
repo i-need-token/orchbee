@@ -3,7 +3,9 @@
 	"defaults": {
 		"locale": "system",
 		"applicationTheme": "system",
-		"terminalDisplayTheme": "host",
+		"lightTheme": "orchbee-light",
+		"darkTheme": "orchbee-dark",
+		"terminalDisplayTheme": "theme",
 		"customForeground": "#141414",
 		"customBackground": "#fcfcfc",
 		"copyOnSelect": true,
@@ -68,6 +70,8 @@
 				"changes": {
 					"locale": null,
 					"applicationTheme": null,
+					"lightTheme": null,
+					"darkTheme": null,
 					"terminalDisplayTheme": null,
 					"customForeground": null,
 					"customBackground": null,
@@ -79,6 +83,29 @@
 					"soundEnabled": null,
 					"scrollbackBytes": null,
 					"launchProfiles": null
+				}
+			}
+		},
+		{
+			"name": "theme slot edit with an id this build does not ship",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"lightTheme": "a-theme-from-a-newer-client",
+					"darkTheme": "x"
+				}
+			}
+		},
+		{
+			"name": "theme id length boundary",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"darkTheme": "a234567890123456789012345678901234567890123456789012345678901234"
 				}
 			}
 		},
@@ -112,7 +139,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "system",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -149,7 +178,9 @@
 					"values": {
 						"locale": "system",
 						"applicationTheme": "system",
-						"terminalDisplayTheme": "host",
+						"lightTheme": "orchbee-light",
+						"darkTheme": "orchbee-dark",
+						"terminalDisplayTheme": "theme",
 						"customForeground": "#141414",
 						"customBackground": "#fcfcfc",
 						"copyOnSelect": true,
@@ -323,6 +354,54 @@
 			"boundary": "schema"
 		},
 		{
+			"name": "theme id beyond length bound",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"darkTheme": "a2345678901234567890123456789012345678901234567890123456789012345"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "noncanonical theme id",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"lightTheme": "Orchbee-Light"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty theme id",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"lightTheme": ""
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "retired terminal display choice",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"terminalDisplayTheme": "dark"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
 			"name": "unknown locale",
 			"direction": "request",
 			"document": {
@@ -340,7 +419,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -372,7 +453,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -405,7 +488,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -446,7 +531,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -479,7 +566,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -512,7 +601,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -545,7 +636,9 @@
 			"document": {
 				"locale": "system",
 				"applicationTheme": "light",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,

@@ -3,7 +3,7 @@ use super::LocalTerminalService;
 use crate::terminal_coordinator::LaunchCapture;
 use orchbee_capability_node_protocol::{
     DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, ProtocolError,
-    TerminalLaunchColors, TerminalLaunchPreferences,
+    TerminalLaunchColors, TerminalLaunchPreferences, TerminalLaunchThemes,
 };
 use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore, UserTerminalLaunchIntent};
 use orchbee_workbench_protocol::{
@@ -38,6 +38,7 @@ impl LocalTerminalService {
             program: None,
             scrollback_bytes: intent.scrollback_bytes,
             colors: intent.colors,
+            themes: intent.themes.clone(),
         };
         let capture = |intent| {
             launch_preferences(intent)
@@ -61,8 +62,13 @@ impl LocalTerminalService {
                 |store| match store.execute(&request.operation.preferences_request()) {
                     UserPreferencesResponse::Snapshot { snapshot, changed } => {
                         match request.operation {
-                            Operation::Open {} => Outcome::Opened { snapshot },
-                            Operation::Save { .. } => Outcome::Saved { snapshot, changed },
+                            Operation::Open {} => Outcome::Opened {
+                                snapshot: *snapshot,
+                            },
+                            Operation::Save { .. } => Outcome::Saved {
+                                snapshot: *snapshot,
+                                changed,
+                            },
                         }
                     }
                     UserPreferencesResponse::Refused { reason } => Outcome::Refused {
@@ -104,7 +110,11 @@ fn launch_preferences(
             dark: colors.dark(),
         }
     });
-    TerminalLaunchPreferences::new(intent.scrollback_bytes, colors, program)
+    let themes = TerminalLaunchThemes::new(
+        intent.themes.light().to_owned(),
+        intent.themes.dark().to_owned(),
+    )?;
+    TerminalLaunchPreferences::new(intent.scrollback_bytes, colors, themes, program)
 }
 
 #[cfg(test)]

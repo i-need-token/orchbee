@@ -71,7 +71,7 @@ type SnapshotListener = () => void;
 type PresentationListener = (configuration: TerminalPresentationConfiguration) => void;
 
 /**
- * Four common appearance leaves follow the Session's shared preferences; the seven host leaves stay in
+ * Six common appearance leaves follow the Session's shared preferences; the seven host leaves stay in
  * this renderer's browser storage.
  */
 export class TerminalSettingsController
@@ -174,6 +174,8 @@ export class TerminalSettingsController
 			...(patch.applicationTheme === undefined
 				? {}
 				: { applicationTheme: candidate.applicationTheme }),
+			...(patch.lightTheme === undefined ? {} : { lightTheme: candidate.lightTheme }),
+			...(patch.darkTheme === undefined ? {} : { darkTheme: candidate.darkTheme }),
 			...(patch.terminalDisplayTheme === undefined
 				? {}
 				: { terminalDisplayTheme: candidate.terminalDisplayTheme }),
@@ -216,6 +218,8 @@ export class TerminalSettingsController
 	resetHostAppearance(): TerminalSettingsUpdateResult {
 		const {
 			applicationTheme: _applicationTheme,
+			darkTheme: _darkTheme,
+			lightTheme: _lightTheme,
 			terminalDisplayTheme: _terminalDisplayTheme,
 			customForeground: _customForeground,
 			customBackground: _customBackground,
@@ -392,6 +396,8 @@ function commonAppearance(
 	return {
 		...host,
 		applicationTheme: values.applicationTheme,
+		darkTheme: values.darkTheme,
+		lightTheme: values.lightTheme,
 		terminalDisplayTheme: values.terminalDisplayTheme,
 		customForeground:
 			normalizeTerminalHexColor(values.customForeground) ??

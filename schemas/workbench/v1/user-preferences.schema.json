@@ -15,6 +15,13 @@
 		}
 	],
 	"$defs": {
+		"colorThemeId": {
+			"description": "A lowercase kebab-case color-theme id. Any well-formed id is admitted; a consumer resolves one it does not ship to the Orchbee theme of the slot's polarity.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+		},
 		"values": {
 			"type": "object",
 			"additionalProperties": false,
@@ -27,9 +34,15 @@
 					"type": "string",
 					"enum": ["system", "light", "dark"]
 				},
+				"lightTheme": {
+					"$ref": "#/$defs/colorThemeId"
+				},
+				"darkTheme": {
+					"$ref": "#/$defs/colorThemeId"
+				},
 				"terminalDisplayTheme": {
 					"type": "string",
-					"enum": ["host", "light", "dark", "custom"]
+					"enum": ["theme", "host", "custom"]
 				},
 				"customForeground": {
 					"type": "string",
@@ -73,6 +86,8 @@
 			"required": [
 				"locale",
 				"applicationTheme",
+				"lightTheme",
+				"darkTheme",
 				"terminalDisplayTheme",
 				"customForeground",
 				"customBackground",
@@ -88,7 +103,9 @@
 			"default": {
 				"locale": "system",
 				"applicationTheme": "system",
-				"terminalDisplayTheme": "host",
+				"lightTheme": "orchbee-light",
+				"darkTheme": "orchbee-dark",
+				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": true,
@@ -132,6 +149,26 @@
 					"anyOf": [
 						{
 							"$ref": "#/$defs/values/properties/applicationTheme"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"lightTheme": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/values/properties/lightTheme"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"darkTheme": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/values/properties/darkTheme"
 						},
 						{
 							"type": "null"
@@ -269,6 +306,8 @@
 						"enum": [
 							"locale",
 							"applicationTheme",
+							"lightTheme",
+							"darkTheme",
 							"terminalDisplayTheme",
 							"customForeground",
 							"customBackground",
@@ -282,7 +321,7 @@
 							"launchProfiles"
 						]
 					},
-					"maxItems": 13,
+					"maxItems": 15,
 					"uniqueItems": true
 				}
 			},

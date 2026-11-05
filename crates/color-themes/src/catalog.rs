@@ -1,4 +1,5 @@
-//! The themes this build ships, embedded from `themes/` and admitted once on first use.
+//! The themes this build ships, embedded from `themes/` and admitted once on first use, and the
+//! one rule that turns a stored theme id into a shipped theme.
 
 use std::sync::LazyLock;
 
@@ -41,4 +42,21 @@ pub fn orchbee(polarity: Polarity) -> &'static Theme {
         Polarity::Light => &SHIPPED[ORCHBEE_LIGHT],
         Polarity::Dark => &SHIPPED[ORCHBEE_DARK],
     }
+}
+
+/// The shipped theme `id` names when it has `polarity`; otherwise the Orchbee theme of `polarity`.
+///
+/// This is the only fallback for a stored theme id: an id this build does not ship, such as one a
+/// newer Client saved or a theme later withdrawn, and an id saved in the other polarity's slot,
+/// both resolve to the default of the slot's polarity.
+///
+/// # Panics
+///
+/// Under the same condition as [`shipped`].
+#[must_use]
+pub fn select(polarity: Polarity, id: &str) -> &'static Theme {
+    shipped()
+        .iter()
+        .find(|theme| theme.polarity() == polarity && theme.id() == id)
+        .unwrap_or_else(|| orchbee(polarity))
 }

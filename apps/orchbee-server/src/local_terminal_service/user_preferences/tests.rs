@@ -120,7 +120,7 @@ fn settings_dispatch_checks_permission_and_session_before_shared_store_access() 
     let external = UserPreferencesStore::new(scope)
         .execute(&orchbee_workbench_protocol::UserPreferencesRequest::Read {});
     assert!(
-        matches!(external, UserPreferencesResponse::Snapshot { snapshot, .. } if snapshot == saved)
+        matches!(external, UserPreferencesResponse::Snapshot { snapshot, .. } if *snapshot == saved)
     );
 }
 

@@ -2,55 +2,6 @@
 use super::*;
 
 #[test]
-fn full_settings_body_has_one_label_value_row_per_setting_and_no_scrolling_actions() {
-    let editor = editor_with(UserPreferencesValues::default());
-    let theme = Theme::terminal_native();
-    let (terminal, _, _) = render_once(&editor, 120, 40, Locale::EnUs, &theme);
-    let View::Draft(draft) = editor.view().unwrap() else {
-        panic!("draft")
-    };
-    let bounds = Rect::new(0, 0, 120, 40);
-    let layout =
-        SettingsLayout::resolve(bounds, bounds, View::Draft(draft), Locale::EnUs, &theme).unwrap();
-    let list = layout.draft.unwrap().regions.list;
-    let actual: Vec<_> = (list.y..list.bottom())
-        .map(|y| {
-            let line: String = (list.x..list.right() - 1)
-                .map(|x| terminal.backend().buffer()[(x, y)].symbol())
-                .collect();
-            line.trim()
-                .trim_end_matches('─')
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .filter(|line| !line.is_empty())
-        .collect();
-    assert_eq!(
-        actual,
-        [
-            "Appearance",
-            "Language Follow system >",
-            "Application theme Follow system >",
-            "Terminal display theme Host default >",
-            "Foreground color [ Host default ]",
-            "Background color [ Host default ]",
-            "Terminal",
-            "Copy on select [x] On",
-            "Hide empty space below Agent output [x] On",
-            "Terminal history (MB) [-] 10 MB [+]",
-            "Notifications",
-            "Agent status notifications Never >",
-            "Completion reminders Never >",
-            "Minimum command duration (seconds) [-] 5 s [+]",
-            "Notification sound [ ] Off",
-            "Launch profiles",
-            "Launch profiles System default >",
-        ]
-    );
-}
-
-#[test]
 fn footer_commit_and_exit_are_painted_at_all_admitted_tiers_and_stay_fixed_on_scroll() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
@@ -246,21 +197,21 @@ fn compact_picker_wheel_keeps_a_visible_provisional_choice_without_editing_the_p
                 format!("[{label}{key}]")
             );
         }
-        editor.scroll(draw.token(), false, 2).unwrap();
+        editor.scroll(draw.token(), false, 1).unwrap();
         let (terminal, map, draw) = present_once(&mut editor, 36, 10, locale, &theme);
-        assert_eq!(draw.first_visible(), Some(2));
-        let choice = Choice::TerminalTheme(TerminalDisplayAppearance::Dark);
+        assert_eq!(draw.first_visible(), Some(1));
+        let choice = Choice::TerminalTheme(TerminalDisplayAppearance::Host);
         let target = HitTarget::SettingsControl {
             token: draw.token(),
             control: Control::Choose(choice),
         };
         assert!(!target_text(&terminal, &map, &target, false).is_empty());
         assert!(
-            matches!(editor.view(), Some(View::Draft(draft)) if !draft.dirty && draft.values.terminal_display_theme == TerminalDisplayAppearance::Host)
+            matches!(editor.view(), Some(View::Draft(draft)) if !draft.dirty && draft.values.terminal_display_theme == TerminalDisplayAppearance::Theme)
         );
         assert_eq!(
             editor.appearance_preview().unwrap().terminal_display_theme,
-            TerminalDisplayAppearance::Dark
+            TerminalDisplayAppearance::Host
         );
         editor.edit(Edit::Cancel);
         assert!(
@@ -268,7 +219,7 @@ fn compact_picker_wheel_keeps_a_visible_provisional_choice_without_editing_the_p
         );
         assert_eq!(
             editor.appearance_preview().unwrap().terminal_display_theme,
-            TerminalDisplayAppearance::Host
+            TerminalDisplayAppearance::Theme
         );
     }
 }

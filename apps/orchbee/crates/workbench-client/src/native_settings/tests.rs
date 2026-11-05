@@ -46,12 +46,18 @@ fn submit(editor: &mut Editor) -> Submission {
 
 #[test]
 fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
+    // The color-theme slots join the native projection with the native theme picker; Reset all
+    // already restores them.
+    let projected = PreferenceKey::ALL
+        .into_iter()
+        .filter(|key| !matches!(key, PreferenceKey::LightTheme | PreferenceKey::DarkTheme))
+        .collect::<Vec<_>>();
     assert_eq!(
         SETTINGS
             .iter()
             .map(|metadata| metadata.key)
             .collect::<Vec<_>>(),
-        PreferenceKey::ALL.to_vec(),
+        projected,
         "the native projection must cover the closed protocol inventory in canonical order"
     );
     let rows = SETTINGS
@@ -60,7 +66,7 @@ fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
         .collect::<Vec<_>>();
     assert_eq!(
         rows.as_slice(),
-        &Page::General.rows()[..PreferenceKey::ALL.len()],
+        &Page::General.rows()[..SETTINGS.len()],
         "ordinary setting rows must not acquire a second ordering"
     );
     for metadata in &SETTINGS {

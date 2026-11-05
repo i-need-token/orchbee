@@ -512,9 +512,8 @@ export function useTerminalSettingsSurface({
 		onTerminalDisplayThemeChange: (event): void => {
 			const terminalDisplayTheme = event.currentTarget.value;
 			if (
+				terminalDisplayTheme === 'theme' ||
 				terminalDisplayTheme === 'host' ||
-				terminalDisplayTheme === 'light' ||
-				terminalDisplayTheme === 'dark' ||
 				terminalDisplayTheme === 'custom'
 			) {
 				controller.update({ terminalDisplayTheme });

@@ -27,6 +27,11 @@ const hexColorSchema = z
 	.regex(/^#[\da-fA-F]{6}$/)
 	.transform((value) => `#${value.slice(1).toLowerCase()}` as const);
 
+const colorThemeIdSchema = z
+	.string()
+	.max(64)
+	.regex(/^[\da-z]+(?:-[\da-z]+)*$/u);
+
 const terminalFontWeightSchema = z.union(
 	TERMINAL_FONT_WEIGHT_OPTIONS.map((weight) => z.literal(weight)),
 );
@@ -35,17 +40,21 @@ const terminalAppearancePreferencesSchema = z.strictObject({
 	backgroundOpacityPercent: z.number().int().min(10).max(100),
 	customBackground: hexColorSchema,
 	customForeground: hexColorSchema,
+	darkTheme: colorThemeIdSchema,
 	fontFamily: z.string().trim().min(1).max(256),
 	fontSize: z.number().int().min(MINIMUM_TERMINAL_FONT_SIZE).max(MAXIMUM_TERMINAL_FONT_SIZE),
-	terminalDisplayTheme: z.enum(['host', 'light', 'dark', 'custom']),
+	terminalDisplayTheme: z.enum(['theme', 'host', 'custom']),
 	fontLigatures: z.boolean(),
 	fontWeight: terminalFontWeightSchema,
 	fontWeightBold: terminalFontWeightSchema,
+	lightTheme: colorThemeIdSchema,
 	terminalPadding: z.number().int().min(0).max(32),
 });
 
 const hostAppearanceSchema = terminalAppearancePreferencesSchema.omit({
 	applicationTheme: true,
+	darkTheme: true,
+	lightTheme: true,
 	terminalDisplayTheme: true,
 	customForeground: true,
 	customBackground: true,
@@ -78,6 +87,8 @@ export function writeHostAppearancePreferences(
 	try {
 		const {
 			applicationTheme: _applicationTheme,
+			darkTheme: _darkTheme,
+			lightTheme: _lightTheme,
 			terminalDisplayTheme: _terminalDisplayTheme,
 			customForeground: _customForeground,
 			customBackground: _customBackground,

@@ -219,7 +219,7 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("select[aria-label='Terminal display theme']"),
 		);
 		await act(async () => {
-			terminalTheme.value = 'dark';
+			terminalTheme.value = 'host';
 			terminalTheme.dispatchEvent(new Event('change', { bubbles: true }));
 		});
 		expect(presentationListener).not.toHaveBeenCalled();
@@ -227,7 +227,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(document.documentElement.dataset['theme']).toBe('dark');
 		expect(controller.userPreferences.getSnapshot().snapshot?.values).toMatchObject({
 			applicationTheme: 'dark',
-			terminalDisplayTheme: 'dark',
+			terminalDisplayTheme: 'host',
 		});
 		expect(storage.setItem).not.toHaveBeenCalled();
 
@@ -262,7 +262,7 @@ describe('TerminalSettingsSurface', () => {
 			requiredElement<HTMLSelectElement>(
 				container.querySelector("select[aria-label='Terminal display theme']"),
 			).value,
-		).toBe('host');
+		).toBe('theme');
 	});
 
 	it('switches the mounted Settings copy and persists an explicit display language', async () => {

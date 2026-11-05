@@ -6,6 +6,8 @@ export const MAXIMUM_USER_PREFERENCES_BYTES = 2 * 1024 * 1024;
 export const USER_PREFERENCE_KEYS = [
 	'locale',
 	'applicationTheme',
+	'lightTheme',
+	'darkTheme',
 	'terminalDisplayTheme',
 	'customForeground',
 	'customBackground',
@@ -21,7 +23,15 @@ export const USER_PREFERENCE_KEYS = [
 const UserPreferenceKeySchema = z.enum(USER_PREFERENCE_KEYS);
 const locale = z.enum(['system', 'en-US', 'zh-CN']);
 const applicationTheme = z.enum(['system', 'light', 'dark']);
-const terminalDisplayTheme = z.enum(['host', 'light', 'dark', 'custom']);
+/**
+ * Any well-formed id is admitted; a consumer resolves an id it does not ship to the Orchbee theme of
+ * the slot's polarity.
+ */
+const colorThemeId = z
+	.string()
+	.max(64)
+	.regex(/^[\da-z]+(?:-[\da-z]+)*$/u);
+const terminalDisplayTheme = z.enum(['theme', 'host', 'custom']);
 const color = z.string().regex(/^#[\da-f]{6}$/u);
 const agentNotificationMode = z.enum(['never', 'hidden']);
 const completionReminderMode = z.enum(['never', 'unfocused', 'always']);
@@ -31,6 +41,8 @@ const scrollbackBytes = z.number().int().min(0).max(1_000_000_000);
 const UserPreferencesValuesSchema = z.strictObject({
 	locale,
 	applicationTheme,
+	lightTheme: colorThemeId,
+	darkTheme: colorThemeId,
 	terminalDisplayTheme,
 	customForeground: color,
 	customBackground: color,
@@ -48,7 +60,9 @@ export const DEFAULT_USER_PREFERENCES: Readonly<UserPreferencesValues> = Object.
 	UserPreferencesValuesSchema.parse({
 		locale: 'system',
 		applicationTheme: 'system',
-		terminalDisplayTheme: 'host',
+		lightTheme: 'orchbee-light',
+		darkTheme: 'orchbee-dark',
+		terminalDisplayTheme: 'theme',
 		customForeground: '#141414',
 		customBackground: '#fcfcfc',
 		copyOnSelect: true,
@@ -72,6 +86,8 @@ export const DEFAULT_USER_PREFERENCES: Readonly<UserPreferencesValues> = Object.
 export const UserPreferencesPatchSchema = z.strictObject({
 	locale: locale.nullable().optional(),
 	applicationTheme: applicationTheme.nullable().optional(),
+	lightTheme: colorThemeId.nullable().optional(),
+	darkTheme: colorThemeId.nullable().optional(),
 	terminalDisplayTheme: terminalDisplayTheme.nullable().optional(),
 	customForeground: color.nullable().optional(),
 	customBackground: color.nullable().optional(),

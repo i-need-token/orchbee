@@ -1,10 +1,10 @@
 //! The terminal theme a launch installs and a Host-following recolor applies: the effective default
-//! colors with the cursor and ANSI 0-15 of the Orchbee theme of their polarity, followed by the
+//! colors with the cursor and ANSI 0-15 of the selected theme of their polarity, followed by the
 //! standard xterm color cube and gray ramp. It does not choose the default colors, apply a theme
 //! to a Host, or own theme data.
 
-use orchbee_color_themes::{Polarity, orchbee};
-use orchbee_local_runtime::UserTerminalColors;
+use orchbee_color_themes::Polarity;
+use orchbee_local_runtime::{UserColorThemes, UserTerminalColors};
 use orchbee_terminal_protocol::{ColorScheme, TerminalTheme};
 
 #[cfg(test)]
@@ -12,16 +12,17 @@ mod tests;
 
 const CUBE_LEVELS: [u32; 6] = [0, 95, 135, 175, 215, 255];
 
-/// The complete theme for terminals whose default colors are `colors`; `colors.dark()` picks both
-/// the scheme and the theme of the default pair.
-pub(crate) fn effective(colors: UserTerminalColors) -> TerminalTheme {
+/// The complete theme for terminals whose default colors are `colors`; their polarity picks both
+/// the scheme and the slot of `themes` whose theme supplies the cursor and ANSI colors. A slot id
+/// this build does not ship takes the Orchbee theme of that polarity.
+pub(crate) fn effective(colors: UserTerminalColors, themes: &UserColorThemes) -> TerminalTheme {
     let (foreground, background) = colors.rgb();
-    let (color_scheme, polarity) = if colors.dark() {
-        (ColorScheme::Dark, Polarity::Dark)
-    } else {
-        (ColorScheme::Light, Polarity::Light)
+    let polarity = colors.polarity();
+    let color_scheme = match polarity {
+        Polarity::Light => ColorScheme::Light,
+        Polarity::Dark => ColorScheme::Dark,
     };
-    let theme = orchbee(polarity);
+    let theme = themes.theme(polarity);
     let mut palette: Vec<u32> = theme
         .ansi()
         .iter()

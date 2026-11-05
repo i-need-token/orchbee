@@ -150,9 +150,8 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		description: terminalSettingsMessages.terminalDisplayThemeDescription,
 		id: 'colors.display-theme',
 		keywords: [
+			terminalSettingsMessages.terminalDisplayThemeTheme,
 			terminalSettingsMessages.terminalDisplayThemeHost,
-			terminalSettingsMessages.terminalDisplayThemeLight,
-			terminalSettingsMessages.terminalDisplayThemeDark,
 			terminalSettingsMessages.terminalDisplayThemeCustom,
 		],
 		label: terminalSettingsMessages.terminalDisplayThemeLabel,

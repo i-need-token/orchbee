@@ -133,13 +133,12 @@ export function buildTerminalSettingsSurfaceMessages(
 		terminalColorsSection: formatMessage(terminalSettingsMessages.terminalColorsSection),
 		terminalHistorySection: formatMessage(terminalSettingsMessages.terminalHistorySection),
 		terminalDisplayThemeCustom: formatMessage(terminalSettingsMessages.terminalDisplayThemeCustom),
-		terminalDisplayThemeDark: formatMessage(terminalSettingsMessages.terminalDisplayThemeDark),
 		terminalDisplayThemeDescription: formatMessage(
 			terminalSettingsMessages.terminalDisplayThemeDescription,
 		),
 		terminalDisplayThemeHost: formatMessage(terminalSettingsMessages.terminalDisplayThemeHost),
 		terminalDisplayThemeLabel: formatMessage(terminalSettingsMessages.terminalDisplayThemeLabel),
-		terminalDisplayThemeLight: formatMessage(terminalSettingsMessages.terminalDisplayThemeLight),
+		terminalDisplayThemeTheme: formatMessage(terminalSettingsMessages.terminalDisplayThemeTheme),
 		terminalLayoutSection: formatMessage(terminalSettingsMessages.terminalLayoutSection),
 		terminalPaddingDescription: formatMessage(terminalSettingsMessages.terminalPaddingDescription),
 		terminalPaddingInvalid: formatMessage(terminalSettingsMessages.terminalPaddingInvalid, {

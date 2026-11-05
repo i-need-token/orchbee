@@ -506,6 +506,10 @@ fn encode_launch_preferences(payload: &mut Vec<u8>, preferences: &crate::LaunchP
             payload.extend_from_slice(&colors.background.to_be_bytes());
         }
     }
+    for id in [available.themes().light(), available.themes().dark()] {
+        payload.push(u8::try_from(id.len()).expect("bounded theme id"));
+        payload.extend_from_slice(id.as_bytes());
+    }
     match available.program() {
         None => payload.push(0),
         Some(crate::DefaultLaunchProgram::SystemShell { login }) => {
@@ -538,6 +542,13 @@ fn decode_launch_preferences(
         }),
         _ => return Err(ProtocolError::InvalidPayload),
     };
+    let mut theme_id = || {
+        let length = usize::from(reader.read_u8()?);
+        String::from_utf8(reader.read_slice(length)?.to_vec())
+            .map_err(|_error| ProtocolError::InvalidPayload)
+    };
+    let light = theme_id()?;
+    let themes = crate::TerminalLaunchThemes::new(light, theme_id()?)?;
     let program = match reader.read_u8()? {
         0 => None,
         1 => Some(crate::DefaultLaunchProgram::SystemShell {
@@ -555,7 +566,7 @@ fn decode_launch_preferences(
         }
         _ => return Err(ProtocolError::InvalidPayload),
     };
-    crate::TerminalLaunchPreferences::new(scrollback_bytes, colors, program)
+    crate::TerminalLaunchPreferences::new(scrollback_bytes, colors, themes, program)
         .map(crate::LaunchPreferences::Available)
 }
 

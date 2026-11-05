@@ -69,6 +69,8 @@ describe('terminal appearance preference storage', () => {
 	it('reads a valid host record and writes only the host leaves once', () => {
 		const {
 			applicationTheme: _applicationTheme,
+			darkTheme: _darkTheme,
+			lightTheme: _lightTheme,
 			terminalDisplayTheme: _terminalDisplayTheme,
 			customForeground: _customForeground,
 			customBackground: _customBackground,

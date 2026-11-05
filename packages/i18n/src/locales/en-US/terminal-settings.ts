@@ -52,14 +52,13 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colors.backgroundOpacity.label': 'Background opacity',
 	'terminal.settings.colors.backgroundOpacity.percentValue': '{value, number}%',
 	'terminal.settings.colors.displayTheme.currentDeviceOnlyNotice':
-		'Themes other than Host change how terminal colors are displayed on this device only.',
+		'Custom colors change how terminal colors are displayed on this device only.',
 	'terminal.settings.colors.displayTheme.custom': 'Custom',
-	'terminal.settings.colors.displayTheme.dark': 'Dark',
 	'terminal.settings.colors.displayTheme.description':
 		'Choose how terminal foreground and background colors are displayed.',
 	'terminal.settings.colors.displayTheme.host': 'Host',
 	'terminal.settings.colors.displayTheme.label': 'Terminal display theme',
-	'terminal.settings.colors.displayTheme.light': 'Light',
+	'terminal.settings.colors.displayTheme.theme': 'Theme',
 	'terminal.settings.colors.foreground.description': 'Choose the default color for terminal text.',
 	'terminal.settings.colors.foreground.invalid': 'Enter a color in #RRGGBB format.',
 	'terminal.settings.colors.foreground.label': 'Foreground color',

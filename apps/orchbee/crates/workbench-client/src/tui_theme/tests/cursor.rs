@@ -2,7 +2,9 @@
 
 use super::{Color, ColorLevel, Modifier, Theme, contrast_ratio};
 use crate::tui_theme::cursor_style;
-use orchbee_workbench_protocol::{TerminalDisplayAppearance as Appearance, UserPreferencesValues};
+use orchbee_workbench_protocol::{
+    ApplicationAppearance, TerminalDisplayAppearance as Appearance, UserPreferencesValues,
+};
 
 #[test]
 fn every_terminal_appearance_resolves_cursor_contrast_from_the_actual_cell_background() {
@@ -11,14 +13,15 @@ fn every_terminal_appearance_resolves_cursor_contrast_from_the_actual_cell_backg
         Theme::one_dark(),
         Theme::terminal_native(),
     ] {
-        for appearance in [
-            Appearance::Light,
-            Appearance::Dark,
-            Appearance::Custom,
-            Appearance::Host,
+        for (application, appearance) in [
+            (ApplicationAppearance::Light, Appearance::Theme),
+            (ApplicationAppearance::Dark, Appearance::Theme),
+            (ApplicationAppearance::System, Appearance::Custom),
+            (ApplicationAppearance::System, Appearance::Host),
         ] {
             for custom_background in ["#fcfcfc", "#101010", "#777777", "#00bb99"] {
                 let values = UserPreferencesValues {
+                    application_theme: application,
                     terminal_display_theme: appearance,
                     custom_foreground: custom_background.into(),
                     custom_background: custom_background.into(),

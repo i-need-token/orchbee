@@ -6,7 +6,7 @@ import {
 } from '../../terminal-presentation';
 
 type ApplicationTheme = 'dark' | 'light' | 'system';
-type TerminalDisplayTheme = 'custom' | 'dark' | 'host' | 'light';
+type TerminalDisplayTheme = 'custom' | 'host' | 'theme';
 export type TerminalHexColor = `#${string}`;
 export const MINIMUM_TERMINAL_FONT_SIZE = 8;
 export const MAXIMUM_TERMINAL_FONT_SIZE = 48;
@@ -20,11 +20,15 @@ export interface TerminalAppearancePreferences {
 	readonly backgroundOpacityPercent: number;
 	readonly customBackground: TerminalHexColor;
 	readonly customForeground: TerminalHexColor;
+	/** The dark slot's stored color-theme id; an id this build does not ship resolves to Orchbee Dark. */
+	readonly darkTheme: string;
 	readonly fontFamily: string;
 	readonly fontLigatures: boolean;
 	readonly fontSize: number;
 	readonly fontWeight: TerminalFontWeight;
 	readonly fontWeightBold: TerminalFontWeight;
+	/** The light slot's stored color-theme id, resolved like `darkTheme`. */
+	readonly lightTheme: string;
 	readonly terminalPadding: number;
 	readonly terminalDisplayTheme: TerminalDisplayTheme;
 }
@@ -44,13 +48,15 @@ export const DEFAULT_TERMINAL_APPEARANCE_PREFERENCES: TerminalAppearancePreferen
 		backgroundOpacityPercent: 100,
 		customBackground: '#fcfcfc',
 		customForeground: '#141414',
+		darkTheme: 'orchbee-dark',
 		fontFamily: productPresentation.fontFamily,
 		fontLigatures: true,
 		fontSize: productPresentation.fontSize,
 		fontWeight: 400,
 		fontWeightBold: 700,
+		lightTheme: 'orchbee-light',
 		terminalPadding: 0,
-		terminalDisplayTheme: 'host',
+		terminalDisplayTheme: 'theme',
 	},
 );
 
@@ -95,6 +101,8 @@ export function terminalThemePreferencesEqual(
 ): boolean {
 	return (
 		left.applicationTheme === right.applicationTheme &&
+		left.lightTheme === right.lightTheme &&
+		left.darkTheme === right.darkTheme &&
 		left.terminalDisplayTheme === right.terminalDisplayTheme &&
 		(left.terminalDisplayTheme !== 'custom' ||
 			(left.customBackground === right.customBackground &&
@@ -111,11 +119,13 @@ export function terminalAppearancePreferencesEqual(
 		left.backgroundOpacityPercent === right.backgroundOpacityPercent &&
 		left.customBackground === right.customBackground &&
 		left.customForeground === right.customForeground &&
+		left.darkTheme === right.darkTheme &&
 		left.fontFamily === right.fontFamily &&
 		left.fontLigatures === right.fontLigatures &&
 		left.fontSize === right.fontSize &&
 		left.fontWeight === right.fontWeight &&
 		left.fontWeightBold === right.fontWeightBold &&
+		left.lightTheme === right.lightTheme &&
 		left.terminalPadding === right.terminalPadding &&
 		left.terminalDisplayTheme === right.terminalDisplayTheme
 	);

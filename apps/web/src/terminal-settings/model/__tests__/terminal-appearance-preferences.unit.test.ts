@@ -14,12 +14,17 @@ import {
 } from '../terminal-appearance-preferences';
 
 describe('terminal appearance preferences', () => {
-	it('defaults application appearance to System while terminal colors remain Host-owned', () => {
-		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.applicationTheme).toBe('system');
-		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.applicationTheme).toBe(
-			DEFAULT_USER_PREFERENCES.applicationTheme,
-		);
-		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.terminalDisplayTheme).toBe('host');
+	it('defaults the common appearance leaves to the shared preference defaults', () => {
+		for (const key of [
+			'applicationTheme',
+			'lightTheme',
+			'darkTheme',
+			'terminalDisplayTheme',
+			'customForeground',
+			'customBackground',
+		] as const) {
+			expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES[key]).toBe(DEFAULT_USER_PREFERENCES[key]);
+		}
 	});
 
 	it('applies the two-point font-size policy within product bounds', () => {
@@ -107,13 +112,13 @@ describe('terminal appearance preferences', () => {
 		expect(
 			terminalPresentationConfigurationFromPreferences({
 				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-				terminalDisplayTheme: 'light',
+				terminalDisplayTheme: 'theme',
 			}).defaultColorOverride,
 		).toBeNull();
 		expect(
 			terminalPresentationConfigurationFromPreferences({
 				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-				terminalDisplayTheme: 'dark',
+				terminalDisplayTheme: 'host',
 			}).defaultColorOverride,
 		).toBeNull();
 	});

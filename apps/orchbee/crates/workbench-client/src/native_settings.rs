@@ -381,6 +381,8 @@ impl DraftView<'_> {
         }
         match key {
             PreferenceKey::Locale => self.values.locale != self.basis_values.locale,
+            PreferenceKey::LightTheme => self.values.light_theme != self.basis_values.light_theme,
+            PreferenceKey::DarkTheme => self.values.dark_theme != self.basis_values.dark_theme,
             PreferenceKey::ApplicationTheme => {
                 self.values.application_theme != self.basis_values.application_theme
             }

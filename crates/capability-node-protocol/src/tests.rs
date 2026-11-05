@@ -728,6 +728,10 @@ fn maximum_launch_remains_inside_the_frame_bound() -> Result<(), Box<dyn std::er
                         background: 0,
                         dark: true,
                     }),
+                    crate::TerminalLaunchThemes::new(
+                        "l".repeat(crate::MAXIMUM_LAUNCH_THEME_ID_BYTES),
+                        "d".repeat(crate::MAXIMUM_LAUNCH_THEME_ID_BYTES),
+                    )?,
                     program,
                 )?,
             ))?,
@@ -745,7 +749,7 @@ fn launch_preferences_pair_with_the_launch_kind_and_decode_closed()
 -> Result<(), Box<dyn std::error::Error>> {
     use crate::{
         DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences, TerminalLaunchColors,
-        TerminalLaunchPreferences,
+        TerminalLaunchPreferences, TerminalLaunchThemes,
     };
     let launch = |selection| {
         AuthorizedTerminalLaunch::new(
@@ -764,6 +768,7 @@ fn launch_preferences_pair_with_the_launch_kind_and_decode_closed()
                 background: 0x1e1e1e,
                 dark: true,
             }),
+            TerminalLaunchThemes::new("l".to_owned(), "d".to_owned())?,
             program,
         )
         .map(LaunchPreferences::Available)
@@ -794,9 +799,23 @@ fn launch_preferences_pair_with_the_launch_kind_and_decode_closed()
     );
     assert!(launch(None)?.with_preferences(available(None)?).is_err());
     assert!(
-        TerminalLaunchPreferences::new(crate::MAXIMUM_LAUNCH_SCROLLBACK_BYTES + 1, None, None)
-            .is_err()
+        TerminalLaunchPreferences::new(
+            crate::MAXIMUM_LAUNCH_SCROLLBACK_BYTES + 1,
+            None,
+            TerminalLaunchThemes::new("l".to_owned(), "d".to_owned())?,
+            None
+        )
+        .is_err()
     );
+    for (light, dark) in [
+        (String::new(), "d".to_owned()),
+        (
+            "l".to_owned(),
+            "d".repeat(crate::MAXIMUM_LAUNCH_THEME_ID_BYTES + 1),
+        ),
+    ] {
+        assert!(TerminalLaunchThemes::new(light, dark).is_err());
+    }
     assert!(DefaultCustomProgram::new(String::new(), Vec::new()).is_err());
 
     // The block sits between cwd and start mode; unknown tags and values fail closed.
@@ -811,7 +830,18 @@ fn launch_preferences_pair_with_the_launch_kind_and_decode_closed()
     .len()
         - 5;
     assert_eq!(shell[block..block + 6], [2, 0, 0, 0, 0, 2]);
-    for (offset, value) in [(0, 3), (5, 3), (6, 0xff), (14, 3), (15, 2)] {
+    // Theme ids follow the colors as u8-length-prefixed UTF-8: [1, b'l', 1, b'd'].
+    assert_eq!(shell[block + 14..block + 18], [1, b'l', 1, b'd']);
+    for (offset, value) in [
+        (0, 3),
+        (5, 3),
+        (6, 0xff),
+        (14, 0),
+        (14, 65),
+        (15, 0xff),
+        (18, 3),
+        (19, 2),
+    ] {
         let mut invalid = shell.clone();
         invalid[block + offset] = value;
         assert_eq!(

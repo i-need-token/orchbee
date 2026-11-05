@@ -62,18 +62,14 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
     }];
     source.cursor.visible = true;
     source.cursor.row = 0;
-    for appearance in [
-        Appearance::Light,
-        Appearance::Dark,
-        Appearance::Custom,
-        Appearance::Host,
+    for (application, appearance) in [
+        (Application::Light, Appearance::Theme),
+        (Application::Dark, Appearance::Theme),
+        (Application::Light, Appearance::Custom),
+        (Application::System, Appearance::Host),
     ] {
         let values = UserPreferencesValues {
-            application_theme: if appearance == Appearance::Host {
-                Application::System
-            } else {
-                Application::Light
-            },
+            application_theme: application,
             terminal_display_theme: appearance,
             custom_foreground: "#cccccc".into(),
             custom_background: "#cccccc".into(),
@@ -110,7 +106,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
                 .unwrap();
             let output = bytes.borrow();
             let output = std::str::from_utf8(&output[offset..]).unwrap();
-            let channel = if appearance == Appearance::Dark {
+            let channel = if application == Application::Dark {
                 255
             } else {
                 0

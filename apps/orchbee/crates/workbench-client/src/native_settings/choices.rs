@@ -30,9 +30,8 @@ impl Choice {
                 Self::ApplicationTheme(ApplicationAppearance::Dark),
             ],
             Row::TerminalTheme => &[
+                Self::TerminalTheme(TerminalDisplayAppearance::Theme),
                 Self::TerminalTheme(TerminalDisplayAppearance::Host),
-                Self::TerminalTheme(TerminalDisplayAppearance::Light),
-                Self::TerminalTheme(TerminalDisplayAppearance::Dark),
                 Self::TerminalTheme(TerminalDisplayAppearance::Custom),
             ],
             Row::Reminders => &[

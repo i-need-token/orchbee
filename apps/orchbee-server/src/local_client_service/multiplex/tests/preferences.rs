@@ -163,7 +163,7 @@ fn external_preferences_keep_their_deadline_during_traffic_and_idle() {
             else {
                 panic!("external writer");
             };
-            snapshot
+            *snapshot
         };
         let revision = signal.revision();
         let changed = save(&initial.source, "dark");

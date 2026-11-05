@@ -19,6 +19,7 @@ styles or modifiers, localize theme names, or change the fixed Agent glyph color
 | ------------------------ | ----------------------------------------------------------------------------------------- |
 | `shipped()`              | Every shipped theme, in a stable order, each structurally valid                           |
 | `orchbee(Polarity)`      | The Orchbee theme of that polarity, the default pair                                      |
+| `select(Polarity, id)`   | The shipped theme `id` of that polarity; an unshipped or other-polarity id gives Orchbee  |
 | `Theme`                  | Identity, declared polarity, `Canvas`, ANSI 0-15, and `Source`; read-only                 |
 | `PaletteColor`           | A correctable color: the shipped `value()` and, when corrected, the replaced `original()` |
 | `Roles::resolve(&Theme)` | Every role in the [resolver table](#resolver), with each floor met on `surface_chrome`    |

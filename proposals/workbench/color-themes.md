@@ -2,7 +2,7 @@
 
 | Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Steps 1 and 2 of the implementation plan are delivered; the rest is a proposal under review. The inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                                                       |
+| Status             | Steps 1, 2, and 4 of the implementation plan are delivered; the rest is a proposal under review. The inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                                                   |
 | Owner              | Theme data and resolver maintainers, the native theme module in `apps/orchbee`, `@orchbee/design-tokens`, `@orchbee/terminal`, the terminal protocol and Host, and the user-preference owners                                                                                                                                                                                                                                                                                                                          |
 | Current authority  | [`crates/color-themes`](../../crates/color-themes/README.md) owns theme data, the resolver, and the gates; the [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) owns the launch palette; [`docs/tui/visual-foundations.md`](../../docs/tui/visual-foundations.md) owns TUI roles and the theme contract; [`docs/frontend/design-tokens.md`](../../docs/frontend/design-tokens.md) owns the CSS registry; [`docs/INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) owns GUI/TUI correspondence |
 | Decision authority | The product owner decides the default pair, the shipped list, the TUI default color source, and settings presentation; the terminal-protocol owner decides the palette-index cell encoding; this proposal decides the theme data model, the resolver, and the gates                                                                                                                                                                                                                                                    |
@@ -146,8 +146,15 @@ generated block fills the entire inventory that `docs/frontend/design-tokens.md`
 - **Polarity check.** A theme declares its polarity, and the gate check confirms it: canvas OKLab
   L < 0.6 means dark.
 - **Default terminal colors.** `TerminalDisplayAppearance` becomes `Theme` (the default; the
-  active theme's colors), `Host` (unchanged), and `Custom` (unchanged). `Light` and `Dark` migrate
-  to `Custom`, seeded with the old defaults, so no user loses a color they set.
+  active theme's colors), `Host` (unchanged), and `Custom` (unchanged). Delivered without a
+  migration: before release the preference record is current-only, so a record that still stores
+  `light` or `dark` is refused like any other invalid record and the defaults apply.
+- **Unknown ids.** The record admits any lowercase kebab-case id of at most 64 bytes, so a record
+  written by a build with more themes stays valid. Resolution is the only fallback point:
+  `orchbee_color_themes::select` gives the Orchbee theme of the slot's polarity for an id the build
+  does not ship or one of the other polarity, and the Worker reaches it through
+  `UserColorThemes::theme` in `local-runtime`. The protocol and the launch wire check syntax and
+  bounds only.
 
 ### `terminal-native`
 
@@ -450,8 +457,11 @@ Each step is one commit, or a small series, that leaves `main` working:
    the polarity of the effective default colors, so dark terminals no longer inherit the light ANSI.
 3. **Protocol.** Add the palette-index cell tag: schema, Host encoding behind a negotiated revision,
    and decoding in both Clients, which map indexes through their active theme.
-4. **Preferences.** Add `theme.light` and `theme.dark` to `workbench-protocol` and `local-runtime`,
-   and migrate `TerminalDisplayAppearance` to Theme/Host/Custom.
+4. **Preferences. Done.** The shared device record holds `lightTheme` and `darkTheme`
+   (`theme.light` and `theme.dark`), `TerminalDisplayAppearance` is Theme/Host/Custom, and the
+   launch capture carries both slots so the Worker's palette takes the selected theme's cursor and
+   ANSI colors. A Host-following terminal keeps the slots captured at launch until step 3 lets
+   Clients map ANSI colors themselves.
 5. **TUI.** Resolve roles from the crate, add the Colors source with truecolor gating, retire the
    test-only One pair, and keep `terminal-native` emitting `Reset` and `Indexed`.
 6. **GUI.** Generate the CSS and the terminal module, add the `data-color-theme` boundary, and point

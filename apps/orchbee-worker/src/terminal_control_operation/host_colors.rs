@@ -22,13 +22,13 @@ pub(super) fn apply(
     let colors = UserTerminalColors::from_rgb(colors.foreground(), colors.background());
     host.host_colors.borrow_mut().observe(colors);
     let key = target.as_bytes();
-    let Some(mut state) = host.host_colors.borrow().follower(key).cloned() else {
+    let Some((mut state, themes)) = host.host_colors.borrow().follower(key).cloned() else {
         return Ok(Outcome::HostColorsAccepted);
     };
     let terminal_id = TerminalId::from_bytes(key)?;
     // One retry absorbs a revision this Worker did not observe; a second stale result yields.
     for _attempt in 0..2 {
-        let next = crate::terminal_theme::effective(colors);
+        let next = crate::terminal_theme::effective(colors, &themes);
         if next == state.terminal {
             break;
         }

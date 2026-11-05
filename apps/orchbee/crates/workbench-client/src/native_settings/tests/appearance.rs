@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::TerminalDisplayAppearance;
 
 #[test]
 fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
-    for key in PreferenceKey::ALL {
+    for key in SETTINGS.iter().map(|metadata| metadata.key) {
         let mut basis = basis();
         basis.values.terminal_display_theme = TerminalDisplayAppearance::Custom;
         let mut editor = Editor::default();

@@ -2,7 +2,8 @@ use super::LaunchCapture;
 use crate::terminal_coordinator::{TerminalCoordinator, WorkerPlacement};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, DefaultCustomProgram, DefaultLaunchProgram, LaunchPreferences,
-    LeaseExpiresAtUnixMilliseconds, TerminalLaunchPreferences, WorkerGeneration, WorkerId,
+    LeaseExpiresAtUnixMilliseconds, TerminalLaunchPreferences, TerminalLaunchThemes,
+    WorkerGeneration, WorkerId,
 };
 use orchbee_client_server_protocol::{
     LaunchSelection, RequestId, StartMode, TerminalCreateRequest,
@@ -11,7 +12,10 @@ use orchbee_workbench_protocol::PresentationLaunchProgram;
 use std::num::NonZeroU64;
 
 fn available(program: Option<DefaultLaunchProgram>) -> LaunchPreferences {
-    LaunchPreferences::Available(TerminalLaunchPreferences::new(1_000, None, program).unwrap())
+    let themes = TerminalLaunchThemes::new("l".into(), "d".into()).unwrap();
+    LaunchPreferences::Available(
+        TerminalLaunchPreferences::new(1_000, None, themes, program).unwrap(),
+    )
 }
 
 /// The preferences the planned launch dispatches with and the program its binding publishes.

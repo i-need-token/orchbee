@@ -78,6 +78,7 @@ pub(super) fn resolve(
         powershell::interactive_arguments(&executable, arguments)
     };
     // An explicit authorized path requires no home-directory lookup or translation.
+    let themes = launch_themes(preferences);
     let cwd = match launch.cwd() {
         Some(cwd) => cwd.clone(),
         None => {
@@ -104,6 +105,7 @@ pub(super) fn resolve(
                         colors.dark,
                     )
                 }),
+            &themes,
         ),
         preferences.map(
             |preferences| orchbee_terminal_protocol::TerminalConfiguration {
@@ -111,6 +113,23 @@ pub(super) fn resolve(
             },
         ),
     ))
+}
+
+/// The slots a launch takes cursor and ANSI colors from: the Session's capture, or the Orchbee pair
+/// for an adapter without a preference owner.
+pub(super) fn launch_themes(
+    preferences: Option<&TerminalLaunchPreferences>,
+) -> orchbee_local_runtime::UserColorThemes {
+    preferences.map_or_else(
+        orchbee_local_runtime::UserColorThemes::default,
+        |preferences| {
+            let themes = preferences.themes();
+            orchbee_local_runtime::UserColorThemes::new(
+                themes.light().to_owned(),
+                themes.dark().to_owned(),
+            )
+        },
+    )
 }
 
 fn launch_environment(
@@ -160,14 +179,17 @@ fn launch_environment(
 
 // The effective default colors choose the scheme, cursor, and palette through the terminal theme;
 // the cursor style, device attributes, and query responses are the same for every launch.
-fn terminal_profile(colors: orchbee_local_runtime::UserTerminalColors) -> TerminalProfile {
+fn terminal_profile(
+    colors: orchbee_local_runtime::UserTerminalColors,
+    themes: &orchbee_local_runtime::UserColorThemes,
+) -> TerminalProfile {
     let TerminalTheme {
         color_scheme,
         default_background_rgb,
         default_cursor_rgb,
         default_foreground_rgb,
         palette,
-    } = crate::terminal_theme::effective(colors);
+    } = crate::terminal_theme::effective(colors, themes);
     TerminalProfile {
         color_scheme,
         default_background_rgb,

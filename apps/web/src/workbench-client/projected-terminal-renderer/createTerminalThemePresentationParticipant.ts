@@ -417,22 +417,16 @@ function snapshotFromPreferences(
 		case 'host':
 			terminal = { ...current, ...hostDefaultColors };
 			break;
-		case 'light':
+		case 'theme': {
+			const defaults = preferences.applicationTheme === 'dark' ? DARK_DEFAULTS : LIGHT_DEFAULTS;
 			terminal = {
 				...current,
-				colorScheme: 'light',
-				defaultBackgroundRgb: LIGHT_DEFAULTS.background,
-				defaultForegroundRgb: LIGHT_DEFAULTS.foreground,
+				colorScheme: preferences.applicationTheme,
+				defaultBackgroundRgb: defaults.background,
+				defaultForegroundRgb: defaults.foreground,
 			};
 			break;
-		case 'dark':
-			terminal = {
-				...current,
-				colorScheme: 'dark',
-				defaultBackgroundRgb: DARK_DEFAULTS.background,
-				defaultForegroundRgb: DARK_DEFAULTS.foreground,
-			};
-			break;
+		}
 		case 'custom':
 			terminal = {
 				...current,
