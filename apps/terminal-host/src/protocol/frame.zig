@@ -48,7 +48,6 @@ pub const FrameSummary = struct {
     cell_count: usize,
     cell_pixel_height: u16,
     cell_pixel_width: u16,
-    close_activity: ?contract.TerminalCloseActivity,
     columns: u16,
     command_completion: ?contract.TerminalCommandCompletion,
     command_observation: ?contract.TerminalCommandObservation,
@@ -306,7 +305,6 @@ pub fn validateTerminalFrame(
     var command_completion: ?contract.TerminalCommandCompletion = null;
     var command_observation: ?contract.TerminalCommandObservation = null;
     var command_started_at: ?u64 = null;
-    var close_activity: ?contract.TerminalCloseActivity = null;
     for (0..extension_count) |_| {
         const extension_kind = try reader.readInt(u16);
         const extension_flags = try reader.readInt(u16);
@@ -318,14 +316,7 @@ pub fn validateTerminalFrame(
             return error.LimitExceeded;
         }
         const extension = try reader.readBytes(length);
-        if (extension_kind == contract.terminal_frame_extension_close_activity) {
-            if (close_activity != null or extension.len != 1) return error.InvalidField;
-            close_activity = std.enums.fromInt(
-                contract.TerminalCloseActivity,
-                extension[0],
-            ) orelse return error.InvalidField;
-            if (close_activity == .unknown) return error.InvalidField;
-        } else if (extension_kind == contract.terminal_frame_extension_kitty_graphics) {
+        if (extension_kind == contract.terminal_frame_extension_kitty_graphics) {
             if (graphics != null) return error.InvalidField;
             graphics = try graphics_extension.validate(extension);
             if (kind == .snapshot and graphics.?.kind != .snapshot) {
@@ -410,7 +401,6 @@ pub fn validateTerminalFrame(
         .cell_count = cell_count,
         .cell_pixel_height = cell_pixel_height,
         .cell_pixel_width = cell_pixel_width,
-        .close_activity = close_activity,
         .columns = columns,
         .command_completion = command_completion,
         .command_observation = command_observation,

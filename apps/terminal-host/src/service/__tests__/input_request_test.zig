@@ -1013,7 +1013,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     var need_snapshot_buffer: [160]u8 = undefined;
     const need_snapshot_payload = try std.fmt.bufPrint(
         &need_snapshot_buffer,
-        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"activity-stale\",\"sequence\":\"{d}\"}}",
+        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"sequence-gap\",\"sequence\":\"{d}\"}}",
         .{first_frame.sequence},
     );
     const need_snapshot_contract = try registeredRequestContract(MessageKind.need_snapshot);

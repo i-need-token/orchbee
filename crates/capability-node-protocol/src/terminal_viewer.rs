@@ -94,7 +94,6 @@ pub enum ViewportRowOrigin {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViewerSnapshotReason {
-    ActivityStale,
     BaseMismatch,
     DecoderRejected,
     DimensionsMismatch,

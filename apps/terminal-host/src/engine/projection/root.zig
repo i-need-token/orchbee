@@ -10,7 +10,6 @@ pub const AttachmentId = contracts.AttachmentId;
 pub const HostEpoch = contracts.HostEpoch;
 pub const Counters = contracts.Counters;
 pub const FrameKind = contracts.FrameKind;
-pub const TerminalCloseActivity = contracts.TerminalCloseActivity;
 pub const EncodeRequest = contracts.EncodeRequest;
 pub const EncodedFrame = contracts.EncodedFrame;
 pub const Projection = state.Projection;

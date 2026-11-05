@@ -640,7 +640,6 @@ function createControlConformanceFixture() {
 		need_snapshot: controlRequestTexts(
 			MessageKind.needSnapshot,
 			[
-				'activity-stale',
 				'base-mismatch',
 				'decoder-rejected',
 				'dimensions-mismatch',

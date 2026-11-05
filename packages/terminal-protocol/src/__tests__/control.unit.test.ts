@@ -1017,7 +1017,7 @@ describe('control schemas', () => {
 		expect(
 			NeedSnapshotSchema.safeParse({
 				attachmentId: '22222222222222222222222222222222',
-				reason: 'activity-stale',
+				reason: 'base-mismatch',
 				sequence: '3',
 			}).success,
 		).toBe(true);

@@ -71,34 +71,6 @@ test "projection captures Ghostty state into a valid OBTF 0.1.0 snapshot" {
     try std.testing.expectEqual(@as(u16, 0), summary.graphics.?.placement_count);
 }
 
-test "projection emits a typed close-activity extension only for a known observation" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
-        .cols = 4,
-        .rows = 2,
-    });
-    defer terminal.deinit(std.testing.allocator);
-
-    var projection = Projection.init(std.testing.allocator);
-    defer projection.deinit();
-    try projection.beginCapture(&terminal, 1, 1, 8, 16);
-    projection.endCapture();
-    const frame = try projection.encode(.{
-        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
-        .base_generation = null,
-        .base_revision = null,
-        .close_activity = .idle,
-        .force_snapshot = true,
-        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
-        .maximum_bytes = max_frame_bytes,
-        .sequence = 1,
-    });
-    defer std.testing.allocator.free(frame.allocation);
-
-    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
-    try std.testing.expectEqual(@as(u16, 3), summary.extension_count);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, summary.close_activity.?);
-}
-
 test "projection snapshots Kitty resources and emits placement-only deltas" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 20,

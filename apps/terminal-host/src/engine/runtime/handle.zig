@@ -43,10 +43,6 @@ pub const TerminalRuntime = opaque {
     pub const projectionNeedsCapture = ScheduleHandle.projectionNeedsCapture;
     pub const nextProjectionAt = ScheduleHandle.nextProjectionAt;
     pub const setNextProjectionAt = ScheduleHandle.setNextProjectionAt;
-    pub const closeActivitySampleDue = ScheduleHandle.closeActivitySampleDue;
-    pub const closeActivityPublication = ScheduleHandle.closeActivityPublication;
-    pub const nextCloseActivitySampleAt = ScheduleHandle.nextCloseActivitySampleAt;
-    pub const setNextCloseActivitySampleAt = ScheduleHandle.setNextCloseActivitySampleAt;
 
     pub fn create(
         allocator: std.mem.Allocator,
@@ -122,15 +118,11 @@ pub const TerminalRuntime = opaque {
 
     pub fn acquireReadCommitGuard(
         self: *TerminalRuntime,
-        expected_close_activity_epoch: u64,
-        expected_close_activity_epoch_exhausted: bool,
         expected_generation: u64,
         expected_read_commit_epoch: u64,
     ) contracts.ProjectionEncodeError!ReadCommitGuard {
         return exposeReadCommitGuard(try projection_ops.acquireReadCommitGuard(
             stateFrom(self),
-            expected_close_activity_epoch,
-            expected_close_activity_epoch_exhausted,
             expected_generation,
             expected_read_commit_epoch,
         ));
@@ -227,12 +219,6 @@ pub const TerminalRuntime = opaque {
 
     pub fn projectionCounters(self: *TerminalRuntime) contracts.ProjectionCounters {
         return projection_ops.projectionCounters(stateFrom(self));
-    }
-
-    pub fn sampleCloseActivity(
-        self: *TerminalRuntime,
-    ) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
-        return projection_ops.sampleCloseActivity(stateFrom(self));
     }
 
     pub fn projectionResident(self: *TerminalRuntime) bool {

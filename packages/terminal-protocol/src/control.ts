@@ -466,7 +466,6 @@ export const FrameAppliedSchema = z.strictObject({
 export const NeedSnapshotSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	reason: z.enum([
-		'activity-stale',
 		'base-mismatch',
 		'decoder-rejected',
 		'dimensions-mismatch',

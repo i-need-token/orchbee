@@ -69,7 +69,6 @@ pub enum ViewportRowOrigin {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ViewerSnapshotReason {
-    ActivityStale,
     BaseMismatch,
     DecoderRejected,
     DimensionsMismatch,

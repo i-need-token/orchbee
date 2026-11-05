@@ -654,7 +654,6 @@
 						},
 						"reason": {
 							"enum": [
-								"activity-stale",
 								"base-mismatch",
 								"decoder-rejected",
 								"dimensions-mismatch",

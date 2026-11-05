@@ -16,7 +16,6 @@ pub const Counters = struct {
 };
 
 pub const FrameKind = protocol.FrameKind;
-pub const TerminalCloseActivity = protocol.TerminalCloseActivity;
 pub const TerminalProgress = protocol.TerminalProgress;
 pub const TerminalCommandCompletion = protocol.TerminalCommandCompletion;
 
@@ -29,7 +28,6 @@ pub const EncodeRequest = struct {
     maximum_bytes: usize,
     sequence: u64,
     theme_revision: u64 = 0,
-    close_activity: TerminalCloseActivity = .unknown,
     progress: TerminalProgress = .{},
     command_completion: ?TerminalCommandCompletion = null,
     command_observation: ?protocol.TerminalCommandObservation = null,
@@ -41,8 +39,6 @@ pub const EncodedFrame = struct {
     bytes: []u8,
     cell_pixel_height: u16,
     cell_pixel_width: u16,
-    close_activity_epoch: u64 = 0,
-    close_activity_epoch_exhausted: bool = false,
     columns: u16,
     generation: u64,
     kind: FrameKind,

@@ -1,9 +1,3 @@
-pub const TerminalCloseActivity = enum(u8) {
-    unknown = 0,
-    idle = 1,
-    active = 2,
-};
-
 pub const TerminalProgressState = enum(u8) {
     remove = 0,
     set = 1,

@@ -207,7 +207,7 @@ fn snapshot_reason_vocabulary_is_closed_and_complete() -> Result<(), Box<dyn Err
     let baseline = payloads
         .first()
         .ok_or_else(|| fixture_error("snapshot fixture array is empty"))?;
-    for invalid in ["", "activity_stale", "future-reason", "STORE-RESET"] {
+    for invalid in ["", "base_mismatch", "future-reason", "STORE-RESET"] {
         let mut value: Value = serde_json::from_str(baseline)?;
         set_pointer(&mut value, "/reason", Value::String(invalid.to_owned()))?;
         assert_value_code(
@@ -311,7 +311,7 @@ fn projection_feedback_composes_with_the_transport_envelope() -> Result<(), Box<
         (
             44,
             MessageRole::Response,
-            fixture_string_at(&fixture, "/outputs/need_snapshot", 7)?,
+            fixture_string_at(&fixture, "/outputs/need_snapshot", 6)?,
         ),
     ] {
         let value = decode_projection_feedback_control(kind, role, payload.as_bytes())?;
@@ -340,9 +340,8 @@ fn projection_feedback_composes_with_the_transport_envelope() -> Result<(), Box<
     Ok(())
 }
 
-fn snapshot_reasons() -> [SnapshotReason; 8] {
+fn snapshot_reasons() -> [SnapshotReason; 7] {
     [
-        SnapshotReason::ActivityStale,
         SnapshotReason::BaseMismatch,
         SnapshotReason::DecoderRejected,
         SnapshotReason::DimensionsMismatch,

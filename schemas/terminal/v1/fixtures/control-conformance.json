@@ -19,14 +19,13 @@
 		"read_process_info": "{\"attachmentId\":\"22222222222222222222222222222222\"}",
 		"list_terminals": "{\"cursor\":{\"inventoryGeneration\":\"9\",\"offset\":\"2\"},\"maximumTerminals\":64}",
 		"need_snapshot": [
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"activity-stale\",\"sequence\":\"1\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"2\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"decoder-rejected\",\"sequence\":\"3\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"dimensions-mismatch\",\"sequence\":\"4\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"generation-mismatch\",\"sequence\":\"5\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"identity-mismatch\",\"sequence\":\"6\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"sequence-gap\",\"sequence\":\"7\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"store-reset\",\"sequence\":\"8\"}"
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"1\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"decoder-rejected\",\"sequence\":\"2\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"dimensions-mismatch\",\"sequence\":\"3\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"generation-mismatch\",\"sequence\":\"4\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"identity-mismatch\",\"sequence\":\"5\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"sequence-gap\",\"sequence\":\"6\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"store-reset\",\"sequence\":\"7\"}"
 		],
 		"projection_demand": [
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"active\"}",
@@ -87,14 +86,13 @@
 		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"5\"}",
 		"input_accepted": "{\"acceptedBytes\":12,\"attachmentId\":\"22222222222222222222222222222222\",\"capabilityRevision\":\"1\"}",
 		"need_snapshot": [
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"activity-stale\",\"sequence\":\"1\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"2\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"decoder-rejected\",\"sequence\":\"3\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"dimensions-mismatch\",\"sequence\":\"4\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"generation-mismatch\",\"sequence\":\"5\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"identity-mismatch\",\"sequence\":\"6\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"sequence-gap\",\"sequence\":\"7\"}",
-			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"store-reset\",\"sequence\":\"8\"}"
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"1\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"decoder-rejected\",\"sequence\":\"2\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"dimensions-mismatch\",\"sequence\":\"3\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"generation-mismatch\",\"sequence\":\"4\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"identity-mismatch\",\"sequence\":\"5\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"sequence-gap\",\"sequence\":\"6\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"store-reset\",\"sequence\":\"7\"}"
 		],
 		"projection_blocked": [
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"capture-allocation-failed\",\"revision\":\"42\"}",

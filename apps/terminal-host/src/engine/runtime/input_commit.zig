@@ -1,6 +1,5 @@
 const std = @import("std");
 const contracts = @import("contracts.zig");
-const projection_ops = @import("projection.zig");
 const state = @import("state.zig");
 
 pub fn cancelPreparedInputOwnership(
@@ -15,22 +14,11 @@ pub fn cancelPreparedInputOwnership(
 pub fn validatePreparedInputCommit(
     self: *state.State,
     ownership: *?contracts.PreparedInputOwnership,
-    affects_close_activity: bool,
     focus_reporting_enabled: ?bool,
     mouse_input_epoch: ?u64,
 ) !void {
-    lockPreparedInputCommit(
-        self,
-        affects_close_activity,
-        focus_reporting_enabled,
-        mouse_input_epoch,
-    );
-    defer unlockPreparedInputCommit(
-        self,
-        affects_close_activity,
-        focus_reporting_enabled,
-        mouse_input_epoch,
-    );
+    lockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
+    defer unlockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
     if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
     // Zero-byte prepared semantic inputs share the same post-exit client
     // admission gate so every PreparedInput.commit has one phase boundary.
@@ -40,14 +28,11 @@ pub fn validatePreparedInputCommit(
     try validateMouseInputEpochLocked(self, mouse_input_epoch);
     try validatePreparedInputOwnershipLocked(self, ownership.*);
     commitPreparedInputOwnershipLocked(self, ownership);
-    if (affects_close_activity) {
-        projection_ops.invalidateCloseActivityAfterInputLocked(self);
-    }
 }
 
 pub fn publishInput(self: *state.State, reservation: contracts.InputReservation, bytes: []u8) !void {
     var ownership: ?contracts.PreparedInputOwnership = null;
-    return publishPreparedInput(self, reservation, bytes, &ownership, false, null, null);
+    return publishPreparedInput(self, reservation, bytes, &ownership, null, null);
 }
 
 pub fn publishPreparedInput(
@@ -55,22 +40,11 @@ pub fn publishPreparedInput(
     reservation: contracts.InputReservation,
     bytes: []u8,
     ownership: *?contracts.PreparedInputOwnership,
-    affects_close_activity: bool,
     focus_reporting_enabled: ?bool,
     mouse_input_epoch: ?u64,
 ) !void {
-    lockPreparedInputCommit(
-        self,
-        affects_close_activity,
-        focus_reporting_enabled,
-        mouse_input_epoch,
-    );
-    defer unlockPreparedInputCommit(
-        self,
-        affects_close_activity,
-        focus_reporting_enabled,
-        mouse_input_epoch,
-    );
+    lockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
+    defer unlockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
     const source = self.input_queue.reservationSource(reservation.identifier) orelse {
         self.allocator.free(bytes);
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
@@ -113,78 +87,28 @@ pub fn publishPreparedInput(
     };
     std.debug.assert(self.input_queue.publish(reservation, bytes));
     commitPreparedInputOwnershipLocked(self, ownership);
-    if (affects_close_activity) {
-        // Queue publication proves acceptance of these bytes, never shell
-        // consumption. Prompt phases and C markers settle submitted lines.
-        if (source == .client) recordAcceptedCloseInputLines(self, bytes);
-        projection_ops.invalidateCloseActivityAfterInputLocked(self);
-    }
     self.input_condition.broadcast();
 }
 
-/// Counts accepted line terminators for the Close-only reader acknowledgement.
-/// CRLF is one submission even when its bytes arrive in separate writes.
-/// Called only after all fallible publication checks pass and while
-/// input_mutex protects the queue commit.
-fn recordAcceptedCloseInputLines(self: *state.State, bytes: []const u8) void {
-    for (bytes) |byte| {
-        if (byte == '\r') {
-            self.close_input_last_byte_was_cr = true;
-            self.close_input_partial_line = false;
-            incrementCloseInputLineCount(self);
-        } else if (byte == '\n') {
-            if (!self.close_input_last_byte_was_cr) incrementCloseInputLineCount(self);
-            self.close_input_last_byte_was_cr = false;
-            self.close_input_partial_line = false;
-        } else {
-            self.close_input_last_byte_was_cr = false;
-            self.close_input_partial_line = true;
-        }
-    }
-}
-
-fn incrementCloseInputLineCount(self: *state.State) void {
-    if (self.close_input_lines_exhausted) return;
-    self.close_input_lines_submitted = std.math.add(
-        u64,
-        self.close_input_lines_submitted,
-        1,
-    ) catch {
-        self.close_input_lines_exhausted = true;
-        return;
-    };
-}
-
-/// Activity-affecting input is one bounded cross-owner transaction. Mouse
-/// input takes projection -> terminal -> input so epoch validation, queue
-/// publication, and stale activity evidence become visible together. Other
-/// activity-affecting input takes projection -> input; focus-mode validation
-/// takes terminal -> input, and terminal-generated input needs only input.
+/// Mouse and focus input validate terminal mode under terminal -> input, so
+/// their publication commits with the mode they were encoded for. Other input
+/// needs only input.
 fn lockPreparedInputCommit(
     self: *state.State,
-    affects_close_activity: bool,
     focus_reporting_enabled: ?bool,
     mouse_input_epoch: ?u64,
 ) void {
-    std.debug.assert(!affects_close_activity or focus_reporting_enabled == null);
-    if (affects_close_activity) {
-        self.projection_mutex.lock();
-    }
     if (focus_reporting_enabled != null or mouse_input_epoch != null) self.terminal_mutex.lock();
     self.input_mutex.lock();
 }
 
 fn unlockPreparedInputCommit(
     self: *state.State,
-    affects_close_activity: bool,
     focus_reporting_enabled: ?bool,
     mouse_input_epoch: ?u64,
 ) void {
     self.input_mutex.unlock();
     if (focus_reporting_enabled != null or mouse_input_epoch != null) self.terminal_mutex.unlock();
-    if (affects_close_activity) {
-        self.projection_mutex.unlock();
-    }
 }
 
 fn validateMouseInputEpochLocked(self: *const state.State, expected: ?u64) !void {

@@ -110,8 +110,8 @@ fn expectSubmittedLinesStayOutOfHistory(executable: []const u8, history: []const
     try runtime.shutdown();
 }
 
-/// Waits for the reader's input-ready marker after an output row equal to `line`.
-/// Markers commit with their output, so a ready phase observed after a capture that
+/// Waits for the prompt's input marker (OSC 133 B) after an output row equal to `line`.
+/// Markers commit with their output, so input state observed after a capture that
 /// already holds the row belongs to the prompt that follows that row.
 fn waitForReadyLine(runtime: *TerminalRuntime, line: ?[]const u8) !void {
     var timer = try platform.monotonic.Timer.start();
@@ -128,7 +128,7 @@ fn waitForReadyLine(runtime: *TerminalRuntime, line: ?[]const u8) !void {
         if (printed) {
             const state = harness.runtimeState(runtime);
             state.terminal_mutex.lock();
-            const ready = state.close_prompt_phase == .input_ready;
+            const ready = state.terminal.screens.active.cursor.semantic_content == .input;
             state.terminal_mutex.unlock();
             if (ready) return;
         }

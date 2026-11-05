@@ -230,19 +230,6 @@ wire-valid semantic mutations prove that strict admission alone cannot satisfy t
 terminal package owns consumer semantics. This evidence does not grant VT, lifecycle, history, or
 trust-boundary authority to the protocol package.
 
-Live OBTF snapshots and deltas may carry optional extension kind `1`, whose one-byte payload reports
-close activity as `idle=1` or `active=2`. The producer omits the extension when the observation is
-unknown. The extension is transient projection metadata only; lifecycle and close policy remain
-consumer-owned. `NeedSnapshot` reason `activity-stale` abandons the exact in-flight frame when a
-consumer has locally invalidated its close-activity observation and cannot prove that frame is
-newer than the invalidating input; the replacement is a complete snapshot. This ordering proves
-only that the replacement reflects the Host cache after invalidation, not that the Host accepted
-the input or that the terminal process consumed it. In protocol `0.1.0`, Host-accepted non-focus
-input invalidates the cached observation immediately. A later bounded current-state sample may
-publish `active`, `idle`, or `unknown`, so a causal replacement may legitimately restore fresh
-`idle` in the same terminal lifecycle. This changes no wire value or codec. This codec passes the
-extension through undecoded and exports no code for it, because no TypeScript consumer reads it.
-
 Optional extension kind `2` is one strictly decoded OBKG format-`0.1.0` record for the bounded
 Kitty graphics projection. A resource snapshot carries Host-owned decoded gray, gray-alpha, RGB,
 or RGBA bytes, the monotonic Ghostty animation tick, and current placements after Host resolves

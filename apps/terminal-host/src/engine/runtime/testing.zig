@@ -16,7 +16,6 @@ const failure_ops = @import("failure.zig");
 const input_admission_ops = @import("input_admission.zig");
 const input_commit_ops = @import("input_commit.zig");
 const output_ops = @import("output.zig");
-const projection_ops = @import("projection.zig");
 const resize_ops = @import("resize.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 const terminal_control_ops = @import("terminal_control.zig");
@@ -45,14 +44,6 @@ pub const testing = if (builtin.is_test) struct {
         terminal_reply_charge: contracts.InputCharge,
     };
 
-    pub const CloseActivityObservation = struct {
-        activity: contracts.TerminalCloseActivity,
-        activity_epoch: u64,
-        activity_epoch_exhausted: bool,
-        cursor_at_prompt: bool,
-        semantic_prompt_seen: bool,
-    };
-
     pub const RuntimeObservation = struct {
         client_input_closed: bool,
         completion: contracts.Completion,
@@ -76,7 +67,6 @@ pub const testing = if (builtin.is_test) struct {
 
     pub const InvariantError = error{
         ClientInputChargeOverflow,
-        CloseActivityFreshnessMismatch,
         DuplicateHistoryAttachment,
         FailedCompletionWithoutFence,
         FailureFenceWithoutWriterStop,
@@ -107,7 +97,6 @@ pub const testing = if (builtin.is_test) struct {
     pub const recordWorkerIntegrityFailureFn = recordWorkerIntegrityFailure;
     pub const recordReaderFailureFn = recordReaderFailure;
     pub const recordWriterFailureFn = recordWriterFailure;
-    pub const resolveCloseActivityFn = projection_ops.resolveCloseActivity;
     pub const reserveInputFn = reserveInput;
     pub const completionClassificationLoadFn = contracts.CompletionClassification.load;
     pub const deinitOwnedProfileFn = contracts.OwnedProfile.deinit;
@@ -262,36 +251,6 @@ pub const testing = if (builtin.is_test) struct {
         };
     }
 
-    pub fn closeActivityObservation(
-        runtime: *handle.TerminalRuntime,
-    ) CloseActivityObservation {
-        const runtime_state = handle.stateFrom(runtime);
-        runtime_state.projection_mutex.lock();
-        defer runtime_state.projection_mutex.unlock();
-        runtime_state.terminal_mutex.lock();
-        defer runtime_state.terminal_mutex.unlock();
-        runtime_state.input_mutex.lock();
-        defer runtime_state.input_mutex.unlock();
-        return .{
-            .activity = runtime_state.close_activity,
-            .activity_epoch = runtime_state.close_activity_epoch,
-            .activity_epoch_exhausted = runtime_state.close_activity_epoch_exhausted,
-            .cursor_at_prompt = runtime_state.terminal.cursorIsAtPrompt(),
-            .semantic_prompt_seen = runtime_state.terminal.screens.active.semantic_prompt.seen,
-        };
-    }
-
-    pub fn setCloseActivityEpoch(
-        runtime: *handle.TerminalRuntime,
-        epoch: u64,
-    ) void {
-        const runtime_state = handle.stateFrom(runtime);
-        runtime_state.projection_mutex.lock();
-        defer runtime_state.projection_mutex.unlock();
-        std.debug.assert(!runtime_state.close_activity_epoch_exhausted);
-        runtime_state.close_activity_epoch = epoch;
-    }
-
     /// Captures all composition-relevant runtime facts while following the
     /// runtime's canonical projection -> terminal -> input lock order. The
     /// value is an observation only; no semantic owner is duplicated.
@@ -327,11 +286,6 @@ pub const testing = if (builtin.is_test) struct {
         }
         if (!terminal_geometry.isValid(runtime_state.viewport_geometry)) {
             return error.InvalidRuntimeGeometry;
-        }
-        if (runtime_state.close_activity_epoch_exhausted and
-            runtime_state.close_activity != .unknown)
-        {
-            return error.CloseActivityFreshnessMismatch;
         }
         if (!terminal_theme.valid(observation.theme)) return error.InvalidRuntimeTheme;
         if (observation.input.client_charge.bytes > contracts.pending_input_capacity_bytes) {

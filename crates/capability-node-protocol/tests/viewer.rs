@@ -156,7 +156,6 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
     .into_iter()
     .chain(
         [
-            ViewerSnapshotReason::ActivityStale,
             ViewerSnapshotReason::BaseMismatch,
             ViewerSnapshotReason::DecoderRejected,
             ViewerSnapshotReason::DimensionsMismatch,

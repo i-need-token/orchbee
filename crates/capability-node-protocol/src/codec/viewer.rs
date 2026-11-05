@@ -70,7 +70,6 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             bytes.push(4);
             bytes.extend_from_slice(&sequence.get().to_be_bytes());
             bytes.push(match reason {
-                ViewerSnapshotReason::ActivityStale => 1,
                 ViewerSnapshotReason::BaseMismatch => 2,
                 ViewerSnapshotReason::DecoderRejected => 3,
                 ViewerSnapshotReason::DimensionsMismatch => 4,
@@ -289,7 +288,6 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
         4 => TerminalViewerAction::NeedSnapshot {
             sequence: positive(reader.read_u64()?)?,
             reason: match reader.read_u8()? {
-                1 => ViewerSnapshotReason::ActivityStale,
                 2 => ViewerSnapshotReason::BaseMismatch,
                 3 => ViewerSnapshotReason::DecoderRejected,
                 4 => ViewerSnapshotReason::DimensionsMismatch,

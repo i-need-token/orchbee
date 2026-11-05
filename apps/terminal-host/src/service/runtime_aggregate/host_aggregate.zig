@@ -100,8 +100,6 @@ pub const HostRuntimeAggregate = struct {
     pub const needSnapshot = projection.needSnapshot;
     pub const nextProjectionAt = projection.nextProjectionAt;
     pub const setNextProjectionAt = projection.setNextProjectionAt;
-    pub const nextCloseActivitySampleAt = projection.nextCloseActivitySampleAt;
-    pub const setNextCloseActivitySampleAt = projection.setNextCloseActivitySampleAt;
     pub const setProjectionDemand = projection.setProjectionDemand;
 
     // maintenance boundary.

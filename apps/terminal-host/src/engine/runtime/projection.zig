@@ -6,7 +6,6 @@ const state = @import("state.zig");
 const read_commit_guard = @import("read_commit_guard.zig");
 const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
-const process_io_ops = @import("process_io.zig");
 
 pub fn bellSequence(self: *state.State) u64 {
     self.terminal_mutex.lock();
@@ -17,8 +16,6 @@ pub fn bellSequence(self: *state.State) u64 {
 
 pub fn acquireReadCommitGuard(
     self: *state.State,
-    expected_close_activity_epoch: u64,
-    expected_close_activity_epoch_exhausted: bool,
     expected_generation: u64,
     expected_read_commit_epoch: u64,
 ) contracts.ProjectionEncodeError!read_commit_guard.Internal {
@@ -32,9 +29,7 @@ pub fn acquireReadCommitGuard(
     self.terminal_mutex.lock();
     errdefer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
-    if (self.close_activity_epoch != expected_close_activity_epoch or
-        self.close_activity_epoch_exhausted != expected_close_activity_epoch_exhausted or
-        self.generation != expected_generation or
+    if (self.generation != expected_generation or
         self.read_commit_epoch != expected_read_commit_epoch)
     {
         return error.TerminalRuntimeUnavailable;
@@ -121,48 +116,6 @@ pub fn setNextProjectionAt(self: *state.State, value: i128) void {
     self.next_projection_at_ns = value;
 }
 
-pub fn nextCloseActivitySampleAt(self: *const state.State) i128 {
-    return self.next_close_activity_sample_at_ns;
-}
-
-pub fn setNextCloseActivitySampleAt(self: *state.State, value: i128) void {
-    self.next_close_activity_sample_at_ns = value;
-}
-
-pub fn closeActivitySampleDue(self: *state.State, now: i128) bool {
-    self.projection_mutex.lock();
-    defer self.projection_mutex.unlock();
-    return self.close_activity_sample_owed or now >= self.next_close_activity_sample_at_ns;
-}
-
-/// Decides how readers learn the latest cache change. The echo of the input that changed it usually
-/// commits within a millisecond, and its frame carries the cache, so a same-revision snapshot only
-/// follows when no output arrives within the settle time.
-pub fn closeActivityPublication(
-    self: *state.State,
-    now: i128,
-    settle_ns: i128,
-) contracts.CloseActivityPublication {
-    self.projection_mutex.lock();
-    defer self.projection_mutex.unlock();
-    if (self.close_activity_unpublished) {
-        self.close_activity_unpublished = false;
-        if (self.close_activity_publish_at_ns == null) {
-            self.close_activity_publish_at_ns = now + settle_ns;
-        }
-    }
-    const publish_at = self.close_activity_publish_at_ns orelse return .current;
-    // No reader's base passes the last encoded revision, so a later revision owes every reader a
-    // frame captured after the change.
-    if (self.revision.load(.monotonic) > self.close_activity_stale_through_revision) {
-        self.close_activity_publish_at_ns = null;
-        return .current;
-    }
-    if (now < publish_at) return .{ .settling = publish_at };
-    self.close_activity_publish_at_ns = null;
-    return .due;
-}
-
 /// A new revision or generation costs a capture; another reader of the current one only an encode.
 pub fn projectionNeedsCapture(self: *state.State) bool {
     self.projection_mutex.lock();
@@ -179,117 +132,10 @@ pub fn projectionPaintRemaining(self: *state.State) ?u64 {
     return mode_effects.cursorPaintRemainingLocked(self);
 }
 
-fn noteCloseActivityChangedLocked(self: *state.State) void {
-    self.close_activity_unpublished = true;
-    self.close_activity_stale_through_revision = self.last_encoded_revision;
-}
-
 pub fn projectionResident(self: *state.State) bool {
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
     return self.projection.isResident();
-}
-
-pub fn resolveCloseActivity(
-    platform_command_active: ?bool,
-    semantic_prompt_seen: bool,
-    cursor_at_prompt: bool,
-) contracts.TerminalCloseActivity {
-    const command_active = platform_command_active orelse return .unknown;
-    if (command_active) return .active;
-    if (semantic_prompt_seen) return if (cursor_at_prompt) .idle else .active;
-    return .idle;
-}
-
-/// Samples the independent process observation without holding a runtime
-/// mutex, then resolves it with Ghostty's committed prompt phase and accepted
-/// input accounting. Accepted Enter submissions remain pending until a later C
-/// marker acknowledges them. Activity-affecting input invalidates older
-/// evidence; a later ready prompt restores idle only after all accepted
-/// submissions are acknowledged and no partial input stays.
-pub fn sampleCloseActivity(
-    self: *state.State,
-) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
-    self.projection_mutex.lock();
-    self.close_activity_sample_owed = false;
-    if (self.close_activity_epoch_exhausted) {
-        const activity = self.close_activity;
-        self.projection_mutex.unlock();
-        return .{ .activity = activity, .changed = false };
-    }
-    self.projection_mutex.unlock();
-
-    const platform_command_active: ?bool = process_io_ops.hasActiveCommand(self) catch null;
-
-    self.projection_mutex.lock();
-    defer self.projection_mutex.unlock();
-    self.terminal_mutex.lock();
-    defer self.terminal_mutex.unlock();
-    try failure_ops.ensureReadableStateAvailableLocked(self);
-
-    const prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
-    const at_prompt = prompt_seen and self.terminal.cursorIsAtPrompt();
-    var next_activity = resolveCloseActivity(
-        platform_command_active,
-        prompt_seen,
-        at_prompt,
-    );
-    const prompt_phase = self.close_prompt_phase;
-    if (next_activity == .idle) {
-        // C begins command execution. This catches in-process shell builtins
-        // even when the platform observer sees only the interactive shell.
-        if (prompt_phase == .command_active) {
-            next_activity = .active;
-        } else if (!at_prompt or prompt_phase != .input_ready) {
-            next_activity = .unknown;
-        } else {
-            self.input_mutex.lock();
-            const pending_lines = self.close_input_lines_submitted > self.close_input_lines_consumed;
-            const unresolved_input = self.close_input_lines_exhausted or
-                self.close_input_partial_line or
-                self.input_queue.client_charge.entries != 0;
-            self.input_mutex.unlock();
-            if (pending_lines or unresolved_input) next_activity = .unknown;
-        }
-    }
-
-    const previous_activity = self.close_activity;
-    if (previous_activity != next_activity and
-        !advanceCloseActivityEpochLocked(self))
-    {
-        next_activity = .unknown;
-    }
-    const changed = previous_activity != next_activity;
-    self.close_activity = next_activity;
-    if (changed) noteCloseActivityChangedLocked(self);
-    return .{ .activity = next_activity, .changed = changed };
-}
-
-/// Commits the projection half of an activity-affecting input transaction.
-/// The caller holds projection_mutex then input_mutex and has already committed
-/// the input queue publication (or accepted a zero-byte semantic input).
-pub fn invalidateCloseActivityAfterInputLocked(self: *state.State) void {
-    self.close_activity = .unknown;
-    self.close_activity_sample_owed = true;
-    noteCloseActivityChangedLocked(self);
-    _ = advanceCloseActivityEpochLocked(self);
-}
-
-/// Advances the presentation epoch while projection_mutex is held. Once the
-/// counter is exhausted the runtime remains permanently unknown; saturating is
-/// safe because no later frame can carry idle or active evidence at that epoch.
-fn advanceCloseActivityEpochLocked(self: *state.State) bool {
-    if (self.close_activity_epoch_exhausted) return false;
-    self.close_activity_epoch = std.math.add(
-        u64,
-        self.close_activity_epoch,
-        1,
-    ) catch {
-        self.close_activity_epoch_exhausted = true;
-        self.close_activity = .unknown;
-        return false;
-    };
-    return true;
 }
 
 pub fn releaseProjectionResources(self: *state.State) void {
@@ -346,9 +192,6 @@ pub fn encodeProjectionFrameOwned(
         return .{ .blocked = .{ .attempted_revision = revision, .reason = .capture_allocation_failed } };
     };
     const command_observation = self.command_observation.committed;
-    const close_activity = self.close_activity;
-    const close_activity_epoch = self.close_activity_epoch;
-    const close_activity_epoch_exhausted = self.close_activity_epoch_exhausted;
     if (self.projection.needsCapture(revision, generation)) {
         self.projection.graphics.animation_tick = self.animation_tick;
         self.projection.beginCapture(
@@ -371,7 +214,6 @@ pub fn encodeProjectionFrameOwned(
         self.terminal_mutex.unlock();
     }
     var projection_request = request;
-    projection_request.close_activity = close_activity;
     projection_request.progress = progress;
     projection_request.command_completion = command_completion;
     projection_request.command_observation = command_observation;
@@ -394,10 +236,7 @@ pub fn encodeProjectionFrameOwned(
     };
     std.debug.assert(frame.revision == revision);
     std.debug.assert(frame.generation == generation);
-    self.last_encoded_revision = @max(self.last_encoded_revision, revision);
     frame.read_commit_epoch = read_commit_epoch;
-    frame.close_activity_epoch = close_activity_epoch;
-    frame.close_activity_epoch_exhausted = close_activity_epoch_exhausted;
     return .{ .frame = frame };
 }
 

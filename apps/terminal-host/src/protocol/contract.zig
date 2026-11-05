@@ -5,7 +5,6 @@ pub const terminal_frame_magic = "OBTF";
 pub const terminal_frame_format_major: u8 = 0;
 pub const terminal_frame_format_minor: u8 = 1;
 pub const terminal_frame_format_patch: u8 = 0;
-pub const terminal_frame_extension_close_activity: u16 = 1;
 pub const terminal_frame_extension_kitty_graphics: u16 = 2;
 pub const terminal_frame_extension_progress: u16 = 3;
 pub const terminal_frame_extension_command_completion: u16 = 4;
@@ -18,7 +17,6 @@ pub const terminal_graphics_format_minor: u8 = 1;
 pub const terminal_graphics_format_patch: u8 = 0;
 
 const frame_extension = @import("frame_extension.zig");
-pub const TerminalCloseActivity = frame_extension.TerminalCloseActivity;
 pub const TerminalProgressState = frame_extension.TerminalProgressState;
 pub const TerminalProgress = frame_extension.TerminalProgress;
 pub const TerminalCommandCompletion = frame_extension.TerminalCommandCompletion;

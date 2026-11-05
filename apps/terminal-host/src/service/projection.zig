@@ -14,8 +14,6 @@ const projection_interval_ns = 16 * std.time.ns_per_ms;
 /// How far captures may run ahead of the sustained cadence. A program that answers one key in a
 /// few writes shows the last of them at once; continuous output still settles to the cadence.
 const projection_burst_ns = 2 * projection_interval_ns;
-/// Echoes usually land within this time of the input that changed close activity.
-const close_activity_settle_ns = 100 * std.time.ns_per_ms;
 const max_schedule_scan_per_poll = 64;
 const max_scheduled_attachments_per_poll = 8;
 
@@ -88,8 +86,6 @@ pub const Scheduler = struct {
         var outcome: host_outgoing.ScheduleOutcome = .complete;
         var retry_current = false;
         var next_due: ?i128 = null;
-        var sampled_terminal_ids: [max_schedule_scan_per_poll]core_module.TerminalId = undefined;
-        var sampled_terminal_count: usize = 0;
         var used_terminal_ids: [max_scheduled_attachments_per_poll]core_module.TerminalId = undefined;
         var used_terminal_captures: [max_scheduled_attachments_per_poll]bool = undefined;
         var used_terminal_count: usize = 0;
@@ -119,46 +115,12 @@ pub const Scheduler = struct {
             // before delta versus snapshot is selected. Reading the backing
             // map value directly would miss a geometry change since the last
             // request.
-            var attachment = core.findAttachment(attachment_id) orelse continue;
+            const attachment = core.findAttachment(attachment_id) orelse continue;
             if (!attachment.capabilities.read or
                 attachment.projectionDemand() != .active) continue;
             const runtime = aggregate.runtimeFor(attachment.terminal_id) orelse continue;
-            var terminal = core.findTerminal(attachment.terminal_id) orelse continue;
+            const terminal = core.findTerminal(attachment.terminal_id) orelse continue;
             if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) continue;
-            var activity_already_sampled = false;
-            for (sampled_terminal_ids[0..sampled_terminal_count]) |sampled_terminal_id| {
-                activity_already_sampled = activity_already_sampled or
-                    sampled_terminal_id.eql(attachment.terminal_id);
-            }
-            if (!activity_already_sampled) {
-                std.debug.assert(sampled_terminal_count < sampled_terminal_ids.len);
-                sampled_terminal_ids[sampled_terminal_count] = attachment.terminal_id;
-                sampled_terminal_count += 1;
-                if (runtime.closeActivitySampleDue(now)) {
-                    std.debug.assert(aggregate.setNextCloseActivitySampleAt(
-                        attachment.terminal_id,
-                        now + projection_interval_ns,
-                    ));
-                    _ = runtime.sampleCloseActivity() catch continue :scan;
-                }
-                switch (runtime.closeActivityPublication(now, close_activity_settle_ns)) {
-                    .current => {},
-                    .settling => |due| next_due = if (next_due) |earlier| @min(earlier, due) else due,
-                    .due => {
-                        core.invalidateTerminalPresentations(
-                            attachment.terminal_id,
-                        ) catch unreachable;
-                        // Invalidation may change ready, in-flight, or blocked
-                        // delivery state for every reader. Re-resolve both Core
-                        // observations before selecting delivery work.
-                        attachment = core.findAttachment(attachment_id) orelse continue :scan;
-                        terminal = core.findTerminal(attachment.terminal_id) orelse continue :scan;
-                        if (!attachment.capabilities.read or
-                            attachment.projectionDemand() != .active or
-                            !terminal.hasReadableRuntimeState()) continue :scan;
-                    },
-                }
-            }
             const ready = attachment.projectionReady() orelse continue;
             const ready_base = ready.base();
             const revision_dirty = ready_base == null or
@@ -351,8 +313,6 @@ fn appendProjectionFrame(
     encoded.bytes = &.{};
     defer adoption.deinit();
     var read_commit = runtime.acquireReadCommitGuard(
-        encoded.close_activity_epoch,
-        encoded.close_activity_epoch_exhausted,
         encoded.generation,
         encoded.read_commit_epoch,
     ) catch return .unavailable;

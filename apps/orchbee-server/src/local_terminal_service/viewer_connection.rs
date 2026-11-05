@@ -428,7 +428,6 @@ fn snapshot_reason(
     use orchbee_capability_node_protocol::ViewerSnapshotReason as Worker;
     use orchbee_client_server_protocol::ViewerSnapshotReason as Client;
     match reason {
-        Client::ActivityStale => Worker::ActivityStale,
         Client::BaseMismatch => Worker::BaseMismatch,
         Client::DecoderRejected => Worker::DecoderRejected,
         Client::DimensionsMismatch => Worker::DimensionsMismatch,

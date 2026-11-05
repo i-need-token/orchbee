@@ -15,14 +15,6 @@ const terminal_runtime_startup = @import("../runtime_startup.zig");
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 
-pub const ClosePromptPhase = enum {
-    unknown,
-    prompt_start,
-    input_ready,
-    command_active,
-    command_finished,
-};
-
 pub const State = struct {
     allocator: std.mem.Allocator,
     // terminal_mutex protects the monotonically increasing count of visible
@@ -45,35 +37,6 @@ pub const State = struct {
     clipboard_write_pending: ?contracts.ClipboardWriteRequest = null,
     clipboard_write_sequence: u64 = 0,
     clipboard_write_staged: ?[]u8 = null,
-    // projection_mutex owns the cached close-activity projection and freshness
-    // epoch. Activity-affecting input invalidates the cache before publication;
-    // a later bounded sample may classify the current process and Ghostty
-    // prompt state again.
-    close_activity: contracts.TerminalCloseActivity = .unknown,
-    close_activity_epoch: u64 = 0,
-    close_activity_epoch_exhausted: bool = false,
-    // An input left the cache unknown; the next scheduler pass samples it without its cadence.
-    close_activity_sample_owed: bool = false,
-    // The cache changed since the scheduler last decided how readers receive it.
-    close_activity_unpublished: bool = false,
-    // Frames through this revision may carry a previous cache value.
-    close_activity_stale_through_revision: u64 = 0,
-    // Readers with no later revision receive the cache in a same-revision snapshot at this time.
-    close_activity_publish_at_ns: ?i128 = null,
-    last_encoded_revision: u64 = 0,
-    // terminal_mutex owns the committed phase; reader batches stage updates
-    // until their canonical VT mutation commits successfully.
-    close_prompt_phase: ClosePromptPhase = .unknown,
-    close_prompt_phase_staged: ClosePromptPhase = .unknown,
-    close_input_line_acknowledgements_staged: u64 = 0,
-    // input_mutex owns submitted/consumed Enter counts and the cross-write
-    // CRLF normalizer. A semantic C marker consumes only a line already
-    // published when that marker was parsed.
-    close_input_lines_submitted: u64 = 0,
-    close_input_lines_consumed: u64 = 0,
-    close_input_lines_exhausted: bool = false,
-    close_input_partial_line: bool = false,
-    close_input_last_byte_was_cr: bool = false,
     command_batch_active: bool = false,
     command_observation: @import("command_observation.zig").Tracker = .{},
     command_completion: ?contracts.TerminalCommandCompletion = null,
@@ -149,10 +112,6 @@ pub const State = struct {
     // The Host owner alone updates the projection cadence timestamp; engine
     // workers never read it.
     next_projection_at_ns: i128 = 0,
-    // Host projection scheduling is the only reader/writer. A distinct
-    // deadline prevents outgoing batch rollback from repeating a platform
-    // activity query inside the same cadence.
-    next_close_activity_sample_at_ns: i128 = 0,
     projection: terminal_projection.Projection,
     projection_mutex: thread_sync.Mutex = .{},
     pty_drained: std.atomic.Value(bool) = .init(false),

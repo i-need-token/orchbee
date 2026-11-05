@@ -775,7 +775,6 @@ const fn selection_command_kind(command: ViewerSelectionCommand) -> SelectionCom
 
 const fn snapshot_reason(reason: ViewerSnapshotReason) -> SnapshotReason {
     match reason {
-        ViewerSnapshotReason::ActivityStale => SnapshotReason::ActivityStale,
         ViewerSnapshotReason::BaseMismatch => SnapshotReason::BaseMismatch,
         ViewerSnapshotReason::DecoderRejected => SnapshotReason::DecoderRejected,
         ViewerSnapshotReason::DimensionsMismatch => SnapshotReason::DimensionsMismatch,

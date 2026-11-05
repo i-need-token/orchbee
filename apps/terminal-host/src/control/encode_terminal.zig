@@ -172,7 +172,6 @@ pub fn writeFrameApplied(writer: *std.Io.Writer, applied: anytype) !void {
 pub fn writeNeedSnapshot(writer: *std.Io.Writer, request: anytype) !void {
     var attachment_buffer: [32]u8 = undefined;
     const reason = switch (request.reason) {
-        .activity_stale => "activity-stale",
         .base_mismatch => "base-mismatch",
         .decoder_rejected => "decoder-rejected",
         .dimensions_mismatch => "dimensions-mismatch",

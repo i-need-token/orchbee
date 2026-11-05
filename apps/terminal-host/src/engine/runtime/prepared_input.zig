@@ -13,7 +13,6 @@ const PreparedInputState = enum {
 /// queue position and admits no terminal bytes.
 pub fn Type(comptime Runtime: type) type {
     return struct {
-        affects_close_activity: bool = false,
         bytes: ?[]u8,
         focus_reporting_enabled: ?bool = null,
         mouse_input_epoch: ?u64 = null,
@@ -54,7 +53,6 @@ pub fn Type(comptime Runtime: type) type {
                     reservation.?,
                     owned,
                     &ownership,
-                    self.affects_close_activity,
                     focus_reporting_enabled,
                     mouse_input_epoch,
                 ) catch |err| {
@@ -66,7 +64,6 @@ pub fn Type(comptime Runtime: type) type {
                 input_commit_ops.validatePreparedInputCommit(
                     runtime,
                     &ownership,
-                    self.affects_close_activity,
                     focus_reporting_enabled,
                     mouse_input_epoch,
                 ) catch |err| {

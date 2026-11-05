@@ -451,10 +451,6 @@ object graph. After a draw completes, frame telemetry records the exact committe
 and revision read from the visible packed store. Multiple commits may coalesce behind one animation
 frame; that checkpoint names the newest commit actually drawn, never an earlier scheduled revision.
 
-Committed live-frame metadata ignores the optional close-activity extension. Whether a close asks
-first is the Server's decision, so this package keeps no close activity, its input invalidates
-none, and it never sends `NeedSnapshot(activity-stale)`.
-
 Committed live frames may also carry the bounded Kitty graphics extension. A graphics snapshot
 atomically replaces decoded in-memory image resources, resolved placements, and the monotonic
 animation tick; a placement-only update is accepted only against the exact committed image

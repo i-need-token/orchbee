@@ -54,7 +54,6 @@ pub fn encodeOwned(
     else
         false;
     const extension_count: u16 = 2 +
-        @as(u16, @intFromBool(request.close_activity != .unknown)) +
         @as(u16, @intFromBool(request.command_completion != null)) +
         @as(u16, @intFromBool(request.command_observation != null)) +
         @as(u16, @intFromBool(command_started));
@@ -224,12 +223,6 @@ pub fn encodeOwned(
         }
     }
 
-    if (request.close_activity != .unknown) {
-        try writer.appendInt(u16, protocol.terminal_frame_extension_close_activity);
-        try writer.appendInt(u16, 0);
-        try writer.appendInt(u32, 1);
-        try writer.appendInt(u8, @intFromEnum(request.close_activity));
-    }
     const graphics_length = try self.graphics.encodedLength(snapshot);
     try writer.appendInt(u16, protocol.terminal_frame_extension_kitty_graphics);
     try writer.appendInt(u16, 0);

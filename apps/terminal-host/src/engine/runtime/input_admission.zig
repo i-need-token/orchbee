@@ -25,7 +25,7 @@ pub fn prepareRawInput(self: *state.State, bytes: []const u8) !prepared_input.In
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
-    return prepareEncodedInputLocked(self, bytes, true, std.math.maxInt(usize));
+    return prepareEncodedInputLocked(self, bytes, std.math.maxInt(usize));
 }
 
 pub fn enqueueKeyInput(self: *state.State, input: contracts.KeyInput) !usize {
@@ -74,7 +74,7 @@ pub fn prepareKeyInput(
         key,
         input,
     );
-    return prepareEncodedInputLocked(self, encoded, true, max_output_bytes);
+    return prepareEncodedInputLocked(self, encoded, max_output_bytes);
 }
 
 pub fn enqueueTextInput(self: *state.State, text: []const u8) !usize {
@@ -102,7 +102,7 @@ pub fn prepareTextInput(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
-    return prepareEncodedInputLocked(self, text, true, max_output_bytes);
+    return prepareEncodedInputLocked(self, text, max_output_bytes);
 }
 
 pub fn enqueueMouseInput(self: *state.State, input: contracts.MouseInput) !usize {
@@ -190,7 +190,7 @@ pub fn prepareFocusInput(
         try terminal_input_encoding.encodeFocus(&buffer, focused)
     else
         "";
-    var prepared = try prepareEncodedInputLocked(self, encoded, false, max_output_bytes);
+    var prepared = try prepareEncodedInputLocked(self, encoded, max_output_bytes);
     prepared.focus_reporting_enabled = reporting_enabled;
     return prepared;
 }
@@ -234,7 +234,7 @@ pub fn preparePasteInput(
         text,
         max_output_bytes,
     );
-    return prepareOwnedInputLocked(self, encoded, true, max_output_bytes);
+    return prepareOwnedInputLocked(self, encoded, max_output_bytes);
 }
 
 pub fn preparePasteAutoInput(
@@ -253,7 +253,7 @@ pub fn preparePasteAutoInput(
         content,
         max_output_bytes,
     );
-    return prepareOwnedInputLocked(self, encoded, true, max_output_bytes);
+    return prepareOwnedInputLocked(self, encoded, max_output_bytes);
 }
 
 pub fn prepareSemanticInput(
@@ -288,13 +288,11 @@ pub fn takeOutputBatches(self: *state.State) u64 {
 pub fn prepareEncodedInputLocked(
     self: *state.State,
     bytes: []const u8,
-    affects_close_activity: bool,
     maximum_bytes: usize,
 ) !prepared_input.Internal {
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
     if (bytes.len == 0) return .{
-        .affects_close_activity = affects_close_activity,
         .bytes = null,
         .reservation = null,
         .runtime = self,
@@ -312,7 +310,6 @@ pub fn prepareEncodedInputLocked(
     );
     scrollback_compression_ops.noteInteractionLocked(self);
     return .{
-        .affects_close_activity = affects_close_activity,
         .bytes = copy,
         .reservation = reservation,
         .runtime = self,
@@ -329,7 +326,6 @@ fn prepareMouseEncodedInputLocked(
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
     const mouse_input_epoch = self.mouse_input_epoch;
     if (bytes.len == 0) return .{
-        .affects_close_activity = true,
         .bytes = null,
         .mouse_input_epoch = mouse_input_epoch,
         .reservation = null,
@@ -351,7 +347,6 @@ fn prepareMouseEncodedInputLocked(
     );
     scrollback_compression_ops.noteInteractionLocked(self);
     return .{
-        .affects_close_activity = true,
         .bytes = copy,
         .mouse_input_epoch = mouse_input_epoch,
         .reservation = reservation,
@@ -373,7 +368,6 @@ fn isTransientMouseHover(input: contracts.MouseInput) bool {
 pub fn prepareOwnedInputLocked(
     self: *state.State,
     bytes: []u8,
-    affects_close_activity: bool,
     maximum_bytes: usize,
 ) !prepared_input.Internal {
     failure_ops.ensureRuntimeWorkAvailableLocked(self) catch |err| {
@@ -387,7 +381,6 @@ pub fn prepareOwnedInputLocked(
     if (bytes.len == 0) {
         self.allocator.free(bytes);
         return .{
-            .affects_close_activity = affects_close_activity,
             .bytes = null,
             .reservation = null,
             .runtime = self,
@@ -416,7 +409,6 @@ pub fn prepareOwnedInputLocked(
     };
     scrollback_compression_ops.noteInteractionLocked(self);
     return .{
-        .affects_close_activity = affects_close_activity,
         .bytes = owned,
         .reservation = reservation,
         .runtime = self,

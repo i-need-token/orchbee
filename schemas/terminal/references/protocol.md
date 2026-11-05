@@ -504,35 +504,14 @@ Variable sections follow in this exact order:
 
 The current optional extension registry is:
 
-| Kind |        Bytes | Meaning                                                                                                                                                      |
-| ---: | -----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-|  `1` |          `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
-|  `2` | `40..33 MiB` | One strictly decoded OBKG `0.1.0` Kitty graphics resource snapshot or placement-only update.                                                                 |
-|  `3` |          `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
-|  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
-|  `5` | `10` or `66` | Row-origin epoch and the latest correlated Shell invocation; see the extension contract below.                                                               |
+| Kind |        Bytes | Meaning                                                                                                                                              |
+| ---: | -----------: | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  `2` | `40..33 MiB` | One strictly decoded OBKG `0.1.0` Kitty graphics resource snapshot or placement-only update.                                                         |
+|  `3` |          `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                               |
+|  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code. |
+|  `5` | `10` or `66` | Row-origin epoch and the latest correlated Shell invocation; see the extension contract below.                                                       |
 
-Close activity is an advisory, freshness-sensitive sample, not lifecycle or containment authority.
-A consumer maps an absent, duplicated, malformed, or unrecognized close-activity payload to
-`unknown`. An accepted non-focus input invalidates the client's last committed observation to
-`unknown` synchronously, before the input API returns. Focus-only input and synchronously rejected
-input do not invalidate it. Historical rows, a failed live snapshot, and a staged but uncommitted
-frame cannot restore freshness; only a subsequently committed live presentation with causal
-freshness evidence can do so.
-
-The Host samples activity on a bounded cadence before projection dirty gating. An accepted
-activity-affecting input invalidates the cached sample and forces a live snapshot even when the
-terminal content revision is unchanged. If an already in-flight frame reaches a locally invalidated
-consumer claiming `idle`, the consumer sends `NeedSnapshot` reason `activity-stale` with that exact
-sequence instead of `FrameApplied`. The Host abandons that flight and forces a complete snapshot;
-because the request follows the input on the consumer-to-Host stream, the replacement is causal
-evidence that the Host cache was captured after invalidation even when its terminal revision is
-unchanged. It proves neither that the Host accepted the input nor that the terminal process
-consumed it. Host-accepted non-focus input invalidates the cached observation immediately. A later
-bounded current-state sample may publish `active`, `idle`, or `unknown`, so the replacement and
-later same-lifecycle frames may legitimately restore fresh `idle`. A theme stage applies this fence
-before declaring readiness. Fresh `idle` may allow a product to close without confirmation.
-`active`, `unknown`, and any locally stale presentation require confirmation.
+Kind `1` is unassigned.
 
 Progress state byte `0` removes the indicator, `1` is active, `2` is error, `3` is indeterminate,
 and `4` is paused. `remove` and `indeterminate` require the null sentinel. `set`, `error`, and

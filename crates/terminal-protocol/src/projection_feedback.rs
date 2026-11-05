@@ -25,7 +25,6 @@ pub struct FrameApplied {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SnapshotReason {
-    ActivityStale,
     BaseMismatch,
     DecoderRejected,
     DimensionsMismatch,
@@ -135,7 +134,6 @@ struct NeedSnapshotWire {
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum SnapshotReasonWire {
-    ActivityStale,
     BaseMismatch,
     DecoderRejected,
     DimensionsMismatch,
@@ -183,7 +181,6 @@ fn need_snapshot_to_wire(value: NeedSnapshot) -> NeedSnapshotWire {
 
 const fn snapshot_reason_from_wire(value: SnapshotReasonWire) -> SnapshotReason {
     match value {
-        SnapshotReasonWire::ActivityStale => SnapshotReason::ActivityStale,
         SnapshotReasonWire::BaseMismatch => SnapshotReason::BaseMismatch,
         SnapshotReasonWire::DecoderRejected => SnapshotReason::DecoderRejected,
         SnapshotReasonWire::DimensionsMismatch => SnapshotReason::DimensionsMismatch,
@@ -196,7 +193,6 @@ const fn snapshot_reason_from_wire(value: SnapshotReasonWire) -> SnapshotReason 
 
 const fn snapshot_reason_to_wire(value: SnapshotReason) -> SnapshotReasonWire {
     match value {
-        SnapshotReason::ActivityStale => SnapshotReasonWire::ActivityStale,
         SnapshotReason::BaseMismatch => SnapshotReasonWire::BaseMismatch,
         SnapshotReason::DecoderRejected => SnapshotReasonWire::DecoderRejected,
         SnapshotReason::DimensionsMismatch => SnapshotReasonWire::DimensionsMismatch,

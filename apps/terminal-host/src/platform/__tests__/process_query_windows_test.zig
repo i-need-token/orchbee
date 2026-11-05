@@ -345,7 +345,7 @@ test "Windows close falls back to the whole Job when a console holder cannot be 
     try std.testing.expectEqual(wait_object_0, WaitForSingleObject(gui.process, 5_000));
 }
 
-test "Windows close activity ignores members without the Terminal console" {
+test "Windows foreground query ignores members without the Terminal console" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const executable = try subject.environmentVariableOwned(allocator, "ComSpec");
     defer allocator.free(executable);

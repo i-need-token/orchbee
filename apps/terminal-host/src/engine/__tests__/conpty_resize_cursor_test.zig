@@ -70,7 +70,7 @@ fn waitForPowerShellInput(runtime: *TerminalRuntime, expected: []const u8) !void
     while (true) {
         const state = harness.runtimeState(runtime);
         state.terminal_mutex.lock();
-        const ready = state.close_prompt_phase == .input_ready;
+        const ready = state.terminal.screens.active.cursor.semantic_content == .input;
         state.terminal_mutex.unlock();
         if (ready) {
             var capture = try runtime.captureScrollbackText(std.testing.allocator, capture_limit_bytes);
@@ -83,9 +83,9 @@ fn waitForPowerShellInput(runtime: *TerminalRuntime, expected: []const u8) !void
             defer capture.deinit();
             state.terminal_mutex.lock();
             defer state.terminal_mutex.unlock();
-            std.debug.print("PowerShell input timeout: expected {s}, phase {s}, cursor {d},{d}, screen {s}\n", .{
+            std.debug.print("PowerShell input timeout: expected {s}, content {s}, cursor {d},{d}, screen {s}\n", .{
                 expected,
-                @tagName(state.close_prompt_phase),
+                @tagName(state.terminal.screens.active.cursor.semantic_content),
                 state.terminal.screens.active.cursor.x,
                 state.terminal.screens.active.cursor.y,
                 capture.text(),

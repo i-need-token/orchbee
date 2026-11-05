@@ -153,11 +153,6 @@
 		},
 		{
 			"direction": "client-to-server",
-			"name": "viewer-need-snapshot-activity-stale",
-			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"1\",\"reason\":\"activity-stale\"}}"
-		},
-		{
-			"direction": "client-to-server",
 			"name": "viewer-need-snapshot-base-mismatch",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"1\",\"reason\":\"base-mismatch\"}}"
 		},

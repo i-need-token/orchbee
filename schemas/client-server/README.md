@@ -160,8 +160,8 @@ remain unchanged.
 
 `frame-applied` also carries `sequence`, `generation`, and `revision`; `need-snapshot` also carries
 `sequence` and `reason`. These counters are canonical decimal strings in the unsigned 64-bit range, with no
-leading zero or sign; sequence and generation are positive. Reasons are `activity-stale`,
-`base-mismatch`, `decoder-rejected`, `dimensions-mismatch`, `generation-mismatch`, `identity-mismatch`,
+leading zero or sign; sequence and generation are positive. Reasons are `base-mismatch`,
+`decoder-rejected`, `dimensions-mismatch`, `generation-mismatch`, `identity-mismatch`,
 `sequence-gap`, and `store-reset`. Only exact feedback for the selected viewer's outstanding frame
 may reach its Worker attachment. Different viewers may have equal counters; the selector and that
 viewer's frame scope determine validity. Poll while that viewer awaits feedback returns `empty`

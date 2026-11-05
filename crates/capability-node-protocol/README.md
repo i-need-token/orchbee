@@ -301,12 +301,12 @@ attachment it no longer routes. Any other unsolicited kind still retires the car
 
 The closed actions are `Attach` with Host epoch and Host terminal ID, `Poll`, `FrameApplied` with
 positive sequence/generation and revision, `NeedSnapshot` with positive sequence and the existing
-eight snapshot reasons, `Detach`, and `ReadRows`. Kind 5 lays out request ID (16 bytes), Worker ID (16),
+seven snapshot reasons, `Detach`, and `ReadRows`. Kind 5 lays out request ID (16 bytes), Worker ID (16),
 generation (8), attachment ID (16), then action tag (1). Tags 1 through 6 select those actions in
 that order. Attach adds two 16-byte identities; FrameApplied adds three 8-byte integers;
-NeedSnapshot adds an 8-byte sequence and reason tag 1 through 8: `ActivityStale`, `BaseMismatch`,
+NeedSnapshot adds an 8-byte sequence and reason tag 2 through 8: `BaseMismatch`,
 `DecoderRejected`, `DimensionsMismatch`, `GenerationMismatch`, `IdentityMismatch`, `SequenceGap`,
-and `StoreReset`. `ReadRows` adds big-endian `startRow` (u64), `rowCount` (u16, 1 through 4096),
+and `StoreReset`; reason tag 1 is unassigned and rejected. `ReadRows` adds big-endian `startRow` (u64), `rowCount` (u16, 1 through 4096),
 `revision` (u64), positive `generation` (u64), positive `requestSequence` (u64), and
 `maximumBytes` (u32, 112 through 8,388,608 — an OBRW payload bound, not a record bound); its
 attachment stays on the request envelope and is not repeated. Tags 1 through 5 are unchanged

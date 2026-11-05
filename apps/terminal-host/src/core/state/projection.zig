@@ -31,19 +31,6 @@ pub fn setProjectionDemand(
     return .applied;
 }
 
-/// Invalidates every read presentation for one retained terminal without
-/// changing canonical terminal state or attachment sequencing. Ready readers
-/// require a snapshot, in-flight readers force one after acknowledgement, and
-/// paused readers remain paused.
-pub fn invalidateTerminalPresentations(
-    self: anytype,
-    terminal_id: contracts.TerminalId,
-) CoreError!void {
-    _ = try storage.requireTerminal(self, terminal_id);
-    const broker = if (self.broker) |*active| active else return;
-    broker.invalidateTerminalPresentation(terminal_id);
-}
-
 pub fn commitFrame(
     self: anytype,
     attachment_id: AttachmentId,
