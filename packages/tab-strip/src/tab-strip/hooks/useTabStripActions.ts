@@ -97,8 +97,6 @@ interface UseTabStripActionsOptions {
 	readonly messages: TabStripMessages;
 	readonly model: TabModel;
 	readonly comboButtonController: TabStripComboButtonController;
-	readonly onMoveGroupToNewWindow: ((groupId: string) => void) | undefined;
-	readonly onMoveTabsToNewWindow: ((tabIds: readonly string[]) => void) | undefined;
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly getTabCreationAvailability?:
 		| ((
@@ -122,8 +120,6 @@ export function useTabStripActions({
 	comboButtonController,
 	messages,
 	model,
-	onMoveGroupToNewWindow,
-	onMoveTabsToNewWindow,
 	onNewTab,
 	getTabCreationAvailability,
 	onCloseTabs,
@@ -459,33 +455,6 @@ export function useTabStripActions({
 				scope,
 				defineAction({
 					category,
-					execution: parallelByTabs,
-					getAvailability: (_context, input) =>
-						onMoveTabsToNewWindow === undefined
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: tabAvailability(input.tabIds),
-					handler: {
-						execute: (context, input) => {
-							if (onMoveTabsToNewWindow === undefined) {
-								return { kind: 'blocked', code: 'host-capability-unavailable' };
-							}
-							context.markCommitted();
-							onMoveTabsToNewWindow(existingTabIds(input.tabIds));
-							return { kind: 'completed' };
-						},
-					},
-					id: TAB_STRIP_ACTION_IDS.moveTabsToWindow,
-					input: tabIdsInput,
-					title: workbenchTabMessages.moveTabsToNewWindow,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
 					// An authority can take longer to answer than a person takes to press again.
 					execution: { ...parallelByTabs, concurrency: 'reject-duplicate' },
 					getAvailability: (_context, input) => {
@@ -710,37 +679,6 @@ export function useTabStripActions({
 				defineAction({
 					category,
 					execution: {
-						concurrency: 'parallel',
-						concurrencyKey: (input) => input.groupId,
-						mode: 'foreground',
-					},
-					getAvailability: (_context, input) =>
-						onMoveGroupToNewWindow === undefined || model.getGroup(input.groupId) === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' },
-					handler: {
-						execute: (context, input) => {
-							if (onMoveGroupToNewWindow === undefined) {
-								return { kind: 'blocked', code: 'host-capability-unavailable' };
-							}
-							context.markCommitted();
-							onMoveGroupToNewWindow(input.groupId);
-							return { kind: 'completed' };
-						},
-					},
-					id: TAB_STRIP_ACTION_IDS.moveGroupToWindow,
-					input: tabGroupIdInput,
-					title: workbenchTabMessages.moveGroupToNewWindow,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category,
-					execution: {
 						concurrency: 'reject-duplicate',
 						concurrencyKey: () => 'tab-search',
 						mode: 'foreground',
@@ -872,8 +810,6 @@ export function useTabStripActions({
 		model,
 		getCreationAvailability,
 		getTabCreationAvailability,
-		onMoveGroupToNewWindow,
-		onMoveTabsToNewWindow,
 		onNewTab,
 		onCloseTabs,
 		onSelectTab,

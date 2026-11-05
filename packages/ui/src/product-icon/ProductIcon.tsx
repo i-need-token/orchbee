@@ -24,7 +24,6 @@ export type ProductIconName =
 	| 'layout'
 	| 'more-vertical'
 	| 'new-folder'
-	| 'new-window'
 	| 'panels'
 	| 'pin'
 	| 'search'
@@ -67,7 +66,6 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'layout' && styles['layout'],
 				name === 'more-vertical' && styles['moreVertical'],
 				name === 'new-folder' && styles['newFolder'],
-				name === 'new-window' && styles['newWindow'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
 				name === 'search' && styles['search'],

@@ -148,18 +148,6 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.menus.group',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.group'],
 	},
-	moveGroupToNewWindow: {
-		id: 'workbench.tabs.actions.moveGroupToWindow',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroupToWindow'],
-	},
-	moveTabToNewWindow: {
-		id: 'workbench.tabs.actions.moveTabToWindow',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabToWindow'],
-	},
-	moveTabsToNewWindow: {
-		id: 'workbench.tabs.actions.moveTabsToWindow',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabsToWindow'],
-	},
 	moveTabsToGroup: {
 		id: 'workbench.tabs.actions.moveToGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveToGroup'],

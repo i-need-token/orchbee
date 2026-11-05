@@ -196,9 +196,6 @@ export interface TabStripOptions {
 	onDraggingChange?: (dragging: boolean) => void;
 	/** Host bridge for BrowserCommandController::TabKeyboardFocusChangedTo. */
 	onTabKeyboardFocusChanged?: (tabId: string | null) => void;
-	/** Host-backed TabStripModel context commands. */
-	onMoveTabsToNewWindow?: (tabIds: readonly string[]) => void;
-	onMoveGroupToNewWindow?: (groupId: string) => void;
 	ariaLabel?: string;
 	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	getTabCreationAvailability?:

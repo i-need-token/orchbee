@@ -144,8 +144,9 @@ they never authorize automatic replay of input or another user effect.
 Local filesystem effects are an optional attachment capability, absent by default. When present,
 `link-open` carries a discriminated URL or file target instead of granting a generic opener. URL
 targets retain the shared scheme policy; file targets are meaningful only to an owning local
-broker, which no composition supplies today. Browser, archived, and source-neutral attachments do not acquire local
-application-launch or filesystem-read authority from terminal text.
+broker, which no composition supplies today. No current attachment bootstrap sets
+`localFileEffects`, the Server path's included, so none acquires local application-launch or
+filesystem-read authority from terminal text.
 
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. The additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics belong to [`schemas/terminal`](../../schemas/terminal/README.md); `@orchbee/terminal-protocol` is the TypeScript binding.
 

@@ -1296,26 +1296,15 @@ describe('TabStrip', () => {
 		expect(c.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('32px');
 	});
 
-	it('keeps keyboard-only movement out of the tab menu and window moves to capable hosts', () => {
-		const model = createModel();
-		const onMoveTabsToNewWindow = vi.fn<(tabIds: readonly string[]) => void>();
-		const { rerender } = render(<TabStrip model={model} />);
-		const openPinnedMenu = () =>
-			fireEvent.contextMenu(screen.getByRole('tab', { name: /^Pinned/ }), {
-				clientX: 20,
-				clientY: 20,
-			});
+	it('keeps keyboard-only movement out of the tab menu', () => {
+		render(<TabStrip model={createModel()} />);
 
-		openPinnedMenu();
+		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Pinned/ }), {
+			clientX: 20,
+			clientY: 20,
+		});
 		expect(screen.queryByRole('menuitem', { name: 'Move tab to first' })).toBeNull();
 		expect(screen.queryByRole('menuitem', { name: 'Move tab to last' })).toBeNull();
-		expect(screen.queryByRole('menuitem', { name: 'Move tab to new window' })).toBeNull();
-		fireEvent.pointerDown(document.body);
-
-		rerender(<TabStrip model={model} onMoveTabsToNewWindow={onMoveTabsToNewWindow} />);
-		openPinnedMenu();
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Move tab to new window' }));
-		expect(onMoveTabsToNewWindow).toHaveBeenCalledExactlyOnceWith(['pinned']);
 	});
 
 	it('uses the Chromium hover-card timer, preview/footer data, and immediate re-show buffer', () => {
@@ -1873,10 +1862,9 @@ describe('TabStrip', () => {
 		expect(header.querySelector('[data-group-attention]')).toBeNull();
 	});
 
-	it('runs group-menu color, new-tab, and move-window commands', () => {
+	it('runs group-menu color and new-tab commands', () => {
 		const model = createModel();
-		const onMove = vi.fn<() => void>();
-		render(<TabStrip model={model} onMoveGroupToNewWindow={onMove} />);
+		render(<TabStrip model={model} />);
 		const openMenu = () =>
 			fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, \d+ tabs/ }), {
 				clientX: 20,
@@ -1896,23 +1884,6 @@ describe('TabStrip', () => {
 		openMenu();
 		fireEvent.click(screen.getByRole('menuitem', { name: 'New Tab in group' }));
 		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'research')).toHaveLength(3);
-
-		openMenu();
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Move group to new window' }));
-		expect(onMove).toHaveBeenCalledWith('research');
-	});
-
-	it('hides move-window for the only group', () => {
-		const model = createModel();
-		model.closeTabs(['pinned', 'loose']);
-		const onMove = vi.fn<() => void>();
-		render(<TabStrip model={model} onMoveGroupToNewWindow={onMove} />);
-
-		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs/ }), {
-			clientX: 20,
-			clientY: 20,
-		});
-		expect(screen.queryByRole('menuitem', { name: 'Move group to new window' })).toBeNull();
 	});
 
 	it('wires the vertical top-container actions and expand-on-hover preference menu', () => {

@@ -44,8 +44,6 @@ export function TabStripView({
 		onRovingFocusChanged,
 		onRovingFocusExited,
 		rovingFocusKey,
-		onMoveTabsToNewWindow,
-		onMoveGroupToNewWindow,
 		closeResume,
 		onSetTabTitle,
 		onNameGroup,
@@ -347,8 +345,6 @@ export function TabStripView({
 					verticalExpandOnHover={verticalExpandOnHover}
 					tabSearchPinned={comboButtonSnapshot.tabSearchPinned}
 					onVerticalExpandOnHoverChange={onVerticalExpandOnHoverChange}
-					moveTabsToNewWindowAvailable={onMoveTabsToNewWindow !== undefined}
-					moveGroupToNewWindowAvailable={onMoveGroupToNewWindow !== undefined}
 					closeResume={closeResume}
 					onSetTabTitle={onSetTabTitle}
 					onNameGroup={onNameGroup}

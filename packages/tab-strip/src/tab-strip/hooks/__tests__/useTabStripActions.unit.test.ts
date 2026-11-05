@@ -59,8 +59,6 @@ function Harness({
 		messages: DEFAULT_TAB_STRIP_MESSAGES,
 		model,
 		getTabCreationAvailability,
-		onMoveGroupToNewWindow: undefined,
-		onMoveTabsToNewWindow: undefined,
 		onNewTab,
 		onCloseTabs,
 		onSelectTab,
@@ -727,7 +725,6 @@ describe('useTabStripActions', () => {
 							direction: 1,
 							groupId: 'group-1',
 						},
-						[TAB_STRIP_ACTION_IDS.moveGroupToWindow]: { groupId: 'group-1' },
 						[TAB_STRIP_ACTION_IDS.moveTab]: {
 							direction: 'next',
 							tabId: 'tab-1',
@@ -741,7 +738,6 @@ describe('useTabStripActions', () => {
 							state: arrangement,
 							tabIds: ['tab-1'],
 						},
-						[TAB_STRIP_ACTION_IDS.moveTabsToWindow]: { tabIds: ['tab-1'] },
 						[TAB_STRIP_ACTION_IDS.selectTab]: {
 							mode: 'replace',
 							tabId: 'tab-1',

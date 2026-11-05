@@ -36,8 +36,6 @@ interface TabStripContextMenuProps {
 	verticalExpandOnHover: boolean;
 	onVerticalExpandOnHoverChange?: ((enabled: boolean) => void) | undefined;
 	tabSearchPinned: boolean;
-	moveGroupToNewWindowAvailable: boolean;
-	moveTabsToNewWindowAvailable: boolean;
 	closeResume: TabStripOptions['closeResume'];
 	onNameGroup: TabStripOptions['onNameGroup'];
 	onSetTabTitle: ((tabId: string) => void) | undefined;
@@ -75,8 +73,6 @@ export function TabStripContextMenu({
 	verticalExpandOnHover,
 	onVerticalExpandOnHoverChange,
 	tabSearchPinned,
-	moveGroupToNewWindowAvailable,
-	moveTabsToNewWindowAvailable,
 	closeResume,
 	onNameGroup,
 	onSetTabTitle,
@@ -227,20 +223,6 @@ export function TabStripContextMenu({
 						</ContextMenuRadioGroup>
 					</ContextMenuSubContent>
 				</ContextMenuSub>
-				{moveGroupToNewWindowAvailable && snapshot.tabs.some((tab) => tab.group !== group.id) ? (
-					<ContextMenuItem
-						onClick={run(() =>
-							actions.execute(
-								TAB_STRIP_ACTION_IDS.moveGroupToWindow,
-								{ groupId: group.id },
-								'context-menu',
-							),
-						)}
-					>
-						<ProductIcon name='new-window' size='menu-leading' />
-						{messages.moveGroupToNewWindow}
-					</ContextMenuItem>
-				) : null}
 				<ContextMenuSeparator />
 				<ContextMenuItem
 					onClick={run(() =>
@@ -278,7 +260,6 @@ export function TabStripContextMenu({
 	const willPin = targets.some((candidate) => !candidate.pinned);
 	const otherGroups = snapshot.groups.filter((group) => group.id !== tab.group);
 	const grouped = targets.some((candidate) => candidate.group !== null);
-	const moveToNewWindow = moveTabsToNewWindowAvailable && snapshot.tabs.length > count;
 	// New group… names the group after the Tab the menu opened on, as the TUI does.
 	const nameNewGroup =
 		onNameGroup === undefined
@@ -319,7 +300,7 @@ export function TabStripContextMenu({
 				<ProductIcon name='pin' size='menu-leading' />
 				{willPin ? messages.formatPinTabs(count) : messages.formatUnpinTabs(count)}
 			</ContextMenuItem>
-			{groupChoices || grouped || moveToNewWindow ? <ContextMenuSeparator /> : null}
+			{groupChoices || grouped ? <ContextMenuSeparator /> : null}
 			{groupChoices ? (
 				<ContextMenuSub>
 					<ContextMenuSubTrigger>
@@ -364,20 +345,6 @@ export function TabStripContextMenu({
 				>
 					<ProductIcon name='ungroup' size='menu-leading' />
 					{messages.formatRemoveTabsFromGroup(count)}
-				</ContextMenuItem>
-			) : null}
-			{moveToNewWindow ? (
-				<ContextMenuItem
-					onClick={run(() =>
-						actions.execute(
-							TAB_STRIP_ACTION_IDS.moveTabsToWindow,
-							{ tabIds: targetIds },
-							'context-menu',
-						),
-					)}
-				>
-					<ProductIcon name='new-window' size='menu-leading' />
-					{count === 1 ? messages.moveTabToNewWindow : messages.moveTabsToNewWindow}
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuSeparator />

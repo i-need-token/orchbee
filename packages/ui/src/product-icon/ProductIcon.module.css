@@ -79,10 +79,6 @@
 	composes: codicon-new-folder from global;
 }
 
-.newWindow {
-	composes: codicon-empty-window from global;
-}
-
 .panels {
 	composes: codicon-split-horizontal from global;
 }

@@ -55,9 +55,6 @@ export interface TabStripMessages {
 	readonly groupColorNames: Readonly<Record<TabGroupColor, string>>;
 	readonly groupMoveCanceled: string;
 	readonly groupOptions: string;
-	readonly moveGroupToNewWindow: string;
-	readonly moveTabToNewWindow: string;
-	readonly moveTabsToNewWindow: string;
 	/** Asks for a name before creating the group. */
 	readonly newGroup: string;
 	readonly moreOptions: string;

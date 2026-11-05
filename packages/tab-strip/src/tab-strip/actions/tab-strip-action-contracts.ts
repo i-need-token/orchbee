@@ -10,11 +10,9 @@ export const TAB_STRIP_ACTION_IDS = {
 	createTab: 'tabs.tab.create',
 	duplicateTabs: 'tabs.tab.duplicate',
 	moveGroup: 'tabs.group.move',
-	moveGroupToWindow: 'tabs.group.move-to-window',
 	moveTab: 'tabs.tab.move',
 	moveTabsToGroup: 'tabs.tab.move-to-group',
 	applyArrangement: 'tabs.layout.apply-arrangement',
-	moveTabsToWindow: 'tabs.tab.move-to-window',
 	openTabSearch: 'tabs.search.open',
 	selectTab: 'tabs.tab.select',
 	setGroupCollapsed: 'tabs.group.collapsed.set',
@@ -101,10 +99,8 @@ export interface TabStripActionCatalog {
 	readonly [TAB_STRIP_ACTION_IDS.createTab]: ActionSignature<TabCreateInput>;
 	readonly [TAB_STRIP_ACTION_IDS.duplicateTabs]: ActionSignature<TabIdsInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveGroup]: ActionSignature<TabGroupShiftInput>;
-	readonly [TAB_STRIP_ACTION_IDS.moveGroupToWindow]: ActionSignature<TabGroupIdInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveTab]: ActionSignature<TabMoveInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveTabsToGroup]: ActionSignature<TabGroupMoveInput>;
-	readonly [TAB_STRIP_ACTION_IDS.moveTabsToWindow]: ActionSignature<TabIdsInput>;
 	readonly [TAB_STRIP_ACTION_IDS.openTabSearch]: ActionSignature<void>;
 	readonly [TAB_STRIP_ACTION_IDS.selectTab]: ActionSignature<TabSelectionInput>;
 	readonly [TAB_STRIP_ACTION_IDS.setGroupCollapsed]: ActionSignature<TabGroupCollapsedInput>;
