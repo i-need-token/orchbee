@@ -43,6 +43,8 @@ mod plugin_panes;
 mod popup_source;
 mod split_ratios;
 pub use plugin_panes::PluginPaneLaunch;
+mod tab_duplicate;
+pub use tab_duplicate::TabDuplicatePlan;
 mod tab_set_close;
 pub use tab_set_close::{
     TabSetCloseAdmission, TabSetCloseBegin, TabSetCloseMemberPlan, TabSetCloseMemberState,
@@ -307,6 +309,7 @@ pub struct WorkbenchAuthority {
     worktrees: worktree_operation::WorktreeOperations,
     workspace_groups: workspace_group_close::WorkspaceGroupCloses,
     tab_sets: tab_set_close::TabSetCloses,
+    tab_duplicates: tab_duplicate::TabDuplicates,
     workspace_metadata: workspace_metadata::WorkspaceMetadata,
     panel_metadata: panel_metadata::PanelMetadata,
     panel_agent: panel_agent::PanelAgents,
@@ -345,6 +348,7 @@ impl WorkbenchAuthority {
             worktrees: worktree_operation::WorktreeOperations::default(),
             workspace_groups: workspace_group_close::WorkspaceGroupCloses::default(),
             tab_sets: tab_set_close::TabSetCloses::default(),
+            tab_duplicates: tab_duplicate::TabDuplicates::default(),
             workspace_metadata: workspace_metadata::WorkspaceMetadata::default(),
             panel_metadata: panel_metadata::PanelMetadata::default(),
             panel_agent: panel_agent::PanelAgents::default(),

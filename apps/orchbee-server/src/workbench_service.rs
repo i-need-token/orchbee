@@ -295,8 +295,10 @@ impl WorkbenchService {
                     self.terminals.execute_tab_set_close(request.clone()),
                 ));
             }
-            WorkbenchRequest::TabDuplicate(_) => {
-                return WorkbenchExecution::Response(unavailable_or_denied(request, false));
+            WorkbenchRequest::TabDuplicate(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::TabDuplicate(
+                    self.terminals.execute_tab_duplicate(request.clone()),
+                ));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(

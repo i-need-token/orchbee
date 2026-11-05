@@ -185,6 +185,11 @@ fn settle(
         .terminals
         .stop_workspace_groups_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    // A duplication launches terminals through the Worker, so it stops while the Worker runs.
+    owners
+        .terminals
+        .stop_tab_duplicates_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     // A Tab set waits on its members' Closes, so it stops before Close maintenance freezes them.
     owners
         .terminals

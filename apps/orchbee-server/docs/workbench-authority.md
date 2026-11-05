@@ -498,7 +498,7 @@ Evidence compares full Panel payloads after split/move/swap/relocation, preserve
 
 Workbench accepts canonical group metadata and pinned prefixes for bound structural operations.
 Tab creation without placement appends one ungrouped/unpinned Tab; typed placement also admits
-target-relative creation, group-tail creation, an atomic new group with Tab, and exact single-Tab duplication. Panel split/move/swap and relocation preserve
+target-relative creation, group-tail creation, an atomic new group with Tab, and exact single-Tab duplication; several Tabs duplicate through the [retained operation](#tab-duplication-operation). Panel split/move/swap and relocation preserve
 complete existing Panel payloads and surviving Tab/group metadata; removing the final Panel removes
 its Tab, and moving into a new Tab creates an ungrouped/unpinned destination. Empty groups remain
 independent metadata except new-group creation cleanup. Structural operations without explicit Tab
@@ -519,6 +519,45 @@ Native indexed failures use v2 while schema v1 remains closed; direction uses th
 envelope only for this new refusal. Matched protocol/Server/Client rollout or source rollback does
 not compensate already committed order. Native group/pin creation UI is covered by [native groups](../../orchbee/docs/native-tab-groups.md);
 unbound lifecycle and actual Windows multi-Client TUI acceptance remain separate obligations.
+
+## Tab duplication operation
+
+`workbench.tab-duplicate` (OBWP 69/70) copies several Tabs of one terminal context as one retained
+Server operation, so a Client sends one request and the same request, repeated after a lost reply,
+observes the same operation instead of copying again. `start` names the context, 1–256 distinct
+Tabs in its current order, the expected revision and the terminal geometry every copy starts at;
+`read` observes the operation by its ID. The [wire schema](../../../schemas/workbench/v1/workbench-tab-duplicate.schema.json)
+owns the bytes.
+
+Admission runs under the Session gate with the navigation and terminal-creation grant; a Read needs
+only the read policy. It requires the current revision, the context and every named Tab in
+canonical order (`tab-order-mismatch` otherwise), and room in the context for one copy of every
+member (`resource-limit`). A Close that fences the context, or a pending group Close of its
+Workspace, answers `busy`, since every copy would be refused. At most 64 operations are retained:
+the oldest settled one gives way, a pending one never does (`capacity`). A repeated Start with
+equal context, members, expected revision and geometry observes the existing operation; any change
+under the same operation ID is a `conflict`. Refusals retain nothing and the operation ID stays
+free.
+
+One owner thread, `orchbee-tab-duplicate`, runs pending operations in admission order, each for at
+most 120 seconds, one member at a time. For each member it takes the registry → Session gates,
+reads the source's current label (a renamed source is copied under its new name; a source or
+context that is gone stops the operation with `source-unavailable`) and admits an ordinary
+duplicate `tab.create` at the current revision, so no revision race can refuse it. That creation
+copies the source's raw label, naming mode, pin and group, inserts the copy right after the source
+and starts the default shell; the copy has no split tree, child Presentations, launch profile or
+current directory of its source. The committed copy is published under the gate that committed
+it, with a null terminal outcome, before its launch is delivered outside the gates; the settled
+outcome is published next. A refused creation stops the operation with `copy-refused`, a copy whose
+terminal is unavailable or failed with `terminal-not-started`, and an unknown launch or settlement
+with `outcome-unknown`. Earlier copies stay, later members are never copied, and nothing is
+replayed; there is no Cancel or Resume. A Client that disconnects ends only its own observation:
+the operation continues and any Client with the read policy can read it by ID. Another
+duplication waits for the owner; a concurrent Close or rename meets each copy at its own turn.
+Windows managed stop stops this owner while the Worker still runs; every operation it reaches
+fails `session-stopping`, and one whose time runs out fails `deadline`. Publication only moves
+forward: a member keeps its copy's Tab once committed, the copy's revision never falls, a settled
+terminal outcome is final, and `duplicated` requires every copy started.
 
 ## Exact Presentation metadata reads
 

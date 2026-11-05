@@ -52,6 +52,7 @@ mod projection;
 mod send;
 mod tab_close;
 mod tab_create;
+mod tab_duplicate;
 mod tab_set_close;
 mod viewer_connection;
 pub(crate) use viewer_connection::LocalTerminalConnection;
@@ -92,6 +93,7 @@ pub(crate) struct LocalTerminalService {
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
+    tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: Mutex<SessionCoordinator>,
@@ -143,6 +145,10 @@ impl LocalTerminalService {
             tab_set_maintenance: operation_maintenance::OperationMaintenance::new(
                 "orchbee-tab-set-close",
                 Self::tab_set_close_turn,
+            ),
+            tab_duplicate_maintenance: operation_maintenance::OperationMaintenance::new(
+                "orchbee-tab-duplicate",
+                Self::tab_duplicate_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
             workers,

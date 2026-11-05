@@ -47,6 +47,17 @@ impl PendingTerminalTabCreate {
         self.terminal.command()
     }
 
+    /// The Tab this creation committed and the revision that committed it.
+    pub(crate) fn created(
+        &self,
+    ) -> (
+        &orchbee_workbench_protocol::WorkbenchTabId,
+        orchbee_workbench_protocol::WorkbenchRevision,
+    ) {
+        let metadata = self.workbench.metadata();
+        (metadata.tab_id(), metadata.revision())
+    }
+
     fn association_matches(&self) -> bool {
         let metadata = self.workbench.metadata();
         let authorization = pending_authorization(&self.terminal);

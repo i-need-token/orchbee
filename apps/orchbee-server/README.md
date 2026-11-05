@@ -894,6 +894,10 @@ Ordinary `workspace.close` removes only the selected Workspace and its terminal 
 
 `workbench.tab-set-close` closes several Tabs of one terminal context, in their current order, as one retained operation. Admission freezes each member's bound Presentations; an `if-idle` Start reads every member's terminals once and retains nothing when any member asks. One owner thread submits each member's own Tab Close in turn and records it; a gone Tab counts as done, and the first member that cannot close stops the set while its own Close stays retained for that Tab's Resume. Windows Session stop joins this owner before Close maintenance freezes. The [Tab set close contract](docs/terminal-tab-close.md#tab-set-close) defines admission, limits and failure.
 
+## Retained Tab duplication
+
+`workbench.tab-duplicate` copies several Tabs of one terminal context, in their current order, as one retained operation. One owner thread copies each member through an ordinary duplicate Tab creation, right after its source, and records the copy and its terminal outcome; the first member that is gone, refused or whose terminal does not start stops the operation, and nothing is replayed. Windows Session stop joins this owner while the Worker still runs. The [Tab duplication contract](docs/workbench-authority.md#tab-duplication-operation) defines admission, limits and failure.
+
 ## Windows Client view routing
 
 Transport admission remains surface-neutral. An admitted Windows Connection may additionally publish one ephemeral interactive view under its Server-assigned generation identity. `client_view_registry` owns bounded routing, freshness and retained delivery receipts; `WorkbenchClientConnection` supplies authenticated ownership and disconnect cleanup. Canonical Workbench authority and terminal carrier ownership stay separate. The [owning Client control contract](../orchbee/docs/windows-client-control.md) defines the wire, post-draw confirmation, lifecycle and evidence; deterministic Client-view lifecycle tests cover the implementation.
