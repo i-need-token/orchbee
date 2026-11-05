@@ -152,20 +152,26 @@ Rerun the live self-test after an Agent CLI upgrade or a bundled rule change, fr
 cohort:
 
 ```sh
-node apps/orchbee-server/scripts/agent-detection-self-test.mjs --orchbee <cohort>\orchbee.exe --scratch <new directory> [--agents opencode,pi,omp] [--path-prepend <dir>]
+node apps/orchbee-server/scripts/agent-detection-self-test.mjs --orchbee <cohort>\orchbee.exe --scratch <new directory> [--agents opencode,pi,omp] [--path-prepend <dir>] [--env NAME=VALUE]
 ```
 
 The script creates the scratch directory, points `APPDATA`, `LOCALAPPDATA` and
 `ORCHBEE_RUNTIME_BASE` into it, starts its own Session and opens each Agent in a `cmd.exe`
 workspace. `--path-prepend` adds directories, such as a Node toolchain, to that shell because Worker
-terminals start from the user's registry environment. It drives terminals only through
-`orchbee terminal send` and records the Panel's reported state and detection screen for each step:
-launch (idle, or blocked by a trust or login prompt), one turn (working, then idle), and for opencode
-a question (blocked, then idle after Escape), and exit (no reported Agent). A turn sends one trivial
-model request through the Agent's existing login, or a local `ping` shell command for pi and omp. The
-script types nothing unless launch reported idle, never accepts a trust, login or approval prompt,
-and leaves prompts only with Escape or the CLI's quit keys. Prompt text and Enter are sent
-separately, because some composers treat one burst as a paste; quit keys go in one burst for CLIs
+terminals start from the user's registry environment; `--env` sets a variable in that shell before
+launch, such as `PI_PROGRAM_STATUS=0` to run pi without OSC 7501 reports. It drives terminals only
+through `orchbee terminal send` and records the Panel's reported state and detection screen for each
+step: launch (idle, or blocked by a trust or login prompt), one turn (working, then idle or done),
+and for opencode a question (blocked, then idle or done after Escape), and exit (no reported Agent).
+Beside each reported state it samples the state physical `agent explain` derives from screen rules
+alone, and names the input that decided the step: `report:<source>` for a custom report,
+`program-status` when the reported and screen-rule states over the step differ, and `agree` when
+they match and either could have decided. A turn sends one trivial model request through the Agent's
+existing login, or a local `ping` shell command for pi and omp. pi and omp report a user shell
+command as idle, so with program status their shell turn passes while staying idle, provided the
+screen rules alone saw it working. The script types nothing unless launch reported idle, never
+accepts a trust, login or approval prompt, and leaves prompts only with Escape or the CLI's quit
+keys. Prompt text and Enter are sent separately, because some composers treat one burst as a paste; quit keys go in one burst for CLIs
 that need a quick double press. A step passes when the reported transitions match its expectation;
 a failure needs its capture reviewed before it is called a detector defect, because CLI quotas,
 missing models, first-run prompts and slow exits also fail steps. It stops its Session and writes

@@ -28,11 +28,16 @@ const { values } = parseArgs({
 		scratch: { type: 'string' },
 		agents: { type: 'string', default: Object.keys(AGENTS).join(',') },
 		'path-prepend': { type: 'string', multiple: true, default: [] },
+		env: { type: 'string', multiple: true, default: [] },
 	},
 });
 if (platform() !== 'win32') throw new Error('The managed Server self-test runs on Windows only');
 if (values.orchbee === undefined || values.scratch === undefined) {
 	throw new Error('Usage: --orchbee <staged orchbee.exe> --scratch <new directory> [--agents a,b]');
+}
+for (const assignment of values.env) {
+	if (!/^[A-Za-z_][A-Za-z0-9_]*=[^"%&|<>^\r\n]*$/u.test(assignment))
+		throw new Error(`--env takes NAME=VALUE without shell metacharacters: ${assignment}`);
 }
 const scratch = path.resolve(values.scratch);
 if (existsSync(scratch))
@@ -49,6 +54,15 @@ const env = {
 for (const name of ['APPDATA', 'LOCALAPPDATA', 'ORCHBEE_RUNTIME_BASE']) mkdirSync(env[name]);
 const orchbee = (args, timeout = 15_000) =>
 	execFileSync(values.orchbee, args, { encoding: 'utf8', env, timeout, windowsHide: true });
+// Captures stderr too, for reads that are expected to fail once the Agent has gone.
+const quietly = (args) =>
+	execFileSync(values.orchbee, args, {
+		encoding: 'utf8',
+		env,
+		timeout: 15_000,
+		windowsHide: true,
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
 // The steps are strictly sequential, so a blocking sleep keeps the driver synchronous.
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
@@ -71,7 +85,36 @@ function sample(panel) {
 	} catch {
 		screen = '';
 	}
-	return { state, title, screen };
+	// Without a reported Agent there is nothing to explain.
+	const rules = ['none', 'read-failed'].includes(state) ? undefined : explain(panel);
+	return { state, title, screen, rules };
+}
+// Screen rules alone, as physical explain evaluates them, and any custom report source.
+function explain(panel) {
+	try {
+		const { terminal } = JSON.parse(
+			quietly(['agent', 'explain', '--panel', panel, '--format', 'json']),
+		).result;
+		return {
+			screen: terminal.explanation.state,
+			authority: terminal.view.authoritySource ?? null,
+		};
+	} catch {
+		return { screen: 'read-failed', authority: null };
+	}
+}
+// Unknown is no decision.
+const decisions = (states) =>
+	states.filter((state) => !['none', 'unknown', 'read-failed'].includes(state));
+const missing = (from, to) => from.some((state) => !to.includes(state));
+// Which input decided a step: a custom report, or else OSC 7501 program status when the reported
+// states and the screen-rule states differ over the step; matching states cannot tell the two apart.
+function source(observed) {
+	if (observed.authority !== null) return `report:${observed.authority}`;
+	const reported = decisions(observed.seen);
+	const derived = decisions(observed.rules);
+	if (reported.length === 0 || derived.length === 0) return '-';
+	return missing(reported, derived) || missing(derived, reported) ? 'program-status' : 'agree';
 }
 const send = (panel, args) => orchbee(['terminal', 'send', panel, ...args]);
 // Enter follows separately: some composers treat text and Enter in one burst as a paste.
@@ -81,18 +124,27 @@ function submit(panel, text) {
 	send(panel, ['--key', 'enter']);
 }
 
-// Polls until `done` accepts the history or the deadline passes; returns the state transitions.
+const transitions = (states) => states.filter((state, index) => state !== states[index - 1]);
+// Polls until `done` accepts the reported and screen-rule histories or the deadline passes; returns
+// both as transitions.
 function watch(panel, seconds, done) {
 	const seen = [];
+	const rules = [];
 	let last;
 	const end = Date.now() + seconds * 1000;
 	while (Date.now() < end) {
 		last = sample(panel);
 		seen.push(last.state);
-		if (done(seen)) break;
+		if (last.rules !== undefined) rules.push(last.rules);
+		if (done(seen, transitions(rules.map((rule) => rule.screen)))) break;
 		sleep(POLL_MS);
 	}
-	return { last, seen: seen.filter((state, index) => state !== seen[index - 1]) };
+	return {
+		last,
+		seen: transitions(seen),
+		rules: transitions(rules.map((rule) => rule.screen)),
+		authority: rules.findLast((rule) => rule.authority !== null)?.authority ?? null,
+	};
 }
 const settled = (count) => (seen) =>
 	seen.length >= count && seen.slice(-count).every((state) => state === seen.at(-1));
@@ -100,13 +152,24 @@ const settled = (count) => (seen) =>
 const results = [];
 function record(agent, step, expected, observed, pass) {
 	const file = path.join(captures, `${agent}-${step}.txt`);
+	const decided = source(observed);
+	const rules = observed.rules.join('>') || '-';
 	writeFileSync(
 		file,
-		`state: ${observed.last.state}\ntitle: ${observed.last.title}\n\n${observed.last.screen}`,
+		`state: ${observed.last.state}\nscreen rules: ${observed.last.rules?.screen ?? '-'}\nsource: ${decided}\ntitle: ${observed.last.title}\n\n${observed.last.screen}`,
 	);
-	results.push({ agent, step, expected, reported: observed.seen.join('>'), pass, capture: file });
+	results.push({
+		agent,
+		step,
+		expected,
+		reported: observed.seen.join('>'),
+		screenRules: rules,
+		source: decided,
+		pass,
+		capture: file,
+	});
 	process.stdout.write(
-		`${agent.padEnd(9)} ${step.padEnd(9)} ${expected.padEnd(14)} ${observed.seen.join('>').padEnd(28)} ${pass ? 'PASS' : 'FAIL'}\n`,
+		`${agent.padEnd(9)} ${step.padEnd(9)} ${expected.padEnd(19)} ${observed.seen.join('>').padEnd(24)} ${rules.padEnd(24)} ${decided.padEnd(15)} ${pass ? 'PASS' : 'FAIL'}\n`,
 	);
 }
 
@@ -135,6 +198,7 @@ function drive(agent, spec) {
 	if (values['path-prepend'].length > 0) {
 		send(panel, ['--text', `set "PATH=${values['path-prepend'].join(';')};%PATH%"`, '--enter']);
 	}
+	for (const assignment of values.env) send(panel, ['--text', `set "${assignment}"`, '--enter']);
 	send(panel, ['--text', `cls& ${spec.launch}`, '--enter']);
 	const launch = watch(
 		panel,
@@ -148,29 +212,51 @@ function drive(agent, spec) {
 		const turn = watch(
 			panel,
 			120,
-			(seen) => seen.includes('working') && settled(6)(seen) && seen.at(-1) !== 'working',
+			(seen, rules) =>
+				(seen.includes('working') || rules.includes('working')) &&
+				settled(6)(seen) &&
+				seen.at(-1) !== 'working' &&
+				rules.at(-1) !== 'working',
 		);
+		// A program status report may end a turn with done instead of idle. pi and omp report a user
+		// shell command as idle, so with program status their shell turn stays idle while the screen
+		// rules alone show it working.
+		const finished = ['idle', 'done'].includes(turn.last.state);
+		const shell = spec.turn === SHELL_TURN;
+		const worked =
+			turn.seen.includes('working') ||
+			(shell && source(turn) === 'program-status' && turn.rules.includes('working'));
 		record(
 			agent,
 			'turn',
-			'working>idle',
+			shell ? '[working>]idle|done' : 'working>idle|done',
 			turn,
-			turn.seen.includes('working') && turn.last.state === 'idle',
+			worked && finished,
 		);
-		if (spec.question !== undefined && turn.last.state === 'idle') {
+		if (spec.question !== undefined && finished) {
 			submit(panel, spec.question);
 			const asked = watch(panel, 120, (seen) => seen.at(-1) === 'blocked' && settled(4)(seen));
 			record(agent, 'question', 'blocked', asked, asked.last.state === 'blocked');
 			send(panel, ['--key', 'escape']);
-			const dismissed = watch(panel, 60, (seen) => seen.at(-1) === 'idle' && settled(6)(seen));
-			record(agent, 'dismiss', 'idle', dismissed, dismissed.last.state === 'idle');
+			const dismissed = watch(
+				panel,
+				60,
+				(seen) => ['idle', 'done'].includes(seen.at(-1)) && settled(6)(seen),
+			);
+			record(
+				agent,
+				'dismiss',
+				'idle|done',
+				dismissed,
+				['idle', 'done'].includes(dismissed.last.state),
+			);
 		}
 	} else {
 		// Never type into an unconfirmed screen: Enter could accept a trust or login prompt.
 		results.push({
 			agent,
 			step: 'turn',
-			expected: 'working>idle',
+			expected: 'working>idle|done',
 			reported: 'skipped',
 			pass: null,
 		});
