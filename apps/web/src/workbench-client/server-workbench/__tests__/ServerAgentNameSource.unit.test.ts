@@ -215,4 +215,22 @@ describe('ServerAgentNameSource', () => {
 		source.dispose();
 		expect(source.getSnapshot().size).toBe(0);
 	});
+
+	it('serves subscribe and getSnapshot detached from the instance, as useSyncExternalStore calls them', () => {
+		const { sessionId } = stateFixture();
+		const source = new ServerAgentNameSource(
+			{ exchange },
+			{ onEnded: () => () => undefined, snapshot: { sessionId } },
+			{
+				getSnapshot: () => ({ complete: true, presentations: new Map() }),
+				subscribe: () => () => undefined,
+				terminalBinding: () => undefined,
+			},
+		);
+		const { getSnapshot, subscribe } = source;
+		const unsubscribe = subscribe(() => undefined);
+		expect(getSnapshot().size).toBe(0);
+		unsubscribe();
+		source.dispose();
+	});
 });

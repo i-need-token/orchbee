@@ -107,14 +107,12 @@ export class ServerAgentNameSource implements WorkbenchAgentNameSource {
 		this.#follow();
 	}
 
-	getSnapshot(): ReadonlyMap<string, WorkbenchAgentNames> {
-		return this.#snapshot;
-	}
+	getSnapshot = (): ReadonlyMap<string, WorkbenchAgentNames> => this.#snapshot;
 
-	subscribe(listener: () => void): () => void {
+	subscribe = (listener: () => void): (() => void) => {
 		this.#listeners.add(listener);
 		return () => this.#listeners.delete(listener);
-	}
+	};
 
 	dispose(): void {
 		if (this.#ended) return;

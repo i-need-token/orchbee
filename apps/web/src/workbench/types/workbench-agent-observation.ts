@@ -40,8 +40,11 @@ export interface WorkbenchAgentNames {
 	readonly terminalTitle: string | null | undefined;
 }
 
-/** The Server's Agent names by Presentation ID, read again every few seconds. */
+/**
+ * The Server's Agent names by Presentation ID, read again every few seconds. Both members are
+ * called detached from the source, as `useSyncExternalStore` calls them.
+ */
 export interface WorkbenchAgentNameSource {
-	getSnapshot(): ReadonlyMap<string, WorkbenchAgentNames>;
-	subscribe(listener: () => void): () => void;
+	readonly getSnapshot: () => ReadonlyMap<string, WorkbenchAgentNames>;
+	readonly subscribe: (listener: () => void) => () => void;
 }
