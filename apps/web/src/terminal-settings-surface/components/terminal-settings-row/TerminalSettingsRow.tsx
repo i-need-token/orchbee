@@ -4,6 +4,8 @@ import styles from './TerminalSettingsRow.module.css';
 
 interface TerminalSettingsRowProps {
 	readonly children: React.ReactNode;
+	/** `start` keeps the label beside the top of a control taller than the copy, such as a list. */
+	readonly controlAlignment?: 'center' | 'start';
 	readonly description: string;
 	readonly label: string;
 	readonly settingId: string;
@@ -13,6 +15,7 @@ interface TerminalSettingsRowProps {
 
 export function TerminalSettingsRow({
 	children,
+	controlAlignment = 'center',
 	description,
 	label,
 	settingId,
@@ -23,6 +26,7 @@ export function TerminalSettingsRow({
 	return (
 		<div
 			className={styles['root']}
+			data-control-alignment={controlAlignment}
 			data-setting-id={settingId}
 			data-slot='terminal-settings-row'
 			id={settingId}

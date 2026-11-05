@@ -8,6 +8,10 @@
 	outline: none;
 }
 
+.root[data-control-alignment='start'] {
+	align-items: start;
+}
+
 .root + .root {
 	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 }

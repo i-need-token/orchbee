@@ -108,6 +108,7 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					const noticeId = picker.notice === null ? undefined : `${picker.settingId}-notice`;
 					return (
 						<TerminalSettingsRow
+							controlAlignment='start'
 							description={picker.description}
 							key={picker.settingId}
 							label={picker.label}

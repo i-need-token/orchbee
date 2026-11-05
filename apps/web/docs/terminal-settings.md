@@ -283,10 +283,11 @@ theme's id on the theme target; the Orchbee pair sets no `data-color-theme`. Bot
 with the terminal publication transaction above.
 
 The Appearance section holds Application theme, then the Light theme and Dark theme pickers. Each
-picker is a listbox of the themes of its polarity; every option shows the theme's localized name
-(the id for an unnamed test fixture), a swatch of canvas, foreground, and ANSI 1–5, and a check on
-the slot's effective theme, so an unknown stored id shows the Orchbee theme it resolves to. Under
-System, each picker says when it applies.
+picker is an expanded listbox of the themes of its polarity, aligned to the top of its row so its
+label stays beside the first themes; every option shows the theme's localized name (the id for a
+theme without a name, such as a test fixture), a swatch of canvas, foreground, and ANSI 1–5, and a
+check on the slot's effective theme, so an unknown stored id shows the Orchbee theme it resolves
+to. Under System, each picker says when it applies.
 
 | Interaction                               | Result                                                                                                                    |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -297,8 +298,8 @@ System, each picker says when it applies.
 
 A committed pick stays shown until the Session answers, so a confirmed pick never flashes the
 previous theme; a refused or failed save restores the committed theme. Reset returns both slots to
-the Orchbee pair. Only the Orchbee pair ships; tests and Stories prove the pickers with a test-only
-fixture pair.
+the Orchbee pair. Stories show the shipped themes; tests prove the pickers with a test-only fixture
+pair that does not depend on the shipped data.
 
 ## Effective terminal colors and opacity
 
