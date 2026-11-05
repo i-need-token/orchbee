@@ -1,6 +1,6 @@
-import { terminalColorThemes, type TerminalColorTheme } from '@orchbee/terminal';
+import { orchbeeTerminalColorTheme, type TerminalColorTheme } from '@orchbee/terminal';
 
-/** A test-only named theme pair; the build ships only the Orchbee pair. */
+/** A test-only named theme pair, independent of the shipped theme data. */
 export const fixtureDarkTheme: TerminalColorTheme = Object.freeze({
 	id: 'fixture-dusk',
 	family: 'fixture',
@@ -61,9 +61,13 @@ export const fixtureLightTheme: TerminalColorTheme = Object.freeze({
 	}),
 });
 
-/** The shipped themes plus the fixture pair, for surfaces that accept an injected catalog. */
+/**
+ * The Orchbee pair, the defaults every catalog falls back to, plus the fixture pair, for surfaces that
+ * accept an injected catalog; the shipped named themes are left out so tests never depend on them.
+ */
 export const colorThemesWithFixtures: readonly TerminalColorTheme[] = Object.freeze([
-	...terminalColorThemes,
+	orchbeeTerminalColorTheme('light'),
+	orchbeeTerminalColorTheme('dark'),
 	fixtureLightTheme,
 	fixtureDarkTheme,
 ]);
