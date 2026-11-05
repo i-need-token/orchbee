@@ -41,6 +41,22 @@ fn plain(ansi: &str) -> String {
 }
 
 #[test]
+fn palette_tagged_padding_keeps_explicit_style() {
+    let styled = Cell {
+        style: TerminalTextStyle {
+            foreground: orchbee_terminal_protocol::COLOR_PALETTE | 1,
+            background: orchbee_terminal_protocol::COLOR_PALETTE | 4,
+            ..DEFAULT
+        },
+        ..cell(" ")
+    };
+    let output = export(&[(0, 0, vec![styled])], OutputSource::Visible, None);
+    assert_eq!(plain(&output.text), " \n");
+    assert!(output.text.contains("\x1b[38;5;1m"));
+    assert!(output.text.contains("\x1b[48;5;4m"));
+}
+
+#[test]
 fn every_style_is_reconstructed_and_reset_before_transitions_and_row_boundaries() {
     let decorated = Cell {
         text: "彩",

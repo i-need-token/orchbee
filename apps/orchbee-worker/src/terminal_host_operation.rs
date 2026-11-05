@@ -98,12 +98,8 @@ pub(crate) struct PreparedHostOperation {
     payload: Vec<u8>,
     expected: ExpectedResponse,
     editor_source: Option<orchbee_capability_node_protocol::TerminalEditorSource>,
-    /// Present when the launch follows Host default colors, with the theme slots its later recolors
-    /// use; registered once created.
-    host_theme: Option<(
-        orchbee_terminal_protocol::TerminalTheme,
-        orchbee_local_runtime::UserColorThemes,
-    )>,
+    /// Every launch follows its controlling Client's query palette once created.
+    host_theme: Option<orchbee_terminal_protocol::TerminalTheme>,
 }
 
 impl PreparedHostOperation {
@@ -112,9 +108,8 @@ impl PreparedHostOperation {
         facts: ResolvedTerminalLaunchFacts,
         correlation: CorrelationId,
         session_runtime: Option<&std::path::Path>,
-        follows_host: Option<orchbee_local_runtime::UserColorThemes>,
     ) -> Result<Self, HostOperationError> {
-        let host_theme = follows_host.map(|themes| (facts.terminal_theme(), themes));
+        let host_theme = Some(facts.terminal_theme());
         let creation = map_launch_creation(dispatch, facts, session_runtime)?;
         let expected = ExpectedResponse::Created(match &creation {
             TerminalCreationControl::CreateTerminal(request) => request.creation_id,
@@ -210,10 +205,10 @@ impl PreparedHostOperation {
         let failure = match response {
             Ok(response) => match self.record_response(kernel, epoch, &response) {
                 Ok(created) => {
-                    if let (Some(terminal), Some((theme, themes))) = (created, self.host_theme) {
+                    if let (Some(terminal), Some(theme)) = (created, self.host_theme) {
                         host.host_colors
                             .borrow_mut()
-                            .follow(*terminal.as_bytes(), theme, themes);
+                            .follow(*terminal.as_bytes(), theme);
                     }
                     return Ok(HostOperationDisposition::ResultReady);
                 }

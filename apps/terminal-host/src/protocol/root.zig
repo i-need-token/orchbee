@@ -116,3 +116,8 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const optionalIdentifierFn = optionalIdentifier;
     pub const ReaderType = Reader;
 } else struct {};
+
+pub const color_default = contract.color_default;
+pub const color_none = contract.color_none;
+pub const color_palette = contract.color_palette;
+pub const color_rgb_mask = contract.color_rgb_mask;

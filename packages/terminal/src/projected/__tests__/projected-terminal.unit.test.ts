@@ -359,6 +359,7 @@ function themedTerminalFrame(
 }
 
 const themeOverlays = {
+	ansiPalette: Array.from({ length: 16 }, (_, index) => index),
 	cursorAccentRgb: 0x01_02_03,
 	searchActiveMatchBackgroundRgb: 0x04_05_06,
 	searchActiveMatchForegroundRgb: 0x07_08_09,

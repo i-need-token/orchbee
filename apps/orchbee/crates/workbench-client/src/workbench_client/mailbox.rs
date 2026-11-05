@@ -1264,8 +1264,8 @@ struct MailboxState {
     desired: MailboxMembership,
     attachment_generation: u64,
     latest_geometry: Geometry,
-    /// The outer terminal's settled default foreground and background, when both are known.
-    host_colors: Option<(u32, u32)>,
+    /// The Client's complete effective defaults and known query palette.
+    host_colors: Option<crate::client_view::TerminalQueryColors>,
     refresh_generation: u64,
     identity_cursor: u128,
     next_ui_wait_serial: u64,
@@ -1512,7 +1512,7 @@ impl CommandMailbox {
 
     pub(super) fn observe_host_colors(
         &self,
-        colors: Option<(u32, u32)>,
+        colors: Option<crate::client_view::TerminalQueryColors>,
     ) -> Result<(), MailboxClosed> {
         let mut state = self.lock();
         Self::ensure_open(&state)?;
@@ -1520,7 +1520,9 @@ impl CommandMailbox {
         Ok(())
     }
 
-    pub(super) fn host_colors(&self) -> Result<Option<(u32, u32)>, MailboxClosed> {
+    pub(super) fn host_colors(
+        &self,
+    ) -> Result<Option<crate::client_view::TerminalQueryColors>, MailboxClosed> {
         let state = self.lock();
         Self::ensure_open(&state)?;
         Ok(state.host_colors)

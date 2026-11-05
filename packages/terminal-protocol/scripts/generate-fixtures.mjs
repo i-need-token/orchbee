@@ -1848,6 +1848,18 @@ function packedProjectionConformanceCorpus(
 			offset: foreground,
 		},
 		{
+			bytes: [0x10, 0x00, 0x00, 0x03],
+			code: 'invalid-field',
+			name: 'obpb-palette-index-out-of-range',
+			offset: foreground,
+		},
+		{
+			bytes: [0x01, 0x01, 0x00, 0x03],
+			code: 'invalid-field',
+			name: 'obpb-palette-reserved-bits',
+			offset: foreground,
+		},
+		{
 			bytes: [0x00, 0x01],
 			code: 'unknown-required-flag',
 			name: 'obpb-style-flag-unknown',

@@ -10,6 +10,7 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
+	TerminalColorEncoding,
 	TerminalFrameKind,
 	TerminalFrameSchema,
 	UnderlineKind,
@@ -155,6 +156,44 @@ function repeatedCellFrame(grapheme: string, cellCount: number) {
 		],
 	};
 }
+
+it('round trips every ANSI tag without folding inverse, bold or faint into its index', () => {
+	for (let index = 0; index < 16; index++) {
+		const source = oneCellFrame();
+		const encoded = encodeTerminalFrame({
+			...source,
+			styles: [
+				{
+					...source.styles[0],
+					foreground: { kind: TerminalColorKind.palette, index },
+					background: { kind: TerminalColorKind.palette, index: 15 - index },
+					underline: { kind: TerminalColorKind.palette, index },
+					bold: true,
+					faint: true,
+					inverse: true,
+				},
+			],
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const decoded = decodeTerminalFrame(encoded.value);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		expect(decoded.value.styles.foregroundColors[0]).toBe(TerminalColorEncoding.palette | index);
+		expect(decoded.value.styles.backgroundColors[0]).toBe(
+			TerminalColorEncoding.palette | (15 - index),
+		);
+		expect(decoded.value.styles.underlineColors[0]).toBe(TerminalColorEncoding.palette | index);
+		expect(decoded.value.styles.flags[0]).toBe(1 | 4 | 16);
+	}
+	for (const index of [-1, 16, 255]) {
+		const source = oneCellFrame();
+		expect(
+			TerminalFrameSchema.safeParse({
+				...source,
+				styles: [{ ...source.styles[0], foreground: { kind: 'palette', index } }],
+			}).success,
+		).toBe(false);
+	}
+});
 
 describe('packed terminal frame', () => {
 	it('decodes complete rows into typed columns', () => {

@@ -442,6 +442,7 @@ pub struct Theme {
     color_level: ColorLevel,
     no_color: bool,
     terminal_colors: Option<(Color, Color)>,
+    terminal_rgb_colors: Option<(u32, u32)>,
     terminal_color_source: TerminalColorSource,
     terminal_defaults_known: bool,
     destructive_rest: DestructiveRest,
@@ -600,6 +601,7 @@ impl Theme {
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
+            terminal_rgb_colors: None,
             terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
             destructive_rest: DestructiveRest::HostRed,
@@ -674,6 +676,7 @@ impl Theme {
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
+            terminal_rgb_colors: None,
             terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
             destructive_rest: DestructiveRest::Paired,
@@ -1072,9 +1075,42 @@ impl Theme {
         ))
     }
 
+    /// Palette-coded cells use this Client's ANSI colors; Terminal colors preserves the outer
+    /// terminal's index. Font weight, faint and inverse remain independent cell attributes.
+    pub(crate) fn terminal_cell_color(&self, value: u32, default: Color) -> Color {
+        if let Some(index) = orchbee_terminal_protocol::terminal_palette_index(value) {
+            let color = self.palette.map_or(Color::Indexed(index), |theme| {
+                let rgb = theme.ansi()[usize::from(index)].value();
+                Color::Rgb(rgb.red, rgb.green, rgb.blue)
+            });
+            return quantize_color(color, self.color_level);
+        }
+        if value <= 0xffffff {
+            Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
+        } else {
+            default
+        }
+    }
+
+    /// ANSI colors follow the same named palette as tagged cells, or the observed outer terminal.
+    pub(crate) fn terminal_query_palette(
+        &self,
+        outer: crate::host_appearance::HostColors,
+    ) -> (Option<u32>, [Option<u32>; 16]) {
+        self.palette.map_or((outer.cursor, outer.palette), |theme| {
+            (
+                Some(u32::from(theme.canvas().cursor.value())),
+                theme.ansi().map(|color| Some(u32::from(color.value()))),
+            )
+        })
+    }
+
     pub(crate) fn terminal_rgb_defaults(&self) -> Option<(u32, u32)> {
         if !self.terminal_defaults_known {
             return None;
+        }
+        if let Some(colors) = self.terminal_rgb_colors {
+            return Some(colors);
         }
         let rgb = |color| match color {
             Color::Rgb(red, green, blue) => {
@@ -1126,6 +1162,7 @@ impl Theme {
         };
         self.terminal_defaults_known = colors.is_some();
         self.terminal_colors = None;
+        self.terminal_rgb_colors = None;
         if let Some((foreground, background)) = colors {
             self.set_terminal_colors(foreground, background);
         }
@@ -1151,6 +1188,7 @@ impl Theme {
             self.terminal_color_source = TerminalColorSource::OuterHost;
             self.terminal_defaults_known =
                 colors.foreground.is_some() && colors.background.is_some();
+            self.terminal_rgb_colors = colors.foreground.zip(colors.background);
             self.terminal_colors =
                 colors
                     .foreground
@@ -1173,6 +1211,7 @@ impl Theme {
     }
 
     fn set_terminal_colors(&mut self, foreground: u32, background: u32) {
+        self.terminal_rgb_colors = Some((foreground, background));
         self.terminal_colors = Some((
             self.terminal_color(foreground),
             self.terminal_color(background),

@@ -1422,7 +1422,9 @@
 						"controllerId",
 						"sequence",
 						"foreground",
-						"background"
+						"background",
+						"cursor",
+						"palette"
 					],
 					"properties": {
 						"kind": {
@@ -1442,6 +1444,35 @@
 						},
 						"background": {
 							"$ref": "#/$defs/terminalRgb"
+						},
+						"cursor": {
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 16777215
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"palette": {
+							"type": "array",
+							"minItems": 16,
+							"maxItems": 16,
+							"items": {
+								"anyOf": [
+									{
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 16777215
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
 						}
 					}
 				},

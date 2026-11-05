@@ -558,7 +558,7 @@ impl WorkbenchClient {
         }
         match (&mut self.client_control, &mut self.backend) {
             (Some(control), ClientBackend::Native(native)) => {
-                native.observe_host_colors(view.host_default_colors());
+                native.observe_host_colors(view.terminal_query_colors());
                 control.observe_geometry(viewport, view.sidebar_surface());
                 let changed = control.tick(
                     native,

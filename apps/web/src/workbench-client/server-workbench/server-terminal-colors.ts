@@ -1,5 +1,6 @@
 import {
 	resolveTerminalColorTheme,
+	terminalColorThemeAnsi,
 	type TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
 
@@ -9,8 +10,12 @@ import type { ServerHostColors, ServerHostColorsSource } from '../server-connect
 
 interface ServerTerminalColors {
 	/** Paints every terminal's default-coded cells, as the TUI substitutes the selected theme's. */
-	readonly display: ServerHostColors;
-	/** Reported to a controlled terminal; null unless a terminal launched now follows its controller. */
+	readonly display: ServerHostColors & {
+		readonly cursor: number;
+		readonly cursorAccent: number;
+		readonly palette: readonly number[];
+	};
+	/** The effective colors reported whenever this Client controls a terminal. */
 	readonly host: ServerHostColors | null;
 }
 
@@ -36,9 +41,8 @@ interface ThemePreferencesSource {
 
 /**
  * Resolves the theme preferences as the Worker resolves a launch's colors, with the system's
- * appearance where a TUI has its outer terminal: Theme and Host take the canvas of the selected
- * theme of that polarity. Theme and Host with the System application theme launch a terminal that
- * follows its controller, so only then does the window have colors to report.
+ * appearance where a TUI has its outer terminal. Every display mode reports its effective defaults,
+ * cursor and ANSI palette when controlling a terminal; rendering remains Client-local.
  */
 export function createServerTerminalColorsSource(
 	preferences: ThemePreferencesSource,
@@ -54,29 +58,21 @@ export function createServerTerminalColorsSource(
 				lightTheme,
 				terminalDisplayTheme,
 			} = preferences.getSnapshot().preferences;
-			switch (terminalDisplayTheme) {
-				case 'custom':
-					return {
-						display: {
-							background: rgbFromHex(customBackground),
-							foreground: rgbFromHex(customForeground),
-						},
-						host: null,
-					};
-				case 'host':
-				case 'theme':
-					break;
-			}
-			const canvas = (polarity: 'dark' | 'light'): ServerHostColors => {
-				const theme = resolveTerminalColorTheme(
-					polarity,
-					polarity === 'dark' ? darkTheme : lightTheme,
-				);
-				return { background: theme.background, foreground: theme.foreground };
+			const polarity =
+				applicationTheme === 'system' ? (systemTheme.matches ? 'dark' : 'light') : applicationTheme;
+			const theme = resolveTerminalColorTheme(
+				polarity,
+				polarity === 'dark' ? darkTheme : lightTheme,
+			);
+			const host = {
+				background:
+					terminalDisplayTheme === 'custom' ? rgbFromHex(customBackground) : theme.background,
+				foreground:
+					terminalDisplayTheme === 'custom' ? rgbFromHex(customForeground) : theme.foreground,
+				cursor: theme.cursor,
+				palette: terminalColorThemeAnsi(theme),
 			};
-			if (applicationTheme !== 'system') return { display: canvas(applicationTheme), host: null };
-			const system = canvas(systemTheme.matches ? 'dark' : 'light');
-			return { display: system, host: system };
+			return { display: { ...host, cursorAccent: theme.cursorText }, host };
 		},
 		subscribe: (listener) => {
 			const unsubscribe = preferences.subscribeSnapshot(listener);
@@ -121,7 +117,7 @@ export function presentServerTerminalColors(
 	const current = (): TerminalPresentationConfiguration => {
 		const base = configuration.current();
 		const { display } = colors.current();
-		const key = `${display.foreground}:${display.background}`;
+		const key = JSON.stringify(display);
 		if (presented === null || presented.base !== base || presented.key !== key) {
 			presented = {
 				base,
@@ -130,6 +126,9 @@ export function presentServerTerminalColors(
 					...base,
 					defaultColorOverride: Object.freeze({
 						background: hexFromRgb(display.background),
+						ansi: Object.freeze([...display.palette]),
+						cursor: hexFromRgb(display.cursor),
+						cursorAccent: hexFromRgb(display.cursorAccent),
 						foreground: hexFromRgb(display.foreground),
 					}),
 				}),

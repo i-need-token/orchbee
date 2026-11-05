@@ -47,6 +47,13 @@ rejected. Protocol and geometry numbers use the schema-owned finite binary64 saf
 refinement, so equivalent integral decimal and exponent spellings decode to the same value.
 Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
 
+`TerminalControlAction::HostColors` carries effective default foreground/background, a required
+nullable cursor, and exactly sixteen nullable ANSI RGB entries. Null records an unobserved outer
+slot; the Worker keeps its fallback for that slot. Confirmed named palettes report every slot even
+when the outer terminal never answers. The language-neutral
+[controller query contract](../../schemas/client-server/README.md#controller-query-colors) owns
+validation, authorization and the in-place version-1 shape.
+
 ## Viewer binding
 
 `TerminalViewerAction::admits` exhaustively pairs each viewer action with its response class.

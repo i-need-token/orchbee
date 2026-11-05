@@ -63,6 +63,7 @@ export function rgbChannels(value: number): [number, number, number] {
 }
 
 export interface PackedPresentationColors {
+	readonly ansi: readonly number[];
 	readonly background: readonly [number, number, number];
 	readonly cursor: readonly [number, number, number];
 	readonly cursorAccent: readonly [number, number, number];
@@ -88,11 +89,37 @@ export function resolvePackedPresentationColors(
 		defaultColorOverride === null
 			? rgbChannels(defaultColors.foregroundRgb)
 			: hexToRGB(defaultColorOverride.foreground);
+	const cursorAccent = defaultColorOverride?.cursorAccent ?? cursorAccentOverride;
 	return {
+		ansi:
+			defaultColorOverride?.ansi ??
+			[
+				theme.black,
+				theme.red,
+				theme.green,
+				theme.yellow,
+				theme.blue,
+				theme.magenta,
+				theme.cyan,
+				theme.white,
+				theme.brightBlack,
+				theme.brightRed,
+				theme.brightGreen,
+				theme.brightYellow,
+				theme.brightBlue,
+				theme.brightMagenta,
+				theme.brightCyan,
+				theme.brightWhite,
+			].map((color) => {
+				const [red, green, blue] = hexToRGB(color);
+				return (red << 16) | (green << 8) | blue;
+			}),
 		background,
-		cursor: rgbChannels(defaultColors.cursorRgb ?? defaultColors.foregroundRgb),
-		cursorAccent:
-			cursorAccentOverride === undefined ? hostBackground : hexToRGB(cursorAccentOverride),
+		cursor:
+			defaultColorOverride?.cursor === undefined
+				? rgbChannels(defaultColors.cursorRgb ?? defaultColors.foregroundRgb)
+				: hexToRGB(defaultColorOverride.cursor),
+		cursorAccent: cursorAccent === undefined ? hostBackground : hexToRGB(cursorAccent),
 		foreground,
 		searchActiveBackground: hexToRGB(theme.searchActiveMatchBackground),
 		searchActiveForeground: hexToRGB(theme.searchActiveMatchForeground),

@@ -64,6 +64,16 @@ The accepted contract requires these externally visible properties:
   it; OSC reset forms, RIS, and Host reset return to the latest runtime theme. A physical color
   change advances content revision once without changing generation, so every attachment projects
   the same coherent revision.
+- Cell projection preserves unmodified ANSI 0–15 as `0x03000000 | index` for each Client to
+  resolve, including background-only erased cells and explicit underline colors. Extended indexes
+  and direct RGB remain resolved. Inverse, bold and faint remain independent style flags; the Host
+  does not brighten bold indexes. Palette-override provenance is captured under the same terminal
+  lock as colors, so later OSC mutations cannot change an in-flight frame or render row window.
+  **Vetoable decision:** a child OSC 4 override projects RGB, including an override equal to its
+  configured slot; OSC 104 (one slot or all slots) restores tagging. This preserves existing VT
+  behavior without a per-terminal wire override map. The
+  [current cell encoding](../../schemas/terminal/references/protocol.md#current-terminal-frame)
+  owns the codes and unchanged pre-release `0.1.0` contract.
 - Terminal output becomes a normal exit only after child completion, normal PTY drain, and complete quiescence of the PTY writer.
 - Unrecoverable PTY read, PTY write, terminal-reply, resize, or worker-integrity failures become an explicit typed failed outcome. The Host fences unsafe I/O, contains the owned process tree, and continues bounded cleanup retries even while no broker is connected.
 - Graceful termination, force termination, and disposal are distinct. The broker owns escalation timing; disposal is explicit.

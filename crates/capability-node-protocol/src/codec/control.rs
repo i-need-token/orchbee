@@ -181,6 +181,10 @@ pub(super) fn encode_request(request: &TerminalControlRequest) -> Vec<u8> {
             bytes.extend(sequence.get().to_be_bytes());
             bytes.extend(colors.foreground().to_be_bytes());
             bytes.extend(colors.background().to_be_bytes());
+            bytes.extend(colors.cursor().unwrap_or(u32::MAX).to_be_bytes());
+            for color in colors.palette() {
+                bytes.extend(color.unwrap_or(u32::MAX).to_be_bytes());
+            }
         }
         Action::SemanticInput { sequence, input } => {
             bytes.push(8);
@@ -229,13 +233,22 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalControlRequest, Pro
             geometry: decode_geometry(&mut reader)?,
         },
         4 => Action::Release,
-        7 => Action::HostColors {
-            sequence: positive(reader.read_u64()?)?,
-            colors: HostDefaultColors::new(
-                u32::from_be_bytes(reader.read_array()?),
-                u32::from_be_bytes(reader.read_array()?),
-            )?,
-        },
+        7 => {
+            let sequence = positive(reader.read_u64()?)?;
+            let foreground = u32::from_be_bytes(reader.read_array()?);
+            let background = u32::from_be_bytes(reader.read_array()?);
+            let cursor = u32::from_be_bytes(reader.read_array()?);
+            let cursor = (cursor != u32::MAX).then_some(cursor);
+            let mut palette = [None; 16];
+            for color in &mut palette {
+                let value = u32::from_be_bytes(reader.read_array()?);
+                *color = (value != u32::MAX).then_some(value);
+            }
+            Action::HostColors {
+                sequence,
+                colors: HostDefaultColors::new(foreground, background, cursor, palette)?,
+            }
+        }
         8 => {
             let sequence = positive(reader.read_u64()?)?;
             let kind = match reader.read_u8()? {

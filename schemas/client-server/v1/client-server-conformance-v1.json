@@ -254,12 +254,12 @@
 		{
 			"direction": "client-to-server",
 			"name": "control-host-colors",
-			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516}}"
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"cursor\":null,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}"
 		},
 		{
 			"direction": "client-to-server",
 			"name": "control-host-colors-bounds",
-			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0,\"background\":16777215}}"
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0,\"background\":16777215,\"cursor\":null,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}"
 		},
 		{
 			"direction": "client-to-server",
@@ -1275,19 +1275,19 @@
 		{
 			"direction": "client-to-server",
 			"name": "control-host-colors-overflow-rgb",
-			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":16777216,\"background\":0}}",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":16777216,\"background\":0,\"cursor\":null,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}",
 			"boundary": "schema"
 		},
 		{
 			"direction": "client-to-server",
 			"name": "control-host-colors-fractional-rgb",
-			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0.5,\"background\":0}}",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0.5,\"background\":0,\"cursor\":null,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}",
 			"boundary": "schema"
 		},
 		{
 			"direction": "client-to-server",
 			"name": "control-host-colors-missing-background",
-			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0}}",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0,\"cursor\":null,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}",
 			"boundary": "schema"
 		},
 		{
@@ -2453,6 +2453,36 @@
 			"direction": "server-to-client",
 			"name": "viewer-attached-missing-creation-id",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"attached\",\"attachmentId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"44444444444444444444444444444444\",\"hostTerminalId\":\"77777777777777777777777777777777\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-missing-cursor",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-missing-palette",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"cursor\":null}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-palette-too-short",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"cursor\":null,\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-palette-overflow-rgb",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"cursor\":null,\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777216]}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-cursor-overflow-rgb",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516,\"cursor\":16777216,\"palette\":[0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,16777215]}}",
+			"boundary": "schema"
 		}
 	],
 	"workingDirectoryCases": [

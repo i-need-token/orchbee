@@ -1,4 +1,11 @@
 {
+	"color_encoding": {
+		"default": 16777216,
+		"none": 33554432,
+		"palette": 50331648,
+		"palette_entries": 16,
+		"rgb_mask": 16777215
+	},
 	"formats": {
 		"wire": {
 			"magic": "OBTP",

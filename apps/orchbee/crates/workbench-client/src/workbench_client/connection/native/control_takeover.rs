@@ -67,6 +67,12 @@ impl ClientExecutor {
                     ControllerMode::Controlling(controller_id.clone()),
                 )?;
                 self.attached_mut(&operation.key)?.accepted_geometry = None;
+                super::settle_ready_flow(self.sync_host_colors_for_lease(
+                    lease,
+                    &operation.key,
+                    controller_id.clone(),
+                    cutoff,
+                ))?;
                 self.ensure_before(cutoff)?;
                 let sequence = self.next_control_sequence(&operation.key)?;
                 let resized = self.control_once(

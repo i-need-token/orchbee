@@ -183,6 +183,8 @@ export interface PreparedTerminalPresentationConfiguration {
 
 /** Complete client-owned colors that accompany one Host theme revision. */
 export interface TerminalThemeOverlayPresentation {
+	/** Client ANSI 0-15, published with its overlays independently of retained cell codes. */
+	readonly ansiPalette: readonly number[];
 	readonly cursorAccentRgb: number;
 	readonly searchActiveMatchBackgroundRgb: number;
 	readonly searchActiveMatchForegroundRgb: number;
@@ -341,10 +343,12 @@ function packedColorRgb(
 	value: number,
 	hostDefaultRgb: number,
 	effectiveDefaultRgb: number,
+	ansi: readonly number[],
 ): number {
-	// Only the tagged default encoding selects a client-effective default. Explicit RGB (including
-	// black) and `none` retain their Host-projected behavior.
 	if (value === TerminalColorEncoding.default) return effectiveDefaultRgb;
+	if (value >= TerminalColorEncoding.palette && value <= TerminalColorEncoding.palette + 15) {
+		return ansi[value & 15] ?? hostDefaultRgb;
+	}
 	if (value <= TerminalColorEncoding.rgbMask) return value;
 	return hostDefaultRgb;
 }
@@ -353,9 +357,10 @@ function packedOptionalColorRgb(
 	value: number,
 	hostDefaultRgb: number,
 	effectiveDefaultRgb: number,
+	ansi: readonly number[],
 ): number | null {
 	if (value === TerminalColorEncoding.none) return null;
-	return packedColorRgb(value, hostDefaultRgb, effectiveDefaultRgb);
+	return packedColorRgb(value, hostDefaultRgb, effectiveDefaultRgb, ansi);
 }
 
 function writeRgbChannels(value: number, target: [number, number, number]): void {
@@ -2171,12 +2176,14 @@ export class WebGPURenderer {
 				row.backgroundColors[column] ?? TerminalColorEncoding.default,
 				metadata.defaultColors.backgroundRgb,
 				rgbValue(presentation.background),
+				presentation.ansi,
 			);
 		}
 		return packedColorRgb(
 			row.foregroundColors[column] ?? TerminalColorEncoding.default,
 			metadata.defaultColors.foregroundRgb,
 			rgbValue(presentation.foreground),
+			presentation.ansi,
 		);
 	}
 
@@ -2193,11 +2200,13 @@ export class WebGPURenderer {
 			foregroundToken,
 			metadata.defaultColors.foregroundRgb,
 			rgbValue(presentation.foreground),
+			presentation.ansi,
 		);
 		let backgroundRgb = packedColorRgb(
 			backgroundToken,
 			metadata.defaultColors.backgroundRgb,
 			rgbValue(presentation.background),
+			presentation.ansi,
 		);
 		const inverse = (flags & TerminalStyleFlag.inverse) !== 0;
 		const displayedBackgroundToken = inverse ? foregroundToken : backgroundToken;
@@ -2665,6 +2674,7 @@ export class WebGPURenderer {
 				row.underlineColors[x] ?? TerminalColorEncoding.none,
 				metadata.defaultColors.foregroundRgb,
 				rgbValue(presentation.foreground),
+				presentation.ansi,
 			);
 			const decorationColor = foreground;
 			const underlineColor = underlineRgb === null ? decorationColor : rgbChannels(underlineRgb);
@@ -3276,6 +3286,7 @@ export class WebGPURenderer {
 					row.underlineColors[column] ?? TerminalColorEncoding.none,
 					metadata.defaultColors.foregroundRgb,
 					rgbValue(presentation.foreground),
+					presentation.ansi,
 				);
 				const underlineColor = underlineRgb === null ? foreground : rgbChannels(underlineRgb);
 				ctx.strokeStyle = `rgb(${underlineColor[0]}, ${underlineColor[1]}, ${underlineColor[2]})`;
@@ -3651,6 +3662,31 @@ export class WebGPURenderer {
 			selectionBackground: rgbHex(presentation.selectionBackgroundRgb),
 			selectionForeground: rgbHex(presentation.selectionForegroundRgb),
 		};
+		if (presentation.ansiPalette.length !== 16)
+			throw new Error('ANSI palette must contain sixteen colors');
+		const keys = [
+			'black',
+			'red',
+			'green',
+			'yellow',
+			'blue',
+			'magenta',
+			'cyan',
+			'white',
+			'brightBlack',
+			'brightRed',
+			'brightGreen',
+			'brightYellow',
+			'brightBlue',
+			'brightMagenta',
+			'brightCyan',
+			'brightWhite',
+		] as const;
+		for (const [index, key] of keys.entries()) {
+			const color = presentation.ansiPalette[index];
+			if (color === undefined) throw new Error('ANSI palette is incomplete');
+			theme[key] = rgbHex(color);
+		}
 		return Object.freeze({ cursorAccent, theme: Object.freeze(theme) });
 	}
 

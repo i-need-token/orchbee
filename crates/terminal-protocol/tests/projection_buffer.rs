@@ -64,7 +64,7 @@ fn shared_obpb_corpus_has_identical_admission_and_observations() -> Result<(), B
             }
         }
     }
-    assert_eq!(count, 23);
+    assert_eq!(count, 25);
     Ok(())
 }
 

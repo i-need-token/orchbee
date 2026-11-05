@@ -194,12 +194,45 @@ function normalizeDefaultColorOverride(
 	input: unknown,
 ): TerminalDefaultColorOverride | null | undefined {
 	if (input === null) return null;
-	if (!isRecord(input) || !hasExactFields(input, ['background', 'foreground'])) return undefined;
+	if (
+		!isRecord(input) ||
+		Reflect.ownKeys(input).some(
+			(key) =>
+				!['background', 'foreground', 'ansi', 'cursor', 'cursorAccent'].some(
+					(field) => field === key,
+				),
+		)
+	)
+		return undefined;
 	const background = normalizeHexColor(Reflect.get(input, 'background'));
 	if (background === undefined) return undefined;
 	const foreground = normalizeHexColor(Reflect.get(input, 'foreground'));
 	if (foreground === undefined) return undefined;
-	return Object.freeze({ background, foreground });
+	const ansi = Reflect.get(input, 'ansi');
+	if (
+		ansi !== undefined &&
+		(!Array.isArray(ansi) ||
+			ansi.length !== 16 ||
+			!Array.from(ansi).every(
+				(color: unknown) =>
+					typeof color === 'number' && Number.isInteger(color) && color >= 0 && color <= 0xffffff,
+			))
+	)
+		return undefined;
+	const cursorInput = Reflect.get(input, 'cursor');
+	const cursor = cursorInput === undefined ? undefined : normalizeHexColor(cursorInput);
+	if (cursorInput !== undefined && cursor === undefined) return undefined;
+	const cursorAccentInput = Reflect.get(input, 'cursorAccent');
+	const cursorAccent =
+		cursorAccentInput === undefined ? undefined : normalizeHexColor(cursorAccentInput);
+	if (cursorAccentInput !== undefined && cursorAccent === undefined) return undefined;
+	return Object.freeze({
+		background,
+		foreground,
+		...(ansi === undefined ? {} : { ansi: Object.freeze([...ansi]) }),
+		...(cursor === undefined ? {} : { cursor }),
+		...(cursorAccent === undefined ? {} : { cursorAccent }),
+	});
 }
 
 function normalizeHexColor(input: unknown): `#${string}` | undefined {

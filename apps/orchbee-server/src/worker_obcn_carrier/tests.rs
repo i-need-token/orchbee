@@ -3162,7 +3162,7 @@ fn host_colors_acknowledgement_keeps_the_worker_carrier() -> TestResult {
         controller_id: OperationId::from_bytes([3; 16])?,
         action: Action::HostColors {
             sequence: NonZeroU64::MIN,
-            colors: HostDefaultColors::new(0x00d0_d0d0, 0x0010_1010)?,
+            colors: HostDefaultColors::new(0x00d0_d0d0, 0x0010_1010, None, [None; 16])?,
         },
     };
     let accepted = TerminalControlResult {

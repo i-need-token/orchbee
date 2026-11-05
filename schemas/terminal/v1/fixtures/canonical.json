@@ -59,7 +59,7 @@
 						"grapheme": "A",
 						"protected": false,
 						"semanticContent": "output",
-						"style": 0,
+						"style": 2,
 						"width": "narrow"
 					},
 					{
@@ -159,33 +159,73 @@
 		"sequence": "7",
 		"styles": [
 			{
-				"background": { "kind": "default" },
+				"background": {
+					"kind": "default"
+				},
 				"blink": false,
 				"bold": false,
 				"faint": false,
-				"foreground": { "kind": "rgb", "rgb": 16777215 },
+				"foreground": {
+					"kind": "rgb",
+					"rgb": 16777215
+				},
 				"hyperlink": null,
 				"inverse": false,
 				"invisible": false,
 				"italic": false,
 				"overline": false,
 				"strikethrough": false,
-				"underline": { "kind": "none" },
+				"underline": {
+					"kind": "none"
+				},
 				"underlineKind": "none"
 			},
 			{
-				"background": { "kind": "rgb", "rgb": 1122867 },
+				"background": {
+					"kind": "rgb",
+					"rgb": 1122867
+				},
 				"blink": false,
 				"bold": true,
 				"faint": true,
-				"foreground": { "kind": "rgb", "rgb": 11189196 },
+				"foreground": {
+					"kind": "rgb",
+					"rgb": 11189196
+				},
 				"hyperlink": "https://orchbee.dev/终端",
 				"inverse": false,
 				"invisible": false,
 				"italic": false,
 				"overline": false,
 				"strikethrough": false,
-				"underline": { "kind": "rgb", "rgb": 5596791 },
+				"underline": {
+					"kind": "rgb",
+					"rgb": 5596791
+				},
+				"underlineKind": "curly"
+			},
+			{
+				"background": {
+					"kind": "palette",
+					"index": 15
+				},
+				"blink": false,
+				"bold": true,
+				"faint": true,
+				"foreground": {
+					"kind": "palette",
+					"index": 0
+				},
+				"hyperlink": null,
+				"inverse": true,
+				"invisible": false,
+				"italic": false,
+				"overline": false,
+				"strikethrough": false,
+				"underline": {
+					"kind": "palette",
+					"index": 7
+				},
 				"underlineKind": "curly"
 			}
 		],
@@ -203,10 +243,30 @@
 			{
 				"index": "100",
 				"mappings": [
-					{ "byteOffset": 0, "column": 0, "utf16Offset": 0, "width": 1 },
-					{ "byteOffset": 1, "column": 1, "utf16Offset": 1, "width": 2 },
-					{ "byteOffset": 4, "column": 3, "utf16Offset": 2, "width": 1 },
-					{ "byteOffset": 7, "column": 4, "utf16Offset": 4, "width": 1 }
+					{
+						"byteOffset": 0,
+						"column": 0,
+						"utf16Offset": 0,
+						"width": 1
+					},
+					{
+						"byteOffset": 1,
+						"column": 1,
+						"utf16Offset": 1,
+						"width": 2
+					},
+					{
+						"byteOffset": 4,
+						"column": 3,
+						"utf16Offset": 2,
+						"width": 1
+					},
+					{
+						"byteOffset": 7,
+						"column": 4,
+						"utf16Offset": 4,
+						"width": 1
+					}
 				],
 				"promptClass": "prompt",
 				"text": "A界é ",
@@ -216,8 +276,18 @@
 			{
 				"index": "101",
 				"mappings": [
-					{ "byteOffset": 0, "column": 0, "utf16Offset": 0, "width": 2 },
-					{ "byteOffset": 15, "column": 2, "utf16Offset": 7, "width": 1 }
+					{
+						"byteOffset": 0,
+						"column": 0,
+						"utf16Offset": 0,
+						"width": 2
+					},
+					{
+						"byteOffset": 15,
+						"column": 2,
+						"utf16Offset": 7,
+						"width": 1
+					}
 				],
 				"promptClass": "prompt-continuation",
 				"text": "👩🏽‍💻B",
@@ -334,7 +404,10 @@
 		},
 		"process": {
 			"kind": "observed",
-			"result": { "code": 1, "kind": "exit-code" }
+			"result": {
+				"code": 1,
+				"kind": "exit-code"
+			}
 		}
 	},
 	"writeInput": {

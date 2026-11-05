@@ -220,13 +220,15 @@ pub enum TerminalControlAction {
         sequence: NonZeroU64,
         content: PasteContent,
     },
-    /// The controlling Client's observed outer-terminal default colors.
+    /// The controlling Client's effective defaults and known cursor/ANSI colors.
     HostColors {
         attachment_id: ViewerId,
         controller_id: ControllerId,
         sequence: NonZeroU64,
         foreground: TerminalRgb,
         background: TerminalRgb,
+        cursor: Option<TerminalRgb>,
+        palette: [Option<TerminalRgb>; 16],
     },
 }
 
@@ -279,6 +281,9 @@ enum WireControlAction {
         sequence: NonZeroU64,
         foreground: TerminalRgb,
         background: TerminalRgb,
+        #[serde(deserialize_with = "Option::deserialize")]
+        cursor: Option<TerminalRgb>,
+        palette: [Option<TerminalRgb>; 16],
     },
 }
 
@@ -338,12 +343,16 @@ impl Serialize for TerminalControlAction {
                 sequence,
                 foreground,
                 background,
+                cursor,
+                palette,
             } => WireControlAction::HostColors {
                 attachment_id: attachment_id.clone(),
                 controller_id: controller_id.clone(),
                 sequence: *sequence,
                 foreground: *foreground,
                 background: *background,
+                cursor: *cursor,
+                palette: *palette,
             },
             Self::Paste { .. } => {
                 return Err(serde::ser::Error::custom(
@@ -402,12 +411,16 @@ impl<'de> Deserialize<'de> for TerminalControlAction {
                 sequence,
                 foreground,
                 background,
+                cursor,
+                palette,
             } => Self::HostColors {
                 attachment_id,
                 controller_id,
                 sequence,
                 foreground,
                 background,
+                cursor,
+                palette,
             },
         })
     }

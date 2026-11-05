@@ -1,5 +1,15 @@
 // Keep these synchronized with schemas/terminal/v1/constants.json, Rust and TypeScript. Released changes (>= 1.0.0) also update
 // schemas/terminal/docs/version-history.md in the same change.
+pub const color_default: u32 = 0x01000000;
+pub const color_none: u32 = 0x02000000;
+pub const color_palette: u32 = 0x03000000;
+pub const color_rgb_mask: u32 = 0x00ffffff;
+
+pub fn validCellColor(value: u32) bool {
+    return value <= color_rgb_mask or value == color_default or value == color_none or
+        (value >= color_palette and value <= color_palette + 15);
+}
+
 pub const terminal_frame_header_bytes = 160;
 pub const terminal_frame_magic = "OBTF";
 pub const terminal_frame_format_major: u8 = 0;

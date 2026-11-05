@@ -15,4 +15,6 @@ pub enum HostAppearance {
 pub(crate) struct HostColors {
     pub(crate) foreground: Option<u32>,
     pub(crate) background: Option<u32>,
+    pub(crate) cursor: Option<u32>,
+    pub(crate) palette: [Option<u32>; 16],
 }

@@ -380,7 +380,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     })
 }
 fn valid_color(value: u32) -> bool {
-    value <= 0xffffff || value == 0x1000000 || value == 0x2000000
+    crate::cell_color::valid_cell_color(value)
 }
 fn error(code: ProtocolErrorCode) -> ProtocolError {
     ProtocolError::new(code, "invalid OBTF text projection")

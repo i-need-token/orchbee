@@ -4,6 +4,40 @@ use orchbee_terminal_protocol::ColorScheme;
 
 use super::effective;
 
+#[test]
+fn client_query_palette_replaces_os_fallback_and_preserves_unobserved_slots() {
+    use orchbee_capability_node_protocol::HostDefaultColors;
+    let fallback = effective(UserTerminalColors::LIGHT, &UserColorThemes::default());
+    let dark = effective(
+        UserTerminalColors::DARK,
+        &UserColorThemes::new("orchbee-light".into(), "gruvbox-dark".into()),
+    );
+    let known = std::array::from_fn(|index| Some(dark.palette[index]));
+    let report = HostDefaultColors::new(
+        dark.default_foreground_rgb,
+        dark.default_background_rgb,
+        dark.default_cursor_rgb,
+        known,
+    )
+    .unwrap();
+    let current = super::reported(report, &fallback);
+    assert_eq!(current, dark);
+    let mut partial = [None; 16];
+    partial[0] = Some(0);
+    partial[15] = Some(0xffffff);
+    let outer = HostDefaultColors::new(0xcccccc, 0x101010, None, partial).unwrap();
+    let next = super::reported(outer, &current);
+    assert_eq!(
+        (next.default_foreground_rgb, next.default_background_rgb),
+        (0xcccccc, 0x101010)
+    );
+    assert_eq!(next.palette[0], 0);
+    assert_eq!(next.palette[15], 0xffffff);
+    assert_eq!(next.palette[1..15], current.palette[1..15]);
+    assert_eq!(next.palette[16..], current.palette[16..]);
+    assert_eq!(next.default_cursor_rgb, current.default_cursor_rgb);
+}
+
 /// A terminal must get the cursor and ANSI colors of the theme whose polarity matches its
 /// default colors, the pairing the theme gates measured. The light-tuned blue is 2.2:1 on the dark
 /// canvas, and a dark-tuned yellow would be as unreadable on a light one.

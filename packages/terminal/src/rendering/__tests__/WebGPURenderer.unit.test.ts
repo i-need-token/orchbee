@@ -1,4 +1,8 @@
-import { resolvePackedPresentationColors, DEFAULT_THEME } from '../terminal-presentation-colors';
+import {
+	resolvePackedPresentationColors,
+	DEFAULT_THEME,
+	hexToRGB,
+} from '../terminal-presentation-colors';
 import {
 	TerminalCellWidthCode,
 	TerminalColorEncoding,
@@ -24,6 +28,79 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
+
+it('recolors retained ANSI cells per Client and on palette-only changes, before inverse and faint', async () => {
+	vi.stubGlobal('window', { devicePixelRatio: 1 });
+	vi.stubGlobal('navigator', {});
+	vi.stubGlobal('document', { createElement: () => createCanvas() });
+	const source = createPackedSource(['ABC'], { cursor: { visible: false } });
+	const row = source.rows[0];
+	if (row === undefined) throw new Error('palette fixture is empty');
+	row.foregroundColors[0] = row.foregroundColors[1] = TerminalColorEncoding.palette | 1;
+	row.backgroundColors[0] = row.backgroundColors[1] = TerminalColorEncoding.palette | 4;
+	row.underlineColors[0] = TerminalColorEncoding.palette | 2;
+	row.underlineKinds[0] = TerminalUnderlineKindCode.single;
+	row.styleFlags[0] = TerminalStyleFlag.bold | TerminalStyleFlag.faint;
+	row.styleFlags[1] = TerminalStyleFlag.inverse;
+	row.foregroundColors[2] = 0;
+	const paints = await Promise.all(
+		[0x102030, 0xa0b0c0].map(async (base) => {
+			const text: Array<{ text: string; rgb: readonly number[]; alpha: number }> = [];
+			const underlines: Array<readonly number[]> = [];
+			const canvas = createCanvas(
+				undefined,
+				{},
+				function (this: CanvasRenderingContext2D, value) {
+					text.push({
+						text: value,
+						rgb: hexToRGB(String(this.fillStyle)),
+						alpha: this.globalAlpha,
+					});
+				},
+				undefined,
+				function (this: CanvasRenderingContext2D) {
+					underlines.push(hexToRGB(String(this.strokeStyle)));
+				},
+			);
+			const ansi = Array.from({ length: 16 }, (_, index) => base + index);
+			const override = { background: '#000000', foreground: '#ffffff', ansi } as const;
+			const renderer = new WebGPURenderer(canvas, { defaultColorOverride: override });
+			await renderer.initGPU();
+			renderer.renderPacked(source);
+			expect(text).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ text: 'A', rgb: rgbChannelsForTest(ansi[1]), alpha: 0.5 }),
+					expect.objectContaining({ text: 'B', rgb: rgbChannelsForTest(ansi[4]), alpha: 1 }),
+					expect.objectContaining({ text: 'C', rgb: [0, 0, 0] }),
+				]),
+			);
+			expect(underlines).toContainEqual(rgbChannelsForTest(ansi[2]));
+			const painted = [...text];
+			text.length = 0;
+			const next = [...ansi];
+			next[1] = 0x123456;
+			renderer.commitPresentationConfiguration(
+				renderer.preparePresentationConfiguration({
+					...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+					defaultColorOverride: { ...override, ansi: next },
+				}),
+			);
+			renderer.renderPacked(source);
+			expect(text).toContainEqual(expect.objectContaining({ text: 'A', rgb: [0x12, 0x34, 0x56] }));
+			expect(row.foregroundColors[0]).toBe(TerminalColorEncoding.palette | 1);
+			renderer.dispose();
+			return painted;
+		}),
+	);
+	expect(paints[0]?.find((paint) => paint.text === 'A')?.rgb).not.toEqual(
+		paints[1]?.find((paint) => paint.text === 'A')?.rgb,
+	);
+});
+
+function rgbChannelsForTest(value: number | undefined) {
+	if (value === undefined) throw new Error('ANSI fixture does not contain the queried slot');
+	return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
 
 function createCanvas(
 	getImageData?: CanvasRenderingContext2D['getImageData'],
@@ -976,6 +1053,14 @@ describe('projected terminal renderer', () => {
 			cursorAccent: [16, 20, 24],
 			foreground: [170, 187, 204],
 		});
+		expect(
+			resolvePackedPresentationColors(hostDefaultColors, theme, undefined, {
+				background: '#102030',
+				foreground: '#aabbcc',
+				cursor: '#fedcba',
+				cursorAccent: '#010203',
+			}),
+		).toMatchObject({ cursor: [254, 220, 186], cursorAccent: [1, 2, 3] });
 		expect(hostDefaultColors).toEqual({
 			backgroundRgb: 0x10_14_18,
 			cursorRgb: 0xf5_a9_7f,

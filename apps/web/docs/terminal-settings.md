@@ -303,14 +303,19 @@ pair that does not depend on the shipped data.
 
 ## Effective terminal colors and opacity
 
-Frame metadata and resolved palette cells remain the renderer authority. Without an override,
-default tokens use the Host default foreground/background; explicit RGB, projected ANSI/palette colors, `none`, and
-explicit black retain their Host-projected value. Inverse swaps the already resolved display roles.
-The default underline uses the Host foreground, and the cursor uses the Host cursor color or its
-Host-defined foreground fallback. A theme's override replaces the default foreground and
-background wherever they paint, including the default underline, the empty canvas and the terminal
-root; the cursor and everything else keep the same Host authority.
+Host metadata remains unchanged. Default tokens use the Client's effective foreground/background;
+unmodified ANSI 0–15 tags use its active named palette in both WebGPU and Canvas. A theme or polarity
+change recolors retained cells through the local presentation source without a Host round trip.
+Explicit RGB (including black), indexes 16–255 and child OSC 4 overrides retain Host resolution;
+OSC 104 restores ordinary ANSI tagging. Inverse swaps resolved display roles, faint keeps its
+existing intensity, explicit underline tags use the same Client palette, and absent underline
+colors inherit displayed text. Selection/search overlays keep precedence. The local source also
+supplies the named cursor; Host cursor metadata remains intact.
 
+The controlling Client reports effective confirmed defaults, cursor and ANSI colors even under a
+fixed appearance or Custom defaults. Worker applies them through `ApplyTerminalTheme`, independently
+of local rendering; read-only Clients never submit another Client's palette. Only the period before
+any report uses the Worker system fallback.
 Background opacity is derived from `backgroundOpacityPercent`; `allowTransparency` is not a second
 user preference. At 100%, renderer clear and the terminal root are opaque. From 10% through 99%,
 the renderer clears the default background transparently and the terminal root presents the

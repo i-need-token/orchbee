@@ -79,6 +79,25 @@ fn classifies_the_wide_boundary_and_projects_the_sidebar_per_client() {
     );
 }
 
+/// A controlling Client must report the colors it paints even when the outer terminal did not
+/// answer. Otherwise a dark named theme leaves OSC 11 describing the Worker's light OS fallback.
+#[test]
+fn controlling_client_reports_its_named_theme_before_any_outer_terminal_reply() {
+    let mut view = ClientView::new(120);
+    view.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
+    view.apply_user_preferences(orchbee_workbench_protocol::UserPreferencesValues {
+        application_theme: orchbee_workbench_protocol::ApplicationAppearance::Dark,
+        dark_theme: "gruvbox-dark".into(),
+        ..Default::default()
+    });
+    assert_eq!(
+        view.host_default_colors(),
+        view.configured_theme().unwrap().terminal_rgb_defaults(),
+        "OSC queries must describe the controlling Client's painted theme"
+    );
+    assert!(view.host_default_colors().is_some());
+}
+
 #[test]
 fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_selection() {
     use crate::host_appearance::{HostAppearance, HostColors};
@@ -101,6 +120,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         HostColors {
             foreground: Some(0xcccccc),
             background: Some(0x0c0c0c),
+            ..Default::default()
         }
     ));
     let dark = system.configured_theme().unwrap();
@@ -117,6 +137,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         HostColors {
             foreground: Some(0x141414),
             background: Some(0xfcfcfc),
+            ..Default::default()
         }
     ));
     assert_eq!(system.configured_theme().unwrap().name, "orchbee-light");
@@ -142,6 +163,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         crate::host_appearance::HostColors {
             foreground: Some(0x123456),
             background: Some(0x203040),
+            ..Default::default()
         },
     ));
     let host_theme = host
@@ -215,6 +237,7 @@ fn system_paints_the_slot_of_the_settled_host_appearance_only_on_a_truecolor_hos
         HostColors {
             foreground: Some(0x141414),
             background: Some(0xfcfcfc),
+            ..Default::default()
         },
     );
     assert_eq!(view.configured_theme().unwrap().name, "orchbee-light");

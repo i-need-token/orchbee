@@ -132,6 +132,7 @@ fn deferred_defaults_take_outer_host_colors_and_never_a_child_baseline() {
     let outer = HostColors {
         foreground: Some(0xcccccc),
         background: Some(0x0c0c0c),
+        ..Default::default()
     };
     for (source, terminal, expected) in [
         (

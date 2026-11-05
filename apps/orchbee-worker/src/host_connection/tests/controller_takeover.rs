@@ -17,6 +17,91 @@ use std::{num::NonZeroU64, thread};
 
 type TestResult = Result<(), Box<dyn Error>>;
 
+#[test]
+fn only_the_controlling_client_updates_the_host_query_palette() -> TestResult {
+    use orchbee_capability_node_protocol::HostDefaultColors;
+    use orchbee_local_runtime::{UserColorThemes, UserTerminalColors};
+    use orchbee_terminal_protocol::{
+        TerminalThemeResult, TerminalThemeState, TerminalThemeTransition, ThemeControl,
+        decode_theme_control, encode_theme_control,
+    };
+    let (host, mut peer) = fixture()?;
+    let (server, _quiet) = UnixStream::pair()?;
+    let fallback =
+        crate::terminal_theme::effective(UserTerminalColors::LIGHT, &UserColorThemes::default());
+    host.host_colors.borrow_mut().follow([5; 16], fallback);
+    let themes = UserColorThemes::new("gruvbox-light".into(), "gruvbox-dark".into());
+    let expected = [
+        crate::terminal_theme::effective(UserTerminalColors::DARK, &themes),
+        crate::terminal_theme::effective(UserTerminalColors::LIGHT, &themes),
+    ];
+    thread::scope(|scope| -> TestResult {
+        let answers = expected.clone();
+        scope.spawn(move || {
+            for (revision, expected) in answers.into_iter().enumerate() {
+                let record = read_transport_record(&mut peer).unwrap();
+                let envelope = decode_transport_envelope(&record).unwrap();
+                let ThemeControl::ApplyTerminalTheme(request) =
+                    decode_theme_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+                else {
+                    panic!("expected the Client's query palette")
+                };
+                assert_eq!(request.expected_theme_revision, revision as u64);
+                assert_eq!(request.terminal, expected);
+                let response =
+                    encode_theme_control(&ThemeControl::TerminalThemeResult(TerminalThemeResult {
+                        terminal_id: request.terminal_id,
+                        operation_id: request.operation_id,
+                        transition: TerminalThemeTransition::Applied,
+                        current: TerminalThemeState {
+                            revision: revision as u64 + 1,
+                            operation_id: Some(request.operation_id),
+                            terminal: expected,
+                        },
+                    }))
+                    .unwrap();
+                respond(
+                    &mut peer,
+                    &envelope,
+                    response.kind,
+                    &response.payload,
+                    PayloadEncoding::ControlJson,
+                );
+            }
+        });
+        for (index, theme) in expected.iter().enumerate() {
+            let colors = HostDefaultColors::new(
+                theme.default_foreground_rgb,
+                theme.default_background_rgb,
+                theme.default_cursor_rgb,
+                std::array::from_fn(|index| Some(theme.palette[index])),
+            )?;
+            let action = Action::HostColors {
+                sequence: NonZeroU64::new(index as u64 + 1).unwrap(),
+                colors,
+            };
+            assert!(matches!(
+                execute(&host, &server, request(20, 21, action.clone()))?,
+                Outcome::Rejected(_)
+            ));
+            assert_eq!(
+                execute(&host, &server, request(10, 11, action))?,
+                Outcome::HostColorsAccepted
+            );
+            assert_eq!(
+                &host
+                    .host_colors
+                    .borrow()
+                    .follower([5; 16])
+                    .unwrap()
+                    .terminal,
+                theme
+            );
+        }
+        Ok(())
+    })
+}
+
 fn id(byte: u8) -> OperationId {
     OperationId::from_bytes([byte; 16]).unwrap()
 }

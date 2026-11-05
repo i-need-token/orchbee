@@ -1,11 +1,13 @@
 export interface ServerHostColors {
 	readonly background: number;
 	readonly foreground: number;
+	readonly cursor: number | null;
+	readonly palette: readonly (number | null)[];
 }
 
 /**
  * The colors a window paints around its terminals, offered as a TUI offers its outer terminal's. It
- * has none while the Session's preferences give terminals colors of their own.
+ * reports the effective named or custom palette independently of launch preferences.
  */
 export interface ServerHostColorsSource {
 	current(): ServerHostColors | null;
@@ -21,13 +23,13 @@ interface ServerHostColorsReportOptions {
 }
 
 function hostColorsKey(colors: ServerHostColors): string {
-	return `${colors.foreground}:${colors.background}`;
+	return JSON.stringify(colors);
 }
 
 /**
  * Reports a window's colors to the terminal it controls, as the TUI reports its outer terminal's:
- * after each grant of control and whenever they change. The Worker recolors only a terminal that
- * follows its controller, and remembers the colors for the next one launched. A refusal counts as
+ * after each grant of control and whenever they change. The Worker updates the query palette of the
+ * controlled terminal and remembers the defaults for the next launch. A refusal counts as
  * reported so nothing repeats it, and a lost answer waits for the next change or grant.
  */
 export class ServerHostColorsReport {

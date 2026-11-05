@@ -1,8 +1,7 @@
-//! The terminal theme a launch installs and a Host-following recolor applies: the effective default
-//! colors with the cursor and ANSI 0-15 of the selected theme of their polarity, followed by the
-//! standard xterm color cube and gray ramp. It does not choose the default colors, apply a theme
-//! to a Host, or own theme data.
-
+//! Resolves launch themes from the selected polarity slots and updates query colors from the
+//! controlling Client while retaining unobserved fallback entries. It owns no theme data,
+//! default-color selection policy, or Host transport.
+use orchbee_capability_node_protocol::HostDefaultColors;
 use orchbee_color_themes::Polarity;
 use orchbee_local_runtime::{UserColorThemes, UserTerminalColors};
 use orchbee_terminal_protocol::{ColorScheme, TerminalTheme};
@@ -11,6 +10,28 @@ use orchbee_terminal_protocol::{ColorScheme, TerminalTheme};
 mod tests;
 
 const CUBE_LEVELS: [u32; 6] = [0, 95, 135, 175, 215, 255];
+
+/// Query defaults follow the controlling Client. Unobserved outer-terminal cursor and ANSI slots
+/// keep the current fallback; extended palette entries remain Host-owned.
+pub(crate) fn reported(colors: HostDefaultColors, current: &TerminalTheme) -> TerminalTheme {
+    let mut next = current.clone();
+    next.default_foreground_rgb = colors.foreground();
+    next.default_background_rgb = colors.background();
+    next.color_scheme =
+        match UserTerminalColors::from_rgb(colors.foreground(), colors.background()).polarity() {
+            Polarity::Light => ColorScheme::Light,
+            Polarity::Dark => ColorScheme::Dark,
+        };
+    if let Some(cursor) = colors.cursor() {
+        next.default_cursor_rgb = Some(cursor);
+    }
+    for (current, observed) in next.palette.iter_mut().zip(colors.palette()) {
+        if let Some(color) = observed {
+            *current = color;
+        }
+    }
+    next
+}
 
 /// The complete theme for terminals whose default colors are `colors`; their polarity picks both
 /// the scheme and the slot of `themes` whose theme supplies the cursor and ANSI colors. A slot id

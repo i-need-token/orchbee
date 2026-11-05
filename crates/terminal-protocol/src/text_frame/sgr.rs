@@ -42,6 +42,8 @@ impl fmt::Display for TerminalSgrStyle {
                     (color >> 8) & 255,
                     color & 255
                 )?;
+            } else if let Some(index) = crate::terminal_palette_index(color) {
+                write!(text, "\x1b[{sgr};5;{index}m")?;
             }
         }
         Ok(())

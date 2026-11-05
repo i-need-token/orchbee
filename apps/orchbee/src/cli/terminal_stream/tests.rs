@@ -26,6 +26,18 @@ pub(super) const SNAPSHOT: &[u8] =
 pub(super) const COHORT: &str = "terminal-stream-test";
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[test]
+fn palette_tagged_stream_uses_indexed_sgr() -> TestResult {
+    let mut source = decode_terminal_text_frame(SNAPSHOT)?;
+    let cell = &mut source.rows[0].cells[0];
+    cell.style.foreground = orchbee_terminal_protocol::COLOR_PALETTE | 1;
+    cell.style.background = orchbee_terminal_protocol::COLOR_PALETTE | 4;
+    let ansi = String::from_utf8(frame::render(&source, 8, 6).map_err(|_| "frame render failed")?)?;
+    assert!(ansi.contains("\x1b[38;5;1m"));
+    assert!(ansi.contains("\x1b[48;5;4m"));
+    Ok(())
+}
+
 pub(super) fn handshake(stream: &mut LocalStream) -> io::Result<()> {
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,

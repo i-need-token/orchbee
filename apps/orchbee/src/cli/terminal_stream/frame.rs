@@ -80,10 +80,18 @@ fn render_surface(
                     continue;
                 }
                 let mut style = cell.style;
-                if style.foreground > 0x00ff_ffff {
+                if matches!(
+                    style.foreground,
+                    orchbee_terminal_protocol::COLOR_DEFAULT
+                        | orchbee_terminal_protocol::COLOR_NONE
+                ) {
                     style.foreground = foreground;
                 }
-                if style.background > 0x00ff_ffff {
+                if matches!(
+                    style.background,
+                    orchbee_terminal_protocol::COLOR_DEFAULT
+                        | orchbee_terminal_protocol::COLOR_NONE
+                ) {
                     style.background = background;
                 }
                 if previous != Some(style) {

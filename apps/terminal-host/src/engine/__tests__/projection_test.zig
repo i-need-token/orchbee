@@ -27,6 +27,75 @@ const StringTable = subject.testing.StringTableType;
 const AttachmentId = subject.AttachmentId;
 const HostEpoch = subject.HostEpoch;
 
+test "palette cell tags preserve ANSI provenance and independent style attributes" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{ .cols = 16, .rows = 3 });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    for (0..16) |index| {
+        var buffer: [64]u8 = undefined;
+        stream.nextSlice(try std.fmt.bufPrint(&buffer, "\x1b[38;5;{d};48;5;{d}mX", .{ index, index }));
+    }
+    stream.nextSlice("\r\n\x1b[0;1;2;7;31;44;4;58;5;2mI" ++
+        "\x1b[0;38;5;16;48;5;255;4;58;5;16mE" ++
+        "\x1b[0;38;2;0;0;0;48;2;1;2;3mR" ++
+        "\x1b[0;44m\x1b[X");
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    const state = &projection.render_state.?;
+    const ansi = state.row_data.items(.cells)[0];
+    for (0..16) |index| {
+        const style = subject.testing.styleRecordFn(ansi.items(.raw)[index], capturedStyle(ansi, index), &state.colors, .{}, 0);
+        try std.testing.expectEqual(protocol.color_palette | @as(u32, @intCast(index)), style.foreground);
+        try std.testing.expectEqual(style.foreground, style.background);
+    }
+    const cells = state.row_data.items(.cells)[1];
+    const inverted = subject.testing.styleRecordFn(cells.items(.raw)[0], capturedStyle(cells, 0), &state.colors, .{}, 0);
+    try std.testing.expectEqual(protocol.color_palette | 1, inverted.foreground);
+    try std.testing.expectEqual(protocol.color_palette | 4, inverted.background);
+    try std.testing.expectEqual(protocol.color_palette | 2, inverted.underline);
+    try std.testing.expectEqual(@as(u16, 1 | 4 | 16), inverted.flags);
+    const extended = subject.testing.styleRecordFn(cells.items(.raw)[1], capturedStyle(cells, 1), &state.colors, .{}, 0);
+    try std.testing.expectEqual(@as(u32, 0), extended.foreground);
+    try std.testing.expectEqual(@as(u32, 0xeeeeee), extended.background);
+    try std.testing.expectEqual(@as(u32, 0), extended.underline);
+    const direct = subject.testing.styleRecordFn(cells.items(.raw)[2], capturedStyle(cells, 2), &state.colors, .{}, 0);
+    try std.testing.expectEqual(@as(u32, 0), direct.foreground);
+    try std.testing.expectEqual(@as(u32, 0x010203), direct.background);
+    const erased = subject.testing.styleRecordFn(cells.items(.raw)[3], capturedStyle(cells, 3), &state.colors, .{}, 0);
+    try std.testing.expectEqual(protocol.color_palette | 4, erased.background);
+}
+
+test "child OSC palette overrides resolve RGB until a slot or complete reset restores the tag" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{ .cols = 2, .rows = 1 });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice("\x1b[31;41;4;58;5;1mA");
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    const steps = [_]struct { bytes: []const u8, color: u32 }{
+        .{ .bytes = "", .color = protocol.color_palette | 1 },
+        .{ .bytes = "\x1b]4;1;#123456\x1b\\", .color = 0x123456 },
+        .{ .bytes = "\x1b]104;1\x1b\\", .color = protocol.color_palette | 1 },
+        .{ .bytes = "\x1b]4;1;#abcdef\x1b\\", .color = 0xabcdef },
+        .{ .bytes = "\x1b]104\x1b\\", .color = protocol.color_palette | 1 },
+    };
+    for (steps, 0..) |step, revision| {
+        stream.nextSlice(step.bytes);
+        try projection.beginCapture(&terminal, @intCast(revision + 1), 1, 8, 16);
+        projection.endCapture();
+        const state = &projection.render_state.?;
+        const cells = state.row_data.items(.cells)[0];
+        const style = subject.testing.styleRecordFn(cells.items(.raw)[0], capturedStyle(cells, 0), &state.colors, projection.captured_default_colors, 0);
+        try std.testing.expectEqual(step.color, style.foreground);
+        try std.testing.expectEqual(step.color, style.background);
+        try std.testing.expectEqual(step.color, style.underline);
+    }
+}
+
 test "no-demand projection owns no render state or frame allocation" {
     var projection = Projection.init(std.testing.allocator);
     defer projection.deinit();

@@ -28,6 +28,16 @@ pub(crate) use keys::{
 };
 pub use keys::{KeyCode, KeyEvent, KeyKind, Modifiers, format_configuration_binding};
 
+/// Effective Client colors for controller queries. Defaults are complete; only unobserved outer
+/// cursor and ANSI slots remain absent. All present channels originate in validated RGB sources.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TerminalQueryColors {
+    pub(crate) foreground: u32,
+    pub(crate) background: u32,
+    pub(crate) cursor: Option<u32>,
+    pub(crate) palette: [Option<u32>; 16],
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {
     Narrow,
@@ -314,12 +324,30 @@ impl ClientView {
         self.configure_host_terminal(appearance, self.host_colors)
     }
 
-    /// The outer terminal's observed default foreground and background, when both settled.
-    pub(crate) const fn host_default_colors(&self) -> Option<(u32, u32)> {
+    /// The colors painted by this Client, independent of the Worker's platform appearance.
+    pub(crate) fn host_default_colors(&self) -> Option<(u32, u32)> {
+        if let Some(colors) = self.theme.and_then(|theme| theme.terminal_rgb_defaults()) {
+            return Some(colors);
+        }
         match (self.host_colors.foreground, self.host_colors.background) {
             (Some(foreground), Some(background)) => Some((foreground, background)),
             _ => None,
         }
+    }
+
+    /// Known query colors accompany each controller grant; unobserved outer ANSI slots stay unknown.
+    pub(crate) fn terminal_query_colors(&self) -> Option<TerminalQueryColors> {
+        let (foreground, background) = self.host_default_colors()?;
+        let (cursor, palette) = self.theme.map_or(
+            (self.host_colors.cursor, self.host_colors.palette),
+            |theme| theme.terminal_query_palette(self.host_colors),
+        );
+        Some(TerminalQueryColors {
+            foreground,
+            background,
+            cursor,
+            palette,
+        })
     }
 
     pub(crate) fn configure_host_terminal(

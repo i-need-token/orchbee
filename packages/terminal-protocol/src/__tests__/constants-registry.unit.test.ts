@@ -7,7 +7,12 @@ import {
 	TRANSPORT_ENVELOPE_HEADER_BYTES,
 	TRANSPORT_ENVELOPE_MAGIC,
 } from '../envelope';
-import { encodeTerminalFrame, TerminalFrameKind, TerminalFrameSchema } from '../frame';
+import {
+	encodeTerminalFrame,
+	TerminalFrameKind,
+	TerminalFrameSchema,
+	TerminalColorEncoding,
+} from '../frame';
 import { PROTOCOL_LIMITS } from '../limits';
 import { MESSAGE_CONTRACTS, MessageKind, PayloadEncoding } from '../message-contract';
 import { encodeTerminalProjectionBuffer } from '../projection-buffer';
@@ -143,6 +148,13 @@ it('matches the language-neutral registry with real constants and encoded enum v
 	});
 	expect(new Set(payloadEncodings.keys())).toEqual(new Set(Object.values(PayloadEncoding)));
 	expect(registry).toEqual({
+		color_encoding: {
+			default: TerminalColorEncoding.default,
+			none: TerminalColorEncoding.none,
+			palette: TerminalColorEncoding.palette,
+			palette_entries: 16,
+			rgb_mask: TerminalColorEncoding.rgbMask,
+		},
 		formats: {
 			wire: format(
 				TRANSPORT_ENVELOPE_MAGIC,

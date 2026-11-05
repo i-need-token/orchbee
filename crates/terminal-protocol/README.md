@@ -8,7 +8,7 @@ public test-only exports.
 ## Shared SGR style projection
 
 `terminal_sgr_style` formats one validated cell style without allocation. Native CLI terminal
-export and Server event matching share its canonical reset, flags, underline and RGB sequences.
+export and Server event matching share its canonical reset, flags, underline, RGB and ANSI-index sequences.
 These sequences describe captured styles, without claiming historical PTY input-byte identity.
 
 This crate decodes and validates the bounded terminal frame and row-window contracts used by native

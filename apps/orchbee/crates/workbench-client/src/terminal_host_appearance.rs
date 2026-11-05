@@ -27,7 +27,10 @@ pub struct Query;
 impl Query {
     /// Sends both default-color queries without changing the host terminal's state.
     pub(crate) const fn sequence(self) -> &'static str {
-        "\x1b]10;?\x1b\\\x1b]11;?\x1b\\"
+        concat!(
+            "\x1b]10;?\x1b\\\x1b]11;?\x1b\\\x1b]12;?\x1b\\",
+            "\x1b]4;0;?;1;?;2;?;3;?;4;?;5;?;6;?;7;?;8;?;9;?;10;?;11;?;12;?;13;?;14;?;15;?\x1b\\"
+        )
     }
 }
 
@@ -116,6 +119,22 @@ impl Probe {
                 let appearance = classify_background(red, green, blue);
                 self.state = ProbeState::Settled(appearance);
                 Some(appearance)
+            }
+            ColorTarget::Cursor if self.colors.cursor.is_none() => {
+                self.colors.cursor = Some(rgb);
+                match self.state {
+                    ProbeState::Settled(appearance) => Some(appearance),
+                    _ => None,
+                }
+            }
+            ColorTarget::Palette(index)
+                if index < 16 && self.colors.palette[usize::from(index)].is_none() =>
+            {
+                self.colors.palette[usize::from(index)] = Some(rgb);
+                match self.state {
+                    ProbeState::Settled(appearance) => Some(appearance),
+                    _ => None,
+                }
             }
             _ => None,
         }

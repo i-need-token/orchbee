@@ -1377,6 +1377,8 @@ fn host_colors_acknowledgement_keeps_the_session() -> TestResult {
                 sequence: std::num::NonZeroU64::MIN,
                 foreground: TerminalRgb::new(0x00d0_d0d0)?,
                 background: TerminalRgb::new(0x0010_1010)?,
+                cursor: None,
+                palette: [None; 16],
             },
         ),
         Some(Instant::now() + Duration::from_secs(2)),

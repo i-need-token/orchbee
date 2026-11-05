@@ -29,6 +29,18 @@ Version 1 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
 `attach-binding` extension, `terminal.launch.read` / result and `terminal.send.result`. Send requests use OBSN binary records. It defines no close, cancel, retry transport, authentication,
 authorization policy, Server state store, Worker operation, Host launch, or Workbench mutation.
 
+## Controller query colors
+
+The sequenced `host-colors` action requires `foreground` and `background` as 24-bit RGB integers,
+`cursor` as RGB or explicit `null`, and `palette` as exactly sixteen RGB-or-null entries in ANSI
+order. A missing field, invalid RGB or wrong palette length is rejected. Known colors describe the
+controlling Client's effective confirmed presentation, including a named theme or Custom defaults;
+null means the outer terminal did not report that value. The existing controller and sequence
+fences authorize this report; viewers cannot update another controller's query palette. The Worker
+applies known entries through Host `ApplyTerminalTheme` and retains fallback for unknown entries.
+Client-local tag resolution does not wait for that query-state exchange. This updates the current
+version-1 contract in place, without a compatibility reader.
+
 ## Frame
 
 | Field          | Encoding                                               |

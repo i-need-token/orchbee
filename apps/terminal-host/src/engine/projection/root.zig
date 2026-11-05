@@ -16,6 +16,7 @@ pub const Projection = state.Projection;
 
 pub const testing = if (@import("builtin").is_test) struct {
     pub const capturedStyleFn = render_encoding.capturedStyle;
+    pub const styleRecordFn = render_encoding.styleRecord;
     pub const frame_byte_limit = protocol.Limits.frame_bytes;
     pub const link_cache_byte_limit = protocol.Limits.frame_bytes;
     pub const link_entry_limit = protocol.Limits.frame_strings;

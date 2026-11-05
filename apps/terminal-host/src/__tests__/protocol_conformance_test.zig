@@ -85,6 +85,8 @@ const projection_conformance_case_names = [_][]const u8{
     "obpb-grapheme-length-splits-scalar",
     "obpb-grapheme-offset-null-nonnullable",
     "obpb-color-out-of-range",
+    "obpb-palette-index-out-of-range",
+    "obpb-palette-reserved-bits",
     "obpb-style-flag-unknown",
     "obpb-underline-kind-out-of-range",
     "obpb-width-spacer-tail-without-head",
@@ -120,7 +122,7 @@ const packed_projection_conformance_case_count =
     projection_conformance_case_names.len + row_window_conformance_case_names.len;
 
 comptime {
-    if (projection_conformance_case_names.len != 23) @compileError("expected 23 OBPB cases");
+    if (projection_conformance_case_names.len != 25) @compileError("expected 25 OBPB cases");
     if (row_window_conformance_case_names.len != 11) @compileError("expected 11 OBRW cases");
 }
 
@@ -535,6 +537,7 @@ const RegistryFormat = struct {
 };
 
 const ConstantsRegistry = struct {
+    color_encoding: struct { default: u32, none: u32, palette: u32, palette_entries: u32, rgb_mask: u32 },
     formats: struct {
         wire: RegistryFormat,
         frame: RegistryFormat,
@@ -811,7 +814,7 @@ test "canonical TypeScript terminal frame fixture conforms in Zig" {
     try std.testing.expectEqual(@as(u16, 6), summary.columns);
     try std.testing.expectEqual(@as(u16, 2), summary.rows);
     try std.testing.expectEqual(@as(usize, 12), summary.cell_count);
-    try std.testing.expectEqual(@as(u16, 2), summary.style_count);
+    try std.testing.expectEqual(@as(u16, 3), summary.style_count);
     try std.testing.expectEqual(@as(u16, 2), summary.row_count);
     try std.testing.expectEqual(@as(u16, 1), summary.extension_count);
     try std.testing.expectEqualStrings("Orchbee 🐝", summary.title.?);
@@ -892,7 +895,7 @@ test "shared packed projection corpus drives both native strict validators" {
     defer parsed.deinit();
     try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
     try std.testing.expectEqualStrings("0.1.0", parsed.value.formatVersion);
-    try std.testing.expectEqual(@as(usize, 34), parsed.value.cases.len);
+    try std.testing.expectEqual(@as(usize, 36), parsed.value.cases.len);
 
     var inventory = PackedProjectionInventory{};
     for (parsed.value.cases) |case| {
@@ -1177,6 +1180,13 @@ test "constants match the language-neutral registry" {
     const allocator = std.testing.allocator;
     const fixture = try std.json.parseFromSlice(ConstantsRegistry, allocator, options.constants_registry, .{});
     defer fixture.deinit();
+
+    const colors = fixture.value.color_encoding;
+    try std.testing.expectEqual(colors.default, protocol.color_default);
+    try std.testing.expectEqual(colors.none, protocol.color_none);
+    try std.testing.expectEqual(colors.palette, protocol.color_palette);
+    try std.testing.expectEqual(@as(u32, 16), colors.palette_entries);
+    try std.testing.expectEqual(colors.rgb_mask, protocol.color_rgb_mask);
 
     var seen = [_]bool{false} ** 65_536;
     for (fixture.value.message_contracts) |expected| {

@@ -1,5 +1,5 @@
-//! Records the controlling Client's outer-terminal colors and applies their terminal theme to a
-//! Host-following target.
+//! Applies the controlling Client's effective query colors to its terminal, independently of the
+//! launch's display mode. Unknown outer ANSI colors keep the current fallback.
 use super::{
     ConnectionControl, CorrelationId, Error, HostBrokerConnection, Outcome, PayloadEncoding,
     TerminalId, UnixStream, decode_connection_control, decode_transport_envelope, exchange,
@@ -19,16 +19,20 @@ pub(super) fn apply(
     target: HostTerminalId,
     colors: HostDefaultColors,
 ) -> Result<Outcome, Box<dyn Error>> {
-    let colors = UserTerminalColors::from_rgb(colors.foreground(), colors.background());
-    host.host_colors.borrow_mut().observe(colors);
+    host.host_colors
+        .borrow_mut()
+        .observe(UserTerminalColors::from_rgb(
+            colors.foreground(),
+            colors.background(),
+        ));
     let key = target.as_bytes();
-    let Some((mut state, themes)) = host.host_colors.borrow().follower(key).cloned() else {
+    let Some(mut state) = host.host_colors.borrow().follower(key).cloned() else {
         return Ok(Outcome::HostColorsAccepted);
     };
     let terminal_id = TerminalId::from_bytes(key)?;
     // One retry absorbs a revision this Worker did not observe; a second stale result yields.
     for _attempt in 0..2 {
-        let next = crate::terminal_theme::effective(colors, &themes);
+        let next = crate::terminal_theme::reported(colors, &state.terminal);
         if next == state.terminal {
             break;
         }

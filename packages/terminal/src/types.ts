@@ -3,11 +3,9 @@ import type { TerminalOpenTarget } from './terminal-contracts';
 /**
  * Product presentation colors for a projected terminal surface.
  *
- * Host projection metadata owns terminal foreground, background, cursor, and palette colors. The
- * packed renderer consumes the cursor-accent and selection/search fields as application overlays;
- * the remaining terminal-color fields stay in this compatibility shape but never replace Host
- * state. `TerminalPresentationConfiguration.defaultColorOverride` is a separate client-only
- * projection for default-coded cells and never writes Host metadata.
+ * Host projection metadata supplies terminal defaults. ANSI-tagged cells use the Client's palette;
+ * cursor-accent and selection/search colors are Client overlays. A presentation override can
+ * replace the defaults, cursor and ANSI palette without changing retained Host metadata.
  */
 export interface ITheme {
 	foreground?: string;
@@ -71,10 +69,14 @@ export type FontWeight = number | 'normal' | 'bold';
 /** Ghostty-compatible padding modes. */
 export type PaddingBalance = false | true | 'equal';
 
-/** Client-only display replacement for default-coded terminal foreground and background cells. */
+/** Client-owned terminal colors, independent of retained Host cells and query state. */
 export interface TerminalDefaultColorOverride {
 	readonly background: `#${string}`;
 	readonly foreground: `#${string}`;
+	/** ANSI 0-15; omitted when the renderer's theme supplies them. */
+	readonly ansi?: readonly number[];
+	readonly cursor?: `#${string}`;
+	readonly cursorAccent?: `#${string}`;
 }
 
 export interface SurfacePadding {

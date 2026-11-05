@@ -241,10 +241,14 @@ pub(super) fn execute<'service>(
         Action::HostColors {
             foreground,
             background,
+            cursor,
+            palette,
             ..
         } => match orchbee_capability_node_protocol::HostDefaultColors::new(
             foreground.get(),
             background.get(),
+            cursor.map(|color| color.get()),
+            palette.map(|color| color.map(|color| color.get())),
         ) {
             Ok(colors) => WorkerAction::HostColors { sequence, colors },
             Err(_) => return rejected(Rejected::HostRejected),

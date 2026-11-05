@@ -3,6 +3,7 @@
 //! owns handshake state, terminal execution or platform effects.
 
 mod attachment;
+mod cell_color;
 mod control;
 mod creation;
 mod envelope;
@@ -47,6 +48,9 @@ pub use attachment::{
     AttachTerminal, AttachmentCapabilities, AttachmentCapabilityState, AttachmentControl,
     AttachmentTarget, EncodedAttachmentControl, ResizeLeaseChanged,
     UpdateAttachmentInputCapability, decode_attachment_control, encode_attachment_control,
+};
+pub use cell_color::{
+    COLOR_DEFAULT, COLOR_NONE, COLOR_PALETTE, COLOR_RGB_MASK, terminal_palette_index,
 };
 pub use control::{
     ConnectionControl, EncodedConnectionControl, Hello, HelloAccepted, ProtocolRejected,

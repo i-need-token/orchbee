@@ -16,6 +16,7 @@ function theme(overrides: Partial<TerminalThemeSnapshot> = {}): TerminalThemeSna
 	return normalizeTerminalThemeSnapshot({
 		application: { colorScheme: 'light' },
 		overlays: {
+			ansiPalette: Array.from({ length: 16 }, (_, index) => index),
 			cursorAccentRgb: 0xfc_fc_fc,
 			searchActiveMatchBackgroundRgb: 0xf5_a9_7f,
 			searchActiveMatchForegroundRgb: 0x1e_1e_1e,
@@ -62,8 +63,10 @@ function request(
 describe('terminal theme revision contract', () => {
 	it('normalizes one complete immutable terminal, overlay, and application snapshot', () => {
 		const inputPalette = [...palette];
+		const inputAnsi = Array.from({ length: 16 }, (_, index) => index);
 		const snapshot = normalizeTerminalThemeSnapshot({
 			...theme(),
+			overlays: { ...theme().overlays, ansiPalette: inputAnsi },
 			terminal: { ...theme().terminal, palette: inputPalette },
 		});
 
@@ -72,6 +75,9 @@ describe('terminal theme revision contract', () => {
 		expect(Object.isFrozen(snapshot)).toBe(true);
 		expect(Object.isFrozen(snapshot.application)).toBe(true);
 		expect(Object.isFrozen(snapshot.overlays)).toBe(true);
+		expect(Object.isFrozen(snapshot.overlays.ansiPalette)).toBe(true);
+		inputAnsi[0] = 0xffffff;
+		expect(snapshot.overlays.ansiPalette[0]).toBe(0);
 		expect(Object.isFrozen(snapshot.terminal)).toBe(true);
 		expect(Object.isFrozen(snapshot.terminal.palette)).toBe(true);
 		inputPalette[0] = 0xff_ff_ff;
@@ -122,6 +128,17 @@ describe('terminal theme revision contract', () => {
 				},
 			),
 		).toThrow(/code/u);
+	});
+
+	it('prepares a new Client palette even when the Host query theme is unchanged', () => {
+		const initial = theme();
+		const state = createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial));
+		const ansiPalette = [...initial.overlays.ansiPalette];
+		ansiPalette[1] = 0x123456;
+		const next = theme({ overlays: { ...initial.overlays, ansiPalette } });
+		const updated = request(state, 'theme:client-ansi-only', next);
+		expect(updated.state.active?.snapshot.overlays.ansiPalette).toEqual(ansiPalette);
+		expect(updated.state.active?.snapshot.terminal).toEqual(initial.terminal);
 	});
 
 	it('restores the visible coordinator revision from the complete Host bootstrap state', () => {

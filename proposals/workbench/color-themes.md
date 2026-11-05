@@ -50,11 +50,11 @@ theme changes.
   polarity matches the terminal's default colors, and applies the complete theme again when it
   recolors a Host-following terminal. See the
   [terminal launch palette](../../apps/orchbee-worker/README.md#terminal-launch-palette).
-- The Host resolves palette-coded cells to RGB in `render_encoding.zig`. Only default-coded cells
-  carry the `color_default` sentinel, which each Client projects through
-  `TerminalDisplayAppearance::{Host, Light, Dark, Custom}` and its own default colors.
+- The Host preserves unmodified ANSI 0–15 as palette-index tags in `render_encoding.zig`;
+  program overrides and ANSI 16–255 remain RGB. Default-coded cells retain `color_default`,
+  which each Client projects through Theme, Host or Custom and its own defaults.
 - The Host already accepts `ApplyTerminalTheme` with revisions. The Worker uses it so that a
-  Host-following terminal tracks the controlling Client's outer-terminal default colors.
+  controlled terminal answers queries with the controlling Client's effective known colors.
 
 ### Measured defects
 
@@ -64,10 +64,9 @@ Measured with the [gates](../../crates/color-themes/README.md#gates):
   default canvas `#1e1e1e` blue `#0451a5` was 2.16:1 and white `#555555` 2.24:1, below the 3:1
   floor for normal ANSI colors. The cursor `#57bef8` was 2.02:1 on the light canvas `#fcfcfc`,
   below the 3:1 non-text floor; Orchbee Light now ships `#2e9cd4` at 3:1.
-- **Open until step 3.** The Host keeps one palette per terminal, chosen at launch, and resolves
-  palette-coded cells with it for every Client. A Client whose polarity differs from that launch,
-  including one whose appearance changed afterward, paints default-coded cells with its own
-  canvas but palette-coded cells with the other polarity's ANSI colors: dark yellow `#e5e510` is
+- **Fixed by step 3.** The Host previously resolved palette-coded cells with one launch palette for every Client;
+  unmodified ANSI cells now carry Client-resolved tags. Previously, a Client whose polarity differed
+  from launch painted its canvas with the other polarity's ANSI colors: dark yellow `#e5e510` is
   1.32:1 on the light canvas `#fcfcfc`.
 
 ## What a theme owns
@@ -175,14 +174,14 @@ unknown or the host is below truecolor, and it is the explicit TUI color source 
 
 Each Client must paint palette-coded cells with its own active theme. A desktop GUI in light mode
 and a phone in dark mode can view one terminal at the same time, and the Host's single palette
-cannot serve both. That mismatch is the open measured defect.
+cannot serve both. Step 3 resolves that measured mismatch.
 
-- **Recommended: tag palette-coded cells (option A).** The Host encodes palette indexes 0–15 as a
-  new tagged code (for example `0x02000000 | n`) beside `color_default`. Each Client maps the index
+- **Delivered: tag palette-coded cells (option A).** The Host encodes unmodified palette indexes
+  0–15 as `0x03000000 | n` beside `color_default`. Each Client maps the index
   through its theme, and the TUI under Terminal colors maps it to `Indexed(n)`. Indexes 16–255 and
   direct RGB stay resolved by the Host. This extends the per-Client projection that default-coded
-  cells already use. It is a wire change, so it needs a protocol revision and Client support before
-  the Host emits the tag.
+  cells already use. All bindings implement the current pre-release `0.1.0` contract in place;
+  same-cohort admission excludes older shapes. Child OSC 4 overrides remain RGB until OSC 104.
 - **Kept: Host palette for queries.** The Worker applies the controlling Client's effective palette
   through the existing `ApplyTerminalTheme` path. Programs that query OSC 4, 10, or 11 to choose
   light or dark output then get answers that match what that Client shows.
@@ -455,25 +454,30 @@ Each step is one commit, or a small series, that leaves `main` working:
 2. **Worker. Done.** The
    [terminal launch palette](../../apps/orchbee-worker/README.md#terminal-launch-palette) follows
    the polarity of the effective default colors, so dark terminals no longer inherit the light ANSI.
-3. **Protocol.** Add the palette-index cell tag: schema, Host encoding behind a negotiated revision,
-   and decoding in both Clients, which map indexes through their active theme.
+3. **Protocol. Done.** The current `0.1.0` cell contract adds `0x03000000 | n` for unmodified
+   ANSI 0–15 in live and retained rows. Both Clients resolve through their own active palette;
+   Terminal colors emits `Indexed(n)`. Direct RGB, ANSI 16–255 and child OSC 4 overrides stay RGB;
+   OSC 104 restores tags. Controlling Clients report effective confirmed defaults, cursor and known
+   ANSI slots through `ApplyTerminalTheme`, fixing the OS-fallback OSC 11 mismatch. Unknown outer
+   slots retain query fallback; decisions 14 and 15 record the limits. The
+   [pre-release policy](../../schemas/terminal/docs/version-history.md#before-the-first-public-release)
+   changes the current contract in place, with same-cohort admission and no compatibility path.
 4. **Preferences. Done.** The shared device record holds `lightTheme` and `darkTheme`
    (`theme.light` and `theme.dark`), `TerminalDisplayAppearance` is Theme/Host/Custom, and the
    launch capture carries both slots so the Worker's palette takes the selected theme's cursor and
-   ANSI colors. A Host-following terminal keeps the slots captured at launch until step 3 lets
-   Clients map ANSI colors themselves.
+   ANSI colors. Clients now map unmodified ANSI cells locally, and controlling reports update the query palette.
 5. **TUI. Done.** The TUI resolves named themes from the crate through the active slot, and the
    device record holds the TUI-only `tuiColorSource` (Theme by default). Below truecolor, or
    without a known appearance, the TUI uses Terminal colors; see
    [native themes](../../apps/orchbee/docs/native-themes.md#selection-and-ownership). The One pair
    and the host-derived System fills are retired, the traffic-light Agent colors stay fixed, and
-   `terminal-native` keeps emitting `Reset`. `Indexed` waits for step 3.
+   `terminal-native` keeps emitting `Reset`. `Indexed(n)` now paints palette tags under Terminal colors.
 6. **GUI. Done.** The crate's [GUI files](../../crates/color-themes/README.md#gui-files) test
    generates the theme CSS and the `@orchbee/terminal` color module and fails when either is stale;
    `pnpm lint:styles` checks each block against the registry. The application boundary sets
    `data-color-theme` for a named theme only, and the projected terminal's Theme mode publishes the
    selected theme's canvas, cursor, selection, and ANSI 0–15. Server-backed terminals take the
-   selected canvas; their ANSI arrives with the launch palette until step 3.
+   selected canvas; their ANSI tags now resolve through the selected Client palette.
 7. **Settings.** Add the pickers with preview, commit, and reset in both Clients, with `en-US` and
    `zh-CN` copy. **GUI done:** the [color themes](../../apps/web/docs/terminal-settings.md#color-themes)
    pickers preview on arrow keys, commit on Enter or click, and restore on Escape, on leaving the
@@ -514,7 +518,7 @@ Each decision is listed with a recommendation and is vetoable:
    named theme switches the source back to Theme. The rejected alternative, Terminal colors by
    default, kept users' own terminal palettes but showed a different look in each Client. The
    choice stays vetoable: changing `TuiColorSource`'s default reverts it.
-3. **ANSI path.** Option A (palette-index tags) plus the Host palette for queries. Option B alone
+3. **ANSI path. Taken in step 3.** Option A (palette-index tags) plus the Host palette for queries. Option B alone
    cannot serve two Clients with different polarities.
 4. **Corrected palettes.** Ship the lightness-corrected values under the upstream name, record the
    upstream values in the theme file, and note the modification in the notice. The alternative,
@@ -546,3 +550,11 @@ Each decision is listed with a recommendation and is vetoable:
     hand-authored GUI mapping with no generated block, so the default look does not move. Named
     themes take their GUI canvas from the theme. Moving either Orchbee value, or pinning Orchbee
     chrome in the theme files, remains a later change that re-runs the gates.
+
+14. **Partial outer palette. Taken in step 3, vetoable.** OSC 4/12 replies may be unsupported or
+    incomplete. Report only observed ANSI slots/cursor, keep unknown entries explicitly absent,
+    and retain query fallback for those entries while applying known colors. `Indexed(n)` still
+    paints the actual outer slot. Inventing unobserved RGB would falsely claim palette agreement.
+15. **Child OSC 4 overrides. Taken in step 3, vetoable.** Project an explicitly overridden slot as
+    RGB, even for ANSI 0–15; OSC 104 for one slot or all slots restores tagging. This preserves
+    program-selected colors without adding a per-terminal override map to the wire.

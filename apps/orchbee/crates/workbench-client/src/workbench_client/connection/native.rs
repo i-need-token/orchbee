@@ -253,7 +253,7 @@ struct AttachedTerminal {
     next_sequence: u64,
     accepted_geometry: Option<Geometry>,
     /// Outer-terminal colors this controller incarnation last reported.
-    reported_host_colors: Option<(u32, u32)>,
+    reported_host_colors: Option<crate::client_view::TerminalQueryColors>,
 }
 
 #[derive(Clone, Copy)]
@@ -1076,6 +1076,9 @@ impl ClientExecutor {
         if self.attached_ref(&key).is_err() || !self.pane_admitted(lease, &key)? {
             return Ok(());
         }
+        if let Some(controller) = self.controller_for(&key)? {
+            self.sync_host_colors_for_lease(lease, &key, controller, deadline)?;
+        }
         let attachment_id = self.viewer_id_for(&key)?;
         let outcome = match step {
             ViewportStep::Enter | ViewportStep::EnterTail => {
@@ -1447,6 +1450,9 @@ impl ClientExecutor {
         let key = poll_key.pane_ref().clone();
         if self.attached_ref(&key).is_err() || !self.pane_admitted(lease, &key)? {
             return Ok(());
+        }
+        if let Some(controller) = self.controller_for(&key)? {
+            self.sync_host_colors_for_lease(lease, &key, controller, deadline)?;
         }
         let Some((request_id, outcome)) = self.viewer_for_ready_lease(
             lease,
@@ -2871,6 +2877,10 @@ impl ClientExecutor {
 
     fn set_attached_mode(&mut self, key: &PaneRef, mode: ControllerMode) -> Result<()> {
         let attached = self.attached_mut(key)?;
+        if attached.mode.as_ref() != Some(&mode) {
+            // Another controller may have installed its palette while this Client was read-only.
+            attached.reported_host_colors = None;
+        }
         attached.mode = Some(mode);
         Ok(())
     }
@@ -2973,6 +2983,8 @@ impl ClientExecutor {
                 controller_id,
                 foreground,
                 background,
+                cursor,
+                palette,
                 ..
             } => Ok(TerminalControlAction::HostColors {
                 attachment_id,
@@ -2980,6 +2992,8 @@ impl ClientExecutor {
                 sequence: self.next_control_sequence(key)?,
                 foreground,
                 background,
+                cursor,
+                palette,
             }),
             action @ (TerminalControlAction::Acquire { .. }
             | TerminalControlAction::Takeover { .. }
@@ -2988,13 +3002,18 @@ impl ClientExecutor {
         }
     }
 
-    /// The next Host-color report for this controller incarnation, when the outer terminal's
-    /// colors are known and differ from the last report.
+    /// The next effective palette report for this controller incarnation, when it differs from
+    /// the last report under the same grant.
     fn host_colors_action(
         &mut self,
         key: &PaneRef,
         controller_id: orchbee_client_server_protocol::ControllerId,
-    ) -> Result<Option<(TerminalControlAction, (u32, u32))>> {
+    ) -> Result<
+        Option<(
+            TerminalControlAction,
+            crate::client_view::TerminalQueryColors,
+        )>,
+    > {
         let Some(colors) = self.mailbox.host_colors().map_err(closed)? else {
             return Ok(None);
         };
@@ -3002,8 +3021,8 @@ impl ClientExecutor {
             return Ok(None);
         }
         let (Ok(foreground), Ok(background)) = (
-            orchbee_client_server_protocol::TerminalRgb::new(colors.0),
-            orchbee_client_server_protocol::TerminalRgb::new(colors.1),
+            orchbee_client_server_protocol::TerminalRgb::new(colors.foreground),
+            orchbee_client_server_protocol::TerminalRgb::new(colors.background),
         ) else {
             return Ok(None);
         };
@@ -3014,6 +3033,16 @@ impl ClientExecutor {
                 sequence: self.next_control_sequence(key)?,
                 foreground,
                 background,
+                cursor: colors.cursor.map(|color| {
+                    orchbee_client_server_protocol::TerminalRgb::new(color)
+                        .expect("catalog and observed query colors are RGB")
+                }),
+                palette: colors.palette.map(|color| {
+                    color.map(|color| {
+                        orchbee_client_server_protocol::TerminalRgb::new(color)
+                            .expect("catalog and observed query colors are RGB")
+                    })
+                }),
             },
             colors,
         )))

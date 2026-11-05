@@ -74,6 +74,7 @@ impl Theme {
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
+            terminal_rgb_colors: None,
             terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
             destructive_rest: DestructiveRest::Paired,

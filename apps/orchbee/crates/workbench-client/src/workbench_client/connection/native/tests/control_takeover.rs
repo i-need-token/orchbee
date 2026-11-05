@@ -29,6 +29,16 @@ enum Cut {
 }
 fn exercise(cut: Cut) -> TestResult {
     let (mut ui, mailbox, _, _) = ready_ui();
+    if cut == Cut::Complete {
+        mailbox
+            .observe_host_colors(Some(crate::client_view::TerminalQueryColors {
+                foreground: 0xcccccc,
+                background: 0x101010,
+                cursor: None,
+                palette: [None; 16],
+            }))
+            .unwrap();
+    }
     ui.apply_client_action(ClientAction::RequestControlTakeover);
     assert!(!ui.forward(b"blocked"));
     let lease = mailbox.try_recv().unwrap().expect("explicit operation");
@@ -77,6 +87,32 @@ fn exercise(cut: Cut) -> TestResult {
         )
         .map_err(io::Error::other)?;
         if cut != Cut::Refused {
+            if cut == Cut::Complete {
+                let ClientMessage::TerminalControl(colors) =
+                    read_client_message(&mut stream).map_err(io::Error::other)?
+                else {
+                    panic!("query colors must precede input after a new grant")
+                };
+                let TerminalControlAction::HostColors {
+                    foreground,
+                    background,
+                    sequence,
+                    ..
+                } = colors.action()
+                else {
+                    panic!("new controller must report even colors it reported under an old grant")
+                };
+                assert_eq!((foreground.get(), background.get()), (0xcccccc, 0x101010));
+                assert_eq!(sequence.get(), 48);
+                write_server_message(
+                    &mut stream,
+                    &ServerMessage::TerminalControlResult(TerminalControlResult::new(
+                        colors.request_id().clone(),
+                        TerminalControlOutcome::HostColorsAccepted {},
+                    )),
+                )
+                .map_err(io::Error::other)?;
+            }
             let ClientMessage::TerminalControl(resize) =
                 read_client_message(&mut stream).map_err(io::Error::other)?
             else {
@@ -87,7 +123,8 @@ fn exercise(cut: Cut) -> TestResult {
                 &TerminalControlAction::Resize {
                     attachment_id: expected_viewer.clone(),
                     controller_id: new_controller,
-                    sequence: std::num::NonZeroU64::new(48).unwrap(),
+                    sequence: std::num::NonZeroU64::new(if cut == Cut::Complete { 49 } else { 48 })
+                        .unwrap(),
                     geometry: expected.geometry
                 }
             );
@@ -164,7 +201,11 @@ fn exercise(cut: Cut) -> TestResult {
             mode: Some(ControllerMode::ReadOnly),
             next_sequence: 47,
             accepted_geometry: None,
-            reported_host_colors: None,
+            reported_host_colors: if cut == Cut::Complete {
+                worker_mailbox.host_colors().unwrap()
+            } else {
+                None
+            },
         });
         let result = executor.run_refresh(&lease, marker);
         let evidence = executor.pending_takeover.take();

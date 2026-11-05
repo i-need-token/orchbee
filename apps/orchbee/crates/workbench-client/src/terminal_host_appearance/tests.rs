@@ -3,8 +3,46 @@ use crate::terminal_events::appearance::{OscReplyFrame, OscStep};
 use std::time::{Duration, Instant};
 
 #[test]
-fn query_requests_both_default_colors_without_changing_terminal_state() {
-    assert_eq!(super::Query.sequence(), "\x1b]10;?\x1b\\\x1b]11;?\x1b\\");
+fn ansi_queries_capture_only_observed_slots_and_expire_with_the_default_probe() {
+    let now = Instant::now();
+    let mut probe = Probe::default();
+    let query = probe.begin(now).unwrap();
+    assert!(query.sequence().contains("4;0;?"));
+    assert!(query.sequence().contains("15;?"));
+    for (selector, expected) in [
+        ("11", ColorTarget::Background),
+        ("12", ColorTarget::Cursor),
+        ("4;0", ColorTarget::Palette(0)),
+        ("4;15", ColorTarget::Palette(15)),
+    ] {
+        let mut frame = OscReplyFrame::new(now);
+        let mut result = OscStep::Pending;
+        for byte in format!("{selector};rgb:12/34/56\x1b\\").bytes() {
+            result = frame.push(byte);
+        }
+        let OscStep::Complete(reply) = result else {
+            panic!("queried color was not decoded")
+        };
+        assert_eq!(reply.target, expected);
+        assert_eq!(reply.rgb, Some([0x12, 0x34, 0x56]));
+        probe.observe(reply, now);
+    }
+    let colors = probe.colors();
+    assert_eq!(colors.palette[0], Some(0x123456));
+    assert_eq!(colors.palette[15], Some(0x123456));
+    assert!(colors.palette[1..15].iter().all(Option::is_none));
+    assert_eq!(colors.cursor, Some(0x123456));
+    assert_eq!(
+        probe.observe(
+            ColorReply {
+                target: ColorTarget::Palette(1),
+                rgb: Some([1, 2, 3])
+            },
+            now + Duration::from_secs(1)
+        ),
+        None
+    );
+    assert_eq!(probe.colors(), colors);
 }
 
 #[test]
@@ -29,6 +67,7 @@ fn both_reply_orders_capture_outer_colors_once_within_the_original_window() {
             super::HostColors {
                 foreground: Some(0xcccccc),
                 background: Some(0x0c0c0c),
+                ..Default::default()
             }
         );
         for target in [ColorTarget::Foreground, ColorTarget::Background] {

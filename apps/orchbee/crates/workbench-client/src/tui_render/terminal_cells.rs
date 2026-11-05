@@ -130,7 +130,7 @@ pub(super) fn render_rows_at(
             else {
                 continue;
             };
-            output.set_style(style(cell.style, foreground, background));
+            output.set_style(style(cell.style, foreground, background, theme));
             if cell.width == 2 {
                 // A crop beginning on a wide tail must paint a blank, rather than
                 // leaving a skipped cell whose previous glyph could survive.
@@ -184,10 +184,10 @@ pub(super) fn render_tail(
         && cursor_row < u32::from(area.height))
     .then(|| Position::new(area.x + terminal.cursor.column, area.y + cursor_row as u16))
 }
-fn style(value: TerminalTextStyle, foreground: Color, background: Color) -> Style {
+fn style(value: TerminalTextStyle, foreground: Color, background: Color, theme: &Theme) -> Style {
     let mut style = Style::new()
-        .fg(color(value.foreground, foreground))
-        .bg(color(value.background, background));
+        .fg(theme.terminal_cell_color(value.foreground, foreground))
+        .bg(theme.terminal_cell_color(value.background, background));
     for (bit, modifier) in [
         (1, Modifier::BOLD),
         (2, Modifier::ITALIC),
@@ -206,13 +206,5 @@ fn style(value: TerminalTextStyle, foreground: Color, background: Color) -> Styl
     }
     style
 }
-fn color(value: u32, default: Color) -> Color {
-    if value <= 0xffffff {
-        Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
-    } else {
-        default
-    }
-}
-
 #[cfg(test)]
 mod tests;

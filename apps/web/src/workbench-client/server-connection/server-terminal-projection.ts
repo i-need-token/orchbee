@@ -817,7 +817,12 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	}
 
 	/** Losing control or the attachment matters here; any other answer settles the colors. */
-	async #submitHostColors({ background, foreground }: ServerHostColors): Promise<boolean> {
+	async #submitHostColors({
+		background,
+		foreground,
+		cursor,
+		palette,
+	}: ServerHostColors): Promise<boolean> {
 		const controllerId = this.#controllerId;
 		if (this.#closed || controllerId === null) return false;
 		const { attachmentId } = this.#bootstrap;
@@ -830,6 +835,8 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 						background,
 						controllerId: id,
 						foreground,
+						cursor,
+						palette,
 						kind: 'host-colors',
 						sequence: sequence.toString(),
 					},

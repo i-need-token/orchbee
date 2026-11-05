@@ -42,28 +42,36 @@ takes that theme's canvas foreground and background, and Host does the same whil
 Light or Dark. Host under System, and Theme or Host under Terminal colors, defer to the host:
 default cells emit `Color::Reset`, and the outer terminal's observed colors describe them in RGB.
 Custom always uses its validated pair. No terminal choice changes the chrome, and retained
-child-frame launch defaults never replace this local choice. Only default-marked cells are
-substituted. Explicit program RGB, palette colors, OSC overrides, reversal, attributes and
-wide-cell geometry retain their captured authority in live and retained rows. Empty canvas uses
-the selected terminal defaults across the entire pane, including space beyond a smaller retained
-grid.
+child-frame launch defaults never replace this local choice. Default-marked cells use that pair.
+Unmodified ANSI 0–15 cells use the active named theme's ANSI palette; Terminal colors emits
+`Color::Indexed(n)` at truecolor and ANSI-256, and retains the existing ANSI-16 and monochrome
+quantization below them. Theme and polarity changes repaint the same retained cells without a
+Host round trip. Direct RGB and indexes 16–255 retain Host resolution. Child OSC 4 overrides stay
+RGB until OSC 104 resets their slots. Bold is a separate attribute, never a Host bright-index
+rewrite; Terminal colors leaves the outer terminal's bold-color policy in control. Inverse and
+faint retain their existing attributes. The TUI retains its existing underline-kind support;
+separate underline colors remain a backend limitation. Selection/search and software-cursor
+contrast remain Client-owned layers over the resolved cell colors. Empty canvas uses the selected
+terminal defaults across the entire pane, including space beyond a smaller retained grid.
 
-The one-shot OSC 10/11 probe retains each valid color once within its original 350 ms window.
-Background settles polarity immediately; foreground can complete the same observation in either
-reply order. Duplicates, malformed responses and late replies cannot replace settled colors.
-These are Client-local display values, not shared terminal launch policy.
+The one-shot OSC 10/11/12 and OSC 4 (slots 0–15) probe retains each valid color once within its
+original 350 ms window. Background settles polarity immediately; foreground, cursor and palette
+replies can complete the same observation in any order. Duplicates, malformed responses and late
+replies cannot replace captured colors.
 
-The shared `UserTerminalColors` resolver also supplies the Worker's new-terminal profile from the
-same confirmed snapshot as scrollback and launch selection. OSC 10/11 queries then report those
-captured defaults from terminal creation, before a program chooses its appearance. Host with System
-launches with the colors a controlling Client, TUI or window, most recently reported, then the
-Worker's OS light/dark fallback, then the shipped light baseline. Once both probe colors settle, the
-Client reports them through the `host-colors` controller action; the Worker applies them to the
-controlled terminal only while that terminal still follows Host defaults. Existing terminals
-otherwise retain their query defaults until their runtime owner explicitly applies a terminal theme. Client appearance changes and reversible Settings previews recolor default-marked
-presentation without mutating that shared query state, rewriting ANSI palette entries, or restarting
-programs. Consequently a retained program's query-selected appearance can differ from a later local
-preview; display recoloring alone does not establish runtime theme application.
+Each controller grant reports the Client's effective confirmed defaults, cursor and ANSI colors
+through `host-colors`, including named themes before any outer-terminal reply. The Worker applies
+known colors through revision-fenced `ApplyTerminalTheme` for every controlled terminal, regardless
+of launch display mode. Subsequent live/history polling also synchronizes changed confirmed
+preferences without waiting for keyboard input. A read-only Client changes only its own rendering.
+The Worker's OS fallback applies before any Client reports; the latest reported defaults seed new
+Host-following launches. Reversible Settings previews remain local until committed.
+
+**Vetoable decision: partial outer palette.** Under Terminal colors, only observed OSC 4 slots and
+an observed cursor are reported; unsupported or missing replies stay explicitly unknown. The Worker
+applies known entries and retains the current query fallback for unknown entries. This cannot prove
+that an unobserved query slot matches a customized outer palette, while `Indexed(n)` still paints
+that actual outer slot. No missing reply is replaced with an invented outer color.
 
 The native backend paints a steady software block at the current input owner's reported position,
 after composing text and graphics in the synchronized frame. Its theme-owned contrast policy uses

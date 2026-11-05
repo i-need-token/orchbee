@@ -17,7 +17,6 @@ const mouse_mode_mask: u32 = 0x0000_00f0;
 const mouse_format_mask: u32 = 0x0000_0f00;
 const color_rgb_mask: u32 = 0x00ff_ffff;
 const color_default: u32 = 0x0100_0000;
-const color_none: u32 = 0x0200_0000;
 
 pub const ProjectionBufferSummary = struct {
     attachment_id: [16]u8,
@@ -80,7 +79,7 @@ fn validateMetadataString(bytes: []const u8, offset: u32, length: u32) contract.
 }
 
 fn validProjectionColor(value: u32) bool {
-    return value <= color_rgb_mask or value == color_default or value == color_none;
+    return contract.validCellColor(value);
 }
 
 fn isUtf8Boundary(bytes: []const u8, offset: usize) bool {

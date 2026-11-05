@@ -9,8 +9,9 @@ const max_frame_styles = protocol.Limits.frame_styles;
 pub const max_string_bytes = protocol.Limits.string_bytes;
 pub const no_string_index = std.math.maxInt(u32);
 pub const no_base_revision = std.math.maxInt(u64);
-pub const color_default = 0x01000000;
-const color_none = 0x02000000;
+pub const color_default = protocol.color_default;
+const color_none = protocol.color_none;
+pub const color_palette = protocol.color_palette;
 
 pub fn terminalInteraction(terminal: *const ghostty_vt.Terminal) u32 {
     var result: u32 = 0;
@@ -156,6 +157,7 @@ pub const StyleRecord = struct {
 pub const DefaultColors = struct {
     foreground: u32 = color_default,
     background: u32 = color_default,
+    palette_overrides: ghostty_vt.color.PaletteMask = .initEmpty(),
 };
 
 pub fn defaultColors(
@@ -168,10 +170,12 @@ pub fn defaultColors(
     if (terminal.modes.get(.reverse_colors)) return .{
         .foreground = rgbCode(colors.foreground),
         .background = rgbCode(colors.background),
+        .palette_overrides = terminal.colors.palette.mask,
     };
     return .{
         .foreground = if (terminal.colors.foreground.override) |value| rgbCode(value) else color_default,
         .background = if (terminal.colors.background.override) |value| rgbCode(value) else color_default,
+        .palette_overrides = terminal.colors.palette.mask,
     };
 }
 
@@ -184,10 +188,15 @@ pub fn styleRecord(
 ) StyleRecord {
     const flags = captured_style.flags;
     return .{
-        .background = if (captured_style.bg(&cell, &colors.palette)) |value|
-            rgbCode(value)
-        else
-            defaults.background,
+        .background = switch (cell.content_tag) {
+            .bg_color_palette => paletteValue(cell.content.color_palette.data, &colors.palette, defaults.palette_overrides),
+            .bg_color_rgb => rgbCode(.{
+                .r = cell.content.color_rgb.r,
+                .g = cell.content.color_rgb.g,
+                .b = cell.content.color_rgb.b,
+            }),
+            else => colorValue(captured_style.bg_color, &colors.palette, defaults.background, defaults.palette_overrides),
+        },
         .flags = (if (flags.bold) @as(u16, 1) else 0) |
             (if (flags.italic) @as(u16, 1 << 1) else 0) |
             (if (flags.faint) @as(u16, 1 << 2) else 0) |
@@ -196,9 +205,9 @@ pub fn styleRecord(
             (if (flags.invisible) @as(u16, 1 << 5) else 0) |
             (if (flags.strikethrough) @as(u16, 1 << 6) else 0) |
             (if (flags.overline) @as(u16, 1 << 7) else 0),
-        .foreground = colorValue(captured_style.fg_color, &colors.palette, defaults.foreground),
+        .foreground = colorValue(captured_style.fg_color, &colors.palette, defaults.foreground, defaults.palette_overrides),
         .hyperlink_index = hyperlink_index,
-        .underline = colorValue(captured_style.underline_color, &colors.palette, color_none),
+        .underline = colorValue(captured_style.underline_color, &colors.palette, color_none, defaults.palette_overrides),
         .underline_kind = switch (flags.underline) {
             .none => 0,
             .single => 1,
@@ -220,12 +229,17 @@ fn colorValue(
     value: ghostty_vt.Style.Color,
     palette: *const ghostty_vt.color.Palette,
     fallback: u32,
+    overrides: ghostty_vt.color.PaletteMask,
 ) u32 {
     return switch (value) {
         .none => fallback,
-        .palette => |index| rgbCode(palette[index]),
+        .palette => |index| paletteValue(index, palette, overrides),
         .rgb => |rgb| rgbCode(rgb),
     };
+}
+
+fn paletteValue(index: u8, palette: *const ghostty_vt.color.Palette, overrides: ghostty_vt.color.PaletteMask) u32 {
+    return if (index < 16 and !overrides.isSet(index)) color_palette | @as(u32, index) else rgbCode(palette[index]);
 }
 
 pub fn rgbCode(rgb: ghostty_vt.color.RGB) u32 {

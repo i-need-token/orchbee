@@ -11,6 +11,8 @@ const OSC_DRAIN_WINDOW: Duration = Duration::from_secs(1);
 pub(crate) enum ColorTarget {
     Foreground,
     Background,
+    Cursor,
+    Palette(u8),
 }
 
 /// One complete OSC color reply. `None` means the response was malformed or over-bound.
@@ -130,6 +132,7 @@ impl OscReplyFrame {
             self.selector.push(byte);
             let foreground = b"10;";
             let background = b"11;";
+            let cursor = b"12;";
             if foreground.starts_with(&self.selector) {
                 if self.selector.as_slice() == foreground {
                     self.target = Some(ColorTarget::Foreground);
@@ -143,6 +146,35 @@ impl OscReplyFrame {
                     return OscStep::Pending;
                 }
                 return OscStep::Pending;
+            }
+            if cursor.starts_with(&self.selector) {
+                if self.selector.as_slice() == cursor {
+                    self.target = Some(ColorTarget::Cursor);
+                }
+                return OscStep::Pending;
+            }
+            if self.selector.as_slice() == b"4" || self.selector.as_slice() == b"4;" {
+                return OscStep::Pending;
+            }
+            if let Some(index_bytes) = self.selector.strip_prefix(b"4;") {
+                let complete = index_bytes.ends_with(b";");
+                let digits = if complete {
+                    &index_bytes[..index_bytes.len() - 1]
+                } else {
+                    index_bytes
+                };
+                if digits.len() <= 2 && !digits.is_empty() && digits.iter().all(u8::is_ascii_digit)
+                {
+                    let index = digits
+                        .iter()
+                        .fold(0_u16, |value, byte| value * 10 + u16::from(byte - b'0'));
+                    if index < 16 {
+                        if complete {
+                            self.target = Some(ColorTarget::Palette(index as u8));
+                        }
+                        return OscStep::Pending;
+                    }
+                }
             }
             return OscStep::NotColorReply(std::mem::take(&mut self.selector));
         }

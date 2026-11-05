@@ -15,6 +15,16 @@ at most twice its content length plus 12 encoded bytes. The action match is exha
 an action requires declaring its admissible outcomes. The carrier separately validates request,
 viewer, and controller identities.
 
+## Controller query colors
+
+`HostDefaultColors` carries effective foreground/background RGB plus an optional cursor and sixteen
+optional ANSI colors. `HostColors` control action 7 encodes its positive sequence (`u64`), foreground
+and background (`u32` each), cursor (`u32`), then sixteen palette slots (`u32` each), all big-endian.
+Only optional cursor/slot values use `0xffffffff` for unknown; every present color is at most
+`0xffffff`. The current frame version stays 1. The existing controller fence owns authorization,
+and the Worker applies known query colors regardless of launch display mode; null outer-terminal
+observations retain fallback, never an invented sampled color.
+
 ## Job result pairing
 
 `WorktreeJobAction::admits` and `WorktreeMutationJobAction::admits` enumerate Start, Poll and

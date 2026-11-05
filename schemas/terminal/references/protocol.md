@@ -493,7 +493,30 @@ Variable sections follow in this exact order:
 1. Each string is `u32 byteLength` followed by strict UTF-8 bytes.
 2. Each 20-byte style contains foreground, background, and underline color codes (`u32`), hyperlink
    string index `u32`, explicit style flags `u16`, underline kind `u8`, and reserved zero `u8`.
-   RGB occupies the low 24 bits; declared default and none sentinels are field-specific.
+   RGB occupies the low 24 bits. Cell colors in OBTF, OBPB and render-detail OBRW use these exact codes:
+
+   | Code                      | Meaning                                              |
+   | ------------------------- | ---------------------------------------------------- |
+   | `0x00000000`–`0x00ffffff` | Explicit RGB, including black                        |
+   | `0x01000000`              | Client-effective channel default                     |
+   | `0x02000000`              | No explicit color; underline inherits displayed text |
+   | `0x03000000`–`0x0300000f` | Client-effective ANSI palette index 0–15             |
+
+   Other codes and nonzero reserved bits are rejected. Header defaults and cursor colors remain
+   RGB with their existing field-specific cursor sentinel. The current `0.1.0` contracts change in
+   place under the pre-release version policy; same-cohort admission prevents mixed bindings.
+   Clients resolve ANSI tags from their active palette before applying inverse. Bold stays a font
+   attribute: the Host never adds a bright offset; SGR 90–97 already identifies indexes 8–15.
+   Faint keeps its existing Client intensity treatment. Explicit underline colors follow the same
+   palette rule, and an absent underline color inherits the displayed text after inverse. Client
+   selection/search foregrounds and fills take precedence over the resolved cell colors. Cursor
+   metadata remains Host RGB; Client cursor presentation and contrast policies remain local.
+
+   **Vetoable decision: child palette overrides.** A slot explicitly overridden by a program with
+   OSC 4 is projected as RGB, even for indexes 0–15 and even when equal to its configured value.
+   OSC 104 for that slot or all slots restores the ANSI tag. This preserves program-selected colors
+   without an override map on the wire. Indexes 16–255 always remain Host-resolved RGB.
+
 3. Each eight-byte row header contains row index `u16`, wrap flags `u8`, OSC 133 prompt class `u8`,
    cell count `u16`, and reserved zero `u16`. Exactly `columns` eight-byte cells follow: grapheme
    string index `u32`, style index `u16`, packed width/OSC 133 semantic/protected flags `u8`, and
@@ -616,7 +639,8 @@ The corpus's OSC 10/11 overrides appear as explicit foreground/background RGB in
 including blank cells; the same effective values remain in the headers. Host projection retains
 default sentinels only for channels without a program override, except that active DECSCNM emits
 both swapped defaults explicitly. Explicit cell and palette RGB keep their exact values even when
-equal to a default. These fixtures use the existing RGB/sentinel encodings and unchanged formats.
+equal to a default. Unmodified ANSI 0–15 use palette tags; child OSC 4 overrides remain RGB until
+OSC 104 resets them. The current format versions remain unchanged.
 
 ## Current projection buffer
 

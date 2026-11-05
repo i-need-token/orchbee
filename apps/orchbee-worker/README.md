@@ -325,8 +325,9 @@ capture keeps the System shell, Host colors and Host scrollback.
 The shared `UserTerminalColors` resolver supplies Host-default Light/Dark from explicit application
 appearance, while System keeps the existing Host baseline. Explicit terminal Light/Dark/Custom win.
 The launch profile installs those foreground/background defaults with their scheme, so Host OSC
-10/11 replies use the captured launch colors. Existing terminals and per-Client Settings previews
-never trigger a Worker theme mutation; see [native themes](../orchbee/docs/native-themes.md).
+10/11 replies use the captured launch colors. Controlling Clients update existing query palettes through revision-fenced theme application;
+reversible Settings previews remain local until committed. See
+[native themes](../orchbee/docs/native-themes.md).
 
 When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
 executable and argument vector, with only the Windows interactive PowerShell refinement below:
@@ -377,11 +378,19 @@ carries the theme's cursor and ANSI 0–15, then the standard xterm color cube a
 so a dark terminal never inherits light-tuned ANSI colors. The theme never replaces the default
 colors: Theme and Host under an explicit appearance capture the selected theme's canvas, while a
 Custom or observed Host pair keeps its values and takes the theme of its luminance-derived scheme.
-A Host-following terminal keeps the slots captured at its launch; when `host-colors` recolors it,
-the Worker applies the complete theme of the new colors from those slots, so a change of polarity
-also replaces the cursor and ANSI colors. A slot changed after launch reaches that terminal's ANSI
-colors only through a new launch until the palette-index cell tag lets each Client map ANSI colors
-itself.
+Every created terminal retains its last complete query theme for compare-and-set updates. On
+control acquisition and confirmed palette changes, `host-colors` supplies the controlling Client's
+effective defaults, cursor and ANSI 0–15, regardless of the launch's display mode. Known entries
+replace the query palette through `ApplyTerminalTheme`; extended entries stay Host-owned. A stale
+revision reconciles the complete current theme and retries once. Read-only Clients resolve their
+own tagged cells without changing this shared query state. Named TUI themes report without waiting
+for an outer-terminal probe, so Windows Light cannot answer OSC 11 for a dark controlling TUI.
+
+**Vetoable decision:** when the outer terminal does not answer every OSC 4/12 query, unknown slots
+and cursor remain explicit absences in the report. The Worker preserves their current query
+fallback and applies observed entries. This is not evidence that an unobserved slot matches a
+custom outer palette; Terminal colors still paints the true slot through `Indexed(n)`. The system
+appearance is only the default before a Client reports; it cannot override a controlling report.
 
 ## Worker-local authorized Host-operation kernel
 

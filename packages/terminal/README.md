@@ -377,13 +377,13 @@ until its own resize lands, so its content does not jump during a pane resize. `
 An open attachment accepts one complete `TerminalPresentationConfiguration` transaction containing
 `fontFamily`, `fontSize`, `fontWeight`, `fontWeightBold`, `fontLigatures`,
 `fontMetricModifiers`, `terminalPadding`, `paddingBalance`, `allowTransparency`, `backgroundOpacity`, and
-`defaultColorOverride`. The override is either `null` or a strict, normalized lowercase `#RRGGBB`
-foreground/background pair. `backgroundOpacity` is a source-neutral `0..1` configuration value;
+`defaultColorOverride`. The override is either `null` or normalized `#RRGGBB` foreground/background with an optional
+cursor, its covered text color, and a sixteen-entry packed RGB `ansi` palette. These are Client-local presentation values;
+Host frame and query metadata remain unchanged. Server-backed Orchbee Web/Desktop terminals use
+this source so existing cells recolor immediately, while the controlling Client separately reports
+its effective query colors. `backgroundOpacity` is a source-neutral `0..1` configuration value;
 the composing client applies it to its own default-background root rather than to the terminal
-surface. The override remains a source-neutral compatibility projection for clients that do not
-participate in the Host runtime-theme transaction. Orchbee's shared Web/Desktop composition always
-sets it to `null`; its Theme, Host, and Custom choices become a complete Host-owned terminal theme
-instead. `terminalColorThemes` carries every shipped color theme's canvas, cursor, selection, and
+surface. `terminalColorThemes` carries every shipped color theme's canvas, cursor, selection, and
 ANSI 0–15, generated from [`crates/color-themes`](../../crates/color-themes/README.md#gui-files);
 `resolveTerminalColorTheme` turns a stored slot id into a theme, falling back to the Orchbee theme of
 the slot's polarity, and `terminalColorThemeAnsi` lists its ANSI colors in palette order. There are no runtime partial setters. `updatePresentationConfiguration` validates and
@@ -742,14 +742,16 @@ const rows = await terminal.readBufferRows(
 
 WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the
 same packed projection, font configuration, application-owned selection/search overlays, preedit
-state, and cursor metadata. Host frame metadata remains authoritative and unmodified. A non-null
-client `defaultColorOverride` changes only cells whose packed foreground or background token is
-`TerminalColorEncoding.default`; explicit RGB (including black), Host-projected palette RGB, and
-`none` retain their Host-projected behavior. Inverse swaps already-resolved display roles, a
-default underline uses the effective foreground, and the cursor always uses the Host cursor color
-(falling back to Host foreground). An explicit client cursor accent affects only text inside a
-block cursor. This override is outside the revisioned Host-theme path and is always `null` in the
-shared Orchbee Web/Desktop composition. `allowTransparency` alone controls transparent renderer clear; a composing client
+state, and cursor metadata. Host frame metadata remains unmodified. Default tokens use the effective Client defaults;
+`TerminalColorEncoding.palette | n` uses its ANSI 0–15 palette. The presentation override's `ansi`
+entries take precedence over the renderer theme, and direct projected theme publication installs
+its complete ANSI set with the overlays. Palette-only changes invalidate retained rows. Explicit
+RGB (including black), extended palette indexes and child OSC 4 overrides retain Host resolution;
+OSC 104 restores tags. Inverse swaps already-resolved colors, faint keeps its existing intensity,
+and underline tags use the same ANSI set. An absent underline inherits displayed text. Selection
+and search overlays retain precedence. Cursor uses a Client cursor override when present, otherwise
+the Host cursor RGB (or Host foreground fallback); cursor accent affects only its covered text.
+These local values do not require a Host recolor to paint. `allowTransparency` alone controls transparent renderer clear; a composing client
 uses `backgroundOpacity` for its effective default-background root and never applies whole-surface
 CSS opacity. A newly opened Canvas remains transparent until it paints either an injected semantic
 presentation snapshot or its first live frame, then reuses the latest effective default background

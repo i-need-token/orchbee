@@ -452,11 +452,12 @@ function snapshotFromPreferences(
 function clientThemeOverlays(
 	terminal: Pick<
 		TerminalThemeSnapshot['terminal'],
-		'defaultBackgroundRgb' | 'defaultForegroundRgb'
+		'defaultBackgroundRgb' | 'defaultForegroundRgb' | 'palette'
 	>,
 	selection?: Pick<TerminalThemeOverlayPresentation, 'selectionBackgroundRgb'>,
 ): TerminalThemeOverlayPresentation {
 	return Object.freeze({
+		ansiPalette: Object.freeze(terminal.palette.slice(0, 16)),
 		cursorAccentRgb: 0xfc_fc_fc,
 		searchActiveMatchBackgroundRgb: 0xf5_a9_7f,
 		searchActiveMatchForegroundRgb: 0x1e_1e_1e,

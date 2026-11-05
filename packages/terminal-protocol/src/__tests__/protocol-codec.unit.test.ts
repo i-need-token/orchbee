@@ -137,6 +137,8 @@ const projectionConformanceCaseNames = [
 	'obpb-grapheme-length-splits-scalar',
 	'obpb-grapheme-offset-null-nonnullable',
 	'obpb-color-out-of-range',
+	'obpb-palette-index-out-of-range',
+	'obpb-palette-reserved-bits',
 	'obpb-style-flag-unknown',
 	'obpb-underline-kind-out-of-range',
 	'obpb-width-spacer-tail-without-head',
@@ -188,7 +190,7 @@ const packedProjectionCaseSchema = z.union([
 ]);
 const packedProjectionCorpusSchema = z
 	.strictObject({
-		cases: z.array(packedProjectionCaseSchema).length(34),
+		cases: z.array(packedProjectionCaseSchema).length(packedProjectionConformanceCaseNames.length),
 		formatVersion: z.literal('0.1.0'),
 		schemaVersion: z.literal(1),
 	})
@@ -217,17 +219,17 @@ const packedProjectionCorpusSchema = z
 				});
 			}
 		}
-		if (projectionCases !== 23) {
+		if (projectionCases !== projectionConformanceCaseNames.length) {
 			context.addIssue({
 				code: 'custom',
-				message: `Expected 23 OBPB cases, received ${projectionCases}`,
+				message: `Expected ${projectionConformanceCaseNames.length} OBPB cases, received ${projectionCases}`,
 				path: ['cases'],
 			});
 		}
-		if (rowWindowCases !== 11) {
+		if (rowWindowCases !== rowWindowConformanceCaseNames.length) {
 			context.addIssue({
 				code: 'custom',
-				message: `Expected 11 OBRW cases, received ${rowWindowCases}`,
+				message: `Expected ${rowWindowConformanceCaseNames.length} OBRW cases, received ${rowWindowCases}`,
 				path: ['cases'],
 			});
 		}

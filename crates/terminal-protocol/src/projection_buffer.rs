@@ -359,7 +359,7 @@ fn string_range(
 }
 
 fn valid_color(value: u32) -> bool {
-    value <= 0xffffff || value == 0x1000000 || value == 0x2000000
+    crate::cell_color::valid_cell_color(value)
 }
 
 // Every caller first validates the fixed header or canonical section extent.

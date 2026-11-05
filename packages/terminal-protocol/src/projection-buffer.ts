@@ -252,6 +252,7 @@ function screenFromCode(code: number): ProtocolResult<ActiveScreenValue> {
 function colorCode(color: TerminalColor): number {
 	if (color.kind === TerminalColorKind.default) return TerminalColorEncoding.default;
 	if (color.kind === TerminalColorKind.none) return TerminalColorEncoding.none;
+	if (color.kind === TerminalColorKind.palette) return TerminalColorEncoding.palette | color.index;
 	return color.rgb;
 }
 
@@ -1022,7 +1023,8 @@ function validProjectionColor(value: number): boolean {
 	return (
 		value <= COLOR_RGB_MASK ||
 		value === TerminalColorEncoding.default ||
-		value === TerminalColorEncoding.none
+		value === TerminalColorEncoding.none ||
+		(value >= TerminalColorEncoding.palette && value <= TerminalColorEncoding.palette + 15)
 	);
 }
 

@@ -253,7 +253,14 @@ describe('Client-Server carrier binding', () => {
 			requestId: ID,
 		},
 		{
-			action: { ...ids, background: 0xfc_fc_fc, foreground: 0x14_14_14, kind: 'host-colors' },
+			action: {
+				...ids,
+				background: 0xfc_fc_fc,
+				foreground: 0x14_14_14,
+				cursor: null,
+				palette: Array.from({ length: 16 }, () => null),
+				kind: 'host-colors',
+			},
 			kind: 'terminal.control',
 			requestId: ID,
 		},

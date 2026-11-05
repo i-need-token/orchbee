@@ -17,10 +17,27 @@ const REGISTRY: &str = include_str!("../../../../schemas/terminal/v1/constants.j
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ConstantsRegistry {
+    color_encoding: serde_json::Value,
     message_contracts: Vec<FixtureMessageContract>,
     protocol_limits: FixtureProtocolLimits,
     formats: serde_json::Value,
     enums: serde_json::Value,
+}
+
+#[test]
+fn cell_color_codes_match_registry() -> Result<(), Box<dyn Error>> {
+    let registry = read_registry()?;
+    assert_eq!(
+        registry.color_encoding,
+        json!({
+            "default": crate::COLOR_DEFAULT,
+            "none": crate::COLOR_NONE,
+            "palette": crate::COLOR_PALETTE,
+            "palette_entries": 16,
+            "rgb_mask": crate::COLOR_RGB_MASK,
+        })
+    );
+    Ok(())
 }
 
 #[derive(Deserialize)]

@@ -82,7 +82,7 @@ fn stringAt(strings: []const []const u8, index: u32) ProtocolError!?[]const u8 {
 }
 
 fn validColor(value: u32) bool {
-    return value <= 0x00ffffff or value == 0x01000000 or value == 0x02000000;
+    return contract.validCellColor(value);
 }
 
 pub fn validateTerminalFrame(

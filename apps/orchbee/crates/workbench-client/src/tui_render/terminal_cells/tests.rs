@@ -10,6 +10,70 @@ use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
 use ratatui::{Terminal, backend::TestBackend};
 use std::sync::Arc;
 
+#[test]
+fn one_retained_palette_cell_recolors_per_client_and_terminal_colors_emit_indexes() {
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
+    ))
+    .unwrap();
+    source.rows.truncate(1);
+    source.rows[0].cells.truncate(1);
+    let cell = &mut source.rows[0].cells[0];
+    cell.text = "A".into();
+    cell.width = 0;
+    cell.style.flags = 1 | 4 | 16;
+    cell.style.foreground = orchbee_terminal_protocol::COLOR_PALETTE | 1;
+    cell.style.background = orchbee_terminal_protocol::COLOR_PALETTE | 15;
+    let palettes = [
+        orchbee_color_themes::select(orchbee_color_themes::Polarity::Dark, "gruvbox-dark"),
+        orchbee_color_themes::select(orchbee_color_themes::Polarity::Light, "gruvbox-light"),
+    ];
+    let mut painted = Vec::new();
+    for palette in palettes {
+        let mut terminal = Terminal::new(TestBackend::new(2, 1)).unwrap();
+        terminal
+            .draw(|frame| render(frame, frame.area(), &source, false, &Theme::named(palette)))
+            .unwrap();
+        let rendered = &terminal.backend().buffer()[(0, 0)];
+        let rgb = |index: usize| {
+            let color = palette.ansi()[index].value();
+            Color::Rgb(color.red, color.green, color.blue)
+        };
+        assert_eq!((rendered.fg, rendered.bg), (rgb(1), rgb(15)));
+        assert!(
+            rendered
+                .modifier
+                .contains(Modifier::BOLD | Modifier::DIM | Modifier::REVERSED)
+        );
+        painted.push(rendered.fg);
+    }
+    assert_ne!(painted[0], painted[1]);
+    for level in [ColorLevel::Truecolor, ColorLevel::Ansi256] {
+        let mut terminal = Terminal::new(TestBackend::new(2, 1)).unwrap();
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    frame.area(),
+                    &source,
+                    false,
+                    &Theme::terminal_native().quantize(level),
+                )
+            })
+            .unwrap();
+        let rendered = &terminal.backend().buffer()[(0, 0)];
+        assert_eq!(
+            (rendered.fg, rendered.bg),
+            (Color::Indexed(1), Color::Indexed(15))
+        );
+    }
+    let reduced = Theme::terminal_native().quantize(ColorLevel::Ansi16);
+    assert!(!matches!(
+        reduced.terminal_cell_color(orchbee_terminal_protocol::COLOR_PALETTE | 1, Color::Reset),
+        Color::Rgb(..) | Color::Indexed(_)
+    ));
+}
+
 fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
     let mut text = String::new();
     let mut x = buffer.area.x;

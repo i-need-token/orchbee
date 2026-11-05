@@ -88,9 +88,14 @@ pub(crate) fn window(
 
 fn unstyled(style: TerminalTextStyle) -> bool {
     // Default and none both serialize to the destination's default color.
-    style.foreground >= 0x0100_0000
-        && style.background >= 0x0100_0000
-        && style.underline_color >= 0x0100_0000
+    [style.foreground, style.background, style.underline_color]
+        .into_iter()
+        .all(|color| {
+            matches!(
+                color,
+                orchbee_terminal_protocol::COLOR_DEFAULT | orchbee_terminal_protocol::COLOR_NONE
+            )
+        })
         && style.flags == 0
         && style.underline == 0
 }

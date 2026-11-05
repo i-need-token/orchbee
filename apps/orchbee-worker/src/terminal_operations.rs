@@ -627,7 +627,6 @@ fn prepare(
                 launch_facts::resolve(launch, preferences, system_shell, host_colors)?,
                 correlation,
                 session_runtime,
-                follows_host.then(|| launch_facts::launch_themes(preferences)),
             )?)
         }
         AuthorizedHostOperation::Start(_) => {

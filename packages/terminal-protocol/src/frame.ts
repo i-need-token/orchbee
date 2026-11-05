@@ -38,6 +38,7 @@ const COLOR_RGB_MASK = 0x00ff_ffff;
 const COLOR_TAG_MASK = 0xff00_0000;
 const COLOR_DEFAULT = 0x0100_0000;
 const COLOR_NONE = 0x0200_0000;
+const COLOR_PALETTE = 0x0300_0000;
 const CURSOR_FLAGS_MASK = 0b111;
 const ROW_FLAGS_MASK = 0b11;
 const CELL_FLAGS_MASK = 0b1_1111;
@@ -91,12 +92,14 @@ export const UnderlineKind = {
 export const TerminalColorKind = {
 	default: 'default',
 	none: 'none',
+	palette: 'palette',
 	rgb: 'rgb',
 } as const;
 
 export const TerminalColorEncoding = {
 	default: COLOR_DEFAULT,
 	none: COLOR_NONE,
+	palette: COLOR_PALETTE,
 	rgbMask: COLOR_RGB_MASK,
 } as const;
 
@@ -199,6 +202,7 @@ const positiveUint64Schema = uint64Schema.refine((value) => value > 0n, {
 const TerminalColorSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal(TerminalColorKind.default) }),
 	z.strictObject({ kind: z.literal(TerminalColorKind.none) }),
+	z.strictObject({ kind: z.literal(TerminalColorKind.palette), index: z.int().min(0).max(15) }),
 	z.strictObject({ kind: z.literal(TerminalColorKind.rgb), rgb: rgbSchema }),
 ]);
 
@@ -705,6 +709,8 @@ function colorCode(color: TerminalColor): number {
 			return COLOR_DEFAULT;
 		case TerminalColorKind.none:
 			return COLOR_NONE;
+		case TerminalColorKind.palette:
+			return COLOR_PALETTE | color.index;
 		case TerminalColorKind.rgb:
 			return color.rgb;
 	}
@@ -712,7 +718,12 @@ function colorCode(color: TerminalColor): number {
 
 function validColorCode(color: number): boolean {
 	const tag = color & COLOR_TAG_MASK;
-	return tag === 0 || color === COLOR_DEFAULT || color === COLOR_NONE;
+	return (
+		tag === 0 ||
+		color === COLOR_DEFAULT ||
+		color === COLOR_NONE ||
+		(color >= COLOR_PALETTE && color <= COLOR_PALETTE + 15)
+	);
 }
 
 function styleFlags(style: TerminalStyle): number {

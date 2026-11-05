@@ -299,6 +299,8 @@ export type ClientServerControlAction =
 			readonly controllerId: string;
 			readonly foreground: number;
 			readonly kind: 'host-colors';
+			readonly cursor: number | null;
+			readonly palette: readonly (number | null)[];
 			readonly sequence: string;
 	  };
 

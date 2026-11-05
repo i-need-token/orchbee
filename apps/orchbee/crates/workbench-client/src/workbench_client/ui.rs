@@ -2073,8 +2073,11 @@ impl WorkbenchClientUi {
         self.reports.expedite();
     }
 
-    /// Publishes the outer terminal's settled default colors for Host-default terminals.
-    pub(super) fn observe_host_colors(&mut self, colors: Option<(u32, u32)>) {
+    /// Publishes effective Client colors for the terminals it controls.
+    pub(super) fn observe_host_colors(
+        &mut self,
+        colors: Option<crate::client_view::TerminalQueryColors>,
+    ) {
         if self.retirement_failure.is_some() {
             return;
         }

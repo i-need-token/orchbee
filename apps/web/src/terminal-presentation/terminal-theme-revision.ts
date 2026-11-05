@@ -29,6 +29,7 @@ const terminalThemeApplicationSchema = z
 const terminalThemeOverlaySchema = z
 	.strictObject({
 		cursorAccentRgb: rgbSchema,
+		ansiPalette: z.array(rgbSchema).length(16).readonly(),
 		searchActiveMatchBackgroundRgb: rgbSchema,
 		searchActiveMatchForegroundRgb: rgbSchema,
 		searchMatchBackgroundRgb: rgbSchema,
@@ -649,6 +650,9 @@ function terminalThemeSnapshotsEqual(
 	return (
 		left === right ||
 		(left.application.colorScheme === right.application.colorScheme &&
+			left.overlays.ansiPalette.every(
+				(color, index) => color === right.overlays.ansiPalette[index],
+			) &&
 			left.overlays.cursorAccentRgb === right.overlays.cursorAccentRgb &&
 			left.overlays.searchActiveMatchBackgroundRgb ===
 				right.overlays.searchActiveMatchBackgroundRgb &&
