@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "color-themes",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "The single authority for Orchbee color themes: the theme file schema, the shipped theme data with its provenance and recorded lightness corrections, the palette-to-role resolver, and the gate test every shipped theme passes. The Worker's terminal launch palette, the native Client theme module, and the GUI token generator are its planned consumers.",
+	"nonGoals": [
+		"Choosing which theme a device or Client shows, storing theme preferences, or detecting host appearance and color level.",
+		"Quantizing colors, composing styles and modifiers, rendering, generating CSS, or encoding terminal protocol values.",
+		"Localizing theme names, importing user themes, or changing the fixed Agent status colors."
+	]
+}

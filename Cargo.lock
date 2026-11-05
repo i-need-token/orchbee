@@ -921,6 +921,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-color-themes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "orchbee-local-client"
 version = "0.1.0"
 dependencies = [

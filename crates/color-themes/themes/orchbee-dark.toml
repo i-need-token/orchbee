@@ -1,0 +1,39 @@
+# Orchbee's dark default. The canvas, cursor, and selection are Orchbee's own values; the source
+# supplies ANSI 0-15, the dark column of the VS Code terminal color registry that Dark Modern uses.
+id = "orchbee-dark"
+name = "Orchbee Dark"
+family = "orchbee"
+polarity = "dark"
+
+[source]
+url = "https://github.com/microsoft/vscode"
+path = "src/vs/workbench/contrib/terminal/common/terminalColorRegistry.ts"
+revision = "c647c1cfa2c2a4b1bbf12cb4db413fe05a0d9044"
+license = "MIT"
+copyright = "Copyright (c) 2015 - present Microsoft Corporation"
+
+[canvas]
+background = "#1e1e1e"
+foreground = "#d4d4d4"
+cursor = "#57bef8"
+cursor_text = "#1e1e1e"
+selection_background = "#415576"
+selection_foreground = "#d4d4d4"
+
+[ansi]
+black = "#000000"
+red = "#cd3131"
+green = "#0dbc79"
+yellow = "#e5e510"
+blue = "#2472c8"
+magenta = "#bc3fbc"
+cyan = "#11a8cd"
+white = "#e5e5e5"
+bright_black = "#666666"
+bright_red = "#f14c4c"
+bright_green = "#23d18b"
+bright_yellow = "#f5f543"
+bright_blue = "#3b8eea"
+bright_magenta = "#d670d6"
+bright_cyan = "#29b8db"
+bright_white = "#e5e5e5"

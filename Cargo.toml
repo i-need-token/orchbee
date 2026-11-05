@@ -11,6 +11,7 @@ members = [
 	"crates/agent-observation-protocol",
 	"crates/capability-node-protocol",
 	"crates/client-server-protocol",
+	"crates/color-themes",
 	"crates/local-client-protocol",
 	"crates/local-ipc",
 	"crates/local-peer-credentials",
