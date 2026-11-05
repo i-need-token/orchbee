@@ -6,8 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	activeTerminalContext,
 	createSnapshotRuntime,
+	fixturePanelId,
 	fixturePresentationId,
+	fixtureTabId,
 	oneWorkspaceSnapshot,
+	snapshotPanel,
+	snapshotSplit,
 	snapshotTab,
 } from '../../../__tests__/server-workbench-snapshot';
 import type { WorkbenchAgentSnapshot } from '../../types/workbench-agent-observation';
@@ -15,12 +19,59 @@ import { useWorkbenchAgentAttention } from '../useWorkbenchAgentAttention';
 
 const PRESENTATION_ID = fixturePresentationId(1);
 
-function observation(sequence: bigint): WorkbenchAgentSnapshot {
+function observation(
+	sequence: bigint,
+	presentationIds: readonly string[] = [PRESENTATION_ID],
+): WorkbenchAgentSnapshot {
 	return {
 		complete: true,
-		presentations: new Map([
-			[PRESENTATION_ID, { agent: 'codex', binding: 'binding', sequence, state: 'idle' }],
-		]),
+		presentations: new Map(
+			presentationIds.map((id) => [
+				id,
+				{ agent: 'codex', binding: 'binding', sequence, state: 'idle' },
+			]),
+		),
+	};
+}
+
+/** Holds animation frames until `paint` delivers DOM observers and two frame boundaries. */
+function stubFrames(): () => Promise<void> {
+	const frames = new Map<number, FrameRequestCallback>();
+	let nextFrame = 0;
+	vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+		const id = ++nextFrame;
+		frames.set(id, callback);
+		return id;
+	});
+	vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+	return async () => {
+		await act(async () => {});
+		for (let index = 0; index < 2; index += 1) {
+			act(() => {
+				const pending = [...frames.values()];
+				frames.clear();
+				for (const callback of pending) callback(index);
+			});
+		}
+	};
+}
+
+/** An Agent source whose observation the test replaces. */
+function agentSource(initial: WorkbenchAgentSnapshot) {
+	let snapshot = initial;
+	const listeners = new Set<() => void>();
+	return {
+		getSnapshot: () => snapshot,
+		publish: (next: WorkbenchAgentSnapshot) => {
+			snapshot = next;
+			for (const listener of listeners) listener();
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		},
 	};
 }
 
@@ -33,26 +84,8 @@ afterEach(() => {
 
 describe('Workbench Agent read visibility', () => {
 	it('waits for a ready active terminal, then clears only the unread mark', async () => {
-		const frames = new Map<number, FrameRequestCallback>();
-		let nextFrame = 0;
-		vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-			const id = ++nextFrame;
-			frames.set(id, callback);
-			return id;
-		});
-		vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+		const paint = stubFrames();
 		vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-		const paint = async () => {
-			// Deliver DOM observers, followed by the two browser frame boundaries.
-			await act(async () => {});
-			for (let index = 0; index < 2; index += 1) {
-				act(() => {
-					const pending = [...frames.values()];
-					frames.clear();
-					for (const callback of pending) callback(index);
-				});
-			}
-		};
 		const element = document.createElement('div');
 		const layer = document.createElement('div');
 		const viewport = document.createElement('div');
@@ -96,5 +129,53 @@ describe('Workbench Agent read visibility', () => {
 		expect(rendered.result.current.unread.size).toBe(0);
 		expect(painted).toHaveBeenLastCalledWith(snapshot, new Set([PRESENTATION_ID]));
 		expect(rendered.result.current.observation).toBe(snapshot);
+	});
+
+	it('counts only the focused Panel as seen; a visible split sibling stays unread', async () => {
+		const paint = stubFrames();
+		vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+		const [left, right] = [fixturePresentationId(1), fixturePresentationId(2)];
+		const element = document.createElement('div');
+		for (const id of [left, right]) {
+			const layer = document.createElement('div');
+			const viewport = document.createElement('div');
+			layer.dataset['presentationMode'] = 'active';
+			viewport.dataset['terminalPresentationId'] = id;
+			viewport.dataset['terminalDisplayReady'] = 'true';
+			layer.append(viewport);
+			element.append(layer);
+		}
+		document.body.append(element);
+		const terminalContext = activeTerminalContext(
+			createSnapshotRuntime(
+				oneWorkspaceSnapshot(1, [
+					snapshotTab(1, snapshotSplit(1, 'horizontal', snapshotPanel(1), snapshotPanel(2))),
+				]),
+			),
+		);
+		const focus = (sequence: number) =>
+			act(() => {
+				terminalContext.panelWorkspaceStore.transition({
+					panelId: fixturePanelId(sequence),
+					tabId: fixtureTabId(1),
+					type: 'panel-focused',
+				});
+			});
+		focus(1);
+		const source = agentSource(observation(1n, [left, right]));
+		const painted = vi.fn<(shown: WorkbenchAgentSnapshot, ids: ReadonlySet<string>) => void>();
+		const rendered = renderHook(() =>
+			useWorkbenchAgentAttention(source, terminalContext, { current: element }, painted),
+		);
+
+		act(() => source.publish(observation(2n, [left, right])));
+		await paint();
+		expect(rendered.result.current.unread).toEqual(new Set([right]));
+		// Both painted, so neither needs a notification.
+		expect(painted).toHaveBeenLastCalledWith(source.getSnapshot(), new Set([left, right]));
+
+		focus(2);
+		await paint();
+		expect(rendered.result.current.unread.size).toBe(0);
 	});
 });

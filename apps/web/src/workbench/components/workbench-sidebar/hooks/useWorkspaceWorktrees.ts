@@ -13,8 +13,16 @@ import type {
 	WorkbenchWorktreeDiscoveryResult,
 } from '../../../types/workbench-worktrees';
 import type { WorkbenchWorktreeCommands } from '../types/workbench-sidebar-types';
+import { worktreeRowsShown, type WorktreeRowsEvidence } from '../utils/worktreeRowsShown';
+import type { WorkbenchSidebarWorkspaceLocation } from './useWorkbenchSidebarWorkspaceLocations';
 
 type WorkspaceDiscovery = { readonly kind: 'reading' } | WorkbenchWorktreeDiscoveryResult;
+
+/** The current read of a Workspace's repository, and what the last settled one decided. */
+interface WorkspaceWorktreeState {
+	readonly current: WorkspaceDiscovery;
+	readonly settled: WorktreeRowsEvidence['settled'];
+}
 
 export interface WorkspaceWorktreeMenu {
 	/** The destructive command that follows Close, when the Workspace may remove its checkout. */
@@ -42,6 +50,8 @@ export interface WorkspaceWorktreesView {
 interface UseWorkspaceWorktreesOptions {
 	readonly beginWorkspaceActivation: () => (workspaceId: string) => void;
 	readonly commands: WorkbenchWorktreeCommands | undefined;
+	/** What each Workspace row shows of where it stands, including the branch Git reported there. */
+	readonly locations: ReadonlyMap<string, WorkbenchSidebarWorkspaceLocation>;
 }
 
 const NO_MENU: WorkspaceWorktreeMenu = { removal: [], section: [] };
@@ -49,16 +59,18 @@ const NO_PROJECT_ROWS: ProjectWorktreeRows = { checkouts: [], create: null };
 
 /**
  * The Worktree rows of Project and Workspace menus, as the TUI offers them: discovery starts when the
- * menu opens and the rows stay disabled until Git answers. A Project reads the repository of its
- * first Workspace. The rows invoke Workbench Actions, which own the decisions; while one runs, the
- * rows wait for it.
+ * menu opens and the rows stay disabled until Git answers. Rows show only where Git is known, from
+ * the row's branch or a discovery that found Git, so a Workspace outside Git never shows them. A
+ * Project reads the repository of its first Workspace. The rows invoke Workbench Actions, which own
+ * the decisions; while one runs, the rows wait for it.
  */
 export function useWorkspaceWorktrees({
 	beginWorkspaceActivation,
 	commands,
+	locations,
 }: UseWorkspaceWorktreesOptions): WorkspaceWorktreesView {
 	const intl = useOrchbeeIntl();
-	const [discoveries, setDiscoveries] = React.useState<ReadonlyMap<string, WorkspaceDiscovery>>(
+	const [discoveries, setDiscoveries] = React.useState<ReadonlyMap<string, WorkspaceWorktreeState>>(
 		() => new Map(),
 	);
 	const [pending, setPending] = React.useState(false);
@@ -77,7 +89,14 @@ export function useWorkspaceWorktrees({
 		// Only the newest read speaks for the Workspace.
 		const generation = (generations.current.get(workspaceId) ?? 0) + 1;
 		generations.current.set(workspaceId, generation);
-		setDiscoveries((current) => new Map(current).set(workspaceId, { kind: 'reading' }));
+		// The answer speaks for what the row shows as the read begins.
+		const line = locations.get(workspaceId)?.line ?? null;
+		setDiscoveries((current) =>
+			new Map(current).set(workspaceId, {
+				current: { kind: 'reading' },
+				settled: current.get(workspaceId)?.settled ?? null,
+			}),
+		);
 		void commands
 			.discover(workspaceId)
 			.catch(
@@ -89,7 +108,12 @@ export function useWorkspaceWorktrees({
 			)
 			.then((result) => {
 				if (!mounted.current || generations.current.get(workspaceId) !== generation) return;
-				setDiscoveries((current) => new Map(current).set(workspaceId, result));
+				setDiscoveries((current) =>
+					new Map(current).set(workspaceId, {
+						current: result,
+						settled: { git: result.kind === 'discovered', line },
+					}),
+				);
 			});
 	});
 
@@ -118,21 +142,25 @@ export function useWorkspaceWorktrees({
 	};
 
 	const discoveryOf = (workspaceId: string): WorkspaceDiscovery =>
-		discoveries.get(workspaceId) ?? { kind: 'reading' };
+		discoveries.get(workspaceId)?.current ?? { kind: 'reading' };
+
+	const rowsShown = (workspaceId: string): boolean =>
+		worktreeRowsShown({
+			line: locations.get(workspaceId)?.line ?? null,
+			settled: discoveries.get(workspaceId)?.settled ?? null,
+		});
 
 	const newWorktreeRow = (
 		available: WorkbenchWorktreeCommands,
-		workspaceId: string | null,
+		workspaceId: string,
 		discovery: WorkbenchWorktreeDiscovery | null,
 	): WorkbenchActionMenuCommand => ({
-		disabled: workspaceId === null || discovery === null || pending,
+		disabled: discovery === null || pending,
 		icon: 'git-branch',
 		id: 'new-worktree',
 		kind: 'command',
 		label: intl.formatMessage(workbenchMessages.worktreeNew),
-		onSelect: () => {
-			if (workspaceId !== null) openInto(() => available.create(workspaceId));
-		},
+		onSelect: () => openInto(() => available.create(workspaceId)),
 	});
 
 	const checkoutRows = (
@@ -150,14 +178,14 @@ export function useWorkspaceWorktrees({
 		}));
 
 	const projectRows = (sourceWorkspaceId: string | null): ProjectWorktreeRows => {
-		if (commands === undefined) return NO_PROJECT_ROWS;
-		const state = sourceWorkspaceId === null ? null : discoveryOf(sourceWorkspaceId);
-		const discovery = state?.kind === 'discovered' ? state.discovery : null;
+		// A Project without Workspaces has no source.
+		if (commands === undefined || sourceWorkspaceId === null || !rowsShown(sourceWorkspaceId)) {
+			return NO_PROJECT_ROWS;
+		}
+		const state = discoveryOf(sourceWorkspaceId);
+		const discovery = state.kind === 'discovered' ? state.discovery : null;
 		return {
-			checkouts:
-				sourceWorkspaceId === null || discovery === null
-					? []
-					: checkoutRows(commands, sourceWorkspaceId, discovery),
+			checkouts: discovery === null ? [] : checkoutRows(commands, sourceWorkspaceId, discovery),
 			create: newWorktreeRow(commands, sourceWorkspaceId, discovery),
 		};
 	};
@@ -232,6 +260,7 @@ export function useWorkspaceWorktrees({
 				},
 			];
 		};
+		if (!rowsShown(workspaceId)) return { removal: removalEntries(), section: [] };
 		return {
 			removal: removalEntries(),
 			section: [

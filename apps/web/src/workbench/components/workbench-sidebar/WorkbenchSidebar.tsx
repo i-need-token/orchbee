@@ -177,6 +177,7 @@ export function WorkbenchSidebar({
 	const workspaceWorktrees = useWorkspaceWorktrees({
 		beginWorkspaceActivation: workspaceActivation.begin,
 		commands: worktreeCommands,
+		locations: workspaceLocations,
 	});
 	return (
 		<>

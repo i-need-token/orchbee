@@ -19,7 +19,11 @@ type WorkbenchAgentPaintWitness = (
 	presentationIds: ReadonlySet<string>,
 ) => void;
 
-/** Only the active Workspace's terminals can be seen, so none are while no Workspace is open. */
+/**
+ * Only the active Workspace's terminals can be seen, so none are while no Workspace is open. Every
+ * terminal the active Tab paints counts as shown, but only the focused Panel's acknowledges, as in
+ * the TUI: a visible split sibling stays unread until its Panel takes focus.
+ */
 export function useWorkbenchAgentAttention(
 	source: WorkbenchAgentSource | undefined,
 	terminalContext: WorkbenchTerminalContext | null,
@@ -50,13 +54,15 @@ export function useWorkbenchAgentAttention(
 		const element = root.current;
 		if (element === null) return;
 		const visiblePresentations = new Set<string>();
+		let focusedPresentation: string | null = null;
 		const active = panels?.tabs.find((tab) => tab.tabId === tabs?.activeTabId);
 		if (active !== undefined) {
 			for (const panel of collectPanelLeaves(active.root)) {
 				if (active.maximizedPanelId === null || active.maximizedPanelId === panel.id) {
-					visiblePresentations.add(
-						panel.activeChildPresentationId ?? panel.primaryPresentation.presentationId,
-					);
+					const presentationId =
+						panel.activeChildPresentationId ?? panel.primaryPresentation.presentationId;
+					visiblePresentations.add(presentationId);
+					if (panel.id === active.focusedPanelId) focusedPresentation = presentationId;
 				}
 			}
 		}
@@ -84,7 +90,9 @@ export function useWorkbenchAgentAttention(
 					painted(snapshot.observation, displayed);
 					attention.acknowledge(
 						snapshot,
-						displayed,
+						focusedPresentation !== null && displayed.has(focusedPresentation)
+							? new Set([focusedPresentation])
+							: new Set(),
 						document.hasFocus() && !hasWorkbenchExclusiveFocusSurface(document),
 					);
 				});
