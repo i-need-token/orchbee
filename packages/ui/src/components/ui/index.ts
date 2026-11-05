@@ -69,6 +69,7 @@ export {
 	ResizablePanel,
 	ResizablePanelGroup,
 	type ResizablePanelGroupHandle,
+	type ResizablePanelHandle,
 } from './resizable';
 
 export { Slider } from './slider';

@@ -50,8 +50,9 @@ export function WorkspaceAgentList({
 									: `${row.accessibleLabel} · ${row.unreadLabel}`
 							}
 							className={styles['rowMain']}
-							data-sidebar-nav=''
+							data-sidebar-nav='agent'
 							data-slot='workbench-sidebar-workspace-agent'
+							tabIndex={-1}
 							type='button'
 						/>
 						<Tooltip>

@@ -33,6 +33,7 @@ import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
+import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
 import { useWorkbenchSidebarWorkspaceLocations } from './hooks/useWorkbenchSidebarWorkspaceLocations';
 import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
 import { useWorkspaceWorktrees } from './hooks/useWorkspaceWorktrees';
@@ -72,12 +73,17 @@ interface WorkbenchSidebarProps {
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly subscribeNavigation: (listener: () => void) => () => void;
 	readonly removeProject: (projectId: string) => void;
+	/** The modifier that moves a row with ↑ and ↓: ⌘ on macOS, where ⌃↑ opens Mission Control. */
+	readonly reorderModifier: 'ctrl' | 'meta';
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
 	readonly reorderWorkspace: (
 		workspaceId: string,
 		beforeWorkspaceId: string | null,
 	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
+	readonly resetSidebarWidth?: (() => void) | undefined;
+	readonly resizeSidebar?: ((delta: number) => void) | undefined;
+	readonly returnToTerminal?: (() => void) | undefined;
 	readonly searchLabel: string;
 	readonly searchShortcutId: string;
 	readonly searchShortcutLabel: string | undefined;
@@ -117,9 +123,13 @@ export function WorkbenchSidebar({
 	projectWorkspaceState,
 	subscribeNavigation,
 	removeProject,
+	reorderModifier,
 	reorderProject,
 	reorderWorkspace,
 	renameProject,
+	resetSidebarWidth,
+	resizeSidebar,
+	returnToTerminal,
 	searchLabel,
 	searchShortcutId,
 	searchShortcutLabel,
@@ -180,6 +190,25 @@ export function WorkbenchSidebar({
 		activateWorkspace: (workspaceId) => activateWorkspace(workspaceId, 'other'),
 		projectWorkspaceState,
 	});
+	const keyboard = useWorkbenchSidebarKeyboard({
+		activateWorkspace: (workspaceId) => {
+			workspaceActivation.cancel();
+			activateWorkspace(workspaceId, 'keyboard');
+		},
+		createWorkspace: () => {
+			workspaceActivation.cancel();
+			createWorkspace();
+		},
+		onSearch,
+		onShortcuts,
+		reorderModifier,
+		reorderProject,
+		reorderWorkspace,
+		resetSidebarWidth,
+		resizeSidebar,
+		returnToTerminal,
+		state: projectWorkspaceState,
+	});
 	const workspaceWorktrees = useWorkspaceWorktrees({
 		beginWorkspaceActivation: workspaceActivation.begin,
 		commands: worktreeCommands,
@@ -231,7 +260,14 @@ export function WorkbenchSidebar({
 					</li>
 				</ul>
 				<div className={styles['projectSection']}>
-					<div className={styles['projectRegion']} data-navigation-reorder-scroll='true'>
+					<div
+						ref={keyboard.listReference}
+						className={styles['projectRegion']}
+						data-navigation-reorder-scroll='true'
+						onBlur={keyboard.onBlur}
+						onFocus={keyboard.onFocus}
+						onKeyDown={keyboard.onKeyDown}
+					>
 						{/* Project and Recents headings name the groups; the list shows no heading of its own. */}
 						<ul
 							ref={projectReorder.listRef}

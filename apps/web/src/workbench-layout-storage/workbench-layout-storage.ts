@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const DEFAULT_LEFT_PANEL_WIDTH = 250;
+export const DEFAULT_LEFT_PANEL_WIDTH = 250;
 export const MINIMUM_LEFT_PANEL_WIDTH = 200;
 export const MAXIMUM_LEFT_PANEL_WIDTH = 400;
 

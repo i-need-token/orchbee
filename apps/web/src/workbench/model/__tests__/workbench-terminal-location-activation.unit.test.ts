@@ -45,6 +45,32 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 		expect(observeThirdWorkspace(focused.state, true).commands).toEqual([]);
 	});
 
+	it('hands focus to the terminal after the sidebar opens a Workspace with Enter', () => {
+		const requested = transitionWorkbenchTerminalLocationActivation(mountedState(), {
+			kind: 'activate',
+			origin: 'keyboard',
+			originLocation: workspaceLocation,
+			requestId: 1,
+			targetLocation: otherWorkspaceLocation,
+		});
+		expect(requested.commands).toEqual([
+			{
+				kind: 'invoke-location-activation',
+				requestId: 1,
+				source: 'keyboard',
+				targetLocation: otherWorkspaceLocation,
+			},
+		]);
+		const accepted = transitionWorkbenchTerminalLocationActivation(requested.state, {
+			kind: 'activation-settled',
+			outcome: 'accepted',
+			requestId: 1,
+		});
+		expect(observeLocation(accepted.state, otherWorkspaceLocation, true).commands).toEqual([
+			{ kind: 'request-terminal-focus', targetLocation: otherWorkspaceLocation },
+		]);
+	});
+
 	it('focuses a Workspace once when its projection arrives before pointer activation settles', () => {
 		const requested = pointerRequest(mountedState(), 1, otherWorkspaceLocation);
 		const projected = observeLocation(requested.state, otherWorkspaceLocation, true);

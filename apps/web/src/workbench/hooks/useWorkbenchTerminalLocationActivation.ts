@@ -16,7 +16,7 @@ interface UseWorkbenchTerminalLocationActivationOptions {
 	readonly activeLocation: WorkbenchActiveLocation;
 	readonly invokeLocationActivation: (
 		targetLocation: WorkbenchActiveLocation,
-		source: 'button' | 'pointer',
+		source: 'button' | 'keyboard' | 'pointer',
 	) => ActionExecution;
 	readonly requestTerminalFocus: (targetLocation: WorkbenchActiveLocation) => boolean;
 	readonly terminalTargetAvailable: boolean;

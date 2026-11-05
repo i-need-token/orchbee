@@ -1,6 +1,7 @@
 import type { KeyboardShortcutEvent } from '@orchbee/keyboard-shortcuts';
 
 const NAVIGATION_MENU_SHORTCUTS = [
+	{ code: 'F2', shiftKey: false },
 	{ code: 'F10', shiftKey: true },
 	{ code: 'ContextMenu', shiftKey: false },
 ] as const;

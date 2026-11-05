@@ -1,6 +1,10 @@
 import type { WorkbenchActiveLocation } from '../../project-workspace';
 
-export type WorkbenchTerminalLocationActivationOrigin = 'other' | 'pointer';
+/**
+ * How an activation began. A pointer click and the sidebar's Enter hand focus to the destination
+ * terminal once it is ready; other activations leave focus where it is.
+ */
+export type WorkbenchTerminalLocationActivationOrigin = 'keyboard' | 'other' | 'pointer';
 
 interface WorkbenchTerminalLocationActivationWaitingState {
 	readonly activationAccepted: boolean;
@@ -41,7 +45,7 @@ export type WorkbenchTerminalLocationActivationCommand =
 	| {
 			readonly kind: 'invoke-location-activation';
 			readonly requestId: number;
-			readonly source: 'button' | 'pointer';
+			readonly source: 'button' | 'keyboard' | 'pointer';
 			readonly targetLocation: WorkbenchActiveLocation;
 	  }
 	| {
@@ -74,10 +78,10 @@ export function transitionWorkbenchTerminalLocationActivation(
 		const command = {
 			kind: 'invoke-location-activation',
 			requestId: event.requestId,
-			source: event.origin === 'pointer' ? 'pointer' : 'button',
+			source: event.origin === 'other' ? 'button' : event.origin,
 			targetLocation: event.targetLocation,
 		} as const;
-		return event.origin === 'pointer'
+		return event.origin !== 'other'
 			? {
 					commands: [command],
 					state: {

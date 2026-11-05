@@ -179,10 +179,11 @@ export function ProjectNavigationItem({
 							className={styles['chevron']}
 							data-holds-active-workspace={holdsHiddenActiveWorkspace || undefined}
 							data-navigation-reorder-excluded='true'
-							data-sidebar-nav=''
+							data-sidebar-nav='heading'
 							data-slot={
 								project === null ? 'workbench-sidebar-recents' : 'workbench-sidebar-project'
 							}
+							tabIndex={-1}
 							type='button'
 							onClick={() =>
 								project === null ? toggleRecentsExpansion() : toggleProjectExpansion(project.id)
@@ -246,6 +247,7 @@ export function ProjectNavigationItem({
 													aria-label={`${messages.createWorkspace}: ${project.name}`}
 													className={styles['tool']}
 													data-navigation-reorder-excluded='true'
+													tabIndex={-1}
 													type='button'
 												/>
 											}
@@ -268,6 +270,7 @@ export function ProjectNavigationItem({
 													className={styles['tool']}
 													data-navigation-menu-trigger='true'
 													data-navigation-reorder-excluded='true'
+													tabIndex={-1}
 													type='button'
 												/>
 											}

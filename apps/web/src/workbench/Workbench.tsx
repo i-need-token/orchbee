@@ -251,6 +251,7 @@ export function Workbench({
 								maxSize={`${MAXIMUM_LEFT_PANEL_WIDTH}px`}
 								groupResizeBehavior='preserve-pixel-size'
 								onResize={view.onLeftPanelResize}
+								panelRef={view.leftPanelReference}
 							>
 								<div
 									className={styles['leftPanel']}
@@ -272,6 +273,10 @@ export function Workbench({
 										onSearch={view.search}
 										onSettings={view.settings}
 										onShortcuts={view.shortcuts}
+										reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
+										resetSidebarWidth={view.resetSidebarWidth}
+										resizeSidebar={view.resizeSidebar}
+										returnToTerminal={view.returnToTerminal}
 										shortcutsLabel={view.shortcutsLabel}
 										projectLabel={view.projectLabel}
 										newWorkspaceLabel={view.newWorkspaceLabel}

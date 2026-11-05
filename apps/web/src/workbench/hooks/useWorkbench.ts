@@ -8,6 +8,7 @@ import type {
 	ActionScope,
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
+import type { ResizablePanelHandle } from '@orchbee/ui/components';
 import {
 	type TabStripChangeCallback,
 	type TabStripCloseCallback,
@@ -21,6 +22,9 @@ import * as React from 'react';
 import type { UserLaunchProfile } from '@orchbee/workbench-client-protocol';
 
 import {
+	DEFAULT_LEFT_PANEL_WIDTH,
+	MAXIMUM_LEFT_PANEL_WIDTH,
+	MINIMUM_LEFT_PANEL_WIDTH,
 	readWorkbenchLeftPanelWidth,
 	readWorkbenchSidebarVisibility,
 	readWorkbenchTabStripOrientation,
@@ -179,6 +183,7 @@ interface WorkbenchView {
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
+	readonly leftPanelReference: React.RefObject<ResizablePanelHandle | null>;
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly newTabChoices: readonly TabStripNewTabChoice[] | undefined;
@@ -191,6 +196,12 @@ interface WorkbenchView {
 		meta: ResizableLayoutChangedMeta,
 	) => void;
 	readonly onLeftPanelResize: (size: ResizablePanelSize) => void;
+	/** Returns the sidebar to its default width. */
+	readonly resetSidebarWidth: () => void;
+	/** Widens the sidebar by a number of pixels, or narrows it by a negative one. */
+	readonly resizeSidebar: (delta: number) => void;
+	/** Gives keyboard focus back to the current terminal. */
+	readonly returnToTerminal: () => void;
 	readonly onRootBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly onRootFocusCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly shortcutScopeReference: React.RefObject<HTMLDivElement | null>;
@@ -362,6 +373,15 @@ export function useWorkbench({
 	const [verticalTabStripCollapsed, setVerticalTabStripCollapsed] = React.useState(false);
 	const [defaultLeftPanelWidth] = React.useState(() => readWorkbenchLeftPanelWidth(storage));
 	const leftPanelWidth = React.useRef(defaultLeftPanelWidth);
+	const leftPanelReference = React.useRef<ResizablePanelHandle>(null);
+	const setLeftPanelWidth = useMemoizedFn((width: number) => {
+		const next = Math.min(MAXIMUM_LEFT_PANEL_WIDTH, Math.max(MINIMUM_LEFT_PANEL_WIDTH, width));
+		const panel = leftPanelReference.current;
+		if (panel === null) return;
+		panel.resize(next);
+		leftPanelWidth.current = next;
+		writeWorkbenchLeftPanelWidth(storage, next);
+	});
 	const [searchState, updateSearch] = React.useReducer(
 		transitionWorkbenchSearch,
 		undefined,
@@ -621,7 +641,7 @@ export function useWorkbench({
 		createTabWithProfile,
 	);
 	const invokeLocationActivation = useMemoizedFn(
-		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => {
+		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'keyboard' | 'pointer') => {
 			// No Workspace opens by itself once none is left, so nothing activates it.
 			if (targetLocation.kind !== 'workspace') throw new Error('Only a Workspace activates.');
 			return actions.invoke(
@@ -800,6 +820,7 @@ export function useWorkbench({
 			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
 		},
 		isSidebarVisible,
+		leftPanelReference,
 		leftPanelSize: `${leftPanelWidth.current}px`,
 		newTab: (request) =>
 			actions.invoke(
@@ -822,6 +843,11 @@ export function useWorkbench({
 		},
 		onLeftPanelResize: (size) => {
 			leftPanelWidth.current = size.inPixels;
+		},
+		resetSidebarWidth: () => setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH),
+		resizeSidebar: (delta) => setLeftPanelWidth(leftPanelWidth.current + delta),
+		returnToTerminal: () => {
+			focusRouting.requestTerminalFocus();
 		},
 		onRootBlurCapture: focusRouting.onBlurCapture,
 		onRootFocusCapture: focusRouting.onFocusCapture,

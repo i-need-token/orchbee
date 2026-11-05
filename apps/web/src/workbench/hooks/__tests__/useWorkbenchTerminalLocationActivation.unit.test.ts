@@ -45,7 +45,10 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 	it('waits for late Workspace publication before requesting focus', async () => {
 		const pending = pendingActionExecution('activation-1');
 		const invokeLocationActivation = vi.fn<
-			(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => ActionExecution
+			(
+				targetLocation: WorkbenchActiveLocation,
+				source: 'button' | 'keyboard' | 'pointer',
+			) => ActionExecution
 		>(() => pending.execution);
 		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
 			() => true,
@@ -107,7 +110,10 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 		const pointer = pendingActionExecution('pointer-activation');
 		const executions = [keyboard.execution, pointer.execution];
 		const invokeLocationActivation = vi.fn<
-			(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => ActionExecution
+			(
+				targetLocation: WorkbenchActiveLocation,
+				source: 'button' | 'keyboard' | 'pointer',
+			) => ActionExecution
 		>(() => {
 			const execution = executions.shift();
 			if (execution === undefined) throw new Error('Expected a pending activation.');

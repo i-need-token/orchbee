@@ -648,7 +648,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() => expect(document.activeElement).toBe(terminalInput(1)));
 	});
 
-	it('keeps keyboard activation of a Workspace button focus-neutral', async () => {
+	it('keeps the list one tab stop, moves with the arrows, and opens with Enter', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(
 			orchbeeSnapshot(1, ['Primary', 'Secondary']),
 		);
@@ -657,18 +657,42 @@ describe('Workbench Project and Workspace management', () => {
 			workspaceId: fixtureWorkspaceId(2),
 		});
 		renderWorkbench({ projectWorkspaceRuntime, terminalSurface: FocusTestTerminalSurface });
+		const focused = () => {
+			const element = document.activeElement;
+			if (!(element instanceof HTMLElement)) throw new Error('Expected a focused element.');
+			return element;
+		};
 
-		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
-		act(() => workspaceButton.focus());
-		fireEvent.click(workspaceButton, { detail: 0 });
+		// Tab enters at the current Workspace; no other row or row tool is a tab stop.
+		const secondary = screen.getByRole('button', { name: 'Secondary' });
+		const primary = screen.getByRole('button', { name: 'Primary' });
+		expect(secondary.tabIndex).toBe(0);
+		expect(primary.tabIndex).toBe(-1);
+		expect(screen.getByRole('button', { name: 'Workspace options: Primary' }).tabIndex).toBe(-1);
+
+		act(() => secondary.focus());
+		fireEvent.keyDown(secondary, { key: 'ArrowUp' });
+		expect(focused()).toBe(primary);
+		expect(primary.tabIndex).toBe(0);
+		// ← moves to the heading, then folds it; → unfolds it again.
+		fireEvent.keyDown(primary, { key: 'ArrowLeft' });
+		expect(focused()).toBe(screen.getByRole('button', { name: 'Collapse project: orchbee' }));
+		fireEvent.keyDown(focused(), { key: 'ArrowLeft' });
+		expect(focused()).toBe(screen.getByRole('button', { name: 'Expand project: orchbee' }));
+		expect(screen.queryByRole('button', { name: 'Primary' })).toBeNull();
+		fireEvent.keyDown(focused(), { key: 'ArrowRight' });
+		fireEvent.keyDown(focused(), { key: 'ArrowDown' });
+		expect(focused()).toBe(screen.getByRole('button', { name: 'Primary' }));
+
+		// Enter opens the Workspace and returns to its terminal.
+		fireEvent.keyDown(focused(), { key: 'Enter' });
 		await waitFor(() =>
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 				kind: 'workspace',
 				workspaceId: fixtureWorkspaceId(1),
 			}),
 		);
-		await waitFor(() => expect(terminalInput(1)).not.toBeNull());
-		expect(document.activeElement).toBe(workspaceButton);
+		await waitFor(() => expect(document.activeElement).toBe(terminalInput(1)));
 	});
 
 	it('adapts New Tab through exact terminal creation and selects only its returned Tab', async () => {

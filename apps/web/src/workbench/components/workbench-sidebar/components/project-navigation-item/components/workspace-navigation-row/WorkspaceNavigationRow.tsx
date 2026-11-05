@@ -187,8 +187,9 @@ export function WorkspaceNavigationRow({
 							.filter((part) => typeof part === 'string')
 							.join('. ')}
 						className={styles['rowMain']}
-						data-sidebar-nav=''
+						data-sidebar-nav='workspace'
 						data-slot='workbench-sidebar-workspace'
+						tabIndex={-1}
 						type='button'
 					/>
 					<span className={styles['line1']}>
@@ -210,6 +211,7 @@ export function WorkspaceNavigationRow({
 											}
 											className={styles['chevron']}
 											data-navigation-reorder-excluded='true'
+											tabIndex={-1}
 											type='button'
 											onClick={() => toggleWorkspaceAgents(workspace.id)}
 										/>
@@ -228,7 +230,7 @@ export function WorkspaceNavigationRow({
 					<span className={styles['line2']}>
 						{folded ? <WorkspaceAgentStatusLine overview={agentOverview} /> : null}
 						{!folded && line !== null ? (
-							<Tooltip disabled={location?.directory == null}>
+							<Tooltip disabled={(location?.directory ?? null) === null}>
 								<TooltipTrigger render={<span className={styles['lineText']} />}>
 									{line}
 								</TooltipTrigger>
@@ -263,6 +265,7 @@ export function WorkspaceNavigationRow({
 												className={styles['tool']}
 												data-navigation-menu-trigger='true'
 												data-navigation-reorder-excluded='true'
+												tabIndex={-1}
 												type='button'
 											/>
 										}
@@ -280,6 +283,7 @@ export function WorkspaceNavigationRow({
 										className={styles['tool']}
 										data-danger=''
 										data-navigation-reorder-excluded='true'
+										tabIndex={-1}
 										type='button'
 										onClick={() => deleteWorkspace(workspace.id)}
 									/>

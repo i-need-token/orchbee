@@ -59,6 +59,7 @@ export {
 	ResizablePanel,
 	ResizablePanelGroup,
 	type ResizablePanelGroupHandle,
+	type ResizablePanelHandle,
 	Slider,
 	Switch,
 	Textarea,
