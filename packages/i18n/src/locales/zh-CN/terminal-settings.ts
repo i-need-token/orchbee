@@ -43,6 +43,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.names.orchbeeLight': 'Orchbee 浅色',
 	'terminal.settings.colorTheme.names.rosePine': 'Rosé Pine',
 	'terminal.settings.colorTheme.names.rosePineDawn': 'Rosé Pine Dawn',
+	'terminal.settings.colorTheme.names.tangoLight': 'Tango Light',
 	'terminal.settings.colorTheme.names.tokyoNight': 'Tokyo Night',
 	'terminal.settings.colorTheme.names.tomorrowNight': 'Tomorrow Night',
 	'terminal.settings.language.automaticFallbackNotice':

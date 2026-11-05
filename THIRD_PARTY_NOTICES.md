@@ -324,6 +324,18 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Tango Color Palette
+
+- Creator: Tango Desktop Project
+- Source: <http://tango.freedesktop.org>
+- Values from: iTerm2 Color Schemes `ghostty/Builtin Tango Light`
+- License: public domain; the project states that the Tango color palette is public domain and asks
+  for, without requiring, credit
+- Use in Orchbee: terminal and interface color values of the Tango Light theme in
+  [`crates/color-themes/themes/`](crates/color-themes/themes/)
+- Modifications: lightness correction to the legibility floors of ANSI 3, 10, 11, and 14; the theme
+  file records the original value beside the corrected one
+
 ## JetBrains Mono
 
 - Copyright notice: Copyright 2020 The JetBrains Mono Project Authors

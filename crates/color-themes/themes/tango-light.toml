@@ -1,0 +1,43 @@
+# The Tango Desktop Project palette (http://tango.freedesktop.org, public domain) on a white canvas, as
+# the iTerm2-Color-Schemes Ghostty export publishes it.
+id = "tango-light"
+name = "Tango Light"
+family = "tango"
+polarity = "light"
+
+[source]
+url = "https://github.com/mbadolato/iTerm2-Color-Schemes"
+path = "ghostty/Builtin Tango Light"
+revision = "38bd77ce06b376f2e49e78bd318cf1255d87719b"
+license = "public-domain"
+copyright = "Tango Desktop Project; the Tango palette is in the public domain"
+
+[canvas]
+background = "#ffffff"
+foreground = "#000000"
+cursor = "#000000"
+cursor_text = "#ffffff"
+selection_background = "#b5d5ff"
+selection_foreground = "#000000"
+
+[ansi]
+black = "#000000"
+red = "#cc0000"
+green = "#4e9a06"
+# Darkened from 2.51:1 to 3:1 on the background.
+yellow = { value = "#b39100", original = "#c4a000" }
+blue = "#3465a4"
+magenta = "#75507b"
+cyan = "#06989a"
+white = "#b9bdb5"
+bright_black = "#555753"
+bright_red = "#ef2929"
+# Darkened from 1.84:1 to 2:1 on the background.
+bright_green = { value = "#75cc16", original = "#7dd527" }
+# Darkened from 1.80:1 to 2:1 on the background.
+bright_yellow = { value = "#ccb812", original = "#d6c329" }
+bright_blue = "#729fcf"
+bright_magenta = "#ad7fa8"
+# Darkened from 1.82:1 to 2:1 on the background.
+bright_cyan = { value = "#0acbcc", original = "#27d5d5" }
+bright_white = "#eeeeec"
