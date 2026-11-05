@@ -148,6 +148,30 @@ export interface WorkbenchAuthorityTabReceipt {
 	readonly terminalStarted: boolean;
 }
 
+/** Several Tabs of one terminal context, each copied right after itself, in the order shown. */
+export interface WorkbenchAuthorityTabDuplication {
+	readonly tabIds: readonly string[];
+	readonly terminalContextId: string;
+}
+
+/** Why a Duplicate left some of its Tabs uncopied. */
+export type WorkbenchTabDuplicationStop =
+	| 'changed'
+	| 'deadline'
+	| 'not-created'
+	| 'terminal-not-started';
+
+/** How a duplication of several Tabs ended: every copy started, or where it stopped. */
+export type WorkbenchAuthorityTabDuplicationReport =
+	| { readonly kind: 'duplicated' }
+	| {
+			/** Copies that exist, whether or not their terminals started. */
+			readonly created: number;
+			readonly kind: 'stopped';
+			readonly stop: WorkbenchTabDuplicationStop;
+			readonly total: number;
+	  };
+
 /** A terminal joining a Tab's Panels by a split, committed as one change. */
 export interface WorkbenchAuthorityPanelTerminalCreation extends WorkbenchAuthorityTabTarget {
 	/** Where the terminal starts. Without one, the authority chooses as it does for any new terminal. */
@@ -262,6 +286,15 @@ export interface WorkbenchAuthority {
 		context: WorkbenchAuthorityContext,
 		creation: WorkbenchAuthorityTabCreation,
 	): Promise<ActionResult<WorkbenchAuthorityTabReceipt>>;
+	/**
+	 * Copies several Tabs as one operation that copies them one at a time and stops at the first it
+	 * cannot copy with a started terminal. Nothing is repeated, and no Client can cancel it once
+	 * started; a completed report says how it ended.
+	 */
+	duplicateTabs(
+		context: WorkbenchAuthorityContext,
+		duplication: WorkbenchAuthorityTabDuplication,
+	): Promise<ActionResult<WorkbenchAuthorityTabDuplicationReport>>;
 	/** Absent where every new Tab starts with the default launch profile. */
 	readonly launchProfiles?: WorkbenchLaunchProfiles | undefined;
 	/**

@@ -14,6 +14,7 @@ export function inertWorkbenchAuthority(
 		create: unexpected,
 		createPanelTerminal: unexpected,
 		createTab: unexpected,
+		duplicateTabs: unexpected,
 		minimumSplitPercent: 10,
 		stoppedTabClose: () => null,
 		watchClose: () => () => undefined,

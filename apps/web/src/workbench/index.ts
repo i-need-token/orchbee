@@ -55,8 +55,11 @@ export type {
 	WorkbenchAuthorityPanelTerminalReceipt,
 	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabCreation,
+	WorkbenchAuthorityTabDuplication,
+	WorkbenchAuthorityTabDuplicationReport,
 	WorkbenchAuthorityTabReceipt,
 	WorkbenchTabCloseStop,
+	WorkbenchTabDuplicationStop,
 } from './types/workbench-authority';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {

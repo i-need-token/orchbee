@@ -20,6 +20,7 @@ import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { createServerWorkbenchClose } from './createServerWorkbenchClose';
 import { createServerWorktrees } from './createServerWorktrees';
+import { duplicateServerTabs } from './duplicateServerTabs';
 import {
 	SERVER_MINIMUM_SPLIT_PERCENT,
 	changeServerSplitRatios,
@@ -346,6 +347,7 @@ export function createServerWorkbenchAuthority({
 						: { kind: 'completed' },
 			);
 		},
+		duplicateTabs: (context, duplication) => duplicateServerTabs(session, context, duplication),
 		worktrees: createServerWorktrees(session),
 	};
 }

@@ -8,26 +8,16 @@ import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProject
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityTabCreation,
-	WorkbenchAuthorityTabReceipt,
+	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
 import type { WorkbenchTerminalHandover } from '../types/workbench-focus-routing';
 import type { WorkbenchTerminalCreateRequest } from '../types/workbench-host-actions';
-
-/** The TUI's bound on one Duplicate, however many Tabs it copies. */
-const SHARED_TAB_DUPLICATION_MILLISECONDS = 120_000;
 
 interface SharedTabCreationOptions {
 	readonly authority: WorkbenchAuthority;
 	readonly beginTerminalHandover: () => WorkbenchTerminalHandover;
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }
-
-/** Why a Duplicate left some of its Tabs uncopied. */
-export type WorkbenchTabDuplicationStop =
-	| 'changed'
-	| 'deadline'
-	| 'not-created'
-	| 'terminal-not-started';
 
 interface SharedTabDuplicationOptions {
 	readonly authority: WorkbenchAuthority;
@@ -80,7 +70,7 @@ export function getSharedTerminalCreationAvailability(
 	});
 }
 
-function withoutReceipt(result: ActionResult<WorkbenchAuthorityTabReceipt>): ActionResult<void> {
+function withoutReceipt<Receipt>(result: ActionResult<Receipt>): ActionResult<void> {
 	return result.kind === 'completed' || result.kind === 'unchanged'
 		? { kind: result.kind }
 		: result;
@@ -153,19 +143,10 @@ export function createSharedTerminal(
 	);
 }
 
-/** What a Duplicate started from, since it copies what the person was looking at when they asked. */
-function attentionOf(runtime: WorkbenchProjectWorkspaceRuntime): string {
-	const tabs = runtime.getActiveTerminalContext()?.tabModel.getSnapshot();
-	return JSON.stringify([
-		runtime.getSnapshot().activeLocation,
-		tabs?.activeTabId ?? null,
-		[...(tabs?.selectedTabIds ?? [])],
-	]);
-}
-
 /**
- * One creation per Tab, in the order the strip shows them, each waiting for the one before it. The
- * person stays where they are. Anything uncertain stops the rest, because it is never repeated.
+ * As in the TUI, one Tab is an ordinary creation and several are one operation that copies them in
+ * the order the strip shows them, each right after itself. The person stays where they are. Anything
+ * uncertain stops the rest, because it is never repeated.
  */
 export async function duplicateSharedTabs(
 	context: ActionExecutionContext,
@@ -180,29 +161,35 @@ export async function duplicateSharedTabs(
 		.getSnapshot()
 		.tabs.filter((tab) => requested.has(tab.id))
 		.map((tab) => tab.id);
-	const attention = attentionOf(runtime);
-	const deadline = performance.now() + SHARED_TAB_DUPLICATION_MILLISECONDS;
-	let created = 0;
-	const stopped = (stop: WorkbenchTabDuplicationStop): ActionResult<void> => {
-		onStopped(stop, { created, total: sources.length });
+	const stopped = (
+		stop: WorkbenchTabDuplicationStop,
+		created: number,
+		total: number,
+	): ActionResult<void> => {
+		onStopped(stop, { created, total });
 		return { failure: { code: `duplication-${stop}` }, kind: 'failed' };
 	};
-	for (const tabId of sources) {
-		if (context.signal.aborted) break;
-		if (attentionOf(runtime) !== attention) return stopped('changed');
-		if (performance.now() >= deadline) return stopped('deadline');
+	const [source] = sources;
+	if (source === undefined) return { kind: 'completed' };
+	if (sources.length === 1) {
 		const copy = await authority.createTab(context, {
-			placement: { kind: 'duplicate', tabId },
+			placement: { kind: 'duplicate', tabId: source },
 			terminalContextId,
 		});
-		if (copy.kind === 'cancelled') break;
+		if (copy.kind === 'cancelled') return copy;
 		if (copy.kind !== 'completed') {
 			return copy.kind === 'failed' && copy.failure.code === 'outcome-unknown'
-				? stopped('terminal-not-started')
-				: stopped('not-created');
+				? stopped('terminal-not-started', 0, 1)
+				: stopped('not-created', 0, 1);
 		}
-		created += 1;
-		if (copy.value?.terminalStarted !== true) return stopped('terminal-not-started');
+		return copy.value?.terminalStarted === true
+			? { kind: 'completed' }
+			: stopped('terminal-not-started', 1, 1);
 	}
-	return created === 0 && context.signal.aborted ? { kind: 'cancelled' } : { kind: 'completed' };
+	const duplicated = await authority.duplicateTabs(context, { tabIds: sources, terminalContextId });
+	if (duplicated.kind !== 'completed') return withoutReceipt(duplicated);
+	const report = duplicated.value;
+	return report === undefined || report.kind === 'duplicated'
+		? { kind: 'completed' }
+		: stopped(report.stop, report.created, report.total);
 }

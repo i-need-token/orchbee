@@ -1,12 +1,12 @@
 import type { ActionResult } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
-import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
 	WorkbenchTabCloseStop,
+	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
 import type {
 	WorkbenchConfiguredCommandOutcome,

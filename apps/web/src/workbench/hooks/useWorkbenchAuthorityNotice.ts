@@ -2,7 +2,6 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages, type IntlShape } from '@orchbee/i18n';
 import * as React from 'react';
 
-import type { WorkbenchTabDuplicationStop } from '../actions/workbench-shared-tab-creation';
 import {
 	readWorkbenchCloseSubject,
 	workbenchCloseProgressNotice,
@@ -22,7 +21,11 @@ import {
 import { formatWorkbenchConfiguredCommandName } from '../model/workbench-configured-command-name';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
-import type { WorkbenchAuthority, WorkbenchAuthorityClosure } from '../types/workbench-authority';
+import type {
+	WorkbenchAuthority,
+	WorkbenchAuthorityClosure,
+	WorkbenchTabDuplicationStop,
+} from '../types/workbench-authority';
 import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 
@@ -203,6 +206,12 @@ export function useWorkbenchAuthorityNotice(
 			createTab: async (context, creation) => {
 				setNotice(null);
 				const result = await authority.createTab(context, creation);
+				setNotice(workbenchTabCreationFailureNotice(result));
+				return result;
+			},
+			duplicateTabs: async (context, duplication) => {
+				setNotice(null);
+				const result = await authority.duplicateTabs(context, duplication);
 				setNotice(workbenchTabCreationFailureNotice(result));
 				return result;
 			},

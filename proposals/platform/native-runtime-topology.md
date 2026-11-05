@@ -1081,10 +1081,10 @@ These choices stand unless review changes them:
   otherwise answers the Workspace's directory. The sample takes a directory the shell reported
   before the root process's, where the TUI used to read only the root process. The GUI waits at
   most five seconds, then uses the last directory the Server followed.
-- **Decision 2 has moved three workflows so far.** Of the Rust Client's multi-step workflows, the
-  New Workspace directory, the evidence for whether one Tab or Panel close asks, and the Tab set
-  close (ORC-307) moved to the Server. Duplicate waits for step 5's decision on progress and the
-  full comparison. The
+- **Decision 2 has moved four workflows so far.** Of the Rust Client's multi-step workflows, the
+  New Workspace directory, the evidence for whether one Tab or Panel close asks, the Tab set close,
+  and Duplicate of several Tabs (ORC-307) moved to the Server. Both Clients start one retained
+  duplication and follow its progress; a Client's navigation no longer stops it. The
   TUI's Worktree launch and Worktree sidebar keep sampling the source terminal themselves until step 5. The rest stays in each Client, either as presentation, such as selection, navigation memory,
   drafts, and the close and take-control prompts, or because it belongs to the Client's own
   connection: Viewer membership and switching, settling a commit against the publications that
