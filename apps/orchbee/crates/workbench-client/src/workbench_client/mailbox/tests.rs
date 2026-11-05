@@ -23,7 +23,6 @@ mod move_tab;
 mod panel;
 mod switch_membership;
 mod tab_close;
-mod tab_duplication;
 mod tab_rename;
 mod workspace_setup;
 

@@ -356,7 +356,6 @@ impl WorkbenchClientState {
     }
 
     pub(super) fn begin_switch_membership(&mut self, target: AttachTarget) -> bool {
-        self.cancel_duplicate_sequence();
         let Some(desired) = self.desired.as_ref() else {
             return false;
         };

@@ -91,7 +91,7 @@ The catalog exposes the current documents and command paths.
 The native strict projector retains raw text and naming mode. Exact-revision move/split/close
 checks preserve the complete surviving metadata; a rename changes only its target text and
 mode. Same-revision refresh remains exact, while later canonical revisions may contain a
-rename. Create validation pins the submitted mode at the commit revision and takes the Server-chosen binding and launched program from the candidate, so that fact never breaks an exact duplicate sequence. A surviving fixed Tab cannot become automatic again; an automatic survivor keeps its raw
+rename. Create validation pins the submitted mode at the commit revision and takes the Server-chosen binding and launched program from the candidate, so that fact never breaks exact Create validation. A surviving fixed Tab cannot become automatic again; an automatic survivor keeps its raw
 creation text until a rename switches it to fixed mode. Completion
 cannot overwrite an intervening rename. Close confirmation names a live Tab as the strip does and
 otherwise keeps the name captured when it opened. An Agent board row names its attached

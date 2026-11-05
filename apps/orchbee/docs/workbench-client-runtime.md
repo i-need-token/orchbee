@@ -802,14 +802,11 @@ Tab, whether grouped or ungrouped; Duplicate and candidates that already removed
 [Native groups](native-tab-groups.md#terminal-creation-and-duplication) owns the menu and placement
 contract; the response table below describes foreground creation unless explicitly stated otherwise.
 
-Selected duplication uses each unchanged single-Create lifecycle in sequence. Its private pre-install
-witness validates the old concrete pane, selected Presentation binding, marks and full Session Snapshot
-before this membership owner changes cache, desired selection or old pane records. Only that correlated, one-shot install may adopt a
-fresh generation; original selection must reach Ready and the prior lease/reply/poll settlement must
-finish before atomic mailbox admission of the next source. A fixed 120-second total bounds per-member
-50-second deadlines and their five-second cleanup reserve. Cancellation, drift, partial failure,
-unknown results or recovery stop the tail while retained member facts outlive temporary status.
-The owning group contract and deterministic sequence tests check this inter-member boundary; single-Create and recovery rules remain unchanged.
+Selected duplication of several Tabs is one retained Server operation, not a Client sequence: the
+UI starts it and follows it by operation ID outside the command mailbox, and the copies install
+through ordinary refresh without a Create barrier. The owning
+[group contract](native-tab-groups.md#terminal-creation-and-duplication) describes the follow;
+single-Create and recovery rules remain unchanged.
 
 `MovedTabExpectation` retains committed revision, context, Tab ID and the submitted wire direction.
 `validate_moved_tab` validates the admitted baseline's checked successor and refuses an impossible

@@ -156,7 +156,7 @@ pub enum TerminalStatus {
     OutcomeUnknown,
 }
 
-/// Why the retained duplication sequence stopped advancing.
+/// Why a retained Tab duplication stopped, as the status line names it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DuplicateStop {
     Changed,

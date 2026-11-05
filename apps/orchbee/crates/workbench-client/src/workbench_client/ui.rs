@@ -292,6 +292,7 @@ const fn client_notice(notice: ViewportNotice) -> ClientNotice {
 pub struct WorkbenchClientView<'a> {
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
     settings: Option<&'a settings::Coordinator>,
+    duplication: Option<crate::localization::DuplicateProgress>,
     completion_reminder: Option<&'a super::completion_reminders::Reminder>,
     menu: Option<&'a action_menus::MenuEpisode>,
     state: Option<ClientStateView<'a>>,
@@ -1172,6 +1173,7 @@ impl<'a> WorkbenchClientView<'a> {
             worktree: None,
             menu: None,
             settings: None,
+            duplication: None,
             completion_reminder: None,
             state: None,
             resize: None,
@@ -1211,6 +1213,7 @@ impl<'a> WorkbenchClientView<'a> {
             worktree: None,
             menu: None,
             settings: None,
+            duplication: None,
             completion_reminder: None,
             state: Some(state.view()),
             resize: None,
@@ -1330,6 +1333,7 @@ pub(super) struct WorkbenchClientUi {
     worktree_opened_timer: crate::transient_notice::NoticeTimer<()>,
     focus_new_panel: bool,
     settings: settings::Coordinator,
+    duplication: tab_duplication::Duplication,
     launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
@@ -1417,14 +1421,6 @@ impl WorkbenchClientUi {
         let ordinary = self
             .next_unhinted_poll()
             .filter(|_| self.ordinary_poll_serial.is_none());
-        // The sequence owns admission while its lease settles; an expired ordinary poll
-        // must not busy-spin. Keep independent close and summary deadlines below.
-        let ordinary = ordinary.filter(|_| {
-            !self
-                .state
-                .as_ref()
-                .is_some_and(WorkbenchClientState::duplicate_sequence_active)
-        });
         let close = self
             .state
             .as_ref()
@@ -1442,6 +1438,7 @@ impl WorkbenchClientUi {
             .chain(close)
             .chain(summary)
             .chain(pending)
+            .chain(self.duplication.wake())
             .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
     }
@@ -1488,6 +1485,7 @@ impl WorkbenchClientUi {
             worktrees: worktree_launch::Coordinator::default(),
             menus: action_menus::MenuEpisode::default(),
             settings: settings::Coordinator::new(capabilities.login_shell),
+            duplication: tab_duplication::Duplication::default(),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             workspace_closed_timer: Default::default(),
@@ -1594,6 +1592,7 @@ impl WorkbenchClientUi {
             worktree: Some(&self.worktrees.launcher),
             menu: Some(&self.menus),
             settings: Some(&self.settings),
+            duplication: self.duplication.progress(),
             completion_reminder: self
                 .retirement
                 .is_none()
@@ -1824,10 +1823,7 @@ impl WorkbenchClientUi {
         &mut self,
         client_capture: crate::tui_composition::ClientCaptureClaims,
     ) -> bool {
-        let duplicate_changed = self
-            .state
-            .as_mut()
-            .is_some_and(|state| state.observe_duplicate_sequence(self.clock.now()));
+        let duplicate_changed = self.duplication.expire(self.clock.now());
 
         if let Some(state) = &self.state {
             self.retained_frames.prune(state);
@@ -1843,7 +1839,7 @@ impl WorkbenchClientUi {
             return command_notice_changed || duplicate_changed || exit_hold_released;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
-            return command_notice_changed || exit_hold_released;
+            return command_notice_changed || duplicate_changed || exit_hold_released;
         };
         let acknowledged = if let Some(ack) = mailbox.take_close_acknowledgement()
             && let Some(state) = &mut self.state
@@ -1884,9 +1880,6 @@ impl WorkbenchClientUi {
                 .as_mut()
                 .is_some_and(|state| state.settle_stale_close_confirmations());
             self.reconcile_ordinary_poll(&mailbox);
-            {
-                changed |= self.drive_duplicate_sequence(&mailbox);
-            }
             changed |= self.state.as_mut().is_some_and(|state| {
                 state.settle_stale_workspace_close()
                     | state.settle_stale_quick_workspace()
@@ -1952,6 +1945,7 @@ impl WorkbenchClientUi {
             // Viewport deadline episodes and staged steps advance on the
             // same fair tick as the ordinary schedulers.
             changed |= self.drive_settings();
+            changed |= self.drive_duplication();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
             {
@@ -2040,9 +2034,6 @@ impl WorkbenchClientUi {
     }
     pub(super) fn inherit_host_focus(&mut self, focused: Option<bool>) {
         if self.outer_focused != focused {
-            if let Some(state) = &mut self.state {
-                state.cancel_duplicate_sequence();
-            }
             self.outer_focused = focused;
             self.focus_control.activate(focused == Some(true));
             self.attention.focus_changed();
@@ -3208,9 +3199,6 @@ impl WorkbenchClientUi {
                 ClientActionDisposition::KeepNavigator
             };
         }
-        if let Some(state) = &mut self.state {
-            state.cancel_duplicate_sequence();
-        }
         if let Some(state) = self.state.as_mut()
             && let Some(context) = state.cache().canonical_context()
             && orchbee_workbench_protocol::validate_tab_creation(context, placement.as_ref())
@@ -3265,9 +3253,6 @@ impl WorkbenchClientUi {
     }
 
     fn select_tab_generation(&mut self, action: ClientAction) -> Option<u64> {
-        if let Some(state) = &mut self.state {
-            state.cancel_duplicate_sequence();
-        }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
             return None;
@@ -3972,11 +3957,7 @@ impl WorkbenchClientUi {
                     {
                         return Err(CarrierFailure::Protocol);
                     }
-                    if state.duplicate_owns_operation(&operation) {
-                        state.clear_notice();
-                    } else {
-                        state.set_notice(notice);
-                    }
+                    state.set_notice(notice);
 
                     if matches!(
                         state.controller_mode(),
@@ -4617,15 +4598,6 @@ impl WorkbenchClientUi {
     }
 
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
-        // Existing polls/replies still drain. Do not put a fresh ordinary Poll ahead of
-        // an already Ready next member while the preceding lease is finishing.
-        if self
-            .state
-            .as_ref()
-            .is_some_and(WorkbenchClientState::duplicate_waiting)
-        {
-            return;
-        }
         if !self.pending_draws.is_empty() || self.ordinary_poll_serial.is_some() {
             return;
         }
@@ -4806,9 +4778,9 @@ impl WorkbenchClientUi {
         self.copy_query.close();
         self.copy_mode.close();
         self.popup.shutdown();
+        self.duplication.interrupt(self.clock.now());
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
-            state.stop_duplicate_sequence(crate::workbench_state::DuplicateStop::Recovery);
             state.cancel_panel_close_confirmation();
             state.cancel_workspace_close();
             state.cancel_rename_draft();
@@ -4840,18 +4812,6 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNoti
             ..
         }) => ClientNotice::CreateNotCreated,
     }
-}
-
-fn build_create(
-    state: &mut WorkbenchClientState,
-    generation: u64,
-    request_id: orchbee_workbench_protocol::WorkbenchRequestId,
-    deadlines: OperationDeadlines,
-    placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
-) -> Result<CreateMarker, ActionBuildError> {
-    build_create_launch(
-        state, generation, request_id, deadlines, placement, None, None,
-    )
 }
 
 fn build_create_launch(

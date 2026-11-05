@@ -34,8 +34,6 @@ pub(crate) mod worktree_launch;
 pub(crate) use context_selection::ClientContextView;
 pub(crate) use field_window::FieldWindow;
 mod create_membership;
-mod tab_duplication;
-pub(crate) use tab_duplication::{DuplicateProgress, DuplicateStop};
 mod membership;
 mod move_tab;
 mod navigation_memory;
@@ -200,13 +198,6 @@ pub(crate) enum AgentStartPhase {
     Failed,
     Unknown,
     Cancelled,
-}
-
-/// Not Clone: derived under the install's exclusive state borrow, consumed once after pane minting.
-struct DuplicateInstallWitness {
-    operation: CreateOperationKey,
-    candidate: ClientContextTabs,
-    pane: PaneRef,
 }
 
 /// One queued poll's admission serial and the exact pane incarnation it was issued for.
@@ -914,13 +905,6 @@ impl CreateOperation {
     pub(crate) const fn origin(&self) -> CreateOriginKind {
         self.origin
     }
-
-    #[cfg(test)]
-    pub(crate) fn placement_for_test(
-        &self,
-    ) -> Option<&orchbee_workbench_protocol::TabCreationPlacement> {
-        self.placement.as_ref()
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1343,7 +1327,6 @@ pub(crate) struct WorkbenchClientState {
     takeover: control_takeover::TakeoverState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
-    duplicate_sequence: Option<tab_duplication::DuplicateSequence>,
     /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
     /// while its Tab is known alive with more than one leaf — the current
     /// cache answers first (its silence about its own location is already
@@ -1492,7 +1475,6 @@ impl WorkbenchClientState {
             takeover: control_takeover::TakeoverState::default(),
             pending_membership: None,
             settled_create: None,
-            duplicate_sequence: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
             plugin_overlays: Vec::new(),
         }
@@ -1903,12 +1885,6 @@ impl WorkbenchClientState {
         leaves: &[(WorkbenchPanelId, usize, Geometry)],
         sampled_at: Instant,
     ) -> bool {
-        if self
-            .focus_panel_id()
-            .is_some_and(|id| !leaves.iter().any(|(panel, _, _)| panel == id))
-        {
-            self.cancel_duplicate_sequence();
-        }
         let Some(anchor) = self.desired.as_ref().map(|key| key.anchor().clone()) else {
             return false;
         };
@@ -2063,9 +2039,6 @@ impl WorkbenchClientState {
     /// detach proof cites, so a re-incarnated record is never dropped by a
     /// stale proof.
     pub(crate) fn settle_pane_detached(&mut self, key: &PaneRef) -> bool {
-        if self.focus_pane_ref().as_ref() == Some(key) {
-            self.cancel_duplicate_sequence();
-        }
         let Some(position) = self.panes.iter().position(|record| {
             &record.key == key.pane() && record.incarnation == key.incarnation() && record.departing
         }) else {
@@ -2206,9 +2179,6 @@ impl WorkbenchClientState {
     /// No automatic re-acquire — NotController and definite failures never
     /// silently retry.
     pub(crate) fn settle_pane_fault(&mut self, key: &PaneRef, fault: PaneFault) -> bool {
-        if self.focus_pane_ref().as_ref() == Some(key) {
-            self.cancel_duplicate_sequence();
-        }
         if fault == PaneFault::ViewerLost
             && self.desired.as_ref() == Some(key.pane())
             && !self.focus_runtime_loss_admissible(key)
@@ -2857,7 +2827,6 @@ impl WorkbenchClientState {
                 return false;
             }
             self.phase = ClientPhase::Empty;
-            self.duplicate_precommit_failed(operation);
             self.notice = Some(ClientNotice::CreateNotCreated);
             return true;
         };
@@ -2884,7 +2853,6 @@ impl WorkbenchClientState {
             }
         }
         self.phase = ClientPhase::Ready(old_ready);
-        self.duplicate_precommit_failed(operation);
         self.notice = Some(ClientNotice::CreateNotCreated);
         true
     }
@@ -2921,7 +2889,6 @@ impl WorkbenchClientState {
             self.launch_descriptions
                 .insert(committed.expectation.presentation_id().clone(), description);
         }
-        self.duplicate_commit_fact(&committed);
         self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
         true
     }
@@ -3091,9 +3058,6 @@ impl WorkbenchClientState {
     /// Clears one pane's attachment facts after a canonical disposal path (the
     /// record itself stays — it still owns the pane's leaf geometry and fault).
     fn clear_pane_attachment(&mut self, pane: &PaneKey) {
-        if self.desired.as_ref() == Some(pane) {
-            self.cancel_duplicate_sequence();
-        }
         if let Some(record) = self.pane_record_mut(pane) {
             record.attachment = None;
         }
@@ -3769,7 +3733,6 @@ impl WorkbenchClientState {
     /// touching any attachment. Queued input/resize commands keep their frozen
     /// `PaneRef` tags and remain valid — the membership set does not change.
     pub(crate) fn move_panel_focus_local(&mut self, pane: PaneKey) -> bool {
-        self.cancel_duplicate_sequence();
         if self.plan_panel_focus_local_at(pane.panel()).as_ref() != Some(&pane) {
             return false;
         }
@@ -4081,7 +4044,6 @@ impl WorkbenchClientState {
             return false;
         };
         if matches!(&self.phase, ClientPhase::Creating(_)) {
-            self.duplicate_commit_fact(&committed);
             self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
             true
         } else {
@@ -4091,7 +4053,6 @@ impl WorkbenchClientState {
 
     pub(crate) fn retire(&mut self, failure: CarrierFailure) {
         self.close.lose_set();
-        self.stop_duplicate_sequence(DuplicateStop::Recovery);
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();
         self.cancel_workspace_close();

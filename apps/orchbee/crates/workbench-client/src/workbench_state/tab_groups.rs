@@ -217,7 +217,6 @@ impl WorkbenchClientState {
 
     pub(crate) fn clear_tab_selection(&mut self) {
         self.remember_tab_group();
-        self.cancel_duplicate_sequence();
         self.tab_groups.selected.clear();
     }
 
@@ -226,7 +225,6 @@ impl WorkbenchClientState {
         target: &WorkbenchTabId,
         change: TabSelectionChange,
     ) -> Option<()> {
-        self.cancel_duplicate_sequence();
         if self.setup_blocks_structure() || !self.setup_authority_available() {
             return None;
         }

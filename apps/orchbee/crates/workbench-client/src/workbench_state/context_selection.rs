@@ -107,7 +107,6 @@ impl WorkbenchClientState {
         next: bool,
         deadlines: OperationDeadlines,
     ) -> bool {
-        self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
             return false;
         }
@@ -168,7 +167,6 @@ impl WorkbenchClientState {
         deadlines: OperationDeadlines,
         member: Option<ClientMemberSelection>,
     ) -> bool {
-        self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
             return false;
         }

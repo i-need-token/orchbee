@@ -1978,24 +1978,12 @@ impl CommandMailbox {
         build: impl FnOnce(&mut Canonical, u64, WorkbenchRequestId) -> Result<CreateMarker, BuildError>,
         finish: impl FnOnce(&mut Canonical, &Result<CreateOperationKey, AdmissionError<BuildError>>),
     ) -> Result<CreateOperationKey, AdmissionError<BuildError>> {
-        self.enqueue_create_using(canonical, false, build, finish)
-    }
-
-    /// Selected duplication waits for the preceding lease, reply and causal poll settlement.
-    /// The idle observation and identity allocation share this one admission mutex.
-    pub(super) fn try_enqueue_settled_duplicate_for<Canonical, BuildError>(
-        &self,
-        canonical: &mut Canonical,
-        build: impl FnOnce(&mut Canonical, u64, WorkbenchRequestId) -> Result<CreateMarker, BuildError>,
-        finish: impl FnOnce(&mut Canonical, &Result<CreateOperationKey, AdmissionError<BuildError>>),
-    ) -> Result<CreateOperationKey, AdmissionError<BuildError>> {
-        self.enqueue_create_using(canonical, true, build, finish)
+        self.enqueue_create_using(canonical, build, finish)
     }
 
     fn enqueue_create_using<Canonical, BuildError>(
         &self,
         canonical: &mut Canonical,
-        settled_only: bool,
         build: impl FnOnce(&mut Canonical, u64, WorkbenchRequestId) -> Result<CreateMarker, BuildError>,
         finish: impl FnOnce(&mut Canonical, &Result<CreateOperationKey, AdmissionError<BuildError>>),
     ) -> Result<CreateOperationKey, AdmissionError<BuildError>> {
@@ -2003,18 +1991,6 @@ impl CommandMailbox {
         let result = (|| {
             Self::ensure_open_for_admission(&state)?;
             Self::ensure_bootstrapped_for_admission(&state)?;
-            if settled_only
-                && (state.active_lease.is_some()
-                    || !state.queue.is_empty()
-                    || !matches!(state.event, EventCell::Empty)
-                    || !matches!(state.causal, CausalCell::Empty)
-                    || state.refresh_flight.is_some()
-                    || state.publication_hint_pending
-                    || state.takeover_flight.is_some()
-                    || state.workspace_close_flight.is_some())
-            {
-                return Err(AdmissionError::Busy);
-            }
             if state.structural_mutation_pending.is_some() || state.close_pending() {
                 return Err(AdmissionError::Full);
             }

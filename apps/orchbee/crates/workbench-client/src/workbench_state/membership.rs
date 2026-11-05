@@ -222,7 +222,6 @@ pub(crate) struct PreparedMembershipInstall<'a> {
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
-    duplicate_witness: Option<super::DuplicateInstallWitness>,
     close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
     mutation_completion: MembershipMutationCompletion,
     /// The anchor whose viewers the cleanup already disposed (wire detach or
@@ -264,13 +263,6 @@ impl PreparedMembershipInstall<'_> {
             .settled_create
             .as_ref()
             .filter(|committed| committed.operation.preserves_selection())
-            .filter(|committed| {
-                {
-                    !self
-                        .state
-                        .duplicate_owns_operation(committed.operation.key())
-                }
-            })
         {
             self.state.notice = match committed.provenance {
                 CreateTerminalProvenance::Pending => Some(super::ClientNotice::DuplicatePending),
@@ -374,9 +366,6 @@ impl PreparedMembershipInstall<'_> {
         }
         if let Some(consumption) = self.close_consumption {
             self.state.close.commit_consumption(consumption);
-        }
-        if let Some(witness) = self.duplicate_witness {
-            self.state.commit_duplicate_install(witness);
         }
         self.decision
     }
@@ -873,11 +862,6 @@ impl WorkbenchClientState {
         } else {
             (ClientPhase::Empty, MembershipInstallDecision::Empty)
         };
-        let duplicate_witness = self.prepare_duplicate_install(
-            committed_create.as_ref(),
-            &prepared.candidate,
-            &decision,
-        );
         Ok(PreparedMembershipInstall {
             state: self,
             prepared,
@@ -888,7 +872,6 @@ impl WorkbenchClientState {
             decision,
             refresh_generation: None,
             settled_create: committed_create,
-            duplicate_witness,
             close_consumption,
             mutation_completion: MembershipMutationCompletion::None,
             drop_anchor: cleaned.map(|cleanup| cleanup.old().clone()),
