@@ -9,8 +9,8 @@ impl super::CliText {
         let (usage, english, chinese) = match path {
             C::CommandList => (
                 "orchbee command list [--format text|json]",
-                "List commands from the running session's [[keys.command]] configuration, including their IDs, actions, shortcuts and descriptions. Use the returned ID with orchbee command invoke. Changed configuration invalidates old IDs.",
-                "列出正在运行的会话在 [[keys.command]] 中配置的命令，包括 ID、操作、快捷键和说明。将返回的 ID 用于 orchbee command invoke；配置变更会使旧 ID 失效。",
+                "List commands from the running session's [[keys.command]] configuration, including their IDs, actions, shortcuts, descriptions and the command text each runs. Use the returned ID with orchbee command invoke. Changed configuration invalidates old IDs.",
+                "列出正在运行的会话在 [[keys.command]] 中配置的命令，包括 ID、操作、快捷键、说明和各自运行的命令文本。将返回的 ID 用于 orchbee command invoke；配置变更会使旧 ID 失效。",
             ),
             C::CommandInvoke => (
                 "orchbee command invoke <command-id> [--workspace <id>] [--tab <id>] [--panel <id>] [--client <id>] [--context <json>] [--anchor ROW:COL --cursor ROW:COL --content-revision <n>] [--timeout <ms>] [--format text|json]",

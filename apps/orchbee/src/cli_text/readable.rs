@@ -89,10 +89,10 @@ impl super::CliText {
         }
     }
 
-    pub(crate) const fn cli_command_headers(self) -> [&'static str; 4] {
+    pub(crate) const fn cli_command_headers(self) -> [&'static str; 5] {
         match self.locale {
-            Locale::EnUs => ["COMMAND", "ACTION", "KEYS", "DESCRIPTION"],
-            Locale::ZhCn => ["命令", "动作", "按键", "说明"],
+            Locale::EnUs => ["COMMAND", "ACTION", "KEYS", "DESCRIPTION", "RUNS"],
+            Locale::ZhCn => ["命令", "动作", "按键", "说明", "运行内容"],
         }
     }
 

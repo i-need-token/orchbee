@@ -485,6 +485,9 @@ fn emit(
                                 crate::cli_text::escape::escape(
                                     entry["description"].as_str().unwrap_or(""),
                                 ),
+                                crate::cli_text::escape::escape(
+                                    entry["display"].as_str().unwrap_or(""),
+                                ),
                             ]
                         })
                         .collect::<Vec<_>>(),
