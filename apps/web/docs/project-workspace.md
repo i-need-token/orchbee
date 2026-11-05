@@ -123,15 +123,18 @@ Workspace ID, as its folder, its Git branch and divergence, and the name a moved
 The sidebar subscribes once per source while it is mounted, so a source that reads only while
 watched stops when the sidebar goes. Workbench words these facts and decides nothing about them.
 
-A Workspace row shows them as the TUI does. Its identity line keeps a lone row's height, so the icon,
-row options, and Agent disclosure stay centred on it. After the name, flush with the trailing
-markers, `↑N` counts commits to push in the success role and `↓N` commits to pull in the warning
-role, each only when positive; the arrows tell them apart without color. A second line names the
-branch, otherwise the folder, unless the Workspace's Agents are folded, when it lists their states
-instead (see [Workspace Agent overview](#workspace-agent-overview)). A row with neither stays one
-line, so pending facts reserve no blank row. A branch truncates at its end. A folder keeps its final folder whole and truncates its start,
-where the TUI cuts symmetric halves. The line's title holds the whole text, the arrows are hidden
-from assistive technology, and the row's accessible name adds the location and the counts in words.
+A Workspace row shows them as the TUI does, in a fixed two-line row with no leading icon: the name
+and its Agent fold chevron on the first line, which holds the row tools, and a second line below.
+The end area keeps its room at all times, so names truncate at one width: at rest it holds
+`↑N`, commits to push in the success role, `↓N`, commits to pull in the warning role, each only when
+positive, and the unread dot; under the pointer or focus, Options and Close take its place. The
+arrows tell the counts apart without color. The second line names the branch, otherwise the folder,
+`~` for home, unless the Workspace's Agents are folded, when it lists their states instead (see
+[Workspace Agent overview](#workspace-agent-overview)); a row with neither keeps the line empty. Names
+and lines truncate at their end. A truncated name shows whole in a tooltip, and the second line's
+tooltip holds the full directory. The arrows are hidden from assistive technology, and the row's
+accessible name adds the location and the counts in words. The current Workspace carries
+`aria-current="page"` and the current fill.
 While a source holds a moved row's earlier facts, their held name stands in for the Workspace name,
 so the name, folder, and facts change together; the row menu keeps naming the Workspace itself.
 
@@ -148,10 +151,19 @@ Project and Workspace state. Dismissal invokes no action. The product suppresses
 context menu only inside a row that owns this product Context Menu. Selecting an entry through
 either projection invokes the same callback exactly once.
 
-Row options and the Project section's create control remain in the normal Tab order while visually
-hidden at rest. Hover, focus within the owning row or section, and an open menu reveal them
-immediately; hidden controls receive no pointer input. Empty sections keep their create control
-visible. This preserves both forward and reverse keyboard discovery without changing layout.
+Row tools are hidden at rest. Hover, focus within the owning row, and an open menu reveal them
+immediately; hidden controls receive no pointer input. They are never tab stops: the list is one tab
+stop, as the TUI's sidebar is one focus region, and the keyboard reaches a row's menu from the row.
+
+The list's keys follow the TUI. Tab enters at the current Workspace, else the heading folded around
+it, else the first row. ↑ ↓ Home End move between headings, Workspaces and Agent rows; → unfolds a
+row and then moves into it; ← folds it and then moves to its parent. Enter or Space folds a heading
+and opens a Workspace or Agent, then hands the keyboard to its terminal, as a pointer click does.
+Shift+N starts a Workspace, `/` opens Search and F1 opens the shortcut reference; Ctrl+↑ and Ctrl+↓,
+⌘ on macOS, move a Project or Workspace among its siblings, as a drag does; Shift+← and Shift+→
+change the width by `10px` and `0` returns it to `250px`; Esc returns to the terminal. The rules
+live in the pure `resolveSidebarNavigationKey` and `resolveSiblingReorder`, which unit tests cover.
+The global New Workspace and shortcut-reference keys wait for shortcut catalog entries.
 
 The row-local menu adapter uses the following decision model. It owns no Project, Workspace, or
 menu state: stable object IDs remain with the existing callbacks, while shared menu primitives own
@@ -160,15 +172,15 @@ Captured trigger and pre-open focus references are scoped to the exact Project o
 ID (`null` identifies the Project row), consumed by `finalFocus`, and released with the owner.
 Unchanged pre-open focus is not a later handoff.
 
-| Input or transition                                                                             | Result and invariant                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact `Shift+F10` or unmodified `ContextMenu` from a focused Project or Workspace row control   | Focus and invoke that row's live, enabled, closed ellipsis trigger, opening its existing Dropdown Menu once. The row advertises these keys through `aria-keyshortcuts`.                                                                                                                  |
-| Unexpected modifiers, composing or repeated input, a consumed event, or no live enabled trigger | No invocation and no event suppression. Terminal input has no row listener.                                                                                                                                                                                                              |
-| A portaled menu `keydown` event bubbles through the React row                                   | Actual DOM containment rejects it; the open menu keeps keyboard ownership.                                                                                                                                                                                                               |
-| A native Menu-key release synthesizes `contextmenu` after the Dropdown Menu opens               | Suppress only keyboard context events from the row or the exact open dropdown named by its live enabled ellipsis's `aria-controls`. Require that trigger to remain expanded; this also covers portaled autofocus targets. Keep pointer behavior and shared menu state unchanged.         |
-| Right-click or long press on the row                                                            | Capture its explicit ellipsis for the Context Menu's existing `finalFocus` callback, retaining the same object target and action entries.                                                                                                                                                |
-| Escape or outside dismissal                                                                     | The primitive closes the menu without invoking an action; Escape returns to the valid explicit trigger, while outside interaction retains the primitive's focus policy.                                                                                                                  |
-| An action opens a dialog or removes its row                                                     | Return is rejected when the trigger disappears, a dialog owns focus, or another live control has taken focus. Outside, focus-out, and sibling-menu dismissal also suppress explicit return. The adapter schedules no late return and never substitutes a sibling object's action target. |
+| Input or transition                                                                                 | Result and invariant                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact `F2`, `Shift+F10` or unmodified `ContextMenu` from a focused Project or Workspace row control | Focus and invoke that row's live, enabled, closed ellipsis trigger, opening its existing Dropdown Menu once, beside the row. The row advertises these keys through `aria-keyshortcuts`. A pointer opens the menu below its trigger.                                                      |
+| Unexpected modifiers, composing or repeated input, a consumed event, or no live enabled trigger     | No invocation and no event suppression. Terminal input has no row listener.                                                                                                                                                                                                              |
+| A portaled menu `keydown` event bubbles through the React row                                       | Actual DOM containment rejects it; the open menu keeps keyboard ownership.                                                                                                                                                                                                               |
+| A native Menu-key release synthesizes `contextmenu` after the Dropdown Menu opens                   | Suppress only keyboard context events from the row or the exact open dropdown named by its live enabled ellipsis's `aria-controls`. Require that trigger to remain expanded; this also covers portaled autofocus targets. Keep pointer behavior and shared menu state unchanged.         |
+| Right-click or long press on the row                                                                | Capture its explicit ellipsis for the Context Menu's existing `finalFocus` callback, retaining the same object target and action entries.                                                                                                                                                |
+| Escape or outside dismissal                                                                         | The primitive closes the menu without invoking an action; Escape returns to the valid explicit trigger, while outside interaction retains the primitive's focus policy.                                                                                                                  |
+| An action opens a dialog or removes its row                                                         | Return is rejected when the trigger disappears, a dialog owns focus, or another live control has taken focus. Outside, focus-out, and sibling-menu dismissal also suppress explicit return. The adapter schedules no late return and never substitutes a sibling object's action target. |
 
 `WorkbenchProjectWorkspace.unit.test.tsx` covers target identity, key guards, cancellation, modal
 handoff, removal, and unchanged active location and disclosure. The navigation Stories are fixtures
@@ -193,7 +205,9 @@ cross-Project drag movement, cross-section movement, Project nesting, touch long
 keyboard sorting remain outside this delivery. The initial Workspace created with a Project has no
 fixed ordering role; every Workspace in the same group participates in the same ordering model.
 
-The semantic gesture state is `idle`, `armed`, or `dragging`. `armed` records the pointer identity,
+As in the TUI, a held Workspace becomes current the moment the press turns into a drag, without
+moving keyboard focus, and stays current whether the drag commits or is cancelled; a Project is never
+current. The semantic gesture state is `idle`, `armed`, or `dragging`. `armed` records the pointer identity,
 source identity, owning reorder scope, and activation origin without changing authoritative order or
 Project disclosure. Movement of at least four CSS pixels activates `dragging`. The DOM adapter
 projects stable direct sibling-row layout offsets into viewport coordinates and reports the first
@@ -240,9 +254,9 @@ mutation.
 
 The sidebar renders zero or more Agent rows directly beneath each Workspace, grouped or ungrouped: one for each terminal in which the Server observes an Agent. It does not repeat Tab or Panel managers. `projectWorkbenchAgentOverview` resolves each observed Presentation against each Workspace's exact context and retains canonical Tab/Panel/presentation order; a Presentation this Workbench does not hold has no row. The Server owns detection, Agent labels and states; Workbench only projects them.
 
-A Workspace with no Agent has no Agent count or disclosure. One or two providers use their marks; more use the neutral multi-Agent mark. Counts cap visually at `99+` while accessible text retains the exact count. Status priority is blocked, error, done, working, idle, unknown, with no color-only or animated status.
+A Workspace with no Agent has no Agent disclosure. Each Agent row is one line, as in the TUI: its state glyph, its terminal's title and provider, and the unread dot; the glyph names its state in a tooltip, and Agent rows have no menu. The glyph and color mapping keeps a Done slot, which waits for the Server's Done state. Status priority is blocked, error, done, working, idle, unknown, with no color-only or animated status.
 
-As in the TUI, every Workspace lists its Agent rows until this Client folds them, and each Workspace folds on its own. A fold is client-local and lasts while its Workspace exists: through regrouping, ungrouping, dissolution, a collapsed Project, a hidden sidebar, and Agents that end and start again. A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first and otherwise in row order, one gap apart; more than five show four and a muted `+N`. The line's title names each distinct state in that order, and while the Agent rows are hidden the Workspace row carries their unread marker and its accessible name says those states and unread. A dragged Workspace hides its own Agent rows until the drag ends, as a dragged Project folds; its siblings keep theirs.
+As in the TUI, every Workspace lists its Agent rows until this Client folds them, and each Workspace folds on its own. A fold is client-local and lasts while its Workspace exists: through regrouping, ungrouping, dissolution, a collapsed Project, a hidden sidebar, and Agents that end and start again. A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first and otherwise in row order, one gap apart; more than five show four and a muted `+N`. The line's tooltip names each distinct state in that order, and while the Agent rows are hidden the Workspace row carries their unread marker and its accessible name says those states and unread. A dragged Workspace hides its own Agent rows until the drag ends, as a dragged Project folds; its siblings keep theirs.
 
 `workbench.agent.navigate` targets only Workspace and terminal Presentation identity, confirms that the terminal still holds an Agent in that Workspace, re-resolves current topology and then selects the exact Tab, Panel and child, removing conflicting zoom. Its existing Action/projection coordinator rejects stale or superseded focus. Agent listing and navigation never start an Agent.
 
