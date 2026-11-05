@@ -96,8 +96,8 @@ impl super::CliText {
         match (self.locale, unchanged) {
             (Locale::EnUs, true) => "Matched rule preserves the previous state",
             (Locale::ZhCn, true) => "匹配规则要求保留先前状态",
-            (Locale::EnUs, false) => "No matching rule: known Agent defaults to idle",
-            (Locale::ZhCn, false) => "没有匹配规则，已知智能体默认空闲",
+            (Locale::EnUs, false) => "No matching rule: state stays unknown without evidence",
+            (Locale::ZhCn, false) => "没有匹配规则：缺少状态证据，保持未知",
         }
     }
     pub(crate) const fn cli_reported_agent_fields(self) -> [&'static str; 4] {

@@ -1,0 +1,62 @@
+id = "omp"
+version = "2026.11.04.1"
+min_engine_version = 1
+updated_at = "2026-11-04T00:00:00Z"
+
+# omp 18.x writes "π <glyph> <label>": ">" idle, "!" attention, a spinner frame or ":" working.
+[[rules]]
+id = "osc_title_attention_blocked"
+state = "blocked"
+priority = 300
+region = "osc_title"
+visible_blocker = true
+regex = ['^π !(?: |$)']
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 200
+region = "osc_title"
+visible_working = true
+regex = ['^π (?:[\x{2800}-\x{28FF}○◔◑◕●|/\\-]|:)(?: |$)']
+
+[[rules]]
+id = "working_row"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+line_regex = ['^\s*(?:\S+\s+)?Working…\s*$']
+
+[[rules]]
+id = "shell_running_border"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(12)"
+visible_working = true
+line_regex = ['Running… \(.+ to cancel\)']
+
+[[rules]]
+id = "footer_spinner_working"
+state = "working"
+priority = 150
+region = "bottom_non_empty_lines(2)"
+visible_working = true
+line_regex = ['^\s*[\x{2800}-\x{28FF}] \d+(?:\.\d+)?[smh]\b']
+
+[[rules]]
+id = "osc_title_idle"
+state = "idle"
+priority = 50
+region = "osc_title"
+visible_idle = true
+regex = ['^π >(?: |$)']
+
+# The idle status line starts with the π mark; a working one starts with a spinner and elapsed time.
+[[rules]]
+id = "status_line_idle"
+state = "idle"
+priority = 40
+region = "bottom_non_empty_lines(3)"
+visible_idle = true
+line_regex = ['^─{3,}', '^\s*π · \S']

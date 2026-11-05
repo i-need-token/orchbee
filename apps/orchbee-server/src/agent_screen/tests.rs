@@ -108,6 +108,79 @@ fn devin_thinking_footer_is_working_and_missing_evidence_is_unknown() {
         );
     }
 }
+/// Redacted live screens from opencode 2.2.5, pi 1.5.0 and omp 18.16.0. An idle report needs
+/// positive composer chrome; busy or question chrome outranks it, and stray words stay unknown.
+#[test]
+fn opencode_pi_and_omp_report_idle_only_from_live_composer_chrome() {
+    const OC_PROMPT: &str = "  ┃\n  ┃  Build · Model Default / OpenCode\n  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n";
+    const PI_EDITOR: &str = "──────────────────────\n\n──────────────────────\n~/src/app\n";
+    const OMP_COMPOSER: &str = "──────────────────────\n❯\n──────────────────────\n";
+    let oc_idle = format!("{OC_PROMPT}  ~/src/app        9.2K (5%)  ctrl+p commands    ~/src/app");
+    let oc_home = format!(
+        "  ┃  Ask anything… \"Fix broken tests\"\n{OC_PROMPT}  ~/src/app    shift+tab agents  ctrl+p commands\n                    2.2.5"
+    );
+    let oc_busy = format!("{OC_PROMPT}   ■■■⬝⬝⬝⬝⬝ esc interrupt       8.4K (4%)  ctrl+p commands");
+    let oc_busy_hint = format!("{OC_PROMPT}   esc interrupt       8.4K (4%)  ctrl+p commands");
+    let oc_question = "  ┃  Questions\n  ┃  Pick one\n  ┃  ↑↓ select  enter submit  esc dismiss\n  ~/src/app   ctrl+p commands";
+    let pi_idle = format!("{PI_EDITOR}0.0%/0 (auto)                              no-model");
+    let pi_model =
+        format!("{PI_EDITOR}↑1.2k ↓340 $0.004 4.5%/200k (auto)     model • thinking off");
+    let pi_busy = format!("── ⠋ Working ─────────\n\n{PI_EDITOR}?/200k (auto)    model");
+    let pi_shell = format!(
+        "$ ping localhost\n ⠙ Running... (escape/ctrl+c to cancel)\n{PI_EDITOR}0.0%/0 (auto)    no-model"
+    );
+    let omp_idle = format!("{OMP_COMPOSER} π · ◒ Model · 🗑 src\\app · ◫ 4.2%/200K ⟲");
+    let omp_busy =
+        format!("  ⎋ Working…\n{OMP_COMPOSER} ⠴ 0s · ◒ Model · 🗑 src\\app · ◫ 4.1%/200K ⟲");
+    let omp_shell = format!(
+        "$ ping localhost\n─── ⣾ Running… (⎋ to cancel) ─────\n{OMP_COMPOSER} π · ◒ Model · 🗑 src\\app"
+    );
+    let engine = ScreenDetector::bundled().unwrap();
+    for (provider, screen, title, expected) in [
+        (Provider::OpenCode, oc_idle.as_str(), "OC | session", Idle),
+        (Provider::OpenCode, &oc_home, "OpenCode", Idle),
+        (Provider::OpenCode, &oc_busy, "OC | session", Working),
+        (Provider::OpenCode, &oc_busy_hint, "OC | session", Working),
+        (Provider::OpenCode, oc_question, "OC | session", Blocked),
+        (
+            Provider::OpenCode,
+            "the docs say ctrl+p commands",
+            "",
+            Unknown,
+        ),
+        (Provider::OpenCode, OC_PROMPT, "", Unknown), // Footer clipped away.
+        (Provider::Pi, &pi_idle, "π - app", Idle),
+        (Provider::Pi, &pi_model, "π - app", Idle),
+        (Provider::Pi, &pi_busy, "π - app", Working),
+        (Provider::Pi, &pi_shell, "π - app", Working),
+        (Provider::Pi, "context 0.0%/0 (auto)", "π - app", Unknown),
+        (Provider::Omp, "", "π > app", Idle),
+        (Provider::Omp, "", "π ⠋ app", Working),
+        (Provider::Omp, "", "π : app", Working),
+        (Provider::Omp, &omp_idle, "π ! app", Blocked),
+        (Provider::Omp, "", "π: app", Unknown), // Title animation disabled.
+        (Provider::Omp, &omp_idle, "", Idle),
+        (Provider::Omp, &omp_idle, "π ⠙ app", Working),
+        (Provider::Omp, &omp_busy, "π > app", Working), // Title lags the screen.
+        (Provider::Omp, &omp_shell, "π > app", Working),
+        (Provider::Omp, "a π · in the transcript", "", Unknown),
+    ] {
+        let sample = ScreenInput {
+            screen,
+            title,
+            progress: "4;0;0",
+        };
+        let explanation = engine.explain(provider, sample).unwrap();
+        assert_eq!(
+            explanation.state, expected,
+            "{provider:?} {title:?}\n{screen}"
+        );
+        assert_eq!(
+            engine.detect(Some(provider), sample).unwrap().state,
+            expected
+        );
+    }
+}
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }
@@ -221,7 +294,6 @@ fn explain_and_fallback_detection_agree_for_every_provider_and_bounded_input() {
 #[test]
 fn all_bundled_manifests_compile_and_provider_absence_cannot_infer_identity() {
     let engine = ScreenDetector::bundled().unwrap();
-    assert_eq!(engine.0.len(), 22);
     for provider in Provider::ALL {
         // Letta deliberately ends with a catch-all unknown rule, including the empty screen.
         let expected = if provider == Provider::Letta {

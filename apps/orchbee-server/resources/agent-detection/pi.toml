@@ -1,7 +1,7 @@
 id = "pi"
-version = "2026.09.14.1"
+version = "2026.11.04.1"
 min_engine_version = 1
-updated_at = "2026-09-14T00:00:00Z"
+updated_at = "2026-11-04T00:00:00Z"
 
 [[rules]]
 id = "working_literal"
@@ -18,3 +18,32 @@ priority = 100
 region = "bottom_non_empty_lines(12)"
 visible_working = true
 line_regex = ['^── [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working ─+$']
+
+# pi 1.x status loaders (agent turn, shell command, retry, compaction) above or in the editor border.
+[[rules]]
+id = "status_loader_working"
+state = "working"
+priority = 100
+region = "bottom_non_empty_lines(12)"
+visible_working = true
+any = [
+	{ line_regex = [
+		'^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working(?:\.\.\.)?\s*$',
+	] },
+	{ line_regex = [
+		'^\s*(?:─+ )?[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \S.*\(\S+ to (?:cancel|interrupt)\)',
+	] },
+]
+
+# Idle needs the editor border and the footer context-usage line with no loader spinner.
+[[rules]]
+id = "editor_footer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+line_regex = [
+	'^─{3,}',
+	'(?:^|\s)(?:\d+(?:\.\d+)?%|\?)/\d+(?:\.\d+)?[kM]?(?: \(auto\))?(?:\s|$)',
+]
+not = [{ line_regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \S'] }]

@@ -1,7 +1,7 @@
 id = "opencode"
-version = "2026.06.10.1"
+version = "2026.11.04.1"
 min_engine_version = 1
-updated_at = "2026-06-10T00:00:00Z"
+updated_at = "2026-11-04T00:00:00Z"
 aliases = ["open-code"]
 
 [[rules]]
@@ -66,3 +66,35 @@ priority = 100
 region = "whole_recent"
 visible_working = true
 regex = ['(■|⬝){4,}']
+
+# opencode 2.x footer: an interrupt hint beside the live prompt box means a turn is running.
+[[rules]]
+id = "interrupt_footer_working"
+state = "working"
+priority = 110
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+line_regex = ['(?i)\besc (?:again to )?interrupt\b']
+
+# Idle needs the live prompt box bottom and the command footer with no busy or question chrome.
+[[rules]]
+id = "prompt_footer_idle"
+state = "idle"
+priority = 50
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+line_regex = ['^\s*╹▀{3,}', '\S commands(?:\s|$)']
+not = [
+	{ line_regex = [
+		'(?i)\besc (?:again to )?interrupt\b',
+	] },
+	{ regex = [
+		'(■|⬝){4,}',
+	] },
+	{ contains = [
+		"esc dismiss",
+	] },
+	{ contains = [
+		"△ Permission required",
+	] },
+]
