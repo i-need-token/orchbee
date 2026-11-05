@@ -30,6 +30,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.light.description': '外观为浅色时，界面和终端使用的配色。',
 	'terminal.settings.colorTheme.light.label': '浅色主题',
 	'terminal.settings.colorTheme.light.systemNotice': '系统为浅色时使用。',
+	'terminal.settings.colorTheme.names.catppuccinMocha': 'Catppuccin Mocha',
 	'terminal.settings.colorTheme.names.gruvboxDark': 'Gruvbox Dark',
 	'terminal.settings.colorTheme.names.gruvboxLight': 'Gruvbox Light',
 	'terminal.settings.colorTheme.names.orchbeeDark': 'Orchbee 深色',

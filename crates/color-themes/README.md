@@ -56,14 +56,15 @@ the copyright holder, source, pinned revision, license, and use, before its file
 
 ## Shipped themes
 
-| Theme            | Values                                                                                   | Correction                                                                                      |
-| ---------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `orchbee-light`  | Orchbee canvas, cursor, and selection; VS Code terminal registry light ANSI              | Cursor `#57bef8` to `#2e9cd4`, 3:1                                                              |
-| `orchbee-dark`   | Orchbee canvas, cursor, and selection; VS Code terminal registry dark ANSI (Dark Modern) | None                                                                                            |
-| `gruvbox-dark`   | morhetz/gruvbox via the iTerm2-Color-Schemes Ghostty export                              | ANSI 1 `#cc241d` to `#d53026`, 3:1                                                              |
-| `rose-pine`      | rose-pine/ghostty                                                                        | None                                                                                            |
-| `gruvbox-light`  | morhetz/gruvbox via the iTerm2-Color-Schemes Ghostty export                              | ANSI 2 `#98971a` to `#918f08`, 3 `#d79921` to `#b98000`, and 6 `#689d6a` to `#639765`, each 3:1 |
-| `rose-pine-dawn` | rose-pine/ghostty                                                                        | ANSI 3 `#ea9d34` to `#c67e00` and 6 `#d7827e` to `#ca7773`, each 3:1                            |
+| Theme              | Values                                                                                   | Correction                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `orchbee-light`    | Orchbee canvas, cursor, and selection; VS Code terminal registry light ANSI              | Cursor `#57bef8` to `#2e9cd4`, 3:1                                                              |
+| `orchbee-dark`     | Orchbee canvas, cursor, and selection; VS Code terminal registry dark ANSI (Dark Modern) | None                                                                                            |
+| `gruvbox-dark`     | morhetz/gruvbox via the iTerm2-Color-Schemes Ghostty export                              | ANSI 1 `#cc241d` to `#d53026`, 3:1                                                              |
+| `rose-pine`        | rose-pine/ghostty                                                                        | None                                                                                            |
+| `catppuccin-mocha` | catppuccin/ghostty                                                                       | None                                                                                            |
+| `gruvbox-light`    | morhetz/gruvbox via the iTerm2-Color-Schemes Ghostty export                              | ANSI 2 `#98971a` to `#918f08`, 3 `#d79921` to `#b98000`, and 6 `#689d6a` to `#639765`, each 3:1 |
+| `rose-pine-dawn`   | rose-pine/ghostty                                                                        | ANSI 3 `#ea9d34` to `#c67e00` and 6 `#d7827e` to `#ca7773`, each 3:1                            |
 
 ## Resolver
 

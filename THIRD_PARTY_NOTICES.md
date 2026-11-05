@@ -148,6 +148,31 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Catppuccin Color Theme
+
+- Copyright notice: Copyright (c) 2021 Catppuccin
+- Source: <https://github.com/catppuccin/ghostty>
+- Pinned revision: `b0b03ccee7ae8f16b13bd4fdfe267616defdb2b7`
+- Original path: `themes/catppuccin-mocha.conf`
+- License: MIT
+- Use in Orchbee: terminal and interface color values, unmodified, of the Catppuccin Mocha theme in
+  [`crates/color-themes/themes/`](crates/color-themes/themes/)
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## JetBrains Mono
 
 - Copyright notice: Copyright 2020 The JetBrains Mono Project Authors

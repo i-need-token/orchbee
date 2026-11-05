@@ -1,0 +1,38 @@
+# Catppuccin Mocha, from the official Catppuccin Ghostty port.
+id = "catppuccin-mocha"
+name = "Catppuccin Mocha"
+family = "catppuccin"
+polarity = "dark"
+
+[source]
+url = "https://github.com/catppuccin/ghostty"
+path = "themes/catppuccin-mocha.conf"
+revision = "b0b03ccee7ae8f16b13bd4fdfe267616defdb2b7"
+license = "MIT"
+copyright = "Copyright (c) 2021 Catppuccin"
+
+[canvas]
+background = "#1e1e2e"
+foreground = "#cdd6f4"
+cursor = "#f5e0dc"
+cursor_text = "#11111b"
+selection_background = "#353749"
+selection_foreground = "#cdd6f4"
+
+[ansi]
+black = "#45475a"
+red = "#f38ba8"
+green = "#a6e3a1"
+yellow = "#f9e2af"
+blue = "#89b4fa"
+magenta = "#f5c2e7"
+cyan = "#94e2d5"
+white = "#a6adc8"
+bright_black = "#585b70"
+bright_red = "#f38ba8"
+bright_green = "#a6e3a1"
+bright_yellow = "#f9e2af"
+bright_blue = "#89b4fa"
+bright_magenta = "#f5c2e7"
+bright_cyan = "#94e2d5"
+bright_white = "#bac2de"
