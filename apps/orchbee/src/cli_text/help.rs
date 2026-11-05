@@ -653,16 +653,16 @@ impl super::CliText {
                 "重新加载会话配置。",
             ),
             HelpTopic::Family(Family::TerminalTitle) => (
-                "Set or clear the outer terminal window title.",
-                "设置或清除外层终端窗口标题。",
+                "Set or clear the foreground Client's window title.",
+                "设置或清除前台客户端的窗口标题。",
             ),
             HelpTopic::Command(CommandPath::TerminalTitleSet) => (
-                "Set the outer terminal window title.",
-                "设置外层终端窗口标题。",
+                "Set the foreground Client's window title: the TUI's terminal window or the Desktop window.",
+                "设置前台客户端的窗口标题：TUI 所在的终端窗口或桌面端窗口。",
             ),
             HelpTopic::Command(CommandPath::TerminalTitleClear) => (
-                "Restore the outer terminal's original title.",
-                "恢复外层终端的原始标题。",
+                "Return the Client window title to the configured template.",
+                "将客户端窗口标题恢复为配置的模板。",
             ),
             HelpTopic::Family(Family::Plugin) => (
                 "Install, configure and use plugins.",

@@ -1,6 +1,6 @@
-# Windows outer terminal titles
+# Windows Client window titles
 
-`terminal title set <title>` and `terminal title clear` submit one change to the existing Session. Both accept `--format text|json`. Set removes control characters, takes at most 200 Unicode scalars, then trims; empty results fail before submission. Internal spaces are preserved. No Session or terminal is created.
+`terminal title set <title>` and `terminal title clear` submit one change to the existing Session. The foreground Client shows the result as its window title: the TUI writes its outer terminal's title, as the lifecycle below describes, and a Desktop window names its page after it, as [the GUI](../../web/README.md) describes. Both accept `--format text|json`. Set removes control characters, takes at most 200 Unicode scalars, then trims; empty results fail before submission. Internal spaces are preserved. No Session or terminal is created.
 
 ## State and delivery
 
