@@ -1,12 +1,12 @@
 # Color Themes
 
-| Field              | Value                                                                                                                                                                                                                                                                                                    |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Proposal under review; the inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05; no runtime support exists yet                                                                                                |
-| Owner              | Theme data and resolver maintainers, the native theme module in `apps/orchbee`, `@orchbee/design-tokens`, `@orchbee/terminal`, the terminal protocol and Host, and the user-preference owners                                                                                                            |
-| Current authority  | [`docs/tui/visual-foundations.md`](../../docs/tui/visual-foundations.md) owns TUI roles and the theme contract; [`docs/frontend/design-tokens.md`](../../docs/frontend/design-tokens.md) owns the CSS registry; [`docs/INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) owns GUI/TUI correspondence |
-| Decision authority | The product owner decides the default pair, the shipped list, the TUI default color source, and settings presentation; the terminal-protocol owner decides the palette-index cell encoding; this proposal decides the theme data model, the resolver, and the gates                                      |
-| Exit condition     | Both Clients offer the same named themes through shared light and dark preferences, every shipped theme passes the gates as a repository check, notices are recorded, the owning standards describe the result, and this proposal is deleted                                                             |
+| Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status             | Steps 1 and 2 of the implementation plan are delivered; the rest is a proposal under review. The inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                                                       |
+| Owner              | Theme data and resolver maintainers, the native theme module in `apps/orchbee`, `@orchbee/design-tokens`, `@orchbee/terminal`, the terminal protocol and Host, and the user-preference owners                                                                                                                                                                                                                                                                                                                          |
+| Current authority  | [`crates/color-themes`](../../crates/color-themes/README.md) owns theme data, the resolver, and the gates; the [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) owns the launch palette; [`docs/tui/visual-foundations.md`](../../docs/tui/visual-foundations.md) owns TUI roles and the theme contract; [`docs/frontend/design-tokens.md`](../../docs/frontend/design-tokens.md) owns the CSS registry; [`docs/INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) owns GUI/TUI correspondence |
+| Decision authority | The product owner decides the default pair, the shipped list, the TUI default color source, and settings presentation; the terminal-protocol owner decides the palette-index cell encoding; this proposal decides the theme data model, the resolver, and the gates                                                                                                                                                                                                                                                    |
+| Exit condition     | Both Clients offer the same named themes through shared light and dark preferences, every shipped theme passes the gates as a repository check, notices are recorded, the owning standards describe the result, and this proposal is deleted                                                                                                                                                                                                                                                                           |
 
 ## Purpose and scope
 
@@ -46,21 +46,29 @@ theme changes.
 
 ### Terminal colors
 
-- The Worker's `terminal_profile()` launch fact fixes one ANSI palette for every terminal:
-  VS Code Light Modern ANSI with green `#107c10`, cursor `#57bef8`.
+- The Worker launches each terminal with the cursor and ANSI 0–15 of the Orchbee theme whose
+  polarity matches the terminal's default colors, and applies the complete theme again when it
+  recolors a Host-following terminal. See the
+  [terminal launch palette](../../apps/orchbee-worker/README.md#terminal-launch-palette).
 - The Host resolves palette-coded cells to RGB in `render_encoding.zig`. Only default-coded cells
   carry the `color_default` sentinel, which each Client projects through
   `TerminalDisplayAppearance::{Host, Light, Dark, Custom}` and its own default colors.
 - The Host already accepts `ApplyTerminalTheme` with revisions. The Worker uses it so that a
   Host-following terminal tracks the controlling Client's outer-terminal default colors.
 
-### Measured defects in the current defaults
+### Measured defects
 
-Measured with the gates below:
+Measured with the [gates](../../crates/color-themes/README.md#gates):
 
-- On the dark default canvas `#1e1e1e`, the light-tuned palette puts blue `#0451a5` at 2.16:1 and
-  white `#555555` at 2.24:1. Both are below the 3:1 floor for normal ANSI colors.
-- The cursor `#57bef8` is 2.02:1 on the light canvas `#fcfcfc`, below the 3:1 non-text floor.
+- **Fixed by steps 1 and 2.** Every terminal launched with the light-tuned palette, so on the dark
+  default canvas `#1e1e1e` blue `#0451a5` was 2.16:1 and white `#555555` 2.24:1, below the 3:1
+  floor for normal ANSI colors. The cursor `#57bef8` was 2.02:1 on the light canvas `#fcfcfc`,
+  below the 3:1 non-text floor; Orchbee Light now ships `#2e9cd4` at 3:1.
+- **Open until step 3.** The Host keeps one palette per terminal, chosen at launch, and resolves
+  palette-coded cells with it for every Client. A Client whose polarity differs from that launch,
+  including one whose appearance changed afterward, paints default-coded cells with its own
+  canvas but palette-coded cells with the other polarity's ANSI colors: dark yellow `#e5e510` is
+  1.32:1 on the light canvas `#fcfcfc`.
 
 ## What a theme owns
 
@@ -84,14 +92,11 @@ only to values its upstream publishes for UI use, such as Catppuccin `mantle`/`c
 
 One new Rust library, `crates/color-themes`, is the only authority for theme data and resolution.
 
-- **Data.** `crates/color-themes/themes/<id>.toml` holds, per theme:
-  - the id, display name, family, and declared polarity;
-  - the upstream canvas background, foreground, cursor, cursor text, selection background and
-    foreground, and ANSI 0–15, with any gated correction recorded next to the upstream value;
-  - optional family-specified chrome;
-  - the source URL, pinned revision, license, and copyright holder.
-
-  Display names are product copy and go through localization like every other label.
+- **Data.** `crates/color-themes/themes/<id>.toml` holds one theme in the
+  [theme file schema](../../crates/color-themes/README.md#theme-files): identity, declared
+  polarity, canvas colors and ANSI 0–15 with each gated correction beside the value it replaced,
+  and provenance. Optional family-specified chrome joins the schema with its first consumer in
+  step 5 or 6. Display names are product copy and go through localization like every other label.
 
 - **Resolver.** The crate resolves a theme into the complete role set below. It owns the OKLab
   mixing, the lightness-only contrast correction, and the role proportions that are now spread
@@ -107,7 +112,7 @@ One new Rust library, `crates/color-themes`, is the only authority for theme dat
   and verification fails when the generated output is stale.
 - **Default pair.** The Orchbee pair keeps its reviewed hand-authored GUI mapping. Its theme files
   pin chrome to those values, so the TUI resolves the same surfaces and no default-pair CSS is
-  generated.
+  generated. Until then its chrome is derived; open decision 13 covers its dark canvas.
 
 A Rust crate is the authority because the TUI needs the resolver at run time for host-relative
 surfaces. A JSON source under `packages/` would force Rust to read across workspaces, and a CSS
@@ -115,30 +120,12 @@ source cannot drive the TUI or the Worker.
 
 ## Palette-to-role resolver
 
-Every validation figure in this proposal used these rules. The implementation may change the
-proportions only by re-running the gates.
+The [resolver table](../../crates/color-themes/README.md#resolver) in the crate README owns every
+role rule and the lightness-only correction, and every validation figure in this proposal used
+those rules. A proportion may change only by re-running the gates. Family-specified chrome, when it
+joins the schema, replaces the derived chrome and strip.
 
-| Role                                              | Rule                                                                                                                                 |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `surface-canvas`                                  | Theme background                                                                                                                     |
-| `surface-chrome`, `surface-strip`                 | Canvas OKLab L −0.025 on dark (+0.03 when canvas L < 0.16, so near-black canvases lift instead), −0.02 on light; or family-specified |
-| `surface-overlay`                                 | Canvas L +0.045 on dark, +0.02 on light (the canvas itself when L > 0.98)                                                            |
-| `related`, `hover`, `current`, `pressed`          | Chrome mixed toward the foreground in OKLab at 5, 8, 11, 14%                                                                         |
-| `frame-guide`, `frame-divider`, `frame-unfocused` | Chrome mixed toward the foreground at 10, 18, 24%                                                                                    |
-| `surface-field`                                   | Overlay mixed toward the foreground, as the host-relative rule does today                                                            |
-| `surface-selection`                               | Theme selection; derived as canvas mixed 30% toward ANSI 4 when absent                                                               |
-| `text-primary`                                    | Theme foreground                                                                                                                     |
-| `text-secondary`                                  | Foreground mixed 28% toward chrome, raised to at least 4.5:1 on chrome                                                               |
-| `text-muted`                                      | The quietest step from secondary toward chrome that still holds 4.5:1 (the existing `MUTED_CONTRAST` rule)                           |
-| `accent-action`, `accent-focus`                   | ANSI 4, lightness-corrected to at least 3:1 on chrome                                                                                |
-| `accent-link`                                     | ANSI 4, corrected to at least 4.5:1 on chrome                                                                                        |
-| `status-success`, `warning`, `error`, `info`      | ANSI 2, 3, 1, 6, each corrected to at least 4.5:1 on chrome; `unread` follows `accent-action`                                        |
-| `accent-destructive`                              | ANSI 1, corrected to at least 4.5:1 on chrome; a separate role from `status-error`, as today                                         |
-| `status-working`, `status-idle`                   | `text-secondary` and `text-muted`                                                                                                    |
-| `agent-attention`, `agent-done`, `agent-error`    | Fixed `#febc2e`, `#28c840`, `#ff5f57`                                                                                                |
-
-Corrections move OKLCH lightness only, away from the surface, keeping hue and chroma (with chroma
-reduced only to stay in gamut). The GUI's status `surface`, `border`, `hover`, and `pressed`
+The GUI's status `surface`, `border`, `hover`, and `pressed`
 variants come from the same status hue by the mixes the current hand-authored tokens use, so each
 generated block fills the entire inventory that `docs/frontend/design-tokens.md` requires.
 
@@ -181,7 +168,7 @@ unknown, and it becomes an explicit TUI color source, "Terminal colors", beside 
 
 Each Client must paint palette-coded cells with its own active theme. A desktop GUI in light mode
 and a phone in dark mode can view one terminal at the same time, and the Host's single palette
-cannot serve both. That mismatch is exactly the measured dark-canvas defect.
+cannot serve both. That mismatch is the open measured defect.
 
 - **Recommended: tag palette-coded cells (option A).** The Host encodes palette indexes 0–15 as a
   new tagged code (for example `0x02000000 | n`) beside `color_default`. Each Client maps the index
@@ -216,21 +203,9 @@ reproduce.
 
 ### Gates
 
-A failing theme is not ranked. A failure within 5% of its threshold is reported as borderline, but
-it still fails.
-
-| Gate                    | Threshold                                                                                          |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| License                 | MIT, Apache-2.0, BSD, ISC, or public domain                                                        |
-| Body text               | Foreground on canvas at least 4.5:1 (WCAG 2) and \|Lc\| at least 60 (APCA 0.0.98G)                 |
-| Selection text          | Selection foreground on selection background at least 4.5:1                                        |
-| Selection visible       | Selection background at least CIEDE2000 6 from canvas                                              |
-| Cursor                  | At least 3:1 on canvas                                                                             |
-| ANSI legibility         | ANSI 1–6 at least 3:1 and 8–14 at least 2:1 on canvas; on dark, 7 at least 3:1 and 15 at least 2:1 |
-| Correction budget       | Each correction at most ΔE 10; at most ΔE 20 in total, including cursor and selection              |
-| Collisions              | Within each of the normal and bright sets, ANSI 1–6 pairwise at least ΔE 10                        |
-| Red and green under CVD | Red against green (1/2 and 9/10) at least ΔE 5 under Machado 2009 deuteranopia and protanopia      |
-| Agent glyphs            | Each fixed glyph on canvas, chrome, and current at least 0.9× its ratio in accepted Orchbee Light  |
+A failing theme is not ranked. The [gate table](../../crates/color-themes/README.md#gates) in the
+crate README owns the thresholds and exemptions. A failure within 5% of its threshold is reported
+as borderline, but it still fails.
 
 Four rules changed after the first pass over the data. Each change is disclosed with its reason:
 
@@ -326,14 +301,14 @@ themes range from 0.90× to 1.00×.
 
 | Theme          | Source                                          | License       | Text       | ANSI | Cross | CVD | Corrections                                         | Score | Stability |
 | -------------- | ----------------------------------------------- | ------------- | ---------- | ---- | ----- | --- | --------------------------------------------------- | ----- | --------- |
-| Orchbee Light  | Current defaults and ANSI                       | MIT           | 18.0 / 103 | 3.03 | 20.1  | 7.1 | Cursor 2.02:1, ΔE 10.0                              | 0.538 | Default   |
+| Orchbee Light  | Current defaults and ANSI                       | MIT           | 18.0 / 103 | 3.03 | 20.1  | 7.1 | Cursor 2.02:1, ΔE 9.98                              | 0.538 | Default   |
 | Dayfox         | EdenEast/nightfox.nvim via iTerm2-Color-Schemes | MIT           | 11.1 / 91  | 4.56 | 13.5  | 7.9 | None                                                | 0.733 | 1.00      |
 | Gruvbox Light  | morhetz/gruvbox via iTerm2-Color-Schemes        | MIT           | 10.2 / 88  | 3.00 | 15.9  | 8.7 | Green, yellow (2.19:1, ΔE 8.2), cyan; total ΔE 12.6 | 0.715 | 1.00      |
 | Flexoki Light  | kepano/flexoki via iTerm2-Color-Schemes         | MIT           | 18.6 / 104 | 3.39 | 18.7  | 5.2 | Bright black 2.00:1, ΔE < 0.1                       | 0.651 | 0.87      |
 | Rosé Pine Dawn | rose-pine/ghostty                               | MIT           | 6.7 / 79   | 3.00 | 11.6  | 9.6 | Yellow (2.05:1, ΔE 9.7), cyan; total ΔE 13.4        | 0.622 | 0.70      |
 | Tango Light    | Tango Desktop Project via iTerm2-Color-Schemes  | Public domain | 21.0 / 106 | 3.00 | 20.0  | 7.7 | Yellow and three brights; total ΔE 11.9             | 0.558 | 0.34      |
 
-- **Orchbee Light.** The current neutral default. The cursor is darkened to `#2f9cd4` for 3:1.
+- **Orchbee Light.** The current neutral default. The cursor is darkened to `#2e9cd4` for 3:1.
 - **Dayfox.** The only light theme that passes without a correction.
 - **Gruvbox Light.** Pairs with the top dark theme. Its yellow needs the largest correction in the
   set. Its glyph margin is exactly 0.90×.
@@ -467,10 +442,12 @@ Evidence follows `docs/TESTING.md`. Every check answers a named question.
 
 Each step is one commit, or a small series, that leaves `main` working:
 
-1. **Theme crate.** Add `crates/color-themes` with the data schema, resolver, gate test, and the
-   Orchbee pair (the dark ANSI fix and the light cursor fix). No consumer changes yet.
-2. **Worker.** Take the launch palette from the device's effective theme, so dark terminals stop
-   inheriting the light ANSI.
+1. **Theme crate. Done.** [`crates/color-themes`](../../crates/color-themes/README.md) holds the
+   data schema, the resolver, the gate test, and the Orchbee pair with its dark ANSI and light
+   cursor fixes.
+2. **Worker. Done.** The
+   [terminal launch palette](../../apps/orchbee-worker/README.md#terminal-launch-palette) follows
+   the polarity of the effective default colors, so dark terminals no longer inherit the light ANSI.
 3. **Protocol.** Add the palette-index cell tag: schema, Host encoding behind a negotiated revision,
    and decoding in both Clients, which map indexes through their active theme.
 4. **Preferences.** Add `theme.light` and `theme.dark` to `workbench-protocol` and `local-runtime`,
@@ -529,3 +506,8 @@ Each decision is listed with a recommendation and is vetoable:
     pair, while keeping the fixed hues. The alternative, an opt-in accessibility setting, leaves the
     default sidebar ambiguous for viewers with red-green color vision deficiency. This decision
     belongs to the TUI and GUI status owners rather than to theming.
+13. **Orchbee Dark canvas.** The GUI's dark canvas is `oklch(14.5% 0 none)`, about `#0a0a0a`, while
+    Orchbee Dark and the shipped dark terminal default use `#1e1e1e`. Pinning the hand-authored GUI
+    chrome in the theme file would pair near-black chrome with a lighter canvas. Keep `#1e1e1e`,
+    the gated terminal canvas, until step 6 decides whether the GUI dark canvas moves to it or the
+    theme canvas moves to the GUI; either change re-runs the gates.
