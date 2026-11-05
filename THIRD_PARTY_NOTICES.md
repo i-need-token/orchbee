@@ -173,6 +173,33 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Flexoki Color Theme
+
+- Copyright notice: Copyright (c) 2023 Steph Ango
+- Source: <https://github.com/kepano/flexoki>
+- Pinned revision: `8d723bac4a9ac46adfdf99d42155286977aac72a`
+- Values from: iTerm2 Color Schemes `ghostty/Flexoki Dark` and `ghostty/Flexoki Light`
+- License: MIT
+- Use in Orchbee: terminal and interface color values of the Flexoki Dark and Flexoki Light themes
+  in [`crates/color-themes/themes/`](crates/color-themes/themes/)
+- Modifications: lightness correction to the legibility floor of Flexoki Light ANSI 8; the theme
+  file records the original value beside the corrected one
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## JetBrains Mono
 
 - Copyright notice: Copyright 2020 The JetBrains Mono Project Authors
