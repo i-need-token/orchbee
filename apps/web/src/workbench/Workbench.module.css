@@ -85,7 +85,9 @@
 }
 
 /* A narrow window: the sidebar opens at full height over the content, which keeps its size, as the
-   TUI's overlay does. Nothing dims; the transparent scrim only takes the click that closes it. */
+   TUI's overlay does. Nothing dims; the transparent scrim only takes the click that closes it.
+   The sidebar's light tint is translucent, so the overlay lays it on the surface the docked sidebar
+   sits on; without it, the Tab Strip and the terminal's text show through. */
 .sidebarScrim {
 	position: absolute;
 	inset: 0;
@@ -99,6 +101,7 @@
 	z-index: var(--ob-ref-layer-raised);
 	display: flex;
 	width: var(--ob-comp-workbench-sidebar-overlay-inline-size);
+	background: var(--ob-sys-color-surface-raised);
 	border-inline-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
 	box-shadow: var(--ob-sys-shadow-overlay);
 }

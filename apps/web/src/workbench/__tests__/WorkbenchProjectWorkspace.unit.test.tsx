@@ -1810,6 +1810,81 @@ describe('Workbench Project and Workspace management', () => {
 			workspaceId: fixtureWorkspaceId(3),
 		});
 	});
+
+	it('cancels a held Workspace drag on Esc from wherever focus is, without passing the key on', async () => {
+		const order = [1, 2, 3].map(fixtureWorkspaceId);
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			navigationSnapshot(
+				1,
+				[snapshotProject(1, 'Orchbee')],
+				['Primary', 'Feature', 'Review'].map((label, index) => ({ label, sequence: index + 1 })),
+				{ workspaceOrder: order },
+			),
+		);
+		const change = vi.fn<WorkbenchAuthority['change']>(async () => ({ kind: 'completed' }));
+		renderWorkbench({ authority: inertWorkbenchAuthority({ change }), projectWorkspaceRuntime });
+		const items = Array.from(
+			document.querySelectorAll<HTMLElement>(
+				`[data-project-id="${fixtureProjectId(1)}"] [data-workspace-id]`,
+			),
+		);
+		for (const [index, item] of items.entries()) {
+			const row = item.querySelector<HTMLElement>('[data-navigation-reorder-row]');
+			if (row !== null) row.getBoundingClientRect = () => projectRowRectangle(100 + index * 40);
+		}
+		const reviewItem = items[2];
+		const reviewRow = reviewItem?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
+		if (reviewItem === undefined || reviewRow === null || reviewRow === undefined) {
+			throw new Error('Expected the Review Workspace row.');
+		}
+		// Focus outside the sidebar, in an input that keeps its keys as a terminal does.
+		const focusedInput = document.createElement('textarea');
+		const terminalKeys: string[] = [];
+		focusedInput.addEventListener('keydown', (event) => {
+			terminalKeys.push(event.key);
+			event.stopPropagation();
+		});
+		document.body.append(focusedInput);
+		focusedInput.focus();
+
+		try {
+			fireEvent.pointerDown(reviewRow, {
+				button: 0,
+				clientX: 20,
+				clientY: 200,
+				pointerId: 21,
+				pointerType: 'mouse',
+			});
+			fireEvent.pointerMove(document, {
+				clientX: 20,
+				clientY: 119,
+				pointerId: 21,
+				pointerType: 'mouse',
+			});
+			await waitFor(() => expect(reviewItem.getAttribute('data-dragging')).toBe('true'));
+
+			fireEvent.keyDown(focusedInput, { key: 'Escape' });
+			fireEvent.pointerUp(document, {
+				clientX: 20,
+				clientY: 119,
+				pointerId: 21,
+				pointerType: 'mouse',
+			});
+
+			await waitFor(() => expect(reviewItem.getAttribute('data-dragging')).toBeNull());
+			expect(change).not.toHaveBeenCalledWith(
+				expect.anything(),
+				expect.objectContaining({ type: 'workspace-reordered' }),
+			);
+			expect(
+				projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
+			).toEqual(order);
+			expect(terminalKeys).toEqual([]);
+			expect(document.activeElement).toBe(focusedInput);
+		} finally {
+			focusedInput.remove();
+		}
+	});
 });
 
 function projectRowRectangle(top: number): DOMRect {

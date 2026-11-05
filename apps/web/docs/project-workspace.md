@@ -241,8 +241,10 @@ displacement transition before the Action changes DOM order, so the committed la
 the old transform.
 Pointer capture begins only after drag activation, so an armed press does not retarget an ordinary
 Project disclosure or Workspace activation click. Release before activation is an ordinary click and
-performs no reorder.
-Escape, `pointercancel`, unexpected lost pointer capture, unmount, a stale source, or a stale target
+performs no reorder. A press leaves keyboard focus where it is, so a terminal or the narrow-window
+overlay keeps the keyboard through the drag.
+As in the TUI, a plain Esc cancels an armed or activated drag wherever focus is, and that Esc never
+reaches the focused terminal. Esc, `pointercancel`, unexpected lost pointer capture, unmount, a stale source, or a stale target
 cancels without an Action or order mutation and restores the same disclosure intent. After either
 commit, cancellation, or identity invalidation of an activated drag, the adapter suppresses the
 browser's synthetic trailing click at the document capture boundary so disclosure or activation

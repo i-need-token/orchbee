@@ -54,6 +54,14 @@ function measureReorderSlot(row: HTMLElement): {
 	return { blockSize, shift: blockSize + Math.max(0, spacing) };
 }
 
+/**
+ * A press on a row leaves keyboard focus where it is, since a drag never moves it. The row is no
+ * focus target, so the browser would drop focus to the page, and the terminal would claim it.
+ */
+function keepFocusOnPress(event: MouseEvent): void {
+	if (event.button === 0) event.preventDefault();
+}
+
 /** Holding the list's top or bottom edge scrolls it by about one row this often. */
 const EDGE_SCROLL_INTERVAL_MS = 120;
 
@@ -101,6 +109,7 @@ export function useNavigationReorderDrag(
 				'[data-navigation-reorder-scroll]',
 			);
 			const sourceBounds = event.currentTarget.getBoundingClientRect();
+			event.currentTarget.addEventListener('mousedown', keepFocusOnPress, { once: true });
 			setDragState(transition.state);
 			setSession({
 				captureElement: event.currentTarget,
@@ -335,22 +344,36 @@ export function useNavigationReorderDrag(
 		const handlePointerCancel = (event: PointerEvent) => {
 			if (event.pointerId === session.pointerId) finish(false);
 		};
+		// A plain Esc cancels a held press from wherever focus is, as in the TUI. Focus may sit in a
+		// terminal, which keeps its keys, so the window's capture phase takes Esc first and holds it
+		// back from that terminal.
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (finished || event.key !== 'Escape') return;
+			if (
+				finished ||
+				event.key !== 'Escape' ||
+				event.altKey ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.shiftKey
+			) {
+				return;
+			}
 			event.preventDefault();
+			event.stopPropagation();
 			finish(false);
 		};
+		const ownerWindow = ownerDocument.defaultView;
 		const handleLostPointerCapture = () => finish(false);
 		ownerDocument.addEventListener('pointermove', handlePointerMove, { passive: false });
 		ownerDocument.addEventListener('pointerup', handlePointerUp);
 		ownerDocument.addEventListener('pointercancel', handlePointerCancel);
-		ownerDocument.addEventListener('keydown', handleKeyDown);
+		ownerWindow?.addEventListener('keydown', handleKeyDown, true);
 		session.captureElement.addEventListener('lostpointercapture', handleLostPointerCapture);
 		return () => {
 			ownerDocument.removeEventListener('pointermove', handlePointerMove);
 			ownerDocument.removeEventListener('pointerup', handlePointerUp);
 			ownerDocument.removeEventListener('pointercancel', handlePointerCancel);
-			ownerDocument.removeEventListener('keydown', handleKeyDown);
+			ownerWindow?.removeEventListener('keydown', handleKeyDown, true);
 			session.captureElement.removeEventListener('lostpointercapture', handleLostPointerCapture);
 			if (finishRef.current === finish) finishRef.current = null;
 			if (animationFrame !== null) {
