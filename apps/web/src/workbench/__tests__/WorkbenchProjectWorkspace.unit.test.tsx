@@ -449,6 +449,7 @@ describe('Workbench Project and Workspace management', () => {
 		await screen.findByRole('button', { name: 'Workspace' });
 		expect(screen.queryByRole('dialog')).toBeNull();
 		expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+			focusedPanel: null,
 			projectId: null,
 			type: 'workspace-created-default',
 		});

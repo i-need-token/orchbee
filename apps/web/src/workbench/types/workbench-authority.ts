@@ -7,6 +7,7 @@ import type {
 
 import type { WorkbenchAgentBoard } from './workbench-agent-board';
 import type { WorkbenchConfiguredCommands } from './workbench-configured-commands';
+import type { WorkbenchFocusedPanel } from './workbench-focused-panel';
 import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
 import type { WorkbenchWorktrees } from './workbench-worktrees';
 
@@ -99,9 +100,15 @@ export type WorkbenchAuthorityChange =
 export type WorkbenchAuthorityCreation =
 	/**
 	 * What New Workspace asks for: the authority chooses the directory from this Client's current
-	 * location, and the Workspace joins the Project named, or none.
+	 * location, and the Workspace joins the Project named, or none. A command that names no row
+	 * carries the focused Panel, whose terminal says where the person works; a Project row carries
+	 * none, so the focused Workspace's first terminal answers.
 	 */
-	| { readonly projectId: string | null; readonly type: 'workspace-created-default' }
+	| {
+			readonly focusedPanel: WorkbenchFocusedPanel | null;
+			readonly projectId: string | null;
+			readonly type: 'workspace-created-default';
+	  }
 	| {
 			readonly type: 'workspace-created';
 			readonly directoryId: string;

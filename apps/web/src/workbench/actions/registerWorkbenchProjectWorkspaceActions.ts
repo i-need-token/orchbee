@@ -22,6 +22,7 @@ import type {
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import { resolveFocusedPanel } from '../utils/resolveFocusedPanel';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -377,7 +378,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 						createAndEnter(
 							context,
 							input === undefined || !('directoryId' in input)
-								? { projectId: input?.projectId ?? null, type: 'workspace-created-default' }
+								? {
+										// Only a command that names no row reads where the focused Panel stands.
+										focusedPanel:
+											input === undefined ? resolveFocusedPanel(projectWorkspaceRuntime) : null,
+										projectId: input?.projectId ?? null,
+										type: 'workspace-created-default',
+									}
 								: {
 										directoryId: input.directoryId,
 										projectId: input.projectId,

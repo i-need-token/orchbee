@@ -9,6 +9,7 @@ import { terminalPresentationId } from '@orchbee/workbench-client-protocol';
 import {
 	createSnapshotRuntime,
 	fixtureDirectoryId,
+	fixturePanelId,
 	fixturePresentationId,
 	fixtureProjectId,
 	fixtureWorkspaceId,
@@ -592,6 +593,55 @@ describe('useWorkbenchActions', () => {
 		});
 		// Every change shows once the authority publishes it.
 		expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
+	});
+
+	it('opens New Workspace from Search where the focused Panel stands, and from a Project where its Workspace does', async () => {
+		const runtime = new ActionRuntime();
+		const create = vi.fn<WorkbenchAuthority['create']>(() =>
+			Promise.resolve({ kind: 'cancelled' }),
+		);
+		let actionScope: ReturnType<ActionRuntime['createScope']> | undefined;
+		render(
+			React.createElement(WorkbenchActionsHarness, {
+				authority: inertWorkbenchAuthority({ create }),
+				captureScope: (scope) => {
+					actionScope = scope;
+				},
+				projectWorkspaceRuntime: createProjectRuntime(),
+				runtime,
+			}),
+		);
+		if (actionScope === undefined) {
+			throw new Error('Expected the Workbench action scope to be captured');
+		}
+		const scope = actionScope;
+
+		await act(async () => {
+			await runtime.execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined, {
+				scope,
+				source: 'command-surface',
+			}).completion;
+			await runtime.execute(
+				WORKBENCH_ACTION_IDS.createWorkspace,
+				{ projectId: fixtureProjectId(1) },
+				{ scope, source: 'menu' },
+			).completion;
+		});
+
+		// The TUI's Quick Workspace rule: a key or Search reads the focused Panel's terminal, while a
+		// Project row names no Panel, so the Server answers for the Workspace's first terminal.
+		expect(create.mock.calls.map(([, creation]) => creation)).toEqual([
+			{
+				focusedPanel: {
+					panelId: fixturePanelId(1),
+					presentationId: fixturePresentationId(1),
+					workspaceId: fixtureWorkspaceId(1),
+				},
+				projectId: null,
+				type: 'workspace-created-default',
+			},
+			{ focusedPanel: null, projectId: fixtureProjectId(1), type: 'workspace-created-default' },
+		]);
 	});
 
 	it('passes cancellation and terminal-result ownership to an asynchronous host operation', async () => {

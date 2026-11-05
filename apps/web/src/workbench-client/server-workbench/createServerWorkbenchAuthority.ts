@@ -7,6 +7,7 @@ import type {
 	WorkbenchAuthoritySplitRatioChange,
 	WorkbenchAuthorityTabReceipt,
 	WorkbenchConfiguredCommands,
+	WorkbenchFocusedPanel,
 	WorkbenchProjectCreationReceipt,
 } from '../../workbench';
 import {
@@ -30,6 +31,7 @@ import {
 import { serverProfileLaunch, tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
 import type { ServerTabLeave } from './ServerLeavingTabs';
 import { serverWorkbenchResult } from './serverWorkbenchResult';
+import { shownPanelTerminal } from './shownPanelTerminal';
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
 import { workspaceLaunchAction, type ServerWorkspacePlacement } from './workspace-launch';
 
@@ -150,12 +152,14 @@ function changeAction(
 
 /**
  * Where New Workspace opens: where the person is working, otherwise where this Client works. The
- * Server reads the directory the focused Workspace's first terminal is in now; without an answer,
- * the last directory it followed or the Workspace's own stands in.
+ * Server reads the directory the focused Panel's terminal is in now when the creation names that
+ * Panel, otherwise the focused Workspace's first terminal; without an answer, the last directory it
+ * followed or the Workspace's own stands in.
  */
 async function defaultWorkspaceDirectory(
 	session: ServerWorkbenchAuthorityOptions['session'],
 	focusedWorkspaceId: string | null,
+	focusedPanel: WorkbenchFocusedPanel | null,
 	defaultDirectory: string,
 ): Promise<string> {
 	const { snapshot } = session;
@@ -163,6 +167,10 @@ async function defaultWorkspaceDirectory(
 		(candidate) => candidate.workspaceId === focusedWorkspaceId,
 	);
 	if (workspace === undefined) return defaultDirectory;
+	const panel =
+		focusedPanel === null || focusedPanel.workspaceId !== workspace.workspaceId
+			? null
+			: shownPanelTerminal(snapshot, workspace.workspaceId, focusedPanel);
 	const requestId = createWorkbenchRequestId();
 	const answer = await session.ask(
 		{
@@ -171,6 +179,7 @@ async function defaultWorkspaceDirectory(
 			requestId,
 			sessionId: snapshot.sessionId,
 			workspaceId: workspace.workspaceId,
+			...(panel === null ? {} : { panel }),
 		},
 		CURRENT_DIRECTORY_MILLISECONDS,
 	);
@@ -275,7 +284,12 @@ export function createServerWorkbenchAuthority({
 			// A read names no revision, so it is asked before the command's turn instead of in it.
 			const workingDirectory =
 				creation.type === 'workspace-created-default'
-					? await defaultWorkspaceDirectory(session, focusedWorkspaceId(), defaultDirectory)
+					? await defaultWorkspaceDirectory(
+							session,
+							focusedWorkspaceId(),
+							creation.focusedPanel,
+							defaultDirectory,
+						)
 					: defaultDirectory;
 			let directory = '';
 			const submission = await session.submit((snapshot) => {

@@ -205,9 +205,11 @@ function harness(
 	launchProfiles: UserLaunchProfileCatalog | null = null,
 ) {
 	const actions: ServerWorkbenchAction[] = [];
+	const asked: unknown[] = [];
 	const session: Parameters<typeof createServerWorkbenchAuthority>[0]['session'] = {
-		ask: (request) =>
-			Promise.resolve(
+		ask: (request) => {
+			asked.push(request);
+			return Promise.resolve(
 				currentDirectory === null || request.kind !== 'workbench.current-directory'
 					? { kind: 'not-submitted' }
 					: {
@@ -218,7 +220,8 @@ function harness(
 								outcome: { directory: currentDirectory, kind: 'observed' },
 							}),
 						},
-			),
+			);
+		},
 		published: () => Promise.resolve(),
 		snapshot: SNAPSHOT,
 		submit: (decide) => {
@@ -231,6 +234,7 @@ function harness(
 	};
 	return {
 		actions,
+		asked,
 		authority: createServerWorkbenchAuthority({
 			defaultDirectory: 'C:\\Users\\person',
 			defaultWorkspaceLabel: () => 'Workspace',
@@ -558,14 +562,32 @@ describe('createServerWorkbenchAuthority', () => {
 		expect(markCommitted).not.toHaveBeenCalled();
 	});
 
-	it('opens New Workspace where the Server finds the focused Workspace working now', async () => {
-		const { actions, authority } = harness(LAUNCHED, SECOND_WORKSPACE, 'D:\\now');
+	it.each([
+		[
+			'the focused Panel',
+			SECOND_PANEL,
+			{ panelId: SECOND_PANEL, presentationId: SECOND_PRESENTATION },
+		],
+		['the first terminal when the Panel left the Workspace', MISSING_TAB, undefined],
+	])('opens New Workspace where the Server finds %s working now', async (_name, panelId, panel) => {
+		const { actions, asked, authority } = harness(LAUNCHED, THIRD_WORKSPACE, 'D:\\now');
 
 		await authority.create(executionContext().context, {
+			focusedPanel: { panelId, presentationId: SECOND_PRESENTATION, workspaceId: THIRD_WORKSPACE },
 			projectId: null,
 			type: 'workspace-created-default',
 		});
 
+		expect(asked).toEqual([
+			{
+				kind: 'workbench.current-directory',
+				...(panel === undefined ? {} : { panel }),
+				protocolVersion: 1,
+				requestId: expect.any(String),
+				sessionId: SESSION,
+				workspaceId: THIRD_WORKSPACE,
+			},
+		]);
 		expect(actions).toEqual([
 			expect.objectContaining({
 				kind: 'workspace.launch',
@@ -578,7 +600,7 @@ describe('createServerWorkbenchAuthority', () => {
 	it.each<[string, WorkbenchAuthorityCreation, string | null, Record<string, unknown>]>([
 		[
 			'opens New Workspace in the directory the focused Workspace last reported when the Server cannot read it',
-			{ projectId: null, type: 'workspace-created-default' },
+			{ focusedPanel: null, projectId: null, type: 'workspace-created-default' },
 			SECOND_WORKSPACE,
 			{
 				label: 'elsewhere',
@@ -588,7 +610,7 @@ describe('createServerWorkbenchAuthority', () => {
 		],
 		[
 			'avoids every label the snapshot holds when no terminal reported a directory',
-			{ projectId: null, type: 'workspace-created-default' },
+			{ focusedPanel: null, projectId: null, type: 'workspace-created-default' },
 			FIRST_WORKSPACE,
 			{
 				label: 'repo (3)',
@@ -598,7 +620,7 @@ describe('createServerWorkbenchAuthority', () => {
 		],
 		[
 			'opens New Workspace where this Client works when nothing is focused',
-			{ projectId: null, type: 'workspace-created-default' },
+			{ focusedPanel: null, projectId: null, type: 'workspace-created-default' },
 			null,
 			{
 				label: 'person',
@@ -640,6 +662,7 @@ describe('createServerWorkbenchAuthority', () => {
 
 		await expect(
 			authority.create(executionContext().context, {
+				focusedPanel: null,
 				projectId: null,
 				type: 'workspace-created-default',
 			}),

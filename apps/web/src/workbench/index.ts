@@ -36,6 +36,10 @@ export type {
 	WorkbenchNewProjectFolderResult,
 } from './types/workbench-project-folder-acquisition';
 export type {
+	WorkbenchFocusedPanel,
+	WorkbenchPanelTerminal,
+} from './types/workbench-focused-panel';
+export type {
 	WorkbenchWorktreeCommand,
 	WorkbenchWorktreeDiscovery,
 	WorkbenchWorktreeDiscoveryResult,
