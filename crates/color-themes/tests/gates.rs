@@ -101,12 +101,9 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
 
     findings.at_least("body text contrast", contrast(foreground, background), 4.5);
     findings.at_least("body text |Lc|", apca(foreground, background).abs(), 60.0);
-    let selected_text = canvas
-        .selection_foreground
-        .map_or(foreground, PaletteColor::value);
     findings.at_least(
         "selection text contrast",
-        contrast(selected_text, roles.surface_selection),
+        contrast(roles.text_selection, roles.surface_selection),
         4.5,
     );
     findings.at_least(
@@ -218,7 +215,8 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
         }
     }
 
-    let floors: [(&str, Rgb, f64); 10] = [
+    let groups = roles.tab_groups;
+    let floors: [(&str, Rgb, f64); 19] = [
         ("text-secondary", roles.text_secondary, 4.5),
         ("text-muted", roles.text_muted, 4.5),
         ("accent-action", roles.accent_action, 3.0),
@@ -229,6 +227,15 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
         ("status-warning", roles.status_warning, 4.5),
         ("status-error", roles.status_error, 4.5),
         ("status-info", roles.status_info, 4.5),
+        ("tab-group blue", groups.blue, 4.5),
+        ("tab-group cyan", groups.cyan, 4.5),
+        ("tab-group green", groups.green, 4.5),
+        ("tab-group grey", groups.grey, 4.5),
+        ("tab-group orange", groups.orange, 4.5),
+        ("tab-group pink", groups.pink, 4.5),
+        ("tab-group purple", groups.purple, 4.5),
+        ("tab-group red", groups.red, 4.5),
+        ("tab-group yellow", groups.yellow, 4.5),
     ];
     for (role, color, floor) in floors {
         findings.at_least(

@@ -3,9 +3,9 @@
 `orchbee-color-themes` is the single authority for Orchbee color themes: the theme file schema,
 the shipped theme data, the palette-to-role resolver, and the gates every shipped theme passes.
 The [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) takes each terminal's
-launch palette from the device's selected theme slots, and the GUI's [generated files](#gui-files)
-come from this crate. The native Client theme module is a planned consumer under the
-[color-theme proposal](../../proposals/workbench/color-themes.md).
+launch palette from the device's selected theme slots, the native Client's
+[theme module](../../apps/orchbee/docs/native-themes.md) resolves its roles from the selected
+theme at run time, and the GUI's [generated files](#gui-files) come from this crate.
 
 It is admitted as one deliberately independent contract: the Worker, the native Client, and the
 GUI generator are separate applications that must read one theme authority, and applications never
@@ -25,6 +25,7 @@ styles or modifiers, localize theme names, or change the fixed Agent glyph color
 | `Theme::parse(&str)`     | Admits one [theme file](#theme-files), or a `ThemeFileError`; gates are not checked here  |
 | `PaletteColor`           | A correctable color: the shipped `value()` and, when corrected, the replaced `original()` |
 | `Roles::resolve(&Theme)` | Every role in the [resolver table](#resolver), with each floor met on `surface_chrome`    |
+| `TabGroups`              | The resolved Tab-group accents, one field per shared group color                          |
 | `Rgb`                    | An 8-bit sRGB color; `u32::from` packs it as `0xRRGGBB`, `Display` writes `#rrggbb`       |
 
 Theme files are embedded at build time and admitted on first use. An embedded file that fails to
@@ -92,16 +93,22 @@ gate test passes again.
 | `frame-guide`, `frame-divider`, `frame-unfocused`   | Chrome mixed toward the foreground at 10, 18, and 24%                                                                    |
 | `surface-field`                                     | Overlay mixed toward the foreground at 7% on dark, 5% on light                                                           |
 | `surface-selection`                                 | Theme selection background; canvas mixed 30% toward ANSI 4 when absent                                                   |
+| `surface-inactive`                                  | `surface-canvas`                                                                                                         |
 | `text-primary`                                      | Theme foreground                                                                                                         |
 | `text-secondary`                                    | Foreground mixed 28% toward chrome, raised to at least 4.5:1                                                             |
 | `text-muted`                                        | The step from secondary toward chrome closest to chrome that still holds 4.5:1                                           |
-| `accent-action`, `accent-focus`                     | ANSI 4, raised to at least 3:1                                                                                           |
+| `text-disabled`                                     | `text-muted` mixed 45% toward chrome; unavailable content is exempt from the floors                                      |
+| `text-inverse`                                      | `surface-canvas`                                                                                                         |
+| `text-selection`                                    | Theme selection foreground; the foreground when absent                                                                   |
+| `accent-action`, `accent-focus`, `frame-focused`    | ANSI 4, raised to at least 3:1                                                                                           |
 | `accent-link`                                       | ANSI 4, raised to at least 4.5:1                                                                                         |
 | `status-success`, `-warning`, `-error`, `-info`     | ANSI 2, 3, 1, and 6, each raised to at least 4.5:1                                                                       |
 | `accent-destructive`                                | ANSI 1, raised to at least 4.5:1; a separate role from `status-error`                                                    |
 | `status-unread`                                     | `accent-action`                                                                                                          |
-| `status-working`, `status-idle`                     | `text-secondary` and `text-muted`                                                                                        |
+| `status-pending`, `status-working`, `status-idle`   | `text-secondary`, `text-secondary`, and `text-muted`                                                                     |
 | `agent-attention`, `agent-done`, `agent-error`      | Fixed `#febc2e`, `#28c840`, and `#ff5f57` in every theme                                                                 |
+| Tab groups blue, cyan, green, grey, red, yellow     | ANSI 4, 6, 2, 8, 1, and 3, each raised to at least 4.5:1                                                                 |
+| Tab groups orange, pink, purple                     | ANSI 1 mixed 50% toward ANSI 3, ANSI 5 mixed 30% toward ANSI 1, and ANSI 5 mixed 50% toward ANSI 4, each raised to 4.5:1 |
 
 ## Gates
 
