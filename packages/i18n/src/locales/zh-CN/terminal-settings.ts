@@ -42,6 +42,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colorTheme.names.orchbeeLight': 'Orchbee 浅色',
 	'terminal.settings.colorTheme.names.rosePine': 'Rosé Pine',
 	'terminal.settings.colorTheme.names.rosePineDawn': 'Rosé Pine Dawn',
+	'terminal.settings.colorTheme.names.tokyoNight': 'Tokyo Night',
 	'terminal.settings.language.automaticFallbackNotice':
 		'在你于此处选择之前，Orchbee 会使用系统或浏览器语言。你的选择会保存在此设备上。',
 	'terminal.settings.language.english': 'English',

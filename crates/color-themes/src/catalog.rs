@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 use crate::{Polarity, Theme};
 
-const FILES: [&str; 12] = [
+const FILES: [&str; 13] = [
     include_str!("../themes/orchbee-light.toml"),
     include_str!("../themes/orchbee-dark.toml"),
     include_str!("../themes/gruvbox-dark.toml"),
@@ -14,6 +14,7 @@ const FILES: [&str; 12] = [
     include_str!("../themes/flexoki-dark.toml"),
     include_str!("../themes/nightfox.toml"),
     include_str!("../themes/dracula.toml"),
+    include_str!("../themes/tokyo-night.toml"),
     include_str!("../themes/dayfox.toml"),
     include_str!("../themes/gruvbox-light.toml"),
     include_str!("../themes/flexoki-light.toml"),

@@ -250,6 +250,28 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Tokyo Night Color Theme
+
+- Creator: Folke Lemaitre; the upstream license names no separate copyright holder
+- Source: <https://github.com/folke/tokyonight.nvim>
+- Pinned revision: `cdc07ac78467a233fd62c493de29a17e0cf2b2b6`
+- Original path: `extras/ghostty/tokyonight_night`
+- License: Apache License 2.0
+- Use in Orchbee: terminal and interface color values of the Tokyo Night theme in
+  [`crates/color-themes/themes/`](crates/color-themes/themes/)
+- Modifications: ANSI 8 is lightened from `#414868` to `#434b6b` to reach the 2:1 legibility
+  floor; the theme file records the original value beside the corrected one
+- License text: [`tokyo-night-LICENSE.txt`](crates/color-themes/licenses/tokyo-night-LICENSE.txt)
+
+> Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+> in compliance with the License. You may obtain a copy of the License at
+> <http://www.apache.org/licenses/LICENSE-2.0>.
+>
+> Unless required by applicable law or agreed to in writing, software distributed under the License
+> is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+> or implied. See the License for the specific language governing permissions and limitations under
+> the License.
+
 ## JetBrains Mono
 
 - Copyright notice: Copyright 2020 The JetBrains Mono Project Authors

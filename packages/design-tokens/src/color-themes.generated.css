@@ -676,6 +676,118 @@
 	--ob-sys-color-data-5: #ff5555;
 }
 
+[data-theme='dark'][data-color-theme='tokyo-night'] {
+	--ob-sys-color-brand-accent: var(--ob-ref-color-amber-300);
+	--ob-sys-color-brand-accent-hover: var(--ob-ref-color-amber-200);
+	--ob-sys-color-brand-on-accent: var(--ob-ref-color-neutral-950);
+	--ob-sys-color-surface-canvas: #1a1b26;
+	--ob-sys-color-surface-inactive: color-mix(in srgb, #c0caf5 6%, transparent);
+	--ob-sys-color-surface-subtle: color-mix(in srgb, #c0caf5 5%, transparent);
+	--ob-sys-color-surface-raised: #141520;
+	--ob-sys-color-surface-overlay: #252631;
+	--ob-sys-color-surface-inverse: #c0caf5;
+	--ob-sys-color-surface-hovered: color-mix(in srgb, #c0caf5 8%, transparent);
+	--ob-sys-color-surface-pressed: color-mix(in srgb, #c0caf5 14%, transparent);
+	--ob-sys-color-surface-selected: color-mix(in srgb, #c0caf5 11%, transparent);
+	--ob-sys-color-surface-selected-hover: color-mix(in srgb, #c0caf5 14%, transparent);
+	--ob-sys-color-surface-disabled: color-mix(in srgb, #c0caf5 8%, transparent);
+	--ob-sys-color-surface-scrim: color-mix(
+		in oklch,
+		var(--ob-ref-color-neutral-1000) 70%,
+		transparent
+	);
+	--ob-sys-color-text-primary: #c0caf5;
+	--ob-sys-color-text-heading: #c0caf5;
+	--ob-sys-color-text-secondary: #8b92b3;
+	--ob-sys-color-text-label: #8b92b3;
+	--ob-sys-color-text-muted: #777e9b;
+	--ob-sys-color-text-placeholder: color-mix(in oklab, #777e9b 70%, #141520);
+	--ob-sys-color-text-disabled: color-mix(in oklab, #777e9b 55%, #141520);
+	--ob-sys-color-text-inverse: #1a1b26;
+	--ob-sys-color-text-link: #7aa2f7;
+	--ob-sys-color-text-link-hover: color-mix(in oklab, #7aa2f7 85%, white);
+	--ob-sys-color-text-link-focus: color-mix(in oklab, #7aa2f7 85%, white);
+	--ob-sys-color-text-link-pressed: color-mix(in oklab, #7aa2f7 85%, black);
+	--ob-sys-color-icon-primary: #c0caf5;
+	--ob-sys-color-icon-secondary: #8b92b3;
+	--ob-sys-color-icon-muted: #777e9b;
+	--ob-sys-color-icon-inverse: #1a1b26;
+	--ob-sys-color-icon-hover: #c0caf5;
+	--ob-sys-color-icon-disabled: color-mix(in oklab, #777e9b 55%, #141520);
+	--ob-sys-color-border-subtle: #222432;
+	--ob-sys-color-border-default: #2e3141;
+	--ob-sys-color-border-strong: #383a4c;
+	--ob-sys-color-border-focus: #7aa2f7;
+	--ob-sys-color-border-selected: #7aa2f7;
+	--ob-sys-color-border-disabled: #222432;
+	--ob-sys-color-scrollbar-track: transparent;
+	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #c0caf5 28%, transparent);
+	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #c0caf5 40%, transparent);
+	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #c0caf5 52%, transparent);
+	--ob-sys-color-action-primary: #7aa2f7;
+	--ob-sys-color-action-primary-hover: color-mix(in oklab, #7aa2f7 85%, white);
+	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #7aa2f7 85%, black);
+	--ob-sys-color-action-primary-text: #1a1b26;
+	--ob-sys-color-action-secondary: #1f212e;
+	--ob-sys-color-action-secondary-hover: #242634;
+	--ob-sys-color-action-secondary-pressed: #282a39;
+	--ob-sys-color-action-secondary-text: #c0caf5;
+	--ob-sys-color-action-disabled: #1b1c29;
+	--ob-sys-color-action-disabled-text: color-mix(in oklab, #777e9b 55%, #141520);
+	--ob-sys-color-action-disabled-border: #222432;
+	--ob-sys-color-status-attention: var(--ob-ref-color-traffic-light-yellow);
+	--ob-sys-color-status-working: var(--ob-ref-color-agent-working-dark);
+	--ob-sys-color-status-agent-idle: var(--ob-ref-color-groknight-gray);
+	--ob-sys-color-status-agent-done: var(--ob-ref-color-traffic-light-green);
+	--ob-sys-color-status-agent-error: var(--ob-ref-color-traffic-light-red);
+	--ob-sys-color-status-unread: #7aa2f7;
+	--ob-sys-color-status-info: #7dcfff;
+	--ob-sys-color-status-info-hover: color-mix(in oklab, #7dcfff 85%, white);
+	--ob-sys-color-status-info-pressed: color-mix(in oklab, #7dcfff 85%, black);
+	--ob-sys-color-status-info-surface: color-mix(in oklch, #7dcfff 15%, transparent);
+	--ob-sys-color-status-info-surface-hover: color-mix(in oklch, #7dcfff 20%, transparent);
+	--ob-sys-color-status-info-border: color-mix(in oklab, #7dcfff 50%, #141520);
+	--ob-sys-color-status-info-border-hover: color-mix(in oklab, #7dcfff 65%, #141520);
+	--ob-sys-color-status-info-text: #7dcfff;
+	--ob-sys-color-status-info-text-hover: color-mix(in oklab, #7dcfff 85%, white);
+	--ob-sys-color-status-info-text-pressed: color-mix(in oklab, #7dcfff 85%, black);
+	--ob-sys-color-status-success: #9ece6a;
+	--ob-sys-color-status-success-hover: color-mix(in oklab, #9ece6a 85%, white);
+	--ob-sys-color-status-success-pressed: color-mix(in oklab, #9ece6a 85%, black);
+	--ob-sys-color-status-success-surface: color-mix(in oklch, #9ece6a 15%, transparent);
+	--ob-sys-color-status-success-surface-hover: color-mix(in oklch, #9ece6a 20%, transparent);
+	--ob-sys-color-status-success-border: color-mix(in oklab, #9ece6a 50%, #141520);
+	--ob-sys-color-status-success-border-hover: color-mix(in oklab, #9ece6a 65%, #141520);
+	--ob-sys-color-status-success-text: #9ece6a;
+	--ob-sys-color-status-success-text-hover: color-mix(in oklab, #9ece6a 85%, white);
+	--ob-sys-color-status-success-text-pressed: color-mix(in oklab, #9ece6a 85%, black);
+	--ob-sys-color-status-warning: #e0af68;
+	--ob-sys-color-status-warning-hover: color-mix(in oklab, #e0af68 85%, white);
+	--ob-sys-color-status-warning-pressed: color-mix(in oklab, #e0af68 85%, black);
+	--ob-sys-color-status-warning-surface: color-mix(in oklch, #e0af68 15%, transparent);
+	--ob-sys-color-status-warning-surface-hover: color-mix(in oklch, #e0af68 20%, transparent);
+	--ob-sys-color-status-warning-border: color-mix(in oklab, #e0af68 50%, #141520);
+	--ob-sys-color-status-warning-border-hover: color-mix(in oklab, #e0af68 65%, #141520);
+	--ob-sys-color-status-warning-text: #e0af68;
+	--ob-sys-color-status-warning-text-hover: color-mix(in oklab, #e0af68 85%, white);
+	--ob-sys-color-status-warning-text-pressed: color-mix(in oklab, #e0af68 85%, black);
+	--ob-sys-color-status-danger: #f7768e;
+	--ob-sys-color-status-danger-hover: color-mix(in oklab, #f7768e 85%, white);
+	--ob-sys-color-status-danger-pressed: color-mix(in oklab, #f7768e 85%, black);
+	--ob-sys-color-status-danger-surface: color-mix(in oklch, #f7768e 15%, transparent);
+	--ob-sys-color-status-danger-surface-hover: color-mix(in oklch, #f7768e 20%, transparent);
+	--ob-sys-color-status-danger-border: color-mix(in oklab, #f7768e 50%, #141520);
+	--ob-sys-color-status-danger-border-hover: color-mix(in oklab, #f7768e 65%, #141520);
+	--ob-sys-color-status-danger-text: #f7768e;
+	--ob-sys-color-status-danger-text-hover: color-mix(in oklab, #f7768e 85%, white);
+	--ob-sys-color-status-danger-text-pressed: color-mix(in oklab, #f7768e 85%, black);
+	--ob-sys-color-data-1: #7aa2f7;
+	--ob-sys-color-data-2: #9ece6a;
+	--ob-sys-color-data-3: #e0af68;
+	--ob-sys-color-data-4: #bb9af7;
+	--ob-sys-color-data-5: #f7768e;
+}
+
 [data-theme='light'][data-color-theme='dayfox'] {
 	--ob-sys-color-brand-accent: var(--ob-ref-color-amber-400);
 	--ob-sys-color-brand-accent-hover: var(--ob-ref-color-amber-300);
