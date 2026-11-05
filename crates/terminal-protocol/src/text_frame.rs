@@ -1,6 +1,6 @@
-//! Decodes bounded OBTF text projections, interaction modes, and recognized command and
-//! progress extensions while skipping unrecognized optional extension contents. It does not
-//! apply frame history, render cells, or interpret Agent state.
+//! Decodes bounded OBTF text projections, interaction modes, and recognized command, progress,
+//! and program status extensions while skipping unrecognized optional extension contents. It does
+//! not apply frame history, render cells, or interpret Agent state.
 
 use crate::{
     MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode, TerminalFrameRoute,
@@ -12,9 +12,11 @@ mod completion;
 pub use completion::TerminalCommandCompletion;
 mod command_observation;
 pub use command_observation::{TerminalCommandObservation, TerminalObservedCommand};
+mod program_status;
 mod progress;
 mod rows;
 mod sgr;
+pub use program_status::{TerminalProgramState, TerminalProgramStatus};
 pub use progress::{TerminalProgress, TerminalProgressValue};
 pub use sgr::{TerminalSgrStyle, terminal_sgr_style};
 
@@ -66,6 +68,8 @@ pub struct TerminalTextFrame {
     pub current_directory: Option<Arc<str>>,
     /// Presence of the validated current progress extension; absence means removed progress on the wire.
     pub progress: Option<TerminalProgress>,
+    /// The OSC 7501 root record a program reported about itself; absence means no record.
+    pub program_status: Option<TerminalProgramStatus>,
     /// Latest OSC 133 command-completion fact, scoped by the physical terminal identity.
     pub command_completion: Option<TerminalCommandCompletion>,
     /// Correlated shell command and retained-row origin; absence means unsupported.
@@ -281,6 +285,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     )?;
     let mut extension_bytes = 0_u64;
     let mut progress = None;
+    let mut program_status = None;
     let mut command_completion = None;
     let mut command_observation = None;
     let mut command_started_at = None;
@@ -333,6 +338,12 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
             }
             command_started_at = Some(command_observation::decode_start(bytes)?);
         }
+        if kind == 7 {
+            if program_status.is_some() {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            program_status = Some(program_status::decode(bytes)?);
+        }
     }
     if !header.bytes.is_empty() {
         return Err(error(ProtocolErrorCode::LengthMismatch));
@@ -361,6 +372,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         title: (title != u32::MAX).then(|| strings[title as usize].clone()),
         current_directory: (directory != u32::MAX).then(|| strings[directory as usize].clone()),
         progress,
+        program_status,
         command_completion,
         command_observation,
         graphics_present,

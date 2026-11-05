@@ -35,6 +35,7 @@ fn frame(cursor: u16, rows: impl Fn(u16) -> (u8, u8)) -> TerminalTextFrame {
         theme_revision: 1,
         scrollback_rows: 0,
         progress: None,
+        program_status: None,
         graphics_present: None,
         command_completion: None,
         command_observation: None,

@@ -65,6 +65,7 @@ fn complete_cross_attach_fence_includes_host_terminal_and_screen() {
         title: None,
         current_directory: None,
         progress: None,
+        program_status: None,
         graphics_present: None,
         command_completion: None,
         command_observation: None,

@@ -1341,6 +1341,7 @@ fn history_entering_keeps_the_live_frame() {
         theme_revision: 1,
         scrollback_rows: 9,
         progress: None,
+        program_status: None,
         graphics_present: None,
         command_completion: None,
         command_observation: None,

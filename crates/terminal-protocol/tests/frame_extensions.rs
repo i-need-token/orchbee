@@ -1,4 +1,6 @@
-use orchbee_terminal_protocol::{TerminalProgress, decode_terminal_text_frame};
+use orchbee_terminal_protocol::{
+    TerminalProgramState, TerminalProgress, decode_terminal_text_frame,
+};
 const FRAME: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
 fn u16_at(bytes: &[u8], n: usize) -> usize {
     usize::from(u16::from_le_bytes(bytes[n..n + 2].try_into().unwrap()))
@@ -270,4 +272,47 @@ fn a_command_start_time_annotates_only_the_same_frames_invocation() {
     assert!(started(&[(5, 0, &running), (6, 0, &start), (6, 0, &start)]).is_err());
     assert!(started(&[(5, 0, &running), (6, 0, &0_u64.to_le_bytes())]).is_err());
     assert!(started(&[(5, 0, &running), (6, 0, &start[..7])]).is_err());
+}
+
+#[test]
+fn program_status_states_and_report_times_obey_the_closed_wire_contract() {
+    let payload = |state: u8, reported_at: u64| {
+        let mut bytes = vec![state];
+        bytes.extend(reported_at.to_le_bytes());
+        bytes
+    };
+    let decoded = |extensions: &[(u16, u16, &[u8])]| {
+        decode_terminal_text_frame(&frame(extensions)).map(|frame| frame.program_status)
+    };
+    assert_eq!(decoded(&[]).unwrap(), None);
+    for (byte, state) in [
+        (1, TerminalProgramState::Idle),
+        (2, TerminalProgramState::Working),
+        (3, TerminalProgramState::Blocked),
+        (4, TerminalProgramState::Done),
+        (5, TerminalProgramState::Error),
+    ] {
+        for reported_at in [1, u64::MAX] {
+            let status = decoded(&[(7, 0, &payload(byte, reported_at))])
+                .unwrap()
+                .unwrap();
+            assert_eq!(status.state, state);
+            assert_eq!(status.reported_at_nanoseconds.get(), reported_at);
+        }
+    }
+    let valid = payload(2, 9);
+    for extensions in [
+        vec![(7, 0, payload(0, 9))],
+        vec![(7, 0, payload(6, 9))],
+        vec![(7, 0, payload(2, 0))],
+        vec![(7, 0, valid[..8].to_vec())],
+        vec![(7, 0, [valid.as_slice(), &[0]].concat())],
+        vec![(7, 0, valid.clone()), (7, 0, valid.clone())],
+    ] {
+        let extensions: Vec<_> = extensions
+            .iter()
+            .map(|(kind, flags, bytes)| (*kind, *flags, bytes.as_slice()))
+            .collect();
+        assert!(decoded(&extensions).is_err());
+    }
 }
