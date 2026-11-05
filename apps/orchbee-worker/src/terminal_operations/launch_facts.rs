@@ -16,7 +16,8 @@ use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, DefaultLaunchProgram, TerminalLaunchPreferences,
 };
 use orchbee_terminal_protocol::{
-    ColorScheme, CreationId, CursorShape, DeviceAttributes, LaunchEnvironmentEntry, TerminalProfile,
+    CreationId, CursorShape, DeviceAttributes, LaunchEnvironmentEntry, TerminalProfile,
+    TerminalTheme,
 };
 
 use crate::{
@@ -157,37 +158,23 @@ fn launch_environment(
     entries
 }
 
-// Only the default colors and their color scheme follow device preferences or Host colors.
-// The ANSI palette remains the protocol profile's authority, independent of Client rendering.
+// The effective default colors choose the scheme, cursor, and palette through the terminal theme;
+// the cursor style, device attributes, and query responses are the same for every launch.
 fn terminal_profile(colors: orchbee_local_runtime::UserTerminalColors) -> TerminalProfile {
-    let (foreground, background) = colors.rgb();
-    let mut palette = vec![
-        0x00_00_00, 0xcd_31_31, 0x10_7c_10, 0x94_98_00, 0x04_51_a5, 0xbc_05_bc, 0x05_98_bc,
-        0x55_55_55, 0x66_66_66, 0xcd_31_31, 0x14_ce_14, 0xb5_ba_00, 0x04_51_a5, 0xbc_05_bc,
-        0x05_98_bc, 0xa5_a5_a5,
-    ];
-    for red in [0, 95, 135, 175, 215, 255] {
-        for green in [0, 95, 135, 175, 215, 255] {
-            for blue in [0, 95, 135, 175, 215, 255] {
-                palette.push((red << 16) | (green << 8) | blue);
-            }
-        }
-    }
-    for index in 0..24 {
-        let value = 8 + index * 10;
-        palette.push((value << 16) | (value << 8) | value);
-    }
+    let TerminalTheme {
+        color_scheme,
+        default_background_rgb,
+        default_cursor_rgb,
+        default_foreground_rgb,
+        palette,
+    } = crate::terminal_theme::effective(colors);
     TerminalProfile {
-        color_scheme: if colors.dark() {
-            ColorScheme::Dark
-        } else {
-            ColorScheme::Light
-        },
-        default_background_rgb: background,
+        color_scheme,
+        default_background_rgb,
         default_cursor_blinking: false,
-        default_cursor_rgb: Some(0x57_be_f8),
+        default_cursor_rgb,
         default_cursor_shape: CursorShape::Block,
-        default_foreground_rgb: foreground,
+        default_foreground_rgb,
         device_attributes: DeviceAttributes {
             primary_conformance_level: 62,
             primary_features: vec![22],

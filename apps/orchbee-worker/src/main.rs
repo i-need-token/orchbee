@@ -34,6 +34,8 @@ mod terminal_operations;
 #[cfg(any(unix, windows))]
 mod terminal_send_operation;
 #[cfg(any(unix, windows))]
+mod terminal_theme;
+#[cfg(any(unix, windows))]
 mod terminal_viewer_operation;
 #[cfg(any(unix, windows))]
 mod worker_connection;

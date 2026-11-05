@@ -2,7 +2,7 @@
 //! Client's observed outer-terminal colors win; each following terminal keeps its last
 //! committed theme so the next update can compare-and-set against the Host revision.
 use orchbee_local_runtime::UserTerminalColors;
-use orchbee_terminal_protocol::{ColorScheme, TerminalTheme, TerminalThemeState};
+use orchbee_terminal_protocol::{TerminalTheme, TerminalThemeState};
 use std::collections::BTreeMap;
 const MAXIMUM_FOLLOWERS: usize = crate::terminal_authorization::MAXIMUM_RETAINED_TERMINAL_BINDINGS;
 #[derive(Default)]
@@ -40,19 +40,5 @@ impl HostColors {
     }
     pub(crate) fn remove(&mut self, terminal: [u8; 16]) {
         self.followers.remove(&terminal);
-    }
-}
-/// Returns `theme` with the given default colors and their luminance-derived scheme.
-pub(crate) fn recolored(theme: &TerminalTheme, colors: UserTerminalColors) -> TerminalTheme {
-    let (foreground, background) = colors.rgb();
-    TerminalTheme {
-        color_scheme: if colors.dark() {
-            ColorScheme::Dark
-        } else {
-            ColorScheme::Light
-        },
-        default_background_rgb: background,
-        default_foreground_rgb: foreground,
-        ..theme.clone()
     }
 }

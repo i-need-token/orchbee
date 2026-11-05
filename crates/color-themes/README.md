@@ -2,8 +2,9 @@
 
 `orchbee-color-themes` is the single authority for Orchbee color themes: the theme file schema,
 the shipped theme data, the palette-to-role resolver, and the gates every shipped theme passes.
-The Worker's terminal launch palette, the native Client theme module, and the GUI token generator
-are its planned consumers under the [color-theme proposal](../../proposals/workbench/color-themes.md).
+The [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) takes each terminal's
+launch palette from the Orchbee pair. The native Client theme module and the GUI token generator
+are planned consumers under the [color-theme proposal](../../proposals/workbench/color-themes.md).
 
 It is admitted as one deliberately independent contract: the Worker, the native Client, and the
 GUI generator are separate applications that must read one theme authority, and applications never

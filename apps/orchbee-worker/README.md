@@ -324,10 +324,9 @@ capture keeps the System shell, Host colors and Host scrollback.
 
 The shared `UserTerminalColors` resolver supplies Host-default Light/Dark from explicit application
 appearance, while System keeps the existing Host baseline. Explicit terminal Light/Dark/Custom win.
-The launch adapter installs only those foreground/background defaults and an explicit Light/Dark
-scheme, preserving ANSI palette entries and cursor settings. Host OSC 10/11 replies therefore use
-the captured launch colors. Existing terminals and per-Client Settings previews never trigger a
-Worker theme mutation; see [native themes](../orchbee/docs/native-themes.md).
+The launch profile installs those foreground/background defaults with their scheme, so Host OSC
+10/11 replies use the captured launch colors. Existing terminals and per-Client Settings previews
+never trigger a Worker theme mutation; see [native themes](../orchbee/docs/native-themes.md).
 
 When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
 executable and argument vector, with only the Windows interactive PowerShell refinement below:
@@ -366,6 +365,18 @@ opens a Server/OBCN/Host transport, or constructs a Host command. Pure table tes
 admission, all selection combinations, output facts, and typed failure; native tests cover the
 executable probe and the current-machine resolution boundary. A file can change after this
 observation, so the eventual Host execution boundary still owns typed launch failure.
+
+### Terminal launch palette
+
+The effective default colors also choose the rest of the launch theme. Their scheme selects the
+Orchbee theme of that polarity from [`orchbee-color-themes`](../../crates/color-themes/README.md),
+and the launch profile carries that theme's cursor and ANSI 0–15, then the standard xterm color
+cube and 24-step gray ramp. A dark terminal therefore never inherits the light-tuned ANSI colors.
+The theme never replaces the default colors: the shipped Light and Dark defaults equal the Orchbee
+canvases, so they launch exactly the pairs the crate's gates measured, while a Custom or observed
+Host pair keeps its values and takes the theme of its luminance-derived scheme. When a
+Host-following terminal is recolored through `host-colors`, the Worker applies the complete theme
+of the new colors, so a change of polarity also replaces the cursor and ANSI colors.
 
 ## Worker-local authorized Host-operation kernel
 
@@ -598,11 +609,11 @@ For an admitted Launch, explicit absolute cwd is preserved literally and require
 lookup. Omission reads the effective user's account home, ignoring inherited `HOME` and Worker
 startup cwd. The existing shell resolver supplies executable, empty arguments, and the three
 fixed launch environment entries. The production preference snapshot supplies configuration.
-The baseline Terminal Protocol profile, before the confirmed color defaults above, uses a light scheme,
-`0xfcfcfc` background, `0x141414` foreground, nonblinking block cursor with `0x57bef8` cursor color,
-the 16 ANSI colors followed by the 216-color cube and 24 grays, conformance level 62 with feature 22,
-and `Orchbee` version response. This profile consumes the shared runtime resolver without importing
-Desktop source or adding an appearance preference.
+The baseline Terminal Protocol profile, before the confirmed color defaults above, uses the light
+scheme with `0xfcfcfc` background and `0x141414` foreground and the cursor and palette of the
+[terminal launch palette](#terminal-launch-palette). Every profile has a nonblinking block cursor,
+conformance level 62 with feature 22, and `Orchbee` version response. This profile consumes the
+shared runtime resolver without importing Desktop source or adding an appearance preference.
 
 Host also sends unsolicited `TerminalStarted`, `TerminalExited`, `TerminalFailed`, and
 `TerminalMetadataChanged` events. The private `host_connection::events` adapter validates their

@@ -1,10 +1,10 @@
-//! Records the controlling Client's outer-terminal colors and recolors a Host-following target.
+//! Records the controlling Client's outer-terminal colors and applies their terminal theme to a
+//! Host-following target.
 use super::{
     ConnectionControl, CorrelationId, Error, HostBrokerConnection, Outcome, PayloadEncoding,
     TerminalId, UnixStream, decode_connection_control, decode_transport_envelope, exchange,
     fresh_identity, invalid,
 };
-use crate::host_connection::recolored;
 use orchbee_capability_node_protocol::{HostDefaultColors, HostTerminalId};
 use orchbee_local_runtime::UserTerminalColors;
 use orchbee_terminal_protocol::{
@@ -28,7 +28,7 @@ pub(super) fn apply(
     let terminal_id = TerminalId::from_bytes(key)?;
     // One retry absorbs a revision this Worker did not observe; a second stale result yields.
     for _attempt in 0..2 {
-        let next = recolored(&state.terminal, colors);
+        let next = crate::terminal_theme::effective(colors);
         if next == state.terminal {
             break;
         }

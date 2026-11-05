@@ -4,6 +4,7 @@ use crate::{
     terminal_host_launch_adapter::map_launch_dispatch,
 };
 use orchbee_capability_node_protocol::*;
+use orchbee_terminal_protocol::ColorScheme;
 use std::num::NonZeroU64;
 
 #[test]
@@ -166,42 +167,6 @@ fn automatic_and_explicit_launches_reach_real_host_launch_preparation() -> Resul
         }
     }
     Ok(())
-}
-
-#[test]
-fn resolved_launch_colors_reach_the_profile_without_changing_the_ansi_palette() {
-    use orchbee_local_runtime::UserTerminalColors;
-    let baseline = terminal_profile(UserTerminalColors::LIGHT);
-    for (colors, pair, scheme) in [
-        (
-            UserTerminalColors::DARK,
-            (0xd4d4d4, 0x1e1e1e),
-            ColorScheme::Dark,
-        ),
-        (
-            UserTerminalColors::LIGHT,
-            (0x141414, 0xfcfcfc),
-            ColorScheme::Light,
-        ),
-        (
-            UserTerminalColors::from_rgb(0xcccccc, 0x0c0c0c),
-            (0xcccccc, 0x0c0c0c),
-            ColorScheme::Dark,
-        ),
-    ] {
-        let profile = terminal_profile(colors);
-        assert_eq!(
-            (
-                profile.default_foreground_rgb,
-                profile.default_background_rgb
-            ),
-            pair
-        );
-        assert_eq!(profile.color_scheme, scheme);
-        assert_eq!(profile.palette, baseline.palette);
-        assert_eq!(profile.default_cursor_rgb, baseline.default_cursor_rgb);
-        assert_eq!(profile.device_attributes, baseline.device_attributes);
-    }
 }
 
 #[test]

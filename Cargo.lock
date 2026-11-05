@@ -1092,6 +1092,7 @@ dependencies = [
  "orchbee-agent-integration",
  "orchbee-agent-integration-writer",
  "orchbee-capability-node-protocol",
+ "orchbee-color-themes",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
  "orchbee-local-runtime",

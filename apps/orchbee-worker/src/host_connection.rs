@@ -40,7 +40,7 @@ mod viewers;
 #[cfg(test)]
 mod tests;
 pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
-pub(crate) use host_colors::{HostColors, recolored};
+pub(crate) use host_colors::HostColors;
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 
