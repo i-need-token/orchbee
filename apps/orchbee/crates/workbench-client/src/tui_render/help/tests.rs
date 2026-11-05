@@ -384,6 +384,55 @@ fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
 }
 
 #[test]
+fn configured_commands_show_the_server_text_as_sent_laid_out_by_width() {
+    // The command line carries an escape sequence and words the Server's text lacks: the row
+    // shows the Server's text, so the TUI neither derives nor sanitizes a name of its own.
+    let keys = orchbee_local_runtime::KeySettings::from_profile(
+        "[[keys.command]]\ncommand=\"rawcmd \\u001b[31mtinted\"\nkey='prefix+f9'",
+    )
+    .unwrap();
+    let mut view = ClientView::new(80);
+    view.configure_keys(&keys);
+    let display = format!("served {}", "界面 wide ".repeat(24));
+    view.name_configured_commands(&[orchbee_workbench_protocol::ConfiguredCommandDescriptor {
+        id: keys.command_catalog()[0].id.clone(),
+        action: orchbee_workbench_protocol::ConfiguredCommandKind::Shell,
+        bindings: vec!["prefix+f9".into()],
+        description: None,
+        display: Some(display.clone()),
+        width: None,
+        height: None,
+    }]);
+    open_help(&mut view);
+    for character in "served".chars() {
+        press(&mut view, KeyCode::Char(character), Modifiers::NONE);
+    }
+    let (buffer, _, area) = render_panel(80, 24, &view, Locale::EnUs, true);
+    area.expect("Help fits a standard terminal size");
+    let rendered = rows(&buffer);
+    assert!(
+        !rendered.contains("rawcmd") && !rendered.contains("tinted"),
+        "{rendered}"
+    );
+    assert!(
+        !rendered
+            .lines()
+            .any(|line| line.chars().any(char::is_control)),
+        "{rendered}"
+    );
+    // Wrapped by display width inside the panel, the whole text still reads in order.
+    let letters = |text: &str| {
+        text.chars()
+            .filter(|character| !character.is_whitespace() && *character != '│')
+            .collect::<String>()
+    };
+    assert!(
+        letters(&rendered).contains(&letters(&display)),
+        "{rendered}"
+    );
+}
+
+#[test]
 fn a_too_small_panel_leaves_the_underlay_and_hits_untouched() {
     let mut view = ClientView::new(16);
     open_help(&mut view);

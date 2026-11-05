@@ -106,6 +106,23 @@ fn configured_command_display_is_the_tui_chrome_text_within_the_wire_bound() {
 }
 
 #[test]
+fn configured_command_description_is_sent_as_the_same_chrome_text() {
+    let catalog = orchbee_local_runtime::KeySettings::from_profile(
+        "[[keys.command]]\ncommand='echo a'\ndescription=\"Run \\u001b[31mhello\\u001b[0m\\u202e\"\n[[keys.command]]\ncommand='echo b'\ndescription=\"\\u001b[0m\"",
+    )
+    .unwrap()
+    .command_catalog();
+    let named = descriptor(&catalog[0]);
+    named.validate().unwrap();
+    assert_eq!(named.description.as_deref(), Some("Run hello"));
+    // A description with nothing visible left names nothing, so the command falls back to its text.
+    let blank = descriptor(&catalog[1]);
+    blank.validate().unwrap();
+    assert_eq!(blank.description, None);
+    assert_eq!(blank.display.as_deref(), Some("echo b"));
+}
+
+#[test]
 fn configured_command_permissions_follow_execution_owner_and_preserve_failure() {
     let terminals = installed();
     let entries = terminals.configured_commands().unwrap().1;

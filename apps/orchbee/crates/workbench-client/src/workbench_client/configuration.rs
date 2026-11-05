@@ -1,4 +1,5 @@
-//! A Client-owned publication watcher. Only the UI owner installs a validated key snapshot.
+//! A Client-owned publication watcher. Only the UI owner installs a validated key snapshot, and
+//! names its configured commands from the Server's catalog read after it.
 use crate::{
     client_view::{ClientView, Notice},
     local_client::{LocalClientOrigin, LocalOperationClock},
@@ -8,7 +9,8 @@ use orchbee_local_runtime::{
 };
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
-    ProtocolVersion, SessionId, WorkbenchRequestId,
+    ConfiguredCommandDescriptor, ConfiguredCommandRequest, ProtocolVersion, SessionId,
+    WorkbenchRequestId,
 };
 use std::{
     sync::{Arc, Condvar, Mutex},
@@ -21,6 +23,9 @@ struct Handoff {
     reload: bool,
     snapshot: Option<ConfigurationSnapshot>,
     notice: Option<PendingNotice>,
+    /// An applied key profile installs configured commands whose names the catalog holds.
+    catalog_wanted: bool,
+    catalog: Option<Vec<ConfiguredCommandDescriptor>>,
 }
 #[derive(Clone, Copy)]
 struct PendingNotice {
@@ -78,6 +83,10 @@ struct Connection {
         WorkbenchRequestId,
         crate::local_client::subscription::Request,
     )>,
+    catalog: Option<(
+        ConfiguredCommandRequest,
+        crate::local_client::subscription::Request,
+    )>,
 }
 impl Watcher {
     pub(super) fn spawn(
@@ -106,6 +115,7 @@ impl Watcher {
                 subscription,
                 serial: 1,
                 pending: None,
+                catalog: None,
             })),
             revision: None,
             applied_snapshot: None,
@@ -134,8 +144,15 @@ impl Watcher {
         };
         let snapshot = state.snapshot.take();
         let notice = state.notice.take();
+        let catalog = state.catalog.take();
         drop(state);
         let mut changed = false;
+        // Before this tick's profile, which replaces these names and reads its own catalog.
+        if let Some(catalog) = catalog {
+            view.name_configured_commands(&catalog);
+            changed = true;
+        }
+        let mut names_wanted = false;
         let mut applied_revision = None;
         let mut unchanged_revision = None;
         if let Some(snapshot) = snapshot {
@@ -162,6 +179,7 @@ impl Watcher {
                             worktrees_directory: snapshot.worktrees_directory.clone(),
                         });
                         view.configure_keys(&keys);
+                        names_wanted = !keys.commands.is_empty();
                         view.configuration_warning(
                             !snapshot.diagnostics.items.is_empty()
                                 || snapshot.diagnostics.omitted_count > 0,
@@ -177,6 +195,14 @@ impl Watcher {
                     }
                 }
             }
+        }
+        if names_wanted
+            && self.shared.0.lock().is_ok_and(|mut state| {
+                state.catalog_wanted = true;
+                !state.stopped
+            })
+        {
+            self.poll_connection();
         }
         if let Some(notice) = notice
             && match notice.revision {
@@ -257,6 +283,7 @@ impl Watcher {
             publish_outcome(&self.shared, outcome, true, submitted);
             c.pending = None;
         }
+        poll_catalog(&self.shared, c);
         loop {
             match c.subscription.poll() {
                 Ok(Some(StreamEvent::Record(bytes))) => {
@@ -277,6 +304,51 @@ impl Watcher {
 impl Drop for Watcher {
     fn drop(&mut self) {
         self.close();
+    }
+}
+
+/// Reads the configured-command catalog once per wanted profile, one read at a time, so its names
+/// are the Server's text. A refused, failed or unanswered read names nothing.
+fn poll_catalog(shared: &Shared, c: &mut Connection) {
+    use orchbee_workbench_protocol::{
+        ConfiguredCommandAction, ConfiguredCommandOutcome, WorkbenchRequest, WorkbenchResponse,
+    };
+    if let Some((request, pending)) = &c.catalog
+        && let Some(reply) = pending.poll()
+    {
+        if let Ok(WorkbenchResponse::ConfiguredCommand(result)) = reply
+            && result.answers(request)
+            && let ConfiguredCommandOutcome::Catalog { entries, .. } = result.outcome
+            && let Ok(mut state) = shared.0.lock()
+        {
+            state.catalog = Some(entries);
+        }
+        c.catalog = None;
+    }
+    if c.catalog.is_some()
+        || !shared
+            .0
+            .lock()
+            .is_ok_and(|mut state| !state.stopped && std::mem::take(&mut state.catalog_wanted))
+    {
+        return;
+    }
+    let Some(serial) = c.serial.checked_add(1) else {
+        return;
+    };
+    c.serial = serial;
+    let request = ConfiguredCommandRequest {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{serial:032x}")).expect("nonzero serial"),
+        session_id: c.session.clone(),
+        action: ConfiguredCommandAction::List {},
+    };
+    if let Ok(pending) = c.origin.request(
+        &WorkbenchRequest::ConfiguredCommand(request.clone()),
+        c.clock.now() + Duration::from_secs(2),
+        c.clock.clone(),
+    ) {
+        c.catalog = Some((request, pending));
     }
 }
 

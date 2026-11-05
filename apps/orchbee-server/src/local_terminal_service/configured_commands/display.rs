@@ -1,10 +1,11 @@
-//! The text a configured command is known by when it has no description: its command line or plugin
-//! target as the TUI's key help paints it, bounded for the wire.
+//! The text a configured command is known by: its description, else its command line or plugin
+//! target, bounded for the wire. This is the one place that text is made safe to show; every
+//! Client shows it as sent.
 //!
-//! The TUI paints that text through its chrome criterion (`terminal_text::sanitize_terminal_text` in
-//! `orchbee-workbench-client`), so this projection keeps the same rule: control characters, line
-//! and paragraph separators, and format scalars that reorder or hide text are dropped, and an escape
-//! sequence goes whole, so `ESC [31m` leaves no `[31m` behind. Nothing else is removed.
+//! The rule is the TUI's chrome criterion (`terminal_text::sanitize_terminal_text` in
+//! `orchbee-workbench-client`): control characters, line and paragraph separators, and format
+//! scalars that reorder or hide text are dropped, and an escape sequence goes whole, so `ESC [31m`
+//! leaves no `[31m` behind. Nothing else is removed.
 use orchbee_workbench_protocol::MAXIMUM_CONFIGURED_COMMAND_DISPLAY_BYTES;
 
 const ELLIPSIS: char = '…';

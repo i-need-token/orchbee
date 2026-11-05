@@ -22,9 +22,19 @@ pub(crate) struct Entry {
     pub(crate) desc: PrefixDesc,
 }
 
+/// An installed configured command as discovery names it. The name is the Server's text for it,
+/// never derived here from the command line, so every Client shows the same words.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ConfiguredName {
+    id: String,
+    /// The catalog's description, else its display text; `None` until the Server's catalog
+    /// answers for this exact identity.
+    name: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Bindings {
-    commands: Vec<orchbee_local_runtime::CustomCommandEntry>,
+    commands: Vec<ConfiguredName>,
     pub prefix: Binding,
     pub(crate) entries: Vec<Entry>,
 }
@@ -115,18 +125,28 @@ impl Bindings {
             .collect()
     }
 
-    pub(crate) fn configured_description(&self, desc: PrefixDesc) -> Option<&str> {
+    /// The Server's name for a configured command's discovery row, shown as sent: the Server
+    /// alone makes it safe to show. `None` leaves the row its localized generic title.
+    pub(crate) fn configured_name(&self, desc: PrefixDesc) -> Option<&str> {
         let PrefixDesc::ConfiguredCommand(index) = desc else {
             return None;
         };
-        let entry = self.commands.get(usize::from(index))?;
-        Some(
-            entry
-                .definition
-                .description
-                .as_deref()
-                .unwrap_or(&entry.definition.command),
-        )
+        self.commands.get(usize::from(index))?.name.as_deref()
+    }
+
+    /// Names installed commands from a Server catalog. An entry names only the command with its
+    /// identity, which binds the whole installed profile, so a catalog read against another
+    /// profile names nothing.
+    pub(crate) fn name_configured_commands(
+        &mut self,
+        catalog: &[orchbee_workbench_protocol::ConfiguredCommandDescriptor],
+    ) {
+        for command in &mut self.commands {
+            command.name = catalog
+                .iter()
+                .find(|entry| entry.id == command.id)
+                .and_then(|entry| entry.description.clone().or_else(|| entry.display.clone()));
+        }
     }
     pub(crate) fn find(&self, event: KeyEvent, prefix: bool) -> Option<&PrefixMember> {
         let exact = self
@@ -310,7 +330,13 @@ impl Bindings {
                 .expect("implemented action has a default registry position")
         });
         Self {
-            commands,
+            commands: commands
+                .into_iter()
+                .map(|entry| ConfiguredName {
+                    id: entry.id,
+                    name: None,
+                })
+                .collect(),
             prefix,
             entries: user,
         }

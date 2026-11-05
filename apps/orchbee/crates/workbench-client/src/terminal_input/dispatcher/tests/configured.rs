@@ -94,7 +94,7 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
 #[test]
 fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
     let keys = KeySettings::from_profile(
-        "[[keys.command]]\ncommand='echo hello'\nkey='prefix+c'\ndescription=\"Run \\u001b[31mhello\\u001b[0m\"\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin_action'\ndescription='Refresh tools'",
+        "[[keys.command]]\ncommand='echo hello'\nkey='prefix+c'\ndescription='Run hello'\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin_action'\ndescription='Refresh tools'",
     ).unwrap();
     let id = keys.command_catalog()[0].id.clone();
     let mut view = ClientView::new(100);
@@ -136,6 +136,22 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
         projected_id,
         crate::action_projection::ActionIdentity::ConfiguredCommand(id.as_str())
     );
+    let catalog = keys
+        .command_catalog()
+        .into_iter()
+        .map(
+            |entry| orchbee_workbench_protocol::ConfiguredCommandDescriptor {
+                id: entry.id,
+                action: orchbee_workbench_protocol::ConfiguredCommandKind::Shell,
+                bindings: Vec::new(),
+                description: entry.definition.description,
+                display: None,
+                width: None,
+                height: None,
+            },
+        )
+        .collect::<Vec<_>>();
+    view.name_configured_commands(&catalog);
     let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
     assert!(entries.iter().any(|entry| entry.title == "Run hello"));
     assert!(!entries.iter().any(|entry| entry.title == "Refresh tools"));

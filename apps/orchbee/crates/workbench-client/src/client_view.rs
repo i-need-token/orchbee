@@ -880,6 +880,15 @@ impl ClientView {
         self.prefix_active = false;
     }
 
+    /// Takes each configured command's name from the Server's catalog; see
+    /// [`Bindings::name_configured_commands`].
+    pub(crate) fn name_configured_commands(
+        &mut self,
+        catalog: &[orchbee_workbench_protocol::ConfiguredCommandDescriptor],
+    ) {
+        std::sync::Arc::make_mut(&mut self.bindings).name_configured_commands(catalog);
+    }
+
     pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = self.clone();
         if self.overlay == Some(Overlay::ShortcutHelp) {

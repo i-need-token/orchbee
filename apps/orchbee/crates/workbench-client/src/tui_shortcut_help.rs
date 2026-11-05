@@ -11,7 +11,6 @@ use crate::{
     localization::{
         ActionSearchAlias, Locale, PrefixDesc, ShortcutContext, ShortcutHelpGroup, ShortcutLabel,
     },
-    terminal_text::sanitize_terminal_text,
 };
 
 /// Render-ready discovery row with private stable identity for merging, never for execution.
@@ -118,8 +117,8 @@ fn shortcut_action_title(
     {
         return locale.shortcut_close_label().to_owned();
     }
-    if let Some(description) = view.bindings().configured_description(binding.description) {
-        return sanitize_terminal_text(description).into_owned();
+    if let Some(name) = view.bindings().configured_name(binding.description) {
+        return name.to_owned();
     }
 
     if matches!(

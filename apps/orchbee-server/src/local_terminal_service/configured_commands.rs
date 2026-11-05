@@ -34,7 +34,10 @@ pub(crate) fn descriptor(entry: &CustomCommandEntry) -> ConfiguredCommandDescrip
             .iter()
             .map(orchbee_local_runtime::trigger_label)
             .collect(),
-        description: command.description.clone(),
+        description: command
+            .description
+            .as_deref()
+            .and_then(configured_command_display),
         display: configured_command_display(&command.command),
         width: size(command.width),
         height: size(command.height),
