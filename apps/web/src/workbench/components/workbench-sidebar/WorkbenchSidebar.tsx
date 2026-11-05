@@ -32,6 +32,7 @@ import { ProjectNavigationItem } from './components/project-navigation-item/Proj
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
+import { useSidebarScrollEdges } from './hooks/useSidebarScrollEdges';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
 import { useWorkbenchSidebarWorkspaceLocations } from './hooks/useWorkbenchSidebarWorkspaceLocations';
@@ -209,6 +210,7 @@ export function WorkbenchSidebar({
 		returnToTerminal,
 		state: projectWorkspaceState,
 	});
+	const scrollEdgesReference = useSidebarScrollEdges(keyboard.listReference);
 	const workspaceWorktrees = useWorkspaceWorktrees({
 		beginWorkspaceActivation: workspaceActivation.begin,
 		commands: worktreeCommands,
@@ -259,7 +261,7 @@ export function WorkbenchSidebar({
 						</Button>
 					</li>
 				</ul>
-				<div className={styles['projectSection']}>
+				<div ref={scrollEdgesReference} className={styles['projectSection']}>
 					<div
 						ref={keyboard.listReference}
 						className={styles['projectRegion']}
@@ -342,6 +344,9 @@ export function WorkbenchSidebar({
 							/>
 						</div>
 					</div>
+					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='start' />
+					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='end' />
+					<span aria-hidden='true' className={styles['scrollThumb']} />
 				</div>
 				<div className={styles['footer']}>
 					<Button

@@ -648,6 +648,55 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() => expect(document.activeElement).toBe(terminalInput(1)));
 	});
 
+	it('steps the sidebar aside in a narrow window and closes its overlay on Esc, a click outside, or a chosen row', async () => {
+		vi.stubGlobal('matchMedia', (query: string) => ({
+			addEventListener: () => {},
+			matches: query === '(width < 731px)',
+			removeEventListener: () => {},
+		}));
+		const projectWorkspaceRuntime = createSnapshotRuntime(
+			orchbeeSnapshot(1, ['Primary', 'Secondary']),
+		);
+		projectWorkspaceRuntime.transition({
+			type: 'workspace-activated',
+			workspaceId: fixtureWorkspaceId(2),
+		});
+		renderWorkbench({ projectWorkspaceRuntime, terminalSurface: FocusTestTerminalSurface });
+		const overlay = () => document.querySelector('[data-slot="workbench-sidebar-overlay"]');
+		const openOverlay = async () => {
+			fireEvent.click(screen.getByRole('button', { name: 'Show Sidebar' }));
+			await waitFor(() => expect(overlay()).not.toBeNull());
+		};
+
+		// Hidden on its own; the toggle opens it over the content, and it takes the keyboard.
+		expect(document.querySelector('[data-slot="workbench-left-panel"]')).toBeNull();
+		await openOverlay();
+		await waitFor(() =>
+			expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Secondary' })),
+		);
+
+		const search = document.querySelector('[data-slot="workbench-sidebar-search"]');
+		if (search === null) throw new Error('Expected the Search row.');
+		fireEvent.keyDown(search, { key: 'Escape' });
+		await waitFor(() => expect(overlay()).toBeNull());
+
+		await openOverlay();
+		const scrim = document.querySelector('[data-slot="workbench-sidebar-scrim"]');
+		if (scrim === null) throw new Error('Expected the overlay scrim.');
+		fireEvent.pointerDown(scrim);
+		await waitFor(() => expect(overlay()).toBeNull());
+
+		await openOverlay();
+		fireEvent.click(screen.getByRole('button', { name: 'Primary' }), { detail: 1 });
+		await waitFor(() => expect(overlay()).toBeNull());
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				workspaceId: fixtureWorkspaceId(1),
+			}),
+		);
+	});
+
 	it('keeps the list one tab stop, moves with the arrows, and opens with Enter', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(
 			orchbeeSnapshot(1, ['Primary', 'Secondary']),

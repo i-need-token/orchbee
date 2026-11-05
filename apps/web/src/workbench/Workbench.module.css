@@ -80,6 +80,32 @@
 .layout {
 	height: 100%;
 	min-height: 0;
+	/* The content's own layers stay under the sidebar overlay and the toggle. */
+	isolation: isolate;
+}
+
+/* A narrow window: the sidebar opens at full height over the content, which keeps its size, as the
+   TUI's overlay does. Nothing dims; the transparent scrim only takes the click that closes it. */
+.sidebarScrim {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+}
+
+.sidebarOverlay {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	width: var(--ob-comp-workbench-sidebar-overlay-inline-size);
+	border-inline-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	box-shadow: var(--ob-sys-shadow-overlay);
+}
+
+.sidebarOverlay > .leftPanel {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
 }
 
 .leftPanel,
@@ -124,6 +150,13 @@
 
 .resizeHandle[data-separator='active'] {
 	background: var(--ob-sys-color-border-strong);
+}
+
+/* Focused, the divider takes ← and → in 10 px steps; a double-click returns it to 250 px. */
+.resizeHandle:focus-visible {
+	outline: none;
+	background: var(--ob-sys-color-border-focus);
+	box-shadow: 0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-focus);
 }
 
 .rightPanel {

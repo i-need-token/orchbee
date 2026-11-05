@@ -50,6 +50,12 @@ import type {
 } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import { createFocusedPanelWorktreePicker } from '../model/createFocusedPanelWorktreePicker';
+import {
+	resolveWorkbenchSidebarPresentation,
+	transitionWorkbenchSidebarPresentation,
+	WORKBENCH_NARROW_WINDOW_QUERY,
+	type WorkbenchSidebarPresentation,
+} from '../model/workbench-sidebar-presentation';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
 import {
 	projectWorkbenchEmptyWorkspace,
@@ -183,6 +189,16 @@ interface WorkbenchView {
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
+	/** Docked beside the content, hidden, or, in a narrow window, open over the content. */
+	readonly sidebarPresentation: WorkbenchSidebarPresentation;
+	/** Closes the sidebar opened over the content and gives the keyboard back to the terminal. */
+	readonly dismissSidebarOverlay: () => void;
+	/** Esc inside the overlay closes it; a menu's own Esc stays in its portal, a drag's in the drag. */
+	readonly onSidebarOverlayKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+	/** The sidebar's width in pixels, which the overlay takes too. */
+	readonly sidebarWidth: number;
+	/** Shift-free ← and → on the focused divider change the width in 10 px steps. */
+	readonly onSidebarDividerKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 	readonly leftPanelReference: React.RefObject<ResizablePanelHandle | null>;
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
@@ -349,9 +365,25 @@ export function useWorkbench({
 		readTabCount,
 		readTabCount,
 	);
-	const [isSidebarVisible, setIsSidebarVisible] = React.useState(() =>
-		readWorkbenchSidebarVisibility(storage),
+	const [sidebarState, dispatchSidebar] = React.useReducer(
+		transitionWorkbenchSidebarPresentation,
+		storage,
+		(initialStorage) => ({
+			docked: readWorkbenchSidebarVisibility(initialStorage),
+			narrow: readNarrowWindow(),
+			overlayOpen: false,
+		}),
 	);
+	const sidebarPresentation = resolveWorkbenchSidebarPresentation(sidebarState);
+	const isSidebarVisible = sidebarPresentation !== 'hidden';
+	React.useEffect(() => {
+		if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+		const query = window.matchMedia(WORKBENCH_NARROW_WINDOW_QUERY);
+		const update = () => dispatchSidebar({ narrow: query.matches, type: 'window-resized' });
+		update();
+		query.addEventListener('change', update);
+		return () => query.removeEventListener('change', update);
+	}, []);
 	const resolveTerminalFocusTarget = useMemoizedFn(() =>
 		terminalSurfaceAvailable ? resolveActiveTerminalPresentationId(projectWorkspaceRuntime) : null,
 	);
@@ -461,12 +493,17 @@ export function useWorkbench({
 			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
 	});
 	const toggleSidebar = useMemoizedFn(() => {
-		setIsSidebarVisible((currentVisibility) => {
-			const nextVisibility = !currentVisibility;
-			writeWorkbenchSidebarVisibility(storage, nextVisibility);
-			return nextVisibility;
-		});
+		// Only a wide window's choice is kept: a narrow one opens and closes the overlay.
+		if (!sidebarState.narrow) writeWorkbenchSidebarVisibility(storage, !sidebarState.docked);
+		dispatchSidebar({ type: 'toggled' });
 	});
+	const closeSidebarOverlay = useMemoizedFn(() => dispatchSidebar({ type: 'overlay-dismissed' }));
+	// The overlay takes the keyboard as it opens, as the TUI's does.
+	const sidebarOverlayOpen = sidebarPresentation === 'overlay';
+	const focusRegion = focusRouting.focus;
+	React.useEffect(() => {
+		if (sidebarOverlayOpen) focusRegion({ kind: 'direct', region: 'sidebar' });
+	}, [focusRegion, sidebarOverlayOpen]);
 	const setTabStripOrientation = useMemoizedFn((orientation: TabStripOrientation) => {
 		setTabStripOrientationState(orientation);
 		writeWorkbenchTabStripOrientation(storage, orientation);
@@ -781,9 +818,16 @@ export function useWorkbench({
 					},
 		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,
-		navigateAgent,
+		navigateAgent: (input) => {
+			closeSidebarOverlay();
+			navigateAgent(input);
+		},
 		actionScope: actions.scope,
-		activateWorkspace,
+		// Choosing a row closes the overlay; a drag making its Workspace current does not.
+		activateWorkspace: (workspaceId, origin) => {
+			if (origin !== 'other') closeSidebarOverlay();
+			activateWorkspace(workspaceId, origin);
+		},
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		closeResume,
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
@@ -814,12 +858,39 @@ export function useWorkbench({
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspaceProject, { workspaceId, name }, 'button');
 		},
 		createWorkspace: (input) => {
+			closeSidebarOverlay();
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
 		},
 		deleteWorkspace: (workspaceId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
 		},
 		isSidebarVisible,
+		sidebarPresentation,
+		dismissSidebarOverlay: () => {
+			closeSidebarOverlay();
+			focusRouting.requestTerminalFocus();
+		},
+		onSidebarOverlayKeyDown: (event) => {
+			if (
+				event.key !== 'Escape' ||
+				event.defaultPrevented ||
+				!(event.target instanceof Node) ||
+				!event.currentTarget.contains(event.target) ||
+				event.currentTarget.querySelector('[data-dragging]') !== null
+			) {
+				return;
+			}
+			event.preventDefault();
+			closeSidebarOverlay();
+			focusRouting.requestTerminalFocus();
+		},
+		sidebarWidth: leftPanelWidth.current,
+		onSidebarDividerKeyDown: (event) => {
+			if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+			if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+			event.preventDefault();
+			setLeftPanelWidth(leftPanelWidth.current + (event.key === 'ArrowLeft' ? -10 : 10));
+		},
 		leftPanelReference,
 		leftPanelSize: `${leftPanelWidth.current}px`,
 		newTab: (request) =>
@@ -847,6 +918,7 @@ export function useWorkbench({
 		resetSidebarWidth: () => setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH),
 		resizeSidebar: (delta) => setLeftPanelWidth(leftPanelWidth.current + delta),
 		returnToTerminal: () => {
+			closeSidebarOverlay();
 			focusRouting.requestTerminalFocus();
 		},
 		onRootBlurCapture: focusRouting.onBlurCapture,
@@ -957,6 +1029,7 @@ export function useWorkbench({
 			actions.invoke(WORKBENCH_ACTION_IDS.renameProject, { name, projectId }, 'button');
 		},
 		search: (returnFocus) => {
+			closeSidebarOverlay();
 			searchReturnFocus.current = returnFocus;
 			actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
 		},
@@ -971,6 +1044,7 @@ export function useWorkbench({
 			onSettings === undefined
 				? undefined
 				: () => {
+						closeSidebarOverlay();
 						actions.invoke(WORKBENCH_ACTION_IDS.openSettings, undefined, 'button');
 					},
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
@@ -978,6 +1052,7 @@ export function useWorkbench({
 			onShortcuts === undefined
 				? undefined
 				: () => {
+						closeSidebarOverlay();
 						actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
 					},
 		shortcutsLabel: intl.formatMessage(workbenchMessages.shortcuts),
@@ -1064,4 +1139,9 @@ export function useWorkbench({
 							actions.invoke(WORKBENCH_ACTION_IDS.resumeWorktreeRemoval, input, 'menu'),
 					},
 	};
+}
+
+function readNarrowWindow(): boolean {
+	if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+	return window.matchMedia(WORKBENCH_NARROW_WINDOW_QUERY).matches;
 }

@@ -14,6 +14,7 @@ import {
 } from '@orchbee/ui/components';
 import type { ActionRuntime } from '@orchbee/actions';
 import * as React from 'react';
+import type { CSSProperties } from 'react';
 
 import {
 	MAXIMUM_LEFT_PANEL_WIDTH,
@@ -155,6 +156,64 @@ export function Workbench({
 			shortcutLabel={view.sidebarShortcutLabel}
 		/>
 	);
+	// One sidebar, docked in its resizable panel or opened over the content in a narrow window.
+	const sidebarPanel = (
+		<div
+			className={styles['leftPanel']}
+			data-slot='workbench-left-panel'
+			data-workbench-focus-region='sidebar'
+		>
+			<WorkbenchSidebar
+				subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
+				activateWorkspace={view.activateWorkspace}
+				createProject={view.createProject}
+				activateCreatedProject={view.activateCreatedProject}
+				isCreatedProjectActive={view.isCreatedProjectActive}
+				createWorkspace={view.createWorkspace}
+				setWorkspaceProject={view.setWorkspaceProject}
+				createWorkspaceProject={view.createWorkspaceProject}
+				deleteWorkspace={view.deleteWorkspace}
+				navigateAgent={view.navigateAgent}
+				label={view.sidebarLabel}
+				onSearch={view.search}
+				onSettings={view.settings}
+				onShortcuts={view.shortcuts}
+				reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
+				resetSidebarWidth={view.resetSidebarWidth}
+				resizeSidebar={view.resizeSidebar}
+				returnToTerminal={view.returnToTerminal}
+				shortcutsLabel={view.shortcutsLabel}
+				projectLabel={view.projectLabel}
+				newWorkspaceLabel={view.newWorkspaceLabel}
+				projectNavigationMessages={view.projectNavigationMessages}
+				projectFolderAcquisition={projectFolderAcquisition}
+				projectWorkspaceState={view.projectWorkspaceState}
+				workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
+				removeProject={view.removeProject}
+				reorderProject={view.reorderProject}
+				reorderWorkspace={view.reorderWorkspace}
+				renameProject={view.renameProject}
+				searchLabel={view.searchLabel}
+				searchShortcutId={view.searchShortcutId}
+				searchShortcutLabel={view.searchShortcutLabel}
+				focusRequest={view.sidebarFocusRequest}
+				settingsLabel={view.settingsLabel}
+				settingsShortcutId={view.settingsShortcutId}
+				settingsShortcutLabel={view.settingsShortcutLabel}
+				toggleProjectExpansion={view.toggleProjectExpansion}
+				toggleRecentsExpansion={view.toggleRecentsExpansion}
+				toggleWorkspaceAgents={agentPresentation.toggleWorkspaceAgents}
+				updateWorkspace={view.updateWorkspace}
+				workspaceLocationSource={workspaceLocationSource}
+				worktreeCommands={view.worktreeCommands}
+			/>
+			<div
+				aria-hidden='true'
+				className={styles['windowDragRegion']}
+				data-slot='workbench-window-drag-region'
+			/>
+		</div>
+	);
 	const projectWorkspaceConfirmationSurface =
 		view.projectWorkspaceConfirmation === null ? null : (
 			<AlertDialog
@@ -232,6 +291,29 @@ export function Workbench({
 					</span>
 				)}
 			</div>
+			{view.sidebarPresentation === 'overlay' ? (
+				<>
+					{/* Nothing dims: the scrim only takes the click that closes the overlay. */}
+					<div
+						aria-hidden='true'
+						className={styles['sidebarScrim']}
+						data-slot='workbench-sidebar-scrim'
+						onPointerDown={view.dismissSidebarOverlay}
+					/>
+					<div
+						className={styles['sidebarOverlay']}
+						data-slot='workbench-sidebar-overlay'
+						onKeyDown={view.onSidebarOverlayKeyDown}
+						style={
+							{
+								'--ob-comp-workbench-sidebar-overlay-inline-size': `${view.sidebarWidth}px`,
+							} satisfies CSSProperties
+						}
+					>
+						{sidebarPanel}
+					</div>
+				</>
+			) : null}
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>
@@ -241,7 +323,7 @@ export function Workbench({
 					onLayoutChanged={view.onLayoutChanged}
 					orientation='horizontal'
 				>
-					{view.isSidebarVisible && (
+					{view.sidebarPresentation === 'docked' && (
 						<>
 							{/* Keep the navigation panel on an explicit pixel contract. */}
 							<ResizablePanel
@@ -253,63 +335,13 @@ export function Workbench({
 								onResize={view.onLeftPanelResize}
 								panelRef={view.leftPanelReference}
 							>
-								<div
-									className={styles['leftPanel']}
-									data-slot='workbench-left-panel'
-									data-workbench-focus-region='sidebar'
-								>
-									<WorkbenchSidebar
-										subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
-										activateWorkspace={view.activateWorkspace}
-										createProject={view.createProject}
-										activateCreatedProject={view.activateCreatedProject}
-										isCreatedProjectActive={view.isCreatedProjectActive}
-										createWorkspace={view.createWorkspace}
-										setWorkspaceProject={view.setWorkspaceProject}
-										createWorkspaceProject={view.createWorkspaceProject}
-										deleteWorkspace={view.deleteWorkspace}
-										navigateAgent={view.navigateAgent}
-										label={view.sidebarLabel}
-										onSearch={view.search}
-										onSettings={view.settings}
-										onShortcuts={view.shortcuts}
-										reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
-										resetSidebarWidth={view.resetSidebarWidth}
-										resizeSidebar={view.resizeSidebar}
-										returnToTerminal={view.returnToTerminal}
-										shortcutsLabel={view.shortcutsLabel}
-										projectLabel={view.projectLabel}
-										newWorkspaceLabel={view.newWorkspaceLabel}
-										projectNavigationMessages={view.projectNavigationMessages}
-										projectFolderAcquisition={projectFolderAcquisition}
-										projectWorkspaceState={view.projectWorkspaceState}
-										workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
-										removeProject={view.removeProject}
-										reorderProject={view.reorderProject}
-										reorderWorkspace={view.reorderWorkspace}
-										renameProject={view.renameProject}
-										searchLabel={view.searchLabel}
-										searchShortcutId={view.searchShortcutId}
-										searchShortcutLabel={view.searchShortcutLabel}
-										focusRequest={view.sidebarFocusRequest}
-										settingsLabel={view.settingsLabel}
-										settingsShortcutId={view.settingsShortcutId}
-										settingsShortcutLabel={view.settingsShortcutLabel}
-										toggleProjectExpansion={view.toggleProjectExpansion}
-										toggleRecentsExpansion={view.toggleRecentsExpansion}
-										toggleWorkspaceAgents={agentPresentation.toggleWorkspaceAgents}
-										updateWorkspace={view.updateWorkspace}
-										workspaceLocationSource={workspaceLocationSource}
-										worktreeCommands={view.worktreeCommands}
-									/>
-									<div
-										aria-hidden='true'
-										className={styles['windowDragRegion']}
-										data-slot='workbench-window-drag-region'
-									/>
-								</div>
+								{sidebarPanel}
 							</ResizablePanel>
-							<ResizableHandle className={styles['resizeHandle']} />
+							<ResizableHandle
+								className={styles['resizeHandle']}
+								onDoubleClick={view.resetSidebarWidth}
+								onKeyDown={view.onSidebarDividerKeyDown}
+							/>
 						</>
 					)}
 					<ResizablePanel id='right'>
@@ -343,7 +375,7 @@ export function Workbench({
 									onSetTabTitle={view.setTabTitle}
 									onTabsChange={view.onTabsChange}
 									parentActionScope={view.actionScope}
-									reserveSidebarToggleSpace={!view.isSidebarVisible}
+									reserveSidebarToggleSpace={view.sidebarPresentation !== 'docked'}
 									tabModel={terminalContext.tabModel}
 									statusAdornments={agentPresentation.tabStatusAdornments}
 									tabIdentityIcons={agentPresentation.tabIdentityIcons}

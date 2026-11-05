@@ -53,8 +53,8 @@ with.
 ## Window
 
 - A hidden title bar, with the system's controls drawn over the page. On macOS the traffic lights sit
-  at `(8, 10)`, and the renderer centers the sidebar toggle in the same `36px` horizontal Tab row
-  after the reserved native-control space.
+  at `(12, 12)`, and the renderer centers the sidebar toggle in the same `36px` horizontal Tab row
+  at x `76`, after the reserved native-control space.
 - The window's title is its page's, which the taskbar and window switcher show; the page follows the
   Session's title policy as the TUI's outer title does.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)

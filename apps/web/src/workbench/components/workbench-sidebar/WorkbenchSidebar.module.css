@@ -101,6 +101,7 @@
 }
 
 .projectSection {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	flex: 1;
@@ -117,6 +118,48 @@
 	overflow-x: clip;
 	overflow-y: auto;
 	scrollbar-width: none;
+}
+
+/* A hairline shows only where rows have scrolled out of sight. The thumb stands in for the hidden
+   native scrollbar while the list overflows and the pointer or the keyboard is in it. */
+.scrollEdge {
+	position: absolute;
+	inset-inline: 0;
+	z-index: var(--ob-ref-layer-raised);
+	height: var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-subtle);
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.scrollEdge[data-edge='start'] {
+	inset-block-start: 0;
+}
+
+.scrollEdge[data-edge='end'] {
+	inset-block-end: 0;
+}
+
+.projectSection[data-scrolled-start] .scrollEdge[data-edge='start'],
+.projectSection[data-scrolled-end] .scrollEdge[data-edge='end'] {
+	visibility: visible;
+}
+
+.scrollThumb {
+	position: absolute;
+	inset-block-start: var(--ob-comp-workbench-sidebar-thumb-start);
+	inset-inline-end: var(--ob-ref-space-0-5);
+	z-index: var(--ob-ref-layer-raised);
+	width: var(--ob-ref-space-1);
+	height: var(--ob-comp-workbench-sidebar-thumb-size);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-border-strong);
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.projectSection[data-overflowing]:is(:hover, :focus-within) .scrollThumb {
+	visibility: visible;
 }
 
 .projectCreate {

@@ -103,7 +103,9 @@
 				"Compare a Workspace on a branch with commits to push and pull, one with only commits to pull, one with no divergence, and one outside Git that names its folder; verify ↑ counts take the success color and ↓ counts the warning color in the row's end area.",
 				"Narrow the sidebar to 200px and verify the name and the long branch truncate at their end while ↑↓ and the chevron keep their room; hover the second line for the full directory.",
 				"Verify the chevron and row tools stay centred on the name line, and that every Workspace row is 38 px, with or without a location.",
-				"Drag a Workspace across its siblings and verify each squeeze moves by the dragged row's height without overlap or gaps."
+				"Drag a Workspace across its siblings and verify each squeeze moves by the dragged row's height without overlap or gaps.",
+				"Scroll a long list and verify a hairline marks each edge with rows out of sight and the overlay thumb shows while the pointer is over the list.",
+				"Narrow the window below 731px and verify the sidebar steps aside, the toggle opens it at full height over an undimmed terminal, and Esc, a click outside, or choosing a row closes it; widen the window and verify it docks as it was left."
 			]
 		},
 		{

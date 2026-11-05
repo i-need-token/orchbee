@@ -39,7 +39,7 @@ export interface DesktopServerClientApplicationOptions {
 	readonly windowStateOwner: DesktopWindowStateOwner;
 }
 
-const MACOS_TRAFFIC_LIGHT_POSITION = { x: 8, y: 10 } as const;
+const MACOS_TRAFFIC_LIGHT_POSITION = { x: 12, y: 12 } as const;
 const HIDDEN_WINDOW_BOUNDS = { height: 720, width: 1100 } as const;
 /** What a terminal link may open, as the page's own link policy permits. */
 const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);

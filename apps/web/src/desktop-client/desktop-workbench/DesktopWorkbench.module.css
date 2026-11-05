@@ -18,6 +18,7 @@
 
 .root :global([data-slot='workbench-sidebar-toggle-position']),
 .root :global([data-slot='workbench-sidebar-toggle']),
+.root :global([data-slot='workbench-sidebar-scrim']),
 .root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-tab-id]),
 .root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-group-id]),
 .root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] button) {
@@ -26,9 +27,13 @@
 }
 
 .root[data-window-controls='leading'] :global([data-slot='workbench-sidebar-toggle-position']) {
-	inset-inline-start: var(--ob-ref-space-20);
+	/* After the traffic lights, which start at x 12: the toggle sits at x 76. */
+	inset-inline-start: calc(var(--ob-ref-space-16) + var(--ob-ref-space-3));
 }
 
 .root[data-window-controls='leading'] :global([data-slot='workbench-tab-bar-leading-actions']) {
-	width: calc(var(--ob-ref-space-20) + var(--ob-ref-size-control-sm) + var(--ob-ref-space-2));
+	width: calc(
+		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-sm) +
+			var(--ob-ref-space-2)
+	);
 }
