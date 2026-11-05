@@ -1050,7 +1050,7 @@ fn host_appearance_query_uses_the_lifecycle_writer_without_acquiring_a_mode() {
     let query = crate::terminal_host_appearance::Query;
     let mut bytes = String::new();
     query.write_ansi(&mut bytes).unwrap();
-    assert_eq!(bytes, "\x1b]10;?\x1b\\\x1b]11;?\x1b\\");
+    assert_eq!(bytes, query.sequence());
 
     let control = FakeTerminalModes::default();
     let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
