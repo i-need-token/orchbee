@@ -63,8 +63,14 @@ Theme rules:
   keeps `surface-current`, which it shares with its current descendant. It never
   transfers focus or selection; direct interaction on that ancestor takes precedence. Unknown-host
   and reduced-color themes may use the base background, retaining hierarchy and independent markers.
-- Every native Client ships a `terminal-native` theme and uses it whenever host appearance or color
-  level is unknown. It is the default until an explicit user setting selects another theme.
+- Every native Client ships a `terminal-native` theme, shown to people as the terminal's own
+  colors. By default a Client paints the named theme of the active appearance only on a truecolor
+  host whose appearance it knows, from an explicit Light or Dark setting or from the background the
+  host reports. It uses `terminal-native` when host appearance or color level is unknown, when the
+  host is below truecolor, and when the person chooses the terminal's own colors. Where named
+  themes cannot paint, the theme choices stay visible as unavailable with the reason.
+- Named themes come from the shared theme catalog and its role resolver; a Client does not
+  hand-author a named theme's roles, except where a cross-client contract binds a role value.
 - The `terminal-native` theme maps text and base surfaces (`canvas`, `chrome`, `strip`, and
   `overlay`) to the terminal default foreground and background (`Color::Reset`). It resolves current and interaction
   surfaces through the paired colors and modifier fallbacks below, and maps accent, frame, and the
@@ -86,7 +92,7 @@ Theme rules:
   cannot remove: a stable marker, or an underline across a row whose owner documents the fill as its
   only current cue.
 - `agent-attention`, `agent-done`, and `agent-error` each have one fixed value shared by every
-  theme, including `terminal-native` and host-relative appearances. Quantization maps them to the
+  theme, including `terminal-native`. Quantization maps them to the
   nearest color at each level, which is `Yellow`, `Green`, and `Red` at 16 colors, and to the host
   default in monochrome, where shape fallbacks keep outcomes distinct. The state's word, wherever it
   appears, keeps its `status-*` text role.
@@ -115,10 +121,9 @@ Theme rules:
   `status-error`. Disabled intent uses `text-disabled`. In `terminal-native`, resting destructive
   wording is the host palette's red directly on the host default background, without a backing
   fill: a destructive menu row reads as red text, and so does a destructive button, including its
-  brackets and key hint. Every other theme, including System appearance on the host default
-  background, keeps the destructive key hint in `text-secondary`. The theme resolver retains the
-  destructive foreground on a contrast pair when a native reverse band, a known fill below 3:1, or,
-  outside `terminal-native`, an unknown host background would obscure it; the surrounding
+  brackets and key hint. Every other theme keeps the destructive key hint in `text-secondary`. The
+  theme resolver retains the destructive foreground on a contrast pair when a native reverse band
+  or a known fill below 3:1 would obscure it; the surrounding
   interaction band and navigation/focus markers remain. Monochrome retains the explicit localized
   action wording and ordinary interaction cues, without introducing warning bold, underline, or
   blink. Named ANSI contrast is checked against the reference palette and actual host evidence; a
@@ -126,8 +131,9 @@ Theme rules:
 - `accent-action` identifies the one primary action in the current decision context while it is at
   rest. It never identifies keyboard focus, selection, or a successful outcome; those meanings keep
   their own roles.
-- An RGB theme is designed for one background polarity and may be selected only when the host
-  appearance is known through a probe or an explicit setting. It declares its polarity.
+- An RGB theme is designed for one background polarity and declares it. It paints only when the
+  host appearance is known through a probe or an explicit setting, and only at truecolor: a lower
+  level cannot hold its canvas and ANSI palette, so a quantized copy would be a different theme.
 - The theme owner quantizes theme values once at startup to the detected color level (truecolor,
   256-color, or 16-color) using the nearest perceptual match, then resolves any collapsed
   interaction roles to their documented modifier and marker fallbacks. Rendering code never
@@ -138,16 +144,8 @@ Theme rules:
 - Paint a region's complete background, including padding and empty cells, through its surface
   role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
   region's surface. Terminal-native and lower color levels retain their admitted host behavior.
-- A host-relative appearance whose host reports its default background derives `surface-strip`,
-  `surface-related`, `surface-hover`, `surface-current`, and `surface-pressed` by mixing that
-  background toward the reported host foreground in fixed per-role proportions, with separate
-  proportions for dark and light backgrounds. It derives `surface-field` by mixing its
-  `surface-overlay` toward the same foreground, so the band stays distinct from the dialog it sits
-  in even where the host background matches the palette overlay. The Tab strip therefore stays distinct from an
-  unframed terminal directly below it, and interaction fills stay visible on any host background.
-  `surface-selection` keeps its palette value. Derived values pass through the same quantization and
-  collapsed-role fallbacks as palette values. Without a reported background, the appearance resolves
-  to `terminal-native`, which paints none of these fills. The theme owner documents the proportions.
+- A named theme takes every surface, including `surface-strip`, `surface-related` and the
+  interaction fills, from its palette. A Client never derives fills from the host background.
 - `surface-field` is the band of an editable form field and stays distinct from `surface-overlay`.
   `terminal-native` and Monochrome paint no field fill, and the theme owner drops the fill wherever
   quantization collapses it onto `surface-overlay`. A field without its own fill draws its
@@ -176,8 +174,7 @@ Hierarchy describes information priority, not interaction state.
   to affected content, not a hierarchy level.
 - A theme derives `text-muted` as the quietest step from `text-secondary` toward its chrome that
   still clears 4.5:1 on chrome. Muted text keeps that contrast only at rest: on any interaction,
-  current or related fill, and on a host background where it falls below 4.5:1, it is
-  `text-secondary`. Where a theme has no measurable step, as in `terminal-native` and Monochrome,
+  current or related fill, it is `text-secondary`. Where a theme has no measurable step, as in `terminal-native` and Monochrome,
   it equals `text-secondary`. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
 - `BOLD` marks a heading, a current item whose owner documents bold identity, such as the active

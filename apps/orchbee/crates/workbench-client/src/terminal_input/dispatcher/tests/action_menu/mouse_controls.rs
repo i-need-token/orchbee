@@ -526,7 +526,7 @@ fn small_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_mode() {
             let mut terminal =
                 ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
             let mut hits = HitMapBuilder::new();
-            let theme = Theme::one_light();
+            let theme = Theme::orchbee_light();
             terminal
                 .draw(|frame| {
                     crate::tui_render::render_terminal_shell(

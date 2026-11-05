@@ -226,8 +226,8 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
             for theme in [
                 Theme::terminal_native(),
                 Theme::rgb_test_dark(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let navigation = view.machines.sidebar_navigation_rows();
                 let projected = navigation
@@ -398,8 +398,8 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
         for theme in [
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             let navigation = view.machines.sidebar_navigation_rows();
             let projected = navigation
@@ -624,8 +624,8 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
     for theme in [
         Theme::terminal_native(),
         Theme::rgb_test_dark(),
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
     ] {
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
         let mut hits = HitMapBuilder::new();
@@ -837,8 +837,8 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
         ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
         for theme in [
             Theme::terminal_native(),
-            Theme::one_dark(),
-            Theme::one_light(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_light(),
             ascii,
         ] {
             let (rows, hits) = paint(&view, locale, &theme, 120, 40);
@@ -1009,7 +1009,7 @@ fn list_runs_down_to_settings_and_reserves_the_range_row_only_while_overflowing(
 #[test]
 fn sidebar_input_ownership_never_moves_settings_or_adds_a_hint_row() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::one_light()] {
+        for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
             for input in [
                 SidebarInput::Terminal,
                 SidebarInput::Navigation,
@@ -1076,7 +1076,7 @@ fn sidebar_input_ownership_never_moves_settings_or_adds_a_hint_row() {
 fn sidebar_border_is_the_collection_focus_cue_without_changing_current_context() {
     let mut view = view(60, 12, 1);
     let current = view.machines.current_context.clone();
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let border = |view: &ClientView| {
         let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
         let mut hits = HitMapBuilder::new();
@@ -1098,7 +1098,7 @@ fn sidebar_border_is_the_collection_focus_cue_without_changing_current_context()
 fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forgetting_navigation() {
     let mut view = view(60, 12, 1);
     assert!(view.machines.enter_sidebar_navigation());
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let local_hint = crate::machine_picker::sidebar_binding_label(
         crate::machine_picker::SidebarCommand::Search,
         theme.glyphs.key_labels(),
@@ -1163,8 +1163,8 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
             for theme in [
                 Theme::terminal_native(),
                 Theme::rgb_test_dark(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let view = view(width, height, 20);
                 let (rows, hits) = paint(&view, locale, &theme, width, height);
@@ -1382,7 +1382,7 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
     let (width, height) = (80, 22);
     for theme in [
         Theme::terminal_native(),
-        Theme::one_light(),
+        Theme::orchbee_light(),
         Theme::rgb_test_dark(),
     ] {
         let paint = |view: &ClientView, pointer: &PointerState| {
@@ -1472,8 +1472,8 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
     for theme in [
         Theme::terminal_native(),
         Theme::rgb_test_dark(),
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
         Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome),
     ] {
         let mut view = view(120, 40, 1);
@@ -1758,8 +1758,8 @@ fn width_preview_changes_only_the_single_line_foreground_without_footer_feedback
             ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
             for theme in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
                 ascii,
             ] {
                 for displacement in [-6, 0, 10] {

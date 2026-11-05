@@ -4,6 +4,9 @@
 pub enum Row {
     Language,
     Theme,
+    LightTheme,
+    DarkTheme,
+    ColorSource,
     TerminalTheme,
     Foreground,
     Background,
@@ -55,6 +58,9 @@ impl Page {
             Self::General => &[
                 Row::Language,
                 Row::Theme,
+                Row::LightTheme,
+                Row::DarkTheme,
+                Row::ColorSource,
                 Row::TerminalTheme,
                 Row::Foreground,
                 Row::Background,
@@ -90,20 +96,23 @@ impl Page {
     }
 }
 impl Row {
-    pub(super) const fn mask(self) -> u32 {
-        const fn bit(row: Row) -> u32 {
+    pub(super) const fn mask(self) -> u64 {
+        const fn bit(row: Row) -> u64 {
             let index = row as u32;
             assert!(
-                index < u32::BITS,
+                index < u64::BITS,
                 "SettingsDraw painted mask capacity exceeded"
             );
-            1_u32 << index
+            1_u64 << index
         }
         // Exhaustiveness requires new variants to join this mapping. Every bit is evaluated at
         // compile time, so extending the enum past the receipt capacity cannot defer a bad shift.
         match self {
             Self::Language => const { bit(Row::Language) },
             Self::Theme => const { bit(Row::Theme) },
+            Self::LightTheme => const { bit(Row::LightTheme) },
+            Self::DarkTheme => const { bit(Row::DarkTheme) },
+            Self::ColorSource => const { bit(Row::ColorSource) },
             Self::TerminalTheme => const { bit(Row::TerminalTheme) },
             Self::Foreground => const { bit(Row::Foreground) },
             Self::Background => const { bit(Row::Background) },

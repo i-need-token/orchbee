@@ -281,7 +281,7 @@ fn reading_a_current_record_preserves_values_source_and_bytes() {
 }
 
 #[test]
-fn a_record_without_theme_slots_reads_with_the_orchbee_themes() {
+fn a_record_without_theme_fields_reads_with_their_defaults() {
     let fixture = Fixture::new();
     let record = Record {
         version: 1,
@@ -295,6 +295,7 @@ fn a_record_without_theme_slots_reads_with_the_orchbee_themes() {
     let values = document["values"].as_object_mut().unwrap();
     values.remove("lightTheme").unwrap();
     values.remove("darkTheme").unwrap();
+    values.remove("tuiColorSource").unwrap();
     let original = serde_json::to_vec_pretty(&document).unwrap();
     let path = fixture.store.scope.directory.join(RECORD_NAME);
     fs::create_dir_all(&fixture.store.scope.directory).unwrap();
@@ -304,6 +305,10 @@ fn a_record_without_theme_slots_reads_with_the_orchbee_themes() {
     assert!(observed.values.sound_enabled);
     assert_eq!(observed.values.light_theme, "orchbee-light");
     assert_eq!(observed.values.dark_theme, "orchbee-dark");
+    assert_eq!(
+        observed.values.tui_color_source,
+        orchbee_workbench_protocol::TuiColorSource::Theme
+    );
     assert_eq!(fs::read(&path).unwrap(), original);
 }
 

@@ -9,8 +9,8 @@ use orchbee_workbench_protocol::{
 #[test]
 fn every_terminal_appearance_resolves_cursor_contrast_from_the_actual_cell_background() {
     for chrome in [
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
         Theme::terminal_native(),
     ] {
         for (application, appearance) in [
@@ -79,7 +79,7 @@ fn cursor_uses_the_cells_color_encoding_and_unknown_defaults_use_reverse_video()
         ColorLevel::Ansi256,
         ColorLevel::Truecolor,
     ] {
-        let theme = Theme::one_light().quantize(level);
+        let theme = Theme::orchbee_light().quantize(level);
         let (foreground, background) = theme.terminal_defaults();
         let cursor = cursor_style(foreground, background, Modifier::empty());
         let fill = cursor.bg.unwrap();

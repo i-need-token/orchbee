@@ -9,8 +9,8 @@ fn creation_preview_keeps_current_fill_and_shows_only_its_name() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             for current in [false, true] {
                 for phase in [
@@ -214,8 +214,8 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             let (mut view, workspace, [alpha, beta]) = creation_member_view();
             admit_creation_current(&mut view, &beta);
@@ -310,8 +310,8 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             let (mut view, workspace, [alpha, beta]) = creation_member_view();
             let other = view.machines.space_rows()[1].sidebar_target().unwrap();

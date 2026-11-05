@@ -146,7 +146,7 @@ fn paint(
     let mut hits = HitMapBuilder::with_pointer(d.pointer_projection());
     let index = PresentationIndex::default();
     let mut receipt = None;
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     terminal
         .draw(|frame| {
             receipt = Some(crate::tui_render::render_agent_board_for_test(

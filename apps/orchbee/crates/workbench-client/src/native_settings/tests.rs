@@ -4,6 +4,7 @@ use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_workbench_protocol::{AgentReminderMode, ApplicationAppearance, PreferencesLocale};
 mod appearance;
 mod browse;
+mod themes;
 
 fn basis() -> Basis {
     Basis {
@@ -46,12 +47,7 @@ fn submit(editor: &mut Editor) -> Submission {
 
 #[test]
 fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
-    // The color-theme slots join the native projection with the native theme picker; Reset all
-    // already restores them.
-    let projected = PreferenceKey::ALL
-        .into_iter()
-        .filter(|key| !matches!(key, PreferenceKey::LightTheme | PreferenceKey::DarkTheme))
-        .collect::<Vec<_>>();
+    let projected = PreferenceKey::ALL.into_iter().collect::<Vec<_>>();
     assert_eq!(
         SETTINGS
             .iter()

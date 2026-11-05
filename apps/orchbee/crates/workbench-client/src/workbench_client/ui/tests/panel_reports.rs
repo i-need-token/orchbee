@@ -48,8 +48,8 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
 
     for (theme_name, theme) in [
         ("native", Theme::terminal_native()),
-        ("dark", Theme::one_dark()),
-        ("light", Theme::one_light()),
+        ("dark", Theme::orchbee_dark()),
+        ("light", Theme::orchbee_light()),
     ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for (width, height, hide) in [
@@ -243,8 +243,8 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
     for theme in [
         crate::tui_theme::Theme::terminal_native(),
         crate::tui_theme::Theme::rgb_test_dark(),
-        crate::tui_theme::Theme::one_light(),
-        crate::tui_theme::Theme::one_dark(),
+        crate::tui_theme::Theme::orchbee_light(),
+        crate::tui_theme::Theme::orchbee_dark(),
     ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for (width, height, framed) in [
@@ -316,7 +316,7 @@ fn a_bare_single_panel_leaves_reports_to_split_and_zoomed_titles() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             crate::tui_theme::Theme::terminal_native(),
-            crate::tui_theme::Theme::one_light(),
+            crate::tui_theme::Theme::orchbee_light(),
         ] {
             for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (19, 4)] {
                 let text = paint(&ui, width, height, locale, &theme);

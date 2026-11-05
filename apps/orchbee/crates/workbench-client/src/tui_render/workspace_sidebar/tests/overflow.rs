@@ -97,7 +97,7 @@ fn heading_hover_raises_only_its_disclosure_without_an_overflow_slot() {
                 .machines
                 .sidebar_parent(&view.machines.space_rows()[0].sidebar_target().unwrap())
                 .unwrap();
-            let theme = Theme::one_light();
+            let theme = Theme::orchbee_light();
             let mut pointer = PointerState::default();
             pointer.set_capture(true);
             pointer.set_motion_observability(MotionObservability::AnyMotion);
@@ -254,7 +254,7 @@ fn project_gap_view(label: &str) -> ClientView {
 #[test]
 fn project_group_gap_stays_inert_while_hover_raises_only_the_inline_disclosure_glyph() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::one_light(), Theme::one_dark()] {
+        for theme in [Theme::orchbee_light(), Theme::orchbee_dark()] {
             for width in [24, 30, 60] {
                 for label in ["Orchbee", "项目😀e\u{301} long identity that must truncate"] {
                     let mut view = project_gap_view(label);
@@ -418,7 +418,7 @@ fn multirow_workspace_disclosure_has_no_hit_on_separator_or_continuations() {
                     )]),
                 ),
             )]);
-            let theme = Theme::one_light();
+            let theme = Theme::orchbee_light();
             let mut pointer = PointerState::default();
             pointer.set_capture(true);
             pointer.set_motion_observability(MotionObservability::AnyMotion);

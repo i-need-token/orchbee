@@ -279,7 +279,7 @@ fn search_and_toolbar_repeat_paint_the_actual_tail_match_above_the_full_shell_fo
     for (width, height) in [(120, 40), (80, 24), (70, 18), (40, 10)] {
         for primary in [true, false] {
             for locale in [Locale::EnUs, Locale::ZhCn] {
-                for theme in [Theme::terminal_native(), Theme::one_dark()] {
+                for theme in [Theme::terminal_native(), Theme::orchbee_dark()] {
                     for query in ["DOGFOOD-SEARCH-ONE", "你好"] {
                         let (mut port, mailbox, mut dispatcher, mut view) =
                             search_fixture(primary, width, query, 0);

@@ -60,8 +60,8 @@ fn nominal_rgb(color: Color) -> Color {
 #[test]
 fn destructive_intent_rests_as_ansi_red_on_the_host_default_and_keeps_contrast_in_bands() {
     for (theme, rests_on_host_default) in [
-        (Theme::one_light(), false),
-        (Theme::one_dark(), false),
+        (Theme::orchbee_light(), false),
+        (Theme::orchbee_dark(), false),
         (Theme::terminal_native(), true),
     ] {
         for level in [
@@ -111,48 +111,6 @@ fn destructive_intent_rests_as_ansi_red_on_the_host_default_and_keeps_contrast_i
             }
         }
     }
-    // System appearance keeps the pair on the host default background, including the
-    // terminal-native styles it adopts when a known polarity arrives without a background.
-    for host in [
-        crate::host_appearance::HostAppearance::Light,
-        crate::host_appearance::HostAppearance::Dark,
-    ] {
-        for background in [None, Some(0x1e_1e1e)] {
-            for level in [
-                ColorLevel::Truecolor,
-                ColorLevel::Ansi256,
-                ColorLevel::Ansi16,
-            ] {
-                let theme = Theme::application_with_host(
-                    orchbee_workbench_protocol::ApplicationAppearance::System,
-                    host,
-                    level,
-                )
-                .with_outer_host_colors(
-                    orchbee_workbench_protocol::ApplicationAppearance::System,
-                    crate::host_appearance::HostColors {
-                        foreground: None,
-                        background,
-                    },
-                );
-                let content = theme.content_on_surface(
-                    Role::SurfaceChrome,
-                    None,
-                    Some(Role::AccentDestructive),
-                    theme.style(Role::AccentDestructive),
-                );
-                assert_eq!(content.fg, theme.style(Role::AccentDestructive).fg);
-                assert!(
-                    matches!(content.bg, Some(Color::Black | Color::White)),
-                    "{host:?} {background:?} {level:?}: {content:?}"
-                );
-                assert_eq!(
-                    theme.action_hint_role(Role::AccentDestructive),
-                    Role::TextSecondary
-                );
-            }
-        }
-    }
     let monochrome = Theme::terminal_native().quantize(ColorLevel::Monochrome);
     assert_eq!(
         monochrome.action_hint_role(Role::AccentDestructive),
@@ -162,7 +120,7 @@ fn destructive_intent_rests_as_ansi_red_on_the_host_default_and_keeps_contrast_i
 
 #[test]
 fn destructive_role_is_independent_of_error_status_and_monochrome_warning_modifiers() {
-    let mut theme = Theme::one_dark();
+    let mut theme = Theme::orchbee_dark();
     let original = theme.style(Role::AccentDestructive);
     theme.styles.status_error = Style::new().fg(Color::Green);
     assert_eq!(theme.style(Role::AccentDestructive), original);
@@ -184,8 +142,8 @@ fn state_hues_leave_reverse_video_bands_for_a_contrast_pair() {
     let mut reversed_hues = 0;
     for theme in [
         Theme::terminal_native(),
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
     ] {
         for level in [
             ColorLevel::Truecolor,

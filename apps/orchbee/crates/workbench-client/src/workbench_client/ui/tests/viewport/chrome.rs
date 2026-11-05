@@ -322,7 +322,7 @@ fn chip_cells(hits: &crate::tui_hit_map::FrameHitMap, status: Rect) -> Option<Re
 fn prefix_status_floats_over_the_last_terminal_row_and_restores_it_without_resizing() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                 let (mut ui, _, _, _) = controlling_ui();
                 let mut view = rest_view(width);
                 let area = Rect::new(0, 0, width, height);
@@ -520,7 +520,7 @@ fn ended_single_terminal_names_its_exit_in_the_floating_chip_beside_its_fix() {
     for code in [0, 7, u32::MAX] {
         for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (20, 5)] {
             for locale in [Locale::EnUs, Locale::ZhCn] {
-                for theme in [Theme::terminal_native(), Theme::one_light()] {
+                for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                     let (mut ui, _, _, _) = controlling_ui();
                     let mut view = ClientView::new(width);
                     view.machines.available = true;

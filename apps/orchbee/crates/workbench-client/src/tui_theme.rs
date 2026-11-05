@@ -1,9 +1,9 @@
 //! Semantic theme roles and shipped themes for Orchbee-drawn chrome.
 //!
-//! Pure data: no environment reads, no clock, no I/O. Host detection and theme
-//! selection live with the terminal-environment owner; this module maps the
-//! semantic roles of `docs/tui/visual-foundations.md` to concrete values and
-//! quantizes them once at startup to a detected color level.
+//! Pure data: no environment reads, no clock, no I/O. Host detection lives with the
+//! terminal-environment owner; this module chooses between a shipped theme and Terminal colors,
+//! maps the semantic roles of `docs/tui/visual-foundations.md` to concrete values, and quantizes
+//! them once to the detected color level.
 
 use crate::terminal_events::keys::KeyLabelGlyphs;
 use ratatui::{
@@ -13,9 +13,13 @@ use ratatui::{
 mod host_colors;
 mod name;
 mod shipped;
+mod source;
 mod tab_groups;
 pub use host_colors::resolve_color_level;
 pub use name::ThemeName;
+pub(crate) use source::{ColorPreferences, named_themes_available};
+#[cfg(test)]
+pub(crate) use source::{Resolution, TerminalReason};
 pub(crate) use tab_groups::TabGroupPalette;
 
 /// One semantic color role. Rendering code references roles only;
@@ -144,6 +148,17 @@ pub enum ColorLevel {
 pub(crate) enum Polarity {
     Dark,
     Light,
+}
+
+impl Polarity {
+    /// The polarity a named theme slot follows under System; unknown appearance has none.
+    pub(crate) const fn of_host(host: crate::host_appearance::HostAppearance) -> Option<Self> {
+        match host {
+            crate::host_appearance::HostAppearance::Dark => Some(Self::Dark),
+            crate::host_appearance::HostAppearance::Light => Some(Self::Light),
+            crate::host_appearance::HostAppearance::Unknown => None,
+        }
+    }
 }
 
 /// The host-safe vocabulary selected for authored chrome glyphs and key labels.
@@ -390,44 +405,11 @@ impl RoleStyles {
     }
 }
 
-/// Percent of the host foreground mixed into the host background for each System fill.
-#[derive(Clone, Copy)]
-struct HostSurfaceSteps {
-    strip: u8,
-    /// Mixed into `surface-overlay`, which System keeps from the named palette, rather than into
-    /// the host background, so a form field always stays distinct from its dialog.
-    field: u8,
-    related: u8,
-    hover: u8,
-    current: u8,
-    pressed: u8,
-}
-
-const DARK_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
-    strip: 14,
-    field: 7,
-    related: 10,
-    hover: 17,
-    current: 21,
-    pressed: 28,
-};
-const LIGHT_HOST_STEPS: HostSurfaceSteps = HostSurfaceSteps {
-    strip: 5,
-    field: 5,
-    related: 7,
-    hover: 9,
-    current: 12,
-    pressed: 16,
-};
-
 /// Agent state glyphs follow a traffic light with one value in every theme and host: Needs
 /// attention, Completed and Failed. Quantization maps them to Yellow, Green and Red at 16 colors.
 const AGENT_ATTENTION: Color = Color::Rgb(254, 188, 46);
 const AGENT_DONE: Color = Color::Rgb(40, 200, 64);
 const AGENT_ERROR: Color = Color::Rgb(255, 95, 87);
-
-/// The contrast muted text keeps on the surface it rests on, the same 4.5:1 secondary text clears.
-const MUTED_CONTRAST: f64 = 4.5;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TerminalColorSource {
@@ -453,6 +435,8 @@ pub struct Theme {
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) name: &'static str,
     pub(crate) polarity: Option<Polarity>,
+    /// The shipped theme a named theme was resolved from; `terminal-native` has none.
+    palette: Option<&'static orchbee_color_themes::Theme>,
     pub(crate) corners: BorderType,
     pub(crate) glyphs: GlyphSet,
     color_level: ColorLevel,
@@ -611,6 +595,7 @@ impl Theme {
             #[cfg(any(test, feature = "test-support"))]
             name: "terminal-native",
             polarity: None,
+            palette: None,
             corners: BorderType::Plain,
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
@@ -684,6 +669,7 @@ impl Theme {
         Self {
             name: "rgb-test-dark",
             polarity: Some(Polarity::Dark),
+            palette: None,
             corners: BorderType::Rounded,
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
@@ -755,14 +741,6 @@ impl Theme {
     pub(crate) fn field_band(&self) -> bool {
         !matches!(self.styles.surface_field.bg, None | Some(Color::Reset))
             && self.styles.surface_field.bg != self.styles.surface_overlay.bg
-    }
-
-    fn drop_collapsed_field(&mut self) {
-        if self.color_level == ColorLevel::Monochrome
-            || self.styles.surface_field.bg == self.styles.surface_overlay.bg
-        {
-            self.styles.surface_field = Style::new().bg(Color::Reset);
-        }
     }
 
     /// The Shell supplies the observed reason; monochrome alone does not imply NO_COLOR.
@@ -1113,37 +1091,42 @@ impl Theme {
         Some((rgb(foreground)?, rgb(background)?))
     }
 
-    /// Explicit terminal colors override chrome; System + Host defers to host resolution.
+    /// Resolves terminal default colors for this theme from confirmed preferences.
     pub(crate) fn with_terminal_preferences(
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self {
-        self.with_terminal_appearance_for_application(
-            values.application_theme,
-            values.terminal_display_theme,
-            &values.custom_foreground,
-            &values.custom_background,
-        )
+        self.with_terminal_appearance(ColorPreferences::from(values))
     }
 
-    /// Resolves explicit defaults before the Client applies its captured outer-host colors.
-    /// Unbound frame consumers can still resolve the deferred Host choice from their frame.
-    pub(crate) fn with_terminal_appearance_for_application(
-        mut self,
-        application: orchbee_workbench_protocol::ApplicationAppearance,
-        appearance: orchbee_workbench_protocol::TerminalDisplayAppearance,
-        custom_foreground: &str,
-        custom_background: &str,
-    ) -> Self {
-        // The native theme module resolves the Orchbee pair until it consumes the theme slots.
-        let colors = orchbee_local_runtime::UserTerminalColors::resolve(
-            application,
-            appearance,
-            &orchbee_local_runtime::UserColorThemes::default(),
-            custom_foreground,
-            custom_background,
-        )
-        .expect("validated appearance preferences");
+    /// Theme takes the painted theme's canvas. Under Terminal colors, Theme and Host defer to the
+    /// outer host's own defaults; with a named theme, Host does so only under System. Custom takes
+    /// the custom pair. Unbound frame consumers can still resolve a deferred choice from their
+    /// frame until the Client applies its captured outer-host colors.
+    pub(crate) fn with_terminal_appearance(mut self, preferences: ColorPreferences<'_>) -> Self {
+        use orchbee_workbench_protocol::{ApplicationAppearance, TerminalDisplayAppearance};
+        let colors = match (preferences.terminal_display_theme, self.palette) {
+            (TerminalDisplayAppearance::Theme, Some(theme)) => Some((
+                u32::from(theme.canvas().foreground),
+                u32::from(theme.canvas().background),
+            )),
+            (appearance, palette) => orchbee_local_runtime::UserTerminalColors::resolve(
+                if palette.is_some() {
+                    preferences.application_theme
+                } else {
+                    ApplicationAppearance::System
+                },
+                appearance,
+                &orchbee_local_runtime::UserColorThemes::new(
+                    preferences.light_theme.to_owned(),
+                    preferences.dark_theme.to_owned(),
+                ),
+                preferences.custom_foreground,
+                preferences.custom_background,
+            )
+            .expect("validated appearance preferences")
+            .map(orchbee_local_runtime::UserTerminalColors::rgb),
+        };
         self.terminal_color_source = if colors.is_none() {
             TerminalColorSource::RetainedFrame
         } else {
@@ -1151,8 +1134,7 @@ impl Theme {
         };
         self.terminal_defaults_known = colors.is_some();
         self.terminal_colors = None;
-        if let Some(colors) = colors {
-            let (foreground, background) = colors.rgb();
+        if let Some((foreground, background)) = colors {
             self.set_terminal_colors(foreground, background);
         }
         self
@@ -1166,55 +1148,13 @@ impl Theme {
         self
     }
 
-    /// System base surfaces use the host's default background without depending on
-    /// a query, quantization, or a captured child's launch colors. An observed background also
-    /// derives the strip and interaction fills by mixing it toward the host foreground, so they
-    /// stay visible on any host; selection keeps the palette. An unobserved background keeps
-    /// terminal-native contrast, which paints none of these fills.
+    /// A deferred terminal default takes the outer terminal's observed colors, never a retained
+    /// child's launch colors. Named themes keep their painted surfaces; `terminal-native` already
+    /// rests on the host defaults.
     pub(crate) fn with_outer_host_colors(
         mut self,
-        application: orchbee_workbench_protocol::ApplicationAppearance,
         colors: crate::host_appearance::HostColors,
     ) -> Self {
-        if application != orchbee_workbench_protocol::ApplicationAppearance::System {
-            return self;
-        }
-        if colors.background.is_none() {
-            let native = Self::terminal_native().quantize(self.color_level);
-            self.styles = native.styles;
-            self.tab_groups = native.tab_groups;
-            self.polarity = native.polarity;
-            #[cfg(test)]
-            {
-                self.name = native.name;
-            }
-        }
-        self.styles.surface_canvas = self.styles.surface_canvas.bg(Color::Reset);
-        self.styles.surface_chrome = self.styles.surface_chrome.bg(Color::Reset);
-        self.styles.surface_inactive = self.styles.surface_inactive.bg(Color::Reset);
-        if let Some(background) = colors.background
-            && let Some(polarity) = self.polarity
-            && self.color_level != ColorLevel::Monochrome
-        {
-            self.derive_host_surfaces(polarity, colors.foreground, background);
-            // Muted text was measured on the palette's chrome; the host background replaces it.
-            let [r, g, b] = unpack_rgb(background);
-            if self
-                .styles
-                .text_muted
-                .fg
-                .and_then(sampled_color)
-                .is_some_and(|muted| color_contrast(muted, (r, g, b)) < MUTED_CONTRAST)
-            {
-                self.styles.text_muted = self.styles.text_secondary;
-            }
-        }
-        if matches!(self.color_level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
-            && interaction_surfaces_collapse(&self.styles)
-        {
-            self.styles.surface_hover = interaction_surface_fallback();
-            self.styles.surface_pressed = interaction_surface_fallback();
-        }
         if self.terminal_color_source == TerminalColorSource::RetainedFrame {
             self.terminal_color_source = TerminalColorSource::OuterHost;
             self.terminal_defaults_known =
@@ -1231,73 +1171,6 @@ impl Theme {
                     });
         }
         self
-    }
-
-    /// Until the host foreground arrives, the matched palette's primary text stands in for it.
-    fn derive_host_surfaces(
-        &mut self,
-        polarity: Polarity,
-        foreground: Option<u32>,
-        background: u32,
-    ) {
-        let steps = match polarity {
-            Polarity::Dark => DARK_HOST_STEPS,
-            Polarity::Light => LIGHT_HOST_STEPS,
-        };
-        let background = unpack_rgb(background);
-        let foreground = foreground
-            .map(unpack_rgb)
-            .or_else(|| {
-                self.styles
-                    .text_primary
-                    .fg
-                    .and_then(sampled_color)
-                    .map(|(r, g, b)| [r, g, b])
-            })
-            .unwrap_or(match polarity {
-                Polarity::Dark => [255, 255, 255],
-                Polarity::Light => [0, 0, 0],
-            });
-        let mix = |percent: u8| -> [f64; 3] {
-            let channel = |from: u8, to: u8| {
-                f64::from(from) + (f64::from(to) - f64::from(from)) * f64::from(percent) / 100.0
-            };
-            [
-                channel(background[0], foreground[0]),
-                channel(background[1], foreground[1]),
-                channel(background[2], foreground[2]),
-            ]
-        };
-        let level = self.color_level;
-        // Each channel stays between its endpoints, so rounding cannot truncate.
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let color = |[r, g, b]: [f64; 3]| {
-            quantize_color(
-                Color::Rgb(r.round() as u8, g.round() as u8, b.round() as u8),
-                level,
-            )
-        };
-        let fill = |percent: u8| Style::new().bg(color(mix(percent)));
-        // Group tints mix into the unrounded strip, so each tint rounds once.
-        let strip = mix(steps.strip);
-        self.styles.surface_strip = self.styles.surface_strip.bg(color(strip));
-        self.styles.surface_related = fill(steps.related);
-        self.styles.surface_hover = fill(steps.hover);
-        self.styles.surface_current = fill(steps.current);
-        self.styles.surface_pressed = fill(steps.pressed);
-        if let Some((r, g, b)) = self.styles.surface_overlay.bg.and_then(sampled_color) {
-            let overlay = [r, g, b];
-            let channel = |index: usize| {
-                f64::from(overlay[index])
-                    + (f64::from(foreground[index]) - f64::from(overlay[index]))
-                        * f64::from(steps.field)
-                        / 100.0
-            };
-            self.styles.surface_field =
-                Style::new().bg(color([channel(0), channel(1), channel(2)]));
-        }
-        self.drop_collapsed_field();
-        self.tab_groups = self.tab_groups.over_strip(strip, level);
     }
 
     fn terminal_color(&self, value: u32) -> Color {
@@ -1497,10 +1370,6 @@ fn contrast_pair(content: Style) -> Style {
             Color::White
         };
     content.bg(background).remove_modifier(Modifier::REVERSED)
-}
-
-const fn unpack_rgb(value: u32) -> [u8; 3] {
-    [(value >> 16) as u8, (value >> 8) as u8, value as u8]
 }
 
 fn sampled_color(color: Color) -> Option<(u8, u8, u8)> {
@@ -1752,13 +1621,15 @@ pub trait ThemeTestAccess {
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self;
-    fn application_with_host(
-        appearance: orchbee_workbench_protocol::ApplicationAppearance,
+    /// The resolution of confirmed preferences on a host whose reported background has this
+    /// appearance, before the Client applies its captured outer-host colors.
+    fn for_preferences(
+        values: &orchbee_workbench_protocol::UserPreferencesValues,
         host: crate::host_appearance::HostAppearance,
         level: ColorLevel,
     ) -> Self;
-    fn one_light() -> Self;
-    fn one_dark() -> Self;
+    fn orchbee_light() -> Self;
+    fn orchbee_dark() -> Self;
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -1775,18 +1646,22 @@ impl ThemeTestAccess for Theme {
     ) -> Self {
         Theme::with_terminal_preferences(self, values)
     }
-    fn application_with_host(
-        appearance: orchbee_workbench_protocol::ApplicationAppearance,
+    fn for_preferences(
+        values: &orchbee_workbench_protocol::UserPreferencesValues,
         host: crate::host_appearance::HostAppearance,
         level: ColorLevel,
     ) -> Self {
-        Theme::application_with_host(appearance, host, level)
+        Theme::resolve(
+            ColorPreferences::from(values),
+            Polarity::of_host(host),
+            level,
+        )
     }
-    fn one_light() -> Self {
-        Theme::one_light()
+    fn orchbee_light() -> Self {
+        Theme::orchbee_light()
     }
-    fn one_dark() -> Self {
-        Theme::one_dark()
+    fn orchbee_dark() -> Self {
+        Theme::orchbee_dark()
     }
 }
 

@@ -151,9 +151,9 @@ fn mixed_setting_rows_and_footer_actions_keep_one_complete_hover_and_pressed_ban
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
-            Theme::one_dark().quantize(ColorLevel::Ansi16),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             let values = UserPreferencesValues {
@@ -199,9 +199,9 @@ fn picker_labels_checked_markers_and_navigation_share_the_winning_pointer_band()
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
-            Theme::one_dark().quantize(ColorLevel::Ansi16),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             let mut editor = editor_with(UserPreferencesValues::default());

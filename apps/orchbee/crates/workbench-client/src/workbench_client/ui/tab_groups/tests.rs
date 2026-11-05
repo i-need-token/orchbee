@@ -475,10 +475,10 @@ fn tab_groups_composed_screen_keeps_headers_members_and_localized_menu_hits() {
         for (width, height) in [(120, 40), (80, 24), (80, 20), (40, 10), (20, 5)] {
             for (theme_index, theme) in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
-                Theme::one_dark().quantize(ColorLevel::Ansi256),
-                Theme::one_light().quantize(ColorLevel::Ansi16),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
+                Theme::orchbee_dark().quantize(ColorLevel::Ansi256),
+                Theme::orchbee_light().quantize(ColorLevel::Ansi16),
                 Theme::terminal_native()
                     .quantize(ColorLevel::Monochrome)
                     .with_glyphs(GlyphSet::ASCII),

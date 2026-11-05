@@ -51,8 +51,8 @@ fn idle(pointer: PointerPresentation) -> InteractionState {
 #[test]
 fn action_shortcut_is_subordinate_inside_the_complete_fixed_button() {
     for theme in [
-        Theme::one_dark(),
-        Theme::one_light(),
+        Theme::orchbee_dark(),
+        Theme::orchbee_light(),
         Theme::terminal_native(),
     ] {
         for label in ["Close", "关闭"] {
@@ -124,8 +124,8 @@ fn terminal_native_destructive_action_rests_wholly_red_and_other_themes_keep_a_s
     for (theme, wholly_red) in [
         (Theme::terminal_native(), true),
         (Theme::terminal_native().quantize(ColorLevel::Ansi16), true),
-        (Theme::one_dark(), false),
-        (Theme::one_light(), false),
+        (Theme::orchbee_dark(), false),
+        (Theme::orchbee_light(), false),
     ] {
         let spec = ActionSpec::new(
             "Close",
@@ -453,7 +453,7 @@ fn action_pointer_precedence_and_disabled_suppression_are_independent() {
 
 #[test]
 fn action_hierarchy_uses_the_declared_content_role_at_rest() {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     for (kind, role) in [
         (ActionKind::Primary, Role::AccentAction),
         (ActionKind::Secondary, Role::TextPrimary),
@@ -567,9 +567,9 @@ fn press_bolds_the_enabled_label_and_hover_only_raises_secondary_text() {
 #[test]
 fn reduced_color_action_paints_its_base_and_keeps_interaction_modifiers() {
     for theme in [
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
-        Theme::one_light().quantize(ColorLevel::Ansi16),
-        Theme::one_dark().quantize(ColorLevel::Monochrome),
+        Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_light().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_dark().quantize(ColorLevel::Monochrome),
     ] {
         for pointer in [PointerPresentation::Hovered, PointerPresentation::Pressed] {
             let mut terminal = Terminal::new(TestBackend::new(8, 1)).unwrap();
@@ -642,8 +642,8 @@ fn reduced_color_action_paints_its_base_and_keeps_interaction_modifiers() {
 fn semantic_pointer_target_keeps_exact_geometry_content_and_low_color_feedback() {
     for theme in [
         Theme::terminal_native(),
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
-        Theme::one_dark().quantize(ColorLevel::Monochrome),
+        Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_dark().quantize(ColorLevel::Monochrome),
     ] {
         for (pointer, interaction) in [
             (PointerPresentation::Hovered, Role::SurfaceHover),
@@ -734,8 +734,8 @@ fn semantic_pointer_target_keeps_exact_geometry_content_and_low_color_feedback()
 fn semantic_pointer_target_suppresses_disabled_pointer_and_rejects_clipping_atomically() {
     for theme in [
         Theme::terminal_native(),
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
-        Theme::one_dark().quantize(ColorLevel::Monochrome),
+        Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_dark().quantize(ColorLevel::Monochrome),
     ] {
         for (pointer, role, availability) in [
             (
@@ -814,7 +814,7 @@ fn semantic_pointer_target_suppresses_disabled_pointer_and_rejects_clipping_atom
         }
     }
 
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let rect = Rect::new(1, 0, 3, 1);
     let mut terminal = Terminal::new(TestBackend::new(6, 1)).unwrap();
     let mut clipped = Some(rect);
@@ -845,7 +845,7 @@ fn semantic_pointer_target_suppresses_disabled_pointer_and_rejects_clipping_atom
 
 #[test]
 fn row_keeps_focus_current_checked_pending_and_explicit_content_while_disabled() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let row = Rect::new(0, 0, 20, 1);
     let tracks = RowTracks::new(
         RowFocusCue::Track(Rect::new(0, 0, 1, 1)),
@@ -938,11 +938,11 @@ fn row_keeps_focus_current_checked_pending_and_explicit_content_while_disabled()
 #[test]
 fn row_state_matrix_keeps_secondary_hierarchy_and_non_color_cues() {
     let themes = [
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
         Theme::terminal_native(),
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
-        Theme::one_dark().quantize(ColorLevel::Monochrome),
+        Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_dark().quantize(ColorLevel::Monochrome),
     ];
     for theme in themes {
         let row = Rect::new(0, 0, 15, 1);
@@ -1014,7 +1014,7 @@ fn row_state_matrix_keeps_secondary_hierarchy_and_non_color_cues() {
 
 #[test]
 fn current_and_hover_remain_independent_on_a_row() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let row = Rect::new(0, 0, 10, 1);
     let tracks = RowTracks::new(
         RowFocusCue::Track(Rect::new(0, 0, 1, 1)),
@@ -1077,8 +1077,8 @@ fn terminal_native_current_row_underlines_every_cell_and_rgb_rows_keep_the_fill_
     for (theme, underlined) in [
         (Theme::terminal_native(), true),
         (Theme::terminal_native().quantize(ColorLevel::Ansi16), true),
-        (Theme::one_dark(), false),
-        (Theme::one_light(), false),
+        (Theme::orchbee_dark(), false),
+        (Theme::orchbee_light(), false),
     ] {
         let row = Rect::new(0, 0, 14, 1);
         let tracks = RowTracks::new(
@@ -1136,7 +1136,7 @@ fn terminal_native_current_row_underlines_every_cell_and_rgb_rows_keep_the_fill_
 
 #[test]
 fn row_primary_role_preserves_declared_content_and_disabled_override() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let row = Rect::new(0, 0, 10, 1);
     let primary = Rect::new(2, 0, 6, 1);
     let render = |role: Role, availability: Availability| {
@@ -1213,9 +1213,9 @@ fn row_primary_role_preserves_declared_content_and_disabled_override() {
 fn enclosing_frame_focus_keeps_one_shared_navigation_cue_in_low_color() {
     for theme in [
         Theme::terminal_native(),
-        Theme::one_dark(),
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
-        Theme::one_dark().quantize(ColorLevel::Monochrome),
+        Theme::orchbee_dark(),
+        Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_dark().quantize(ColorLevel::Monochrome),
     ] {
         let render = |navigation: NavigationState, current: CurrentState, checked: CheckedState| {
             let row = Rect::new(0, 0, 10, 1);
@@ -1306,8 +1306,8 @@ fn enclosing_frame_focus_keeps_one_shared_navigation_cue_in_low_color() {
 fn destructive_row_keeps_markers_and_disabled_content_without_pointer_emphasis() {
     for theme in [
         Theme::terminal_native(),
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
     ] {
         for level in [
             ColorLevel::Truecolor,
@@ -1406,7 +1406,7 @@ fn destructive_row_keeps_markers_and_disabled_content_without_pointer_emphasis()
 
 #[test]
 fn monochrome_rows_distinguish_rest_current_provisional_and_checked() {
-    let theme = Theme::one_dark().quantize(ColorLevel::Monochrome);
+    let theme = Theme::orchbee_dark().quantize(ColorLevel::Monochrome);
     let render = |navigation: NavigationState, current: CurrentState, checked: CheckedState| {
         let row = Rect::new(0, 0, 10, 1);
         let tracks = RowTracks::new(

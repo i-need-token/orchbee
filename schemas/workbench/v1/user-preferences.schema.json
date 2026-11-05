@@ -40,6 +40,11 @@
 				"darkTheme": {
 					"$ref": "#/$defs/colorThemeId"
 				},
+				"tuiColorSource": {
+					"description": "Where the terminal Client takes its interface colors: the active theme slot, or the host terminal's own colors. The graphical Client ignores it.",
+					"type": "string",
+					"enum": ["theme", "terminal"]
+				},
 				"terminalDisplayTheme": {
 					"type": "string",
 					"enum": ["theme", "host", "custom"]
@@ -88,6 +93,7 @@
 				"applicationTheme",
 				"lightTheme",
 				"darkTheme",
+				"tuiColorSource",
 				"terminalDisplayTheme",
 				"customForeground",
 				"customBackground",
@@ -105,6 +111,7 @@
 				"applicationTheme": "system",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -169,6 +176,16 @@
 					"anyOf": [
 						{
 							"$ref": "#/$defs/values/properties/darkTheme"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tuiColorSource": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/values/properties/tuiColorSource"
 						},
 						{
 							"type": "null"
@@ -308,6 +325,7 @@
 							"applicationTheme",
 							"lightTheme",
 							"darkTheme",
+							"tuiColorSource",
 							"terminalDisplayTheme",
 							"customForeground",
 							"customBackground",
@@ -321,7 +339,7 @@
 							"launchProfiles"
 						]
 					},
-					"maxItems": 15,
+					"maxItems": 16,
 					"uniqueItems": true
 				}
 			},

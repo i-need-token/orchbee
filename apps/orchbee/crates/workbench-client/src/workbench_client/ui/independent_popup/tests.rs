@@ -134,7 +134,7 @@ fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_afte
     ui.popup = crate::independent_popup::Driver::composition_fixture(Some(false), None);
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let theme = Theme::one_dark();
+        let theme = Theme::orchbee_dark();
         let client = ClientView::new(100);
         let mut too_small = Terminal::new(TestBackend::new(100, 4)).unwrap();
         let mut too_small_hits = HitMapBuilder::new();

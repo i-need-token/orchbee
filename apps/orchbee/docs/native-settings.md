@@ -127,7 +127,7 @@ gesture. Explicit Close and Esc retain their existing local exit behavior;
 deliberately closing hides an accepted save without cancelling it.
 
 Save is the only write action. Opening, editing, cancelling and resizing do not
-publish runtime policy. Language, application theme and terminal default colors
+publish runtime policy. Language, appearance, theme slots, Colors and terminal default colors
 preview locally across the whole frame, including background chrome, live and
 retained terminal rows, and hints. Explicit program colors and terminal bytes
 remain owned by the program. Invalid color text keeps the last accepted draft
@@ -202,13 +202,26 @@ The Session freezes its native configuration identity at startup. Clients send n
 | Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                              |
 | Cancel / close       | Discard unsubmitted edits and reveal newest confirmed appearance; hiding after submission cannot roll back a commit.                  |
 
-Application themes change chrome independently of terminal colors. Host terminal
-colors with application System use the outer terminal's captured defaults, with the resolved
-application palette as fallback; Light/Dark/Custom change only
-default markers, preserving explicit program colors and color-query semantics.
+Application themes change chrome independently of terminal colors. Host terminal colors under
+application System, and Theme or Host under Terminal colors, keep the outer terminal's own
+defaults; the other terminal choices change only default markers, preserving explicit program
+colors and color-query semantics.
 Disabled foreground/background rows show the effective display colors rather than unused Custom
 values; reduced-color hosts show the selected terminal appearance when RGB is unavailable.
 Copy-on-select governs later gesture completion; explicit Copy remains available.
+
+Appearance holds Appearance, Light theme, Dark theme and Colors, with the GUI's wording in both
+languages; theme names stay untranslated. A theme picker lists the shipped themes of its polarity
+in catalog order, Orchbee first, and scrolls when they outgrow the viewport. Each row ends in a
+swatch, a foreground sample on the theme's canvas and five ANSI fills, shown only at truecolor and
+where the row has room. Moving through a picker previews the candidate at its own polarity with
+Colors set to Theme; Enter accepts it into the draft and Esc restores the prior preview. Accepting
+a theme sets its slot, switches a fixed Appearance of the other polarity and sets Colors to Theme,
+so the accepted theme shows; under System it shows when the host matches, and the slot's
+description says so. A stored id this build does not ship opens on the Orchbee theme it resolves
+to and stays stored until another theme is accepted. Reset all restores both slots and Colors.
+Below truecolor the three rows stay visible but unavailable with the 24-bit reason, and an open
+theme picker closes when the host loses truecolor.
 Agent mode/global sound override automatic enablement without erasing host delivery
 or per-Agent mute policy. Completion reminders consume physical-terminal sequence
 facts once, require a fresh timestamp and minimum duration, and never replay when
@@ -247,6 +260,9 @@ horizons in localized row help:
 | ---------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                      |
 | `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                                   |
+| `lightTheme`                       | Picker candidate previews at Light with Colors set to Theme                   | Chrome and Theme terminal defaults while the light slot paints on a truecolor host                                      |
+| `darkTheme`                        | Picker candidate previews at Dark with Colors set to Theme                    | Chrome and Theme terminal defaults while the dark slot paints on a truecolor host                                       |
+| `tuiColorSource`                   | Whole-frame Theme or Terminal colors preview                                  | This Client's chrome source and Theme terminal defaults; the GUI ignores it                                             |
 | `terminalDisplayTheme`             | Theme/Host/Custom default-color preview                                       | Existing live and retained terminal presentation; explicit program colors remain exact                                  |
 | `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                         |
 | `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                         |
@@ -307,6 +323,11 @@ locales, including a disabled decrement and secondary shortcut text. Pointer fee
 same draw receipt, hit geometry, selected setting and draft values; actual host presentation still
 requires separate screenshot review.
 
+The [theme picker cases](../crates/workbench-client/src/native_settings/tests/themes.rs) cover a
+candidate's preview at its polarity, Esc restoration, the Save patch, an unshipped stored id, Reset
+all and reduced-color unavailability. The [theme picker render cases](../crates/workbench-client/src/tui_render/settings/tests/themes.rs)
+cover swatches, their absence without truecolor, scrolling and the System notice.
+
 The [editor preview cases](../crates/workbench-client/src/native_settings/tests/appearance.rs) cover every
 admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid
 color entry, conflict projection, unknown result and episode retirement. The
@@ -342,4 +363,4 @@ History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 
 
 ## Color-disabled guidance
 
-The Shell retains whether a nonempty `NO_COLOR` disabled colors at startup and carries that reason through committed and preview themes. Application/terminal theme and editable color descriptions explain the suppression in both languages. Validation, confirmation and unknown-save recovery messages take precedence. The hint never infers `NO_COLOR` from monochrome alone, reads the environment while rendering, or changes the saved theme choice.
+The Shell retains whether a nonempty `NO_COLOR` disabled colors at startup and carries that reason through committed and preview themes. Appearance, theme slot, Colors, terminal theme and editable color descriptions explain the suppression in both languages. Validation, confirmation and unknown-save recovery messages take precedence. The hint never infers `NO_COLOR` from monochrome alone, reads the environment while rendering, or changes the saved theme choice.

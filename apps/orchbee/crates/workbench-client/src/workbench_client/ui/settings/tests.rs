@@ -131,7 +131,7 @@ fn settings_owns_its_hints_without_repeating_them_in_global_status() {
                 shell.machines.available = true;
             }
             shell.startup_notice(crate::client_view::Notice::UnknownPrefix);
-            let theme = crate::tui_theme::Theme::one_light();
+            let theme = crate::tui_theme::Theme::orchbee_light();
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             terminal
                 .draw(|frame| {
@@ -169,16 +169,14 @@ fn settings_owns_its_hints_without_repeating_them_in_global_status() {
 
 #[test]
 fn captures_whole_shell_settings_alignment_frames() {
-    let default_appearance =
-        orchbee_workbench_protocol::UserPreferencesValues::default().application_theme;
     for (width, height, locale, theme, name) in [
         (
             120,
             40,
             crate::localization::Locale::EnUs,
-            crate::tui_theme::Theme::application_with_host(
-                default_appearance,
-                crate::host_appearance::HostAppearance::Unknown,
+            crate::tui_theme::Theme::resolve(
+                (&orchbee_workbench_protocol::UserPreferencesValues::default()).into(),
+                None,
                 crate::tui_theme::ColorLevel::Truecolor,
             ),
             "alignment-settings-draft-en-us-120x40-default",
@@ -304,7 +302,7 @@ fn retained_drafts_render_their_failure_instead_of_covering_it_with_key_hints() 
             ui.settings.note(notice, ui.clock.now());
             let shell = ClientView::new(120);
             let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
-            let theme = crate::tui_theme::Theme::one_light();
+            let theme = crate::tui_theme::Theme::orchbee_light();
             terminal
                 .draw(|frame| {
                     crate::tui_render::render_terminal_shell(

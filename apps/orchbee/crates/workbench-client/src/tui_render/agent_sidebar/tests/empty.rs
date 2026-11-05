@@ -23,8 +23,8 @@ fn empty_sidebar_keeps_actions_and_settings_without_session_business_or_zero_cou
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let mut view = ClientView::new(width);
                 view.machines.available = true;

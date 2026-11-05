@@ -51,8 +51,8 @@ fn applied_color_check_and_paired_palette_chip_survive_a_different_provisional_c
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for base in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 for level in [
                     ColorLevel::Truecolor,

@@ -1,38 +1,72 @@
 use super::*;
+use crate::host_appearance::HostColors;
+use crate::tui_theme::ColorPreferences;
 use orchbee_workbench_protocol::{
-    ApplicationAppearance as App, TerminalDisplayAppearance as Terminal,
+    ApplicationAppearance as App, TerminalDisplayAppearance as Terminal, TuiColorSource,
 };
 
+fn preferences(
+    application_theme: App,
+    tui_color_source: TuiColorSource,
+    terminal_display_theme: Terminal,
+) -> ColorPreferences<'static> {
+    ColorPreferences {
+        application_theme,
+        light_theme: "orchbee-light",
+        dark_theme: "orchbee-dark",
+        tui_color_source,
+        terminal_display_theme,
+        custom_foreground: "#123456",
+        custom_background: "#654321",
+    }
+}
+
+fn rgb(value: u32) -> Color {
+    let [_, r, g, b] = value.to_be_bytes();
+    Color::Rgb(r, g, b)
+}
+
+fn canvas(polarity: orchbee_color_themes::Polarity) -> (Color, Color) {
+    let canvas = orchbee_color_themes::orchbee(polarity).canvas();
+    (
+        rgb(u32::from(canvas.foreground)),
+        rgb(u32::from(canvas.background)),
+    )
+}
+
+/// Theme and Host follow the painted slot when Appearance is fixed; System and Terminal colors
+/// defer them to the host. Custom always wins, and no terminal choice changes the chrome.
 #[test]
-fn theme_and_host_defaults_follow_resolved_application_appearance_and_custom_wins() {
-    for (application, host_pair) in [
-        (App::Light, (0x141414, 0xfcfcfc)),
-        (App::Dark, (0xd4d4d4, 0x1e1e1e)),
-        (App::System, (0xabcdef, 0x102030)),
+fn terminal_defaults_follow_the_painted_slot_defer_to_the_host_or_take_the_custom_pair() {
+    use orchbee_color_themes::Polarity::{Dark, Light};
+    let captured = (rgb(0xabcdef), rgb(0x102030));
+    let custom = (rgb(0x123456), rgb(0x654321));
+    for (application, source, slot) in [
+        (App::Light, TuiColorSource::Theme, Some(canvas(Light))),
+        (App::Dark, TuiColorSource::Theme, Some(canvas(Dark))),
+        (App::System, TuiColorSource::Theme, None),
+        (App::Dark, TuiColorSource::Terminal, None),
     ] {
-        for (terminal, explicit) in [
-            (Terminal::Theme, None),
-            (Terminal::Host, None),
-            (Terminal::Custom, Some((0x123456, 0x654321))),
-        ] {
-            let chrome = Theme::application_with_host(
-                application,
-                crate::host_appearance::HostAppearance::Unknown,
+        for terminal in [Terminal::Theme, Terminal::Host, Terminal::Custom] {
+            let chrome = Theme::resolve(
+                preferences(application, source, Terminal::Theme),
+                None,
                 ColorLevel::Truecolor,
             );
-            let theme = chrome
-                .with_terminal_appearance_for_application(
-                    application,
-                    terminal,
-                    "#123456",
-                    "#654321",
-                )
-                .with_host_terminal_colors(0xabcdef, 0x102030);
-            let color = |rgb: u32| Color::Rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8);
-            let (foreground, background) = explicit.unwrap_or(host_pair);
+            let theme = Theme::resolve(
+                preferences(application, source, terminal),
+                None,
+                ColorLevel::Truecolor,
+            )
+            .with_host_terminal_colors(0xabcdef, 0x102030);
+            let expected = match terminal {
+                Terminal::Custom => custom,
+                Terminal::Theme | Terminal::Host => slot.unwrap_or(captured),
+            };
             assert_eq!(
                 theme.terminal_defaults(),
-                (color(foreground), color(background))
+                expected,
+                "{application:?} {source:?} {terminal:?}"
             );
             assert_eq!(
                 theme.style(Role::SurfaceChrome),
@@ -43,254 +77,111 @@ fn theme_and_host_defaults_follow_resolved_application_appearance_and_custom_win
 }
 
 #[test]
-fn a_system_preview_uses_captured_host_defaults_without_mutating_the_confirmed_theme() {
-    let confirmed = Theme::one_dark().with_terminal_appearance_for_application(
-        App::Dark,
-        Terminal::Host,
-        "#141414",
-        "#fcfcfc",
+fn a_reported_host_polarity_never_replaces_an_explicit_terminal_display_choice() {
+    use orchbee_color_themes::Polarity::{Dark, Light};
+    let custom = Theme::resolve(
+        preferences(App::System, TuiColorSource::Theme, Terminal::Custom),
+        Some(Polarity::Light),
+        ColorLevel::Truecolor,
+    )
+    .with_host_terminal_colors(0xabcdef, 0x102030);
+    assert_eq!(custom.name, "orchbee-light");
+    assert_eq!(custom.terminal_defaults(), (rgb(0x123456), rgb(0x654321)));
+
+    let fixed = Theme::resolve(
+        preferences(App::Light, TuiColorSource::Theme, Terminal::Theme),
+        Some(Polarity::Dark),
+        ColorLevel::Truecolor,
     );
-    let preview = Theme::terminal_native()
-        .with_terminal_appearance_for_application(App::System, Terminal::Host, "#141414", "#fcfcfc")
-        .with_host_terminal_colors(0x112233, 0xeeddbb);
+    assert_eq!(fixed.name, "orchbee-light");
+    assert_eq!(fixed.terminal_defaults(), canvas(Light));
+
+    let system = Theme::resolve(
+        preferences(App::System, TuiColorSource::Theme, Terminal::Theme),
+        Some(Polarity::Dark),
+        ColorLevel::Truecolor,
+    );
+    assert_eq!(system.name, "orchbee-dark");
+    assert_eq!(system.terminal_defaults(), canvas(Dark));
+}
+
+#[test]
+fn a_preview_takes_captured_host_defaults_without_mutating_the_confirmed_theme() {
+    let confirmed = Theme::resolve(
+        preferences(App::Dark, TuiColorSource::Theme, Terminal::Host),
+        None,
+        ColorLevel::Truecolor,
+    );
+    let preview = Theme::resolve(
+        preferences(App::System, TuiColorSource::Theme, Terminal::Host),
+        None,
+        ColorLevel::Truecolor,
+    )
+    .with_host_terminal_colors(0x112233, 0xeeddbb);
     assert_eq!(
         confirmed.terminal_defaults(),
-        (Color::Rgb(212, 212, 212), Color::Rgb(30, 30, 30))
+        canvas(orchbee_color_themes::Polarity::Dark)
     );
-    assert_eq!(
-        preview.terminal_defaults(),
-        (Color::Rgb(17, 34, 51), Color::Rgb(238, 221, 187))
-    );
+    assert_eq!(preview.terminal_defaults(), (rgb(0x112233), rgb(0xeeddbb)));
 }
 
+/// A deferred default takes the outer terminal's observed colors, never a retained child's
+/// launch colors, and keeps emitting the host's own defaults.
 #[test]
-fn detected_system_polarity_changes_chrome_but_host_terminal_defaults_stay_captured() {
-    use crate::host_appearance::HostAppearance;
-
-    let host_foreground = Color::Rgb(0x12, 0x34, 0x56);
-    let host_background = Color::Rgb(0x20, 0x30, 0x40);
-    let theme =
-        Theme::application_with_host(App::System, HostAppearance::Dark, ColorLevel::Truecolor)
-            .with_terminal_appearance_for_application(
-                App::System,
-                Terminal::Host,
-                "#141414",
-                "#fcfcfc",
-            )
-            .with_host_terminal_colors(0x123456, 0x203040);
-
-    assert_eq!(theme.name, "one-dark");
-    assert_eq!(
-        theme.terminal_defaults(),
-        (host_foreground, host_background)
-    );
-}
-
-#[test]
-fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
-    use crate::host_appearance::HostAppearance;
-
-    let custom =
-        Theme::application_with_host(App::System, HostAppearance::Light, ColorLevel::Truecolor)
-            .with_terminal_appearance_for_application(
-                App::System,
-                Terminal::Custom,
-                "#123456",
-                "#654321",
-            )
-            .with_host_terminal_colors(0xabcdef, 0x102030);
-    assert_eq!(custom.name, "one-light");
-    assert_eq!(
-        custom.terminal_defaults(),
-        (Color::Rgb(0x12, 0x34, 0x56), Color::Rgb(0x65, 0x43, 0x21))
-    );
-
-    let explicit =
-        Theme::application_with_host(App::Light, HostAppearance::Dark, ColorLevel::Truecolor)
-            .with_terminal_appearance_for_application(
-                App::Light,
-                Terminal::Theme,
-                "#123456",
-                "#654321",
-            );
-    assert_eq!(explicit.name, "one-light");
-    assert_eq!(
-        explicit.terminal_defaults(),
-        (Color::Rgb(0x14, 0x14, 0x14), Color::Rgb(0xfc, 0xfc, 0xfc))
-    );
-}
-
-#[test]
-fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_preferences() {
-    use crate::host_appearance::{HostAppearance, HostColors};
-    for (terminal, expected) in [
-        (Terminal::Theme, (0xcccccc, 0x0c0c0c)),
-        (Terminal::Host, (0xcccccc, 0x0c0c0c)),
-        (Terminal::Custom, (0x123456, 0x654321)),
+fn deferred_defaults_take_outer_host_colors_and_never_a_child_baseline() {
+    let outer = HostColors {
+        foreground: Some(0xcccccc),
+        background: Some(0x0c0c0c),
+    };
+    for (source, terminal, expected) in [
+        (
+            TuiColorSource::Terminal,
+            Terminal::Theme,
+            (0xcccccc, 0x0c0c0c),
+        ),
+        (
+            TuiColorSource::Terminal,
+            Terminal::Host,
+            (0xcccccc, 0x0c0c0c),
+        ),
+        (
+            TuiColorSource::Terminal,
+            Terminal::Custom,
+            (0x123456, 0x654321),
+        ),
+        (TuiColorSource::Theme, Terminal::Host, (0xcccccc, 0x0c0c0c)),
     ] {
-        let theme =
-            Theme::application_with_host(App::System, HostAppearance::Dark, ColorLevel::Truecolor)
-                .with_terminal_appearance_for_application(
-                    App::System,
-                    terminal,
-                    "#123456",
-                    "#654321",
-                )
-                .with_outer_host_colors(
-                    App::System,
-                    HostColors {
-                        foreground: Some(0xcccccc),
-                        background: Some(0x0c0c0c),
-                    },
-                )
-                .with_host_terminal_colors(0x141414, 0xfcfcfc);
+        let theme = Theme::resolve(
+            preferences(App::System, source, terminal),
+            Some(Polarity::Dark),
+            ColorLevel::Truecolor,
+        )
+        .with_outer_host_colors(outer)
+        .with_host_terminal_colors(0x141414, 0xfcfcfc);
         assert_eq!(theme.terminal_rgb_defaults(), Some(expected));
-        if terminal != Terminal::Custom {
-            assert_eq!(theme.terminal_defaults(), (Color::Reset, Color::Reset));
-        } else {
+        if terminal == Terminal::Custom {
             assert_eq!(
                 theme.terminal_defaults(),
-                (
-                    theme.terminal_color(expected.0),
-                    theme.terminal_color(expected.1)
-                )
+                (rgb(expected.0), rgb(expected.1))
             );
-        }
-        for role in [
-            Role::SurfaceCanvas,
-            Role::SurfaceChrome,
-            Role::SurfaceInactive,
-        ] {
-            assert_eq!(theme.color(role), Color::Reset);
-        }
-    }
-}
-
-#[test]
-fn system_defaults_remain_host_relative_without_a_probe_or_exact_color_support() {
-    use crate::host_appearance::{HostAppearance, HostColors};
-    for (appearance, colors) in [
-        (HostAppearance::Unknown, HostColors::default()),
-        (HostAppearance::Light, HostColors::default()),
-        (HostAppearance::Dark, HostColors::default()),
-        (
-            HostAppearance::Light,
-            HostColors {
-                foreground: Some(0x141414),
-                background: None,
-            },
-        ),
-        (
-            HostAppearance::Dark,
-            HostColors {
-                foreground: None,
-                background: Some(0x0c0c0c),
-            },
-        ),
-        (
-            HostAppearance::Dark,
-            HostColors {
-                foreground: Some(0xcccccc),
-                background: Some(0x0c0c0c),
-            },
-        ),
-        (
-            HostAppearance::Light,
-            HostColors {
-                foreground: Some(0x141414),
-                background: Some(0xfcfcfc),
-            },
-        ),
-    ] {
-        for level in [
-            ColorLevel::Truecolor,
-            ColorLevel::Ansi256,
-            ColorLevel::Ansi16,
-            ColorLevel::Monochrome,
-        ] {
-            let theme = Theme::application_with_host(App::System, appearance, level)
-                .with_terminal_appearance_for_application(
-                    App::System,
-                    Terminal::Host,
-                    "#141414",
-                    "#fcfcfc",
-                )
-                .with_outer_host_colors(App::System, colors)
-                .with_host_terminal_colors(0x141414, 0xfcfcfc);
+        } else {
             assert_eq!(theme.terminal_defaults(), (Color::Reset, Color::Reset));
-            for role in [
-                Role::SurfaceCanvas,
-                Role::SurfaceChrome,
-                Role::SurfaceInactive,
-            ] {
-                assert_eq!(
-                    theme.color(role),
-                    Color::Reset,
-                    "{appearance:?} {colors:?} {level:?}"
-                );
-            }
-            if colors.background.is_none() {
-                assert_eq!(theme.name, "terminal-native");
-                assert_eq!(theme.color(Role::TextPrimary), Color::Reset);
-                assert_eq!(theme.terminal_rgb_defaults(), None);
-            }
         }
     }
+    let unobserved = Theme::resolve(
+        preferences(App::System, TuiColorSource::Terminal, Terminal::Host),
+        None,
+        ColorLevel::Truecolor,
+    )
+    .with_outer_host_colors(HostColors::default())
+    .with_host_terminal_colors(0x141414, 0xfcfcfc);
+    assert_eq!(unobserved.terminal_rgb_defaults(), None);
+    assert_eq!(unobserved.terminal_defaults(), (Color::Reset, Color::Reset));
 }
 
 #[test]
-fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
-    use crate::host_appearance::{HostAppearance, HostColors};
-    use orchbee_workbench_protocol::MetadataState::{Unknown, Working};
-
-    for (appearance, foreground, background) in [
-        (HostAppearance::Dark, 0xcccccc, 0x0c0c0c),
-        (HostAppearance::Light, 0x141414, 0xfcfcfc),
-    ] {
-        let theme = Theme::application_with_host(App::System, appearance, ColorLevel::Truecolor)
-            .with_terminal_appearance_for_application(
-                App::System,
-                Terminal::Host,
-                "#141414",
-                "#fcfcfc",
-            )
-            .with_outer_host_colors(
-                App::System,
-                HostColors {
-                    foreground: Some(foreground),
-                    background: Some(background),
-                },
-            );
-        assert_eq!(theme.color(Role::SurfaceCanvas), Color::Reset);
-        let colors: Vec<_> = [0, 3, 7, 10]
-            .map(|frame| theme.agent_style(Working, frame))
-            .into_iter()
-            .map(|style| {
-                assert!(style.bg.is_none());
-                assert!(!style.add_modifier.contains(Modifier::DIM));
-                let Some(Color::Rgb(r, _, _)) = style.fg else {
-                    panic!("truecolor Working must retain interpolated RGB");
-                };
-                r
-            })
-            .collect();
-        assert!(
-            colors
-                .windows(2)
-                .all(|pair| if appearance == HostAppearance::Dark {
-                    pair[0] > pair[1]
-                } else {
-                    pair[0] < pair[1]
-                })
-        );
-        assert_eq!(
-            theme.agent_style(Working, 0),
-            theme.agent_style(Working, 20)
-        );
-        assert_eq!(theme.agent_style(Unknown, 0), theme.agent_style(Unknown, 7));
-    }
-
-    // Terminal-native Working keeps the host foreground and breathes through intensity.
+fn terminal_native_working_breathes_through_intensity_on_the_host_foreground() {
+    use orchbee_workbench_protocol::MetadataState::Working;
     let native = Theme::terminal_native();
     assert_eq!(native.agent_style(Working, 3).fg, Some(Color::Reset));
     assert_eq!(native.agent_style(Working, 7).fg, Some(Color::Reset));
@@ -309,118 +200,4 @@ fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
                 .all(|frame| !matches!(theme.agent_style(Working, frame).fg, Some(Color::Rgb(..))))
         );
     }
-}
-
-#[test]
-fn system_derives_strip_and_interaction_fills_from_observed_host_colors() {
-    use crate::host_appearance::{HostAppearance, HostColors};
-    use orchbee_workbench_protocol::TabGroupColor;
-    let system = |appearance, level, foreground, background| {
-        Theme::application_with_host(App::System, appearance, level).with_outer_host_colors(
-            App::System,
-            HostColors {
-                foreground,
-                background: Some(background),
-            },
-        )
-    };
-    // Strip, related, hover, current and pressed mix 14/10/17/21/28% (dark) or
-    // 5/7/9/12/16% (light) of the host foreground into its background.
-    for (appearance, foreground, background, fills, palette) in [
-        (
-            HostAppearance::Dark,
-            0xe5e5e5,
-            0x000000,
-            [32, 23, 39, 48, 64],
-            Theme::one_dark(),
-        ),
-        (
-            HostAppearance::Light,
-            0x000000,
-            0xffffff,
-            [242, 237, 232, 224, 214],
-            Theme::one_light(),
-        ),
-    ] {
-        for level in [
-            ColorLevel::Truecolor,
-            ColorLevel::Ansi256,
-            ColorLevel::Ansi16,
-        ] {
-            let theme = system(appearance, level, Some(foreground), background);
-            for (role, gray) in [
-                Role::SurfaceStrip,
-                Role::SurfaceRelated,
-                Role::SurfaceHover,
-                Role::SurfaceCurrent,
-                Role::SurfacePressed,
-            ]
-            .into_iter()
-            .zip(fills)
-            {
-                let derived = quantize_color(Color::Rgb(gray, gray, gray), level);
-                let collapsed = matches!(role, Role::SurfaceHover | Role::SurfacePressed)
-                    && theme.style(role) == crate::tui_theme::interaction_surface_fallback();
-                assert!(
-                    theme.color(role) == derived || collapsed,
-                    "{appearance:?} {level:?} {role:?}"
-                );
-            }
-            assert_eq!(
-                theme.style(Role::SurfaceStrip).fg,
-                palette.quantize(level).style(Role::TextPrimary).fg
-            );
-            assert_eq!(
-                theme.style(Role::SurfaceSelection),
-                palette.quantize(level).style(Role::SurfaceSelection)
-            );
-        }
-        // A resting group header tints the derived strip.
-        let theme = system(
-            appearance,
-            ColorLevel::Truecolor,
-            Some(foreground),
-            background,
-        );
-        // The tint mixes into the unrounded strip, so it rounds once.
-        let [fg, bg] = [foreground, background].map(|value| f64::from((value & 0xff) as u8));
-        let share = if appearance == HostAppearance::Dark {
-            0.14
-        } else {
-            0.05
-        };
-        let strip = bg + (fg - bg) * share;
-        let Color::Rgb(r, g, b) = theme.tab_groups.accent(TabGroupColor::Blue) else {
-            panic!("named accents stay RGB at truecolor");
-        };
-        let tint = |accent: u8| (f64::from(accent) * 0.2 + strip * 0.8).round() as u8;
-        assert_eq!(
-            theme.tab_groups.tint(TabGroupColor::Blue),
-            Some(Color::Rgb(tint(r), tint(g), tint(b)))
-        );
-    }
-
-    // Until the host foreground arrives, the palette's primary text stands in for it.
-    let Color::Rgb(r, g, b) = Theme::one_dark().color(Role::TextPrimary) else {
-        panic!("One Dark text is RGB");
-    };
-    let mix = |channel: u8| (f64::from(channel) * 0.14).round() as u8;
-    assert_eq!(
-        system(HostAppearance::Dark, ColorLevel::Truecolor, None, 0x000000)
-            .color(Role::SurfaceStrip),
-        Color::Rgb(mix(r), mix(g), mix(b))
-    );
-
-    // Monochrome keeps the resolver's modifier fallbacks.
-    let mono = system(
-        HostAppearance::Dark,
-        ColorLevel::Monochrome,
-        Some(0xe5e5e5),
-        0,
-    );
-    assert_eq!(
-        mono.style(Role::SurfaceHover),
-        crate::tui_theme::interaction_surface_fallback()
-    );
-    assert_eq!(mono.color(Role::SurfaceStrip), Color::Reset);
 }

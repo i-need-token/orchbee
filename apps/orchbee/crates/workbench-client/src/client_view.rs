@@ -267,20 +267,32 @@ impl ClientView {
     pub fn configure_color_level(&mut self, level: crate::tui_theme::ColorLevel) {
         self.color_level = level;
         if let Some(values) = &self.user_preferences {
-            self.theme = Some(
-                crate::tui_theme::Theme::application_with_host(
-                    values.application_theme,
-                    self.host_appearance,
-                    level,
-                )
-                .with_terminal_preferences(values)
-                .with_outer_host_colors(values.application_theme, self.host_colors),
-            );
+            self.theme = Some(self.resolve_theme(crate::tui_theme::ColorPreferences::from(values)));
             return;
         }
         if let Some(name) = self.theme_name {
             self.configure_theme(name);
         }
+    }
+
+    /// Whether this host can show a named theme; Settings presents theme choices as unavailable
+    /// otherwise.
+    pub(crate) const fn named_themes_available(&self) -> bool {
+        crate::tui_theme::named_themes_available(self.color_level)
+    }
+
+    /// System follows the outer terminal's reported background; an appearance read from the
+    /// platform alone does not describe the terminal's own colors.
+    fn resolve_theme(
+        &self,
+        preferences: crate::tui_theme::ColorPreferences<'_>,
+    ) -> crate::tui_theme::Theme {
+        let host = self
+            .host_colors
+            .background
+            .and(crate::tui_theme::Polarity::of_host(self.host_appearance));
+        crate::tui_theme::Theme::resolve(preferences, host, self.color_level)
+            .with_outer_host_colors(self.host_colors)
     }
 
     /// Resolve once from the original palette so reload cannot accumulate quantization loss.
@@ -322,15 +334,7 @@ impl ClientView {
         self.host_appearance = appearance;
         self.host_colors = colors;
         if let Some(values) = &self.user_preferences {
-            self.theme = Some(
-                crate::tui_theme::Theme::application_with_host(
-                    values.application_theme,
-                    appearance,
-                    self.color_level,
-                )
-                .with_terminal_preferences(values)
-                .with_outer_host_colors(values.application_theme, colors),
-            );
+            self.theme = Some(self.resolve_theme(crate::tui_theme::ColorPreferences::from(values)));
             return values.application_theme
                 == orchbee_workbench_protocol::ApplicationAppearance::System;
         }
@@ -345,33 +349,14 @@ impl ClientView {
         &self,
         preview: crate::native_settings::AppearancePreview<'_>,
     ) -> crate::tui_theme::Theme {
-        crate::tui_theme::Theme::application_with_host(
-            preview.application_theme,
-            self.host_appearance,
-            self.color_level,
-        )
-        .with_terminal_appearance_for_application(
-            preview.application_theme,
-            preview.terminal_display_theme,
-            preview.custom_foreground,
-            preview.custom_background,
-        )
-        .with_outer_host_colors(preview.application_theme, self.host_colors)
+        self.resolve_theme(preview.into())
     }
 
     pub(crate) fn apply_user_preferences(
         &mut self,
         values: orchbee_workbench_protocol::UserPreferencesValues,
     ) {
-        self.theme = Some(
-            crate::tui_theme::Theme::application_with_host(
-                values.application_theme,
-                self.host_appearance,
-                self.color_level,
-            )
-            .with_terminal_preferences(&values)
-            .with_outer_host_colors(values.application_theme, self.host_colors),
-        );
+        self.theme = Some(self.resolve_theme(crate::tui_theme::ColorPreferences::from(&values)));
         self.user_preferences = Some(values);
     }
 

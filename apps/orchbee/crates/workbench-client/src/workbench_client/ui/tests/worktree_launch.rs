@@ -140,8 +140,8 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
             for theme in [
                 crate::tui_theme::Theme::terminal_native(),
                 crate::tui_theme::Theme::rgb_test_dark(),
-                crate::tui_theme::Theme::one_light(),
-                crate::tui_theme::Theme::one_dark(),
+                crate::tui_theme::Theme::orchbee_light(),
+                crate::tui_theme::Theme::orchbee_dark(),
             ] {
                 let mut ui = ready(WorktreeMode::Create);
                 let token = ui.worktrees.launcher.token().unwrap();

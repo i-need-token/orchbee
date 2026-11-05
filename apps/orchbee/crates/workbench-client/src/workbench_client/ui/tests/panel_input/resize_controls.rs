@@ -86,8 +86,8 @@ fn resize_toolbar_uses_matching_release_cancels_stale_geometry_and_restores_inpu
     for (width, height) in [(40, 10), (80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
                 Theme::terminal_native(),
             ] {
                 let (native, _, _, _) =

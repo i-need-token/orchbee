@@ -128,7 +128,7 @@ fn present(
                 view,
                 Locale::EnUs,
                 Some(port.ui.view()),
-                &Theme::one_dark(),
+                &Theme::orchbee_dark(),
                 &mut hits,
             ));
         })
@@ -237,7 +237,7 @@ fn copy_is_the_only_painted_owner_while_resize_remains_ready_underneath() {
         WIDTH,
         HEIGHT,
         Locale::EnUs,
-        &Theme::one_dark(),
+        &Theme::orchbee_dark(),
     );
     let has = |predicate: &dyn Fn(&HitTarget) -> bool| {
         (0..HEIGHT).any(|row| {
@@ -263,7 +263,7 @@ fn copy_is_the_only_painted_owner_while_resize_remains_ready_underneath() {
         WIDTH,
         HEIGHT,
         Locale::EnUs,
-        &Theme::one_dark(),
+        &Theme::orchbee_dark(),
     );
     let mut resize_hit = false;
     for row in 0..HEIGHT {
@@ -289,7 +289,7 @@ fn too_small_root_compositor_keeps_copy_exit_status_without_copy_targets() {
         let (port, _, _, view) = fixture(width);
         for &height in heights {
             for locale in [Locale::EnUs, Locale::ZhCn] {
-                let theme = Theme::one_dark();
+                let theme = Theme::orchbee_dark();
                 let (terminal, map) = painted(&port, &view, width, height, locale, &theme);
                 assert_eq!(map.help_draw_source(), None);
                 for row in 0..height {
@@ -358,7 +358,7 @@ fn too_small_root_compositor_keeps_copy_exit_status_without_copy_targets() {
 #[test]
 fn copy_mouse_drag_normalizes_cells_coalesces_updates_and_exports_only_after_copy_release() {
     let (mut port, mailbox, mut dispatcher, mut view) = fixture(80);
-    let map = paint(&port, &view, 80, 28, Locale::EnUs, &Theme::one_dark());
+    let map = paint(&port, &view, 80, 28, Locale::EnUs, &Theme::orchbee_dark());
     let found = cell(&map, 80, 28, |target| {
         matches!(target, HitTarget::CopySurface { .. })
     });
@@ -438,7 +438,7 @@ fn copy_mouse_drag_normalizes_cells_coalesces_updates_and_exports_only_after_cop
         CopyModeStatus::Ready
     );
     assert!(port.forwarded.is_empty());
-    let map = paint(&port, &view, 80, 28, Locale::EnUs, &Theme::one_dark());
+    let map = paint(&port, &view, 80, 28, Locale::EnUs, &Theme::orchbee_dark());
     let copy = button(&map, 80, 28, CopyControl::Copy);
     dispatcher.publish_hit_map(map);
     dispatch(
@@ -559,8 +559,8 @@ fn copy_toolbar_search_back_direction_close_and_wheel_work_in_both_locales_and_s
     for (width, height) in [(40, 10), (80, 24), (80, 28), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
-                Theme::one_dark(),
-                Theme::one_light(),
+                Theme::orchbee_dark(),
+                Theme::orchbee_light(),
                 Theme::terminal_native(),
             ] {
                 let (mut port, _, mut dispatcher, mut view) = fixture(width);

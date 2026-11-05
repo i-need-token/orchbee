@@ -16,8 +16,8 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
         for theme in [
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             for (width, height) in [(80, 24), (120, 40), (60, 18), (32, 10)] {
                 let (mut ui, _, _, _) = controlling_ui();

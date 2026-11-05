@@ -6,7 +6,7 @@ fn footer_commit_and_exit_are_painted_at_all_admitted_tiers_and_stay_fixed_on_sc
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
+            Theme::orchbee_light(),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             for (width, height) in [(120, 40), (80, 24), (58, 12), (36, 10)] {
@@ -41,7 +41,7 @@ fn footer_commit_and_exit_are_painted_at_all_admitted_tiers_and_stay_fixed_on_sc
 
 #[test]
 fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets() {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     for (locale, query) in [(Locale::EnUs, "sound"), (Locale::ZhCn, "声音")] {
         let mut editor = editor_with(UserPreferencesValues::default());
         editor.edit(Edit::Search);
@@ -125,7 +125,7 @@ fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets
 
 #[test]
 fn same_modal_picker_keeps_parent_value_checked_and_routes_typed_pointer_acceptance() {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut editor = editor_with(UserPreferencesValues::default());
         select_and_present(&mut editor, Row::Theme, locale, &theme);
@@ -227,7 +227,7 @@ fn compact_picker_wheel_keeps_a_visible_provisional_choice_without_editing_the_p
 #[test]
 fn minimal_text_editor_keeps_exact_entry_and_complete_footer_controls() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::one_light()] {
+        for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
             for width in [36, 40] {
                 let mut editor = editor_with(UserPreferencesValues::default());
                 select_and_present(&mut editor, Row::CompletionThreshold, locale, &theme);

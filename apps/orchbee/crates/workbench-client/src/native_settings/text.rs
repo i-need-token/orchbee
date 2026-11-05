@@ -15,6 +15,9 @@ impl From<Row> for SettingsRow {
         match row {
             Row::Language => Self::Language,
             Row::Theme => Self::Theme,
+            Row::LightTheme => Self::LightTheme,
+            Row::DarkTheme => Self::DarkTheme,
+            Row::ColorSource => Self::ColorSource,
             Row::TerminalTheme => Self::TerminalTheme,
             Row::Foreground => Self::Foreground,
             Row::Background => Self::Background,
@@ -63,6 +66,8 @@ impl From<Choice> for SettingsChoice {
         match choice {
             Choice::Locale(value) => Self::Locale(value),
             Choice::ApplicationTheme(value) => Self::ApplicationTheme(value),
+            Choice::ColorTheme(choice) => Self::ColorTheme(choice.theme().id()),
+            Choice::ColorSource(value) => Self::ColorSource(value),
             Choice::TerminalTheme(value) => Self::TerminalTheme(value),
             Choice::AgentReminders(value) => Self::AgentReminders(value),
             Choice::CompletionReminders(value) => Self::CompletionReminders(value),
@@ -129,6 +134,9 @@ fn detail_kind(draft: DraftView<'_>) -> SettingsDetailKind {
                 None => SettingsDetailKind::NoChanges,
             },
             Row::Foreground | Row::Background => SettingsDetailKind::CustomColorsRequired,
+            Row::LightTheme | Row::DarkTheme | Row::ColorSource => {
+                SettingsDetailKind::TruecolorRequired
+            }
             Row::Login if !draft.login_shell_supported => SettingsDetailKind::LoginUnsupported,
             Row::Executable
             | Row::Argument
@@ -148,9 +156,14 @@ fn detail_kind(draft: DraftView<'_>) -> SettingsDetailKind {
         return SettingsDetailKind::UnknownPreview;
     }
     match draft.selected {
-        Row::Language | Row::Theme | Row::TerminalTheme | Row::Foreground | Row::Background => {
-            SettingsDetailKind::LocalPreview
-        }
+        Row::Language
+        | Row::Theme
+        | Row::LightTheme
+        | Row::DarkTheme
+        | Row::ColorSource
+        | Row::TerminalTheme
+        | Row::Foreground
+        | Row::Background => SettingsDetailKind::LocalPreview,
         Row::CopyOnSelect => SettingsDetailKind::CopyAfterSave,
         Row::TrimAgents => SettingsDetailKind::TrimAgentsAfterSave,
         Row::Reminders => SettingsDetailKind::AgentNotificationsAfterSave,
@@ -208,6 +221,12 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
         match row {
             Row::Language => Self::Choice(SettingsChoice::Locale(values.locale)),
             Row::Theme => Self::Choice(SettingsChoice::ApplicationTheme(values.application_theme)),
+            Row::LightTheme | Row::DarkTheme | Row::ColorSource => {
+                match Choice::from_values(row, values) {
+                    Some(choice) => Self::Choice(choice.into()),
+                    None => Self::Empty,
+                }
+            }
             Row::TerminalTheme => {
                 Self::Choice(SettingsChoice::TerminalTheme(values.terminal_display_theme))
             }

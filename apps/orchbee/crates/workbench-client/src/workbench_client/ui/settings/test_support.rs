@@ -296,6 +296,8 @@ pub fn covering_client_owner_uses_confirmed_appearance_until_settings_returns(
 ) {
     let mut ui = ready();
     let mut shell = ClientView::new(120);
+    // A named theme, which the previewed Light appearance paints, needs truecolor.
+    shell.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     shell.apply_user_preferences(UserPreferencesValues::default());
     ui.settings.editor.edit(Edit::Select(Row::Theme));
     ui.settings.editor.edit(Edit::Adjust(true));

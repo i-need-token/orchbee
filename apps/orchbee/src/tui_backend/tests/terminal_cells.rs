@@ -75,16 +75,11 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
             custom_background: "#cccccc".into(),
             ..UserPreferencesValues::default()
         };
-        let theme = if appearance == Appearance::Host {
-            Theme::application_with_host(
-                Application::System,
-                orchbee_workbench_client::test_support::terminal_host_appearance::HostAppearance::Dark,
-                ColorLevel::Truecolor,
-            )
-        } else {
-            Theme::one_dark()
-        }
-        .with_terminal_preferences(&values);
+        let theme = Theme::for_preferences(
+            &values,
+            orchbee_workbench_client::test_support::terminal_host_appearance::HostAppearance::Dark,
+            ColorLevel::Truecolor,
+        );
         let writer = Writer::default();
         let bytes = writer.0.clone();
         let backend = FixedViewportBackend::new(

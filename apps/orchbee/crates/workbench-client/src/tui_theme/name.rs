@@ -5,10 +5,10 @@ pub enum ThemeName {
     /// Preserve the host terminal's default foreground and background.
     #[default]
     TerminalNative,
-    /// Explicit light background with the shipped One Light palette; render evidence only.
+    /// The shipped Orchbee Light theme; render evidence only.
     #[cfg(any(test, feature = "test-support"))]
-    OneLight,
-    /// Explicit dark background with the shipped One Dark palette; render evidence only.
+    OrchbeeLight,
+    /// The shipped Orchbee Dark theme; render evidence only.
     #[cfg(any(test, feature = "test-support"))]
-    OneDark,
+    OrchbeeDark,
 }

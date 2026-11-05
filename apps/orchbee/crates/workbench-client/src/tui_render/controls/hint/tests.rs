@@ -19,8 +19,8 @@ fn symbols(terminal: &Terminal<TestBackend>, width: u16) -> String {
 #[test]
 fn renders_semantic_key_and_label_spans_and_drops_only_whole_suffix_items() {
     for theme in [
-        Theme::one_dark(),
-        Theme::one_dark().with_glyphs(GlyphSet::ASCII),
+        Theme::orchbee_dark(),
+        Theme::orchbee_dark().with_glyphs(GlyphSet::ASCII),
     ] {
         let navigation_key = if theme.glyphs == GlyphSet::ASCII {
             "Up/Down"
@@ -63,7 +63,7 @@ fn renders_semantic_key_and_label_spans_and_drops_only_whole_suffix_items() {
 
 #[test]
 fn paints_the_owner_formatted_ascii_key_without_guessing_a_binding() {
-    let theme = Theme::one_dark().with_glyphs(GlyphSet::ASCII);
+    let theme = Theme::orchbee_dark().with_glyphs(GlyphSet::ASCII);
     let items = [KeyHint::new("Up/Down", "navigate")];
     let width = u16::try_from(measure_key_hints(&items, &theme).unwrap()).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
@@ -79,7 +79,7 @@ fn paints_the_owner_formatted_ascii_key_without_guessing_a_binding() {
 
 #[test]
 fn rejects_invalid_clipped_and_exit_too_wide_lines_before_painting() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let cases = [
         (
             Rect::new(0, 0, 9, 1),

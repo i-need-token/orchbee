@@ -207,8 +207,8 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let mut view = view(width, height);
                 configure(
@@ -354,8 +354,8 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
         for theme in [
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
             ascii,
         ] {
             let mut view = view(120, 40);
@@ -560,8 +560,8 @@ fn workspace_sidebar_degrades_across_tiers_and_preserves_action_entries() {
             for theme in [
                 Theme::terminal_native(),
                 Theme::rgb_test_dark(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
                 ascii,
             ] {
                 let view = view(width, height);
@@ -1079,7 +1079,7 @@ fn sidebar_context_menus_have_no_overflow_trigger_and_revealed_create_stays_righ
             view.machines
                 .observe_focus(Choice::Local, Some(target.clone()), None);
             let project = view.machines.sidebar_parent(&active).unwrap();
-            let theme = Theme::one_dark();
+            let theme = Theme::orchbee_dark();
             let (ordinary_buffer, ordinary) = paint_navigation(&view, locale, &theme, width, 10);
             for expected in [&project, &active, &other] {
                 let rows = sidebar_target_rows(&ordinary, width, 10, expected);
@@ -1163,8 +1163,8 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
         for theme in [
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             for width in [26, 40] {
                 let mut view = view(120, 40);

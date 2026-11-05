@@ -14,8 +14,8 @@ fn status_preserves_mode_discovery_and_search_caret_across_supported_geometry_an
             for theme in [
                 Theme::terminal_native(),
                 Theme::rgb_test_dark(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 for phase in [
                     CopyModeStatus::Entering,
@@ -134,8 +134,8 @@ fn a_rejected_search_paste_keeps_the_draft_caret_warning_and_exit_path() {
             for theme in [
                 Theme::terminal_native(),
                 Theme::rgb_test_dark(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let warning = locale
                     .native_notice(crate::localization::WorkbenchClientNotice::CopyModeSearchLimit);
@@ -545,7 +545,7 @@ fn search_toolbar_keeps_direction_as_static_state_and_reverse_as_a_labeled_actio
 fn disabled_copy_controls_keep_their_shape_and_checked_value() {
     let width = 120;
     let height = 8;
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let mode = toolbar_mode(CopyModeStatus::Moving, true, None);
     let token = mode.pointer.unwrap();
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();

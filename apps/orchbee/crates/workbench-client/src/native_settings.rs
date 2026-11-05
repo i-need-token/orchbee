@@ -65,7 +65,7 @@ pub struct SettingsInputContext {
 pub(crate) struct SettingsDraw {
     token: Token,
     rows: Option<(usize, usize)>,
-    painted: u32,
+    painted: u64,
 }
 impl SettingsDraw {
     /// Records the painted slice of a finite-choice child, independently of parent rows.
@@ -166,6 +166,8 @@ pub(crate) enum Reconciliation {
 #[derive(Clone, Copy)]
 pub(crate) struct DraftView<'a> {
     pub(crate) login_shell_supported: bool,
+    /// The host shows fewer than 24-bit colors, so named themes are unavailable.
+    pub(crate) reduced_color: bool,
     pub(crate) token: Token,
     pub(crate) values: &'a UserPreferencesValues,
     pub(crate) basis_values: &'a UserPreferencesValues,
@@ -383,6 +385,9 @@ impl DraftView<'_> {
             PreferenceKey::Locale => self.values.locale != self.basis_values.locale,
             PreferenceKey::LightTheme => self.values.light_theme != self.basis_values.light_theme,
             PreferenceKey::DarkTheme => self.values.dark_theme != self.basis_values.dark_theme,
+            PreferenceKey::TuiColorSource => {
+                self.values.tui_color_source != self.basis_values.tui_color_source
+            }
             PreferenceKey::ApplicationTheme => {
                 self.values.application_theme != self.basis_values.application_theme
             }
@@ -441,6 +446,12 @@ impl DraftView<'_> {
                 self.values.terminal_display_theme
                     == orchbee_workbench_protocol::TerminalDisplayAppearance::Custom
             }
+            row if setting_for_row(row).is_some_and(|metadata| {
+                metadata.availability == SettingAvailability::NamedThemes
+            }) =>
+            {
+                !self.reduced_color
+            }
             Row::Profile => catalog.profiles.len() > 1,
             Row::Login => {
                 self.login_shell_supported
@@ -479,6 +490,7 @@ impl View<'_> {
 }
 struct Draft {
     login_shell_supported: bool,
+    reduced_color: bool,
     token: Token,
     basis: Basis,
     effective: Basis,
@@ -586,6 +598,7 @@ impl Draft {
     fn project(&self) -> DraftView<'_> {
         DraftView {
             login_shell_supported: self.login_shell_supported,
+            reduced_color: self.reduced_color,
             token: self.token,
             values: &self.values,
             basis_values: &self.basis.values,
@@ -639,6 +652,7 @@ enum State {
 #[derive(Default)]
 pub(crate) struct Editor {
     login_shell_supported: bool,
+    reduced_color: bool,
     next: u64,
     state: State,
     presentation: PresentationPhase,
@@ -650,6 +664,32 @@ impl Editor {
             login_shell_supported,
             ..Self::default()
         }
+    }
+    /// Named-theme rows are unavailable on a host below truecolor; an open picker on one closes
+    /// without committing its candidate. Returns whether a visible draft needs a new paint.
+    pub(crate) fn configure_reduced_color(&mut self, reduced_color: bool) -> bool {
+        if self.reduced_color == reduced_color {
+            return false;
+        }
+        self.reduced_color = reduced_color;
+        if let State::Draft(draft)
+        | State::Saving {
+            draft,
+            visible: true,
+        } = &mut self.state
+        {
+            draft.reduced_color = reduced_color;
+            if reduced_color
+                && let BrowseMode::Picker(picker) = draft.browse
+                && setting_for_row(picker.row).is_some_and(|metadata| {
+                    metadata.availability == SettingAvailability::NamedThemes
+                })
+            {
+                draft.browse = BrowseMode::Browse;
+            }
+        }
+        self.redraw();
+        self.visible()
     }
     fn allocate(&mut self) -> Option<Token> {
         self.next = self.next.checked_add(1)?;
@@ -684,6 +724,7 @@ impl Editor {
         };
         self.state = State::Draft(Box::new(Draft {
             login_shell_supported: self.login_shell_supported,
+            reduced_color: self.reduced_color,
             token,
             values: basis.values.clone(),
             effective: basis.clone(),

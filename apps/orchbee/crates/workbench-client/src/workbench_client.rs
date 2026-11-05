@@ -450,9 +450,11 @@ impl WorkbenchClient {
     }
 
     pub fn shared_preferences_tick(&mut self, view: &mut crate::client_view::ClientView) -> bool {
-        if let Some(native) = self.backend.native_mut()
-            && let Some(snapshot) = native.take_settings_snapshot()
-        {
+        let Some(native) = self.backend.native_mut() else {
+            return false;
+        };
+        let repaint = native.configure_reduced_color(!view.named_themes_available());
+        if let Some(snapshot) = native.take_settings_snapshot() {
             // ClientView is the single writer of confirmed preferences; the UI receives the
             // owner's values in the same settlement, before any input or paint observes them.
             view.apply_user_preferences(snapshot.values);
@@ -461,7 +463,7 @@ impl WorkbenchClient {
             }
             return true;
         }
-        false
+        repaint
     }
 
     pub fn client_control_tick(

@@ -44,6 +44,8 @@ pub(crate) enum SettingControl {
 pub(crate) enum SettingAvailability {
     Always,
     TerminalDisplayThemeCustom,
+    /// A truecolor host; fewer colors collapse a named theme's canvas tint and interaction mixes.
+    NamedThemes,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -68,7 +70,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 13] = [
+pub(crate) static SETTINGS: [SettingMetadata; 16] = [
     SettingMetadata {
         key: PreferenceKey::Locale,
         row: Row::Language,
@@ -83,6 +85,30 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
         category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::Always,
+        effect: SettingEffect::CurrentApplication,
+    },
+    SettingMetadata {
+        key: PreferenceKey::LightTheme,
+        row: Row::LightTheme,
+        category: SettingCategory::Appearance,
+        control: SettingControl::FiniteChoice,
+        availability: SettingAvailability::NamedThemes,
+        effect: SettingEffect::CurrentApplication,
+    },
+    SettingMetadata {
+        key: PreferenceKey::DarkTheme,
+        row: Row::DarkTheme,
+        category: SettingCategory::Appearance,
+        control: SettingControl::FiniteChoice,
+        availability: SettingAvailability::NamedThemes,
+        effect: SettingEffect::CurrentApplication,
+    },
+    SettingMetadata {
+        key: PreferenceKey::TuiColorSource,
+        row: Row::ColorSource,
+        category: SettingCategory::Appearance,
+        control: SettingControl::FiniteChoice,
+        availability: SettingAvailability::NamedThemes,
         effect: SettingEffect::CurrentApplication,
     },
     SettingMetadata {

@@ -19,7 +19,7 @@ use crate::terminal_text::{sanitize_terminal_text, truncate_display};
 mod parameters;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
-    TerminalDisplayAppearance,
+    TerminalDisplayAppearance, TuiColorSource,
 };
 pub(crate) use parameters::{
     SettingUnit, SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail,
@@ -76,6 +76,9 @@ impl Locale {
         let (en, zh) = match row.into() {
             Row::Language => ("Language", "语言"),
             Row::Theme => ("Application theme", "应用主题"),
+            Row::LightTheme => ("Light theme", "浅色主题"),
+            Row::DarkTheme => ("Dark theme", "深色主题"),
+            Row::ColorSource => ("Colors", "配色"),
             Row::TerminalTheme => ("Terminal display theme", "终端显示主题"),
             Row::Foreground => ("Foreground color", "前景色"),
             Row::Background => ("Background color", "背景色"),
@@ -172,6 +175,18 @@ impl Locale {
                 "Application appearance; previews locally.",
                 "应用外观主题；在本地预览。",
             ),
+            Row::LightTheme => self.setting(
+                "Colors for the interface and terminals when the appearance is light.",
+                "外观为浅色时，界面和终端使用的配色。",
+            ),
+            Row::DarkTheme => self.setting(
+                "Colors for the interface and terminals when the appearance is dark.",
+                "外观为深色时，界面和终端使用的配色。",
+            ),
+            Row::ColorSource => self.setting(
+                "Use the selected theme, or your terminal's own colors.",
+                "使用所选主题，或使用终端自身的配色。",
+            ),
             Row::TerminalTheme => self.setting(
                 "Terminal default colors; program colors stay exact.",
                 "终端默认颜色；保留程序指定的颜色。",
@@ -228,6 +243,16 @@ impl Locale {
             Choice::Locale(PreferencesLocale::ZhCn) => "简体中文",
             Choice::ApplicationTheme(ApplicationAppearance::Light) => self.setting("Light", "浅色"),
             Choice::ApplicationTheme(ApplicationAppearance::Dark) => self.setting("Dark", "深色"),
+            Choice::ColorTheme("orchbee-light") => self.setting("Orchbee Light", "Orchbee 浅色"),
+            Choice::ColorTheme("orchbee-dark") => self.setting("Orchbee Dark", "Orchbee 深色"),
+            Choice::ColorTheme(id) => orchbee_color_themes::shipped()
+                .iter()
+                .find(|theme| theme.id() == id)
+                .map_or(id, |theme| theme.name()),
+            Choice::ColorSource(TuiColorSource::Theme) => self.setting("Theme", "主题"),
+            Choice::ColorSource(TuiColorSource::Terminal) => {
+                self.setting("Terminal colors", "终端配色")
+            }
             Choice::TerminalTheme(TerminalDisplayAppearance::Theme) => {
                 self.setting("Theme", "主题")
             }
@@ -343,6 +368,28 @@ impl Locale {
         }
     }
 
+    /// The slot a theme row sets is used only when the host matches, while Appearance follows it.
+    pub(crate) fn settings_system_notice(
+        self,
+        row: impl Into<SettingsRow>,
+    ) -> Option<&'static str> {
+        match row.into() {
+            Row::LightTheme => {
+                Some(self.setting("Used when the system is light.", "系统为浅色时使用。"))
+            }
+            Row::DarkTheme => {
+                Some(self.setting("Used when the system is dark.", "系统为深色时使用。"))
+            }
+            _ => None,
+        }
+    }
+    /// Joins two complete sentences as the locale writes them.
+    pub(crate) fn settings_sentences(self, first: &str, second: &str) -> String {
+        match self {
+            Self::EnUs => format!("{first} {second}"),
+            Self::ZhCn => format!("{first}{second}"),
+        }
+    }
     pub(crate) fn settings_no_color(self) -> &'static str {
         self.setting(
             "NO_COLOR: terminal colors disabled.",
@@ -423,6 +470,10 @@ impl Locale {
             SettingsDetailKind::CustomColorsRequired => self.setting(
                 "Select the custom terminal theme to edit these colors.",
                 "选择自定义终端主题后可编辑这些颜色。",
+            ),
+            SettingsDetailKind::TruecolorRequired => self.setting(
+                "Themes need a terminal with 24-bit color; this one uses its own colors.",
+                "主题需要终端支持 24 位真彩色；此终端使用其自身的配色。",
             ),
             SettingsDetailKind::LoginUnsupported => self.setting(
                 "Login shells are not supported on this platform.",

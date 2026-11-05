@@ -1138,12 +1138,21 @@ fn render_search(
 }
 
 fn draft_description(draft: DraftView<'_>, locale: Locale, theme: &Theme) -> String {
-    if draft.confirmation.is_some()
+    let explained = draft.confirmation.is_some()
         || draft.invalid
-        || !draft.enabled(draft.selected)
         || draft.page == Page::Profiles
-        || draft.reconciliation == Some(crate::native_settings::Reconciliation::OutcomeUnknown)
+        || draft.reconciliation == Some(crate::native_settings::Reconciliation::OutcomeUnknown);
+    // NO_COLOR, not the color depth it implies, is why a named theme cannot show.
+    if !explained
+        && theme.no_color()
+        && matches!(
+            draft.selected,
+            Row::LightTheme | Row::DarkTheme | Row::ColorSource
+        )
     {
+        return locale.settings_no_color().into();
+    }
+    if explained || !draft.enabled(draft.selected) {
         return locale.settings_detail(draft);
     }
     if theme.no_color()
@@ -1154,7 +1163,16 @@ fn draft_description(draft: DraftView<'_>, locale: Locale, theme: &Theme) -> Str
     {
         return locale.settings_no_color().into();
     }
-    locale.settings_description(draft.selected).into()
+    let description = locale.settings_description(draft.selected);
+    match locale.settings_system_notice(draft.selected) {
+        Some(notice)
+            if draft.values.application_theme
+                == orchbee_workbench_protocol::ApplicationAppearance::System =>
+        {
+            locale.settings_sentences(description, notice)
+        }
+        _ => description.into(),
+    }
 }
 
 fn render_child(
@@ -1257,6 +1275,13 @@ fn render_choice(
     let marker = Rect::new(area.x + 2, area.y, 3, 1);
     let checked_marker = Rect::new(area.x + 3, area.y, 1, 1);
     let primary = Rect::new(area.x + 6, area.y, area.width.saturating_sub(6), 1);
+    let label = locale.settings_choice(choice);
+    let swatch = match choice {
+        Choice::ColorTheme(choice) => theme.swatch(choice.theme()).filter(|_| {
+            usize::from(primary.width) >= display_width(label) + usize::from(SWATCH_WIDTH) + 2
+        }),
+        _ => None,
+    };
     frame.render_widget(
         Paragraph::new(if checked { "(*)" } else { "( )" })
             .style(theme.style(Role::AccentSelection)),
@@ -1264,7 +1289,7 @@ fn render_choice(
     );
     frame.render_widget(
         Paragraph::new(truncate_display(
-            locale.settings_choice(choice),
+            label,
             usize::from(primary.width),
             theme.glyphs.ellipsis,
         ))
@@ -1317,8 +1342,31 @@ fn render_choice(
         state,
         theme,
     );
+    if let Some(swatch) = swatch {
+        render_swatch(frame, primary, swatch);
+    }
     if painted == Some(area) {
         hits.record_interaction(HitLayer::Overlay, area, area, target, spec);
+    }
+}
+
+/// Cells of a theme swatch: a foreground sample on the theme canvas, then five ANSI fills.
+const SWATCH_WIDTH: u16 = 14;
+
+/// Paints after the row state so hover and focus fills never tint a theme's own colors; one cell
+/// stays between the swatch and the row's right edge.
+fn render_swatch(frame: &mut Frame<'_>, primary: Rect, swatch: [ratatui::style::Style; 6]) {
+    let [sample, fills @ ..] = swatch;
+    let x = primary.right().saturating_sub(SWATCH_WIDTH + 1);
+    frame.render_widget(
+        Paragraph::new(" Aa ").style(sample),
+        Rect::new(x, primary.y, 4, 1),
+    );
+    for (offset, fill) in (0_u16..).zip(fills) {
+        frame.render_widget(
+            Paragraph::new("  ").style(fill),
+            Rect::new(x + 4 + offset * 2, primary.y, 2, 1),
+        );
     }
 }
 

@@ -286,7 +286,7 @@ fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
                 Locale::EnUs => "Rename",
                 Locale::ZhCn => "重命名",
             };
-            for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                 for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
                     let mut menu = ActionMenu::default();
                     assert!(menu.open_for(
@@ -371,7 +371,7 @@ fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel()
             )
         );
         for (width, height) in [(120, 40), (80, 24), (72, 18), (48, 10), (14, 4)] {
-            for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                 let client = ClientView::new(width);
                 let mut menu = ActionMenu::default();
                 assert!(menu.open_for(
@@ -447,8 +447,8 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 for context in [false, true] {
                     let client = ClientView::new(width);
@@ -595,8 +595,8 @@ fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let client = ClientView::new(width);
                 let mut menu = ActionMenu::default();
@@ -992,7 +992,7 @@ fn wide_english_row_keeps_the_full_label_and_effective_chord_in_separate_slots()
     let width = 120;
     let height = 24;
     let client = ClientView::new(width);
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let chord = client
         .bindings()
         .action_labels_with_glyphs(

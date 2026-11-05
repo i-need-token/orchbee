@@ -1157,8 +1157,8 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
             let mut surface = OrderedSurface::default();
             let mut dispatcher = crate::terminal_input::InputDispatcher::default();
             for (name, expected) in [
-                (ThemeName::OneLight, Theme::one_light()),
-                (ThemeName::OneDark, Theme::one_dark()),
+                (ThemeName::OrchbeeLight, Theme::orchbee_light()),
+                (ThemeName::OrchbeeDark, Theme::orchbee_dark()),
                 (ThemeName::TerminalNative, Theme::terminal_native()),
             ] {
                 view.configure_theme(name);
@@ -1221,7 +1221,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 );
             }
             view.configure_color_level(ColorLevel::Monochrome);
-            view.configure_theme(ThemeName::OneLight);
+            view.configure_theme(ThemeName::OrchbeeLight);
             assert!(
                 super::draw_surface(
                     &mut terminal,
@@ -1235,19 +1235,19 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     &mut |_| Ok(())
                 )
                 .is_ok(),
-                "{context} Monochrome OneLight: draw"
+                "{context} Monochrome OrchbeeLight: draw"
             );
             assert_eq!(
                 super::terminal_geometry(dimensions(width, height), &view).unwrap(),
                 geometry,
-                "{context} Monochrome OneLight: geometry"
+                "{context} Monochrome OrchbeeLight: geometry"
             );
             assert!(
                 surface
                     .events
                     .iter()
                     .all(|event| !matches!(event, SurfaceEvent::Forward(_))),
-                "{context} Monochrome OneLight: forwarded input"
+                "{context} Monochrome OrchbeeLight: forwarded input"
             );
             assert!(
                 terminal
@@ -1257,7 +1257,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     .iter()
                     .all(|cell| cell.fg == ratatui::style::Color::Reset
                         && cell.bg == ratatui::style::Color::Reset),
-                "{context} Monochrome OneLight: foreground and background must reset"
+                "{context} Monochrome OrchbeeLight: foreground and background must reset"
             );
         }
     }

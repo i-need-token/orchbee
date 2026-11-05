@@ -24,7 +24,7 @@ fn row_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
 fn drag_feedback_replaces_the_complete_previous_notice_and_footer() {
     for (width, height) in [(120, 40), (80, 24), (70, 18), (50, 10), (15, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let footer = Rect::new(0, height - 2, width.min(30), 1);
                 let status = Rect::new(0, height - 1, width, 1);
@@ -84,9 +84,9 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for (theme, foreground) in [
                 (Theme::terminal_native(), Color::Red),
-                (Theme::one_light(), Color::Red),
+                (Theme::orchbee_light(), Color::Red),
                 (
-                    Theme::one_light().quantize(ColorLevel::Monochrome),
+                    Theme::orchbee_light().quantize(ColorLevel::Monochrome),
                     Color::Reset,
                 ),
             ] {

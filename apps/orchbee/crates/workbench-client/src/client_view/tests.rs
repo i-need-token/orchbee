@@ -104,7 +104,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         }
     ));
     let dark = system.configured_theme().unwrap();
-    assert_eq!(dark.name, "one-dark");
+    assert_eq!(dark.name, "orchbee-dark");
     assert_eq!(
         dark.terminal_defaults(),
         (
@@ -119,7 +119,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
             background: Some(0xfcfcfc),
         }
     ));
-    assert_eq!(system.configured_theme().unwrap().name, "one-light");
+    assert_eq!(system.configured_theme().unwrap().name, "orchbee-light");
 
     let host_values = orchbee_workbench_protocol::UserPreferencesValues {
         application_theme: Application::System,
@@ -148,7 +148,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         .configured_theme()
         .unwrap()
         .with_host_terminal_colors(0x141414, 0xfcfcfc);
-    assert_eq!(host_theme.name, "one-dark");
+    assert_eq!(host_theme.name, "orchbee-dark");
     assert_eq!(
         host_theme.terminal_defaults(),
         (ratatui::style::Color::Reset, ratatui::style::Color::Reset)
@@ -159,8 +159,8 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     );
 
     for (application, expected) in [
-        (Application::Light, "one-light"),
-        (Application::Dark, "one-dark"),
+        (Application::Light, "orchbee-light"),
+        (Application::Dark, "orchbee-dark"),
     ] {
         let values = orchbee_workbench_protocol::UserPreferencesValues {
             application_theme: application,
@@ -190,6 +190,46 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
             }
         );
     }
+}
+
+/// System paints a slot only once the outer terminal reports its background, and only at
+/// truecolor; otherwise the TUI keeps Terminal colors.
+#[test]
+fn system_paints_the_slot_of_the_reported_background_only_on_a_truecolor_host() {
+    use crate::host_appearance::{HostAppearance, HostColors};
+    use crate::tui_theme::ColorLevel;
+    let values = orchbee_workbench_protocol::UserPreferencesValues {
+        dark_theme: "gruvbox-dark".into(),
+        ..Default::default()
+    };
+    let mut view = ClientView::new(120);
+    view.configure_color_level(ColorLevel::Truecolor);
+    view.apply_user_preferences(values.clone());
+    assert!(view.named_themes_available());
+    assert_eq!(view.configured_theme().unwrap().name, "terminal-native");
+    view.configure_host_appearance(HostAppearance::Dark);
+    assert_eq!(view.configured_theme().unwrap().name, "terminal-native");
+    view.configure_host_terminal(
+        HostAppearance::Dark,
+        HostColors {
+            foreground: Some(0xcccccc),
+            background: Some(0x0c0c0c),
+        },
+    );
+    assert_eq!(view.configured_theme().unwrap().name, "gruvbox-dark");
+    let mut preview_values = values.clone();
+    preview_values.light_theme = "dayfox".into();
+    preview_values.application_theme = orchbee_workbench_protocol::ApplicationAppearance::Light;
+    assert_eq!(
+        view.preview_theme(crate::native_settings::AppearancePreview::from_values(
+            &preview_values
+        ))
+        .name,
+        "dayfox"
+    );
+    view.configure_color_level(ColorLevel::Ansi256);
+    assert!(!view.named_themes_available());
+    assert_eq!(view.configured_theme().unwrap().name, "terminal-native");
 }
 
 #[test]

@@ -20,6 +20,8 @@ orchbee-local-runtime = { path = "../../../../crates/local-runtime" }
 crossterm.workspace = true
 orchbee-agent-integration = { path = "../../../../crates/agent-integration" }
 orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }
+# Shipped color themes and the palette-to-role resolver behind every named TUI theme.
+orchbee-color-themes = { path = "../../../../crates/color-themes" }
 orchbee-client-server-protocol = { path = "../../../../crates/client-server-protocol" }
 orchbee-terminal-protocol = { path = "../../../../crates/terminal-protocol" }
 orchbee-local-client-protocol = { path = "../../../../crates/local-client-protocol" }

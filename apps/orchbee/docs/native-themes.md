@@ -3,37 +3,48 @@
 ## Selection and ownership
 
 The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
-separate application appearance (Light, Dark, System) from terminal defaults (Theme, Host,
-Custom). Application System is the common default. System resolves TUI accents and overlays to One
-Light or One Dark from an observed outer-terminal background; without that observation it uses
-terminal-native contrast, even when the operating-system fallback reports a light or dark appearance.
-The TUI does not change the outer host's font or appearance.
+choose an application appearance (Light, Dark, System), one theme for each of the light and dark
+slots, the native Client's color source (Theme or Terminal colors) and terminal defaults (Theme,
+Host, Custom). The TUI does not change the outer host's font or appearance.
 
-Terminal Theme and Host follow explicit application Light/Dark through the canvas of that polarity's
-theme; the native theme module resolves the Orchbee pair until it consumes the shared theme slots.
-With application System, Theme and Host paint terminal defaults with `Color::Reset`. System canvas,
-persistent chrome and inactive surfaces also use the host-default background, including empty
-cells, so the Client meets the host's surrounding padding without an RGB query or quantization.
-Once the host background is observed, System derives the Tab strip and interaction fills from the
-host instead: `surface-strip`, `surface-related`, `surface-hover`, `surface-current` and
-`surface-pressed` mix 14, 10, 17, 21 and 28 percent of the host foreground into a dark background,
-or 5, 7, 9, 12 and 16 percent into a light one. Until the foreground is observed, the matched named
-theme's primary text stands in for it. The form-field band `surface-field` mixes the overlay
-instead of the host background toward that foreground, 7 percent on dark and 5 on light, because
-System keeps the palette overlay and a host background can match it. One Light and One Dark ship
-the band as RGB 243,243,244 and 61,67,77. Derived values pass through the level's quantization and
-collapsed-role fallbacks, so 16-color hosts may resolve hover and press to reverse video, a band
-that collapses onto its dialog falls back to bracketed fields, and monochrome keeps its modifier
-fallbacks. `surface-selection` keeps the named palette. A single
-unframed terminal thus stays distinct from navigation on any host background. Without that
-observation System resolves to terminal-native, which paints no strip or related fill.
-Captured foreground/background values remain available as descriptive RGB in Settings; they never
-replace host-relative painting. Retained child-frame launch defaults cannot replace this local choice. Custom
-retains precedence and uses the validated RGB pair. Only
-default-marked cells are substituted.
-Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
-retain their captured authority in live and retained rows. Empty canvas uses the selected terminal
-defaults across the entire pane, including space beyond a smaller retained grid.
+The [source resolver](../crates/workbench-client/src/tui_theme/source.rs) decides what the TUI
+paints. The first matching row wins:
+
+| Host and preferences                                    | The TUI paints                    |
+| ------------------------------------------------------- | --------------------------------- |
+| The host is below truecolor                             | Terminal colors                   |
+| Colors is Terminal colors                               | Terminal colors                   |
+| Appearance is Light or Dark                             | The theme in that slot            |
+| Appearance is System and the host reported a background | The slot matching that background |
+| Appearance is System and no background was reported     | Terminal colors                   |
+
+Only the outer terminal's OSC 11 background answers System; the operating-system fallback the
+Worker uses for launch colors never selects a slot. A slot id this build does not ship, or one of
+the other polarity, paints that slot's Orchbee theme and keeps the stored id. Below truecolor the
+named themes are unavailable: a quantized canvas and ANSI palette would show a different theme, so
+Settings disables the theme rows and says why. Reaching truecolor, or the host reporting its
+background, repaints the confirmed preferences without a restart.
+
+Named themes take every role from the [shipped catalog](../../../crates/color-themes/README.md)
+through its role resolver. The [named-theme adapter](../crates/workbench-client/src/tui_theme/shipped.rs)
+puts primary text on each resolved surface, `text-selection` on `surface-selection`, bold primary
+key hints and secondary hint labels, and it uses plain borders and UTF-8 glyphs. Orchbee Light and
+Orchbee Dark then take the shared theme colors described below, as the GUI's Orchbee themes do.
+Terminal colors are the `terminal-native` mapping: host default foreground and background
+(`Color::Reset`), named ANSI accents and the paired and modifier fallbacks of the
+[visual foundations](../../../docs/tui/visual-foundations.md). The traffic-light Agent colors are
+the same under every theme and under Terminal colors.
+
+Terminal defaults decide the colors of default-marked cells. While a named theme paints, Theme
+takes that theme's canvas foreground and background, and Host does the same while Appearance is
+Light or Dark. Host under System, and Theme or Host under Terminal colors, defer to the host:
+default cells emit `Color::Reset`, and the outer terminal's observed colors describe them in RGB.
+Custom always uses its validated pair. No terminal choice changes the chrome, and retained
+child-frame launch defaults never replace this local choice. Only default-marked cells are
+substituted. Explicit program RGB, palette colors, OSC overrides, reversal, attributes and
+wide-cell geometry retain their captured authority in live and retained rows. Empty canvas uses
+the selected terminal defaults across the entire pane, including space beyond a smaller retained
+grid.
 
 The one-shot OSC 10/11 probe retains each valid color once within its original 350 ms window.
 Background settles polarity immediately; foreground can complete the same observation in either
@@ -69,85 +80,58 @@ input-method anchor. Cursor output stays in the same frame and flush, and a fail
 replays a pending cursor. Host cursor color and shape are untouched. The native cursor stays hidden
 while the Client draws; the existing terminal mode guard restores its visibility on exit and failure.
 
-Shared appearance preferences select terminal-native, one-light or one-dark rendering roles.
-These roles map chrome, sidebars, menus, notices and selection overlays; renderers consume
-them without changing focus, geometry or control.
+The selected roles map chrome, sidebars, menus, notices and selection overlays; renderers consume
+them without changing focus, geometry or control. Named themes distinguish canvas, chrome and
+raised overlays. Overlay frames share theme corner and focus roles; titles use independent primary
+bold text. Independent terminal popups use this complete overlay surface for the title, borders
+and pending body, even on a dark-default outer host. A received program frame replaces only the
+inner body with its independent terminal defaults and explicit program colors.
 
-The light/dark roles distinguish canvas, chrome and raised overlays. System uses matching Light/Dark
-accents and overlays only with an observed host background; otherwise it uses terminal-native roles.
-Its base surfaces remain host-relative in every color level. Quantization may collapse surface
-differences while borders, labels and focus remain.
-Overlay frames share theme corner and focus roles; titles use independent primary bold text.
-Independent terminal popups use this complete overlay surface for the title, borders and pending
-body, even on a dark-default outer host. A received program frame replaces only the inner body
-with its independent terminal defaults and explicit program colors.
-
-Each theme owns one accent per Tab group color. One Light and One Dark use their palette's hues;
+Each theme owns one accent per Tab group color. Named themes take the catalog's Tab-group roles;
 terminal-native uses named ANSI colors, except orange, which has no ANSI name and uses RGB
-`[255, 165, 0]`; a host at a lower color level quantizes it. A group header writes its name in the bold accent on a
-resting tint that mixes 20% of the accent into the strip fill, including System's derived strip.
+`[255, 165, 0]`; a host at a lower color level quantizes it. A group header writes its name in
+the bold accent on a resting tint that mixes 20% of the accent into the theme's strip fill.
 Terminal-native has no concrete strip color to mix, and 16-color hosts cannot express a faint fill,
-so their headers rest on the strip with the accent text alone. A current, hover or pressed surface replaces only the tint; the accent name
-stays readable on it, and leaving the header restores the tint or current surface. Group color
-swatches in menus paint the same accent. Monochrome hosts use the ordinary role resolver and
-interaction fallbacks.
+so their headers rest on the strip with the accent text alone. A current, hover or pressed surface
+replaces only the tint; the accent name stays readable on it, and leaving the header restores the
+tint or current surface. Group color swatches in menus paint the same accent. Monochrome hosts use
+the ordinary role resolver and interaction fallbacks.
 
-The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. For the
-shared Light and Dark application appearances, these roles carry the
+The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. In
+Orchbee Light and Orchbee Dark these roles carry the
 [shared theme colors](../../../schemas/workbench/README.md#cross-client-parity-sources), which the
 GUI's CSS registry also resolves to: primary action, hover and press respectively, beside the Agent
 state colors. The Light cell-grid adapter makes the translucent hover and press colors opaque over
-its existing chrome surface. A conformance test reads that file, as the CSS registry's test does,
-and neither reads the other's source. System reuses the matching named `accent-action` when a host background
-is observed, derives its hover and pressed fills from the host as described above, and uses
-terminal-native roles otherwise. These roles are available to renderers, but each surface
-still requires consumer render evidence before it can claim adoption.
+its chrome surface. A conformance test reads that file, as the CSS registry's test does, and
+neither reads the other's source. Every other shipped theme keeps the catalog resolver's roles.
+These roles are available to renderers, but each surface still requires consumer render evidence
+before it can claim adoption.
 
 The sidebar's explicit red Delete intent uses independent `accent-destructive` metadata and palette
-ownership, never `status-error`. Its shipped Light RGB is `[178, 52, 47]`, Dark is `[224, 108, 117]`,
-and terminal-native uses ANSI red. Disabled content resolves to `text-disabled` before action tone;
-it cannot acquire hover or pressed styling. Enabled destructive wording keeps its accent separately
+ownership, never `status-error`. Named themes take the catalog's destructive accent, and
+terminal-native uses ANSI red. Disabled content resolves to `text-disabled` before action tone; it
+cannot acquire hover or pressed styling. Enabled destructive wording keeps its accent separately
 from surrounding focus, navigation, current, hover and pressed tracks. At rest, terminal-native
 destructive wording is ANSI red directly on the host default background without a backing fill:
 a destructive menu row and a whole destructive confirmation button, including its brackets and key
 hint, read as red text. Reference contrast for ANSI red on the host default is about 3.2:1 in
-Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light. System appearance, including the
-terminal-native styles it adopts without an observed background, still backs destructive wording
-on the host default with the resolver's pair, and every theme other than terminal-native keeps the
+Campbell and VS Code Dark+ and 3.3:1 to 3.5:1 in One Half Light. Every named theme keeps the
 destructive key hint in `text-secondary`. Where reduced-color or native interaction uses reverse
 video, or a known fill falls below 3:1, the theme resolver removes reversal from the destructive
-content band and supplies its own contrasting backing pair. Components neither construct colors nor add
-warning bold, underline or blink. Monochrome retains the localized Delete verb and ordinary markers.
-Nominal palette tests cover the unpaired terminal-native rest state and the overlay, hover, pressed
-and selection surfaces at truecolor, ANSI-256 and ANSI-16; customized host palette appearance still
-requires real-window review.
+content band and supplies its own contrasting backing pair. Components neither construct colors
+nor add warning bold, underline or blink. Monochrome retains the localized Delete verb and ordinary
+markers. Nominal palette tests cover the unpaired terminal-native rest state and the overlay,
+hover, pressed and selection surfaces at truecolor, ANSI-256 and ANSI-16; customized host palette
+appearance still requires real-window review.
 
-Named-theme supporting text uses `[90, 93, 105]` in One Light and `[170, 177, 189]` in One Dark.
-These audited secondary values clear 4.5:1 on every shipped surface, including pressed and
-provisional-selection fills, and quantize separately from primary text at ANSI-256. The same
-triplet feeds `text-disabled`, `hint-label` and `status-pending`; the pending modifier and disabled
-availability remain independent. Secondary text is not dimmed to create priority at the expense
-of its surface readability.
-
-Named-theme muted text uses `[108, 110, 121]` in One Light and `[131, 138, 148]` in One Dark: the
-quietest step from secondary toward chrome that still clears 4.5:1 on chrome. It is secondary text
-on every fill, and under System on an observed host background where it would fall below 4.5:1,
-such as a gray host lighter than about `#232323`. On a near-black host it keeps about 5.6:1.
-
-One Dark primary text uses `[204, 211, 224]` with those secondary values and fills unchanged. Its
-nominal sRGB primary/secondary contrast is approximately 1.434:1. Headings, primary values, key
-glyphs and the existing primary surface foregrounds inherit this theme-owned value; renderers add
-no local colors. Destructive intent, status, current identity, navigation, hover and pressed tracks
-retain their separate semantics. Terminal preferences and explicit program colors keep the
-independent authority described above.
-
-Fixed RGB checks protect chosen palette values and the audited secondary boundary. A separate
-regression uses a readable near-equal foreground pair to show why surface readability alone is
-insufficient, then compares primary/secondary separation after content composition across resting,
-current, selected, hover and pressed surfaces. Existing reduced-color and monochrome modifier
-fallbacks still apply. These are nominal palette claims, not a universal hierarchy ratio or proof
-of perceptual distinction; real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies that
-separate evidence.
+Named-theme supporting text, hint labels and pending status are the resolver's secondary text,
+which stays below primary text on the canvas, chrome, overlay and inactive surfaces. Muted text is
+its quietest step toward chrome that still clears 4.5:1 there, and it rises to secondary text on
+every fill. Disabled text stays quieter than primary text without faint intensity at truecolor and
+256 colors. Secondary text is not dimmed to create priority at the expense of its surface
+readability. The catalog's contrast floors cover chrome; its [README](../../../crates/color-themes/README.md)
+records them. Real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies perceptual
+evidence.
 
 ## Sidebar row state
 
@@ -175,9 +159,9 @@ palette.
 
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
-both named themes use a neutral fill against chrome and retain their primary/secondary
-text colors. One Light uses `[224, 228, 235]` against `[240, 242, 245]` chrome so the persistent
-row remains visible while input belongs to a terminal. This fill remains quieter than keyboard
+named themes use the resolver's neutral current fill against chrome and retain their
+primary/secondary text colors, so the persistent row remains visible while input belongs to a
+terminal. This fill remains quieter than keyboard
 selection and preserves readable text contrast. A current Workspace and its visible active
 Agent share this one fill rather than two neighboring shades; folding the Agents leaves the fill
 on the Workspace alone. The fill alone
@@ -278,20 +262,21 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 
 ## Correctness and evidence
 
-| Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                                                                                |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                                                                         |
-| Shared Light/Dark interaction palette remains aligned        | Conformance tests in both Clients against the shared theme colors, with exact shared-input verification edges     | The shared colors cover Light/Dark action, hover, press and Agent states; System uses observed-host accents or terminal-native roles with host-relative base surfaces |
-| Dark text priority exceeds a readable near-equal control     | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                                                                   |
-| Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                                                                     |
-| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                                                                  |
-| Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate                                                     |
-| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Theme/Host/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate                                                         |
-| Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                                                                     |
-| Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                                                                        |
+| Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                                |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Every shipped theme and terminal-native, canonical palette, sampled environment; program colors excluded              |
+| Source resolution and the truecolor gate                     | Resolution matrix over appearance, reported host polarity, color level and source; Settings availability cases    | Pure decisions and Settings state; physical host detection is separate                                                |
+| Shared Orchbee interaction palette remains aligned           | Conformance tests in both Clients against the shared theme colors, with exact shared-input verification edges     | The shared colors cover Orchbee action, hover, press and Agent states; other themes keep the catalog resolver's roles |
+| Agent state colors never follow the theme                    | Agent glyph styles compared under every shipped theme and Terminal colors                                         | Truecolor; quantization maps the fixed values per level                                                               |
+| Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                     |
+| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                  |
+| Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and Orchbee Light/Dark; monochrome, 16/256 colors and truecolor; physical host appearance is separate    |
+| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Theme/Host/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate         |
+| Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                     |
+| Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                        |
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`
-and the affected `pnpm verify` root gate. Shared custom colors and System appearance are current behavior;
+and the affected `pnpm verify` root gate. Named themes, Terminal colors and System appearance are current behavior;
 physical host appearance and untested platforms require their own execution evidence.
 
 Monochrome selection surfaces explicitly pair terminal-default foreground and background with reverse video, keeping mixed label and marker roles on one displayed band.

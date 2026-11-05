@@ -94,9 +94,9 @@ fn current_workspace_and_agent_share_the_current_surface_and_collapse_keeps_the_
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
-            Theme::one_dark().quantize(ColorLevel::Ansi16),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             let (mut view, workspace, agent) = current_agent_view();
@@ -191,9 +191,9 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for original in [
             Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
-            Theme::one_dark().quantize(ColorLevel::Ansi16),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             let theme = original.paired_pointer_surfaces();
@@ -325,11 +325,12 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
 #[test]
 fn explicit_identity_color_and_plain_override_survive_row_composition_without_promoting_metadata() {
     use orchbee_local_runtime::SidebarTokenStyle;
+    // Named themes need truecolor; reduced color always resolves to terminal-native.
     for base in [
         Theme::terminal_native(),
-        Theme::one_light(),
-        Theme::one_dark(),
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
+        Theme::terminal_native().quantize(ColorLevel::Ansi16),
         Theme::terminal_native().quantize(ColorLevel::Monochrome),
     ] {
         let theme = base.paired_pointer_surfaces();
@@ -473,7 +474,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
 fn folded_workspace_status_line_orders_agent_states_by_urgency_and_bounds_the_remainder() {
     use MetadataState as State;
     use PanelAgentState::*;
-    for theme in [Theme::terminal_native(), Theme::one_dark()] {
+    for theme in [Theme::terminal_native(), Theme::orchbee_dark()] {
         for (states, expected, remainder) in [
             (
                 vec![Idle, Working, Done, Error, Blocked],
@@ -556,8 +557,8 @@ fn folded_workspace_status_line_orders_agent_states_by_urgency_and_bounds_the_re
 fn current_sidebar_rows_stay_plain_and_distinguishable_at_every_color_level() {
     for base in [
         Theme::terminal_native(),
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
     ] {
         for level in [
             ColorLevel::Truecolor,

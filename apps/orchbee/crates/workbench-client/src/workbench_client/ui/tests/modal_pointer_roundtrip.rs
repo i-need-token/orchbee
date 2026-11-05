@@ -397,8 +397,8 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (profile, theme) in [
             ("native", Theme::terminal_native()),
-            ("light", Theme::one_light()),
-            ("ansi16", Theme::one_dark().quantize(ColorLevel::Ansi16)),
+            ("light", Theme::orchbee_light()),
+            ("ansi16", Theme::orchbee_dark().quantize(ColorLevel::Ansi16)),
             (
                 "monochrome",
                 Theme::terminal_native().quantize(ColorLevel::Monochrome),

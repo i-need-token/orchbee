@@ -8,6 +8,7 @@ export const USER_PREFERENCE_KEYS = [
 	'applicationTheme',
 	'lightTheme',
 	'darkTheme',
+	'tuiColorSource',
 	'terminalDisplayTheme',
 	'customForeground',
 	'customBackground',
@@ -31,6 +32,8 @@ const colorThemeId = z
 	.string()
 	.max(64)
 	.regex(/^[\da-z]+(?:-[\da-z]+)*$/u);
+/** The terminal Client's color source; the GUI has no host terminal and only preserves it. */
+const tuiColorSource = z.enum(['theme', 'terminal']);
 const terminalDisplayTheme = z.enum(['theme', 'host', 'custom']);
 const color = z.string().regex(/^#[\da-f]{6}$/u);
 const agentNotificationMode = z.enum(['never', 'hidden']);
@@ -43,6 +46,7 @@ const UserPreferencesValuesSchema = z.strictObject({
 	applicationTheme,
 	lightTheme: colorThemeId,
 	darkTheme: colorThemeId,
+	tuiColorSource,
 	terminalDisplayTheme,
 	customForeground: color,
 	customBackground: color,
@@ -62,6 +66,7 @@ export const DEFAULT_USER_PREFERENCES: Readonly<UserPreferencesValues> = Object.
 		applicationTheme: 'system',
 		lightTheme: 'orchbee-light',
 		darkTheme: 'orchbee-dark',
+		tuiColorSource: 'theme',
 		terminalDisplayTheme: 'theme',
 		customForeground: '#141414',
 		customBackground: '#fcfcfc',
@@ -88,6 +93,7 @@ export const UserPreferencesPatchSchema = z.strictObject({
 	applicationTheme: applicationTheme.nullable().optional(),
 	lightTheme: colorThemeId.nullable().optional(),
 	darkTheme: colorThemeId.nullable().optional(),
+	tuiColorSource: tuiColorSource.nullable().optional(),
 	terminalDisplayTheme: terminalDisplayTheme.nullable().optional(),
 	customForeground: color.nullable().optional(),
 	customBackground: color.nullable().optional(),

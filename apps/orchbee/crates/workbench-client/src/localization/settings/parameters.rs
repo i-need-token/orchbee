@@ -1,7 +1,7 @@
 //! Copy inputs selected by the Settings feature. No draft, token, picker, profile or persistence authority.
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
-    TerminalDisplayAppearance,
+    TerminalDisplayAppearance, TuiColorSource,
 };
 
 /// Semantic row description; drawing masks, enablement and row navigation remain feature-owned.
@@ -9,6 +9,9 @@ use orchbee_workbench_protocol::{
 pub(crate) enum SettingsRow {
     Language,
     Theme,
+    LightTheme,
+    DarkTheme,
+    ColorSource,
     TerminalTheme,
     Foreground,
     Background,
@@ -54,6 +57,9 @@ pub(crate) enum SettingsCategory {
 pub(crate) enum SettingsChoice {
     Locale(PreferencesLocale),
     ApplicationTheme(ApplicationAppearance),
+    /// A shipped theme id; names stay untranslated except the Orchbee pair.
+    ColorTheme(&'static str),
+    ColorSource(TuiColorSource),
     TerminalTheme(TerminalDisplayAppearance),
     AgentReminders(AgentReminderMode),
     CompletionReminders(CompletionReminderMode),
@@ -125,6 +131,7 @@ pub(crate) enum SettingsDetailKind {
     ConflictBeforeSave,
     NoChanges,
     CustomColorsRequired,
+    TruecolorRequired,
     LoginUnsupported,
     CustomExecutableRequired,
     MinimumProfile,

@@ -88,7 +88,7 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                             ..status_facts(&status)
                         },
                         ViewportTier::Full,
-                        &crate::tui_theme::Theme::one_light(),
+                        &crate::tui_theme::Theme::orchbee_light(),
                         None,
                     );
                 }));
@@ -248,8 +248,8 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
 
     for (theme_name, theme) in [
         ("native", Theme::terminal_native()),
-        ("dark", Theme::one_dark()),
-        ("light", Theme::one_light()),
+        ("dark", Theme::orchbee_dark()),
+        ("light", Theme::orchbee_light()),
     ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for (origin, anchor) in [
@@ -532,7 +532,7 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
 
             let projected =
                 project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
-            let theme = Theme::one_dark();
+            let theme = Theme::orchbee_dark();
             let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
             let mut hits = HitMapBuilder::new();
             infallible(terminal.draw(|frame| {
@@ -608,7 +608,7 @@ fn too_small_root_compositor_paints_only_the_notice_and_status() {
                     Scenario::Resize => prefix(&mut view, plain('P')),
                 }
 
-                let theme = Theme::one_dark();
+                let theme = Theme::orchbee_dark();
                 let key_glyphs = match theme.glyphs.mode() {
                     crate::tui_theme::GlyphMode::Unicode => {
                         crate::client_view::KeyLabelGlyphs::Unicode
@@ -1140,8 +1140,8 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
             for theme in [
                 crate::tui_theme::Theme::terminal_native(),
                 crate::tui_theme::Theme::rgb_test_dark(),
-                crate::tui_theme::Theme::one_light(),
-                crate::tui_theme::Theme::one_dark(),
+                crate::tui_theme::Theme::orchbee_light(),
+                crate::tui_theme::Theme::orchbee_dark(),
             ] {
                 let first = "F".repeat(usize::from(width));
                 let last = "L".repeat(usize::from(width));
@@ -1719,8 +1719,8 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     projection.install_frame_for_test(source);
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
     for base in [
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
         Theme::terminal_native(),
     ] {
         for level in [
@@ -1997,8 +1997,8 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
             for theme in [
                 crate::tui_theme::Theme::terminal_native(),
                 crate::tui_theme::Theme::rgb_test_dark(),
-                crate::tui_theme::Theme::one_light(),
-                crate::tui_theme::Theme::one_dark(),
+                crate::tui_theme::Theme::orchbee_light(),
+                crate::tui_theme::Theme::orchbee_dark(),
             ] {
                 let mut view = ClientView::new(width);
                 prefix(&mut view, plain('P'));

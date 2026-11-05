@@ -247,7 +247,7 @@ fn cascade_opens_level_with_its_row_right_else_left_else_over_the_parent_end() {
         ((60, 24), (20, 2), 2, Side::Over, false),
         ((80, 10), (6, 9), 3, Side::Right, true),
     ];
-    for theme in [Theme::terminal_native(), Theme::one_dark()] {
+    for theme in [Theme::terminal_native(), Theme::orchbee_dark()] {
         for (size, (column, row), folders, side, moved) in cases {
             let anchor = MenuAnchor::Pointer { column, row };
             let parent = project_menu(anchor);

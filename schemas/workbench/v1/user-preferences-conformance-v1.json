@@ -5,6 +5,7 @@
 		"applicationTheme": "system",
 		"lightTheme": "orchbee-light",
 		"darkTheme": "orchbee-dark",
+		"tuiColorSource": "theme",
 		"terminalDisplayTheme": "theme",
 		"customForeground": "#141414",
 		"customBackground": "#fcfcfc",
@@ -72,6 +73,7 @@
 					"applicationTheme": null,
 					"lightTheme": null,
 					"darkTheme": null,
+					"tuiColorSource": null,
 					"terminalDisplayTheme": null,
 					"customForeground": null,
 					"customBackground": null,
@@ -95,6 +97,17 @@
 				"changes": {
 					"lightTheme": "a-theme-from-a-newer-client",
 					"darkTheme": "x"
+				}
+			}
+		},
+		{
+			"name": "terminal Client color source edit",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"tuiColorSource": "terminal"
 				}
 			}
 		},
@@ -141,6 +154,7 @@
 				"applicationTheme": "system",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -180,6 +194,7 @@
 						"applicationTheme": "system",
 						"lightTheme": "orchbee-light",
 						"darkTheme": "orchbee-dark",
+						"tuiColorSource": "theme",
 						"terminalDisplayTheme": "theme",
 						"customForeground": "#141414",
 						"customBackground": "#fcfcfc",
@@ -402,6 +417,18 @@
 			"boundary": "schema"
 		},
 		{
+			"name": "unknown terminal Client color source",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"tuiColorSource": "host"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
 			"name": "unknown locale",
 			"direction": "request",
 			"document": {
@@ -421,6 +448,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -455,6 +483,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -490,6 +519,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -533,6 +563,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -568,6 +599,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -603,6 +635,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",
@@ -638,6 +671,7 @@
 				"applicationTheme": "light",
 				"lightTheme": "orchbee-light",
 				"darkTheme": "orchbee-dark",
+				"tuiColorSource": "theme",
 				"terminalDisplayTheme": "theme",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",

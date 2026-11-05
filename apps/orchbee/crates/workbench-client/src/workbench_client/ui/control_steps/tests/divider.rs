@@ -312,8 +312,8 @@ fn divider_live_frames_share_program_geometry_and_preserve_pane_paint() {
             crate::tui_layout::pane_geometries(dimensions, &view, &native.view()).unwrap();
         for theme in [
             Theme::terminal_native(),
-            Theme::one_dark(),
-            Theme::one_light(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_light(),
         ] {
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             let mut drag =

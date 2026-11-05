@@ -546,8 +546,8 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
         for theme in [
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             for (width, height, complete) in [
                 (80, 24, true),

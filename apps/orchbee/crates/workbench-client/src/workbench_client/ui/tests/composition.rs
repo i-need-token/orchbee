@@ -167,7 +167,7 @@ fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() 
                         visible
                     );
                     open_loaded_settings(&mut ui);
-                    let theme = Theme::one_light();
+                    let theme = Theme::orchbee_light();
                     let frame = render(&ui, &shell, width, height, locale, &theme);
                     assert!(
                         frame.has_hit(|target| matches!(target, HitTarget::SettingsRow { .. }))

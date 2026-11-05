@@ -40,6 +40,9 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
             key,
             PreferenceKey::Locale
                 | PreferenceKey::ApplicationTheme
+                | PreferenceKey::LightTheme
+                | PreferenceKey::DarkTheme
+                | PreferenceKey::TuiColorSource
                 | PreferenceKey::TerminalDisplayTheme
                 | PreferenceKey::CustomForeground
                 | PreferenceKey::CustomBackground

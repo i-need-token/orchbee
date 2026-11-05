@@ -126,6 +126,9 @@ fn every_picker_accepts_one_typed_leaf_and_refuses_a_stale_pointer_choice() {
     for row in [
         Row::Language,
         Row::Theme,
+        Row::LightTheme,
+        Row::DarkTheme,
+        Row::ColorSource,
         Row::TerminalTheme,
         Row::Reminders,
         Row::CompletionReminders,

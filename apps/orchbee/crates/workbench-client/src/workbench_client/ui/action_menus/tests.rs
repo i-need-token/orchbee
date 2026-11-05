@@ -727,7 +727,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
+            Theme::orchbee_light(),
             Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome),
         ] {
             for (width, height) in [(120, 40), (80, 24), (70, 16), (50, 10), (20, 7)] {
@@ -878,12 +878,12 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
         for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 7)] {
             for theme in [
                 Theme::terminal_native(),
-                Theme::one_light(),
-                Theme::one_dark(),
-                Theme::one_light().quantize(crate::tui_theme::ColorLevel::Ansi256),
-                Theme::one_dark().quantize(crate::tui_theme::ColorLevel::Ansi256),
-                Theme::one_light().quantize(crate::tui_theme::ColorLevel::Ansi16),
-                Theme::one_dark().quantize(crate::tui_theme::ColorLevel::Ansi16),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
+                Theme::orchbee_light().quantize(crate::tui_theme::ColorLevel::Ansi256),
+                Theme::orchbee_dark().quantize(crate::tui_theme::ColorLevel::Ansi256),
+                Theme::orchbee_light().quantize(crate::tui_theme::ColorLevel::Ansi16),
+                Theme::orchbee_dark().quantize(crate::tui_theme::ColorLevel::Ansi16),
             ] {
                 let (mut ui, _, _, _) = tests::move_membership::ready_ui();
                 ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
@@ -1016,7 +1016,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
                     &crate::client_view::ClientView::new(width),
                     locale,
                     Some(ui.view()),
-                    &Theme::one_light(),
+                    &Theme::orchbee_light(),
                     &mut hits,
                 );
             })
@@ -1168,8 +1168,8 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
             for theme in [
                 Theme::terminal_native(),
                 Theme::rgb_test_dark(),
-                Theme::one_light(),
-                Theme::one_dark(),
+                Theme::orchbee_light(),
+                Theme::orchbee_dark(),
             ] {
                 let (mut ui, _, _, _) = tests::move_membership::ready_ui();
                 ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
@@ -1254,7 +1254,7 @@ fn ux_presented_menu_clears_the_underlying_status_without_duplicate_keys() {
             terminal
                 .draw(|frame| {
                     let mut hits = HitMapBuilder::new();
-                    let theme = Theme::one_light();
+                    let theme = Theme::orchbee_light();
                     crate::tui_render::render_terminal_shell(
                         frame,
                         &view,
@@ -1363,7 +1363,7 @@ fn ux_status_menu_uses_a_search_cursor_and_cancel_restores_the_pane_cursor() {
                         &crate::client_view::ClientView::new(120),
                         locale,
                         Some(ui.view()),
-                        &Theme::one_light(),
+                        &Theme::orchbee_light(),
                         &mut hits,
                     );
                 })
@@ -1605,8 +1605,8 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
         for theme in [
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
-            Theme::one_light(),
-            Theme::one_dark(),
+            Theme::orchbee_light(),
+            Theme::orchbee_dark(),
         ] {
             for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (12, 3)] {
                 let (mut ui, _, _, _) = tests::move_membership::ready_ui();

@@ -13,7 +13,7 @@ fn painted_lines(board: &AgentBoard, index: &PresentationIndex, locale: Locale) 
                 frame,
                 locale,
                 &AgentBoardView::new(board, index),
-                &Theme::one_light(),
+                &Theme::orchbee_light(),
                 &mut hits,
             );
         })

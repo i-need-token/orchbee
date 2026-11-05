@@ -42,6 +42,17 @@ pub enum TerminalDisplayAppearance {
     Custom,
 }
 
+/// Where the terminal Client takes its interface colors. Theme uses the active color-theme slot
+/// wherever the host can show it; Terminal keeps the host terminal's own colors. The graphical
+/// Client has no host terminal and ignores it.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TuiColorSource {
+    #[default]
+    Theme,
+    Terminal,
+}
+
 /// The longest admitted color-theme id, in bytes.
 pub const MAXIMUM_COLOR_THEME_ID_BYTES: usize = 64;
 
@@ -70,6 +81,7 @@ pub enum PreferenceKey {
     ApplicationTheme,
     LightTheme,
     DarkTheme,
+    TuiColorSource,
     TerminalDisplayTheme,
     CustomForeground,
     CustomBackground,
@@ -84,11 +96,12 @@ pub enum PreferenceKey {
 }
 impl PreferenceKey {
     /// Complete closed inventory; adapters cannot silently omit an admitted common value.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
         Self::DarkTheme,
+        Self::TuiColorSource,
         Self::TerminalDisplayTheme,
         Self::CustomForeground,
         Self::CustomBackground,
@@ -108,6 +121,7 @@ impl PreferenceKey {
             Self::ApplicationTheme => "applicationTheme",
             Self::LightTheme => "lightTheme",
             Self::DarkTheme => "darkTheme",
+            Self::TuiColorSource => "tuiColorSource",
             Self::TerminalDisplayTheme => "terminalDisplayTheme",
             Self::CustomForeground => "customForeground",
             Self::CustomBackground => "customBackground",
@@ -138,6 +152,9 @@ pub struct UserPreferencesValues {
     /// slot reads as Orchbee Dark.
     #[serde(default = "default_dark_theme", deserialize_with = "color_theme_id")]
     pub dark_theme: String,
+    /// The terminal Client's color source. An omitted source reads as Theme.
+    #[serde(default)]
+    pub tui_color_source: TuiColorSource,
     pub terminal_display_theme: TerminalDisplayAppearance,
     #[serde(deserialize_with = "color_value")]
     pub custom_foreground: String,
@@ -161,6 +178,7 @@ impl Default for UserPreferencesValues {
             application_theme: ApplicationAppearance::System,
             light_theme: default_light_theme(),
             dark_theme: default_dark_theme(),
+            tui_color_source: TuiColorSource::Theme,
             terminal_display_theme: TerminalDisplayAppearance::Theme,
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),

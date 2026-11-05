@@ -66,18 +66,18 @@ fn icon_geometry_requires_the_complete_three_cell_action_before_paint() {
 
 #[test]
 fn icon_grammar_is_fixed_and_rest_uses_secondary_content() {
-    let mut ascii = Theme::one_dark();
+    let mut ascii = Theme::orchbee_dark();
     ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
     for (theme, glyph, expected) in [
-        (Theme::one_dark(), IconActionGlyph::Close, "[x]"),
-        (Theme::one_dark(), IconActionGlyph::Previous, "[<]"),
-        (Theme::one_dark(), IconActionGlyph::Next, "[>]"),
-        (Theme::one_dark(), IconActionGlyph::Up, "[^]"),
-        (Theme::one_dark(), IconActionGlyph::Down, "[v]"),
-        (Theme::one_dark(), IconActionGlyph::Help, "[?]"),
-        (Theme::one_dark(), IconActionGlyph::Add, "[+]"),
-        (Theme::one_dark(), IconActionGlyph::HideSidebar, "[«]"),
-        (Theme::one_dark(), IconActionGlyph::ShowSidebar, "[»]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Close, "[x]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Previous, "[<]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Next, "[>]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Up, "[^]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Down, "[v]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Help, "[?]"),
+        (Theme::orchbee_dark(), IconActionGlyph::Add, "[+]"),
+        (Theme::orchbee_dark(), IconActionGlyph::HideSidebar, "[«]"),
+        (Theme::orchbee_dark(), IconActionGlyph::ShowSidebar, "[»]"),
         // Simplified glyphs keep the toggle three cells wide in its ASCII fallback.
         (ascii, IconActionGlyph::HideSidebar, "[<]"),
         (ascii, IconActionGlyph::ShowSidebar, "[>]"),
@@ -117,9 +117,9 @@ fn icon_grammar_is_fixed_and_rest_uses_secondary_content() {
 fn icon_hover_press_and_disabled_are_complete_across_color_capabilities() {
     for theme in [
         Theme::terminal_native(),
-        Theme::one_light(),
-        Theme::one_dark().quantize(ColorLevel::Ansi16),
-        Theme::one_dark().quantize(ColorLevel::Monochrome),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark().quantize(ColorLevel::Ansi16),
+        Theme::orchbee_dark().quantize(ColorLevel::Monochrome),
     ] {
         // Hover strengthens the glyph's text role alone; press adds weight and the pressed fill.
         for (pointer, interaction, weight) in [

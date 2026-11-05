@@ -12,9 +12,10 @@ reset semantics or a second durable writer. The runtime owner is
 | Key                                | Allowed value and default                                               | Effect boundary                                                                                                         |
 | ---------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `locale`                           | `system` (default), `en-US`, `zh-CN`                                    | Application copy; user text and terminal output are unchanged                                                           |
-| `applicationTheme`                 | `system` (default), `light`, `dark`                                     | Application chrome; System follows GUI system appearance or native host colors, with Dark for unknown native appearance |
+| `applicationTheme`                 | `system` (default), `light`, `dark`                                     | Active theme slot; System follows GUI system appearance or the native host's reported background                        |
 | `lightTheme`                       | Kebab-case id, at most 64 bytes, default `orchbee-light`                | Light slot; consumers resolve an unshipped or dark id to Orchbee Light                                                  |
 | `darkTheme`                        | Kebab-case id, at most 64 bytes, default `orchbee-dark`                 | Dark slot; consumers resolve an unshipped or light id to Orchbee Dark                                                   |
+| `tuiColorSource`                   | `theme` (default), `terminal`                                           | Native Client only: Theme paints the active slot on truecolor hosts of known appearance; Terminal keeps the host colors |
 | `terminalDisplayTheme`             | `theme` (default), `host`, `custom`                                     | Terminal default colors; explicit program colors retain their authority                                                 |
 | `customForeground`                 | Lowercase `#RRGGBB`, default `#141414`                                  | Used only by Custom terminal appearance                                                                                 |
 | `customBackground`                 | Lowercase `#RRGGBB`, default `#fcfcfc`                                  | Used only by Custom terminal appearance                                                                                 |
@@ -831,14 +832,14 @@ the other's source.
   produce the same sets. It compares target policy only; lifecycle sequencing and empty-group
   cleanup stay with each host owner.
 - The [shared theme colors](v1/shared-theme-colors-v1.json) are the one authority for the colors
-  the GUI's Light and Dark themes share with the native One Light and One Dark: the primary action,
+  the GUI's Light and Dark themes share with the native Orchbee Light and Dark: the primary action,
   hover and press, and the Agent state colors, with `everyTheme` holding the traffic light that
   every theme uses. Each color is an exact `#rrggbb` sRGB value; `opacity` marks a translucent
   color that lies over the surface beneath it. The `@orchbee/design-tokens` registry must resolve
   the matching system color to that value, and the native theme's matching role must carry it,
   composited over its chrome when translucent; a name either consumer cannot map fails its test.
-  Every other color, host-relative System appearance, terminal-native colors and reduced-color
-  fallbacks stay with each theme's owner.
+  Every other color, terminal-native colors and reduced-color fallbacks stay with each theme's
+  owner.
 
 Reusing another identity, changing Close target policy or changing a shared color updates the file
 and both consumers in one change. `scripts/verification-scope.mjs` records the exact consumers of

@@ -14,9 +14,10 @@ pub use agent_view::{
 pub use user_preferences::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode,
     MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, PreferencesLocale,
-    TerminalDisplayAppearance, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
-    UserLaunchProfiles, UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse,
-    UserPreferencesSnapshot, UserPreferencesValues, parse_user_preferences_request,
+    TerminalDisplayAppearance, TuiColorSource, UserLaunchCommand, UserLaunchField,
+    UserLaunchProfile, UserLaunchProfiles, UserPreferencesPatch, UserPreferencesRequest,
+    UserPreferencesResponse, UserPreferencesSnapshot, UserPreferencesValues,
+    parse_user_preferences_request,
 };
 mod carrier;
 mod multiplex;

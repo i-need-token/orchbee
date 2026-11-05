@@ -17,6 +17,7 @@ use orchbee_workbench_protocol::{
 use ratatui::{Terminal, backend::TestBackend};
 mod browse;
 mod pointer;
+mod themes;
 
 const MISSING_SOURCE: &str = "missing";
 const OTHER_SOURCE: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -168,7 +169,7 @@ fn search_and_section_landmarks_stay_secondary_without_index_or_preview_clutter(
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
-            Theme::one_light(),
+            Theme::orchbee_light(),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
             for selected in [Row::Language, Row::Theme, Row::Save] {
@@ -232,7 +233,7 @@ fn stepper_and_footer_actions_paint_their_complete_fixed_targets() {
     for (width, height) in [(36, 10), (58, 12), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
-                Theme::one_dark(),
+                Theme::orchbee_dark(),
                 Theme::terminal_native().quantize(ColorLevel::Monochrome),
             ] {
                 let mut editor = editor_with(UserPreferencesValues::default());
@@ -313,7 +314,7 @@ fn stepper_and_footer_actions_paint_their_complete_fixed_targets() {
 
 #[test]
 fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     for width in [36, 40, 120] {
         for (locale, actions) in [
             (
@@ -410,7 +411,7 @@ fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
 
 #[test]
 fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     for (width, locale, expected) in [
         (36, Locale::EnUs, "Enter activate/edit  │  / search"),
         (40, Locale::EnUs, "Enter activate/edit  │  / search"),
@@ -452,7 +453,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
         );
     }
 
-    let ascii_theme = Theme::one_dark().with_glyphs(GlyphSet::ASCII);
+    let ascii_theme = Theme::orchbee_dark().with_glyphs(GlyphSet::ASCII);
     let editor = editor_with(UserPreferencesValues::default());
     let (terminal, _, _) = render_once(&editor, 120, 10, Locale::EnUs, &ascii_theme);
     let footer = (0..10)
@@ -468,8 +469,8 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
     for (width, height) in [(80, 10), (80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
-                Theme::one_dark(),
-                Theme::one_light(),
+                Theme::orchbee_dark(),
+                Theme::orchbee_light(),
                 Theme::terminal_native(),
             ] {
                 let mut editor = editor_with(UserPreferencesValues::default());
@@ -514,7 +515,7 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
         }
     }
 
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let mut editor = editor_with(UserPreferencesValues::default());
     select_and_present(&mut editor, Row::ResetAll, Locale::EnUs, &theme);
     editor.edit(Edit::Activate);
@@ -525,7 +526,7 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
 
 #[test]
 fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     for (width, locale, admitted) in [
         (35, Locale::EnUs, false),
         (35, Locale::ZhCn, false),
@@ -588,7 +589,7 @@ fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions
 
 #[test]
 fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
 
     let assert_live = |view: View<'_>, text_entry: bool| {
         for hint in footer_bindings(view) {
@@ -710,7 +711,7 @@ fn unavailable_stepper_endpoint_stays_visible_and_consumes_its_cells() {
     let mut editor = editor_with(values);
     editor.edit(Edit::Select(Row::CompletionThreshold));
     let token = editor.view().unwrap().token();
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let (terminal, map, receipt) = render_once(&editor, 120, 40, Locale::EnUs, &theme);
     assert!(matches!(receipt, ModalPresentation::Presented(_)));
 
@@ -743,7 +744,7 @@ fn unavailable_stepper_endpoint_stays_visible_and_consumes_its_cells() {
 
 #[test]
 fn current_setting_uses_a_neutral_band_and_preserves_its_disabled_identity() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let values = UserPreferencesValues {
         terminal_display_theme: TerminalDisplayAppearance::Host,
         ..UserPreferencesValues::default()
@@ -834,7 +835,7 @@ fn boolean_focus_checked_and_changed_cues_remain_independent() {
 
 #[test]
 fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     let mut editor = editor_with(UserPreferencesValues::default());
     let (choice_terminal, choice_map, draw) =
         select_and_present(&mut editor, Row::Language, Locale::EnUs, &theme);
@@ -873,7 +874,7 @@ fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
 
 #[test]
 fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     let mut editor = editor_with(UserPreferencesValues::default());
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
     editor.edit(Edit::Clear);
@@ -914,7 +915,6 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
 
 #[test]
 fn setting_category_copy_projects_the_closed_metadata_inventory() {
-    assert_eq!(SETTINGS.len(), 13);
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for metadata in SETTINGS {
             let expected = match (locale, metadata.category) {
@@ -948,7 +948,7 @@ fn setting_category_copy_projects_the_closed_metadata_inventory() {
 
 #[test]
 fn disabled_save_detail_identifies_clean_conflict_and_reconciliation_reasons() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
 
     let mut clean = editor_with(UserPreferencesValues::default());
     select_and_present(&mut clean, Row::Save, Locale::EnUs, &theme);
@@ -1013,7 +1013,7 @@ fn disabled_save_detail_identifies_clean_conflict_and_reconciliation_reasons() {
 
 #[test]
 fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing_enter() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let mut editor = editor_with(UserPreferencesValues::default());
     let (_, _, first) = present_once(&mut editor, 36, 10, Locale::EnUs, &theme);
     let View::Draft(draft) = editor.view().unwrap() else {
@@ -1114,7 +1114,7 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
 
 #[test]
 fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes() {
-    let theme = Theme::one_dark();
+    let theme = Theme::orchbee_dark();
     let mut editor = editor_with(UserPreferencesValues::default());
     select_and_present(&mut editor, Row::Sound, Locale::EnUs, &theme);
     editor.edit(Edit::Adjust(true));
@@ -1178,7 +1178,7 @@ fn footer_status_copy_prioritizes_conflict_and_reconciliation_over_draft_changes
 
 #[test]
 fn text_cursor_stays_inside_the_overlay_and_editor_text_is_sanitized() {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     let mut editor = editor_with(UserPreferencesValues::default());
     open_profile_name_editor(&mut editor, Locale::ZhCn, &theme);
     editor.paste(&format!("{}\x1b[31m", "长名".repeat(50)));
@@ -1188,7 +1188,7 @@ fn text_cursor_stays_inside_the_overlay_and_editor_text_is_sanitized() {
 }
 
 fn assert_projected_text_cursor(raw: &str, glyph: &str, right_column: u16, end_column: u16) {
-    let theme = Theme::one_light();
+    let theme = Theme::orchbee_light();
     let mut editor = editor_with(UserPreferencesValues::default());
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
     editor.edit(Edit::Clear);
@@ -1314,7 +1314,7 @@ fn settings_refuses_incomplete_geometry_and_delays_pending_copy() {
 fn invalid_nondefault_executable_renders_its_profile_required_field_and_correction_in_both_locales()
 {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::one_light()] {
+        for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
             let mut editor = editor_with(UserPreferencesValues::default());
             editor.edit(Edit::Select(Row::LaunchProfiles));
             editor.edit(Edit::Activate);

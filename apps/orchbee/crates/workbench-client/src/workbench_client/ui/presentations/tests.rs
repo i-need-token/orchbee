@@ -37,7 +37,7 @@ fn automatic_tab_chrome_keeps_localized_and_fixed_names_without_a_second_title_r
             let (ui, mailbox, _, _) =
                 super::super::tests::move_membership::ready_ui_with_snapshot(source);
             assert_eq!(ui.view().tab(2).unwrap().display_label(locale), fixed);
-            for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
                 for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
                     let mut terminal =
                         ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height))
@@ -101,7 +101,7 @@ fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
         client_view::ClientView, localization::Locale, tui_hit_map::HitMapBuilder, tui_theme::Theme,
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::one_light()] {
+        for theme in [Theme::terminal_native(), Theme::orchbee_light()] {
             for repeats_location in [false, true] {
                 let location = "Workspace";
                 let label = if repeats_location { location } else { "Editor" };

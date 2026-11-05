@@ -30,11 +30,14 @@ fn a_smaller_live_grid_keeps_terminal_background_across_the_entire_pane() {
     source.geometry.rows = 1;
     source.rows.truncate(1);
     source.rows[0].cells.truncate(2);
-    let theme = Theme::one_dark().with_terminal_appearance_for_application(
-        orchbee_workbench_protocol::ApplicationAppearance::Dark,
-        orchbee_workbench_protocol::TerminalDisplayAppearance::Custom,
-        "#abcdef",
-        "#102030",
+    let theme = Theme::orchbee_dark().with_terminal_preferences(
+        &orchbee_workbench_protocol::UserPreferencesValues {
+            application_theme: orchbee_workbench_protocol::ApplicationAppearance::Dark,
+            terminal_display_theme: orchbee_workbench_protocol::TerminalDisplayAppearance::Custom,
+            custom_foreground: "#abcdef".into(),
+            custom_background: "#102030".into(),
+            ..Default::default()
+        },
     );
     let view = LiveView::new(&source, 8, 4);
     let mut terminal = Terminal::new(TestBackend::new(8, 4)).unwrap();
@@ -217,7 +220,7 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
             }],
         })
         .collect();
-    for theme in [Theme::terminal_native(), Theme::one_dark()] {
+    for theme in [Theme::terminal_native(), Theme::orchbee_dark()] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for (columns, rows) in [(80, 24), (120, 40), (60, 12), (40, 10), (19, 4)] {
                 let mut terminal = Terminal::new(TestBackend::new(columns, rows)).unwrap();
@@ -286,7 +289,7 @@ fn cropping_into_a_wide_tail_erases_old_cells_without_painting_half_a_glyph() {
                     &source,
                     crop,
                     false,
-                    &Theme::one_light(),
+                    &Theme::orchbee_light(),
                 ),
                 None
             );
@@ -341,7 +344,7 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
                 &window,
                 2,
                 true,
-                &Theme::one_dark(),
+                &Theme::orchbee_dark(),
             ) {
                 surface.set_cursor_position(cursor);
             }
@@ -403,7 +406,12 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
             custom_background: "#040506".into(),
             ..UserPreferencesValues::default()
         };
-        let chrome = Theme::one_dark();
+        // The painted theme is the slot the same preferences select.
+        let chrome = if application == Application::Light {
+            Theme::orchbee_light()
+        } else {
+            Theme::orchbee_dark()
+        };
         let theme = chrome.with_terminal_preferences(&values);
         assert_eq!(
             theme.style(Role::SurfaceChrome),
@@ -482,8 +490,8 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
     };
     for theme in [
         Theme::terminal_native(),
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
     ] {
         for level in [
             ColorLevel::Monochrome,

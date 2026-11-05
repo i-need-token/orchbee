@@ -476,7 +476,7 @@ fn terminal_native_active_tab_keeps_bold_and_underlines_its_whole_band() {
     for (theme, underlined) in [
         (Theme::terminal_native(), true),
         (Theme::terminal_native().quantize(ColorLevel::Ansi16), true),
-        (Theme::one_light(), false),
+        (Theme::orchbee_light(), false),
         (Theme::rgb_test_dark(), false),
     ] {
         let tabs = [tab("build", true, None), tab("logs", false, None)];
@@ -621,8 +621,8 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
 fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() {
     let mut group = group("Runtime", TabGroupColor::Blue);
     for base in [
-        Theme::one_light(),
-        Theme::one_dark(),
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
         Theme::terminal_native(),
     ] {
         for level in [

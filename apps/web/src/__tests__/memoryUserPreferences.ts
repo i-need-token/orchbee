@@ -77,6 +77,11 @@ function applyPatch(
 		),
 		lightTheme: choose(changes.lightTheme, current.lightTheme, DEFAULT_USER_PREFERENCES.lightTheme),
 		darkTheme: choose(changes.darkTheme, current.darkTheme, DEFAULT_USER_PREFERENCES.darkTheme),
+		tuiColorSource: choose(
+			changes.tuiColorSource,
+			current.tuiColorSource,
+			DEFAULT_USER_PREFERENCES.tuiColorSource,
+		),
 		terminalDisplayTheme: choose(
 			changes.terminalDisplayTheme,
 			current.terminalDisplayTheme,

@@ -110,6 +110,14 @@ impl WorkbenchClientUi {
     ) -> Option<Token> {
         self.settings.editor.scroll(token, up, lines)
     }
+    /// Settings presents named themes as unavailable while the host shows fewer than 24-bit
+    /// colors.
+    pub(in crate::workbench_client) fn configure_reduced_color(
+        &mut self,
+        reduced_color: bool,
+    ) -> bool {
+        self.settings.editor.configure_reduced_color(reduced_color)
+    }
     pub(in crate::workbench_client) fn apply_user_preferences(
         &mut self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
