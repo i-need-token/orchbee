@@ -95,6 +95,8 @@ export type {
 	WorkbenchAgentNotificationObserver,
 } from './types/workbench-agent-notification';
 export type {
+	WorkbenchAgentNames,
+	WorkbenchAgentNameSource,
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,

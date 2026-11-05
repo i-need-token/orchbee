@@ -1,6 +1,7 @@
 import type { ActionRuntime } from '@orchbee/actions';
 import {
 	Workbench,
+	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
 	type WorkbenchNavigationPort,
@@ -43,6 +44,7 @@ export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
+	readonly agentNameSource?: WorkbenchAgentNameSource | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
@@ -69,6 +71,7 @@ export function WebApplication({
 	actionRuntime,
 	applicationLocaleController,
 	agentIntegrationManagementControl,
+	agentNameSource,
 	agentObservationSource,
 	authority,
 	keyboardShortcutSettingsController,
@@ -134,6 +137,7 @@ export function WebApplication({
 			>
 				<Workbench
 					actionRuntime={actionRuntime}
+					agentNameSource={agentNameSource}
 					agentNotificationObserver={terminalFeedbackSettingsController}
 					agentObservationSource={agentObservationSource}
 					authority={authority}

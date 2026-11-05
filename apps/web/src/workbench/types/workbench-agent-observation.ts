@@ -24,3 +24,24 @@ export interface WorkbenchAgentSource {
 	getSnapshot(): WorkbenchAgentSnapshot;
 	subscribe(listener: () => void): () => void;
 }
+
+/** What the Server reports as naming one terminal's Agent, beyond the names this window holds. */
+export interface WorkbenchAgentNames {
+	/** The terminal incarnation these were read for; they name no other incarnation's Agent. */
+	readonly binding: string;
+	/** The name a person gave the Agent. */
+	readonly name: string | null;
+	/** The title an Agent report or Panel metadata gives the terminal. */
+	readonly reportedTitle: string | null;
+	/**
+	 * What the terminal's own title names, read while this window may not be showing it; undefined
+	 * until the Server has answered for this incarnation.
+	 */
+	readonly terminalTitle: string | null | undefined;
+}
+
+/** The Server's Agent names by Presentation ID, read again every few seconds. */
+export interface WorkbenchAgentNameSource {
+	getSnapshot(): ReadonlyMap<string, WorkbenchAgentNames>;
+	subscribe(listener: () => void): () => void;
+}

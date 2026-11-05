@@ -17,6 +17,8 @@ import {
 import { resolveWorkbenchAgentTitle } from '../model/resolveWorkbenchAgentTitle';
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
 import type {
+	WorkbenchAgentNames,
+	WorkbenchAgentNameSource,
 	WorkbenchAgentState,
 	WorkbenchAgentSource,
 } from '../types/workbench-agent-observation';
@@ -33,6 +35,8 @@ import { useWorkbenchAgentAttention } from './useWorkbenchAgentAttention';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
 
 interface UseWorkbenchAgentPresentationOptions {
+	/** The names the Server reports for Agents, which an Agent row's title comes from first. */
+	readonly nameSource?: WorkbenchAgentNameSource | undefined;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly notificationObserver: WorkbenchAgentNotificationObserver | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -55,6 +59,7 @@ interface WorkbenchAgentPresentationView {
 const FOLDED_STATUS_GLYPHS = 5;
 
 const NO_PANEL_TABS: readonly [] = [];
+const NO_AGENT_NAMES: ReadonlyMap<string, WorkbenchAgentNames> = new Map();
 
 /** The active Tab's focused Panel's terminal: the open Workspace's current Agent, if it is one. */
 function focusedPresentationId(
@@ -81,6 +86,7 @@ const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornme
 };
 
 export function useWorkbenchAgentPresentation({
+	nameSource,
 	navigateAgent,
 	notificationObserver,
 	projectWorkspaceRuntime,
@@ -102,6 +108,12 @@ export function useWorkbenchAgentPresentation({
 		unread,
 		terminalEdited,
 	} = useWorkbenchAgentAttention(source, terminalContext, root, painted);
+	const readAgentNames = () => nameSource?.getSnapshot() ?? NO_AGENT_NAMES;
+	const agentNames = React.useSyncExternalStore(
+		nameSource?.subscribe ?? subscribeToNothing,
+		readAgentNames,
+		readAgentNames,
+	);
 	const panelWorkspaceStore = terminalContext?.panelWorkspaceStore;
 	const readPanelTabs = () => panelWorkspaceStore?.getSnapshot().tabs ?? NO_PANEL_TABS;
 	const panelTabs = React.useSyncExternalStore(
@@ -211,6 +223,7 @@ export function useWorkbenchAgentPresentation({
 					projectId: workspace.projectId,
 					rows: workspace.rows.map(({ destination, observation }) => {
 						const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
+						const names = agentNames.get(destination.presentationId);
 						const locationLabel = formatWorkbenchAgentLocation(intl, destination);
 						const status = formatWorkbenchAgentStatus(intl, observation.state);
 						return {
@@ -226,6 +239,8 @@ export function useWorkbenchAgentPresentation({
 							titleLabel:
 								resolveWorkbenchAgentTitle(
 									destination.terminalNames,
+									// What the Server read for another incarnation names nothing in this one.
+									names?.binding === observation.binding ? names : undefined,
 									listWorkbenchAgentProviderNames(intl, observation.agent),
 								) ?? '',
 							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
@@ -240,6 +255,7 @@ export function useWorkbenchAgentPresentation({
 			},
 		);
 	}, [
+		agentNames,
 		currentPresentationId,
 		foldedWorkspaceIds,
 		intl,

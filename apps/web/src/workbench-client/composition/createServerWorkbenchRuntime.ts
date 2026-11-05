@@ -9,6 +9,7 @@ import {
 	resolveActiveTerminalPresentationId,
 	resolveTerminalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
+	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
 	type WorkbenchShortcutPlatform,
@@ -51,6 +52,7 @@ import {
 	serverHostColors,
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
+	ServerAgentNameSource,
 	ServerLeavingTabs,
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
@@ -72,6 +74,8 @@ type ServerTerminalMetadata = Parameters<
 
 export interface ServerWorkbenchRuntime {
 	readonly actionRuntime: ActionRuntime;
+	/** The names the Server reports for those Agents, read as the TUI's Agent rows read them. */
+	readonly agentNameSource: WorkbenchAgentNameSource;
 	/** The Agents the Server observes in this session's terminals. */
 	readonly agentObservationSource: WorkbenchAgentSource;
 	readonly authority: WorkbenchAuthority;
@@ -253,6 +257,7 @@ export function createServerWorkbenchRuntime({
 		},
 	);
 	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
+	const agentNameSource = new ServerAgentNameSource(connection, session, agentObservationSource);
 	const workspaceLocationSource = createServerWorkspaceLocations({
 		homeDirectory: homeDirectory ?? null,
 		session,
@@ -362,6 +367,7 @@ export function createServerWorkbenchRuntime({
 
 	return {
 		actionRuntime,
+		agentNameSource,
 		agentObservationSource,
 		authority,
 		dispose: () => {
@@ -381,6 +387,7 @@ export function createServerWorkbenchRuntime({
 					() => stopFocusRecoveryTopologyObservation?.(),
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),
+					() => agentNameSource.dispose(),
 					() => agentObservationSource.dispose(),
 					() => workspaceLocationSource.dispose(),
 					() => projectionClient.dispose(),

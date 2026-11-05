@@ -12,6 +12,7 @@ export type {
 	ServerConfiguredCommandReply,
 	ServerConfiguredCommandSource,
 } from './ServerConfiguredCommands';
+export { ServerAgentNameSource } from './ServerAgentNameSource';
 export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';

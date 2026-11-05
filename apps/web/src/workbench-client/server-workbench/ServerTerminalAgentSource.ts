@@ -28,6 +28,8 @@ type TerminalAgentStateRow = Extract<
 	{ readonly kind: 'states' }
 >['presentations'][number];
 type PresentationId = TerminalAgentStateRow['presentationId'];
+/** The exact terminal incarnation the Server observed an Agent in. */
+export type ServerTerminalAgentBinding = NonNullable<TerminalAgentStateRow['snapshot']>['binding'];
 
 /** The most Presentations the Server answers in one `states` request. */
 const MAXIMUM_STATE_ROWS = 64;
@@ -39,6 +41,9 @@ const MAXIMUM_STATE_ROWS = 64;
 const FAILURE_GRACE_MILLISECONDS = 10_000;
 /** A stream the Server closed for capacity is opened again after this long. */
 const CAPACITY_RETRY_MILLISECONDS = 5000;
+
+/** Each observation's terminal incarnation as the Server named it; an observation never changes it. */
+const TERMINAL_BINDINGS = new WeakMap<WorkbenchAgentObservation, ServerTerminalAgentBinding>();
 
 const UNOBSERVED_SNAPSHOT: WorkbenchAgentSnapshot = Object.freeze({
 	complete: false,
@@ -103,6 +108,11 @@ export class ServerTerminalAgentSource implements WorkbenchAgentSource {
 	subscribe(listener: () => void): () => void {
 		this.#listeners.add(listener);
 		return () => this.#listeners.delete(listener);
+	}
+
+	/** The terminal incarnation, as the Server names it, of an observation this source reported. */
+	terminalBinding(observation: WorkbenchAgentObservation): ServerTerminalAgentBinding | undefined {
+		return TERMINAL_BINDINGS.get(observation);
 	}
 
 	/** Closes every stream. Nothing is observed afterwards, so no Agent stays shown. */
@@ -335,15 +345,23 @@ function observeRows(
 		const binding = `${generation}:${hostEpoch}:${hostTerminalId}`;
 		const sequence = BigInt(snapshot.sequence);
 		const prior = previous.get(presentationId);
-		observed.set(
-			presentationId,
+		if (
 			prior?.agent === snapshot.agent &&
-				prior.binding === binding &&
-				prior.sequence === sequence &&
-				prior.state === snapshot.state
-				? prior
-				: Object.freeze({ agent: snapshot.agent, binding, sequence, state: snapshot.state }),
-		);
+			prior.binding === binding &&
+			prior.sequence === sequence &&
+			prior.state === snapshot.state
+		) {
+			observed.set(presentationId, prior);
+			continue;
+		}
+		const observation = Object.freeze({
+			agent: snapshot.agent,
+			binding,
+			sequence,
+			state: snapshot.state,
+		});
+		TERMINAL_BINDINGS.set(observation, snapshot.binding);
+		observed.set(presentationId, observation);
 	}
 	return observed;
 }

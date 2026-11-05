@@ -290,6 +290,7 @@ async function run(
 		{
 			actionRuntime: runtime.actionRuntime,
 			agentIntegrationManagementControl: agentIntegrationManagementClient,
+			agentNameSource: runtime.agentNameSource,
 			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,
 			authority: runtime.authority,

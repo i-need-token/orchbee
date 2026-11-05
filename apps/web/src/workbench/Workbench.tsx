@@ -48,7 +48,10 @@ import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platf
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent-notification';
-import type { WorkbenchAgentSource } from './types/workbench-agent-observation';
+import type {
+	WorkbenchAgentNameSource,
+	WorkbenchAgentSource,
+} from './types/workbench-agent-observation';
 import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspace-location';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
@@ -66,6 +69,8 @@ const NO_CONFIGURED_COMMAND_KEYS: WorkbenchConfiguredCommandKeysView = {
 
 interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
+	/** The names the Server reports for Agents, which name Agent rows. */
+	readonly agentNameSource?: WorkbenchAgentNameSource | undefined;
 	readonly agentNotificationObserver?: WorkbenchAgentNotificationObserver | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	/** Decides the shared Workbench structure. */
@@ -94,6 +99,7 @@ interface WorkbenchProps {
 
 export function Workbench({
 	actionRuntime,
+	agentNameSource,
 	agentNotificationObserver,
 	agentObservationSource,
 	authority,
@@ -142,6 +148,7 @@ export function Workbench({
 	});
 	const terminalContext = view.terminalContext;
 	const agentPresentation = useWorkbenchAgentPresentation({
+		nameSource: agentNameSource,
 		navigateAgent: view.navigateAgent,
 		notificationObserver: agentNotificationObserver,
 		projectWorkspaceRuntime,
