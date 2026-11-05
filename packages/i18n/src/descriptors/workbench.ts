@@ -1192,6 +1192,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.settings'],
 		description: 'Label for the settings entry in the Workbench sidebar footer.',
 	},
+	shortcuts: {
+		id: 'workbench.sidebar.items.shortcuts',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.shortcuts'],
+		description:
+			'Command and sidebar footer button that opens the keyboard shortcut reference in Settings.',
+	},
 	showSidebar: {
 		id: 'workbench.sidebar.actions.show',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.show'],

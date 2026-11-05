@@ -47,6 +47,7 @@ export const WORKBENCH_ACTION_IDS = {
 	openAgentBoard: 'workbench.agent-board.open',
 	openSearch: 'workbench.search.open',
 	openSettings: 'workbench.settings.open',
+	openShortcuts: 'workbench.shortcuts.open',
 	removeProject: 'workbench.project.dissolve',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 	resizeActivePanel: 'workbench.panel.active.resize',
@@ -259,6 +260,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.openAgentBoard]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.openShortcuts]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanel]: ActionSignature<void>;

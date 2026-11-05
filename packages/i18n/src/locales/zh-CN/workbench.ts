@@ -67,6 +67,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.sidebar.items.newTerminal': '新建终端',
 	'workbench.sidebar.items.search': '搜索',
 	'workbench.sidebar.items.settings': '设置',
+	'workbench.sidebar.items.shortcuts': '快捷键',
 	'workbench.sidebar.sections.project': '工作区',
 	'workbench.sidebar.sections.recents': '最近',
 	'workbench.recents.actions.collapse': '折叠“最近”',

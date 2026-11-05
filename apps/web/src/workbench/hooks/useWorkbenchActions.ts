@@ -79,6 +79,7 @@ interface UseWorkbenchActionsOptions {
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly openTabTitleEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
+	readonly onShortcuts?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
@@ -119,6 +120,7 @@ export function useWorkbenchActions({
 	openSearch,
 	openTabTitleEditor,
 	onSettings,
+	onShortcuts,
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
@@ -416,6 +418,18 @@ export function useWorkbenchActions({
 			typedRuntime.register(
 				scope,
 				defineAction({
+					category: categoryNavigation,
+					execution,
+					getAvailability: availabilityFor(onShortcuts),
+					handler: handlerFor(onShortcuts),
+					id: WORKBENCH_ACTION_IDS.openShortcuts,
+					input: noActionInput,
+					title: workbenchMessages.shortcuts,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
 					category: categoryView,
 					execution: {
 						concurrency: 'parallel',
@@ -478,6 +492,7 @@ export function useWorkbenchActions({
 		getNewTerminalAvailability,
 		onNewTerminal,
 		onSettings,
+		onShortcuts,
 		onTerminalFontSizeChange,
 		openAgentBoard,
 		openSearch,

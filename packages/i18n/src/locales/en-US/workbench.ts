@@ -70,6 +70,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.items.newTerminal': 'New Terminal',
 	'workbench.sidebar.items.search': 'Search',
 	'workbench.sidebar.items.settings': 'Settings',
+	'workbench.sidebar.items.shortcuts': 'Shortcuts',
 	'workbench.sidebar.sections.project': 'Workspaces',
 	'workbench.sidebar.sections.recents': 'Recents',
 	'workbench.recents.actions.collapse': 'Collapse Recents',

@@ -13,5 +13,8 @@ export type {
 	TerminalThemePresentationPreparation,
 } from './isTerminalThemePresentationSource';
 export { TerminalSettingsController } from './TerminalSettingsController';
-export type { TerminalSettingsSnapshot } from './TerminalSettingsController';
+export type {
+	TerminalSettingsLanding,
+	TerminalSettingsSnapshot,
+} from './TerminalSettingsController';
 export type { TerminalResolvedThemePreferences } from './terminal-appearance-preferences';

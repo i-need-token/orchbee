@@ -148,12 +148,13 @@ export function useTerminalSettingsSurface({
 
 	React.useEffect(() => {
 		if (!snapshot.open) return;
+		if (snapshot.landing !== null) setCategory(snapshot.landing);
 		setQuery('');
 		setActiveSearchResultIndex(0);
 		setPendingSearchTargetId(undefined);
 		setNavigationOpen(true);
 		inputReference.current?.focus();
-	}, [snapshot.open]);
+	}, [snapshot.landing, snapshot.open]);
 	React.useLayoutEffect(() => {
 		if (!snapshot.open || !navigationOpen) return;
 		inputReference.current?.focus();

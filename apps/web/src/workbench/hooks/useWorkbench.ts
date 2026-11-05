@@ -229,6 +229,8 @@ interface WorkbenchView {
 	readonly searchShortcutLabel: string | undefined;
 	readonly settingsLabel: string;
 	readonly settings: (() => void) | undefined;
+	readonly shortcuts: (() => void) | undefined;
+	readonly shortcutsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
@@ -283,6 +285,7 @@ interface UseWorkbenchOptions {
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
+	readonly onShortcuts?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
@@ -300,6 +303,7 @@ export function useWorkbench({
 	isShortcutScopeActive,
 	navigation,
 	onSettings,
+	onShortcuts,
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	shortcutBindings,
@@ -563,6 +567,7 @@ export function useWorkbench({
 		navigation,
 		onNewTerminal: createTerminal,
 		onSettings,
+		onShortcuts,
 		onTerminalFontSizeChange,
 		openAgentBoard,
 		openSearch,
@@ -943,6 +948,13 @@ export function useWorkbench({
 						actions.invoke(WORKBENCH_ACTION_IDS.openSettings, undefined, 'button');
 					},
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
+		shortcuts:
+			onShortcuts === undefined
+				? undefined
+				: () => {
+						actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
+					},
+		shortcutsLabel: intl.formatMessage(workbenchMessages.shortcuts),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),

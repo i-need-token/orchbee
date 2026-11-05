@@ -5,7 +5,11 @@ import type {
 } from '../../workbench';
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 
-import { type TerminalSettingsController, useTerminalSettings } from '../../terminal-settings';
+import {
+	type TerminalSettingsController,
+	type TerminalSettingsLanding,
+	useTerminalSettings,
+} from '../../terminal-settings';
 
 interface UseWebApplicationOptions {
 	readonly terminalSettingsController: TerminalSettingsController;
@@ -15,6 +19,7 @@ interface WebApplicationView {
 	readonly applicationReference: RefObject<HTMLDivElement | null>;
 	readonly closeSettings: () => void;
 	readonly onSettings: WorkbenchHostActionCallback;
+	readonly onShortcuts: WorkbenchHostActionCallback;
 	readonly onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback;
 	readonly settingsOpen: boolean;
 	readonly workbenchReference: RefObject<HTMLDivElement | null>;
@@ -71,17 +76,25 @@ export function useWebApplication({
 		}
 	});
 
-	const onSettings: WorkbenchHostActionCallback = useMemoizedFn(
-		(context: Parameters<WorkbenchHostActionCallback>[0]) => {
-			if (context.signal.aborted) return { kind: 'cancelled' };
-			if (terminalSettingsController.getSnapshot().open) return { kind: 'unchanged' };
-			const activeElement = applicationReference.current?.ownerDocument.activeElement;
-			returnFocusReference.current =
-				activeElement instanceof HTMLElement && activeElement.isConnected ? activeElement : null;
-			context.markCommitted();
-			terminalSettingsController.open();
-			return { kind: 'completed' };
-		},
+	const openSettings = (
+		context: Parameters<WorkbenchHostActionCallback>[0],
+		landing: TerminalSettingsLanding | null,
+	): ReturnType<WorkbenchHostActionCallback> => {
+		if (context.signal.aborted) return { kind: 'cancelled' };
+		if (terminalSettingsController.getSnapshot().open) return { kind: 'unchanged' };
+		const activeElement = applicationReference.current?.ownerDocument.activeElement;
+		returnFocusReference.current =
+			activeElement instanceof HTMLElement && activeElement.isConnected ? activeElement : null;
+		context.markCommitted();
+		terminalSettingsController.open(landing);
+		return { kind: 'completed' };
+	};
+	const onSettings: WorkbenchHostActionCallback = useMemoizedFn((context) =>
+		openSettings(context, null),
+	);
+	// The shortcut reference is the Settings section that lists every key.
+	const onShortcuts: WorkbenchHostActionCallback = useMemoizedFn((context) =>
+		openSettings(context, 'keyboard-shortcuts'),
 	);
 	const onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback = useMemoizedFn(
 		(context, change) => {
@@ -110,6 +123,7 @@ export function useWebApplication({
 		applicationReference,
 		closeSettings,
 		onSettings,
+		onShortcuts,
 		onTerminalFontSizeChange,
 		settingsOpen: settings.open,
 		workbenchReference,

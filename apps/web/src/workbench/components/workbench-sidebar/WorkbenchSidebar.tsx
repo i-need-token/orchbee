@@ -9,6 +9,9 @@ import {
 	Button,
 	Kbd,
 	ProductIcon,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 import type { ActionExecution } from '@orchbee/actions';
@@ -62,6 +65,7 @@ interface WorkbenchSidebarProps {
 	readonly newWorkspaceLabel: string;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
+	readonly onShortcuts?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
@@ -80,6 +84,7 @@ interface WorkbenchSidebarProps {
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
+	readonly shortcutsLabel: string;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
@@ -105,6 +110,7 @@ export function WorkbenchSidebar({
 	newWorkspaceLabel,
 	onSearch,
 	onSettings,
+	onShortcuts,
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
@@ -120,6 +126,7 @@ export function WorkbenchSidebar({
 	settingsLabel,
 	settingsShortcutId,
 	settingsShortcutLabel,
+	shortcutsLabel,
 	toggleProjectExpansion,
 	toggleRecentsExpansion,
 	toggleWorkspaceAgents,
@@ -318,6 +325,24 @@ export function WorkbenchSidebar({
 							<Kbd className={styles['shortcut']}>{settingsShortcutLabel}</Kbd>
 						)}
 					</Button>
+					{/* The shortcut reference: the Settings section that lists every key. */}
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<button
+									aria-disabled={onShortcuts === undefined}
+									aria-label={shortcutsLabel}
+									className={styles['help']}
+									data-slot='workbench-sidebar-shortcuts'
+									type='button'
+									onClick={onShortcuts}
+								/>
+							}
+						>
+							<ProductIcon name='question' />
+						</TooltipTrigger>
+						<TooltipContent side='top'>{shortcutsLabel}</TooltipContent>
+					</Tooltip>
 				</div>
 			</aside>
 			{projectCreation === null ? null : (

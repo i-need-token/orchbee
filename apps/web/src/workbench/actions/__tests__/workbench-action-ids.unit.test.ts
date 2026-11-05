@@ -56,6 +56,7 @@ describe('workbench action contracts', () => {
 			openAgentBoard: 'workbench.agent-board.open',
 			openSearch: 'workbench.search.open',
 			openSettings: 'workbench.settings.open',
+			openShortcuts: 'workbench.shortcuts.open',
 			removeProject: 'workbench.project.dissolve',
 			setWorkspaceProject: 'workbench.workspace.set-project',
 			createWorkspaceProject: 'workbench.workspace.create-project',

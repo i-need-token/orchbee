@@ -10,5 +10,9 @@ export type {
 	TerminalThemePresentationParticipant,
 	TerminalThemePresentationPreparation,
 } from './model';
-export type { TerminalAppearancePreferences, TerminalFontWeight } from './model';
+export type {
+	TerminalAppearancePreferences,
+	TerminalFontWeight,
+	TerminalSettingsLanding,
+} from './model';
 export type { TerminalResolvedThemePreferences } from './model';

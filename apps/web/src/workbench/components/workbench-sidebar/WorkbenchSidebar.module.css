@@ -146,6 +146,42 @@
 	padding: var(--ob-ref-space-2);
 }
 
+.footer .primaryItem {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+}
+
+/* Shortcuts: a 28 px square beside Settings. */
+.help {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.help:hover,
+.help:focus-visible {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.help:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.help:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
 .projectList {
 	position: relative;
 	margin: var(--ob-ref-space-0);

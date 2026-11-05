@@ -33,7 +33,12 @@ import type {
 	TerminalThemePresentationSource,
 } from './isTerminalThemePresentationSource';
 
+/** A Settings section that an opening asks to show first. */
+export type TerminalSettingsLanding = 'keyboard-shortcuts';
+
 export interface TerminalSettingsSnapshot {
+	/** The section the latest opening asked for; null shows the surface's own choice. */
+	readonly landing: TerminalSettingsLanding | null;
 	readonly open: boolean;
 	readonly persistenceIssue: TerminalAppearancePersistenceIssue | null;
 	readonly preferences: TerminalAppearancePreferences;
@@ -102,7 +107,7 @@ export class TerminalSettingsController
 		const restored = readHostAppearancePreferences(storage);
 		const preferences = commonAppearance(restored.preferences, userPreferences);
 		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
-		this.#snapshot = snapshot(false, restored.issue, preferences);
+		this.#snapshot = snapshot(false, null, restored.issue, preferences);
 		this.#applyApplicationTheme(preferences.applicationTheme);
 		this.#removeUserPreferences = userPreferences.subscribe(() => this.#syncUserPreferences());
 		systemTheme?.addEventListener('change', this.#handleSystemTheme);
@@ -134,10 +139,15 @@ export class TerminalSettingsController
 		};
 	};
 
-	open(): TerminalSettingsVisibilityResult {
+	open(landing: TerminalSettingsLanding | null = null): TerminalSettingsVisibilityResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#snapshot.open) return { kind: 'unchanged' };
-		this.#snapshot = snapshot(true, this.#snapshot.persistenceIssue, this.#snapshot.preferences);
+		this.#snapshot = snapshot(
+			true,
+			landing,
+			this.#snapshot.persistenceIssue,
+			this.#snapshot.preferences,
+		);
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
@@ -145,7 +155,12 @@ export class TerminalSettingsController
 	close(): TerminalSettingsVisibilityResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (!this.#snapshot.open) return { kind: 'unchanged' };
-		this.#snapshot = snapshot(false, this.#snapshot.persistenceIssue, this.#snapshot.preferences);
+		this.#snapshot = snapshot(
+			false,
+			null,
+			this.#snapshot.persistenceIssue,
+			this.#snapshot.preferences,
+		);
 		this.#emitSnapshot();
 		return { kind: 'changed' };
 	}
@@ -289,7 +304,12 @@ export class TerminalSettingsController
 
 	#commitCandidate(preferences: TerminalAppearancePreferences, terminalChanged: boolean): number {
 		this.#revision += 1;
-		this.#snapshot = snapshot(this.#snapshot.open, this.#snapshot.persistenceIssue, preferences);
+		this.#snapshot = snapshot(
+			this.#snapshot.open,
+			this.#snapshot.landing,
+			this.#snapshot.persistenceIssue,
+			preferences,
+		);
 		if (terminalChanged) {
 			this.#presentationConfiguration =
 				terminalPresentationConfigurationFromPreferences(preferences);
@@ -332,7 +352,12 @@ export class TerminalSettingsController
 		this.#persistence.write(() => {
 			const saved = writeHostAppearancePreferences(this.#storage, preferences);
 			if (this.#disposed || this.#revision !== revision) return;
-			this.#snapshot = snapshot(this.#snapshot.open, saved ? null : 'write-failed', preferences);
+			this.#snapshot = snapshot(
+				this.#snapshot.open,
+				this.#snapshot.landing,
+				saved ? null : 'write-failed',
+				preferences,
+			);
 			this.#emitSnapshot();
 		});
 	}
@@ -352,10 +377,11 @@ export class TerminalSettingsController
 
 function snapshot(
 	open: boolean,
+	landing: TerminalSettingsLanding | null,
 	persistenceIssue: TerminalAppearancePersistenceIssue | null,
 	preferences: TerminalAppearancePreferences,
 ): TerminalSettingsSnapshot {
-	return Object.freeze({ open, persistenceIssue, preferences });
+	return Object.freeze({ landing, open, persistenceIssue, preferences });
 }
 
 function commonAppearance(

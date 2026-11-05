@@ -77,6 +77,7 @@ interface WorkbenchProps {
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
+	readonly onShortcuts?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
@@ -99,6 +100,7 @@ export function Workbench({
 	layoutStorage,
 	navigation,
 	onSettings,
+	onShortcuts,
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
@@ -127,6 +129,7 @@ export function Workbench({
 		isShortcutScopeActive,
 		navigation,
 		onSettings,
+		onShortcuts,
 		onTerminalFontSizeChange,
 		projectWorkspaceRuntime,
 		shortcutBindings: effectiveShortcutBindings,
@@ -268,6 +271,8 @@ export function Workbench({
 										label={view.sidebarLabel}
 										onSearch={view.search}
 										onSettings={view.settings}
+										onShortcuts={view.shortcuts}
+										shortcutsLabel={view.shortcutsLabel}
 										projectLabel={view.projectLabel}
 										newWorkspaceLabel={view.newWorkspaceLabel}
 										projectNavigationMessages={view.projectNavigationMessages}

@@ -37,6 +37,7 @@ describe('TerminalSettingsController', () => {
 		});
 
 		expect(controller.getSnapshot()).toEqual({
+			landing: null,
 			open: false,
 			persistenceIssue: null,
 			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
