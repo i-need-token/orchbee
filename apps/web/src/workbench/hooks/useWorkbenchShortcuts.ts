@@ -14,6 +14,7 @@ export function useWorkbenchShortcuts(
 	platform: WorkbenchShortcutPlatform,
 	bindings: WorkbenchShortcutBindings,
 	invokeShortcut: (binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean,
+	invokeConfiguredCommandKey: (event: KeyboardEvent) => boolean,
 ): React.RefObject<HTMLDivElement | null> {
 	const rootReference = React.useRef<HTMLDivElement>(null);
 	const handleKeyDown = useMemoizedFn((event: KeyboardEvent): void => {
@@ -24,11 +25,25 @@ export function useWorkbenchShortcuts(
 		event.preventDefault();
 		event.stopPropagation();
 	});
+	// The window's capture runs before every document listener, so a configured command's chord
+	// reaches neither a window default it took nor the terminal.
+	const handleConfiguredCommandKeyDown = useMemoizedFn((event: KeyboardEvent): void => {
+		if (!active) return;
+		if (isWorkbenchExclusiveFocusTarget(event.target)) return;
+		if (!invokeConfiguredCommandKey(event)) return;
+		event.preventDefault();
+		event.stopPropagation();
+	});
 	React.useEffect(() => {
 		const ownerDocument = rootReference.current?.ownerDocument;
 		if (ownerDocument === undefined) return;
+		const ownerWindow = ownerDocument.defaultView;
+		ownerWindow?.addEventListener('keydown', handleConfiguredCommandKeyDown, true);
 		ownerDocument.addEventListener('keydown', handleKeyDown, true);
-		return () => ownerDocument.removeEventListener('keydown', handleKeyDown, true);
-	}, [handleKeyDown]);
+		return () => {
+			ownerWindow?.removeEventListener('keydown', handleConfiguredCommandKeyDown, true);
+			ownerDocument.removeEventListener('keydown', handleKeyDown, true);
+		};
+	}, [handleConfiguredCommandKeyDown, handleKeyDown]);
 	return rootReference;
 }

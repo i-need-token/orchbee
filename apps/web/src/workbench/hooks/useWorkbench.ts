@@ -87,6 +87,12 @@ import {
 	type WorkbenchSharedPanelTerminalCreate,
 } from '../actions/createSharedPanelTerminal';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
+import type { WorkbenchConfiguredCommand } from '../types/workbench-configured-commands';
+import { workbenchConfiguredCommandActionId } from '../actions/workbench-configured-command-action-id';
+import {
+	findWorkbenchConfiguredCommandForKey,
+	type WorkbenchConfiguredCommandKeys,
+} from '../model/workbench-configured-command-keys';
 import type { WorkbenchAgentBoard } from '../types/workbench-agent-board';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import {
@@ -189,7 +195,8 @@ interface WorkbenchView {
 	readonly onRootFocusCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly shortcutScopeReference: React.RefObject<HTMLDivElement | null>;
 	readonly sidebarShortcutId: string;
-	readonly sidebarShortcutLabel: string;
+	/** Absent while a configured command holds the chord. */
+	readonly sidebarShortcutLabel: string | undefined;
 	readonly sidebarToggleLabel: string;
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
@@ -219,11 +226,11 @@ interface WorkbenchView {
 	) => WorkbenchSearchProviderArgumentPicker | undefined;
 	readonly updateSearch: React.Dispatch<WorkbenchSearchEvent>;
 	readonly searchShortcutId: string;
-	readonly searchShortcutLabel: string;
+	readonly searchShortcutLabel: string | undefined;
 	readonly settingsLabel: string;
 	readonly settings: (() => void) | undefined;
 	readonly settingsShortcutId: string;
-	readonly settingsShortcutLabel: string;
+	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
 	readonly setTabTitle: (tabId: string) => void;
 	readonly tabTitleEditor:
@@ -271,6 +278,8 @@ interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
+	readonly configuredCommandCatalog: readonly WorkbenchConfiguredCommand[];
+	readonly configuredCommandKeys: WorkbenchConfiguredCommandKeys;
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -286,6 +295,8 @@ export function useWorkbench({
 	actionRuntime,
 	agentObservationSource,
 	authority,
+	configuredCommandCatalog,
+	configuredCommandKeys,
 	isShortcutScopeActive,
 	navigation,
 	onSettings,
@@ -543,6 +554,8 @@ export function useWorkbench({
 	const actions = useWorkbenchActions({
 		agentObservationSource,
 		authority: authorityNotice.authority,
+		configuredCommandCatalog,
+		configuredCommandKeys,
 		focusRouting: focusRouter,
 		formatCloseWarning,
 		getNewTerminalAvailability,
@@ -701,12 +714,33 @@ export function useWorkbench({
 		};
 	}, [actionRuntime, actions.scope, intl]);
 
+	// A configured command's chord runs it before any window shortcut sees the key, as in the TUI.
+	const invokeConfiguredCommandKey = useMemoizedFn((event: KeyboardEvent): boolean => {
+		const commandId = findWorkbenchConfiguredCommandForKey(
+			configuredCommandKeys,
+			event,
+			shortcutPlatform,
+		);
+		if (commandId === null) return false;
+		const actionId = workbenchConfiguredCommandActionId(commandId);
+		const invocation = { scope: actions.scope, source: 'keyboard' } as const;
+		if (
+			actionRuntime.resolveAction(actionId, undefined, invocation)?.availability.kind !== 'enabled'
+		) {
+			return false;
+		}
+		actionRuntime.execute(actionId, undefined, invocation);
+		return true;
+	});
 	const shortcutScopeReference = useWorkbenchShortcuts(
 		isShortcutScopeActive,
 		shortcutPlatform,
 		shortcutBindings,
 		actions.invokeShortcut,
+		invokeConfiguredCommandKey,
 	);
+	const visibleShortcutLabel = (label: string): string | undefined =>
+		configuredCommandKeys.heldLabels.has(label) ? undefined : label;
 
 	return {
 		agentBoard: agentBoardOpen ? authorityNotice.authority.agentBoard : undefined,
@@ -788,10 +822,8 @@ export function useWorkbench({
 		onRootFocusCapture: focusRouting.onFocusCapture,
 		shortcutScopeReference,
 		sidebarShortcutId: WORKBENCH_SHORTCUTS.toggleSidebar.id,
-		sidebarShortcutLabel: formatWorkbenchShortcut(
-			'toggleSidebar',
-			shortcutPlatform,
-			shortcutBindings,
+		sidebarShortcutLabel: visibleShortcutLabel(
+			formatWorkbenchShortcut('toggleSidebar', shortcutPlatform, shortcutBindings),
 		),
 		sidebarToggleLabel: intl.formatMessage(
 			isSidebarVisible ? workbenchMessages.hideSidebar : workbenchMessages.showSidebar,
@@ -900,7 +932,9 @@ export function useWorkbench({
 		searchState,
 		searchLabel: intl.formatMessage(workbenchMessages.search),
 		searchShortcutId: WORKBENCH_SHORTCUTS.search.id,
-		searchShortcutLabel: formatWorkbenchShortcut('search', shortcutPlatform, shortcutBindings),
+		searchShortcutLabel: visibleShortcutLabel(
+			formatWorkbenchShortcut('search', shortcutPlatform, shortcutBindings),
+		),
 		settings:
 			onSettings === undefined
 				? undefined
@@ -909,7 +943,9 @@ export function useWorkbench({
 					},
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
-		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
+		settingsShortcutLabel: visibleShortcutLabel(
+			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
+		),
 		sidebarFocusRequest: focusRouting.sidebarFocusRequest,
 		setTabTitle: (tabId) => {
 			const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();

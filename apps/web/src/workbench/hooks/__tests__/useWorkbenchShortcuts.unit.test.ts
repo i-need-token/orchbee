@@ -25,6 +25,7 @@ function WorkbenchShortcutsHarness({
 		'apple',
 		defaultWorkbenchShortcutBindings('apple'),
 		invokeIfEnabled,
+		() => false,
 	);
 	return createElement(
 		'div',

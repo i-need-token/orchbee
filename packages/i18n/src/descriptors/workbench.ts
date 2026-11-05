@@ -1409,12 +1409,30 @@ export const workbenchMessages = defineMessages({
 	configuredCommandTitle: {
 		id: 'workbench.configuredCommands.title',
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.title'],
-		description: 'A configured command, named by the description its configuration gives.',
+		description: 'A configured command, named by its description or the command text it runs.',
 	},
 	configuredCommandUnnamed: {
 		id: 'workbench.configuredCommands.unnamed',
 		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.unnamed'],
 		description: 'A configured command without a description, named by its place in the list.',
+	},
+	configuredCommandKeyTook: {
+		id: 'workbench.configuredCommands.key.took',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.key.took'],
+		description:
+			'Search row note: this configured command runs on the chord of a default window shortcut, named by its action.',
+	},
+	configuredCommandKeyYielded: {
+		id: 'workbench.configuredCommands.key.yielded',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.key.yielded'],
+		description:
+			"Search row note: the configured command's chord stays with a shortcut the person set for the named action.",
+	},
+	configuredCommandKeyTuiOnly: {
+		id: 'workbench.configuredCommands.key.tuiOnly',
+		defaultMessage: enUSWorkbenchMessages['workbench.configuredCommands.key.tuiOnly'],
+		description:
+			'Search row note: the configured key, as the TUI labels it, such as a prefix key, cannot be bound in the window.',
 	},
 	configuredCommandAccepted: {
 		id: 'workbench.configuredCommands.accepted',

@@ -13,6 +13,9 @@ import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
 import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
 import { defaultWorkbenchShortcutBindings } from '../../utils/workbench-shortcuts';
 import { useWorkbench } from '../useWorkbench';
+import { resolveWorkbenchConfiguredCommandKeys } from '../../model/workbench-configured-command-keys';
+
+const NO_CONFIGURED_COMMAND_KEYS = resolveWorkbenchConfiguredCommandKeys([], [], 'apple');
 
 interface WorkbenchHarnessProps {
 	readonly actionRuntime: ActionRuntime;
@@ -24,6 +27,8 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 	const workbench = useWorkbench({
 		actionRuntime,
 		authority: inertWorkbenchAuthority(),
+		configuredCommandCatalog: [],
+		configuredCommandKeys: NO_CONFIGURED_COMMAND_KEYS,
 		isShortcutScopeActive: true,
 		onSettings: undefined,
 		projectWorkspaceRuntime: createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)])),

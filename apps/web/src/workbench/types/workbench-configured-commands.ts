@@ -1,5 +1,7 @@
 /** One command the person's configuration installs, which a Client runs by its identity. */
 export interface WorkbenchConfiguredCommand {
+	/** The configured keys as the TUI labels them: `[prefix+][ctrl+][alt+][shift+][super+]key`. */
+	readonly bindings: readonly string[];
 	/** The configured description; null when the configuration gives none. */
 	readonly description: string | null;
 	/** The command line or plugin target the TUI's key help shows; null when nothing visible remains. */

@@ -15,7 +15,8 @@ interface WorkbenchSidebarToggleProps {
 	readonly label: string;
 	readonly onToggle: () => void;
 	readonly shortcutId: string;
-	readonly shortcutLabel: string;
+	/** Absent while a configured command holds the chord. */
+	readonly shortcutLabel: string | undefined;
 }
 
 export function WorkbenchSidebarToggle({
@@ -45,7 +46,7 @@ export function WorkbenchSidebarToggle({
 			</TooltipTrigger>
 			<TooltipContent align='start' side='bottom'>
 				{label}
-				<Kbd>{shortcutLabel}</Kbd>
+				{shortcutLabel === undefined ? null : <Kbd>{shortcutLabel}</Kbd>}
 			</TooltipContent>
 		</Tooltip>
 	);

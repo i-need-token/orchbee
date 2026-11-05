@@ -51,13 +51,18 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
+import type { WorkbenchConfiguredCommandKeys } from '../model/workbench-configured-command-keys';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
+import type { WorkbenchConfiguredCommand } from '../types/workbench-configured-commands';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
+	/** The configured commands as the window last read them, and what its keys do with them. */
+	readonly configuredCommandCatalog: readonly WorkbenchConfiguredCommand[];
+	readonly configuredCommandKeys: WorkbenchConfiguredCommandKeys;
 	readonly focusRouting: Pick<
 		WorkbenchFocusRouting,
 		'beginTerminalHandover' | 'focus' | 'getResolution'
@@ -102,6 +107,8 @@ interface WorkbenchActions {
 export function useWorkbenchActions({
 	agentObservationSource,
 	authority,
+	configuredCommandCatalog,
+	configuredCommandKeys,
 	focusRouting,
 	formatCloseWarning,
 	isSidebarVisible,
@@ -242,11 +249,6 @@ export function useWorkbenchActions({
 						worktreeLabel,
 						worktrees: authority.worktrees,
 					})),
-			registerWorkbenchConfiguredCommandActions({
-				commands: authority.configuredCommands,
-				runtime,
-				scope,
-			}),
 			...registerWorkbenchTabSelectionActions({
 				projectWorkspaceRuntime,
 				runtime,
@@ -490,6 +492,20 @@ export function useWorkbenchActions({
 		typedRuntime,
 		worktreeLabel,
 	]);
+
+	// Its own registration, so a changed list or key note registers the configured commands alone.
+	const configuredCommands = authority.configuredCommands;
+	React.useEffect(() => {
+		if (configuredCommands === undefined) return;
+		const registration = registerWorkbenchConfiguredCommandActions({
+			catalog: configuredCommandCatalog,
+			commands: configuredCommands,
+			notes: configuredCommandKeys.notes,
+			runtime,
+			scope,
+		});
+		return () => registration.dispose();
+	}, [configuredCommandCatalog, configuredCommandKeys, configuredCommands, runtime, scope]);
 
 	const invoke = useMemoizedFn(
 		<Id extends ActionCatalogId<WorkbenchActionCatalog>>(

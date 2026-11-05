@@ -3,10 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { useWorkbenchActionShortcutLabel } from '../useWorkbenchActionShortcutLabel';
+import { resolveWorkbenchConfiguredCommandKeys } from '../../model/workbench-configured-command-keys';
 import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
 } from '../../utils/workbench-shortcuts';
+
+const NO_CONFIGURED_COMMAND_KEYS = resolveWorkbenchConfiguredCommandKeys([], [], 'apple');
 
 function ShortcutLabelsProbe({
 	bindings,
@@ -14,6 +17,7 @@ function ShortcutLabelsProbe({
 	readonly bindings: WorkbenchShortcutBindings;
 }): ReactNode {
 	const labelForAction = useWorkbenchActionShortcutLabel({
+		configuredCommandKeys: NO_CONFIGURED_COMMAND_KEYS,
 		shortcutBindings: bindings,
 		shortcutPlatform: 'apple',
 		terminalActionShortcutLabels: { 'terminal.clipboard.paste': '⇧⌘V' },

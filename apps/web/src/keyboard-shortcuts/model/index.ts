@@ -6,6 +6,8 @@ export {
 	KEYBOARD_SHORTCUT_CATALOG,
 	keyboardShortcutDeclaration,
 } from './keyboard-shortcut-catalog';
+export { formatKeyboardShortcutActionName } from './formatKeyboardShortcutActionName';
+export { keyboardShortcutClaims } from './keyboardShortcutClaims';
 export type { KeyboardShortcutSettingsSnapshot } from './keyboard-shortcut-settings-controller';
 export type {
 	KeyboardShortcutAvailability,

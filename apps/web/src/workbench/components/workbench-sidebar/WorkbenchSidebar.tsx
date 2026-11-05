@@ -76,10 +76,10 @@ interface WorkbenchSidebarProps {
 	readonly renameProject: (projectId: string, name: string) => void;
 	readonly searchLabel: string;
 	readonly searchShortcutId: string;
-	readonly searchShortcutLabel: string;
+	readonly searchShortcutLabel: string | undefined;
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
-	readonly settingsShortcutLabel: string;
+	readonly settingsShortcutLabel: string | undefined;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleRecentsExpansion: () => void;
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
@@ -218,7 +218,9 @@ export function WorkbenchSidebar({
 								<ProductIcon name='search' />
 							</span>
 							<span className={styles['label']}>{searchLabel}</span>
-							<Kbd className={styles['shortcut']}>{searchShortcutLabel}</Kbd>
+							{searchShortcutLabel === undefined ? null : (
+								<Kbd className={styles['shortcut']}>{searchShortcutLabel}</Kbd>
+							)}
 						</Button>
 					</li>
 				</ul>
@@ -314,7 +316,9 @@ export function WorkbenchSidebar({
 							<ProductIcon name='settings' />
 						</span>
 						<span className={styles['label']}>{settingsLabel}</span>
-						<Kbd className={styles['shortcut']}>{settingsShortcutLabel}</Kbd>
+						{settingsShortcutLabel === undefined ? null : (
+							<Kbd className={styles['shortcut']}>{settingsShortcutLabel}</Kbd>
+						)}
 					</Button>
 				</div>
 			</aside>

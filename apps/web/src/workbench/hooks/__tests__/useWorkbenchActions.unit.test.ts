@@ -32,6 +32,9 @@ import type {
 } from '../../types/workbench-host-actions';
 import { WORKBENCH_SHORTCUTS } from '../../utils/workbench-shortcuts';
 import { useWorkbenchActions } from '../useWorkbenchActions';
+import { resolveWorkbenchConfiguredCommandKeys } from '../../model/workbench-configured-command-keys';
+
+const NO_CONFIGURED_COMMAND_KEYS = resolveWorkbenchConfiguredCommandKeys([], [], 'apple');
 
 const unavailableFocusRouting = {
 	beginTerminalHandover: () => ({ complete: () => undefined, held: () => true }),
@@ -94,6 +97,8 @@ function WorkbenchActionsHarness({
 	);
 	const actions = useWorkbenchActions({
 		authority,
+		configuredCommandCatalog: [],
+		configuredCommandKeys: NO_CONFIGURED_COMMAND_KEYS,
 		focusRouting,
 		formatCloseWarning: closeWarningTestText,
 		isSidebarVisible,
@@ -369,6 +374,8 @@ describe('useWorkbenchActions', () => {
 			const [projectWorkspaceRuntime] = React.useState(createTerminalRuntime);
 			const actions = useWorkbenchActions({
 				authority: inertWorkbenchAuthority(),
+				configuredCommandCatalog: [],
+				configuredCommandKeys: NO_CONFIGURED_COMMAND_KEYS,
 				focusRouting: unavailableFocusRouting,
 				formatCloseWarning: closeWarningTestText,
 				isSidebarVisible: true,

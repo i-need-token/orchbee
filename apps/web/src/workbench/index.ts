@@ -87,6 +87,7 @@ export type {
 	WorkbenchNavigationTarget,
 	WorkbenchTerminalFontSizeChangeCallback,
 } from './types/workbench-host-actions';
+export type { WorkbenchShortcutClaim } from './types/workbench-shortcut-claims';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 export type {
 	WorkbenchAgentNotification,

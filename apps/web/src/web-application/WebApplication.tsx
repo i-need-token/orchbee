@@ -7,16 +7,19 @@ import {
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchShortcutClaim,
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
 	type WorkbenchWorkspaceLocationSource,
 } from '../workbench';
 import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
-import type { ReactNode } from 'react';
+import { useOrchbeeIntl } from '@orchbee/i18n';
+import * as React from 'react';
 
 import type { AgentIntegrationManagementControl } from '../agent-integration-management';
 import type { ApplicationLocaleController } from '../application-locale';
 import {
+	keyboardShortcutClaims,
 	type KeyboardShortcutSettingsController,
 	useKeyboardShortcutSettings,
 } from '../keyboard-shortcuts';
@@ -81,9 +84,14 @@ export function WebApplication({
 	terminalDefaultSettingsControl,
 	terminalSurface,
 	workspaceLocationSource,
-}: WebApplicationProps): ReactNode {
+}: WebApplicationProps): React.ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
+	const intl = useOrchbeeIntl();
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
+	const shortcutClaims: readonly WorkbenchShortcutClaim[] = React.useMemo(
+		() => keyboardShortcutClaims(keyboardShortcuts, intl),
+		[intl, keyboardShortcuts],
+	);
 	const terminalActionShortcutLabels: WorkbenchTerminalActionShortcutLabels = {
 		[PROJECTED_TERMINAL_SHORTCUTS.clear.actionId]: formatProjectedTerminalActionShortcut(
 			PROJECTED_TERMINAL_SHORTCUTS.clear.actionId,
@@ -131,6 +139,7 @@ export function WebApplication({
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
 					shortcutBindings={keyboardShortcuts.bindings}
+					shortcutClaims={shortcutClaims}
 					shortcutPlatform={shortcutPlatform}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}

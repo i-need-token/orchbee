@@ -73,7 +73,7 @@ export function bindServerConfiguredCommands({
 			listed = entries;
 			offered = entries
 				.filter(({ action }) => action !== 'popup')
-				.map(({ description, display, id }) => ({ description, display, id }));
+				.map(({ bindings, description, display, id }) => ({ bindings, description, display, id }));
 		}
 		return offered;
 	};
