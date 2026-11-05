@@ -68,6 +68,59 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## iTerm2 Color Schemes
+
+- Copyright notice: Copyright (c) 2011 to Present Mark Badolato
+- Source: <https://github.com/mbadolato/iTerm2-Color-Schemes>
+- Pinned revision: `38bd77ce06b376f2e49e78bd318cf1255d87719b`
+- Original paths: the Ghostty exports under `ghostty/` that a theme file names as its source
+- License: MIT; the upstream states that the copyright and license of each theme remain with its
+  author, credited in that theme's own entry below
+- Use in Orchbee: the published terminal color values of the themes in
+  [`crates/color-themes/themes/`](crates/color-themes/themes/) whose source is this compilation
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Gruvbox Color Theme
+
+- Creator: Pavel Pertsev; the upstream states the MIT/X11 license and names no separate copyright line
+- Source: <https://github.com/morhetz/gruvbox>
+- Pinned revision: `ef8864bb42bf244f0295d1c5a403b27e3d139695`
+- Values from: iTerm2 Color Schemes `ghostty/Gruvbox Dark` and `ghostty/Gruvbox Light`
+- License: MIT
+- Use in Orchbee: terminal and interface color values of the Gruvbox Dark and Gruvbox Light themes
+  in [`crates/color-themes/themes/`](crates/color-themes/themes/)
+- Modifications: lightness correction to the legibility floors of Gruvbox Dark ANSI 1 and Gruvbox
+  Light ANSI 2, 3, and 6; each theme file records the original value beside the corrected one
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## JetBrains Mono
 
 - Copyright notice: Copyright 2020 The JetBrains Mono Project Authors

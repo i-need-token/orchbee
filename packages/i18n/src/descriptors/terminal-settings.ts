@@ -31,6 +31,8 @@ export const terminalSettingsMessages = defineMessages({
 	colorThemeLightDescription: message('terminal.settings.colorTheme.light.description'),
 	colorThemeLightLabel: message('terminal.settings.colorTheme.light.label'),
 	colorThemeLightSystemNotice: message('terminal.settings.colorTheme.light.systemNotice'),
+	colorThemeNameGruvboxDark: message('terminal.settings.colorTheme.names.gruvboxDark'),
+	colorThemeNameGruvboxLight: message('terminal.settings.colorTheme.names.gruvboxLight'),
 	colorThemeNameOrchbeeDark: message('terminal.settings.colorTheme.names.orchbeeDark'),
 	colorThemeNameOrchbeeLight: message('terminal.settings.colorTheme.names.orchbeeLight'),
 	languageAutomaticFallbackNotice: message('terminal.settings.language.automaticFallbackNotice'),

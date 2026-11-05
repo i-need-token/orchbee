@@ -20,6 +20,7 @@ Grammar may vary with a complete message, but the underlying product concept and
 | --------------------- | --------------------- | ------------ | ------------------------------------------------------------------- | ------------------------------------------ |
 | Orchbee               | Orchbee               | Orchbee      | Product name                                                        | Transliterated or translated product names |
 | Browser access        | Browser access        | 浏览器访问   | Desktop surface for using a terminal from a browser                 | Web access、浏览器连接                     |
+| Color theme name      | Gruvbox Dark          | Gruvbox Dark | Published name of a third-party color theme; never translated       | Translated names such as Gruvbox 深色      |
 | Command output        | Command output        | 命令输出     | Shell-marked text produced by one command                           | Terminal output、log                       |
 | Host                  | Host                  | 主机         | Terminal display option that preserves Host-projected colors        | Server、设备                               |
 | Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | Physical chord bound to one semantic product action                 | Hotkey、快捷方式                           |
