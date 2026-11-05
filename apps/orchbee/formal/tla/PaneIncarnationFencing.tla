@@ -6,8 +6,11 @@ EXTENDS Naturals
 \* Layout permutations and operation-specific results are implementation tests.
 \* A navigation the user requested stays pending until it lands or is abandoned;
 \* typed input never reaches the pane the user is leaving in between.
+\* Each bound is the smallest that keeps its failure reachable: a second pane
+\* for cross-pane tags and a navigation target, a second incarnation for
+\* replacement and late cleanup, a second anchor for re-anchored tags.
 Panes == {1, 2}
-Empty == [pane |-> 0, incarnation |-> 0, anchor |-> 0, kind |-> "none"]
+Empty == [pane |-> 0, incarnation |-> 0, anchor |-> 0]
 VARIABLE s
 vars == <<s>>
 Init == s = [
@@ -43,12 +46,20 @@ Abandon == /\ s.intent # 0 /\ s' = [s EXCEPT !.intent = 0]
 AdvanceAnchor ==
   /\ s.anchor = 1
   /\ s' = [s EXCEPT !.anchor = 2, !.frame = [p \in Panes |-> Empty]]
+\* Only frame commands occupy the queue. Start and Complete never branch on a
+\* command's kind, so queued input would cross the same fences as a frame
+\* command with the same tag, whose admission guard is weaker; storing no frame
+\* only removes a Draw. Queuing input too would multiply every pipeline state
+\* by the navigation state without reaching a new failure. Input admission is
+\* still checked in every reachable state.
 Admit(p, kind) ==
-  /\ s.phase[p] = "live" /\ s.queued = Empty
+  /\ s.phase[p] = "live"
   /\ kind = "frame" \/ (p = s.focus /\ s.intent = 0)
-  /\ s' = [s EXCEPT !.queued =
-       [pane |-> p, incarnation |-> s.incarnation[p], anchor |-> s.anchor, kind |-> kind],
-       !.inputSafe = @ /\ (kind = "frame" \/ s.intent = 0)]
+  /\ IF kind = "frame"
+       THEN /\ s.queued = Empty
+            /\ s' = [s EXCEPT !.queued =
+                 [pane |-> p, incarnation |-> s.incarnation[p], anchor |-> s.anchor]]
+       ELSE s' = [s EXCEPT !.inputSafe = @ /\ s.intent = 0]
 Start ==
   /\ s.queued # Empty /\ s.flight = Empty
   /\ s' = [s EXCEPT !.flight = IF Current(s.queued) THEN s.queued ELSE Empty,
@@ -58,8 +69,7 @@ Complete ==
   /\ LET accepted == Current(s.flight)
      IN s' = [s EXCEPT
        !.effectSafe = ~accepted \/ Current(s.flight),
-       !.frame = IF accepted /\ s.flight.kind = "frame"
-         THEN [s.frame EXCEPT ![s.flight.pane] = s.flight] ELSE @,
+       !.frame = IF accepted THEN [s.frame EXCEPT ![s.flight.pane] = s.flight] ELSE @,
        !.flight = Empty]
 Draw(p) ==
   /\ s.frame[p] # Empty
