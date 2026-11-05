@@ -411,7 +411,6 @@ fn named_muted_text_is_the_quietest_readable_step_and_rises_to_secondary_on_fill
         for fill in [
             Role::SurfaceHover,
             Role::SurfacePressed,
-            Role::SurfaceSelection,
             Role::SurfaceCurrent,
             Role::SurfaceRelated,
         ] {
@@ -902,7 +901,6 @@ fn content_on_surface_preserves_named_theme_hierarchy_and_explicit_status() {
             (Role::SurfaceCanvas, None),
             (Role::SurfaceChrome, None),
             (Role::SurfaceOverlay, None),
-            (Role::SurfaceOverlay, Some(Role::SurfaceSelection)),
             (Role::SurfaceOverlay, Some(Role::SurfaceCurrent)),
         ] {
             let secondary = theme.content_on_surface(
@@ -1339,5 +1337,29 @@ fn form_fields_band_only_where_the_field_fill_stays_distinct_from_its_dialog() {
                 assert_eq!(quantized.color(Role::SurfaceField), Color::Reset);
             }
         }
+    }
+}
+
+#[test]
+fn selected_named_text_keeps_contrast_and_primary_hierarchy() {
+    for palette in orchbee_color_themes::shipped() {
+        let theme = Theme::named(palette);
+        let mut ratios = Vec::new();
+        for role in [Role::TextPrimary, Role::TextSecondary] {
+            let style = theme.content_on_surface(
+                Role::SurfaceChrome,
+                Some(Role::SurfaceSelection),
+                Some(role),
+                theme.style(role),
+            );
+            let ratio = contrast_ratio(style.fg.unwrap(), style.bg.unwrap());
+            assert!(ratio >= 4.5, "{} {role:?}: {ratio}", palette.id());
+            ratios.push(ratio);
+        }
+        assert!(
+            ratios[0] >= ratios[1],
+            "{} selected hierarchy",
+            palette.id()
+        );
     }
 }

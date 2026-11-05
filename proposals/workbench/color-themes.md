@@ -227,6 +227,19 @@ Four rules changed after the first pass over the data. Each change is disclosed 
 4. **Polarity exemptions.** ANSI 0 is exempt on dark canvases. ANSI 0, 7, and 15 are exempt on light
    canvases, because light palettes disagree on which end of the gray axis they invert.
 
+5. **Painted role pairs (Step 3b).** Text is gated at 4.5:1 on canvas, chrome, overlay,
+   field, related, hover, current and pressed, with 3:1 for action/focus/frame/unread and idle
+   glyphs. Muted remains 4.5:1 on chrome and promotes to secondary on interaction fills;
+   disabled content stays exempt. This catches input and interaction-surface gaps that the
+   chrome-only floor missed. Traffic-light glyphs retain their existing relative rule.
+6. **Hierarchy and selected text (Step 3b).** Primary must be at least as strong as secondary
+   on every shared surface. Opposite-polarity text selections use their selection foreground
+   for ordinary labels; the fill and ANSI palette stay unchanged.
+7. **Copy-mode cursor (Step 3b).** Inverse text on focus needs 4.5:1 because it carries text.
+   Foreground lightness moves first; when its initial direction cannot reach the floor, the
+   resolver tries the opposite direction. Direction fallback and selected-label pairing are
+   vetoable decisions. No gate was weakened.
+
 ### Ranking
 
 The score is a weighted mean of transparent proxies. Differences below 0.03 are within their
@@ -462,6 +475,10 @@ Each step is one commit, or a small series, that leaves `main` working:
    slots retain query fallback; decisions 14 and 15 record the limits. The
    [pre-release policy](../../schemas/terminal/docs/version-history.md#before-the-first-public-release)
    changes the current contract in place, with same-cohort admission and no compatibility path.
+   3b. **Contrast gaps. Core implemented; coverage review pending.** Shared painted-surface floors, primary/secondary hierarchy and
+   selected-label pairing replace the chrome-only check. Copy-mode inverse text reaches 4.5:1
+   on focus. Resolver corrections leave surface fills and upstream ANSI unchanged; the crate
+   gate table owns thresholds and the direction-fallback decision.
 4. **Preferences. Done.** The shared device record holds `lightTheme` and `darkTheme`
    (`theme.light` and `theme.dark`), `TerminalDisplayAppearance` is Theme/Host/Custom, and the
    launch capture carries both slots so the Worker's palette takes the selected theme's cursor and

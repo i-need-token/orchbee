@@ -81,34 +81,34 @@ whose text must travel with the values, such as Apache-2.0, keeps that text in `
 
 `Roles::resolve` derives every role from the declared polarity, the canvas, and the shipped ANSI
 values. Mixes and lightness steps are in OKLab; a floor correction is the lightness-only correction
-above, measured with WCAG 2 contrast on `surface_chrome`. A proportion may change only after the
+above, measured with WCAG 2 contrast on the painted surfaces below. A proportion may change only after the
 gate test passes again.
 
-| Role                                                | Rule                                                                                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `surface-canvas`                                    | Theme background                                                                                                         |
-| `surface-chrome`, `surface-strip`                   | Canvas lightness −0.025 on dark (+0.03 when canvas lightness is below 0.16, so near-black canvases lift), −0.02 on light |
-| `surface-overlay`                                   | Canvas lightness +0.045 on dark, +0.02 on light; the canvas itself when its lightness exceeds 0.98                       |
-| `surface-related`, `-hover`, `-current`, `-pressed` | Chrome mixed toward the foreground at 5, 8, 11, and 14%                                                                  |
-| `frame-guide`, `frame-divider`, `frame-unfocused`   | Chrome mixed toward the foreground at 10, 18, and 24%                                                                    |
-| `surface-field`                                     | Overlay mixed toward the foreground at 7% on dark, 5% on light                                                           |
-| `surface-selection`                                 | Theme selection background; canvas mixed 30% toward ANSI 4 when absent                                                   |
-| `surface-inactive`                                  | `surface-canvas`                                                                                                         |
-| `text-primary`                                      | Theme foreground                                                                                                         |
-| `text-secondary`                                    | Foreground mixed 28% toward chrome, raised to at least 4.5:1                                                             |
-| `text-muted`                                        | The step from secondary toward chrome closest to chrome that still holds 4.5:1                                           |
-| `text-disabled`                                     | `text-muted` mixed 45% toward chrome; unavailable content is exempt from the floors                                      |
-| `text-inverse`                                      | `surface-canvas`                                                                                                         |
-| `text-selection`                                    | Theme selection foreground; the foreground when absent                                                                   |
-| `accent-action`, `accent-focus`, `frame-focused`    | ANSI 4, raised to at least 3:1                                                                                           |
-| `accent-link`                                       | ANSI 4, raised to at least 4.5:1                                                                                         |
-| `status-success`, `-warning`, `-error`, `-info`     | ANSI 2, 3, 1, and 6, each raised to at least 4.5:1                                                                       |
-| `accent-destructive`                                | ANSI 1, raised to at least 4.5:1; a separate role from `status-error`                                                    |
-| `status-unread`                                     | `accent-action`                                                                                                          |
-| `status-pending`, `status-working`, `status-idle`   | `text-secondary`, `text-secondary`, and `text-muted`                                                                     |
-| `agent-attention`, `agent-done`, `agent-error`      | Fixed `#febc2e`, `#28c840`, and `#ff5f57` in every theme                                                                 |
-| Tab groups blue, cyan, green, grey, red, yellow     | ANSI 4, 6, 2, 8, 1, and 3, each raised to at least 4.5:1                                                                 |
-| Tab groups orange, pink, purple                     | ANSI 1 mixed 50% toward ANSI 3, ANSI 5 mixed 30% toward ANSI 1, and ANSI 5 mixed 50% toward ANSI 4, each raised to 4.5:1 |
+| Role                                                | Rule                                                                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `surface-canvas`                                    | Theme background                                                                                                                                 |
+| `surface-chrome`, `surface-strip`                   | Canvas lightness −0.025 on dark (+0.03 when canvas lightness is below 0.16, so near-black canvases lift), −0.02 on light                         |
+| `surface-overlay`                                   | Canvas lightness +0.045 on dark, +0.02 on light; the canvas itself when its lightness exceeds 0.98                                               |
+| `surface-related`, `-hover`, `-current`, `-pressed` | Chrome mixed toward the foreground at 5, 8, 11, and 14%                                                                                          |
+| `frame-guide`, `frame-divider`, `frame-unfocused`   | Chrome mixed toward the foreground at 10, 18, and 24%                                                                                            |
+| `surface-field`                                     | Overlay mixed toward the foreground at 7% on dark, 5% on light                                                                                   |
+| `surface-selection`                                 | Theme selection background; canvas mixed 30% toward ANSI 4 when absent                                                                           |
+| `surface-inactive`                                  | `surface-canvas`                                                                                                                                 |
+| `text-primary`                                      | Theme foreground, raised to 4.5:1 and at least secondary contrast on every shared surface                                                        |
+| `text-secondary`                                    | Foreground mixed 28% toward chrome, raised to at least 4.5:1 on every shared surface                                                             |
+| `text-muted`                                        | The step from secondary toward chrome closest to chrome that still holds 4.5:1                                                                   |
+| `text-disabled`                                     | `text-muted` mixed 45% toward chrome; unavailable content is exempt from the floors                                                              |
+| `text-inverse`                                      | Canvas, lightness-corrected to 4.5:1 on focus for the copy-mode cursor                                                                           |
+| `text-selection`                                    | Theme selection foreground; the foreground when absent                                                                                           |
+| `accent-action`, `accent-focus`, `frame-focused`    | ANSI 4, raised to at least 3:1 on every shared surface                                                                                           |
+| `accent-link`                                       | ANSI 4, raised to at least 4.5:1 on every shared surface                                                                                         |
+| `status-success`, `-warning`, `-error`, `-info`     | ANSI 2, 3, 1, and 6, each raised to at least 4.5:1 on every shared surface                                                                       |
+| `accent-destructive`                                | ANSI 1, raised to at least 4.5:1 on every shared surface; a separate role from `status-error`                                                    |
+| `status-unread`                                     | `accent-action`                                                                                                                                  |
+| `status-pending`, `status-working`, `status-idle`   | Secondary for pending/working; muted raised to 3:1 on shared surfaces for the idle glyph                                                         |
+| `agent-attention`, `agent-done`, `agent-error`      | Fixed `#febc2e`, `#28c840`, and `#ff5f57` in every theme                                                                                         |
+| Tab groups blue, cyan, green, grey, red, yellow     | ANSI 4, 6, 2, 8, 1, and 3, each raised to at least 4.5:1 on every shared surface                                                                 |
+| Tab groups orange, pink, purple                     | ANSI 1 mixed 50% toward ANSI 3, ANSI 5 mixed 30% toward ANSI 1, and ANSI 5 mixed 50% toward ANSI 4, each raised to 4.5:1 on every shared surface |
 
 ## Gates
 
@@ -116,20 +116,24 @@ Every shipped theme passes every gate. A failure within 5% of its threshold is r
 borderline and still fails. Contrast is WCAG 2, `Lc` is APCA 0.0.98G-4g, ΔE is CIEDE2000, and
 color-vision deficiency is Machado 2009 at severity 1.0.
 
-| Gate                    | Threshold                                                                                          |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| License                 | `MIT`, `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, or `public-domain`                     |
-| Polarity                | Canvas OKLab lightness below 0.6 exactly when the theme declares `dark`                            |
-| Body text               | Foreground on canvas at least 4.5:1 and \|Lc\| at least 60                                         |
-| Selection text          | Selection foreground on the resolved selection at least 4.5:1                                      |
-| Selection visible       | Resolved selection at least ΔE 6 from canvas                                                       |
-| Cursor                  | At least 3:1 on canvas                                                                             |
-| ANSI legibility         | ANSI 1–6 at least 3:1 and 8–14 at least 2:1 on canvas; on dark, 7 at least 3:1 and 15 at least 2:1 |
-| Correction budget       | Each correction at most ΔE 10 from its original; at most ΔE 20 in total                            |
-| Collisions              | Within each of ANSI 1–6 and 9–14, every pair at least ΔE 10                                        |
-| Red and green under CVD | ANSI 1 against 2, and 9 against 10, at least ΔE 5 under deuteranopia and protanopia                |
-| Agent glyphs            | Each fixed glyph on canvas, chrome, and current at least 0.9× its contrast in Orchbee Light        |
-| Resolved floors         | Every floor in the [resolver table](#resolver) holds on chrome                                     |
+| Gate                    | Threshold                                                                                                                                                                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| License                 | `MIT`, `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, or `public-domain`                                                                                                                                                               |
+| Polarity                | Canvas OKLab lightness below 0.6 exactly when the theme declares `dark`                                                                                                                                                                      |
+| Body text               | Foreground on canvas at least 4.5:1 and \|Lc\| at least 60                                                                                                                                                                                   |
+| Selection text          | Selection foreground on the resolved selection at least 4.5:1                                                                                                                                                                                |
+| Selection visible       | Resolved selection at least ΔE 6 from canvas                                                                                                                                                                                                 |
+| Cursor                  | At least 3:1 on canvas                                                                                                                                                                                                                       |
+| ANSI legibility         | ANSI 1–6 at least 3:1 and 8–14 at least 2:1 on canvas; on dark, 7 at least 3:1 and 15 at least 2:1                                                                                                                                           |
+| Correction budget       | Each correction at most ΔE 10 from its original; at most ΔE 20 in total                                                                                                                                                                      |
+| Collisions              | Within each of ANSI 1–6 and 9–14, every pair at least ΔE 10                                                                                                                                                                                  |
+| Red and green under CVD | ANSI 1 against 2, and 9 against 10, at least ΔE 5 under deuteranopia and protanopia                                                                                                                                                          |
+| Agent glyphs            | Each fixed glyph on canvas, chrome, and current at least 0.9× its contrast in Orchbee Light                                                                                                                                                  |
+| Resolved floors         | Text and semantic text accents 4.5:1; action/focus/frame/unread and idle glyphs 3:1 on canvas, chrome, overlay, field, related, hover, current and pressed. These are the shared surfaces Clients paint; strip/inactive alias chrome/canvas. |
+| Quiet text              | Muted 4.5:1 on chrome; controls promote it to secondary on fills, so it is not independently gated on those fills. Disabled content remains exempt.                                                                                          |
+| Text hierarchy          | Primary contrast at least secondary on every shared surface; keeps supporting text from overtaking body text.                                                                                                                                |
+| Selected text           | Selection foreground 4.5:1 on selection; ordinary selected labels use that pair in both Clients, allowing opposite-polarity selections without changing the fill.                                                                            |
+| Copy-mode cursor        | Inverse text 4.5:1 on focus; the glyph carries readable text rather than only a non-text focus mark.                                                                                                                                         |
 
 ANSI 0 is exempt on dark canvases; ANSI 0, 7, and 15 are exempt on light canvases, because light
 palettes disagree on which end of the gray axis they invert. The glyph gate is relative because
@@ -175,3 +179,14 @@ from the repository root:
 cargo test -p orchbee-color-themes --all-targets --locked
 cargo clippy -p orchbee-color-themes --all-targets --all-features --locked -- -D warnings
 ```
+
+The Step 3b resolver changes only foreground roles: surface fills and upstream ANSI values stay
+unchanged. Lightness correction may switch direction when the original direction cannot reach
+its floor (notably inverse text on Rose Pine Dawn focus). This and using the selection foreground
+for ordinary selected TUI labels are vetoable decisions. Orchbee GUI blocks are still omitted;
+its hand-authored values and the TUI's explicit shared-color overrides remain unchanged.
+
+Coverage boundary pending Step 3b review: the matrix gates resolved semantic roles on shared
+surfaces, not every GUI state produced by alpha/lightness mixes. Semantic hues retained inside
+an opposite-polarity text selection also need an explicit pairing policy before claiming an
+exhaustive painted-pair gate. Ordinary selected labels are covered by the TUI rule test.

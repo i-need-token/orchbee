@@ -1,6 +1,6 @@
 //! Resolves a theme's palette into every semantic color role: OKLab surface steps and interaction
 //! mixes, frame and text steps, ANSI accents lightness-corrected to their contrast floors on
-//! chrome, and the Tab-group accents. Agent glyph colors are fixed for every theme. It does not
+//! their painted surfaces, and the Tab-group accents. Agent glyph colors are fixed for every theme. It does not
 //! quantize or choose modifiers; the README's resolver table is the authority for each rule.
 
 use crate::{Polarity, Rgb, Theme, contrast, oklab};
@@ -13,7 +13,7 @@ const BODY_FLOOR: f64 = 4.5;
 const NON_TEXT_FLOOR: f64 = 3.0;
 
 /// The resolved color of every role a theme supplies, named as in the visual-foundations role
-/// inventory. Every text, accent, and status role meets its contrast floor on `surface_chrome`.
+/// inventory. Text and semantic accents meet their floors on shared painted surfaces; muted rests on chrome.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Roles {
     /// The theme background.
@@ -46,7 +46,7 @@ pub struct Roles {
     pub frame_divider: Rgb,
     /// Frames of unfocused panes.
     pub frame_unfocused: Rgb,
-    /// Body text: the theme foreground.
+    /// Body text: the theme foreground, corrected for contrast and secondary hierarchy.
     pub text_primary: Rgb,
     /// At least 4.5:1 on chrome.
     pub text_secondary: Rgb,
@@ -54,7 +54,7 @@ pub struct Roles {
     pub text_muted: Rgb,
     /// Unavailable content: muted mixed toward chrome; exempt from the floors.
     pub text_disabled: Rgb,
-    /// Text on a filled band of an accent color: the canvas.
+    /// Copy-mode text on focus: canvas corrected to the body-text floor.
     pub text_inverse: Rgb,
     /// Text on `surface_selection`: the theme selection foreground, else the foreground.
     pub text_selection: Rgb,
@@ -144,11 +144,37 @@ impl Roles {
             ),
         };
         let toward_text = |amount: f64| oklab::mix(chrome, foreground, amount);
-        let on_chrome = |color: Rgb, floor: f64| contrast::raise(color, chrome, floor);
-        let text_secondary = on_chrome(oklab::mix(foreground, chrome, 0.28), BODY_FLOOR);
-        let text_muted = quietest_toward(text_secondary, chrome, BODY_FLOOR);
-        let accent_action = on_chrome(blue, NON_TEXT_FLOOR);
-        let group = |color: Rgb| on_chrome(color, BODY_FLOOR);
+        let selection = canvas.selection_background.map_or_else(
+            || oklab::mix(background, blue, 0.30),
+            crate::PaletteColor::value,
+        );
+        let surfaces = [
+            background,
+            chrome,
+            overlay,
+            oklab::mix(overlay, foreground, field_mix),
+            toward_text(0.05),
+            toward_text(0.08),
+            toward_text(0.11),
+            toward_text(0.14),
+        ];
+        // Pick the most demanding painted surface, preserving hue and all surface fills.
+        let on_surfaces = |color: Rgb, floor: f64| {
+            surfaces.into_iter().fold(color, |color, surface| {
+                contrast::raise(color, surface, floor)
+            })
+        };
+        let text_secondary = on_surfaces(oklab::mix(foreground, chrome, 0.28), BODY_FLOOR);
+        let text_muted = quietest_toward(text_secondary, chrome, BODY_FLOOR, &[chrome]);
+        let text_primary = surfaces.into_iter().fold(foreground, |color, surface| {
+            contrast::raise(
+                color,
+                surface,
+                BODY_FLOOR.max(contrast::ratio(text_secondary, surface)),
+            )
+        });
+        let accent_action = on_surfaces(blue, NON_TEXT_FLOOR);
+        let group = |color: Rgb| on_surfaces(color, BODY_FLOOR);
         Self {
             surface_canvas: background,
             surface_chrome: chrome,
@@ -159,35 +185,32 @@ impl Roles {
             surface_hover: toward_text(0.08),
             surface_current: toward_text(0.11),
             surface_pressed: toward_text(0.14),
-            surface_selection: canvas.selection_background.map_or_else(
-                || oklab::mix(background, blue, 0.30),
-                crate::PaletteColor::value,
-            ),
+            surface_selection: selection,
             surface_inactive: background,
             frame_focused: accent_action,
             frame_guide: toward_text(0.10),
             frame_divider: toward_text(0.18),
             frame_unfocused: toward_text(0.24),
-            text_primary: foreground,
+            text_primary,
             text_secondary,
             text_muted,
             text_disabled: oklab::mix(text_muted, chrome, 0.45),
-            text_inverse: background,
+            text_inverse: contrast::raise(background, accent_action, BODY_FLOOR),
             text_selection: canvas
                 .selection_foreground
                 .map_or(foreground, crate::PaletteColor::value),
             accent_action,
             accent_focus: accent_action,
-            accent_link: on_chrome(blue, BODY_FLOOR),
-            accent_destructive: on_chrome(red, BODY_FLOOR),
-            status_success: on_chrome(green, BODY_FLOOR),
-            status_warning: on_chrome(yellow, BODY_FLOOR),
-            status_error: on_chrome(red, BODY_FLOOR),
-            status_info: on_chrome(cyan, BODY_FLOOR),
+            accent_link: on_surfaces(blue, BODY_FLOOR),
+            accent_destructive: on_surfaces(red, BODY_FLOOR),
+            status_success: on_surfaces(green, BODY_FLOOR),
+            status_warning: on_surfaces(yellow, BODY_FLOOR),
+            status_error: on_surfaces(red, BODY_FLOOR),
+            status_info: on_surfaces(cyan, BODY_FLOOR),
             status_unread: accent_action,
             status_pending: text_secondary,
             status_working: text_secondary,
-            status_idle: text_muted,
+            status_idle: on_surfaces(text_muted, NON_TEXT_FLOOR),
             agent_attention: AGENT_ATTENTION,
             agent_done: AGENT_DONE,
             agent_error: AGENT_ERROR,
@@ -207,13 +230,16 @@ impl Roles {
 }
 
 /// The step from `color` toward `surface` closest to the surface that still holds `floor` on it.
-fn quietest_toward(color: Rgb, surface: Rgb, floor: f64) -> Rgb {
+fn quietest_toward(color: Rgb, surface: Rgb, floor: f64, surfaces: &[Rgb]) -> Rgb {
     let (mut passing, mut failing) = (0.0, 1.0);
     let mut quietest = color;
     for _ in 0..40 {
         let middle = f64::midpoint(passing, failing);
         let candidate = oklab::mix(color, surface, middle);
-        if contrast::ratio(candidate, surface) >= floor {
+        if surfaces
+            .iter()
+            .all(|&fill| contrast::ratio(candidate, fill) >= floor)
+        {
             quietest = candidate;
             passing = middle;
         } else {

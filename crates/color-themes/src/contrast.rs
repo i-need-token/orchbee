@@ -15,8 +15,8 @@ fn luminance(color: Rgb) -> f64 {
 }
 
 /// `color` unchanged when it already reaches `floor` on `surface`; otherwise the color with the
-/// nearest OKLab lightness, moved away from the surface with hue kept, that reaches it. When no
-/// lightness in that direction reaches the floor, the result is that direction's extreme.
+/// nearest OKLab lightness, moved away from the surface with hue kept, that reaches it. When that
+/// direction cannot reach the floor, tries the opposite direction before bisecting.
 pub(crate) fn raise(color: Rgb, surface: Rgb, floor: f64) -> Rgb {
     if ratio(color, surface) >= floor {
         return color;
@@ -27,6 +27,9 @@ pub(crate) fn raise(color: Rgb, surface: Rgb, floor: f64) -> Rgb {
     } else {
         0.0
     };
+    if ratio(oklab::with_lightness(color, passing), surface) < floor {
+        passing = 1.0 - passing;
+    }
     let mut best = oklab::with_lightness(color, passing);
     // Bisect toward the passing extreme; each probe is the rounded color that would ship.
     for _ in 0..40 {

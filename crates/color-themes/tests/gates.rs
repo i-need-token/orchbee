@@ -244,5 +244,46 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
             floor,
         );
     }
+    // Clients paint these foregrounds on panels, overlay inputs and interaction rows.
+    let surfaces = [
+        ("canvas", roles.surface_canvas),
+        ("chrome", roles.surface_chrome),
+        ("overlay", roles.surface_overlay),
+        ("field", roles.surface_field),
+        ("related", roles.surface_related),
+        ("hover", roles.surface_hover),
+        ("current", roles.surface_current),
+        ("pressed", roles.surface_pressed),
+    ];
+    for (surface, fill) in surfaces {
+        for (role, color, floor) in floors
+            .into_iter()
+            .filter(|(role, _, _)| *role != "text-muted")
+            .chain([
+                ("text-primary", roles.text_primary, 4.5),
+                ("status-pending", roles.status_pending, 4.5),
+                ("status-working", roles.status_working, 4.5),
+                ("status-idle", roles.status_idle, 3.0),
+                ("status-unread", roles.status_unread, 3.0),
+                ("frame-focused", roles.frame_focused, 3.0),
+            ])
+        {
+            findings.at_least(
+                &format!("resolved {role} on {surface}"),
+                contrast(color, fill),
+                floor,
+            );
+        }
+        findings.at_least(
+            &format!("primary/secondary hierarchy on {surface}"),
+            contrast(roles.text_primary, fill) / contrast(roles.text_secondary, fill),
+            1.0,
+        );
+    }
+    findings.at_least(
+        "copy cursor inverse on focus",
+        contrast(roles.text_inverse, roles.accent_focus),
+        4.5,
+    );
     findings.failures
 }

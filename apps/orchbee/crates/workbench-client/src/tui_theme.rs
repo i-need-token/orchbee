@@ -908,7 +908,9 @@ impl Theme {
             )
         );
         if self.color_level != ColorLevel::Monochrome
-            && self.polarity.is_none()
+            && (self.polarity.is_none()
+                || (interaction == Some(Role::SurfaceSelection)
+                    && content_role != Some(Role::TextDisabled)))
             && ordinary
             && let Some(role) = content_role
             && content_foreground == self.style(role).fg
