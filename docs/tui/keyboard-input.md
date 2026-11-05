@@ -242,6 +242,10 @@ does not silently rebind a convention it claims to support.
   [`layout.md`](layout.md#size-tiers). The current return or focus-recovery route and the route to
   full help remain discoverable under compact truncation. A pending confirmation replaces ordinary
   hints with its exact next step.
+- A mode that preserves user content through the last row may expose its return key in a
+  localized hover tooltip on the mode indicator instead of reserving a permanent footer. The
+  return binding remains active without hovering, and full help stays available. This preserves
+  discoverability without replacing a row of the content being inspected.
 - Full shortcut help identifies the active scope, presents effective keys first, and may retain
   inactive or disabled actions for learning only when their unavailable state and localized reason
   are explicit. Shadowed keys are not shown as usable in the active scope.
