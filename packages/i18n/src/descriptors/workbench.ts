@@ -692,6 +692,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.create'],
 		description: 'Action that creates a Project from one entered Folder path.',
 	},
+	projectNew: {
+		id: 'workbench.projects.actions.new',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.new'],
+		description:
+			'Search Action that starts a new Project from a Folder that is selected or created for it.',
+	},
 	projectCreateDescription: {
 		id: 'workbench.projects.create.description',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.description'],

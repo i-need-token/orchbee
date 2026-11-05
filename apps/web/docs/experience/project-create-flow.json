@@ -4,14 +4,14 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project Create Flow",
-	"description": "Creates a local Project from shared Folder acquisition, with a typed path entry where no native Folder capability is supplied.",
+	"description": "Creates a local Project from shared Folder acquisition, started by New Project… in Search, with a typed path entry where no native Folder capability is supplied.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["acquire-folder", "create-project", "enter-folder-path", "create-folder"],
 	"implementation": [
-		"apps/web/src/workbench/components/workbench-sidebar/components/project-create-menu/ProjectCreateMenu.tsx",
-		"apps/web/src/workbench/components/workbench-sidebar/components/create-project-dialog/CreateProjectDialog.tsx",
-		"apps/web/src/workbench/components/workbench-sidebar/components/create-project-folder-dialog/CreateProjectFolderDialog.tsx"
+		"apps/web/src/workbench/components/workbench-project-creation/WorkbenchProjectCreation.tsx",
+		"apps/web/src/workbench/components/workbench-project-creation/components/create-project-dialog/CreateProjectDialog.tsx",
+		"apps/web/src/workbench/components/workbench-project-creation/components/create-project-folder-dialog/CreateProjectFolderDialog.tsx"
 	],
 	"stories": [
 		{
@@ -19,8 +19,8 @@
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--simplified-chinese-sidebar",
 			"states": [
-				"Open the optional Create Project menu, choose Select Folder, and inspect the path-entry dialog shown without a native Folder capability.",
-				"Inspect the disabled New Folder command without replacing the shared Folder acquisition menu."
+				"Open Search, choose New Project… and then Select Folder, and inspect the path-entry dialog shown without a native Folder capability.",
+				"Confirm that New Project… offers no New Folder choice without the creation capability."
 			]
 		},
 		{
@@ -28,15 +28,15 @@
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--native-project-folder-acquisition",
 			"states": [
-				"Open the optional Create Project menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
-				"Choose New Folder, inspect the selected parent and single name, cancel once, then explicitly Create and inspect the resulting Project, Primary Workspace and terminal projection."
+				"Open Search, choose New Project… and then Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
+				"Choose New Project… and then New Folder, inspect the selected parent and single name, cancel once, then explicitly Create and inspect the resulting Project, Primary Workspace and terminal projection."
 			]
 		}
 	],
-	"uses": ["workbench.action-menu", "workbench.resource-dialog-form"],
+	"uses": ["workbench.resource-dialog-form", "workbench.unified-search-surface"],
 	"useWhen": [
 		"A Workbench host starts Project creation from a selected Folder or an equivalent platform folder capability.",
-		"Hosts with and without a native Folder capability must share one entry menu and diverge only at the Folder acquisition boundary."
+		"Hosts with and without a native Folder capability must share one entry and diverge only at the Folder acquisition boundary."
 	],
 	"avoidWhen": [
 		"An existing Project needs a Workspace in a directory it already records; use that Project's New Workspace submenu instead.",
@@ -44,8 +44,8 @@
 		"The person needs an ordinary independent Workspace; use the immediate New Workspace action without Folder acquisition."
 	],
 	"invariants": [
-		"The Project add trigger always opens the shared Folder acquisition menu before any platform-specific input.",
-		"Without a native Folder capability, the menu accepts a manually entered absolute path without claiming that the path was verified.",
+		"New Project… in Search always offers the Folder choices before any platform-specific input, and the sidebar has no New Project row. The workflow belongs to the window, so it runs while the sidebar is hidden.",
+		"Without a native Folder capability, Select Folder accepts a manually entered absolute path without claiming that the path was verified.",
 		"Desktop composition uses one injected Folder capability, renders no parallel manual path dialog, and admits at most one native selection; New Folder additionally requires the optional creation capability.",
 		"Cancellation before Create has no effect; retirement cancels queued uncommitted Actions and suppresses late activation. A committed Folder remains visible in recovery and is never deleted or recreated automatically.",
 		"The existing Project Action atomically creates Project metadata, Primary Workspace and the first terminal projection. New Folder separately commits mkdir and requires the exact Action receipt, canonical publication and activation result before reporting Project opening."

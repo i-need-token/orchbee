@@ -6,7 +6,6 @@ import type {
 	WorkbenchWorktreeRemovalInput,
 	WorkbenchWorktreeResumeInput,
 } from '../../../actions/workbench-action-ids';
-import type { WorkbenchProjectFolderAcquisitionFailureCode } from '../../../types/workbench-project-folder-acquisition';
 import type { WorkbenchWorktreeDiscoveryResult } from '../../../types/workbench-worktrees';
 
 /** What a Workspace menu reads about Worktrees and the Actions it invokes on them. */
@@ -31,30 +30,9 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly collapseProject: string;
 	readonly collapseRecents: string;
 	readonly create: string;
-	readonly projectCreate: string;
-	readonly projectCreateDescription: string;
-	readonly projectCreatePath: string;
-	readonly projectCreatePathDescription: string;
-	readonly projectCreatePathPlaceholder: string;
-	readonly projectCreateTitle: string;
 	readonly createWorkspace: string;
 	readonly expandProject: string;
 	readonly expandRecents: string;
-	readonly folderAcquisitionFailureDismiss: string;
-	readonly folderAcquisitionFailureMessages: Readonly<
-		Record<WorkbenchProjectFolderAcquisitionFailureCode, string>
-	>;
-	readonly folderAcquisitionFailureTitle: string;
-	readonly newFolder: string;
-	readonly newFolderTitle: string;
-	readonly newFolderDescription: string;
-	readonly newFolderParent: string;
-	readonly newFolderName: string;
-	readonly newFolderNameHint: string;
-	readonly newFolderCreating: string;
-	readonly newFolderOpening: string;
-	readonly newFolderRetained: string;
-	readonly newFolderUnknown: string;
 	readonly nameRequired: string;
 	readonly nameTooLong: string;
 	readonly renameSubmit: string;
@@ -65,7 +43,6 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectRenameTitle: string;
 	readonly projectWorktrees: string;
 	readonly recents: string;
-	readonly selectFolder: string;
 	readonly workspaceMenuClose: string;
 	readonly workspaceMenuNewProject: string;
 	readonly workspaceMenuRename: string;

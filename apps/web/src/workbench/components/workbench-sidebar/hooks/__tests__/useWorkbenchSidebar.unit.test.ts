@@ -14,26 +14,12 @@ import {
 	snapshotWorkspace,
 	workbenchSnapshot,
 } from '../../../../../__tests__/server-workbench-snapshot';
-import {
-	createProjectWorkspaceState,
-	type ProjectWorkspaceState,
-} from '../../../../../project-workspace';
+import type { ProjectWorkspaceState } from '../../../../../project-workspace';
 import { useWorkbenchSidebar } from '../useWorkbenchSidebar';
 
 afterEach(cleanup);
 
 describe('useWorkbenchSidebar', () => {
-	it('prepares and clears a fresh Project creation draft', () => {
-		const rendered = renderHook(() => useWorkbenchSidebar(createProjectWorkspaceState()));
-
-		act(() => rendered.result.current.showProjectCreation());
-		expect(rendered.result.current.projectCreation?.path).toBe('');
-		act(() => rendered.result.current.projectCreation?.setPath('/workspace/orchbee'));
-		expect(rendered.result.current.projectCreation?.path).toBe('/workspace/orchbee');
-		act(() => rendered.result.current.projectCreation?.close());
-		expect(rendered.result.current.projectCreation).toBeNull();
-	});
-
 	it('prepares and clears Project and Workspace rename drafts', () => {
 		const state = projectState();
 		const rendered = renderHook(

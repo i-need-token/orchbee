@@ -8,13 +8,13 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
+import type { WorkbenchProjectCreationMessages } from '../../types/workbench-project-creation-messages';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';
 import { ResourceDialogHeader } from '../../../resource-dialog-header/ResourceDialogHeader';
 
 interface CreateProjectDialogProps {
-	readonly messages: WorkbenchProjectNavigationMessages;
+	readonly messages: WorkbenchProjectCreationMessages;
 	readonly onClose: () => void;
 	readonly onPathChange: (path: string) => void;
 	readonly onSubmit: (path: string) => void;

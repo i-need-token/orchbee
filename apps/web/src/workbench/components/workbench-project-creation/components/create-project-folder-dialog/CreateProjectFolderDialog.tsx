@@ -9,14 +9,14 @@ import {
 import type * as React from 'react';
 
 import type { NewProjectFolderState } from '../../../../model/transitionNewProjectFolder';
-import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
+import type { WorkbenchProjectCreationMessages } from '../../types/workbench-project-creation-messages';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';
 import { ResourceDialogHeader } from '../../../resource-dialog-header/ResourceDialogHeader';
 import styles from './CreateProjectFolderDialog.module.css';
 
 interface CreateProjectFolderDialogProps {
-	readonly messages: WorkbenchProjectNavigationMessages;
+	readonly messages: WorkbenchProjectCreationMessages;
 	readonly state: Extract<NewProjectFolderState, { readonly name: string }>;
 	readonly onClose: () => void;
 	readonly onNameChange: (name: string) => void;

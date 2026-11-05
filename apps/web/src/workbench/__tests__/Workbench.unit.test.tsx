@@ -132,11 +132,6 @@ describe('Workbench', () => {
 		expect(markup).toContain('Search');
 		expect(markup).toContain('data-shortcut-action="workbench.search.open"');
 		expect(markup).toContain('⇧⌘F');
-		expect(markup).toContain('Project');
-		expect(markup).toContain('data-slot="workbench-sidebar-project-create"');
-		expect(markup).toContain('data-empty="true"');
-		expect(markup).toContain('data-icon="add"');
-		expect(markup).toContain('data-icon-size="section-action"');
 		expect(markup).toContain('data-slot="workbench-sidebar-settings"');
 		expect(markup).toContain('data-icon="settings"');
 		expect(markup).toContain('data-shortcut-action="workbench.settings.open"');
@@ -162,7 +157,6 @@ describe('Workbench', () => {
 		expect(markup).toContain('aria-label="工作区导航"');
 		expect(markup).toContain('新建工作区');
 		expect(markup).toContain('搜索');
-		expect(markup).toContain('项目');
 		expect(markup).toContain('设置');
 		expect(markup).toContain('aria-label="终端标签页"');
 	});

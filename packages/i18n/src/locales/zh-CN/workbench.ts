@@ -78,6 +78,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.actions.createWorkspace': '新建工作区',
 	'workbench.projects.actions.expand': '展开项目',
 	'workbench.projects.actions.manage': '管理项目…',
+	'workbench.projects.actions.new': '新建项目…',
 	'workbench.projects.actions.newFolder': '新建文件夹…',
 	'workbench.projects.actions.options': '项目选项',
 	'workbench.projects.actions.remove': '解散项目',

@@ -217,6 +217,16 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
+/** Starts a Project as Search offers it: New Project…, then where its folder comes from. */
+async function startNewProject(action: string, folder: string): Promise<void> {
+	const search = document.querySelector<HTMLElement>('[data-slot="workbench-sidebar-search"]');
+	if (search === null) throw new Error('Expected the sidebar Search row.');
+	fireEvent.click(search);
+	fireEvent.change(await screen.findByRole('combobox'), { target: { value: action } });
+	fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${action}`, 'u') }));
+	fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${folder}`, 'u') }));
+}
+
 function expectActionableMenuItemsToHaveIcons(menu: HTMLElement): void {
 	for (const menuItem of within(menu).getAllByRole('menuitem')) {
 		const icon = menuItem.querySelector('[data-icon]');
@@ -1037,10 +1047,10 @@ describe('Workbench Project and Workspace management', () => {
 				'This folder becomes the starting location for the Project and its Primary Workspace.',
 			locale: 'en-US' as const,
 			newFolder: 'New Folder…',
+			newProject: 'New Project…',
 			pathDescription: 'Enter an absolute path. The browser cannot verify that it exists.',
 			pathLabel: 'Folder path',
 			pathPlaceholder: '/path/to/project',
-			projectAction: 'Create Project',
 			selectFolder: 'Select Folder…',
 			title: 'Select Project Folder',
 		},
@@ -1051,10 +1061,10 @@ describe('Workbench Project and Workspace management', () => {
 			description: '此文件夹将作为项目及其主工作区的起始位置。',
 			locale: 'zh-CN' as const,
 			newFolder: '新建文件夹…',
+			newProject: '新建项目…',
 			pathDescription: '请输入绝对路径。浏览器无法验证该路径是否存在。',
 			pathLabel: '文件夹路径',
 			pathPlaceholder: '/path/to/project',
-			projectAction: '创建项目',
 			selectFolder: '选择文件夹…',
 			title: '选择项目文件夹',
 		},
@@ -1067,10 +1077,10 @@ describe('Workbench Project and Workspace management', () => {
 			description,
 			locale,
 			newFolder,
+			newProject,
 			pathDescription,
 			pathLabel,
 			pathPlaceholder,
-			projectAction,
 			selectFolder,
 			title,
 		}) => {
@@ -1082,18 +1092,17 @@ describe('Workbench Project and Workspace management', () => {
 				projectWorkspaceRuntime,
 			});
 
-			expect(document.activeElement).toBe(document.body);
-			const projectCreateButton = screen.getByRole('button', { name: projectAction });
-			expect(projectCreateButton.hasAttribute('data-base-ui-tooltip-trigger')).toBe(true);
-			fireEvent.click(projectCreateButton);
-			expect(screen.queryByRole('dialog')).toBeNull();
-			const menu = await screen.findByRole('menu');
-			expect(menu.className).toContain('w-(--ob-ref-size-menu)');
-			expect(projectCreateButton.hasAttribute('data-popup-open')).toBe(true);
-			const newFolderItem = within(menu).getByRole('menuitem', { name: newFolder });
-			expect(newFolderItem.getAttribute('aria-disabled')).toBe('true');
-			expectActionableMenuItemsToHaveIcons(menu);
-			fireEvent.click(within(menu).getByRole('menuitem', { name: selectFolder }));
+			// Without the host's new-folder capability, New Project offers only an existing Folder.
+			const search = document.querySelector<HTMLElement>('[data-slot="workbench-sidebar-search"]');
+			if (search === null) throw new Error('Expected the sidebar Search row.');
+			fireEvent.click(search);
+			fireEvent.change(await screen.findByRole('combobox'), { target: { value: newProject } });
+			fireEvent.click(
+				await screen.findByRole('option', { name: new RegExp(`^${newProject}`, 'u') }),
+			);
+			await screen.findByRole('option', { name: new RegExp(`^${selectFolder}`, 'u') });
+			expect(screen.queryByRole('option', { name: new RegExp(`^${newFolder}`, 'u') })).toBeNull();
+			fireEvent.click(screen.getByRole('option', { name: new RegExp(`^${selectFolder}`, 'u') }));
 			let dialog = await screen.findByRole('dialog');
 			expect(dialog.className).toContain('shadow-lg');
 			expect(dialog.className).toContain('sm:max-w-(--ob-ref-size-dialog)');
@@ -1120,10 +1129,7 @@ describe('Workbench Project and Workspace management', () => {
 			await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 			expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]);
 
-			fireEvent.click(screen.getByRole('button', { name: projectAction }));
-			fireEvent.click(
-				within(await screen.findByRole('menu')).getByRole('menuitem', { name: selectFolder }),
-			);
+			await startNewProject(newProject, selectFolder);
 			dialog = await screen.findByRole('dialog');
 			fireEvent.change(within(dialog).getByLabelText(pathLabel), {
 				target: { value: ' /workspace/orchbee/ ' },
@@ -1150,7 +1156,7 @@ describe('Workbench Project and Workspace management', () => {
 	it.each([
 		{
 			locale: 'en-US',
-			projectAction: 'Create Project',
+			newProject: 'New Project…',
 			newFolder: 'New Folder…',
 			name: 'Folder name',
 			cancel: 'Cancel',
@@ -1158,7 +1164,7 @@ describe('Workbench Project and Workspace management', () => {
 		},
 		{
 			locale: 'zh-CN',
-			projectAction: '创建项目',
+			newProject: '新建项目…',
 			newFolder: '新建文件夹…',
 			name: '文件夹名称',
 			cancel: '取消',
@@ -1166,7 +1172,7 @@ describe('Workbench Project and Workspace management', () => {
 		},
 	] as const)(
 		'creates a new Folder only after explicit submission and starts its exact Primary terminal in $locale',
-		async ({ locale, projectAction, newFolder, name, cancel, create }) => {
+		async ({ locale, newProject, newFolder, name, cancel, create }) => {
 			const runtime = createSnapshotRuntime(emptySnapshot());
 			const authorityCreate = publishingCreate(runtime, orchbeeSnapshot(2), 1);
 			const capability: WorkbenchNewProjectFolderCapability = {
@@ -1200,10 +1206,7 @@ describe('Workbench Project and Workspace management', () => {
 				shortcutPlatform: 'standard',
 			});
 			const open = async () => {
-				fireEvent.click(screen.getByRole('button', { name: projectAction }));
-				fireEvent.click(
-					within(await screen.findByRole('menu')).getByRole('menuitem', { name: newFolder }),
-				);
+				await startNewProject(newProject, newFolder);
 				return screen.findByRole('dialog');
 			};
 			let dialog = await open();
@@ -1246,10 +1249,7 @@ describe('Workbench Project and Workspace management', () => {
 			projectWorkspaceRuntime,
 		});
 
-		fireEvent.click(screen.getByRole('button', { name: 'Create Project' }));
-		fireEvent.click(
-			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Select Folder…' }),
-		);
+		await startNewProject('New Project…', 'Select Folder…');
 		await waitFor(() =>
 			expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
 				path: '/workspace/orchbee',
@@ -1274,10 +1274,7 @@ describe('Workbench Project and Workspace management', () => {
 			projectWorkspaceRuntime,
 		});
 
-		fireEvent.click(screen.getByRole('button', { name: '创建项目' }));
-		fireEvent.click(
-			within(await screen.findByRole('menu')).getByRole('menuitem', { name: '选择文件夹…' }),
-		);
+		await startNewProject('新建项目…', '选择文件夹…');
 		const failure = await screen.findByRole('alertdialog');
 		expect(within(failure).getByText('无法添加文件夹')).toBeDefined();
 		expect(within(failure).getByText('Orchbee 无法读取或进入所选文件夹。')).toBeDefined();

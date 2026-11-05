@@ -296,6 +296,8 @@ describe('useWorkbenchActions', () => {
 					(actionId) =>
 						actionId !== WORKBENCH_ACTION_IDS.navigateAgent &&
 						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed &&
+						// The Project creation workflow registers its own entry.
+						actionId !== WORKBENCH_ACTION_IDS.newProject &&
 						// Only the authority's answer names the Tab this asks about.
 						actionId !== WORKBENCH_ACTION_IDS.closeTabConfirmed &&
 						// Only an authority's close can stop where Resume continues it.

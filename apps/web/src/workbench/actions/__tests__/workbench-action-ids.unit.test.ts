@@ -26,6 +26,7 @@ describe('workbench action contracts', () => {
 			navigateAgent: 'workbench.agent.navigate',
 			activateWorkspace: 'workbench.workspace.activate',
 			createProject: 'workbench.project.create',
+			newProject: 'workbench.project.new',
 			createTerminal: 'workbench.terminal.create',
 			createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
 			createWorkspace: 'workbench.workspace.create',

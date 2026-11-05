@@ -19,6 +19,7 @@ export const WORKBENCH_ACTION_IDS = {
 	navigateAgent: 'workbench.agent.navigate',
 	activateWorkspace: 'workbench.workspace.activate',
 	createProject: 'workbench.project.create',
+	newProject: 'workbench.project.new',
 	createTerminal: 'workbench.terminal.create',
 	createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
 	decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
@@ -100,6 +101,11 @@ export interface WorkbenchProjectInput {
 
 interface WorkbenchProjectCreateInput {
 	readonly path: string;
+}
+
+/** Where a new Project's folder comes from: one that exists, or one created for it. */
+export interface WorkbenchProjectNewInput {
+	readonly folder: 'existing' | 'new';
 }
 
 /** A checkout the Workspace's menu offered to open. */
@@ -237,6 +243,7 @@ export interface WorkbenchActionCatalog {
 		WorkbenchProjectCreateInput,
 		WorkbenchProjectCreationReceipt
 	>;
+	readonly [WORKBENCH_ACTION_IDS.newProject]: ActionSignature<WorkbenchProjectNewInput>;
 	readonly [WORKBENCH_ACTION_IDS.createTerminal]: ActionSignature<WorkbenchTerminalCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.decreaseTerminalFontSize]: ActionSignature<void>;
@@ -563,6 +570,14 @@ export const workbenchProjectCreateInput: ActionInputValidation<WorkbenchProject
 		isRecord(input) && typeof input['path'] === 'string' && input['path'].trim().length > 0
 			? { success: true, data: { path: input['path'].trim() } }
 			: { success: false, code: 'expected-workbench-project-create-input' },
+};
+
+export const workbenchProjectNewInput: ActionInputValidation<WorkbenchProjectNewInput> = {
+	name: 'WorkbenchProjectNewInput',
+	parse: (input) =>
+		isRecord(input) && (input['folder'] === 'existing' || input['folder'] === 'new')
+			? { success: true, data: { folder: input['folder'] } }
+			: { success: false, code: 'expected-workbench-project-new-input' },
 };
 
 export const workbenchProjectRenameInput: ActionInputValidation<WorkbenchProjectRenameInput> = {

@@ -1,11 +1,4 @@
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
 	Button,
 	Kbd,
 	ProductIcon,
@@ -14,24 +7,14 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
-import type { ActionExecution } from '@orchbee/actions';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
-import type {
-	WorkbenchProjectFolderAcquisition,
-	WorkbenchProjectCreationReceipt,
-} from '../../types/workbench-project-folder-acquisition';
-import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
-import { CreateProjectFolderDialog } from './components/create-project-folder-dialog/CreateProjectFolderDialog';
-import { useNewProjectFolder } from './hooks/useNewProjectFolder';
 import { NameDialog } from '../name-dialog/NameDialog';
-import { ProjectCreateMenu } from './components/project-create-menu/ProjectCreateMenu';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
-import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import { useSidebarScrollEdges } from './hooks/useSidebarScrollEdges';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
@@ -55,11 +38,6 @@ interface WorkbenchSidebarProps {
 	readonly createWorkspace: (input?: WorkbenchSidebarWorkspaceCreation) => void;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
-	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
-	readonly activateCreatedProject: (
-		receipt: WorkbenchProjectCreationReceipt,
-	) => ActionExecution<void>;
-	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly focusRequest: number;
@@ -70,7 +48,6 @@ interface WorkbenchSidebarProps {
 	readonly onShortcuts?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
-	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly subscribeNavigation: (listener: () => void) => () => void;
 	readonly removeProject: (projectId: string) => void;
@@ -107,9 +84,6 @@ export function WorkbenchSidebar({
 	createWorkspace,
 	setWorkspaceProject,
 	createWorkspaceProject,
-	createProject,
-	activateCreatedProject,
-	isCreatedProjectActive,
 	deleteWorkspace,
 	navigateAgent,
 	focusRequest,
@@ -120,7 +94,6 @@ export function WorkbenchSidebar({
 	onShortcuts,
 	projectLabel,
 	projectNavigationMessages,
-	projectFolderAcquisition,
 	projectWorkspaceState,
 	subscribeNavigation,
 	removeProject,
@@ -149,10 +122,6 @@ export function WorkbenchSidebar({
 	const workspaceLocations = useWorkbenchSidebarWorkspaceLocations(workspaceLocationSource);
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState);
-	const folderAcquisition = useProjectFolderAcquisition({
-		acquisition: projectFolderAcquisition,
-		createProject,
-	});
 	const locationNameMessages = {
 		cancel: projectNavigationMessages.cancel,
 		close: projectNavigationMessages.close,
@@ -162,19 +131,6 @@ export function WorkbenchSidebar({
 		kind: 'refuse',
 		reason: projectNavigationMessages.nameRequired,
 	} as const;
-	const newFolder = useNewProjectFolder({
-		activateCreatedProject,
-		capability: projectFolderAcquisition?.newFolder,
-		createProject,
-		isCreatedProjectActive,
-		selectExisting: folderAcquisition.requestCreateProject,
-	});
-	const folderFailure =
-		folderAcquisition.failure ?? (newFolder.state.kind === 'failed' ? newFolder.state.code : null);
-	const dismissFolderFailure = () => {
-		folderAcquisition.dismissFailure();
-		newFolder.close();
-	};
 	const projectReorder = useNavigationReorderDrag(projectWorkspaceState.projects, reorderProject);
 	// Recents, the Workspaces outside any Project, is the last group, listed only while it has one.
 	const navigationGroups = projectWorkspaceState.workspaces.some(
@@ -182,7 +138,6 @@ export function WorkbenchSidebar({
 	)
 		? [...projectWorkspaceState.projects, null]
 		: projectWorkspaceState.projects;
-	const projectCreation = view.projectCreation;
 	const projectRename = view.projectRename;
 	const workspaceProjectCreation = view.workspaceProjectCreation;
 	const workspaceRename = view.workspaceRename;
@@ -325,24 +280,6 @@ export function WorkbenchSidebar({
 								/>
 							))}
 						</ul>
-						<div
-							className={styles['projectCreate']}
-							data-empty={projectWorkspaceState.projects.length === 0 || undefined}
-							data-slot='workbench-sidebar-project-create'
-						>
-							<ProjectCreateMenu
-								selectionPending={folderAcquisition.selecting || newFolder.busy}
-								onNewFolder={
-									projectFolderAcquisition?.newFolder === undefined ? undefined : newFolder.open
-								}
-								messages={projectNavigationMessages}
-								onSelectFolder={
-									projectFolderAcquisition === undefined
-										? view.showProjectCreation
-										: folderAcquisition.requestCreateProject
-								}
-							/>
-						</div>
 					</div>
 					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='start' />
 					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='end' />
@@ -386,28 +323,6 @@ export function WorkbenchSidebar({
 					</Tooltip>
 				</div>
 			</aside>
-			{projectCreation === null ? null : (
-				<CreateProjectDialog
-					messages={projectNavigationMessages}
-					onClose={projectCreation.close}
-					onPathChange={projectCreation.setPath}
-					onSubmit={(path) => {
-						createProject(path);
-						projectCreation.close();
-					}}
-					path={projectCreation.path}
-				/>
-			)}
-			{'parent' in newFolder.state ? (
-				<CreateProjectFolderDialog
-					messages={projectNavigationMessages}
-					onClose={newFolder.close}
-					onNameChange={newFolder.setName}
-					onRecover={newFolder.recover}
-					onSubmit={newFolder.submit}
-					state={newFolder.state}
-				/>
-			) : null}
 			{projectRename === null ? null : (
 				<NameDialog
 					blank={locationNameBlank}
@@ -452,33 +367,6 @@ export function WorkbenchSidebar({
 					submitLabel={projectNavigationMessages.renameSubmit}
 					title={projectNavigationMessages.workspaceRenameTitle}
 				/>
-			)}
-			{folderFailure === null ? null : (
-				<AlertDialog
-					onOpenChange={(open) => {
-						if (!open) dismissFolderFailure();
-					}}
-					open
-				>
-					<AlertDialogContent
-						className={styles['alertContent']}
-						data-slot='workbench-project-folder-acquisition-failure'
-					>
-						<AlertDialogHeader className={styles['alertHeader']}>
-							<AlertDialogTitle className={styles['alertTitle']}>
-								{projectNavigationMessages.folderAcquisitionFailureTitle}
-							</AlertDialogTitle>
-							<AlertDialogDescription className={styles['alertDescription']}>
-								{projectNavigationMessages.folderAcquisitionFailureMessages[folderFailure]}
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter className={styles['alertFooter']}>
-							<AlertDialogAction onClick={dismissFolderFailure}>
-								{projectNavigationMessages.folderAcquisitionFailureDismiss}
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
 			)}
 		</>
 	);

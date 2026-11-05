@@ -25,6 +25,7 @@ import { WorkbenchAgentBoardDialog } from './components/workbench-agent-board-di
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
+import { WorkbenchProjectCreation } from './components/workbench-project-creation/WorkbenchProjectCreation';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
@@ -132,6 +133,7 @@ export function Workbench({
 		onSettings,
 		onShortcuts,
 		onTerminalFontSizeChange,
+		projectFolderAcquisition,
 		projectWorkspaceRuntime,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
@@ -166,9 +168,6 @@ export function Workbench({
 			<WorkbenchSidebar
 				subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
 				activateWorkspace={view.activateWorkspace}
-				createProject={view.createProject}
-				activateCreatedProject={view.activateCreatedProject}
-				isCreatedProjectActive={view.isCreatedProjectActive}
 				createWorkspace={view.createWorkspace}
 				setWorkspaceProject={view.setWorkspaceProject}
 				createWorkspaceProject={view.createWorkspaceProject}
@@ -186,7 +185,6 @@ export function Workbench({
 				projectLabel={view.projectLabel}
 				newWorkspaceLabel={view.newWorkspaceLabel}
 				projectNavigationMessages={view.projectNavigationMessages}
-				projectFolderAcquisition={projectFolderAcquisition}
 				projectWorkspaceState={view.projectWorkspaceState}
 				workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
 				removeProject={view.removeProject}
@@ -442,6 +440,10 @@ export function Workbench({
 			)}
 			{projectWorkspaceConfirmationSurface}
 			{tabTitleEditorSurface}
+			<WorkbenchProjectCreation
+				messages={view.projectCreationMessages}
+				view={view.projectCreation}
+			/>
 		</div>
 	);
 }

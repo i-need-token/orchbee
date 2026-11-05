@@ -81,6 +81,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.actions.createWorkspace': 'New Workspace',
 	'workbench.projects.actions.expand': 'Expand project',
 	'workbench.projects.actions.manage': 'Manage Project…',
+	'workbench.projects.actions.new': 'New Project…',
 	'workbench.projects.actions.newFolder': 'New Folder…',
 	'workbench.projects.actions.options': 'Project options',
 	'workbench.projects.actions.remove': 'Dissolve Project',

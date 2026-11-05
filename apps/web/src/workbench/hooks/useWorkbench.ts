@@ -48,7 +48,15 @@ import type {
 	WorkbenchProjectNavigationMessages,
 	WorkbenchWorktreeCommands,
 } from '../components/workbench-sidebar/types/workbench-sidebar-types';
-import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import type {
+	WorkbenchProjectCreationReceipt,
+	WorkbenchProjectFolderAcquisition,
+} from '../types/workbench-project-folder-acquisition';
+import {
+	useWorkbenchProjectCreation,
+	type WorkbenchProjectCreationView,
+} from '../components/workbench-project-creation/hooks/useWorkbenchProjectCreation';
+import type { WorkbenchProjectCreationMessages } from '../components/workbench-project-creation/types/workbench-project-creation-messages';
 import { createFocusedPanelWorktreePicker } from '../model/createFocusedPanelWorktreePicker';
 import {
 	resolveWorkbenchSidebarPresentation,
@@ -172,11 +180,6 @@ interface WorkbenchView {
 	readonly confirmProjectWorkspaceAction: () => void;
 	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
-	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
-	readonly activateCreatedProject: (
-		receipt: WorkbenchProjectCreationReceipt,
-	) => ActionExecution<void>;
-	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
 	readonly createWorkspace: (
 		input?:
 			| { readonly projectId: string }
@@ -229,6 +232,8 @@ interface WorkbenchView {
 	readonly projectLabel: string;
 	readonly newWorkspaceLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
+	readonly projectCreation: WorkbenchProjectCreationView;
+	readonly projectCreationMessages: WorkbenchProjectCreationMessages;
 	readonly projectWorkspaceConfirmationCancelButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly projectWorkspaceConfirmation: {
 		readonly cancelLabel: string;
@@ -314,6 +319,7 @@ interface UseWorkbenchOptions {
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onShortcuts?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
+	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -332,6 +338,7 @@ export function useWorkbench({
 	onSettings,
 	onShortcuts,
 	onTerminalFontSizeChange,
+	projectFolderAcquisition,
 	projectWorkspaceRuntime,
 	shortcutBindings,
 	shortcutPlatform,
@@ -637,15 +644,77 @@ export function useWorkbench({
 		toggleSidebar,
 		worktreeLabel,
 	});
+	const createProject = useMemoizedFn((path: string) =>
+		actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
+	);
+	const activateCreatedProject = useMemoizedFn((receipt: WorkbenchProjectCreationReceipt) =>
+		actions.invoke(
+			WORKBENCH_ACTION_IDS.activateWorkspace,
+			{ creationReceipt: receipt, workspaceId: receipt.workspaceId },
+			'button',
+		),
+	);
+	const isCreatedProjectActive = useMemoizedFn((receipt: WorkbenchProjectCreationReceipt) => {
+		const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
+		return (
+			location.kind === 'workspace' &&
+			location.workspaceId === receipt.workspaceId &&
+			(navigation === undefined || navigation.isActive?.(location) === true) &&
+			matchesWorkbenchProjectCreation(projectWorkspaceRuntime, receipt)
+		);
+	});
+	const projectCreation = useWorkbenchProjectCreation({
+		acquisition: projectFolderAcquisition,
+		activateCreatedProject,
+		createProject,
+		isCreatedProjectActive,
+		runtime: actionRuntime,
+		scope: actions.scope,
+	});
 	const worktrees = authorityNotice.authority.worktrees;
+	const newFolderAvailable = projectFolderAcquisition?.newFolder !== undefined;
 	const searchArgumentPickerForAction = React.useMemo(() => {
 		const worktreePicker =
 			worktrees === undefined
 				? undefined
 				: createFocusedPanelWorktreePicker({ intl, projectWorkspaceRuntime, worktrees });
-		return (actionId: string) =>
-			actionId === WORKBENCH_ACTION_IDS.openFocusedPanelWorktree ? worktreePicker : undefined;
-	}, [intl, projectWorkspaceRuntime, worktrees]);
+		// The folder choices the sidebar's New Project menu offered before Search took it over.
+		const newProjectPicker: WorkbenchSearchProviderArgumentPicker = {
+			kind: 'options',
+			options: [
+				{
+					id: 'existing',
+					input: { folder: 'existing' },
+					keywords: [],
+					label: intl.formatMessage(workbenchMessages.projectSelectFolder),
+				},
+				...(newFolderAvailable
+					? [
+							{
+								id: 'new',
+								input: { folder: 'new' },
+								keywords: [],
+								label: intl.formatMessage(workbenchMessages.projectNewFolder),
+							},
+						]
+					: []),
+			],
+			placeholder: intl.formatMessage(workbenchMessages.searchArgumentPlaceholder),
+			prompt: intl.formatMessage(workbenchMessages.searchArgumentPrompt, {
+				action: intl.formatMessage(workbenchMessages.projectNew),
+			}),
+		};
+		return (actionId: string) => {
+			switch (actionId) {
+				case WORKBENCH_ACTION_IDS.openFocusedPanelWorktree:
+					return worktreePicker;
+				case WORKBENCH_ACTION_IDS.newProject:
+					return newProjectPicker;
+				default:
+					return undefined;
+			}
+		};
+	}, [intl, newFolderAvailable, projectWorkspaceRuntime, worktrees]);
 	const invokeAction = actions.invoke;
 	const closeResume = React.useMemo<TabStripCloseResume>(() => {
 		const decider = authorityNotice.authority;
@@ -831,26 +900,6 @@ export function useWorkbench({
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		closeResume,
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
-		createProject: (path) => actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
-		activateCreatedProject: (receipt) =>
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.activateWorkspace,
-				{
-					creationReceipt: receipt,
-
-					workspaceId: receipt.workspaceId,
-				},
-				'button',
-			),
-		isCreatedProjectActive: (receipt) => {
-			const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
-			return (
-				location.kind === 'workspace' &&
-				location.workspaceId === receipt.workspaceId &&
-				(navigation === undefined || navigation.isActive?.(location) === true) &&
-				matchesWorkbenchProjectCreation(projectWorkspaceRuntime, receipt)
-			);
-		},
 		setWorkspaceProject: (workspaceId, projectId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.setWorkspaceProject, { workspaceId, projectId }, 'menu');
 		},
@@ -947,6 +996,26 @@ export function useWorkbench({
 			createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
 			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
+			nameRequired: intl.formatMessage(workbenchMessages.nameRequired),
+			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
+			renameSubmit: intl.formatMessage(workbenchMessages.renameSubmit),
+			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
+			projectMenuDissolve: intl.formatMessage(workbenchMessages.projectMenuDissolve),
+			projectMenuRename: intl.formatMessage(workbenchMessages.projectMenuRename),
+			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
+			projectRenameTitle: intl.formatMessage(workbenchMessages.projectRenameTitle),
+			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
+			recents: intl.formatMessage(workbenchMessages.recents),
+			workspaceMenuClose: intl.formatMessage(workbenchMessages.workspaceMenuClose),
+			workspaceMenuNewProject: intl.formatMessage(workbenchMessages.workspaceMenuNewProject),
+			workspaceMenuRename: intl.formatMessage(workbenchMessages.workspaceMenuRename),
+			workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
+			workspaceRenameTitle: intl.formatMessage(workbenchMessages.workspaceRenameTitle),
+		},
+		projectCreationMessages: {
+			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
+			close: intl.formatMessage(workbenchMessages.resourceClose),
+			create: intl.formatMessage(workbenchMessages.resourceCreate),
 			folderAcquisitionFailureDismiss: intl.formatMessage(
 				workbenchMessages.projectFolderAcquisitionDismiss,
 			),
@@ -973,21 +1042,15 @@ export function useWorkbench({
 			folderAcquisitionFailureTitle: intl.formatMessage(
 				workbenchMessages.projectFolderAcquisitionTitle,
 			),
-			newFolder: intl.formatMessage(workbenchMessages.projectNewFolder),
-			newFolderTitle: intl.formatMessage(workbenchMessages.projectNewFolderTitle),
+			newFolderCreating: intl.formatMessage(workbenchMessages.projectNewFolderCreating),
 			newFolderDescription: intl.formatMessage(workbenchMessages.projectNewFolderDescription),
-			newFolderParent: intl.formatMessage(workbenchMessages.projectNewFolderParent),
 			newFolderName: intl.formatMessage(workbenchMessages.projectNewFolderName),
 			newFolderNameHint: intl.formatMessage(workbenchMessages.projectNewFolderNameHint),
-			newFolderCreating: intl.formatMessage(workbenchMessages.projectNewFolderCreating),
 			newFolderOpening: intl.formatMessage(workbenchMessages.projectNewFolderOpening),
+			newFolderParent: intl.formatMessage(workbenchMessages.projectNewFolderParent),
 			newFolderRetained: intl.formatMessage(workbenchMessages.projectNewFolderRetained),
+			newFolderTitle: intl.formatMessage(workbenchMessages.projectNewFolderTitle),
 			newFolderUnknown: intl.formatMessage(workbenchMessages.projectNewFolderUnknown),
-			nameRequired: intl.formatMessage(workbenchMessages.nameRequired),
-			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
-			renameSubmit: intl.formatMessage(workbenchMessages.renameSubmit),
-			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
-			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),
 			projectCreateDescription: intl.formatMessage(workbenchMessages.projectCreateDescription),
 			projectCreatePath: intl.formatMessage(workbenchMessages.projectCreatePath),
 			projectCreatePathDescription: intl.formatMessage(
@@ -997,19 +1060,9 @@ export function useWorkbench({
 				workbenchMessages.projectCreatePathPlaceholder,
 			),
 			projectCreateTitle: intl.formatMessage(workbenchMessages.projectCreateTitle),
-			projectMenuDissolve: intl.formatMessage(workbenchMessages.projectMenuDissolve),
-			projectMenuRename: intl.formatMessage(workbenchMessages.projectMenuRename),
-			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
-			projectRenameTitle: intl.formatMessage(workbenchMessages.projectRenameTitle),
-			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
-			recents: intl.formatMessage(workbenchMessages.recents),
 			selectFolder: intl.formatMessage(workbenchMessages.projectSelectFolder),
-			workspaceMenuClose: intl.formatMessage(workbenchMessages.workspaceMenuClose),
-			workspaceMenuNewProject: intl.formatMessage(workbenchMessages.workspaceMenuNewProject),
-			workspaceMenuRename: intl.formatMessage(workbenchMessages.workspaceMenuRename),
-			workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
-			workspaceRenameTitle: intl.formatMessage(workbenchMessages.workspaceRenameTitle),
 		},
+		projectCreation,
 		projectWorkspaceConfirmationCancelButtonRef,
 		projectWorkspaceConfirmation,
 		projectWorkspaceState,

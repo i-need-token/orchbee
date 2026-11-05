@@ -23,7 +23,7 @@ interface UseNewProjectFolderOptions {
 	readonly selectExisting: () => void;
 }
 
-interface NewProjectFolderView {
+export interface NewProjectFolderView {
 	readonly state: NewProjectFolderState;
 	readonly busy: boolean;
 	readonly open: () => void;
