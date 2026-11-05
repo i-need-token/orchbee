@@ -2,7 +2,7 @@
 
 | Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Steps 1, 2, 4, 6, and 8 and the GUI half of step 7 are delivered; the rest is a proposal under review. The inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                                             |
+| Status             | Steps 1, 2, and 4 through 8 are delivered; steps 3 and 9 remain a proposal under review. The TUI inventory reflects step 5; the other inventory and measurements below are verified against `main` at `439bcc4b4` and against the cited upstream theme files as fetched on 2026-11-05                                                                                                                                                                                                                                  |
 | Owner              | Theme data and resolver maintainers, the native theme module in `apps/orchbee`, `@orchbee/design-tokens`, `@orchbee/terminal`, the terminal protocol and Host, and the user-preference owners                                                                                                                                                                                                                                                                                                                          |
 | Current authority  | [`crates/color-themes`](../../crates/color-themes/README.md) owns theme data, the resolver, and the gates; the [Worker](../../apps/orchbee-worker/README.md#terminal-launch-palette) owns the launch palette; [`docs/tui/visual-foundations.md`](../../docs/tui/visual-foundations.md) owns TUI roles and the theme contract; [`docs/frontend/design-tokens.md`](../../docs/frontend/design-tokens.md) owns the CSS registry; [`docs/INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md) owns GUI/TUI correspondence |
 | Decision authority | The product owner decides the default pair, the shipped list, the TUI default color source, and settings presentation; the terminal-protocol owner decides the palette-index cell encoding; this proposal decides the theme data model, the resolver, and the gates                                                                                                                                                                                                                                                    |
@@ -25,15 +25,15 @@ theme changes.
 
 ### TUI
 
-- `tui_theme/name.rs` defines `ThemeName::{TerminalNative, OneLight, OneDark}`. `terminal-native`
-  is the default and the only theme users reach; the One pair exists for tests.
-- `tui_theme/shipped.rs` gives each RGB theme a `Palette` of 26 values plus 9 Tab-group colors:
-  text (`primary`, `secondary`, `muted`, `inverse`), accents, status, `frame`/`divider`/`guide`, and
-  surfaces from `background` through `related`. `application_with_host` maps that palette to the
-  role families in the visual-foundations standard.
-- `tui_theme.rs` fixes `AGENT_ATTENTION #febc2e`, `AGENT_DONE #28c840`, and `AGENT_ERROR #ff5f57`,
-  applies `MUTED_CONTRAST = 4.5`, derives host-relative surfaces from reported outer-terminal colors,
-  and quantizes once to truecolor, 256, or 16 colors.
+- `tui_theme/source.rs` picks what the TUI paints from the Appearance, slot and Colors
+  preferences, the outer terminal's reported background polarity, and the color level; see
+  [native themes](../../apps/orchbee/docs/native-themes.md#selection-and-ownership).
+- `tui_theme/shipped.rs` projects a catalog theme's resolved roles onto TUI styles. Orchbee Light
+  and Orchbee Dark then take the shared theme colors, as the GUI's hand-authored Orchbee mapping
+  does. `ThemeName` keeps `TerminalNative` and test-only Orchbee handles; the One pair is gone.
+- `tui_theme.rs` fixes `AGENT_ATTENTION #febc2e`, `AGENT_DONE #28c840`, and `AGENT_ERROR #ff5f57`
+  for every theme and quantizes `terminal-native` once to the color level. The host-relative
+  surfaces that System derived from reported outer-terminal colors are retired.
 
 ### GUI
 
@@ -99,10 +99,9 @@ One new Rust library, `crates/color-themes`, is the only authority for theme dat
   step 5 or 6. Display names are product copy and go through localization like every other label.
 
 - **Resolver.** The crate resolves a theme into the complete role set below. It owns the OKLab
-  mixing, the lightness-only contrast correction, and the role proportions that are now spread
-  across `tui_theme.rs` and the host-relative derivation.
+  mixing, the lightness-only contrast correction, and the role proportions.
 - **TUI.** The native theme module consumes resolved roles from the crate instead of
-  hand-written palettes, then quantizes as it does today.
+  hand-written palettes. Named themes paint only at truecolor.
 - **Worker.** The Worker takes the launch palette from the device's effective theme instead of a
   constant.
 - **GUI.** A deterministic generator in the crate writes checked-in
@@ -112,10 +111,10 @@ One new Rust library, `crates/color-themes`, is the only authority for theme dat
   and verification fails when the generated output is stale.
 - **Default pair.** The Orchbee pair keeps its reviewed hand-authored GUI mapping. Its theme files
   pin chrome to those values, so the TUI resolves the same surfaces and no default-pair CSS is
-  generated. Until then its chrome is derived; open decision 13 covers its dark canvas.
+  generated. Until then its chrome is derived, with the shared theme colors applied over it in the
+  TUI; open decision 13 covers its dark canvas.
 
-A Rust crate is the authority because the TUI needs the resolver at run time for host-relative
-surfaces. A JSON source under `packages/` would force Rust to read across workspaces, and a CSS
+A Rust crate is the authority because the TUI resolves roles at run time. A JSON source under `packages/` would force Rust to read across workspaces, and a CSS
 source cannot drive the TUI or the Worker.
 
 ## Palette-to-role resolver
@@ -158,12 +157,13 @@ generated block fills the entire inventory that `docs/frontend/design-tokens.md`
 
 ### `terminal-native`
 
-`terminal-native` remains. It stays the TUI's theme whenever host appearance or color level is
-unknown, and it becomes an explicit TUI color source, "Terminal colors", beside "Theme".
+`terminal-native` remains. It is the TUI's theme whenever host appearance or color level is
+unknown or the host is below truecolor, and it is the explicit TUI color source "Terminal colors"
+(`tuiColorSource: terminal`) beside "Theme".
 
-- With Terminal colors, chrome keeps today's host-relative mapping, and pane cells emit `Reset` for
-  default-coded colors and `Indexed(n)` for palette-coded colors 0–15, so the user's own terminal
-  palette shows. That requires the palette-index encoding below.
+- With Terminal colors, chrome uses the `terminal-native` mapping, and pane cells emit `Reset` for
+  default-coded colors. Emitting `Indexed(n)` for palette-coded colors 0–15, so the user's own
+  terminal palette shows, requires the palette-index encoding below.
 - The color source is a TUI-only preference, because the GUI has no outer terminal. The shared theme
   ids stay meaningful to both Clients.
 - Named themes need truecolor in the TUI, as grok-build's `requires_truecolor` does. A tinted canvas
@@ -396,7 +396,7 @@ requires.
 
 - **Rows.** The Appearance section holds Appearance (System, Light, Dark; the existing
   `appearance.application-theme`), Light theme, and Dark theme. The TUI adds Colors (Theme, Terminal
-  colors).
+  colors), which defaults to Theme.
 - **Picker.** Each picker lists the themes of its polarity. Every row shows the name and a swatch
   strip of canvas, foreground, and ANSI 1–5.
 - **Preview.** Moving focus previews the theme in place without committing. Enter or click commits,
@@ -462,8 +462,12 @@ Each step is one commit, or a small series, that leaves `main` working:
    launch capture carries both slots so the Worker's palette takes the selected theme's cursor and
    ANSI colors. A Host-following terminal keeps the slots captured at launch until step 3 lets
    Clients map ANSI colors themselves.
-5. **TUI.** Resolve roles from the crate, add the Colors source with truecolor gating, retire the
-   test-only One pair, and keep `terminal-native` emitting `Reset` and `Indexed`.
+5. **TUI. Done.** The TUI resolves named themes from the crate through the active slot, and the
+   device record holds the TUI-only `tuiColorSource` (Theme by default). Below truecolor, or
+   without a known appearance, the TUI uses Terminal colors; see
+   [native themes](../../apps/orchbee/docs/native-themes.md#selection-and-ownership). The One pair
+   and the host-derived System fills are retired, the traffic-light Agent colors stay fixed, and
+   `terminal-native` keeps emitting `Reset`. `Indexed` waits for step 3.
 6. **GUI. Done.** The crate's [GUI files](../../crates/color-themes/README.md#gui-files) test
    generates the theme CSS and the `@orchbee/terminal` color module and fails when either is stale;
    `pnpm lint:styles` checks each block against the registry. The application boundary sets
@@ -473,7 +477,11 @@ Each step is one commit, or a small series, that leaves `main` working:
 7. **Settings.** Add the pickers with preview, commit, and reset in both Clients, with `en-US` and
    `zh-CN` copy. **GUI done:** the [color themes](../../apps/web/docs/terminal-settings.md#color-themes)
    pickers preview on arrow keys, commit on Enter or click, and restore on Escape, on leaving the
-   list, or on close. Under System both pickers say when they apply. The TUI half remains.
+   list, or on close. Under System both pickers say when they apply. **TUI done:** the
+   [Appearance rows](../../apps/orchbee/docs/native-settings.md) add Light theme, Dark theme and
+   Colors with the GUI's wording; pickers show a swatch per row, preview at the candidate's
+   polarity, commit on Enter, restore on Escape, and are unavailable below truecolor with the
+   reason.
 8. **Named themes. Done.** The 14 named themes ship in
    [`crates/color-themes`](../../crates/color-themes/README.md#shipped-themes) with their notice
    entries, one commit per family. Each passes the gates with exactly the corrections listed above
@@ -482,8 +490,9 @@ Each step is one commit, or a small series, that leaves `main` working:
    for Rosé Pine Dawn, and 12.6 for Tango Light, all within the budget. Tango Light takes the
    original Tango palette (`Builtin Tango Light`), whose corrections match the list. The GUI pickers
    stay expanded lists beside their labels.
-9. **Documentation.** Update `docs/tui/visual-foundations.md`, `docs/frontend/design-tokens.md`
-   (multiple themes, the polarity attribute), and the package READMEs, then delete this proposal.
+9. **Documentation.** Update `docs/frontend/design-tokens.md` (multiple themes, the polarity
+   attribute) and the package READMEs, then delete this proposal. Step 5 updated
+   `docs/tui/visual-foundations.md`.
 
 ### GUI theme boundary
 
@@ -499,10 +508,12 @@ Each decision is listed with a recommendation and is vetoable:
 1. **Default pair.** Keep the neutral Orchbee pair as the default, with its two fixes. It is the
    reviewed GUI look and the most neutral canvas for Agent output. The alternative, a popular family
    as default, would recolor every existing user.
-2. **TUI default color source.** Keep Terminal colors as the TUI default, as the standard requires
-   today. Picking any named theme in the TUI switches the source to Theme. The alternative, default
-   to Theme on known truecolor hosts, gives stronger cross-client sameness but overrides users' own
-   terminal palettes.
+2. **TUI default color source. Taken in step 5.** Default to Theme on truecolor hosts of known
+   appearance, for cross-client sameness. The TUI uses Terminal colors when appearance or color
+   level is unknown, when the host is below truecolor, or when the user chooses it, and picking any
+   named theme switches the source back to Theme. The rejected alternative, Terminal colors by
+   default, kept users' own terminal palettes but showed a different look in each Client. The
+   choice stays vetoable: changing `TuiColorSource`'s default reverts it.
 3. **ANSI path.** Option A (palette-index tags) plus the Host palette for queries. Option B alone
    cannot serve two Clients with different polarities.
 4. **Corrected palettes.** Ship the lightness-corrected values under the upstream name, record the
