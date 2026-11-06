@@ -110,6 +110,7 @@ function renderWorkspace(projectWorkspaceRuntime: WorkbenchProjectWorkspaceRunti
 					createPanelTerminal={unexpected}
 					panelWorkspaceStore={context.panelWorkspaceStore}
 					parentActionScope={parentActionScope}
+					presentationAgentStatuses={new Map()}
 					terminalContextId={context.terminalContextId}
 					shortcutLabelForAction={() => undefined}
 					terminalAutoFocusAllowed

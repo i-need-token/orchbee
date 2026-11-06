@@ -115,3 +115,5 @@ export type {
 } from './types/workbench-terminal-surface';
 
 export { hasWorkbenchExclusiveFocusSurface } from './utils/workbench-focus-dom';
+
+export { resolveWorkbenchAgentDisplayState } from './utils/resolveWorkbenchAgentDisplayState';

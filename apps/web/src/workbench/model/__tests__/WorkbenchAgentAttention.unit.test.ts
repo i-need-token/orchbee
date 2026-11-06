@@ -114,22 +114,30 @@ describe('Workbench Agent attention', () => {
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
 		unsubscribe();
 	});
+});
 
-	it('shows a completion the person typed into as idle until its state changes', () => {
-		const server = source(snapshot({ terminal: agent('done', 1n) }));
-		const viewer = new WorkbenchAgentAttention(server);
-		const unsubscribe = viewer.subscribe(() => {});
-		const shown = () => viewer.getSnapshot().presentation.presentations.get('terminal')?.state;
-		viewer.terminalEdited('unrelated-terminal');
-		expect(shown()).toBe('done');
-		viewer.terminalEdited('terminal');
-		expect(shown()).toBe('idle');
-		expect(viewer.getSnapshot().observation.presentations.get('terminal')?.state).toBe('done');
-		server.publish(snapshot({ terminal: agent('done', 2n) }));
-		expect(shown()).toBe('done');
-		server.publish(snapshot({ terminal: agent('working', 3n) }));
-		viewer.terminalEdited('terminal');
-		expect(shown()).toBe('working');
-		unsubscribe();
-	});
+it('shares Server completion across late Clients and clears only on a Server acknowledgement', () => {
+	const server = source(
+		snapshot({ terminal: { ...agent('idle', 2n), completion: 'awaiting-input' as const } }),
+	);
+	const first = new WorkbenchAgentAttention(server);
+	const second = new WorkbenchAgentAttention(server);
+	const stops = [first.subscribe(() => {}), second.subscribe(() => {})];
+	try {
+		for (const viewer of [first, second]) {
+			expect(viewer.getSnapshot().presentation.presentations.get('terminal')?.state).toBe('done');
+			expect(viewer.getSnapshot().observation.presentations.get('terminal')?.state).toBe('idle');
+			viewer.acknowledge(viewer.getSnapshot(), new Set(['terminal']), true);
+			expect(viewer.getSnapshot().presentation.presentations.get('terminal')?.state).toBe('done');
+		}
+		server.publish(
+			snapshot({ terminal: { ...agent('idle', 2n), completion: 'acknowledged' as const } }),
+		);
+		for (const viewer of [first, second]) {
+			expect(viewer.getSnapshot().presentation.presentations.get('terminal')?.state).toBe('idle');
+			expect(viewer.getSnapshot().unread.size).toBe(0);
+		}
+	} finally {
+		for (const stop of stops) stop();
+	}
 });

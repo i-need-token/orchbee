@@ -265,7 +265,9 @@ Observe replies supply current controller, sequence and recent-focus facts, incl
 promotion; the GUI never invents a local focus-order fallback. The manual Take control Action
 remains available. Grants arrive through the same next capability revision as manual takeover.
 An already submitted transfer cannot be recalled: its receipt is reconciled even after focus loss,
-without another transfer. This cancellation boundary is a vetoable decision.
+without another transfer. This cancellation boundary is a vetoable decision. An opening projection
+waits for the renderer's subscription before automatic activation, so its capability change cannot
+be published into an absent listener; closing releases that wait without submitting a transfer.
 
 The stable headed Canvas 2D `terminal-parity/IN-10-read-only` witness controls exact attachment
 capability revisions and observes immediate local repair, retained search/selection/history/copy,
@@ -393,3 +395,18 @@ Run `pnpm --filter @orchbee/web test` for the unit suite. On Windows, Vitest use
 ## System verification
 
 `pnpm --filter @orchbee/web test:system` runs the headed Canvas 2D witnesses in `system-tests/` against the `*.system-fixture.ts` pages, which one rsbuild development server compiles. It needs an installed Playwright Chromium, and no routine gate runs it.
+
+## Server-owned Agent completion presentation
+
+The compact terminal Agent source preserves the Server's `completion` fact alongside raw state,
+physical binding and provider sequence. Completion-only publications invalidate the cached row
+without advancing that sequence. `WorkbenchAgentAttention` owns only per-Client unread versions;
+it no longer clears Done on a local terminal-edit callback or infers completion from transitions.
+
+One display projection maps awaiting-input Idle to Done and acknowledged explicit Done to Idle.
+Sidebar, Tab strip and Panel header use that projection, and the Agent board overlays the same
+fact on its idle/succeeded rows only when the terminal generation matches. Provider failure,
+approval and active-work states retain their semantics. Board open and completion publications
+reproject cached rows immediately, without waiting for its next list. Raw observations still
+feed notifications and the focused-Panel-only unread rules. Missing completion stays unknown/none;
+reading or changing focus never consumes it. Only the Server's accepted-input boundary does.

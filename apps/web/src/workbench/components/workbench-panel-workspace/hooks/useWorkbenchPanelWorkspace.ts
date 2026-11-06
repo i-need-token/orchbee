@@ -15,6 +15,7 @@ import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityContext,
 } from '../../../types/workbench-authority';
+import type { WorkbenchAgentStatusView } from '../../../utils/formatWorkbenchAgentStatus';
 import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
@@ -67,6 +68,7 @@ interface UseWorkbenchPanelWorkspaceOptions {
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
+	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalContextId: string;
 }
@@ -120,6 +122,7 @@ export function useWorkbenchPanelWorkspace({
 	createPanelTerminal,
 	panelWorkspaceStore,
 	parentActionScope,
+	presentationAgentStatuses,
 	shortcutLabelForAction,
 	terminalContextId,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
@@ -867,6 +870,7 @@ export function useWorkbenchPanelWorkspace({
 		panelVisualSelectionLabel,
 		pendingClose,
 		pendingResize,
+		presentationAgentStatuses,
 		releasePanelDragHold,
 		requestClose: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			const tabId = store.getActiveTabId();

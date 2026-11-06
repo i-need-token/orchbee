@@ -217,6 +217,11 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	#capabilityRevision = 1n;
 	#closed = false;
 	#closing: Promise<void> | null = null;
+	#subscriberReadyResolve: (() => void) | null = null;
+	readonly #subscriberReady = new Promise<void>((resolve) => {
+		this.#subscriberReadyResolve = resolve;
+	});
+
 	#controllerId: string | null;
 	#geometry: TerminalGeometry;
 	#observingControl = false;
@@ -275,6 +280,8 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	subscribe(listener: (value: unknown) => void, unavailable: () => void): () => void {
 		this.#listener = listener;
 		this.#unavailable = unavailable;
+		this.#subscriberReadyResolve?.();
+		this.#subscriberReadyResolve = null;
 		this.#pollNow();
 		return () => {
 			this.#listener = null;
@@ -379,6 +386,8 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	 * changes is typing into a surface about to be replaced.
 	 */
 	close(): Promise<void> {
+		this.#subscriberReadyResolve?.();
+		this.#subscriberReadyResolve = null;
 		this.#closing ??= new Promise((resolve) => {
 			this.#listener = null;
 			this.#unavailable = null;
@@ -399,6 +408,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		return new Promise((resolve) => {
 			this.#controlSteps.push(async () => {
 				try {
+					await this.#subscriberReady;
 					if (signal.aborted || this.#closed || this.#closing !== null) return;
 					const outcome = this.#controlOutcome(
 						await this.#exchange({
@@ -495,6 +505,8 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	#retire(notify: boolean): void {
 		if (this.#closed) return;
 		this.#closed = true;
+		this.#subscriberReadyResolve?.();
+		this.#subscriberReadyResolve = null;
 		this.#unsubscribeEnded();
 		this.#unwatchViewerReady();
 		this.#hostColors?.dispose();

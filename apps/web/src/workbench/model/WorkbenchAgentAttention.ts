@@ -1,3 +1,4 @@
+import { resolveWorkbenchAgentDisplayState } from '../utils/resolveWorkbenchAgentDisplayState';
 import { EMPTY_WORKBENCH_AGENT_SNAPSHOT } from '../constants/empty-workbench-agent-snapshot';
 import type {
 	WorkbenchAgentObservation,
@@ -30,13 +31,15 @@ export class WorkbenchAgentAttention {
 	#snapshot: WorkbenchAgentAttentionSnapshot;
 	/** The version last shown in each Presentation; null until the first complete observation. */
 	#seen: Map<string, string> | null = null;
-	/** Completions the person typed into afterwards, shown as idle until the state changes. */
-	readonly #edited = new Map<string, string>();
 
 	constructor(source: WorkbenchAgentSource | undefined) {
 		this.#source = source;
 		const observation = source?.getSnapshot() ?? EMPTY_WORKBENCH_AGENT_SNAPSHOT;
-		this.#snapshot = { observation, presentation: observation, unread: new Set() };
+		this.#snapshot = {
+			observation,
+			presentation: projectObservation(observation),
+			unread: new Set(),
+		};
 		this.#advance(observation);
 	}
 
@@ -76,10 +79,6 @@ export class WorkbenchAgentAttention {
 				if (!observation.presentations.has(id)) this.#seen.delete(id);
 			}
 		}
-		for (const [id, edited] of this.#edited) {
-			const current = observation.presentations.get(id);
-			if (current === undefined || version(current) !== edited) this.#edited.delete(id);
-		}
 	}
 
 	/** A stale paint or an unfocused window cannot acknowledge a state. */
@@ -106,15 +105,6 @@ export class WorkbenchAgentAttention {
 		if (changed) this.#publish(painted.observation);
 	}
 
-	/** The terminal adapter invokes this only after it accepts text, paste or an editing key. */
-	terminalEdited = (presentationId: string): void => {
-		this.#observe();
-		const current = this.#snapshot.observation.presentations.get(presentationId);
-		if (current?.state !== 'done' || this.#edited.get(presentationId) === version(current)) return;
-		this.#edited.set(presentationId, version(current));
-		this.#publish(this.#snapshot.observation);
-	};
-
 	#publish(observation: WorkbenchAgentSnapshot): void {
 		const unread = new Set<string>();
 		if (this.#seen !== null) {
@@ -122,18 +112,19 @@ export class WorkbenchAgentAttention {
 				if (this.#seen.get(id) !== version(current)) unread.add(id);
 			}
 		}
-		let presentation = observation;
-		if (this.#edited.size > 0) {
-			const presentations = new Map<string, WorkbenchAgentObservation>();
-			for (const [id, current] of observation.presentations) {
-				presentations.set(
-					id,
-					this.#edited.get(id) === version(current) ? { ...current, state: 'idle' } : current,
-				);
-			}
-			presentation = { complete: observation.complete, presentations };
-		}
+		const presentation = projectObservation(observation);
 		this.#snapshot = { observation, presentation, unread };
 		for (const listener of this.#listeners) listener();
 	}
+}
+
+function projectObservation(observation: WorkbenchAgentSnapshot): WorkbenchAgentSnapshot {
+	const presentations = new Map<string, WorkbenchAgentObservation>();
+	let changed = false;
+	for (const [id, current] of observation.presentations) {
+		const state = resolveWorkbenchAgentDisplayState(current);
+		changed ||= state !== current.state;
+		presentations.set(id, state === current.state ? current : { ...current, state });
+	}
+	return changed ? { ...observation, presentations } : observation;
 }

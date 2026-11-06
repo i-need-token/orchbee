@@ -1,10 +1,11 @@
+import { projectServerAgentBoardRows } from './projectServerAgentBoardRows';
 import {
 	showWorkbenchPresentation,
 	type WorkbenchAgentBoard,
 	type WorkbenchAgentBoardJump,
 	type WorkbenchAgentBoardJumpFailure,
-	type WorkbenchAgentBoardRow,
 	type WorkbenchAgentBoardSnapshot,
+	type WorkbenchAgentSource,
 	type WorkbenchProjectWorkspaceRuntime,
 } from '../../workbench';
 
@@ -16,7 +17,6 @@ const READ_DEADLINE_MILLISECONDS = 3_000;
 const GET_DEADLINE_MILLISECONDS = 3_000;
 const JUMP_DEADLINE_MILLISECONDS = 8_000;
 const READ_COOLDOWN_MILLISECONDS = 2_000;
-const MAXIMUM_ROWS = 600;
 
 interface Jump {
 	readonly resolve: (jump: WorkbenchAgentBoardJump) => void;
@@ -34,10 +34,12 @@ type Request = { readonly kind: 'list' } | { readonly kind: 'get'; readonly seri
  * the shown Tab before the others and visible before hidden; landing closes the episode.
  */
 export function bindServerAgentBoard({
+	agentObservationSource,
 	connection,
 	runtime,
 }: {
 	readonly connection: Pick<ServerConnection, 'exchange'>;
+	readonly agentObservationSource?: WorkbenchAgentSource;
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }): { readonly board: WorkbenchAgentBoard; dispose(): void } {
 	const listeners = new Set<() => void>();
@@ -90,6 +92,14 @@ export function bindServerAgentBoard({
 		if (snapshot.notice !== null) publish({ notice: null });
 	};
 
+	let summaries: readonly AgentSessionSummary[] = [];
+	const stopAgentObservation = agentObservationSource?.subscribe(() => {
+		if (!disposed && open)
+			publish({
+				rows: projectServerAgentBoardRows(summaries, agentObservationSource.getSnapshot()),
+			});
+	});
+
 	const listed = (round: Awaited<ReturnType<typeof listServerAgentSessions>>): void => {
 		if (round.kind === 'failed') {
 			publish({ read: { kind: 'failed', reason: round.reason } });
@@ -97,11 +107,16 @@ export function bindServerAgentBoard({
 		}
 		// A cut-short walk never replaces the rows of a whole one.
 		const replace = round.complete || !rowsFromComplete;
-		if (replace) rowsFromComplete = round.complete;
+		if (replace) {
+			rowsFromComplete = round.complete;
+			summaries = round.items;
+		}
 		publish({
 			notice: null,
 			read: { complete: round.complete, kind: 'listed' },
-			rows: replace ? projectRows(round.items) : snapshot.rows,
+			rows: replace
+				? projectServerAgentBoardRows(round.items, agentObservationSource?.getSnapshot())
+				: snapshot.rows,
 		});
 	};
 
@@ -229,6 +244,9 @@ export function bindServerAgentBoard({
 			if (disposed) return;
 			endEpisode();
 			open = true;
+			publish({
+				rows: projectServerAgentBoardRows(summaries, agentObservationSource?.getSnapshot()),
+			});
 			intent = 'refresh';
 			pump();
 		},
@@ -253,31 +271,8 @@ export function bindServerAgentBoard({
 			if (disposed) return;
 			endEpisode();
 			disposed = true;
+			stopAgentObservation?.();
 			listeners.clear();
 		},
-	};
-}
-
-/** The Server's order, with the sessions that wait for the person lifted first. */
-function projectRows(items: readonly AgentSessionSummary[]): readonly WorkbenchAgentBoardRow[] {
-	const rows = items.map(projectRow);
-	const waiting = rows.filter(({ status }) => status.kind === 'needs-attention');
-	const others = rows.filter(({ status }) => status.kind !== 'needs-attention');
-	return [...waiting, ...others].slice(0, MAXIMUM_ROWS);
-}
-
-function projectRow(summary: AgentSessionSummary): WorkbenchAgentBoardRow {
-	const { status } = summary;
-	return {
-		ended: summary.lifecycle === 'ended',
-		freshness: summary.observation.freshness,
-		presentationId:
-			summary.presentationAttachments.find(({ navigable }) => navigable)?.presentationId ?? null,
-		providerId: summary.providerId,
-		sessionId: summary.sessionId,
-		status:
-			status.kind === 'needs-attention'
-				? { count: status.count, kind: 'needs-attention' }
-				: { kind: status.kind },
 	};
 }

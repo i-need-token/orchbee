@@ -13,6 +13,7 @@ import type { PanelLayoutNode, PanelLeaf } from '../../../../../model/panel-work
 import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
 import type { TerminalTabPresentationLayer } from '../../../../../types/terminal-tab-presentation-layer';
 import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../types/workbench-terminal-surface';
+import type { WorkbenchAgentStatusView } from '../../../../../../../utils/formatWorkbenchAgentStatus';
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
 const primaryPresentation = {
@@ -47,8 +48,10 @@ const layer: TerminalTabPresentationLayer = {
 	mode: 'active',
 	reportPresentationReady: () => undefined,
 };
+const NO_AGENT_STATUSES: ReadonlyMap<string, WorkbenchAgentStatusView> = new Map();
 
 interface RenderPanelOptions {
+	readonly agentStatuses?: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	readonly dragging?: boolean;
 	readonly focused?: boolean;
 	readonly layoutSettled?: boolean;
@@ -151,6 +154,7 @@ function renderPanel(
 		panelVisualSelectionLabel: undefined,
 		pendingClose: null,
 		pendingResize: null,
+		presentationAgentStatuses: options.agentStatuses ?? NO_AGENT_STATUSES,
 		releasePanelDragHold: () => undefined,
 		requestClose: () => undefined,
 		resizePanel: () => Promise.resolve(false),
@@ -261,5 +265,27 @@ describe('WorkbenchPanel', () => {
 		expect(markup).toContain('data-slot="workbench-panel-drop-placeholder"');
 		expect(markup).not.toContain('data-slot="workbench-panel-header"');
 		expect(markup).not.toContain('data-slot="workbench-terminal-viewport"');
+	});
+
+	it('leads a split Panel title with its Agent state glyph, and shows none without an Agent', () => {
+		const doneStatus: WorkbenchAgentStatusView = {
+			glyph: '●',
+			shape: 'hex',
+			status: 'Done',
+			tone: 'success',
+		};
+		const withAgent = renderPanel(createPanel(null), 2, {
+			agentStatuses: new Map([[primaryPresentation.presentationId, doneStatus]]),
+		});
+		const withoutAgent = renderPanel(createPanel(null), 2);
+
+		const glyphAt = withAgent.indexOf('data-agent-state-glyph');
+		expect(glyphAt).toBeGreaterThan(-1);
+		expect(glyphAt).toBeLessThan(withAgent.indexOf('data-slot="workbench-panel-header-title"'));
+		expect(withAgent).toContain('data-shape="hex"');
+		expect(withAgent).toContain('data-tone="success"');
+		expect(withAgent).toContain('aria-label="Done"');
+		expect(withoutAgent).toContain('data-slot="workbench-panel-header-title"');
+		expect(withoutAgent).not.toContain('data-agent-state-glyph');
 	});
 });

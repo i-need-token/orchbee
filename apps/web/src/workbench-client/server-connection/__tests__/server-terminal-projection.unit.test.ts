@@ -803,3 +803,38 @@ it('takes a read-only focus target once and publishes its real grant', async () 
 		}),
 	);
 });
+
+it('waits for the renderer subscriber before publishing an automatic grant', async () => {
+	const server = new ScriptedServer((request) =>
+		request.action.kind === 'activate'
+			? ownership(false)
+			: { kind: 'acquired', controllerId: CONTROLLER_ID },
+	);
+	server.acquireOutcome = { kind: 'rejected', reason: 'controller-busy' };
+	const projection = await openServerTerminalProjection(
+		new ServerConnection(server),
+		BINDING,
+		GEOMETRY,
+	);
+	onTestFinished(() => projection.close());
+	const pending = projection.activateFocus(true, new AbortController().signal);
+	// End this turn's microtasks, as asynchronous renderer/font preparation does.
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, 0);
+	});
+	expect(server.controlRequests.filter((r) => r.action.kind === 'takeover')).toHaveLength(0);
+	const events: unknown[] = [];
+	projection.transport.subscribe(
+		(event) => events.push(event),
+		() => {},
+	);
+	await pending;
+	expect(events).toContainEqual(
+		expect.objectContaining({
+			kind: 'attachment-input-capability-changed',
+			capabilities: expect.objectContaining({
+				capabilities: { input: true, read: true, resize: true },
+			}),
+		}),
+	);
+});

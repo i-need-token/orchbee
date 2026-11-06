@@ -212,7 +212,12 @@ export function createServerWorkbenchRuntime({
 		runtime: projectWorkspaceRuntime,
 		session,
 	});
-	const agentBoard = bindServerAgentBoard({ connection, runtime: projectWorkspaceRuntime });
+	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
+	const agentBoard = bindServerAgentBoard({
+		connection,
+		runtime: projectWorkspaceRuntime,
+		agentObservationSource,
+	});
 	const authority = createServerWorkbenchAuthority({
 		agentBoard: agentBoard.board,
 		configuredCommands: configuredCommands.commands,
@@ -258,7 +263,6 @@ export function createServerWorkbenchRuntime({
 			terminalEnds.observe(presentationId, binding, settledServerTerminalLifecycle(settlement));
 		},
 	);
-	const agentObservationSource = new ServerTerminalAgentSource(connection, session);
 	const agentNameSource = new ServerAgentNameSource(connection, session, agentObservationSource);
 	const workspaceLocationSource = createServerWorkspaceLocations({
 		homeDirectory: homeDirectory ?? null,

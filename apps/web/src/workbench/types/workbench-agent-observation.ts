@@ -10,6 +10,8 @@ export interface WorkbenchAgentObservation {
 	/** Advances only when the Agent label or state changes. */
 	readonly sequence: bigint;
 	readonly state: WorkbenchAgentState;
+	/** Server turn acknowledgement, absent when this source cannot report it; never inferred locally. */
+	readonly completion?: 'none' | 'awaiting-input' | 'acknowledged';
 }
 
 export interface WorkbenchAgentSnapshot {

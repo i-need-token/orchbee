@@ -404,12 +404,12 @@ export function Workbench({
 										createPanelTerminal={view.createPanelTerminal}
 										panelWorkspaceStore={terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
+										presentationAgentStatuses={agentPresentation.presentationAgentStatuses}
 										shortcutLabelForAction={shortcutLabelForAction}
 										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
 										terminalContextId={terminalContext.terminalContextId}
 										terminalFocusRequest={view.terminalFocusRequest}
 										terminalSurface={terminalSurface}
-										onTerminalEdit={agentPresentation.terminalEdited}
 									/>
 								) : (
 									<div className={styles['emptyWindow']} data-slot='workbench-empty-window'>

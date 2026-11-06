@@ -29,7 +29,10 @@ import {
 	formatWorkbenchAgentName,
 	listWorkbenchAgentProviderNames,
 } from '../utils/workbench-agent-names';
-import { formatWorkbenchAgentStatus } from '../utils/formatWorkbenchAgentStatus';
+import {
+	formatWorkbenchAgentStatus,
+	type WorkbenchAgentStatusView,
+} from '../utils/formatWorkbenchAgentStatus';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
 import { useWorkbenchAgentAttention } from './useWorkbenchAgentAttention';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
@@ -47,7 +50,8 @@ interface UseWorkbenchAgentPresentationOptions {
 }
 
 interface WorkbenchAgentPresentationView {
-	readonly terminalEdited: (presentationId: string) => void;
+	/** Each reported Agent's status view by Presentation ID; a Panel header draws its displayed terminal's. */
+	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	readonly tabIdentityIcons: ReadonlyMap<string, React.ReactNode>;
 	readonly tabStatusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
 	/** Folds or unfolds one Workspace's Agent rows. */
@@ -103,11 +107,12 @@ export function useWorkbenchAgentPresentation({
 		projectWorkspaceRuntime,
 		source,
 	});
-	const {
-		presentation: snapshot,
-		unread,
-		terminalEdited,
-	} = useWorkbenchAgentAttention(source, terminalContext, root, painted);
+	const { presentation: snapshot, unread } = useWorkbenchAgentAttention(
+		source,
+		terminalContext,
+		root,
+		painted,
+	);
 	const readAgentNames = () => nameSource?.getSnapshot() ?? NO_AGENT_NAMES;
 	const agentNames = React.useSyncExternalStore(
 		nameSource?.subscribe ?? subscribeToNothing,
@@ -182,6 +187,13 @@ export function useWorkbenchAgentPresentation({
 		}
 		return { identityIcons, statusAdornments };
 	}, [agentIconGradientPrefix, intl, panelTabs, snapshot, unread]);
+	const presentationAgentStatuses = React.useMemo(() => {
+		const statuses = new Map<string, WorkbenchAgentStatusView>();
+		for (const [presentationId, observation] of snapshot.presentations) {
+			statuses.set(presentationId, formatWorkbenchAgentStatus(intl, observation.state));
+		}
+		return statuses;
+	}, [intl, snapshot]);
 	const workspaceAgentOverviews = React.useMemo(() => {
 		if (terminalTopologyRevision !== projectWorkspaceRuntime.getTerminalTopologyRevision()) {
 			return [];
@@ -266,12 +278,12 @@ export function useWorkbenchAgentPresentation({
 	]);
 	return React.useMemo(
 		() => ({
-			terminalEdited,
+			presentationAgentStatuses,
 			tabIdentityIcons: tabPresentation.identityIcons,
 			tabStatusAdornments: tabPresentation.statusAdornments,
 			toggleWorkspaceAgents,
 			workspaceAgentOverviews,
 		}),
-		[tabPresentation, workspaceAgentOverviews, terminalEdited, toggleWorkspaceAgents],
+		[presentationAgentStatuses, tabPresentation, workspaceAgentOverviews, toggleWorkspaceAgents],
 	);
 }

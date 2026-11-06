@@ -52,6 +52,7 @@ function HookProjection({
 		createPanelTerminal,
 		panelWorkspaceStore,
 		parentActionScope: actionRuntime.createScope('workbench'),
+		presentationAgentStatuses: new Map(),
 		shortcutLabelForAction: () => undefined,
 		terminalContextId: 'terminal-context-1',
 	});
@@ -83,6 +84,7 @@ function InteractiveHarness({
 		createPanelTerminal,
 		panelWorkspaceStore,
 		parentActionScope,
+		presentationAgentStatuses: new Map(),
 		shortcutLabelForAction: () => undefined,
 		terminalContextId: 'terminal-context-1',
 	});

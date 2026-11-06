@@ -13,6 +13,7 @@ import * as React from 'react';
 
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import { WorkbenchActionDropdownMenuContent } from '../../../../../../../workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent';
+import { WorkbenchAgentStateGlyph } from '../../../../../../../workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
 import { WORKBENCH_ACTION_IDS } from '../../../../../../../../actions/workbench-action-ids';
 import {
 	getDisplayedTerminal,
@@ -30,6 +31,7 @@ interface WorkbenchPanelHeaderProps {
 
 export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
+	const agentStatus = view.presentationAgentStatuses.get(displayedTerminal.presentationId);
 	const isChildTerminalActive = panel.activeChildPresentationId !== null;
 	// As the TUI moves a Panel whichever terminal it shows, only a lone Panel has nowhere to go.
 	const canDrag = view.panelCount > 1;
@@ -92,8 +94,22 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 					</Tooltip>
 				)}
 			</div>
-			<div className={styles['title']} data-slot='workbench-panel-header-title'>
-				{getTerminalDisplayTitle(displayedTerminal)}
+			<div className={styles['titleGroup']}>
+				{agentStatus === undefined ? null : (
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<span aria-label={agentStatus.status} className={styles['agentGlyph']} role='img' />
+							}
+						>
+							<WorkbenchAgentStateGlyph size='small' status={agentStatus} />
+						</TooltipTrigger>
+						<TooltipContent side='bottom'>{agentStatus.status}</TooltipContent>
+					</Tooltip>
+				)}
+				<div className={styles['title']} data-slot='workbench-panel-header-title'>
+					{getTerminalDisplayTitle(displayedTerminal)}
+				</div>
 			</div>
 			<div className={styles['actions']} data-slot='workbench-panel-header-actions'>
 				<Tooltip>

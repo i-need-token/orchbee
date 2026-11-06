@@ -144,7 +144,7 @@ const ControllerStateSchema = z
 	.refine((state) =>
 		state.controllerId === null
 			? state.geometry === null && state.sequence === '0'
-			: state.controller !== null && state.geometry !== null,
+			: state.controller !== null,
 	);
 
 const ControlOutcomeSchema = z.discriminatedUnion('kind', [

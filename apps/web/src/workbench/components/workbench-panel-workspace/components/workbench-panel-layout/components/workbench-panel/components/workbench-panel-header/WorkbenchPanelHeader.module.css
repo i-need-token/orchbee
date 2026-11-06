@@ -35,14 +35,43 @@
 	justify-content: flex-end;
 }
 
-.title {
+.titleGroup {
+	display: flex;
+	min-width: 0;
 	max-width: 100%;
-	overflow: hidden;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
 	padding-inline: var(--ob-ref-space-2);
+}
+
+/* The glyph takes its slot and the 4 px gap ahead of the title. The trailing side reserves the same
+   width, so the title keeps the header's center whether or not an Agent reports. */
+.titleGroup:has(> .agentGlyph) {
+	padding-inline-end: calc(
+		var(--ob-ref-space-2) + var(--ob-ref-size-icon-xs) + var(--ob-ref-space-1)
+	);
+}
+
+.agentGlyph {
+	display: flex;
+	flex: none;
+}
+
+.title {
+	min-width: 0;
+	overflow: hidden;
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* Text beside the glyph sits on its center line (G19): trimmed to cap height, raised by the shared
+   shift, and padded so ascenders and descenders stay inside the truncation clip. */
+.titleGroup:has(> .agentGlyph) .title {
+	padding-block: var(--ob-ref-space-1);
+	text-box: trim-both cap alphabetic;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
 }
 
 .mutedAction {

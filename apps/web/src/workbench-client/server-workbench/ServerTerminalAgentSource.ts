@@ -349,7 +349,8 @@ function observeRows(
 			prior?.agent === snapshot.agent &&
 			prior.binding === binding &&
 			prior.sequence === sequence &&
-			prior.state === snapshot.state
+			prior.state === snapshot.state &&
+			prior.completion === (snapshot.completion ?? 'none')
 		) {
 			observed.set(presentationId, prior);
 			continue;
@@ -359,6 +360,7 @@ function observeRows(
 			binding,
 			sequence,
 			state: snapshot.state,
+			completion: snapshot.completion ?? 'none',
 		});
 		TERMINAL_BINDINGS.set(observation, snapshot.binding);
 		observed.set(presentationId, observation);

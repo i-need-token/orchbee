@@ -1,6 +1,7 @@
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 
 import type { TerminalCloseImpact } from '../../../model/terminal-close-impact';
+import type { WorkbenchAgentStatusView } from '../../../utils/formatWorkbenchAgentStatus';
 import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type {
 	PanelLayoutNode,
@@ -130,6 +131,8 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly panelVisualSelectionLabel: string | undefined;
 	readonly pendingClose: PendingPanelClose | null;
 	readonly pendingResize: PendingPanelResize | null;
+	/** Each reported Agent's status view by Presentation ID; a Panel header draws its displayed terminal's. */
+	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	/** Stops showing a released drop once no layer of its revision remains. */
 	readonly releasePanelDragHold: (sourceRevision: string) => void;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;

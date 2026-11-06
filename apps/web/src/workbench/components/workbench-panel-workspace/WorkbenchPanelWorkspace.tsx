@@ -3,6 +3,7 @@ import * as React from 'react';
 
 import type { WorkbenchSharedPanelTerminalCreate } from '../../actions/createSharedPanelTerminal';
 import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
+import type { WorkbenchAgentStatusView } from '../../utils/formatWorkbenchAgentStatus';
 import type { WorkbenchAuthority } from '../../types/workbench-authority';
 import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
@@ -25,6 +26,7 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
+	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalAutoFocusAllowed: boolean;
 	readonly terminalContextId: string;
@@ -39,6 +41,7 @@ export function WorkbenchPanelWorkspace({
 	createPanelTerminal,
 	panelWorkspaceStore,
 	parentActionScope,
+	presentationAgentStatuses,
 	shortcutLabelForAction,
 	terminalAutoFocusAllowed,
 	terminalContextId,
@@ -52,6 +55,7 @@ export function WorkbenchPanelWorkspace({
 		createPanelTerminal,
 		panelWorkspaceStore,
 		parentActionScope,
+		presentationAgentStatuses,
 		shortcutLabelForAction,
 		terminalContextId,
 	});

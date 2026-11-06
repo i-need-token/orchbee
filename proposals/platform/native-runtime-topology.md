@@ -1151,8 +1151,10 @@ These choices stand unless review changes them:
   target once, cancels unsubmitted requests on focus loss and consumes Server ownership/MRU
   observations. An unchanged controlling Client keeps input and its picture. Manual Take control
   remains available; real-window checks are batched separately.
-- **Remaining Agent presentation follow-up.** The GUI has not yet adopted the Server-owned
-  completion fact, so a working-to-idle turn still shows idle. Configured commands run from Search under their
+- **Agent completion delivered in ORC-339 part 2.** The Server-owned completion fact drives
+  Done/Idle across native GUI chrome and matching-generation Agent board rows. Local edit
+  acknowledgement is removed; notifications and unread versions retain raw provider state.
+- **Configured-command presentation follow-up.** Configured commands run from Search under their
   descriptions, without the keys and names the TUI gives them, until a later step-5 batch.
 - **Typing carries across a layer swap.** While both layers are inert, keys that reach nothing are
   held, and once the new terminal has focus they reach it in order, with the text a real key would

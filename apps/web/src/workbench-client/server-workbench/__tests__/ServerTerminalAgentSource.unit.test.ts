@@ -196,6 +196,7 @@ function deliver(stream: FakeStream | undefined, outcome: unknown): void {
 }
 
 interface Reported {
+	readonly completion?: 'none' | 'awaiting-input' | 'acknowledged';
 	readonly agent?: string | null;
 	readonly sequence?: number;
 	readonly state?: AgentState;
@@ -226,6 +227,7 @@ function answer(
 								},
 								sequence: `${row.sequence ?? 1}`,
 								state: row.state ?? 'idle',
+								completion: row.completion ?? 'none',
 							},
 			};
 		}),
@@ -394,4 +396,28 @@ describe('ServerTerminalAgentSource', () => {
 		expect(lateConnection.streams).toEqual([]);
 		expect(late.getSnapshot()).toEqual(unobserved);
 	});
+});
+
+it('publishes completion-only changes without inventing a new provider sequence', () => {
+	const connection = new FakeConnection();
+	const source = new ServerTerminalAgentSource(
+		connection,
+		new FakeSession(sessionSnapshot(range(0, 1))),
+	);
+	try {
+		const stream = connection.streams[0];
+		answer(stream, { [presentation(0)]: { state: 'idle', completion: 'awaiting-input' } });
+		const before = source.getSnapshot().presentations.get(presentation(0));
+		expect(before).toMatchObject({ state: 'idle', completion: 'awaiting-input' });
+		answer(stream, { [presentation(0)]: { state: 'idle', completion: 'acknowledged' } });
+		const after = source.getSnapshot().presentations.get(presentation(0));
+		expect(after).toMatchObject({
+			state: 'idle',
+			completion: 'acknowledged',
+			sequence: before?.sequence,
+		});
+		expect(after).not.toBe(before);
+	} finally {
+		source.dispose();
+	}
 });

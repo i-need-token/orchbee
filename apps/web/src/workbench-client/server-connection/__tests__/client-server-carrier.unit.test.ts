@@ -324,3 +324,25 @@ it('reads the Server controller and recent-focus facts without inventing a local
 		),
 	).toBe(true);
 });
+
+it('accepts an owned Server grant before it has geometry', () => {
+	expect(
+		admitsResponse(
+			JSON.stringify({
+				kind: 'terminal.control.result',
+				protocolVersion: 1,
+				requestId: '1'.repeat(32),
+				outcome: {
+					kind: 'observed',
+					state: {
+						controller: '2'.repeat(32),
+						controllerId: '3'.repeat(32),
+						sequence: '0',
+						geometry: null,
+						recentFocus: ['2'.repeat(32)],
+					},
+				},
+			}),
+		),
+	).toBe(true);
+});
