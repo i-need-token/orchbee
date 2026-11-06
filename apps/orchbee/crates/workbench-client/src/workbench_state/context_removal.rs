@@ -91,7 +91,10 @@ impl WorkbenchClientState {
         }) {
             return None;
         }
-        let landing = preferred_workspace_location(snapshot).ok()?;
+        let landing = match self.accepted_close_neighbour(snapshot) {
+            Some(neighbour) => neighbour,
+            None => preferred_workspace_location(snapshot).ok()?,
+        };
         project_native_context_tabs(snapshot, &landing).ok()
     }
 

@@ -81,6 +81,18 @@ impl WorkbenchClientState {
             .collect()
     }
 
+    /// The location the Context strip marks as current. An accepted close of the current
+    /// Workspace has already taken its row out of navigation while the cache keeps it until the
+    /// landing installs the neighbour, so the mark goes to that neighbour in the meantime.
+    pub(crate) fn display_active_location(&self) -> Option<ClientContextLocation> {
+        let leaving = self.leaving_workspace_ids();
+        let current = self.cache.location();
+        if !super::workspace_close::current_leaves(current, &leaving) {
+            return Some(current.clone());
+        }
+        super::workspace_close::neighbour_after_leaving(self.cache.navigation(), &leaving, current)
+    }
+
     pub(crate) fn context_selection_available(&self) -> bool {
         self.pending_refresh.is_none() && self.context_selection_quiet()
     }
@@ -128,9 +140,12 @@ impl WorkbenchClientState {
             return false;
         }
         let navigation = self.display_navigation();
-        let position = navigation
-            .iter()
-            .position(|entry| &entry.location == self.cache.location());
+        let active = self.display_active_location();
+        let position = active.as_ref().and_then(|active| {
+            navigation
+                .iter()
+                .position(|entry| &entry.location == active)
+        });
         if navigation.is_empty() || (position.is_some() && navigation.len() < 2) {
             return false;
         }
@@ -440,18 +455,20 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.display_navigation().len()
     }
     pub(crate) fn active_context_position(&self) -> Option<usize> {
+        let active = self.state.display_active_location()?;
         self.state
             .display_navigation()
             .iter()
-            .position(|entry| &entry.location == self.state.cache.location())
+            .position(|entry| entry.location == active)
             .map(|index| index + 1)
     }
     pub(crate) fn context_at(&self, index: usize) -> Option<ClientContextView<'a>> {
         let entry = *self.state.display_navigation().get(index)?;
+        let active = self.state.display_active_location();
         Some(ClientContextView {
             entry,
             position: index + 1,
-            active: &entry.location == self.state.cache.location(),
+            active: active.as_ref() == Some(&entry.location),
         })
     }
 }

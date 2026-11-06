@@ -1573,6 +1573,35 @@ fn close_acceptance_with_mismatched_identity_or_revision_diverges() {
 }
 
 #[test]
+fn accepted_panel_close_hides_the_leaf_and_moves_focus_to_the_survivor() {
+    let mut state = split_ready();
+    // The survivor needs a live viewer for the local focus move, as a real acceptance has.
+    super::attach_nonfirst_leaf(&mut state);
+    let operation = plan(&state, 70_150, PanelRequestKind::Close);
+    let closing = operation.panel_id().clone();
+    assert_eq!(state.focus_panel_id(), Some(&closing));
+    assert!(state.begin_panel(operation.clone()));
+    let accepted = WorkbenchPanelCloseAccepted {
+        close_request_id: WorkbenchRequestId::parse(&id(70_150)).unwrap(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
+        tab_id: operation.target().tab_id().clone(),
+        panel_id: closing.clone(),
+        accepted_revision: WorkbenchRevision::new(1),
+    };
+    let prepared = state.prepare_panel(&operation, PanelResult::CloseAccepted(accepted));
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+
+    // The cache keeps the leaf until publication; the display and the focus follow the survivor.
+    let tab = &state.cache().tabs()[0];
+    assert_eq!(tab.panel_tree().leaf_count(), 2);
+    assert_eq!(state.display_panel_tree(tab).leaf_count(), 1);
+    assert_ne!(state.focus_panel_id(), Some(&closing));
+}
+
+#[test]
 fn stale_prepared_panel_is_rejected_by_the_core_without_fabricating_success() {
     // Deliberately faulty consumer input, not an honest Server operation trace.
     // The mailbox must reject a stale reply before calling this consumer; the

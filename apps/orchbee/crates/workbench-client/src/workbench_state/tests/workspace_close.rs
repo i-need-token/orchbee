@@ -1156,7 +1156,7 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
     let operation = plan(&state, token).unwrap();
     assert!(state.begin_workspace_close(operation.clone()));
     assert!(state.leaving_workspace_ids().is_empty());
-    assert_eq!(state.display_navigation().len(), 3);
+    assert_eq!(state.display_navigation().len(), 4);
 
     let admitted = WorkspaceCloseEvidence {
         operation: operation.clone(),
@@ -1165,7 +1165,7 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
     assert!(state.finish_workspace_close(&admitted));
     // Hidden but present: the canonical cache still names the Workspace until publication.
     assert_eq!(state.leaving_workspace_ids(), vec![workspace_id(1)]);
-    assert_eq!(state.display_navigation().len(), 2);
+    assert_eq!(state.display_navigation().len(), 3);
     assert!(
         state
             .cache()
@@ -1195,5 +1195,47 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
     };
     assert!(state.finish_workspace_close(&failed));
     assert!(state.leaving_workspace_ids().is_empty());
-    assert_eq!(state.display_navigation().len(), 3);
+    assert_eq!(state.display_navigation().len(), 4);
+}
+
+#[test]
+fn accepted_current_close_marks_the_neighbour_and_lands_on_it() {
+    let mut state = background_state(true);
+    let current = state.cache().location().clone();
+    let ClientContextLocation::Workspace { workspace_id, .. } = current.clone() else {
+        unreachable!("the origin is a Workspace")
+    };
+    let token = state.open_workspace_close_at(&workspace_id).unwrap();
+    state.acknowledge_workspace_close_draw(Some(token));
+    let operation = plan(&state, token).unwrap();
+    assert!(state.begin_workspace_close(operation.clone()));
+    let admitted = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
+    };
+    assert!(state.finish_workspace_close(&admitted));
+
+    // The next shown Workspace in navigation order is marked at once, while the cache keeps the
+    // closing row until its landing.
+    let neighbour = state.display_navigation()[0].location.clone();
+    assert_ne!(neighbour, current);
+    assert_eq!(state.display_active_location(), Some(neighbour.clone()));
+    assert_eq!(state.cache().location(), &current);
+
+    // The landing installs that same neighbour instead of the first surviving Workspace.
+    let mut surviving = close_snapshot();
+    surviving
+        .navigation
+        .workspaces
+        .retain(|workspace| workspace.workspace_id != workspace_id);
+    surviving
+        .navigation
+        .workspace_order
+        .retain(|id| id != &workspace_id);
+    surviving
+        .terminal_contexts
+        .retain(|context| Some(&context.terminal_context_id) != current.terminal_context_id());
+    surviving.revision = WorkbenchRevision::new(2);
+    let landing = state.removed_context_landing(&surviving).unwrap();
+    assert_eq!(landing.location(), &neighbour);
 }

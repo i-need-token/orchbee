@@ -6,13 +6,13 @@ use super::{
 };
 use crate::exchange_values::workbench::WorkbenchWorkspaceCloseAccepted;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-use crate::workbench_projection::ClientContextLocation;
+use crate::workbench_projection::{ClientContext, ClientContextLocation};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId, WorkbenchRequestId,
-    WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceGroupCloseRequest,
-    WorkbenchWorkspaceGroupCloseResult, WorkbenchWorkspaceId, WorkspaceGroupCloseAction,
-    WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
+    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId,
+    WorkbenchRequestId, WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceCloseReadOutcome,
+    WorkbenchWorkspaceGroupCloseRequest, WorkbenchWorkspaceGroupCloseResult, WorkbenchWorkspaceId,
+    WorkspaceGroupCloseAction, WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
 };
 use std::time::{Duration, Instant};
 mod sidebar;
@@ -953,6 +953,37 @@ impl WorkbenchClientState {
         }
     }
 
+    /// The Workspace an accepted close of the current Workspace lands on: the neighbour the
+    /// Context strip already marks, so the selection moves once and to the same place. Any other
+    /// removal keeps landing on the first surviving Workspace.
+    pub(super) fn accepted_close_neighbour(
+        &self,
+        snapshot: &Snapshot,
+    ) -> Option<ClientContextLocation> {
+        let leaving = self.leaving_workspace_ids();
+        if !current_leaves(self.cache.location(), &leaving) {
+            return None;
+        }
+        let neighbour =
+            neighbour_after_leaving(self.cache.navigation(), &leaving, self.cache.location())?;
+        let ClientContextLocation::Workspace {
+            workspace_id,
+            terminal_context_id,
+        } = &neighbour
+        else {
+            return None;
+        };
+        snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| {
+                &workspace.workspace_id == workspace_id
+                    && &workspace.terminal_context_id == terminal_context_id
+            })
+            .then_some(neighbour)
+    }
+
     /// Identifies the visible Closed notice so its one-shot lifetime survives repaint and landing.
     pub(crate) fn closed_workspace_close_notice(&self) -> Option<u64> {
         self.workspace_close_status()
@@ -1001,6 +1032,39 @@ impl WorkbenchClientState {
             self.retire_closed_workspace_close_notice();
         }
     }
+}
+
+/// Whether the current location is a Workspace that the leaving set takes out of navigation.
+pub(super) fn current_leaves(
+    current: &ClientContextLocation,
+    leaving: &[WorkbenchWorkspaceId],
+) -> bool {
+    matches!(
+        current,
+        ClientContextLocation::Workspace { workspace_id, .. } if leaving.contains(workspace_id)
+    )
+}
+
+/// The neighbour an accepted Workspace close selects, in navigation order: the next shown
+/// Workspace after the closing one, else the previous shown one. `None` means no other
+/// Workspace is shown, so the Workbench becomes empty.
+pub(super) fn neighbour_after_leaving(
+    navigation: &[ClientContext],
+    leaving: &[WorkbenchWorkspaceId],
+    closing: &ClientContextLocation,
+) -> Option<ClientContextLocation> {
+    let shown = |entry: &&ClientContext| match &entry.location {
+        ClientContextLocation::Workspace { workspace_id, .. } => !leaving.contains(workspace_id),
+        ClientContextLocation::NoWorkspace => true,
+    };
+    let index = navigation
+        .iter()
+        .position(|entry| &entry.location == closing)?;
+    navigation[index + 1..]
+        .iter()
+        .find(|entry| shown(entry))
+        .or_else(|| navigation[..index].iter().rev().find(|entry| shown(entry)))
+        .map(|entry| entry.location.clone())
 }
 
 /// Every consumer retains the same monotone evidence, including admission before the first read.

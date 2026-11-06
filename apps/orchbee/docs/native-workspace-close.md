@@ -10,12 +10,15 @@ shared directories and worktree relationships never expand this scope. Ungrouped
 valid targets. The legacy compatibility Workspace has no canonical Workspace ID; close its Tabs
 individually. Its whole-Workspace Close entry is disabled with a localized explanation.
 
-The Workspace row menu's Close Workspace… addresses its Workspace without selecting it first. Confirmation,
-cancellation and completion preserve an unrelated current Context, selected pane and terminal
-attachment. The selected shell continues running. Closing the current Workspace retains the existing
-canonical removal: select the first surviving canonical Workspace, including an empty one, then
+The Workspace row menu's Close Workspace… addresses its Workspace without selecting it first.
+Confirmation, cancellation and completion preserve an unrelated current Context, selected pane and
+terminal attachment. The selected shell continues running. Closing the current Workspace marks, then
+lands on, the next Workspace in navigation order, or the previous one when no later Workspace is
+shown, once the Client holds the close acceptance. Without such a neighbour, the existing canonical
+removal applies: select the first surviving canonical Workspace, including an empty one, then
 nonempty legacy content, otherwise show the explicit no-Workspace creation entry. Deliberate Close
-never recreates a Workspace or terminal. Opening Close from legacy content may target a named Workspace.
+never recreates a Workspace or terminal. Opening Close from legacy content may target a named
+Workspace.
 
 The visible cancel and close buttons support a left-button click. A matching press and release
 must still identify the same completely painted confirmation; releasing outside, modifiers or a stale
@@ -99,30 +102,47 @@ silently.
 ## Accepted close leaves navigation
 
 Server acceptance is the point where a Workspace close can no longer be withdrawn, so its rows leave
-navigation then rather than after publication. A Workspace target hides its own Workspace. A Project
-target hides every canonical member while its group close reports `Pending` or `Closed`. The hiding is
-derived from the retained close evidence and is not stored separately: a refusal, a failed or
-unknown status, or a Closed receipt whose removal has landed restores or ends it, and the rows return
-with the existing status notice. The canonical cache is never edited. Publication removes the
-Workspace from the canonical snapshot, which ends its row's derivation.
+navigation once the Client holds that acceptance, before the canonical publication removes them. A
+Workspace target hides its own Workspace. A Project target hides every canonical member while its
+group close reports `Pending` or `Closed`. The hiding is derived from the retained close evidence and
+is not stored separately: a refusal, a failed or unknown status, or a Closed receipt whose removal has
+landed restores or ends it, and the rows return with the existing status notice. The canonical cache
+is never edited. Publication removes the Workspace from the canonical snapshot, which ends its row's
+derivation.
+
+The worker publishes one close result per close flow, when its observation ends. Acceptance seen
+earlier stays in the worker's retained evidence for worker loss and is not published mid-flow. In the
+live app, the Client therefore learns of acceptance with that result, and the rows leave when it
+arrives rather than at the instant the Server accepts. State-level tests cover the transitions and
+the overlay. Publishing acceptance mid-flow is staged, as listed below.
 
 The derived set is read in four places: the sidebar projection (`SidebarNavigationProjection.leaving`,
 which also filters the drag preview), the Context navigator through `display_navigation`, Context
 steps and pointer targets (which read the same display list, so painted indices agree), and the
-active-Context position used by menus. The drawn Workspace, its terminal input and its attachments do
-not change under this overlay.
+active-Context position used by menus and the Context marks. The drawn Workspace, its terminal input
+and its attachments do not change under this overlay.
 
-The current Workspace is the staged exception. Its row leaves navigation at acceptance, but its content
-stays drawn as current with the `Closing` status until publication installs the surviving Workspace.
-Moving the Client to the neighbour at acceptance, so that publication only confirms it, is not
-implemented. A Context selection is refused while accepted Workspace close evidence is unresolved
-(`context_selection_quiet` through `workspace_close_blocks_structure`). The Closed notice is also keyed to
-the automatic landing from the removed location (`workspace_close_status` and
-`record_workspace_close_landing`), so a switch before publication would hide it unless that lifecycle is
-reworked. That is a navigation-admission change outside this overlay.
+For the current Workspace, the content stays drawn until publication, but the Context mark moves at
+once to the neighbour in navigation order: the next shown Workspace, else the previous one.
+Publication then lands on that same neighbour, so the mark and the landing agree. Until the landing,
+the canonical cache keeps the closing Workspace as current with the `Closing` status. With no shown
+neighbour, no row is marked, which is how the strip already shows the empty Workbench, and the landing
+is the no-Workspace entry.
 
-Remove Worktree is staged for the same reason as the notice above: its Workspace close is internal to the
-Server removal operation (see [native worktrees](native-worktrees.md#safe-removal)). Pending removal
+Staged, with the reason for each:
+
+- Switching at acceptance, which attaches the neighbour so that input routes there, and moving the
+  Closed notice to that switch. The switch would run a second Workbench exchange while the close lease
+  still covers the observation polling. The Closed notice is keyed to the automatic landing
+  (`workspace_close_status` and `record_workspace_close_landing`). Both depend on the mid-flow
+  publication above and on a notice lifecycle change.
+- Admitting a non-leaving Context selection while the close is pending. `context_selection_quiet`
+  through `workspace_close_blocks_structure` still refuse selection while accepted evidence is
+  unresolved. Relaxing `pending_refresh` for this case would race the landing refresh it holds, so it
+  needs its own slot that keeps the landing ordered.
+
+Remove Worktree is staged for the same reason as the switch above: its Workspace close is internal to
+the Server removal operation (see [native worktrees](native-worktrees.md#safe-removal)). Pending removal
 progress publishes no canonical change, and a held failure can follow an accepted close, so the Client
 has no acceptance signal that it could hide on. Exposing an accepted-close stage in the removal status
 is a protocol change.
@@ -172,24 +192,24 @@ Workspace status and observed Project results. Ordinary admission retains the Se
 `close_request_id`, context and accepted revision even before the first status read succeeds.
 Project evidence preserves frozen member order and every known child Close identity.
 
-| State/event                                    | Guard and output                                                                                                                                                     |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open                                           | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                                                |
-| Draw                                           | Complete content at admitted geometry; acknowledge only its token                                                                                                    |
-| Geometry block before first draw               | Refuse and remove the new prompt with the cannot-open status notice; allocate no Close request and report no user cancellation                                       |
-| Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again                              |
-| Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                                 |
-| Esc, changed scope or selection change         | Cancel without allocating or submitting a Close request; Esc also clears a retained confirmation-required result                                                     |
-| Newer projection with unchanged scope          | Rebase the prompt; a submitted operation is retried once against it with a new request identity                                                                      |
-| Unmodified `Enter` or valid close-button click | Same fully drawn source; atomically allocate and queue one typed operation                                                                                           |
-| Execute                                        | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                                            |
-| Definitely unsent or admission refusal         | Retain evidence without an admission claim or automatic retry                                                                                                        |
-| Workspace accepted or observed Pending         | Retain admission before the first read; poll the same canonical operation with read-only requests                                                                    |
-| Project accepted or observed Pending           | Retain the group receipt and known child identities before read-only polling                                                                                         |
-| Closed                                         | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use exact cleanup and the surviving-Workspace selection order when it was removed |
-| Failed, unavailable read or deadline           | Preserve admission and all known observations; show the scope's executable status command                                                                            |
-| Worker exit or transport loss                  | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                                   |
-| Client exit after submission                   | End local waiting; the Server-owned operation may continue                                                                                                           |
+| State/event                                    | Guard and output                                                                                                                                                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open                                           | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                                                                                           |
+| Draw                                           | Complete content at admitted geometry; acknowledge only its token                                                                                                                                               |
+| Geometry block before first draw               | Refuse and remove the new prompt with the cannot-open status notice; allocate no Close request and report no user cancellation                                                                                  |
+| Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again                                                                         |
+| Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                                                                            |
+| Esc, changed scope or selection change         | Cancel without allocating or submitting a Close request; Esc also clears a retained confirmation-required result                                                                                                |
+| Newer projection with unchanged scope          | Rebase the prompt; a submitted operation is retried once against it with a new request identity                                                                                                                 |
+| Unmodified `Enter` or valid close-button click | Same fully drawn source; atomically allocate and queue one typed operation                                                                                                                                      |
+| Execute                                        | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                                                                                       |
+| Definitely unsent or admission refusal         | Retain evidence without an admission claim or automatic retry                                                                                                                                                   |
+| Workspace accepted or observed Pending         | Retain admission before the first read; poll the same canonical operation with read-only requests                                                                                                               |
+| Project accepted or observed Pending           | Retain the group receipt and known child identities before read-only polling                                                                                                                                    |
+| Closed                                         | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use exact cleanup and the landing selection (the accepted neighbour, else the surviving-Workspace order) when it was removed |
+| Failed, unavailable read or deadline           | Preserve admission and all known observations; show the scope's executable status command                                                                                                                       |
+| Worker exit or transport loss                  | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                                                                              |
+| Client exit after submission                   | End local waiting; the Server-owned operation may continue                                                                                                                                                      |
 
 Every observation must match its operation, Workspace/context or Project scope. Attempt generations,
 known members, child identities, disposal and Closed results cannot regress. Observed OutcomeUnknown
@@ -233,9 +253,12 @@ drift, admission/read/publication loss, monotone evidence, canonical repair and 
 Background-close witnesses cover cancellation and publication from current and sibling Workspace origins,
 retained pane/terminal binding and attachment identity, and no origin cleanup or reattachment. Missing
 or replaced target Contexts are rejected before submission even at the same revision; origin or stale
-target receipts cannot overwrite valid admission evidence. An accepted close hides its rows from
-navigation, and a failed observation restores them; the regression witness is
-`accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it`.
+target receipts cannot overwrite valid admission evidence. An accepted close hides its rows from navigation, and a failed observation restores them. The
+regression witnesses are `accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it`
+and `accepted_current_close_marks_the_neighbour_and_lands_on_it`; the Panel close witness is
+`accepted_panel_close_hides_the_leaf_and_moves_focus_to_the_survivor`. The carrier witness
+`workspace_close_carrier_single_scope_and_every_failure_boundary_preserve_truth_without_replay`
+checks the mark and the landing as rules at every failure cut.
 The framed peer asserts that ordinary Close never sends group Start and that neither path replays
 mutations. Snapshot fixtures retain Project metadata and shared checkout directories.
 

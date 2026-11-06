@@ -698,18 +698,34 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
             .unwrap()
             .location()
             .clone();
-        if matches!(cut, Cut::Complete | Cut::ObservationRemoved)
-            && !scope.project()
-            && scope != Scope::BackgroundWorkspace
-        {
-            let workspace = surviving.navigation.ordered_workspaces().unwrap()[0].1;
-            assert_eq!(
-                active,
-                ClientContextLocation::Workspace {
-                    workspace_id: workspace.workspace_id.clone(),
-                    terminal_context_id: workspace.terminal_context_id.clone(),
-                },
-                "a removed current Workspace lands on the exact first surviving Workspace"
+        let surviving_locations: Vec<_> = surviving
+            .navigation
+            .ordered_workspaces()
+            .unwrap()
+            .iter()
+            .map(|(_, workspace)| ClientContextLocation::Workspace {
+                workspace_id: workspace.workspace_id.clone(),
+                terminal_context_id: workspace.terminal_context_id.clone(),
+            })
+            .collect();
+        let removes_current = !scope.project() && scope != Scope::BackgroundWorkspace;
+        let settling = ui.view().workspace_close_status().is_some_and(|status| {
+            matches!(
+                status.status(),
+                WorkspaceCloseStatus::Closing | WorkspaceCloseStatus::Closed
+            )
+        });
+        if removes_current && matches!(cut, Cut::Complete | Cut::ObservationRemoved) {
+            assert!(
+                surviving_locations.contains(&active),
+                "{scope:?} {cut:?}: a removed current Workspace lands on a surviving Workspace"
+            );
+        } else if removes_current && settling {
+            // The accepted close has taken its row out of navigation, so the mark has left the
+            // closing row. This fixture keeps other Workspaces, so a neighbour row carries it.
+            assert_ne!(
+                active, original_location,
+                "{scope:?} {cut:?}: the mark leaves the closing row while the close settles"
             );
         } else {
             assert_eq!(

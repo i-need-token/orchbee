@@ -1629,7 +1629,8 @@ fn render_native_workbench(
                 &pane_titles::PaneTitle {
                     tab,
                     focused: pane_focused && tab.active_panel() == Some(leaf.panel_index),
-                    zoomed_panes: (pane_frame == PaneFrame::Zoomed).then_some(tab.panel_count()),
+                    zoomed_panes: (pane_frame == PaneFrame::Zoomed)
+                        .then_some(tab.drawn_panel_count()),
                     working_frame: client_view.machines.working_frame(),
                     text,
                     locale,
