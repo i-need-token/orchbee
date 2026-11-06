@@ -186,3 +186,35 @@ fn state_hues_leave_reverse_video_bands_for_a_contrast_pair() {
     }
     assert!(reversed_hues > 0);
 }
+
+#[test]
+fn disabled_selected_content_keeps_contrast_across_named_themes_and_color_levels() {
+    for base in [Theme::orchbee_light(), Theme::orchbee_dark()] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi256,
+            ColorLevel::Ansi16,
+        ] {
+            let theme = base.quantize(level);
+            let style = theme.content_on_surface(
+                Role::SurfaceOverlay,
+                Some(Role::SurfaceSelection),
+                Some(Role::TextDisabled),
+                theme.style(Role::TextDisabled),
+            );
+            let foreground = nominal_rgb(style.fg.unwrap());
+            let background = nominal_rgb(style.bg.unwrap());
+            let Color::Rgb(r, g, b) = foreground else {
+                unreachable!()
+            };
+            let Color::Rgb(br, bg, bb) = background else {
+                unreachable!()
+            };
+            assert!(
+                super::super::color_contrast((r, g, b), (br, bg, bb)) >= 3.0,
+                "{} {level:?}: {style:?}",
+                base.name
+            );
+        }
+    }
+}

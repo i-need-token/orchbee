@@ -902,15 +902,7 @@ fn row_keeps_focus_current_checked_pending_and_explicit_content_while_disabled()
     assert_eq!(buffer[(1, 0)].symbol(), theme.glyphs.active_marker);
     assert_eq!(buffer[(2, 0)].symbol(), theme.glyphs.navigation_marker);
     assert_eq!(buffer[(19, 0)].symbol(), theme.glyphs.status_bullet);
-    assert_eq!(
-        buffer[(5, 0)].style().fg,
-        theme.style(Role::TextDisabled).fg
-    );
     assert!(buffer[(5, 0)].style().add_modifier.contains(Modifier::BOLD));
-    assert_eq!(
-        buffer[(11, 0)].style().fg,
-        theme.style(Role::TextDisabled).fg
-    );
     assert_eq!(
         buffer[(15, 0)].style().fg,
         theme.style(Role::StatusWarning).fg

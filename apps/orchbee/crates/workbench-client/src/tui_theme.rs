@@ -907,10 +907,10 @@ impl Theme {
                     | Role::StatusIdle
             )
         );
+        // Disabled labels need the selection pair too: their resting foreground can collapse
+        // into the selection fill after ANSI quantization. Availability still owns activation.
         if self.color_level != ColorLevel::Monochrome
-            && (self.polarity.is_none()
-                || (interaction == Some(Role::SurfaceSelection)
-                    && content_role != Some(Role::TextDisabled)))
+            && (self.polarity.is_none() || interaction == Some(Role::SurfaceSelection))
             && ordinary
             && let Some(role) = content_role
             && content_foreground == self.style(role).fg

@@ -20,7 +20,7 @@ use ratatui::{
     Frame,
     layout::{Alignment, Rect},
     text::{Line, Span, Text},
-    widgets::{Clear, Padding, Paragraph},
+    widgets::{Padding, Paragraph},
 };
 
 use super::controls::{
@@ -71,7 +71,6 @@ pub(super) fn render(
         _ => locale.settings_title().into(),
     };
     let block = super::titled_overlay(theme, layout.padding, &title, layout.area.width);
-    frame.render_widget(Clear, layout.area);
     frame.render_widget(block, layout.area);
     let painted_close = render_close(frame, layout.close, view, theme, hits);
     debug_assert_eq!(painted_close, Some(layout.close));

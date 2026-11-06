@@ -169,7 +169,6 @@ pub(super) fn render(
         .collect::<Vec<_>>();
 
     // All required geometry and text have been admitted above this boundary.
-    frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     frame.render_widget(List::new(items), rows_area);
     // Typing always reaches the filter, so the query slot stays in its editing presentation.

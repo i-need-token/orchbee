@@ -61,6 +61,19 @@ fn render_panel(
             }
         })
         .unwrap();
+    if view.help_expanded()
+        && view.help_filter().is_empty()
+        && view
+            .help_draw_candidate()
+            .is_some_and(|candidate| candidate.page() == 0)
+    {
+        crate::tui_render::test_capture::capture_screen(
+            &mut terminal,
+            &format!("help-expanded-{width}x{height}-{locale:?}"),
+            locale,
+            &Theme::rgb_test_dark(),
+        );
+    }
     (terminal.backend().buffer().clone(), hits.finish(), placed)
 }
 
@@ -86,7 +99,7 @@ fn rows(buffer: &Buffer) -> String {
 
 #[test]
 fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
-    for (width, height) in [(80, 24), (120, 40)] {
+    for (width, height) in [(80, 24), (120, 36), (120, 40)] {
         for (locale, labels) in [
             (
                 Locale::EnUs,

@@ -1178,7 +1178,6 @@ fn render_popup(
             ProjectedPointer::Hovered => controls::PointerPresentation::Hovered,
             ProjectedPointer::Pressed => controls::PointerPresentation::Pressed,
         };
-    frame.render_widget(Clear, outer);
     frame.render_widget(
         titled_overlay(theme, Padding::ZERO, popup.title, outer.width),
         outer,
@@ -2596,12 +2595,17 @@ fn sidebar_menu_hold(
 /// A surviving wide lead outside a floating box would make the terminal diff skip its border.
 /// Removes only the glyph remnants that cross the box edge, retaining their style.
 fn clear_crossing_wide_cells(frame: &mut Frame<'_>, area: Rect) {
-    let buffer = frame.buffer_mut();
+    clear_crossing_wide_buffer_cells(frame.buffer_mut(), area);
+}
+
+fn clear_crossing_wide_buffer_cells(buffer: &mut ratatui::buffer::Buffer, area: Rect) {
+    use ratatui::buffer::CellWidth;
+
     for y in area.y..area.bottom() {
         let mut x = buffer.area.x;
         while x < area.right() {
             let cell = &buffer[(x, y)];
-            let width = u16::try_from(display_width(cell.symbol()).max(1)).unwrap_or(u16::MAX);
+            let width = cell.cell_width().max(1);
             let next = x.saturating_add(width).min(buffer.area.right());
             if (x < area.x && next > area.x) || next > area.right() {
                 let style = cell.style();

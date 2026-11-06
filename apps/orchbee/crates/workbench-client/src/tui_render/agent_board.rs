@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
     text::{Line, Text},
-    widgets::{Clear, Paragraph},
+    widgets::Paragraph,
 };
 
 use crate::agent_board::{
@@ -196,7 +196,6 @@ pub(super) fn render(
         return AgentBoardDraw::NotPresented(board.episode());
     }
 
-    frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     // A presented board owns the press domain: rows select, the surface
     // swallows and scrolls, and an outside press resolves as backdrop.

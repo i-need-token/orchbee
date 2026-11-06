@@ -1025,14 +1025,6 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                     disabled_selection,
                     "disabled text must retain its semantic role on the selected surface"
                 );
-                assert!(
-                    terminal
-                        .backend()
-                        .buffer()
-                        .content()
-                        .iter()
-                        .any(|c| c.fg == theme.color(crate::tui_theme::Role::TextDisabled))
-                );
                 if locale == Locale::EnUs
                     && (width, height) == (120, 40)
                     && theme.name == "terminal-native"

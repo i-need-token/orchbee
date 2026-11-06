@@ -1,6 +1,6 @@
 //! Capturing navigator paint; stable rows and their proofs publish in one frame.
 use super::{
-    Clear, ClientView, Constraint, Frame, HitLayer, HitMapBuilder, HitTarget, Layout, Line, Locale,
+    ClientView, Constraint, Frame, HitLayer, HitMapBuilder, HitTarget, Layout, Line, Locale,
     Paragraph, Rect, RefreshStatus, Role, ShellText, Theme, WorkbenchClientView, contexts,
     native_tab, overlay_block, place_overlay, tabs,
 };
@@ -78,7 +78,6 @@ pub(super) fn render(
     {
         return None;
     }
-    frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     let [heading, rows, refresh_area, footer] = Layout::vertical([
         Constraint::Length(1),

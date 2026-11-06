@@ -231,7 +231,6 @@ impl Picker {
             width,
             height,
         );
-        frame.render_widget(Clear, panel);
         let title = format!(
             "{} {}/{}",
             self.mode().label(locale),

@@ -27,7 +27,6 @@ pub(super) fn title_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Li
 /// Clears and paints the complete modal surface: the neutral frame, its opaque fill, and the task
 /// heading on the top-left edge. Feature content paints only inside the returned layout's slots.
 pub(super) fn paint_modal_frame(frame: &mut Frame<'_>, area: Rect, title: &str, theme: &Theme) {
-    frame.render_widget(Clear, area);
     frame.render_widget(
         titled_overlay(theme, Padding::horizontal(2), title, area.width),
         area,
@@ -276,8 +275,10 @@ impl OverlayFrame {
 
 impl Widget for OverlayFrame {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        self.surface.render(area, buf);
         let area = area.intersection(buf.area);
+        super::clear_crossing_wide_buffer_cells(buf, area);
+        Clear.render(area, buf);
+        self.surface.render(area, buf);
         if let Some(heading) = self.heading
             && !area.is_empty()
         {

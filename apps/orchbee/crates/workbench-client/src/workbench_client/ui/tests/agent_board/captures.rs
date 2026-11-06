@@ -310,10 +310,29 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
             40,
             "No Agent sessions",
         ),
+        (
+            crate::localization::Locale::EnUs,
+            80,
+            24,
+            "No Agent sessions",
+        ),
+        (
+            crate::localization::Locale::EnUs,
+            120,
+            36,
+            "No Agent sessions",
+        ),
+        (crate::localization::Locale::ZhCn, 120, 36, "没有智能体会话"),
         (crate::localization::Locale::ZhCn, 80, 24, "没有智能体会话"),
     ] {
         ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
         let mut frame = render_board_frame(&ui, width, height, locale, &theme);
+        crate::tui_render::test_capture::capture_screen(
+            &mut frame.terminal,
+            &format!("empty-board-{width}x{height}-{locale:?}"),
+            locale,
+            &theme,
+        );
         let text = frame.text();
         let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
         let board_text = locale.shell().board;

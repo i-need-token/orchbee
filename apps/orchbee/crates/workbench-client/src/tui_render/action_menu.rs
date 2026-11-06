@@ -26,7 +26,7 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Clear, Padding, Paragraph},
+    widgets::{Padding, Paragraph},
 };
 
 use super::controls::{
@@ -792,8 +792,6 @@ fn paint_frame(
         None => block,
     };
 
-    super::clear_crossing_wide_cells(frame, area);
-    frame.render_widget(Clear, area);
     frame.render_widget(block, area);
 
     if let Some(query) = menu.query {
@@ -882,6 +880,33 @@ fn paint_frame(
             Paragraph::new(locale.menu_search_no_results()).style(theme.style(Role::TextSecondary)),
             Rect::new(inner.x, layout.rows_y, inner.width, 1),
         );
+    }
+
+    // Compact menus have no footer counter. Their frame carries a scrollbar whenever either
+    // end of the result window is hidden; it consumes no action or reason cells.
+    if menu.context_menu && layout.visible_rows < measured.result_actions.len() {
+        let total = measured.result_actions.len();
+        let track_height = layout.rows;
+        let thumb_height = (track_height * layout.visible_rows / total).max(1);
+        let last_first = total - layout.visible_rows;
+        let thumb_start = (track_height - thumb_height) * layout.first / last_first;
+        for offset in 0..track_height {
+            let thumb = (thumb_start..thumb_start + thumb_height).contains(&offset);
+            frame.buffer_mut().set_string(
+                area.right() - 1,
+                layout.rows_y + u16::try_from(offset).unwrap_or(0),
+                if thumb {
+                    theme.glyphs.scrollbar_thumb
+                } else {
+                    theme.glyphs.scrollbar_track
+                },
+                theme.style(if thumb {
+                    Role::TextSecondary
+                } else {
+                    Role::FrameUnfocused
+                }),
+            );
+        }
     }
 
     // Only the candidate explains why it is unavailable; a hidden candidate explains nothing.

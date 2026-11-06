@@ -189,3 +189,54 @@ fn fields_use_the_band_where_the_theme_has_one_and_brackets_otherwise() {
         }
     }
 }
+
+/// A shared frame owns its fill even when the covered terminal supplies wide-cell metadata.
+#[test]
+fn overlay_frames_replace_their_underlay_and_repair_crossing_wide_cells() {
+    use ratatui::{
+        buffer::{Buffer, CellDiffOption},
+        widgets::{Padding, Widget},
+    };
+    for (width, height) in [(80, 24), (120, 36)] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::orchbee_dark(),
+            Theme::orchbee_light(),
+        ] {
+            let viewport = Rect::new(0, 0, width, height);
+            let area = crate::tui_layout::place_overlay(viewport, 92, height).unwrap();
+            let mut canonical = Buffer::empty(viewport);
+            super::overlay_block("Reference", area.width, &theme).render(area, &mut canonical);
+            let mut covered = Buffer::empty(viewport);
+            for y in 0..height {
+                covered.set_string(
+                    0,
+                    y,
+                    "M".repeat(usize::from(width)),
+                    theme.style(Role::TextPrimary),
+                );
+            }
+            for y in area.y..area.bottom() {
+                covered.set_string(area.x - 1, y, "界", theme.style(Role::TextPrimary));
+                covered[(area.x, y)].set_diff_option(CellDiffOption::Skip);
+                covered.set_string(area.right() - 1, y, "界", theme.style(Role::TextPrimary));
+                covered[(area.right(), y)].set_diff_option(CellDiffOption::Skip);
+            }
+            super::titled_overlay(&theme, Padding::horizontal(2), "Reference", area.width)
+                .render(area, &mut covered);
+            for y in area.y..area.bottom() {
+                for x in area.x..area.right() {
+                    assert_eq!(
+                        covered[(x, y)],
+                        canonical[(x, y)],
+                        "{width}x{height} ({x},{y})"
+                    );
+                }
+                for x in [area.x - 1, area.right()] {
+                    assert_eq!(covered[(x, y)].symbol(), " ");
+                    assert_eq!(covered[(x, y)].diff_option, CellDiffOption::None);
+                }
+            }
+        }
+    }
+}

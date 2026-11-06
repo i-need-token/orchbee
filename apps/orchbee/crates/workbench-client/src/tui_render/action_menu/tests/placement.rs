@@ -83,6 +83,20 @@ fn paint(
             );
         })
         .unwrap();
+    if matches!(menu.source, MenuTarget::Pane(_)) {
+        crate::tui_render::test_capture::capture_screen(
+            &mut terminal,
+            &format!(
+                "panel-menu-{width}x{height}-{:?}-{}",
+                menu.anchor.map(|anchor| match anchor {
+                    MenuAnchor::Pointer { row, .. } | MenuAnchor::Row { row, .. } => row,
+                }),
+                theme.name
+            ),
+            Locale::EnUs,
+            theme,
+        );
+    }
     Painted {
         draw: presentation.into_presented(),
         buffer: terminal.backend().buffer().clone(),
@@ -452,5 +466,81 @@ fn clicked_submenu_paints_no_candidate_or_reason_until_a_key_reveals_its_first_r
             "only a visible candidate explains why it is unavailable: {text}"
         );
         assert!(child.presented(draw));
+    }
+}
+
+#[test]
+fn panel_menu_keeps_every_action_when_either_side_of_the_pointer_has_room() {
+    use crate::action_menu::PANE_ACTIONS;
+    use crate::workbench_state::{AttachmentKey, PaneKey, PaneRef};
+    use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
+    let pane = PaneRef::new(
+        PaneKey::new(
+            AttachmentKey::new(1, WorkbenchTabId::parse(&format!("{:032x}", 1)).unwrap()),
+            WorkbenchPanelId::parse(&format!("{:032x}", 2)).unwrap(),
+        ),
+        1,
+    );
+    for (width, height) in [(80, 24), (120, 36)] {
+        for row in [1, 12, height - 2] {
+            let mut menu = ActionMenu::default();
+            assert!(menu.open_for(
+                MenuTarget::Pane(pane.clone()),
+                "Command Prompt".into(),
+                PANE_ACTIONS.to_vec(),
+                Some(MenuAnchor::Pointer { column: 14, row })
+            ));
+            menu.refresh_availability(|action| {
+                (action == MenuAction::CopySelection)
+                    .then_some(MenuUnavailable::ProjectWorkspaceRequired)
+            });
+            menu.select_action(MenuAction::CopySelection);
+            for theme in [
+                Theme::terminal_native(),
+                Theme::orchbee_light().quantize(crate::tui_theme::ColorLevel::Ansi16),
+                Theme::orchbee_dark().quantize(crate::tui_theme::ColorLevel::Ansi16),
+            ] {
+                let painted = paint((width, height), None, menu.view().unwrap(), &[], &theme);
+                assert_eq!(painted.draw().first, 0);
+                assert_eq!(painted.draw().visible_rows, PANE_ACTIONS.len());
+                for position in 0..PANE_ACTIONS.len() {
+                    let rect = painted.row(position);
+                    assert!(rect.bottom() <= height);
+                    assert_ne!(rect.y, row, "the trigger stays uncovered");
+                }
+                let first = painted.row(0);
+                let label = &painted.buffer[(first.x + 1, first.y)];
+                assert_ne!(
+                    label.fg, label.bg,
+                    "disabled selected text must remain legible"
+                );
+                assert!(
+                    !painted
+                        .buffer
+                        .content()
+                        .iter()
+                        .any(|cell| cell.symbol() == theme.glyphs.scrollbar_thumb),
+                    "a menu with every row visible needs no scroll cue"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_context_menu_with_hidden_rows_paints_a_scroll_cue() {
+    let theme = Theme::terminal_native();
+    let (menu, _) = creation_menu(40, MenuAnchor::Pointer { column: 6, row: 12 });
+    for size in [(80, 24), (120, 36)] {
+        let painted = paint(size, None, menu.view().unwrap(), &[], &theme);
+        assert!(painted.draw().visible_rows < menu.view().unwrap().actions.len());
+        assert!(
+            painted
+                .buffer
+                .content()
+                .iter()
+                .any(|cell| cell.symbol() == theme.glyphs.scrollbar_thumb),
+            "hidden rows need a visible scrollbar"
+        );
     }
 }

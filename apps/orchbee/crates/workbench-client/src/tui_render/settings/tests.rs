@@ -1342,9 +1342,18 @@ fn invalid_nondefault_executable_renders_its_profile_required_field_and_correcti
             select_and_present(&mut editor, Row::Save, locale, &theme);
             assert!(editor.edit(Edit::Activate).is_none());
 
-            for (width, height) in [(120, 40), (80, 24), (58, 12), (36, 10)] {
-                let (terminal, map, draw) =
+            for (width, height) in [(120, 40), (120, 36), (80, 24), (58, 12), (36, 10)] {
+                let (mut terminal, map, draw) =
                     present_once(&mut editor, width, height, locale, &theme);
+                crate::tui_render::test_capture::capture_screen(
+                    &mut terminal,
+                    &format!(
+                        "settings-invalid-profile-{width}x{height}-{locale:?}-{}",
+                        theme.name
+                    ),
+                    locale,
+                    &theme,
+                );
                 let View::Draft(draft) = editor.view().unwrap() else {
                     panic!("retained profile")
                 };
