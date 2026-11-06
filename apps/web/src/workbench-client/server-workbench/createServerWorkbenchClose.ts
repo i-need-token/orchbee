@@ -14,7 +14,7 @@ import {
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
-import type { ServerTabLeave } from './ServerLeavingTabs';
+import type { ServerLeave, ServerLeavingMember } from './ServerLeaving';
 import type {
 	ServerWorkbenchAction,
 	ServerWorkbenchAnswer,
@@ -50,6 +50,7 @@ type TabSetCloseResult = Extract<
 >;
 type TabSetCloseOutcome = TabSetCloseResult['outcome'];
 type TabSetCloseReport = Extract<TabSetCloseOutcome, { readonly kind: 'available' }>;
+type GroupCloseReport = Extract<GroupCloseResult['outcome'], { readonly kind: 'available' }>;
 type TabSetCloseAction = Extract<
 	Parameters<CloseSession['ask']>[0],
 	{ readonly kind: 'workbench.tab-set-close' }
@@ -105,7 +106,7 @@ interface UnsettledTabClose {
 
 /** What following a Tab's accepted close tells the window, and keeps for Resume and a later Close. */
 interface TabCloseFollow {
-	readonly leave: ServerTabLeave;
+	readonly leave: ServerLeave;
 	/** Keeps how the Tab's followed close ended without closing it, or forgets that with null. */
 	keep(terminalContextId: string, tabId: string, unsettled: UnsettledTabClose | null): void;
 	/** The followed close of the Tab that last ended without closing it, while the Tab is there. */
@@ -123,7 +124,7 @@ const MAXIMUM_UNSETTLED_TAB_CLOSES = 16;
 
 const NOT_SUBMITTED = { code: 'not-submitted', kind: 'blocked' } as const;
 const SCOPE_CHANGED = { code: 'scope-changed', kind: 'blocked' } as const;
-const NO_LEAVE: ServerTabLeave = { leave: () => () => undefined };
+const NO_LEAVE: ServerLeave = { leave: () => () => undefined };
 const CONFIRMATION_REQUIRED = { code: 'confirmation-required', kind: 'blocked' } as const;
 
 function failed(code: string, details?: string): ActionResult<void> {
@@ -357,15 +358,15 @@ async function submitShownClose(
 	}
 }
 
-/** Leaves a Tab out once, and shows it again once, through `leave`. */
-function tabLeaving(
-	leave: ServerTabLeave,
-	{ tabId, terminalContextId }: TabTarget,
+/** Leaves one member out once, and shows it again once, through `leave`. */
+function memberLeaving(
+	leave: ServerLeave,
+	member: ServerLeavingMember,
 ): { readonly leave: () => void; readonly stay: () => void } {
 	let stay: (() => void) | undefined;
 	return {
 		leave: () => {
-			stay ??= leave.leave(terminalContextId, [tabId]);
+			stay ??= leave.leave([member]);
 		},
 		stay: () => {
 			stay?.();
@@ -389,7 +390,7 @@ async function followTabClose(
 	deadline: number,
 ): Promise<ActionResult<void>> {
 	const { tabId, terminalContextId } = target;
-	const leaving = tabLeaving(follow.leave, target);
+	const leaving = memberLeaving(follow.leave, { kind: 'tab', tabId, terminalContextId });
 	const joined = follow.unsettled(terminalContextId, tabId)?.closeRequestId === closeRequestId;
 	if (!joined) leaving.leave();
 	try {
@@ -412,6 +413,7 @@ async function closeWorkspace(
 		WorkbenchAuthorityClosure,
 		{ readonly type: 'workspace-close' | 'workspace-close-if-idle' }
 	>,
+	follow: TabCloseFollow,
 ): Promise<ActionResult<void>> {
 	const submission = await submitShownClose(
 		session,
@@ -426,12 +428,18 @@ async function closeWorkspace(
 	if (submission.kind === 'ended') return submission.result;
 	const { outcome } = submission;
 	if (outcome.kind !== 'workspace-close-accepted') return refused(outcome);
-	const observed = await observeClose(
-		session,
-		outcome.closeRequestId,
-		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
-	);
-	return observed.result;
+	// The Server keeps the Workspace until its removal publishes, so the window leaves it out from here.
+	const stay = follow.leave.leave([{ kind: 'workspace', workspaceId: closure.workspaceId }]);
+	try {
+		const observed = await observeClose(
+			session,
+			outcome.closeRequestId,
+			performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+		);
+		return observed.result;
+	} finally {
+		stay();
+	}
 }
 
 /** One Tab is no set: it closes as its own Close, which asks first in the if-idle form. */
@@ -609,7 +617,15 @@ async function closeTabSet(
 		const revision = lastClosedRevision(report.members);
 		if (revision !== null) await session.published(revision);
 	};
-	const stay = follow.leave.leave(closure.terminalContextId, closure.tabIds);
+	const stay = follow.leave.leave(
+		closure.tabIds.map(
+			(tabId): ServerLeavingMember => ({
+				kind: 'tab',
+				tabId,
+				terminalContextId: closure.terminalContextId,
+			}),
+		),
+	);
 	try {
 		for (;;) {
 			const { status } = report;
@@ -730,6 +746,31 @@ async function resumeTabClose(
  * last Panel takes the Tab with it, so that close is followed as a Tab's close is, keeping a stop
  * for Resume. As in the TUI, only a Tab's own close takes it out of the strip early.
  */
+/**
+ * Follows the accepted close of one Panel of several. The Server removes such a Panel only as its
+ * close completes, so the window leaves it out from the acceptance until the close settles: a
+ * completed close has removed it by then, and any other end shows it again with its report.
+ */
+async function followPanelClose(
+	session: CloseSession,
+	leave: ServerLeave,
+	target: { readonly panelId: string; readonly tabId: string; readonly terminalContextId: string },
+	closeRequestId: CloseOperationResult['operationId'],
+): Promise<ActionResult<void>> {
+	const { panelId, tabId, terminalContextId } = target;
+	const stay = leave.leave([{ kind: 'panel', panelId, tabId, terminalContextId }]);
+	try {
+		const observed = await observeClose(
+			session,
+			closeRequestId,
+			performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+		);
+		return observed.result;
+	} finally {
+		stay();
+	}
+}
+
 async function closePanel(
 	session: CloseSession,
 	context: CloseContext,
@@ -765,16 +806,17 @@ async function closePanel(
 	const { decidedFrom, outcome } = submission;
 	if (outcome.kind !== 'panel-close-accepted') return refused(outcome);
 	// The Server decided at this snapshot's revision, so its Tab held exactly these Panels.
-	if (findTab(decidedFrom, terminalContextId, tabId)?.root.kind !== 'panel') {
-		return { kind: 'completed' };
+	if (findTab(decidedFrom, terminalContextId, tabId)?.root.kind === 'panel') {
+		// The last Panel is its whole Tab, so its close follows as the close of that Tab.
+		return followTabClose(
+			session,
+			follow,
+			closure,
+			outcome.closeRequestId,
+			performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+		);
 	}
-	return followTabClose(
-		session,
-		{ ...follow, leave: NO_LEAVE },
-		closure,
-		outcome.closeRequestId,
-		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
-	);
+	return followPanelClose(session, follow.leave, closure, outcome.closeRequestId);
 }
 
 function groupOutcome(answer: ServerWorkbenchAnswer): GroupCloseResult['outcome'] | null {
@@ -819,6 +861,7 @@ async function closeProject(
 	session: CloseSession,
 	context: WorkbenchAuthorityContext,
 	closure: Extract<WorkbenchAuthorityClosure, { readonly type: 'project-workspaces-close' }>,
+	leave: ServerLeave,
 ): Promise<ActionResult<void>> {
 	if (context.signal.aborted) return { kind: 'cancelled' };
 	const project = session.snapshot.navigation.projects.find(
@@ -834,14 +877,35 @@ async function closeProject(
 		operationId,
 	);
 	if (started.kind === 'not-submitted') return NOT_SUBMITTED;
-	let outcome = groupOutcome(started);
-	if (outcome === null) return failed('outcome-unknown', operationId);
-	if (outcome.kind !== 'available') {
+	const report = groupOutcome(started);
+	if (report === null) return failed('outcome-unknown', operationId);
+	if (report.kind !== 'available') {
 		return {
-			code: outcome.kind === 'unavailable' ? outcome.reason : outcome.kind,
+			code: report.kind === 'unavailable' ? report.reason : report.kind,
 			kind: 'blocked',
 		};
 	}
+	// The Server accepted the Project's close and captured its members, so they leave from here.
+	const stay = leave.leave(
+		report.members.map(
+			({ workspaceId }): ServerLeavingMember => ({ kind: 'workspace', workspaceId }),
+		),
+	);
+	try {
+		return await watchProjectClose(session, operationId, report, deadline);
+	} finally {
+		stay();
+	}
+}
+
+/** Watches an accepted Project close until it settles, as the Server settles its members. */
+async function watchProjectClose(
+	session: CloseSession,
+	operationId: ReturnType<typeof createWorkbenchRequestId>,
+	report: GroupCloseReport,
+	deadline: number,
+): Promise<ActionResult<void>> {
+	let outcome = report;
 	for (;;) {
 		const { status } = outcome;
 		if (status.kind === 'closed') {
@@ -883,7 +947,7 @@ function tabKey(terminalContextId: string, tabId: string): string {
  */
 export function createServerWorkbenchClose(
 	session: CloseSession,
-	leave: ServerTabLeave = NO_LEAVE,
+	leave: ServerLeave = NO_LEAVE,
 ): Pick<WorkbenchAuthority, 'close' | 'stoppedTabClose' | 'watchClose'> {
 	const unsettledTabCloses = new Map<string, UnsettledTabClose>();
 	const follow: TabCloseFollow = {
@@ -920,9 +984,9 @@ export function createServerWorkbenchClose(
 			switch (closure.type) {
 				case 'workspace-close':
 				case 'workspace-close-if-idle':
-					return closeWorkspace(session, closeContext(context), closure);
+					return closeWorkspace(session, closeContext(context), closure, follow);
 				case 'project-workspaces-close':
-					return closeProject(session, context, closure);
+					return closeProject(session, context, closure, follow.leave);
 				case 'tabs-close':
 				case 'tabs-close-if-idle':
 					return closeTabs(session, closeContext(context), closure, follow);

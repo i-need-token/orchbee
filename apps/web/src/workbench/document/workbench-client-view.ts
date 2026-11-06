@@ -5,6 +5,7 @@ import { TerminalPresentationIdSchema } from '@orchbee/workbench-client-protocol
 import type { ProjectWorkspaceState, WorkbenchWorkspace } from '../../project-workspace';
 import {
 	collectPanelLeaves,
+	type PanelLeaf,
 	type PanelWorkspaceState,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
@@ -284,11 +285,14 @@ function reconcileTabPanelView(
 	const candidatePanels = new Map(candidate?.panels.map((panel) => [panel.panelId, panel]) ?? []);
 	const firstPanelId = panels[0]?.id;
 	if (firstPanelId === undefined) throw new Error(`Tab ${tab.id} has no Panel.`);
+	const focusedPanelId = candidate?.focusedPanelId;
+	const previousOrdinal =
+		candidate?.panels.findIndex((panel) => panel.panelId === focusedPanelId) ?? -1;
 	return {
 		focusedPanelId:
 			candidate !== undefined && panelIds.has(candidate.focusedPanelId)
 				? candidate.focusedPanelId
-				: firstPanelId,
+				: survivingFocusedPanelId(panels, firstPanelId, previousOrdinal),
 		maximizedPanelId:
 			candidate?.maximizedPanelId !== null &&
 			candidate?.maximizedPanelId !== undefined &&
@@ -312,6 +316,20 @@ function reconcileTabPanelView(
 		}),
 		tabId: tab.id,
 	};
+}
+
+/**
+ * A focused Panel that the Tab no longer holds gives way to the Panel at its place in this Client's
+ * previous order, clamped to the Panels that remain, the stand-in the TUI picks; without that place,
+ * the first Panel.
+ */
+function survivingFocusedPanelId(
+	panels: readonly PanelLeaf[],
+	firstPanelId: string,
+	previousOrdinal: number,
+): string {
+	if (previousOrdinal < 0) return firstPanelId;
+	return panels[Math.min(previousOrdinal, panels.length - 1)]?.id ?? firstPanelId;
 }
 
 function validateClientView(

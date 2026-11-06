@@ -54,7 +54,7 @@ import {
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
 	ServerAgentNameSource,
-	ServerLeavingTabs,
+	ServerLeaving,
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
 	ServerTerminalProjectionClient,
@@ -180,20 +180,20 @@ export function createServerWorkbenchRuntime({
 		() => session.snapshot,
 		() => adoptPublication(session.snapshot),
 	);
-	const leavingTabs = new ServerLeavingTabs(
+	const leaving = new ServerLeaving(
 		() => session.snapshot,
 		(returned) => {
 			adoptPublication(session.snapshot);
-			// A Tab that left took what its terminals reported with it, so it shows that again.
+			// A member that left took what its terminals reported with it, so it shows that again.
 			if (returned) reapplyTerminalMetadata();
 		},
 	);
 	const adoptPublication = (snapshot: WorkbenchSnapshot): void => {
 		terminalEnds.prune(snapshot);
-		leavingTabs.prune(snapshot);
+		leaving.prune(snapshot);
 		try {
 			projectWorkspaceRuntime.applyPublishedWorkbench(
-				projectServerSnapshot(snapshot, intl, terminalEnds.ends, leavingTabs.leaving),
+				projectServerSnapshot(snapshot, intl, terminalEnds.ends, leaving),
 			);
 		} catch (error) {
 			onPublicationFailure(error);
@@ -231,8 +231,8 @@ export function createServerWorkbenchRuntime({
 			return location.kind === 'workspace' ? location.workspaceId : null;
 		},
 		...(launchProfiles === undefined ? {} : { launchProfiles }),
+		leave: leaving,
 		session,
-		tabLeave: leavingTabs,
 	});
 
 	// A publication can replace the terminal a Panel shows and this Client can move its focus, so both

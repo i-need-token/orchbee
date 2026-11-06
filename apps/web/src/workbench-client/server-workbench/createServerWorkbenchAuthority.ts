@@ -29,7 +29,7 @@ import {
 	panelTerminalCreated,
 } from './server-workbench-panels';
 import { serverProfileLaunch, tabCreateAction, tabsChangeAction } from './server-workbench-tabs';
-import type { ServerTabLeave } from './ServerLeavingTabs';
+import type { ServerLeave } from './ServerLeaving';
 import { serverWorkbenchResult } from './serverWorkbenchResult';
 import { shownPanelTerminal } from './shownPanelTerminal';
 import type { ServerWorkbenchAction } from './ServerWorkbenchSession';
@@ -55,9 +55,9 @@ interface ServerWorkbenchAuthorityOptions {
 	readonly focusedWorkspaceId: () => string | null;
 	/** Without them, every Tab starts with the default launch profile. */
 	readonly launchProfiles?: ServerLaunchProfileSource;
+	/** Takes out of view what a followed close removes; absent where no close leaves early. */
+	readonly leave?: ServerLeave | undefined;
 	readonly session: Parameters<typeof createServerWorkbenchClose>[0];
-	/** Hears each Tab whose progressing close this window follows; absent where nothing leaves early. */
-	readonly tabLeave?: ServerTabLeave | undefined;
 }
 
 interface WorkspaceLaunchPlan {
@@ -255,11 +255,11 @@ export function createServerWorkbenchAuthority({
 	defaultWorkspaceLabel,
 	focusedWorkspaceId,
 	launchProfiles,
+	leave,
 	session,
-	tabLeave,
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
-		...createServerWorkbenchClose(session, tabLeave),
+		...createServerWorkbenchClose(session, leave),
 		...(agentBoard === undefined ? {} : { agentBoard }),
 		...(configuredCommands === undefined ? {} : { configuredCommands }),
 		...(launchProfiles === undefined

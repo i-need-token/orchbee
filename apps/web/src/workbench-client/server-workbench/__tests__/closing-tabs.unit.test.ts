@@ -18,7 +18,7 @@ import {
 } from '../../../__tests__/server-workbench-snapshot';
 import { createServerWorkbenchClose } from '../createServerWorkbenchClose';
 import { projectServerSnapshot } from '../projectServerSnapshot';
-import { ServerLeavingTabs } from '../ServerLeavingTabs';
+import { ServerLeaving } from '../ServerLeaving';
 import type { ServerWorkbenchAnswer, ServerWorkbenchSubmission } from '../ServerWorkbenchSession';
 
 type CloseSession = Parameters<typeof createServerWorkbenchClose>[0];
@@ -81,16 +81,16 @@ function closingWindow(
 	let set: { readonly members: readonly number[]; readonly operationId: string } | null = null;
 	const observed = new Map<number, { readonly answer: CloseStatus; readonly revision: number }>();
 
-	const leavingTabs = new ServerLeavingTabs(
+	const leaving = new ServerLeaving(
 		() => snapshot,
 		() => {
 			project();
 		},
 	);
 	function project(): void {
-		leavingTabs.prune(snapshot);
+		leaving.prune(snapshot);
 		runtime.applyPublishedWorkbench(
-			projectServerSnapshot(snapshot, FIXTURE_INTL, undefined, leavingTabs.leaving),
+			projectServerSnapshot(snapshot, FIXTURE_INTL, undefined, leaving),
 		);
 	}
 	/** Projects the Server's snapshot as it stands, as each publication does, and reads the strip. */
@@ -234,7 +234,7 @@ function closingWindow(
 		subscribe: () => () => undefined,
 	};
 
-	const closes = createServerWorkbenchClose(session, leavingTabs);
+	const closes = createServerWorkbenchClose(session, leaving);
 	const run = (closure: WorkbenchAuthorityClosure) =>
 		closes.close({ markCommitted: () => undefined, signal: new AbortController().signal }, closure);
 	return {

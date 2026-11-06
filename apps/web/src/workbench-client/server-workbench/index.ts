@@ -1,6 +1,6 @@
 export { ServerAgentIntegrationClient } from './ServerAgentIntegrationClient';
 export { ServerClientView } from './ServerClientView';
-export { ServerLeavingTabs } from './ServerLeavingTabs';
+export { ServerLeaving } from './ServerLeaving';
 export type {
 	ServerClientViewBinding,
 	ServerClientViewControl,

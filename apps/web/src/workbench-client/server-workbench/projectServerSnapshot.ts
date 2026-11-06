@@ -13,7 +13,7 @@ import type {
 	WorkbenchTerminalContext,
 } from '@orchbee/workbench-client-protocol';
 
-import type { ServerTabLeaving } from './ServerLeavingTabs';
+import type { ServerLeavingView } from './ServerLeaving';
 import { observedServerTerminalEnd, type ObservedServerTerminalEnds } from './server-terminal-ends';
 import { nameServerTerminalProgram } from './server-terminal-names';
 
@@ -23,8 +23,19 @@ type Workspace = Navigation['workspaces'][number];
 type Tab = WorkbenchTerminalContext['tabs'][number];
 type PanelNode = WorkbenchPublishedTab['root'];
 
+/** A Tab the window shows, with its Server Panel tree after the Panels a close leaves out. */
+interface ShownTab {
+	readonly position: number;
+	readonly root: WorkbenchPanelNode;
+	readonly tab: Tab;
+}
+
 const NO_OBSERVED_ENDS: ObservedServerTerminalEnds = new Map();
-const NONE_LEAVING: ServerTabLeaving = () => false;
+const NONE_LEAVING: ServerLeavingView = {
+	panel: () => false,
+	tab: () => false,
+	workspace: () => false,
+};
 
 /** What projecting one Tab's tree reads besides the tree. */
 interface PanelProjection {
@@ -40,8 +51,10 @@ const EVEN_SPLIT_RATIO = 0.5;
  * Projects what the Server published into the shapes the React Workbench's stores hold. Names
  * follow the TUI's: a terminal that shows no title takes the program the Server launched for it,
  * else its Tab's place, both in `intl`'s language. `observedEnds` holds, by Presentation, what this
- * window saw end. A Tab `leaving` names is left out, as the TUI leaves out a Tab whose close is
- * progressing, and so is a group it leaves empty.
+ * window saw end. What `leaving` names is left out: a Workspace with its terminal context; a Tab, as
+ * the TUI leaves out a Tab whose close is progressing; and a Panel, as the Server removes it, its
+ * sibling taking the split's place. A Tab left with no Panel leaves too, and so does a group it
+ * leaves empty.
  */
 export function projectServerSnapshot(
 	snapshot: WorkbenchSnapshot,
@@ -50,6 +63,10 @@ export function projectServerSnapshot(
 	leaving = NONE_LEAVING,
 ): WorkbenchPublication {
 	const { navigation } = snapshot;
+	const isLeaving = (workspace: Workspace): boolean => leaving.workspace(workspace.workspaceId);
+	const leavingContextIds = new Set(
+		navigation.workspaces.filter(isLeaving).map((workspace) => workspace.terminalContextId),
+	);
 	const directories = new Map(
 		navigation.directories.map((directory) => [directory.directoryId, directory]),
 	);
@@ -59,11 +76,11 @@ export function projectServerSnapshot(
 			navigation.projectOrder,
 			(project) => project.projectId,
 		).map((project) => ({ id: project.projectId, name: project.label })),
-		terminalContexts: snapshot.terminalContexts.map((context) =>
-			projectTerminalContext(context, intl, observedEnds, leaving),
-		),
+		terminalContexts: snapshot.terminalContexts
+			.filter((context) => !leavingContextIds.has(context.terminalContextId))
+			.map((context) => projectTerminalContext(context, intl, observedEnds, leaving)),
 		workspaces: inDisplayOrder(
-			navigation.workspaces,
+			navigation.workspaces.filter((workspace) => !isLeaving(workspace)),
 			navigation.workspaceOrder,
 			(workspace) => workspace.workspaceId,
 		).map((workspace) => ({
@@ -104,19 +121,26 @@ function projectTerminalContext(
 	context: WorkbenchTerminalContext,
 	intl: IntlShape,
 	observedEnds: ObservedServerTerminalEnds,
-	leaving: ServerTabLeaving,
+	leaving: ServerLeavingView,
 ): WorkbenchPublishedTerminalContext {
+	const { terminalContextId } = context;
 	// A Tab keeps its place among all the Server holds, so no other Tab is renumbered while it leaves.
-	const placedTabs = context.tabs.map((tab, position) => ({ position, tab }));
+	const shownTabs = context.tabs.flatMap((tab, position): ShownTab[] => {
+		if (leaving.tab(terminalContextId, tab.tabId)) return [];
+		const root = withholdPanels(tab.root, (panelId) =>
+			leaving.panel(terminalContextId, tab.tabId, panelId),
+		);
+		return root === null ? [] : [{ position, root, tab }];
+	});
+	const shownTabIds = new Set(shownTabs.map(({ tab }) => tab.tabId));
 	const withheldTabIds = context.tabs
-		.filter((tab) => leaving(context.terminalContextId, tab.tabId))
+		.filter((tab) => !shownTabIds.has(tab.tabId))
 		.map((tab) => tab.tabId);
-	const shownTabs = placedTabs.filter(({ tab }) => !withheldTabIds.includes(tab.tabId));
 	const shownGroups = new Set(shownTabs.map(({ tab }) => tab.groupId));
 	const heldGroups = new Set(context.tabs.map((tab) => tab.groupId));
 	return {
-		// A projected context holds names in one language, the ends this window saw, and the Tabs it
-		// shows, so another language, another end, or a Tab leaving or returning replaces it.
+		// A projected context holds names in one language, the ends this window saw, and the Tabs and
+		// Panels it shows, so another language, another end, or a leaving member replaces it.
 		fingerprint: JSON.stringify([
 			intl.locale,
 			context,
@@ -125,7 +149,7 @@ function projectTerminalContext(
 					observedServerTerminalEnd(presentation, observedEnds),
 				),
 			),
-			shownTabs.map(({ tab }) => tab.tabId),
+			shownTabs.map(({ root, tab }) => [tab.tabId, panelIdsOf(root)]),
 		]),
 		groups: context.groups
 			.filter((group) => shownGroups.has(group.groupId) || !heldGroups.has(group.groupId))
@@ -134,20 +158,51 @@ function projectTerminalContext(
 				id: group.groupId,
 				title: group.label,
 			})),
-		tabs: shownTabs.map(({ position, tab }) => {
+		tabs: shownTabs.map(({ position, root, tab }) => {
 			const tabTitle = tabPositionTitle(position, intl);
 			return {
 				customTitle: customTabTitle(tab),
 				group: tab.groupId,
 				id: tab.tabId,
 				pinned: tab.pinned,
-				root: projectPanelNode(tab.root, { intl, observedEnds, tabTitle }),
+				root: projectPanelNode(root, { intl, observedEnds, tabTitle }),
 				title: tab.automaticLabel === true ? tabTitle : tab.label,
 			};
 		}),
 		terminalContextId: context.terminalContextId,
 		withheldTabIds,
 	};
+}
+
+/**
+ * The Server's Panel tree without the Panels a close leaves out, each removed as the Server removes
+ * it: its parent Split gives way to the sibling subtree. Null when every Panel of the tree is left out.
+ */
+function withholdPanels(
+	node: WorkbenchPanelNode,
+	isWithheld: (panelId: string) => boolean,
+): WorkbenchPanelNode | null {
+	if (node.kind === 'panel') return isWithheld(node.panelId) ? null : node;
+	const [first, second] = node.children;
+	const shownFirst = withholdPanels(first.node, isWithheld);
+	const shownSecond = withholdPanels(second.node, isWithheld);
+	if (shownFirst === null) return shownSecond;
+	if (shownSecond === null) return shownFirst;
+	if (shownFirst === first.node && shownSecond === second.node) return node;
+	return {
+		...node,
+		children: [
+			{ ...first, node: shownFirst },
+			{ ...second, node: shownSecond },
+		],
+	};
+}
+
+/** The Panels a Tab's tree shows, so a context's fingerprint changes as its Panels leave or return. */
+function panelIdsOf(node: WorkbenchPanelNode): readonly string[] {
+	return node.kind === 'panel'
+		? [node.panelId]
+		: node.children.flatMap((slot) => panelIdsOf(slot.node));
 }
 
 /** Each Client numbers a Tab by its current place, so moving or closing a Tab renumbers others. */

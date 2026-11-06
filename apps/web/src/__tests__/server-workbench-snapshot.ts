@@ -266,9 +266,11 @@ export function snapshotPublication(
 	snapshot: WorkbenchSnapshot,
 	withheldTabIds: readonly string[] = [],
 ): WorkbenchPublication {
-	return projectServerSnapshot(snapshot, FIXTURE_INTL, undefined, (_context, tabId) =>
-		withheldTabIds.includes(tabId),
-	);
+	return projectServerSnapshot(snapshot, FIXTURE_INTL, undefined, {
+		panel: () => false,
+		tab: (_terminalContextId, tabId) => withheldTabIds.includes(tabId),
+		workspace: () => false,
+	});
 }
 
 /** The open Workspace's context, which a test that opened one takes as present. */

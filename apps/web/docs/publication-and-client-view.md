@@ -44,10 +44,18 @@ the Server holds none, so every Client shows the same sizes.
 | A binding this window saw settle | `exited` or `failed`, as it ended |
 | Any other binding                | `running`                         |
 
-A Tab whose progressing close the window follows is withheld: it leaves the published Tabs, a
-Group that holds only withheld Tabs leaves with them, and every other Tab keeps the place its
-automatic name carries. A context's fingerprint covers the Server's context, the window's language, the ends the
-window saw, and the Tabs it shows, so it changes exactly when the projected context does.
+Members a progressing close the window follows are withheld from the projection until that close
+settles, from the Server's acceptance of it. A Tab leaves the published Tabs, and a Group that holds
+only withheld Tabs leaves with them; every other Tab keeps the place its automatic name carries. A
+Panel of several leaves its Tab's split the way the Server removes it: its sibling takes the split's
+place, and a Tab left with no Panel leaves too. A focused Panel that leaves hands focus to the
+Panel at its place in the Tab's previous order, clamped to the Panels that remain, as the TUI picks
+its stand-in. A Workspace leaves with its terminal context, and a
+Project's close leaves each of its Workspaces once the Server accepts it. A context's fingerprint
+covers the Server's context, the window's language, the ends the window saw, and the Tabs and Panels
+it shows, so it changes exactly when the projected context does. A member whose close is refused,
+stops, or is lost shows again with its report, as the Server still holds it; a completed close has
+removed it by then.
 
 ## Applying a publication
 
