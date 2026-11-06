@@ -78,8 +78,10 @@ typed failures remain visible and are never replayed automatically.
 
 ## Export and clipboard delivery
 
-- Only an accepted active `end` starts a plain selection export. One export is active at a time and
-  is fenced by exact attachment and export sequence.
+- Only an accepted active `end`, or the focused panel's Copy selection menu row for a settled selection
+  with no gesture or export pending, starts a plain selection export. The menu row takes no copy-mode
+  ownership ([action menus](native-action-menus.md)). One export is active at a time and is fenced by
+  exact attachment and export sequence.
 - The Client accepts at most one chunk before the start response, then requires contiguous chunk
   sequences, the announced total length, a final chunk at that exact length, acknowledgements in
   order, and a matching completed result. The existing Host bounds remain 1 MiB per chunk and

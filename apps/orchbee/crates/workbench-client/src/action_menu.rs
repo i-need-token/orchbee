@@ -92,8 +92,10 @@ pub use crate::client_actions::MenuAction;
 
 pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 
-/// Zoom joins only beside another panel; Take control only while another Client holds the size.
+/// Copy selection leads; Zoom joins only beside another panel; Take control only while another
+/// Client holds the size.
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
+    MenuAction::CopySelection,
     MenuAction::SplitPanel(PanelDirection::Right),
     MenuAction::SplitPanel(PanelDirection::Down),
     MenuAction::Zoom,
@@ -415,6 +417,7 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::Zoom
         | MenuAction::Resize
         | MenuAction::Copy
+        | MenuAction::CopySelection
         | MenuAction::ClosePane
         | MenuAction::MovePanel(_) => GlobalMenuGroup::Panel,
         MenuAction::NewWorkspace
@@ -475,6 +478,8 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
     match action {
         MenuAction::WorkspaceInFolder(_) => !matches!(previous, MenuAction::WorkspaceInFolder(_)),
         MenuAction::OpenWorktreeAt(_) => !matches!(previous, MenuAction::OpenWorktreeAt(_)),
+        // The pane's copy row is its own group above the split and close commands.
+        MenuAction::SplitPanel(_) => matches!(previous, MenuAction::CopySelection),
         // A Tab menu's close section starts before its first close row.
         MenuAction::CloseSelectedTabs => !matches!(previous, MenuAction::ResumeTabClose),
         MenuAction::CreateWorkspaceProject

@@ -37,6 +37,16 @@ fn selected_presentation(
     Some(state.selected_presentation(panel).presentation_id().clone())
 }
 
+/// Whether a Pane target can copy its terminal selection now. `Hidden` when the target is not the
+/// focused, frame-backed pane, because the copy acts on the focused pane's selection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CopyReadiness {
+    Hidden,
+    NoSelection,
+    Busy,
+    Ready,
+}
+
 fn action_availability(
     capabilities: crate::tui_capabilities::Capabilities,
     state: Option<&WorkbenchClientState>,
@@ -44,6 +54,7 @@ fn action_availability(
     action: MenuAction,
     pointer_released: bool,
     resume_permit: Option<&TabCloseResumePermit>,
+    copy: CopyReadiness,
 ) -> ActionAvailability<MenuUnavailable> {
     use crate::workbench_state::workspace_setup::DirectoryConfigurationUnavailable;
     // Open Worktree ▸ needs the same host effect as the global Open Worktree….
@@ -84,6 +95,18 @@ fn action_availability(
         if hidden {
             return ActionAvailability::Hidden;
         }
+    }
+    if action == MenuAction::CopySelection {
+        return match (target, copy) {
+            (Target::Pane { .. }, CopyReadiness::Ready) => ActionAvailability::Enabled,
+            (Target::Pane { .. }, CopyReadiness::Busy) => {
+                ActionAvailability::Disabled(MenuUnavailable::OperationBusy)
+            }
+            (Target::Pane { .. }, CopyReadiness::NoSelection) => {
+                ActionAvailability::Disabled(MenuUnavailable::NoSelection)
+            }
+            _ => ActionAvailability::Hidden,
+        };
     }
     if matches!(target, Target::Global)
         && matches!(
@@ -267,6 +290,7 @@ fn intent_availability(
     state: Option<&WorkbenchClientState>,
     discovery: Option<&Discovery>,
     action: MenuAction,
+    copy: CopyReadiness,
 ) -> ActionAvailability<MenuUnavailable> {
     let availability = action_availability(
         intent.capabilities(),
@@ -275,6 +299,7 @@ fn intent_availability(
         action.clone(),
         intent.pointer_released(),
         intent.resume_permit(),
+        copy,
     );
     if availability.is_enabled() {
         ActionAvailability::from_disabled_reason(sidebar::unavailable(
@@ -764,6 +789,7 @@ impl WorkbenchClientUi {
                 .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone())))
                 .collect();
         }
+        let copy = self.copy_readiness(&target);
         actions = sidebar::actions(&entry, actions, self.menus.discovery(), |action| {
             !action_availability(
                 self.capabilities,
@@ -772,6 +798,7 @@ impl WorkbenchClientUi {
                 action.clone(),
                 pointer_released,
                 resume_permit.as_ref(),
+                copy,
             )
             .is_hidden()
         });
@@ -803,6 +830,7 @@ impl WorkbenchClientUi {
                     action.clone(),
                     pointer_released,
                     resume_permit.as_ref(),
+                    copy,
                 )
                 .is_hidden()
             })
@@ -913,9 +941,10 @@ impl WorkbenchClientUi {
                 self.menus.menu.hide_candidate();
             }
         }
+        let copy = self.copy_readiness(intent.target());
         let (menu, _, discovery) = self.menus.menu_with_facts();
         menu.refresh_availability(|action| {
-            visible_unavailable(intent_availability(&intent, state, discovery, action))
+            visible_unavailable(intent_availability(&intent, state, discovery, action, copy))
         });
         if !self.menus.menu.active() {
             return false;
@@ -1165,6 +1194,26 @@ impl WorkbenchClientUi {
         }
     }
 
+    /// The copy readiness of a Pane target's selection; only the focused pane can copy.
+    fn copy_readiness(&self, target: &Target) -> CopyReadiness {
+        let Target::Pane { pane, .. } = target else {
+            return CopyReadiness::Hidden;
+        };
+        let Some(index) = self.focused_frame_index(pane) else {
+            return CopyReadiness::Hidden;
+        };
+        let Some(driver) = self.projections[index].selection.as_ref() else {
+            return CopyReadiness::NoSelection;
+        };
+        if !driver.host_selection_active() {
+            CopyReadiness::NoSelection
+        } else if driver.host_export_idle() {
+            CopyReadiness::Ready
+        } else {
+            CopyReadiness::Busy
+        }
+    }
+
     fn target_valid(&self, target: &Target) -> bool {
         let Some(state) = self.state.as_ref() else {
             return matches!(target, Target::Global);
@@ -1320,6 +1369,7 @@ impl WorkbenchClientUi {
             self.fail_action_menu();
             return true;
         }
+        let copy = self.copy_readiness(intent.target());
         let mut changed = false;
         match intent.stage() {
             Stage::Open => {
@@ -1330,6 +1380,7 @@ impl WorkbenchClientUi {
                             self.state.as_ref(),
                             self.menus.discovery(),
                             action.clone(),
+                            copy,
                         )
                         .is_hidden()
                     })
@@ -1340,7 +1391,9 @@ impl WorkbenchClientUi {
                 let state = self.state.as_ref();
                 let (menu, _, discovery) = self.menus.menu_with_facts();
                 changed = menu.refresh_availability(|action| {
-                    visible_unavailable(intent_availability(&intent, state, discovery, action))
+                    visible_unavailable(intent_availability(
+                        &intent, state, discovery, action, copy,
+                    ))
                 });
                 // A `cd` can rename the Workspace under its open menu.
                 if let (Target::Workspace { location, .. }, Some(state)) = (intent.target(), state)
@@ -1361,6 +1414,7 @@ impl WorkbenchClientUi {
                         self.state.as_ref(),
                         self.menus.discovery(),
                         action,
+                        copy,
                     )
                     .is_enabled()
                 }) {
@@ -1509,6 +1563,7 @@ impl WorkbenchClientUi {
                 action.clone(),
                 pointer_released,
                 intent.resume_permit(),
+                self.copy_readiness(intent.target()),
             )
             .is_enabled()
             || (action == MenuAction::Zoom

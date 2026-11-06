@@ -45,10 +45,21 @@ and dragging moves it. Right-clicking the new-Tab button lists the saved launch 
 default first and marked Default; with a single profile it opens no menu, because a click already
 creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
-A pane menu, titled with the panel's name, holds Split right and Split down, Zoom only beside
-another panel and Take control only while another Client holds that panel's size, then the red
-Close; dragging a divider resizes, and keyboard resize and copy mode keep their keys and
-global menu rows. The global menu also exposes the new-Tab submenu for keyboard users.
+A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
+Split right and Split down, Zoom only beside another panel and Take control only while another Client
+holds that panel's size, then the red Close; dragging a divider resizes, and keyboard resize and copy
+mode keep their keys and global menu rows. The global menu also exposes the new-Tab submenu for keyboard
+users.
+
+Copy selection is a pane-only row whose label and catalog identity (`terminal.selection.copy`) match the
+GUI terminal menu. It starts one ordinary selection export on the copy-on-select clipboard path. It takes
+no copy-mode ownership, keeps the Host selection, adds no clipboard write of its own, reports success
+silently, and reports failure with the ordinary copy notice. The row is enabled while the focused panel's
+selection is settled and idle. While a gesture or export is pending it is disabled as busy, and with no
+selection it stays visible and disabled with the reason `Select text in this panel first.`. A panel that is
+not focused or has no frame omits the row, because the copy acts only on the focused panel's selection.
+Keyboard copy mode keeps its own entry and keys.
+
 The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
 query directly; Backspace removes the previous grapheme and Ctrl+U clears it. The query is limited
 to 128 UTF-8 bytes, and menu capture keeps typed characters out of the terminal program. Matching

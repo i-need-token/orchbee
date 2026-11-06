@@ -32,21 +32,10 @@ impl WorkbenchClientUi {
             workbench_client::terminal_selection::SemanticIntent,
         };
 
-        let Some(index) = self
-            .projections
-            .iter()
-            .position(|projection| &projection.key == key)
-        else {
+        let Some(index) = self.focused_frame_index(key) else {
             return false;
         };
         if self.workspace_creation_replaces_content() && !matches!(effect, SelectionEffect::Cancel)
-            || self.retirement_failure.is_some()
-            || self.state.as_ref().is_none_or(|state| {
-                state.ready().is_none()
-                    || state.focus_pane_ref().as_ref() != Some(key)
-                    || state.close_suppresses_attachment(key.pane().anchor())
-            })
-            || self.projections[index].status != ClientProjectionStatus::FrameAvailable
         {
             return false;
         }
@@ -117,6 +106,57 @@ impl WorkbenchClientUi {
                 self.settle_selection_failure(failure);
                 false
             }
+        }
+    }
+
+    /// The projection index of `key` when it is the focused, frame-backed pane that ordinary
+    /// selection inputs may act on.
+    pub(super) fn focused_frame_index(&self, key: &PaneRef) -> Option<usize> {
+        let index = self
+            .projections
+            .iter()
+            .position(|projection| &projection.key == key)?;
+        let focused = self.state.as_ref().is_some_and(|state| {
+            state.ready().is_some()
+                && state.focus_pane_ref().as_ref() == Some(key)
+                && !state.close_suppresses_attachment(key.pane().anchor())
+        });
+        (self.retirement_failure.is_none()
+            && focused
+            && self.projections[index].status == ClientProjectionStatus::FrameAvailable)
+            .then_some(index)
+    }
+
+    /// Starts the Panel menu's Copy selection for the focused pane's settled Host selection. The
+    /// export settles through the ordinary selection path, so success stays silent and a failure
+    /// shows the same notice as a copy-on-select export.
+    pub(super) fn copy_focused_selection(&mut self) {
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
+            self.copy_refused();
+            return;
+        };
+        let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
+            self.copy_refused();
+            return;
+        };
+        let Some(index) = self.focused_frame_index(&key) else {
+            self.copy_refused();
+            return;
+        };
+        let Some(driver) = self.projections[index].selection.as_mut() else {
+            self.copy_refused();
+            return;
+        };
+        match driver.export_host_selection() {
+            Ok(true) => self.admit_selections(&mailbox),
+            Ok(false) => self.copy_refused(),
+            Err(failure) => self.settle_selection_failure(failure),
+        }
+    }
+
+    fn copy_refused(&mut self) {
+        if let Some(state) = self.state.as_mut() {
+            state.set_notice(ClientNotice::CopyFailed);
         }
     }
 

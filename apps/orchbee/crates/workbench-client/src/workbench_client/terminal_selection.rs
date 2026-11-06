@@ -520,6 +520,22 @@ impl Driver {
         Ok(true)
     }
 
+    /// Starts one export of the settled Host selection for the Panel menu's Copy selection. It takes
+    /// no copy ownership, so the clipboard write stays on the ordinary path; a gesture or any pending
+    /// export keeps the selection busy instead.
+    pub(super) fn export_host_selection(&mut self) -> Result<bool, Failure> {
+        if !self.host_export_idle() || !self.host_selection_active() {
+            return Ok(false);
+        }
+        self.start_export()?;
+        Ok(true)
+    }
+
+    /// Whether no gesture or pending export owns the Host selection, so an explicit copy can start.
+    pub(super) fn host_export_idle(&self) -> bool {
+        self.gesture.is_none() && !self.export_pending()
+    }
+
     fn start_export(&mut self) -> Result<(), Failure> {
         self.last_export = self
             .last_export

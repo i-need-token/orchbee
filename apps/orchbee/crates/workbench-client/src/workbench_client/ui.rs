@@ -3071,6 +3071,10 @@ impl WorkbenchClientUi {
             }
             ClientAction::EnterHistory => self.enter_history(),
             ClientAction::EnterCopyMode => self.enter_copy_mode(),
+            ClientAction::CopySelection => {
+                self.copy_focused_selection();
+                ClientActionDisposition::KeepNavigator
+            }
             ClientAction::PreviousPresentation => self.cycle_presentation(false),
             ClientAction::NextPresentation => self.cycle_presentation(true),
             ClientAction::MovePanelFocus(direction) => {

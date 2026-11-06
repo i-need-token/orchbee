@@ -20,6 +20,8 @@ pub enum ClientAction {
     ConfiguredCommand(String),
     EnterResizeMode,
     EnterCopyMode,
+    /// Copies the focused pane's settled Host selection without entering copy mode.
+    CopySelection,
     ExitResizeMode,
     ResizePane {
         direction: PanelDirection,
@@ -98,6 +100,7 @@ impl ClientAction {
             Self::OpenSettings => None,
             Self::EnterResizeMode
             | Self::EnterCopyMode
+            | Self::CopySelection
             | Self::ExitResizeMode
             | Self::ResizePane { .. } => None,
             Self::ConfiguredCommand(_) => None,
@@ -166,6 +169,8 @@ pub enum MenuAction {
     Zoom,
     Resize,
     Copy,
+    /// Copies the focused pane's settled Host selection; `Copy` enters keyboard copy mode.
+    CopySelection,
     Takeover,
     ClosePane,
     MovePanel(PanelDirection),
@@ -242,6 +247,7 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::Zoom => Self::Zoom,
             MenuAction::Resize => Self::Resize,
             MenuAction::Copy => Self::Copy,
+            MenuAction::CopySelection => Self::CopySelection,
             MenuAction::Takeover => Self::Takeover,
             MenuAction::ClosePane => Self::ClosePane,
             MenuAction::MovePanel(value) => Self::MovePanel(*value),
@@ -330,6 +336,7 @@ impl MenuAction {
             Self::Zoom => ClientAction::ToggleZoom,
             Self::Resize => ClientAction::EnterResizeMode,
             Self::Copy => ClientAction::EnterCopyMode,
+            Self::CopySelection => ClientAction::CopySelection,
             Self::Takeover => ClientAction::RequestControlTakeover,
             Self::ClosePane => ClientAction::ClosePanel,
             Self::MovePanel(direction) => ClientAction::MovePanel(*direction),

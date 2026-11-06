@@ -32,6 +32,7 @@ pub(crate) enum MenuLabel {
     Zoom,
     Resize,
     Copy,
+    CopySelection,
     Takeover,
     ClosePane,
     MovePanel(PanelDirection),
@@ -127,6 +128,7 @@ pub(crate) enum MenuUnavailable {
     WorktreeUnavailable,
     NotGitRepository,
     NoOtherWorktrees,
+    NoSelection,
 }
 
 impl Locale {
@@ -333,6 +335,10 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::PointerReleased, false) => "鼠标捕获已释放。",
             (Self::EnUs, MenuUnavailable::PointerReleased, true) => "Released",
             (Self::ZhCn, MenuUnavailable::PointerReleased, true) => "已释放",
+            (Self::EnUs, MenuUnavailable::NoSelection, false) => "Select text in this panel first.",
+            (Self::ZhCn, MenuUnavailable::NoSelection, false) => "请先在此面板中选中文本。",
+            (Self::EnUs, MenuUnavailable::NoSelection, true) => "No selection",
+            (Self::ZhCn, MenuUnavailable::NoSelection, true) => "无选区",
         }
     }
     pub(crate) const fn menu_heading(self, heading: MenuHeading) -> &'static str {
@@ -388,6 +394,8 @@ impl Locale {
             (Self::ZhCn, Resize) => "调整面板大小",
             (Self::EnUs, Copy) => "Keyboard copy mode",
             (Self::ZhCn, Copy) => "键盘复制模式",
+            (Self::EnUs, CopySelection) => "Copy selection",
+            (Self::ZhCn, CopySelection) => "复制所选内容",
             (Self::EnUs, Takeover) => "Take control",
             (Self::ZhCn, Takeover) => "接管输入与尺寸",
             (Self::EnUs, ClosePane) => "Close panel…",

@@ -357,6 +357,8 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::Zoom => built_in("workbench.panel.active.maximization.toggle", C::Pane, PANE),
         A::Resize => built_in("orchbee.native.pane.resize-mode.enter", C::Pane, RESIZE),
         A::Copy => built_in("orchbee.native.copy-mode.enter", C::Input, COPY),
+        // Shares the GUI terminal catalog identity: the same copy operation, not a new one.
+        A::CopySelection => built_in("terminal.selection.copy", C::Pane, COPY),
         A::Takeover => built_in("orchbee.native.pane.control.takeover", C::Pane, PANE),
         A::ClosePane => built_in(
             "workbench.terminal.active.close",

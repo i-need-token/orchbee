@@ -1120,7 +1120,8 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
             ui.menus.intent().unwrap().target(),
             MenuAction::WorkspaceDirectory,
             false,
-            None
+            None,
+            CopyReadiness::Hidden,
         ),
         ActionAvailability::Hidden,
         "Set Directory… joins only a Workspace without one"
@@ -1878,4 +1879,82 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
         ));
         assert_eq!(ui.take_action_menu_action(false), None);
     }
+}
+
+/// Reads the Panel rows as a user sees them, so the rule is checked through its label.
+fn copy_selection_row(ui: &WorkbenchClientUi) -> usize {
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    let labels = menu
+        .actions
+        .iter()
+        .map(|action| Locale::EnUs.menu_action(action))
+        .collect::<Vec<_>>();
+    labels
+        .iter()
+        .position(|label| *label == "Copy selection")
+        .unwrap_or_else(|| panic!("Panel menu rows {labels:?} do not offer Copy selection"))
+}
+
+#[test]
+fn panel_menu_copy_selection_is_offered_only_for_a_settled_host_selection_and_exports_it() {
+    use orchbee_terminal_protocol::{SelectionChanged, SelectionChangedState, SelectionPoint};
+
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let pane = super::super::test_support::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let attachment = *ui.projections[0].value.attachment();
+
+    // Without a Host selection the row stays visible with its reason.
+    assert!(ui.open_action_menu(MenuTarget::Pane(pane.clone()), None, false));
+    let row = copy_selection_row(&ui);
+    assert!(ui.view().action_menu().unwrap().unavailable[row].is_some());
+    ui.cancel_action_menu();
+
+    let driver = ui.projections[0].selection.get_or_insert_with(|| {
+        crate::workbench_client::terminal_selection::Driver::new(attachment)
+    });
+    driver
+        .changed(SelectionChanged {
+            attachment_id: attachment,
+            state: SelectionChangedState::Active {
+                start: SelectionPoint { column: 1, row: 9 },
+                end: SelectionPoint { column: 3, row: 9 },
+                rectangle: false,
+                preview: None,
+            },
+        })
+        .unwrap();
+
+    // Opening the menu over the settled selection leaves that selection in place.
+    assert!(ui.open_action_menu(MenuTarget::Pane(pane.clone()), None, false));
+    let row = copy_selection_row(&ui);
+    assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
+    let token = arm(&mut ui);
+    activate_row(&mut ui, token, row);
+    let action = ui
+        .take_action_menu_action(false)
+        .expect("confirmed Copy selection");
+    let _ = ui.apply_client_action(action);
+
+    // Copy starts one export of that same selection through the ordinary selection command path.
+    let selection = ui.projections[0].selection.as_ref().unwrap();
+    assert!(selection.host_selection_active());
+    assert!(selection.export_pending());
+    ui.admit_selections(&mailbox);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Selection(tagged) = lease.record() else {
+        panic!("selection command");
+    };
+    let command = *tagged.value();
+    mailbox.finish_lease(lease).unwrap();
+    let viewer = orchbee_client_server_protocol::ViewerId::parse(&attachment.to_string()).unwrap();
+    assert!(matches!(
+        command.viewer_action(viewer),
+        orchbee_client_server_protocol::TerminalViewerAction::SelectionExport { .. }
+    ));
+
+    // While that export is in flight, the row is not offered again.
+    assert!(ui.open_action_menu(MenuTarget::Pane(pane), None, false));
+    let row = copy_selection_row(&ui);
+    assert!(ui.view().action_menu().unwrap().unavailable[row].is_some());
 }
