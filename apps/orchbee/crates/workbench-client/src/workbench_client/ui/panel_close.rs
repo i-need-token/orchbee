@@ -17,6 +17,7 @@ pub(crate) struct PanelCloseConfirmationView<'a> {
     inner: workbench_state::PanelCloseConfirmationView<'a>,
     impact: crate::localization::CloseImpact,
     tab: Option<super::ClientTabView<'a>>,
+    panel_name: Option<crate::terminal_title::ChromeName<'a>>,
 }
 
 impl<'a> PanelCloseConfirmationView<'a> {
@@ -27,8 +28,15 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(crate) const fn token(&self) -> PanelCloseConfirmationToken {
         self.inner.token()
     }
-    pub(crate) fn panel_label(&self) -> &'a str {
-        self.inner.panel_label()
+    pub(crate) fn panel_label(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        if self.tab.is_some() {
+            super::panel_label(self.panel_name, self.inner.panel_position(), locale)
+        } else {
+            self.inner.panel_label().into()
+        }
     }
     pub(crate) fn tab_label(
         &self,
@@ -59,7 +67,18 @@ impl<'a> WorkbenchClientView<'a> {
         let inner = state.panel_close_confirmation()?;
         let impact = state.panel_close_impact(&|pane| self.pane_settled(pane))?;
         let tab = self.tab_by_id(inner.tab_id());
-        Some(PanelCloseConfirmationView { inner, impact, tab })
+        let panel_name = tab.as_ref().and_then(|tab| {
+            let panel = (0..tab.panel_count())
+                .filter_map(|index| tab.panel(index))
+                .find(|panel| panel.panel_id() == inner.panel_id())?;
+            self.presentation_name(&tab.inner, panel, panel.primary())
+        });
+        Some(PanelCloseConfirmationView {
+            inner,
+            impact,
+            tab,
+            panel_name,
+        })
     }
 }
 

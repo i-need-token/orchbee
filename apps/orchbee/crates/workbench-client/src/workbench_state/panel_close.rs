@@ -88,6 +88,9 @@ impl<'a> PanelCloseConfirmationView<'a> {
     pub(crate) fn tab_id(&self) -> &'a WorkbenchTabId {
         &self.confirmation.selection.target.tab_id
     }
+    pub(crate) fn panel_id(&self) -> &'a WorkbenchPanelId {
+        &self.confirmation.selection.target.panel_id
+    }
     pub(crate) const fn panel_position(&self) -> usize {
         self.confirmation.selection.panel_position
     }

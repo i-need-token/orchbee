@@ -2,29 +2,13 @@
 use crate::{terminal_text::sanitize_terminal_text, workbench_client::PanelReportView};
 use orchbee_workbench_protocol::{MetadataState, PanelAgentState};
 
-/// Custom titles win over guarded metadata titles, then the creation label. Metadata tokens follow
-/// as literal key/value text.
-pub(super) fn title(
-    custom_label: Option<&str>,
-    display_label: &str,
-    prefix: &str,
-    view: PanelReportView<'_>,
-    separator: &str,
-) -> String {
+/// The shared Panel name is independent of Agent metadata. Tokens follow as literal key/value text.
+pub(super) fn title(display_label: &str, view: PanelReportView<'_>, separator: &str) -> String {
     let row = match view {
         PanelReportView::Ready(row) => Some(row),
         _ => None,
     };
-    let custom = custom_label
-        .or_else(|| row.and_then(|row| row.metadata.title.as_ref().map(|v| v.as_str())));
-    let mut title = if let Some(title) = custom {
-        sanitize_terminal_text(title).into_owned()
-    } else if !display_label.is_empty() && display_label.chars().all(|c| c.is_ascii_digit()) {
-        // Creation labels survive layout reordering and sibling removal.
-        format!("{prefix} {display_label}")
-    } else {
-        sanitize_terminal_text(display_label).into_owned()
-    };
+    let mut title = sanitize_terminal_text(display_label).into_owned();
     for (key, value) in row.iter().flat_map(|row| row.tokens.as_map()) {
         title.push_str(&sanitize_terminal_text(&format!(
             " {separator} {}={}",

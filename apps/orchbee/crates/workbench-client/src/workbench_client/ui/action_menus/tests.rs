@@ -17,6 +17,64 @@ mod quick_create;
 mod tab_scope;
 
 #[test]
+fn panel_menu_names_the_primary_program_unless_a_custom_label_wins() {
+    use orchbee_workbench_protocol::{PanelCustomLabel, PanelNode, PresentationLaunchProgram};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for custom in [None, Some("Review panel")] {
+            let mut snapshot = super::super::tests::membership::snapshot(1, 1);
+            let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+            // A fixed Tab and one bare Panel leave the menu as the only surface naming the Panel.
+            tab.label = "Fixed Tab".into();
+            let PanelNode::Panel {
+                primary_presentation,
+                ..
+            } = &mut tab.root
+            else {
+                panic!()
+            };
+            primary_presentation.label = "1".into();
+            primary_presentation.launch_program =
+                Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
+            primary_presentation.custom_label =
+                custom.map(|label| PanelCustomLabel::parse(label).unwrap());
+            let (mut ui, _, _, _) = tests::move_membership::ready_ui_with_snapshot(snapshot);
+            let pane = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+            assert!(ui.open_action_menu(MenuTarget::Pane(pane), None, false));
+            let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &ClientView::new(100),
+                        locale,
+                        Some(ui.view()),
+                        &Theme::terminal_native(),
+                        &mut HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            let rendered: String = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect();
+            assert!(
+                rendered.contains(custom.unwrap_or("PowerShell")),
+                "{locale:?}: {rendered}"
+            );
+            if custom.is_some() {
+                assert!(
+                    !rendered.contains("PowerShell"),
+                    "custom label must win: {rendered}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn new_tab_button_menu_lists_saved_profiles_default_first_and_cancel_has_no_effect() {
     for cancel in [false, true] {
         let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();

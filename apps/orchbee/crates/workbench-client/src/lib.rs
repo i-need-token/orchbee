@@ -357,7 +357,7 @@ pub mod application {
     }
 
     pub mod terminal_title {
-        pub use crate::terminal_title::{display_name, stripped};
+        pub use crate::terminal_title::{display_name, program_name, stripped};
     }
 
     pub mod terminal_viewport {

@@ -229,10 +229,12 @@ impl<'a> RetainedView<'a> {
         &self,
         tab: &WorkbenchTabId,
         panel: &crate::workbench_projection::ClientPanel,
+        member: &crate::workbench_projection::ClientPresentation,
         epoch: Option<&orchbee_terminal_protocol::HostEpoch>,
         held: bool,
     ) -> Option<&'a str> {
         if !held
+            && self.state.selected_presentation(panel).presentation_id() == member.presentation_id()
             && self
                 .state
                 .pane_by_panel(panel.panel_id())
@@ -240,7 +242,6 @@ impl<'a> RetainedView<'a> {
         {
             return None;
         }
-        let member = self.state.selected_presentation(panel);
         self.frames
             .entries
             .iter()

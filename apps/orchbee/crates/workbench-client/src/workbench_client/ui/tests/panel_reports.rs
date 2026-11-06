@@ -69,10 +69,13 @@ fn completion_state_cells_use_server_facts_even_without_a_client_working_observa
             })
             .unwrap();
         let buffer = terminal.backend().buffer();
+        let view = ui.view();
+        let tab = view.tab(0).unwrap();
+        let panel_title = view.panel_label(&tab, tab.panel(0).unwrap(), Locale::EnUs);
         let (y, x) = (0..40)
             .find_map(|y| {
                 let text: String = (0..120).map(|x| buffer[(x, y)].symbol()).collect();
-                let prefix = &text[..text.find("completion-title")?];
+                let prefix = &text[..text.find(panel_title.as_ref())?];
                 let title_x = crate::terminal_text::display_width(prefix);
                 let glyph = theme.agent_glyph(expected);
                 Some((
@@ -81,7 +84,7 @@ fn completion_state_cells_use_server_facts_even_without_a_client_working_observa
                         .unwrap(),
                 ))
             })
-            .expect("a visible state cell accompanies the Agent's title");
+            .expect("a visible state cell accompanies the Panel's title");
         assert_eq!(
             Some(buffer[(x, y)].fg),
             theme
@@ -330,28 +333,15 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
         crate::tui_theme::Theme::orchbee_dark(),
     ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for (width, height, framed) in [
-                (120, 40, true),
-                (80, 24, true),
-                (60, 12, true),
-                (59, 11, false),
-                (19, 4, false),
-            ] {
+            for (width, height) in [(120, 40), (80, 24), (60, 12), (59, 11), (19, 4)] {
                 let text = paint(&ui, width, height, locale, &theme);
                 // The state glyph leads the title; state words stay in the sidebar.
-                assert_eq!(
-                    text.contains("Approval title"),
-                    framed,
-                    "{width}x{height}: {text}"
-                );
                 assert!(!text.contains("Review needed"), "{width}x{height}: {text}");
                 if width == 120 {
                     let glyph =
                         theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked);
-                    assert!(
-                        text.contains(&format!("{glyph} Approval title · branch=test")),
-                        "{text}"
-                    );
+                    assert!(text.contains(glyph), "{text}");
+                    assert!(text.contains("branch=test"), "{text}");
                 }
             }
         }
@@ -418,7 +408,9 @@ fn a_bare_single_panel_leaves_reports_to_split_and_zoomed_titles() {
 
 #[test]
 fn child_selection_discards_primary_report_and_paints_its_own_exact_observation() {
-    use orchbee_workbench_protocol::{PanelNode, Presentation, TerminalPresentationId};
+    use orchbee_workbench_protocol::{
+        PanelNode, Presentation, PresentationLaunchProgram, TerminalPresentationId,
+    };
     let mut source = super::super::tests::publication_hint::split_snapshot(1);
     let child_id = TerminalPresentationId::parse(&format!("{:032x}", 9000)).unwrap();
     let PanelNode::Split {
@@ -432,11 +424,14 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
     *orientation = orchbee_workbench_protocol::PanelOrientation::Vertical;
     let PanelNode::Panel {
         child_presentations,
+        primary_presentation,
         ..
     } = &mut children[0].node
     else {
         unreachable!()
     };
+    primary_presentation.launch_program =
+        Some(PresentationLaunchProgram::parse("pwsh.exe").unwrap());
     child_presentations.push(Presentation {
         presentation_id: child_id.clone(),
         label: "child shell".into(),
@@ -493,7 +488,12 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
             locale,
             &crate::tui_theme::Theme::terminal_native(),
         );
-        assert!(text.contains("child shell"));
+        let view = ui.view();
+        let tab = view.tab(0).unwrap();
+        assert_eq!(
+            view.panel_label(&tab, tab.panel(0).unwrap(), locale),
+            "PowerShell"
+        );
         assert!(!text.contains("Primary report") && !text.contains("branch=main"));
     }
     ui.reports.publish_for_test(Round {
@@ -504,13 +504,9 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
         )]),
     });
     let theme = crate::tui_theme::Theme::terminal_native();
-    let expected = format!(
-        "{} Child report · branch=child [2/2]",
-        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked)
-    );
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let text = paint(&ui, 120, 40, locale, &theme);
-        assert!(text.contains(&expected), "{text}");
+        assert!(text.contains("branch=child"), "{text}");
         assert!(!text.contains("Primary report"));
     }
 }

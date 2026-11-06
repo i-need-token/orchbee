@@ -258,7 +258,8 @@ pub(crate) struct PresentationPlacement {
     pub(crate) panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
     pub(crate) tab_position: usize,
     pub(crate) tab_label: String,
-    pub(crate) panel_label: String,
+    pub(crate) panel_name: NameFacts,
+    pub(crate) panel_position: usize,
     /// The attached Presentation's naming facts for the Tab strip's rule.
     pub(crate) presentation_name: NameFacts,
     /// For an automatic Tab, the facts of the member the strip names it after when no live view
@@ -350,7 +351,8 @@ impl PresentationIndex {
                             panel_id: panel.panel_id().clone(),
                             tab_position: tab_index + 1,
                             tab_label: tab.display_label(tab_index).into_owned(),
-                            panel_label: member.display_label().to_owned(),
+                            panel_name: NameFacts::of(panel.primary()),
+                            panel_position: panel_index + 1,
                             presentation_name: NameFacts::of(member),
                             automatic_tab_name: automatic_tab_name.clone(),
                             project_label: project_label.clone(),

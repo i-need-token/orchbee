@@ -213,7 +213,8 @@ fn placement(location: ClientContextLocation, tab: u64, panel: u64) -> Presentat
         panel_id: panel_id(panel),
         tab_position: 1,
         tab_label: "tab".into(),
-        panel_label: "panel".into(),
+        panel_name: NameFacts::default(),
+        panel_position: 1,
         presentation_name: NameFacts::default(),
         automatic_tab_name: None,
         project_label: None,
@@ -910,7 +911,6 @@ fn presentation_index_resolves_only_live_panel_identities() {
     assert_eq!(index.len(), 2);
     let child = index.placement(&attachment(&hex(43), true)).unwrap();
     assert_eq!(child.panel_id, panel_id(6));
-    assert_eq!(child.panel_label, "child");
 }
 
 #[test]

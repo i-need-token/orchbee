@@ -4409,9 +4409,14 @@ impl<'a> WorkbenchClientView<'a> {
         &self,
         panel: &crate::workbench_projection::ClientPanel,
     ) -> Option<&'a LaunchDescription> {
-        self.state
-            .launch_descriptions
-            .get(self.state.selected_presentation(panel).presentation_id())
+        self.presentation_launch_description(self.state.selected_presentation(panel))
+    }
+
+    pub(crate) fn presentation_launch_description(
+        &self,
+        member: &crate::workbench_projection::ClientPresentation,
+    ) -> Option<&'a LaunchDescription> {
+        self.state.launch_descriptions.get(member.presentation_id())
     }
 
     pub(crate) const fn notice(&self) -> Option<ClientNotice> {

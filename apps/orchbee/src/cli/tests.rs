@@ -504,6 +504,7 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
         workspace_id: "1".repeat(32),
         label: "1".to_owned(),
         custom_label: None,
+        launch_program: Some(launch_path.into()),
         display_label: "1".to_owned(),
         right_click: orchbee_workbench_protocol::PanelRightClickTarget::Orchbee,
         panel_id: "3".repeat(32),
@@ -541,7 +542,36 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
             .unwrap();
         let panel_title = super::panel_list::panel_title(&panel, Some(launch_path), locale);
         assert_eq!(panel_title, terminal_title, "{text}");
+        assert_eq!(
+            super::panel_list::panel_title(&panel, None, locale),
+            terminal_title
+        );
+        let mut custom = panel.clone();
+        custom.custom_label = Some("Review".into());
+        assert_eq!(
+            super::panel_list::panel_title(&custom, Some(launch_path), locale),
+            "Review"
+        );
         assert!(!terminal_title.contains('\\'), "{text}");
+        let document = |row| {
+            super::success_output(
+                Projection::PanelList(vec![row]),
+                json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
+                &QueryCommand::PanelList {
+                    tab: None,
+                    workspace: None,
+                },
+                OutputFormat::Json,
+                locale,
+            )
+        };
+        let mut without_program = panel.clone();
+        without_program.launch_program = None;
+        assert_eq!(
+            document(panel.clone()).stdout,
+            document(without_program).stdout,
+            "human launch-program enrichment must not change Panel list JSON"
+        );
     }
 }
 

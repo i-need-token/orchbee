@@ -228,8 +228,8 @@ describe('WorkbenchPanel', () => {
 		expect(markup).not.toContain('data-icon="search"');
 	});
 
-	it('projects the focused terminal natural title into the panel header', () => {
-		const panel = createPanel(null);
+	it('names the primary terminal in the Panel header while a child is displayed', () => {
+		const panel = createPanel(terminalPresentationId('terminal-2'));
 		const markup = renderPanel(
 			{
 				...panel,

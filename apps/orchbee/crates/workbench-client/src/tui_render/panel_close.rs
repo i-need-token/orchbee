@@ -36,8 +36,10 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> PanelModalDraw {
     let copy = PanelCloseCopy {
-        target: locale
-            .panel_close_target(confirmation.panel_position(), confirmation.panel_label()),
+        target: locale.panel_close_target(
+            confirmation.panel_position(),
+            &confirmation.panel_label(locale),
+        ),
         tab: locale.panel_close_tab(&confirmation.tab_label(locale)),
         dissolves_tab: confirmation.dissolves_tab(),
         consequence: locale.close_warning(confirmation.impact()),

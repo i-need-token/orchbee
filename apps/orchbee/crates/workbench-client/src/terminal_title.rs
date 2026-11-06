@@ -30,6 +30,18 @@ pub fn display_name(title: &str, locale: crate::localization::Locale) -> Option<
     ChromeName::of_title(title).map(|name| locale.chrome_name(name).into_owned())
 }
 
+/// The same launch-program fallback used by automatic Tab and Panel names.
+pub fn program_name(path: &str, locale: crate::localization::Locale) -> Option<String> {
+    Program::from_path(path).map(|program| {
+        locale
+            .chrome_name(ChromeName::Program {
+                program,
+                command: None,
+            })
+            .into_owned()
+    })
+}
+
 /// What native chrome shows for an automatic name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ChromeName<'a> {

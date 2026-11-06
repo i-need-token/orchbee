@@ -54,7 +54,8 @@ fn rows_show_title_provider_and_workspace_or_a_placeholder_never_the_session_id(
         hex(42),
         PresentationPlacement {
             tab_label: "Fix parser".into(),
-            panel_label: "Fix parser".into(),
+            panel_name: NameFacts::default(),
+            panel_position: 1,
             workspace_label: Some("orchbee".into()),
             ..placement(workspace_location(1), 2, 3)
         },

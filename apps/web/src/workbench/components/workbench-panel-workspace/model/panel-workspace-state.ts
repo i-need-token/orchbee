@@ -411,21 +411,12 @@ export function getDisplayedTerminal(panel: PanelLeaf): TerminalPresentation {
 }
 
 export function getTerminalDisplayTitle(terminal: TerminalPresentation): string {
-	return (
-		terminal.customTitle ??
-		terminal.naturalTitle ??
-		deriveTerminalDirectoryTitle(terminal.currentCwd) ??
-		terminal.title
-	);
+	return terminal.customTitle ?? getTerminalAutomaticTitle(terminal);
 }
 
-function deriveTerminalDirectoryTitle(cwd: string | null): string | null {
-	if (cwd === null) return null;
-	const trimmedCwd = cwd.trim();
-	if (trimmedCwd.length === 0) return null;
-	const cwdWithoutTrailingSeparators = trimmedCwd.replace(/[\\/]+$/u, '');
-	if (cwdWithoutTrailingSeparators.length === 0) return trimmedCwd;
-	return cwdWithoutTrailingSeparators.split(/[\\/]/u).at(-1) ?? null;
+/** The program-set title, then the projected launch-program or positional fallback. */
+export function getTerminalAutomaticTitle(terminal: TerminalPresentation): string {
+	return terminal.naturalTitle ?? terminal.title;
 }
 
 export function findTerminal(

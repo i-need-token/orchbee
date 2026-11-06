@@ -31,7 +31,6 @@ import {
 import {
 	collectPanelLeaves,
 	findPanel,
-	getDisplayedTerminal,
 	getTerminalDisplayTitle,
 	type PanelLayoutNode,
 	type PanelSplitDirection,
@@ -533,7 +532,7 @@ export function useWorkbenchPanelWorkspace({
 					impact: { ended, running },
 					panelId: panel.id,
 					tabTitle,
-					target: getTerminalDisplayTitle(getDisplayedTerminal(panel)),
+					target: getTerminalDisplayTitle(panel.primaryPresentation),
 				};
 				return new Promise<boolean>((resolve) => {
 					pendingConfirmationRef.current?.(false);

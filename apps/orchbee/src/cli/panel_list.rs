@@ -7,7 +7,7 @@ use super::{
     results::{self, PanelRow, Projection},
 };
 use crate::cli_text::CliText;
-use crate::terminal_title::display_name;
+use crate::terminal_title::{display_name, program_name};
 use crate::{
     invocation::{QueryCommand, Target},
     local_client::LocalClient,
@@ -149,7 +149,7 @@ pub(super) fn read(
 }
 
 /// The Panel list TITLE: the Panel's own label, else the primary terminal's title named by the
-/// shared terminal title rule, else the Presentation label.
+/// shared terminal title rule, then its launched program, else the Presentation label.
 pub(super) fn panel_title(
     panel: &PanelRow,
     terminal_title: Option<&str>,
@@ -159,6 +159,12 @@ pub(super) fn panel_title(
         .custom_label
         .clone()
         .or_else(|| terminal_title.and_then(|title| display_name(title, locale)))
+        .or_else(|| {
+            panel
+                .launch_program
+                .as_deref()
+                .and_then(|program| program_name(program, locale))
+        })
         .unwrap_or_else(|| panel.display_label.clone())
 }
 

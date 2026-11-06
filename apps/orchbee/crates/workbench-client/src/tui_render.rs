@@ -1001,14 +1001,21 @@ pub fn render_terminal_shell_with_resize<'a>(
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
-            let tab_title = |source: &crate::action_menu::MenuTarget| match source {
+            let menu_title = |source: &crate::action_menu::MenuTarget| match source {
+                crate::action_menu::MenuTarget::Pane(pane) => {
+                    let tab = native.tab_by_id(pane.anchor().tab_id())?;
+                    let panel = (0..tab.panel_count())
+                        .filter_map(|index| tab.panel(index))
+                        .find(|panel| panel.panel_id() == pane.pane().panel())?;
+                    Some(native.panel_label(&tab, panel, locale))
+                }
                 crate::action_menu::MenuTarget::Tab(id)
                 | crate::action_menu::MenuTarget::TabGroupChoices(id) => {
                     native.tab_by_id(id).map(|tab| tab.display_label(locale))
                 }
                 _ => None,
             };
-            let title = tab_title(menu.source);
+            let title = menu_title(menu.source);
             let mut menu = menu;
             if let Some(title) = title.as_deref() {
                 menu.title = title;
@@ -1017,7 +1024,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             let mut parents = native.action_menu_cascade();
             let parent_titles: Vec<_> = parents
                 .iter()
-                .map(|parent| tab_title(parent.source))
+                .map(|parent| menu_title(parent.source))
                 .collect();
             for (parent, title) in parents.iter_mut().zip(&parent_titles) {
                 if let Some(title) = title.as_deref() {

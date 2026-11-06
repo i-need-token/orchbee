@@ -45,9 +45,13 @@ function presentation(sequence: number) {
 }
 
 describe('WorkbenchProjectWorkspaceRuntime', () => {
-	it('names a Tab without a chosen name by its current directory until a natural title arrives', () => {
+	it('keeps automatic names on the launched program across CWD changes until a natural title arrives', () => {
 		const runtime = createSnapshotRuntime(
-			oneWorkspaceSnapshot(1, [snapshotTab(1, snapshotPanel(1), { automaticLabel: true })]),
+			oneWorkspaceSnapshot(1, [
+				snapshotTab(1, snapshotPanel(1, snapshotPresentation(1, { launchProgram: 'pwsh.exe' })), {
+					automaticLabel: true,
+				}),
+			]),
 		);
 		const context = activeTerminalContext(runtime);
 		const title = () => context.tabModel.getSnapshot().tabs[0]?.title;
@@ -59,7 +63,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				naturalTitle: null,
 			}),
 		).toEqual({ kind: 'applied' });
-		expect(title()).toBe('orchbee');
+		expect(title()).toBe('PowerShell');
 
 		runtime.applyTerminalMetadataObservation(presentation(1), {
 			currentDirectory: { kind: 'ignored' },
@@ -71,7 +75,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			currentDirectory: { currentCwd: 'C:\\Users\\someone\\orchbee', kind: 'reported' },
 			naturalTitle: null,
 		});
-		expect(title()).toBe('orchbee');
+		expect(title()).toBe('PowerShell');
 
 		runtime.applyTerminalMetadataObservation(presentation(1), {
 			currentDirectory: { currentCwd: null, kind: 'reported' },

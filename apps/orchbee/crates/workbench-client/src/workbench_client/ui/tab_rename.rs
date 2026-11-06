@@ -17,6 +17,7 @@ use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 pub(crate) struct RenameDraftView<'a>(
     rename_draft::RenameDraftView<'a>,
     Option<crate::terminal_title::ChromeName<'a>>,
+    usize,
 );
 impl<'a> RenameDraftView<'a> {
     pub(crate) fn is_panel(&self) -> bool {
@@ -35,7 +36,9 @@ impl<'a> RenameDraftView<'a> {
         &self,
         locale: crate::localization::Locale,
     ) -> std::borrow::Cow<'a, str> {
-        if self.0.automatic_label() && !self.is_panel() {
+        if self.is_panel() {
+            super::panel_label(self.1, self.2, locale)
+        } else if self.0.automatic_label() {
             super::automatic_label(self.1, self.0.position(), locale)
         } else {
             self.0.target_label()
@@ -75,11 +78,22 @@ impl<'a> RenameDraftView<'a> {
 
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn rename_draft(&self) -> Option<RenameDraftView<'a>> {
-        self.state.as_ref()?.rename_draft().map(|draft| {
-            let name = self
-                .tab(draft.position() - 1)
-                .and_then(|tab| tab.automatic_name);
-            RenameDraftView(draft, name)
+        self.state.as_ref()?.rename_draft().and_then(|draft| {
+            let tab = self.tab(draft.position() - 1)?;
+            let (name, position) = if let Some(id) = draft.panel() {
+                let index = (0..tab.panel_count()).find(|index| {
+                    tab.panel(*index)
+                        .is_some_and(|panel| panel.panel_id() == id)
+                })?;
+                let panel = tab.panel(index)?;
+                (
+                    self.presentation_fallback(&tab.inner, panel, panel.primary()),
+                    index + 1,
+                )
+            } else {
+                (tab.automatic_name, draft.position())
+            };
+            Some(RenameDraftView(draft, name, position))
         })
     }
 }

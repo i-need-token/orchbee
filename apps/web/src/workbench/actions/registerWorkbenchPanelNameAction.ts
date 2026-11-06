@@ -6,7 +6,11 @@ import {
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
-import { findPanel } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import {
+	findPanel,
+	getTerminalAutomaticTitle,
+	getTerminalDisplayTitle,
+} from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import type { WorkbenchTabTitleEditorRequest } from './registerWorkbenchTabTitleAction';
@@ -98,8 +102,8 @@ export function registerWorkbenchPanelNameAction({
 			tabId: tab.tabId,
 			terminalContextId: terminalContext.terminalContextId,
 			presentationId: primary.presentationId,
-			fallbackTitle: primary.creationLabel ?? primary.title,
-			title: primary.customTitle ?? primary.creationLabel ?? primary.title,
+			fallbackTitle: getTerminalAutomaticTitle(primary),
+			title: getTerminalDisplayTitle(primary),
 			unnamed: primary.customTitle === undefined,
 		};
 	}

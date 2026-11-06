@@ -11,7 +11,7 @@ of this operation. Windows is the runtime acceptance platform.
 The native Panel context menu and the global action menu offer Rename Panel without a new
 default key. The context row uses Rename because its frame already names the Panel. Both open
 the existing identity-bound name editor, prefilled with the primary Presentation's override.
-An empty field shows the creation name as a placeholder and accepts a clear update; the localized
+An empty field shows the primary Presentation's automatic name as a placeholder and accepts a clear update; the localized
 help explains that leaving it empty restores the original name. Editing and Escape have no Server
 effect. Submit rechecks the exact captured Panel and snapshot and uses the same canonical
 set/clear request as the CLI. A visible child terminal does not change the primary target.
@@ -25,9 +25,8 @@ label update accepts a missing value, `null`, empty text or whitespace-only text
 text is bounded to 512 Unicode code points before trimming. Trimming follows Unicode White_Space,
 including NEL and excluding BOM; Rust, TypeScript and schema evidence must agree on that boundary.
 
-Clear restores the existing creation fallback. It does not start deriving a Host natural title,
-change a Tab title, change child Presentations or set the outer terminal window title. This is a
-label-lifetime boundary of the native model, rather than a hidden replacement of fallback text.
+Clear resumes automatic display naming. It never rewrites the immutable creation label,
+changes a Tab's naming mode, changes child Presentations or sets the outer terminal window title.
 The existing Windows Workbench checkpoint retains these shared overrides; renaming adds no
 separate store.
 
@@ -105,4 +104,22 @@ CLI Panel reads keep the creation `label` and add nullable `customLabel` plus ef
 `displayLabel`; raw snapshots require the canonical nullable override. Current
 schema versions and the catalog are owned by [Native CLI queries](native-cli-query.md).
 
-In a leaf title, a provided custom Presentation title or metadata title is displayed without an added Panel ordinal, including explicitly provided numeric titles. When neither is available, the generated title retains its localized resource prefix and Panel ordinal. A bare ASCII number inherited as the creation label is omitted from that title; a nonnumeric creation label follows the ordinal. This display choice never rewrites the immutable label. All forms use the same sanitization and display-cell truncation.
+## Automatic display names
+
+A Panel always names its primary Presentation, including while a child terminal is displayed.
+It reuses the [Tab naming rule](native-tab-labels.md): the custom override, then the program-set
+title or a normalized console default title, then the committed launched program or failed-launch
+program, with its localized position last. The existing guarded live/retained observation owner
+qualifies a title by exact Presentation and binding; a child's frame never names its parent.
+An explicit custom number stays exact. A creation label, current directory or Agent metadata
+title never outranks that rule. Agent tokens and state remain separate annotations.
+
+The TUI Panel menu, split header, close confirmation, rename placeholder and notification context
+use this name. Rename placeholders omit the current override, showing what a clear would restore.
+The navigator lists Tabs rather than Panels and keeps the existing Tab naming rule. GUI Panel
+headers, close confirmations and rename placeholders use the primary by the same rule; child
+terminal strips and terminal accessibility names still identify their own Presentation. The
+human CLI `panel list` title uses the same terminal-title and launch-program naming functions;
+its ordinal/handle columns and JSON remain unchanged. The `{pane}` window-title token remains
+the explicitly documented manual override, not a chrome-name projection. All displayed names
+retain sanitization and display-cell truncation, without changing canonical labels or identities.

@@ -208,6 +208,8 @@ pub(crate) struct PanelRow {
     pub(crate) workspace_id: String,
     pub(crate) label: String,
     pub(crate) custom_label: Option<String>,
+    /// Human naming fallback only; never serialized into the Panel query document.
+    pub(crate) launch_program: Option<String>,
     pub(crate) display_label: String,
     pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     pub(crate) panel_id: String,
@@ -2675,6 +2677,17 @@ fn collect_panels<'a>(
                     .as_ref()
                     .map(|label| label.as_str().to_owned()),
                 display_label: primary_presentation.display_label().to_owned(),
+                launch_program: primary_presentation
+                    .launch_program
+                    .as_ref()
+                    .map(|program| program.as_str().to_owned())
+                    .or_else(|| {
+                        primary_presentation
+                            .launch_failure
+                            .as_ref()?
+                            .executable
+                            .clone()
+                    }),
                 right_click: *right_click,
                 panel_id: panel_id.as_str().to_owned(),
                 tab_id: tab.tab_id.as_str().to_owned(),

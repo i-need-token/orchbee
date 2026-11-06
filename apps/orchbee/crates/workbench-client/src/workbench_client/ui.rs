@@ -195,6 +195,18 @@ fn automatic_label<'a>(
     )
 }
 
+/// A Panel shares the Tab's terminal naming rule, with its own position as the last fallback.
+fn panel_label<'a>(
+    name: Option<ChromeName<'a>>,
+    position: usize,
+    locale: crate::localization::Locale,
+) -> std::borrow::Cow<'a, str> {
+    name.map_or_else(
+        || format!("{} {position}", locale.shell().panel_title).into(),
+        |name| locale.chrome_name(name),
+    )
+}
+
 impl<'a> ClientTabView<'a> {
     pub(crate) fn group(&self) -> Option<&'a orchbee_workbench_protocol::TabGroup> {
         self.inner.group()
@@ -544,22 +556,60 @@ impl<'a> WorkbenchClientView<'a> {
         tab: &StateTabView<'a>,
         panel: &'a super::ClientPanel,
     ) -> Option<ChromeName<'a>> {
-        let member = self.selected_presentation(panel);
-        let status = self.pane_projection_status(panel.panel_id());
+        self.presentation_name(tab, panel, self.selected_presentation(panel))
+    }
+
+    pub(crate) fn panel_label(
+        &self,
+        tab: &ClientTabView<'a>,
+        panel: &'a super::ClientPanel,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        let position = (0..tab.panel_count())
+            .position(|index| {
+                tab.panel(index)
+                    .is_some_and(|candidate| candidate.panel_id() == panel.panel_id())
+            })
+            .unwrap_or(0)
+            + 1;
+        panel_label(
+            self.presentation_name(&tab.inner, panel, panel.primary()),
+            position,
+            locale,
+        )
+    }
+
+    fn presentation_name(
+        &self,
+        tab: &StateTabView<'a>,
+        panel: &'a super::ClientPanel,
+        member: &'a crate::workbench_projection::ClientPresentation,
+    ) -> Option<ChromeName<'a>> {
         member
             .custom_label()
             .map(ChromeName::Text)
-            .or_else(|| {
-                (self.retirement.is_none() && status == ClientProjectionStatus::FrameAvailable)
-                    .then(|| self.pane_projection(panel.panel_id()))
-                    .flatten()
-                    .and_then(|projection| projection.frame())
-                    .and_then(|frame| frame.title.as_deref())
-                    .and_then(ChromeName::of_title)
-            })
+            .or_else(|| self.presentation_fallback(tab, panel, member))
+    }
+
+    fn presentation_fallback(
+        &self,
+        tab: &StateTabView<'a>,
+        panel: &'a super::ClientPanel,
+        member: &'a crate::workbench_projection::ClientPresentation,
+    ) -> Option<ChromeName<'a>> {
+        let selected =
+            self.selected_presentation(panel).presentation_id() == member.presentation_id();
+        let status = self.pane_projection_status(panel.panel_id());
+        (selected && self.retirement.is_none() && status == ClientProjectionStatus::FrameAvailable)
+            .then(|| self.pane_projection(panel.panel_id()))
+            .flatten()
+            .and_then(|projection| projection.frame())
+            .and_then(|frame| frame.title.as_deref())
+            .and_then(ChromeName::of_title)
             .or_else(|| {
                 (self.retirement.is_none()
-                    && (!tab.active()
+                    && (!selected
+                        || !tab.active()
                         || matches!(
                             status,
                             ClientProjectionStatus::Empty
@@ -569,9 +619,14 @@ impl<'a> WorkbenchClientView<'a> {
                     self.retained_frames.as_ref()?.title(
                         tab.tab_id(),
                         panel,
-                        self.pane_projection(panel.panel_id())
-                            .map(TerminalProjection::epoch),
-                        self.normal_exit_held(panel.panel_id()),
+                        member,
+                        selected
+                            .then(|| {
+                                self.pane_projection(panel.panel_id())
+                                    .map(TerminalProjection::epoch)
+                            })
+                            .flatten(),
+                        selected && self.normal_exit_held(panel.panel_id()),
                     )
                 })
                 .flatten()
@@ -583,7 +638,7 @@ impl<'a> WorkbenchClientView<'a> {
                     .or_else(|| {
                         self.state
                             .as_ref()?
-                            .launch_description(panel)
+                            .presentation_launch_description(member)
                             .and_then(|description| description.executable.as_deref())
                     })
                     .or_else(|| member.launch_failure()?.executable.as_deref())

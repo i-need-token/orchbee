@@ -108,7 +108,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 					</Tooltip>
 				)}
 				<div className={styles['title']} data-slot='workbench-panel-header-title'>
-					{getTerminalDisplayTitle(displayedTerminal)}
+					{getTerminalDisplayTitle(panel.primaryPresentation)}
 				</div>
 			</div>
 			<div className={styles['actions']} data-slot='workbench-panel-header-actions'>

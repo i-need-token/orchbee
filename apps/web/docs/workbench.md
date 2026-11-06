@@ -302,7 +302,7 @@ The Panel menu starts with Rename; Action search exposes Rename Panel through
 `workbench.panel.rename`. Both reuse the name dialog and the Server's canonical `panel.rename`
 set/clear operation. The captured Panel's primary Presentation owns the override, even while a
 child terminal is displayed. The field starts with that override; a blank field shows the
-creation name and the help explaining that blank restores it. Submit validates the captured
+automatic primary name and the help explaining that blank restores it. Submit validates the captured
 primary identity and the Server normalizes the bounded text; focus changes never redirect it.
 Cancel changes nothing, target removal closes the editor, and only a Server publication changes
 the shared label. The operation adds no default binding or confirmation. The native counterpart
@@ -312,3 +312,9 @@ Clear terminal remains in the terminal viewport's existing terminal-command sect
 Panel commands, under `terminal.clear`; the native menu uses the same labels and clear effect.
 The [native clear contract](../../orchbee/docs/native-cli-query.md#clear-terminal-output) owns its
 exact-terminal behavior. Neither Client adds a confirmation or sends a Shell command.
+
+Panel headers and close confirmations name the primary Presentation even while a child is shown.
+They reuse the Tab's terminal-title function: custom override, then the normalized program-set or
+console-default title, then the projected launch-program or positional fallback. Current CWD and
+immutable creation labels do not replace that name. A rename placeholder uses the same automatic
+function without the override; child strips continue to name their own terminals.

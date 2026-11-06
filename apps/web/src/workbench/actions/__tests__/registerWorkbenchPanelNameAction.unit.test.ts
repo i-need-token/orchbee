@@ -33,9 +33,11 @@ it('captures the primary name while a child is displayed, supports clear, and re
 		oneWorkspaceSnapshot(1, [
 			snapshotTab(
 				1,
-				snapshotPanel(1, snapshotPresentation(1, { customLabel: 'Primary name' }), [
-					snapshotPresentation(2, { customLabel: 'Child name' }),
-				]),
+				snapshotPanel(
+					1,
+					snapshotPresentation(1, { customLabel: 'Primary name', launchProgram: 'pwsh.exe' }),
+					[snapshotPresentation(2, { customLabel: 'Child name' })],
+				),
 			),
 			snapshotTab(2, snapshotPanel(3)),
 		]),
@@ -64,6 +66,7 @@ it('captures the primary name while a child is displayed, supports clear, and re
 	expect(captured).toMatchObject({
 		panelId: fixturePanelId(1),
 		presentationId: fixturePresentationId(1),
+		fallbackTitle: 'PowerShell',
 		title: 'Primary name',
 		unnamed: false,
 	});

@@ -213,7 +213,7 @@ current-directory metadata with the exact `TerminalPresentationId`. The shared c
 normalizes that observation with the trusted terminal-machine hostname from the client-session
 bootstrap and applies it to the matching Workbench presentation. Natural titles and accepted
 current CWD remain transient. The Server holds each Tab's fallback and chosen name; Workbench
-shows the chosen name, or else the focused terminal's natural title, current directory, or
+shows the chosen name, or else the focused terminal's natural title, launched program, or
 fallback. The page never derives terminal trust from its own URL hostname.
 
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal

@@ -202,11 +202,30 @@ impl WorkbenchClientUi {
             matches!(command.kind, AgentNotificationKind::Request),
         );
         let body = placement.map(|placement| {
+            let view = self.view();
+            let tab = self
+                .state
+                .as_ref()
+                .filter(|state| state.cache().location() == &placement.location)
+                .and_then(|_| view.tab_by_id(&placement.tab_id));
+            let live = tab.as_ref().and_then(|tab| {
+                let panel = (0..tab.panel_count())
+                    .filter_map(|index| tab.panel(index))
+                    .find(|panel| panel.panel_id() == &placement.panel_id)?;
+                Some(view.panel_label(tab, panel, locale))
+            });
+            let panel_label = live.unwrap_or_else(|| {
+                super::panel_label(
+                    placement.panel_name.chrome(),
+                    placement.panel_position,
+                    locale,
+                )
+            });
             locale.agent_notification_context(
                 placement.workspace_label.as_deref(),
                 placement.project_label.as_deref(),
                 &placement.tab_label,
-                &placement.panel_label,
+                &panel_label,
             )
         });
         let sound = if command.sound {

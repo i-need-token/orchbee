@@ -363,7 +363,9 @@ presentation's `label`, nullable `customLabel`, and `displayLabel`. These are th
 same canonical values returned by `panel get`, not inferred process or Agent titles.
 JSON preserves labels exactly; text escapes them and bounds list display width. The text
 `TITLE` column is a human projection: the custom label when one is set, otherwise the primary
-terminal's title named as the terminal list names it, otherwise `displayLabel`.
+terminal's title named as the terminal list names it, then its committed or failed-launch program,
+otherwise `displayLabel`. The program fallback uses the same naming function as native chrome;
+these transient human names never change the JSON labels.
 
 These projections consume one validated Workbench snapshot and retain its source
 revision, existing-only admission, bounded output, and headless availability. They
@@ -2826,7 +2828,7 @@ Maintained Windows process checks cover Unicode/space and relative paths, full a
 
 ## Shared Panel titles
 
-`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:0x<hex>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v1 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v1 preserves the canonical optional override. The offline catalog lists the current documents and command paths.
+`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) removes it and resumes automatic chrome naming. Its canonical `displayLabel` still falls back to the immutable creation label. It accepts an exact ID or `@panel:0x<hex>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v1 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v1 preserves the canonical optional override. The offline catalog lists the current documents and command paths.
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](native-panel-swap.md) owns the workflow, receipt and evidence.
 

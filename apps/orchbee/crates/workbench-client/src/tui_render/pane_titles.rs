@@ -59,7 +59,8 @@ pub(super) fn paint(
         (None, Some(panel)) => name(
             panel,
             native,
-            text,
+            &title.tab,
+            locale,
             theme.glyphs.middle_dot,
             selector.is_some(),
         ),
@@ -182,20 +183,19 @@ pub(super) fn paint(
     }
 }
 
-/// Custom and metadata titles win over the creation label; a numeric creation label keeps the
-/// localized Terminal prefix. Without room for the selector, a member still shows its position.
+/// A Panel names its primary Presentation by the Tab rule. Without room for the selector, the
+/// displayed member still shows its position alongside that name.
 fn name(
     panel: &crate::workbench_projection::ClientPanel,
     native: &WorkbenchClientView<'_>,
-    text: ShellText<'_>,
+    tab: &ClientTabView<'_>,
+    locale: Locale,
     separator: &str,
     selector: bool,
 ) -> String {
     let presentation = native.selected_presentation(panel);
     let name = super::panel_reports::title(
-        presentation.custom_label(),
-        presentation.display_label(),
-        text.panel_title,
+        &native.panel_label(tab, panel, locale),
         native.panel_report(panel),
         separator,
     );

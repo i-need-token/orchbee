@@ -63,6 +63,10 @@ rename draft over its whole painted Tab, close control included, widening along 
 24 cells when possible; when fewer than eight cells fit it uses the complete
 modal. Enter submits and Esc cancels; the same exact shown token and input fences apply in both forms.
 
+[Panel display names](native-panel-labels.md#automatic-display-names) reuse this terminal naming
+rule for the Panel's primary Presentation, even when the displayed terminal is a child. They
+fall back to the Panel's own position; they never borrow another Panel's focused terminal name.
+
 Compact Tabs show the active Tab as a bold label on the current surface, without a marker,
 and end labels longer than 24 cells in an ellipsis. A Tab with a reported Agent leads with its state
 glyph and follows with an unread dot. Each wide enough token reserves a stable three-cell close track

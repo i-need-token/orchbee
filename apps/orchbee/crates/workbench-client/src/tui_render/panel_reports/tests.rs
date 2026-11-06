@@ -19,67 +19,11 @@ fn row() -> PanelReport {
 }
 
 #[test]
-fn provided_titles_and_creation_numbers_survive_layout_reordering() {
-    let report = row();
-    assert_eq!(
-        title(
-            Some("1"),
-            "Shell",
-            "Terminal",
-            PanelReportView::Ready(&report),
-            "·",
-        ),
-        "1 · branch=feature"
-    );
-
-    let mut metadata = row();
-    metadata.metadata.title = Some(serde_json::from_value(json!("Build Shell")).unwrap());
-    metadata.tokens = serde_json::from_value(json!({})).unwrap();
-    assert_eq!(
-        title(
-            None,
-            "Shell",
-            "Terminal",
-            PanelReportView::Ready(&metadata),
-            "·"
-        ),
-        "Build Shell"
-    );
-
-    assert_eq!(
-        title(None, "Shell", "Terminal", PanelReportView::Pending, "·"),
-        "Shell"
-    );
-
-    for inherited_number in ["1", "5"] {
-        assert_eq!(
-            title(
-                None,
-                inherited_number,
-                "Terminal",
-                PanelReportView::Pending,
-                "·"
-            ),
-            format!("Terminal {inherited_number}"),
-        );
-    }
-}
-
-#[test]
 fn custom_and_display_titles_never_inject_terminal_controls() {
     // Metadata titles are rejected at the contract boundary; Presentation labels arrive raw.
     let report = row();
-    for (custom, display) in [
-        (Some("自定义标题\u{1b}[31m\n\u{202e}"), "Shell"),
-        (None, "名称\u{1b}]0;x\u{7}"),
-    ] {
-        let text = title(
-            custom,
-            display,
-            "Terminal",
-            PanelReportView::Ready(&report),
-            "·",
-        );
+    for display in ["自定义标题\u{1b}[31m\n\u{202e}", "名称\u{1b}]0;x\u{7}"] {
+        let text = title(display, PanelReportView::Ready(&report), "·");
         assert!(text.ends_with("branch=feature"), "{text:?}");
         assert!(
             !text

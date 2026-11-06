@@ -24,7 +24,7 @@ The renderer checks the current Presentation ID and binding again. Read-only obs
 
 ## Header behavior
 
-Explicit custom Panel titles take precedence over guarded metadata titles, then the existing creation/display label. Global metadata tokens append as literal key/value text after the title; width limits may hide trailing tokens. Absence of a reported Agent does not invent idle or a canonical session.
+Panel titles follow the primary Presentation's [automatic naming rule](native-panel-labels.md#automatic-display-names), independent of Agent metadata titles. Global metadata tokens append as literal key/value text after the title; width limits may hide trailing tokens. Absence of a reported Agent does not invent idle or a canonical session.
 
 Split and zoomed Panels paint these observations in titles on the frame or divider line above each leaf. A single Panel is bare and has no title; its terminal content begins directly below Tabs. Report reads and exact-scope invalidation remain available to the owning observation model. The member selector ends the leaf's title line, or the Tab strip for a bare Panel; its pointer regions remain separate from Tabs, Actions and terminal content. The Minimal tier keeps its unframed single-Panel display and keyboard selection route.
 
