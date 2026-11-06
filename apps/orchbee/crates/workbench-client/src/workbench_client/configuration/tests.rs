@@ -754,7 +754,7 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
 // The Session retains the read-failure diagnostic even after Settings repairs the record.
 // Exercise the watcher projection, rather than pinning rendered wording.
 #[test]
-fn unreadable_preferences_have_a_recovery_notice_until_confirmed_settings_arrive() {
+fn unreadable_preferences_keep_a_recovery_notice_until_a_readable_source_arrives() {
     use orchbee_workbench_protocol::{ConfigurationDiagnostic, ConfigurationDiagnosticDisposition};
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
@@ -775,7 +775,11 @@ fn unreadable_preferences_have_a_recovery_notice_until_confirmed_settings_arrive
     assert!(watcher.tick(&mut view));
     assert_eq!(view.notice(), Some(Notice::PreferencesUnreadable));
 
+    // The startup snapshot of an unreadable record keeps the notice; Reset all's replacement ends it.
+    view.preferences_source("unreadable");
     view.apply_user_preferences(Default::default());
+    assert_eq!(view.notice(), Some(Notice::PreferencesUnreadable));
+    view.preferences_source(&"0".repeat(64));
     assert_eq!(view.notice(), None);
     published.revision = WorkbenchRevision::new(2);
     watcher.shared.0.lock().unwrap().snapshot = Some(published.clone());

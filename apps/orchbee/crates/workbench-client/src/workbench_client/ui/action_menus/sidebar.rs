@@ -63,36 +63,6 @@ fn belongs(entry: &MenuTarget, episode: &Discovery) -> bool {
     }
 }
 
-/// The recorded directories of a Project's Workspaces in navigation order, each once.
-pub(super) fn project_folders(
-    state: &WorkbenchClientState,
-    project: &orchbee_workbench_protocol::WorkbenchProjectId,
-) -> Vec<orchbee_workbench_protocol::WorkbenchDirectoryPath> {
-    let navigation = &state.cache().canonical_snapshot().navigation;
-    let Ok(ordered) = navigation.ordered_workspaces() else {
-        return Vec::new();
-    };
-    let mut folders: Vec<orchbee_workbench_protocol::WorkbenchDirectoryPath> = Vec::new();
-    for (_, workspace) in ordered
-        .into_iter()
-        .filter(|(member, _)| member.is_some_and(|member| &member.project_id == project))
-    {
-        let Some(directory) = navigation.workspace_directory(&workspace.workspace_id) else {
-            continue;
-        };
-        // Spellings of one Windows directory, such as by case or separator, share one row.
-        if !folders.iter().any(|folder| {
-            orchbee_workbench_protocol::same_directory_spelling(
-                folder.as_str(),
-                directory.path.as_str(),
-            )
-        }) {
-            folders.push(directory.path.clone());
-        }
-    }
-    folders
-}
-
 /// Display text for folder and checkout rows, which name a path rather than an action.
 pub(super) struct ChoiceLabels(Vec<(MenuAction, String)>);
 
@@ -212,24 +182,6 @@ pub(super) fn actions(
     let ready = episode.and_then(Discovery::recognized);
     let outside_git = !episode.is_some_and(Discovery::git_known);
     let actions = match entry {
-        // Checkouts join the submenu when discovery proves them; New Worktree… waits disabled.
-        MenuTarget::WorkspaceCreation(_) => {
-            let mut actions: Vec<_> = actions
-                .into_iter()
-                .filter(|action| {
-                    !matches!(action, MenuAction::OpenWorktreeAt(_))
-                        && !(outside_git && *action == MenuAction::NewWorktree)
-                })
-                .collect();
-            if !outside_git && !actions.contains(&MenuAction::NewWorktree) {
-                let index = usize::from(actions.first() == Some(&MenuAction::QuickWorkspace));
-                actions.insert(index, MenuAction::NewWorktree);
-            }
-            if let Some(ready) = ready {
-                actions.extend(checkout_actions(ready));
-            }
-            actions
-        }
         // Removal is offered only for a proven linked checkout. It follows the close row, so its
         // late arrival leaves every row above it in place.
         MenuTarget::Workspace(_) => {
@@ -251,8 +203,9 @@ pub(super) fn actions(
         }
         MenuTarget::WorkspaceWorktrees(_) => ready.map(other_checkout_actions).unwrap_or_default(),
         MenuTarget::Project(_) => actions,
-        MenuTarget::Create(project) => {
-            let mut actions = vec![if project.is_some() {
+        MenuTarget::WorkspaceCreation(_) | MenuTarget::Create(_) => {
+            let project = !matches!(entry, MenuTarget::Create(None));
+            let mut actions = vec![if project {
                 MenuAction::QuickWorkspace
             } else {
                 MenuAction::NewWorkspace

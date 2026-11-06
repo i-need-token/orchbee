@@ -12,6 +12,7 @@ use super::{PointerTrackingLevel, SynchronizedUpdateLease, TerminalModes};
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Operation {
     Bell,
+    HostBackground(Option<u32>),
     CleanupGraphics,
     QueryGraphics,
     QueryPointerAdmission,
@@ -82,6 +83,9 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    fn set_host_background(&self, rgb: Option<u32>) -> io::Result<()> {
+        self.perform(Operation::HostBackground(rgb))
+    }
     fn ring_bell(&self) -> io::Result<()> {
         self.perform(Operation::Bell)
     }

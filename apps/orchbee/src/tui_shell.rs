@@ -409,6 +409,30 @@ fn run_prepared_surface(
         .set_focus_reporting(true)
         .map_err(TuiFailure::Runtime)?;
 
+    // An inherited outer-host marker cannot admit effects through a multiplexer or nested host:
+    // tmux, Zellij, screen, Herdr, an Orchbee terminal, or any host that names itself in
+    // TERM_PROGRAM (Windows Terminal sets none). Their panes would retint the outer window.
+    let host_background_admitted = cfg!(windows)
+        && std::env::var("WT_SESSION").is_ok_and(|value| {
+            value.len() == 36
+                && value.bytes().enumerate().all(|(index, byte)| {
+                    if matches!(index, 8 | 13 | 18 | 23) {
+                        byte == b'-'
+                    } else {
+                        byte.is_ascii_hexdigit()
+                    }
+                })
+        })
+        && ![
+            "TMUX",
+            "ZELLIJ",
+            "STY",
+            "HERDR_ENV",
+            "ORCHBEE_PANE_ID",
+            "TERM_PROGRAM",
+        ]
+        .iter()
+        .any(|name| std::env::var_os(name).is_some());
     let mut system_notifications = crate::notifications::SystemNotifications::new();
     let mut surface = SurfaceSlot::Owned(terminal_input);
     let mut machines = None;
@@ -422,6 +446,13 @@ fn run_prepared_surface(
             let started = measurements.start();
             let result = match request {
                 ModeRequest::Bell => modes.ring_bell(),
+                ModeRequest::HostBackground(rgb) => {
+                    if host_background_admitted {
+                        modes.set_host_background(rgb)
+                    } else {
+                        Ok(())
+                    }
+                }
                 ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
                 ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
                 ModeRequest::AppearanceQuery(query) => modes.query_host_appearance(query),
@@ -1216,6 +1247,9 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         dispatcher.invalidate_hit_map(surface);
         return Err(LoopFailure::Terminal(error));
     }
+    dispatcher.synchronize_host_background(&theme, &mut |request| {
+        mode(request).map_err(LoopFailure::Input)
+    })?;
     if panel_held {
         // As for a held frame: the Panel's targets would act on a terminal it does not show yet,
         // and no draw receipt is minted until that terminal's first frame.

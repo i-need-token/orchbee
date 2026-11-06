@@ -624,53 +624,6 @@ fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current(
 }
 
 #[test]
-fn project_folder_row_prepares_quick_creation_in_that_folder_without_navigation() {
-    let mut snapshot = snapshot();
-    snapshot.terminal_contexts[0].tabs.clear();
-    let project = snapshot.navigation.projects[0].clone();
-    let folder = WorkbenchDirectoryPath::parse("C:/project").unwrap();
-    let location = workspace(&snapshot, &snapshot.navigation.projects[1]);
-    let (mut ui, mailbox) = ready(&snapshot, &location);
-    let origin = Origin::capture(ui.state.as_ref());
-    assert!(open(&mut ui, &project));
-    open_creation(&mut ui);
-    let row = action_row(&ui, MenuAction::WorkspaceInFolder(folder.clone()));
-    {
-        let view = ui.view();
-        let menu = view.action_menu().unwrap();
-        assert_eq!(
-            menu.labels[row].as_deref(),
-            Some("project"),
-            "a folder row shows its name"
-        );
-        assert_eq!(menu.unavailable[row], None);
-    }
-    let token = arm(&mut ui);
-    activate_row(&mut ui, token, row);
-    let action = ui.take_action_menu_action(false).unwrap();
-    assert!(matches!(
-        action.intent(),
-        ClientAction::RequestProjectQuickWorkspace
-    ));
-    assert!(!ui.action_menu_active());
-    assert_eq!(Origin::capture(ui.state.as_ref()), origin);
-    assert!(mailbox.try_recv().unwrap().is_none());
-    ui.apply_client_action(action);
-    let lease = mailbox.try_recv().unwrap().unwrap();
-    let QueuedCommand::Refresh(marker) = lease.record() else {
-        panic!("read-only preparation");
-    };
-    let preparation = marker.quick_preparation().unwrap();
-    assert_eq!(
-        preparation.target.as_ref().unwrap().directory(),
-        Some(&folder),
-        "the chosen folder replaces the default directory"
-    );
-    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
-    mailbox.close(CarrierFailure::WorkerExited);
-}
-
-#[test]
 fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_focus() {
     for initial_workspace in [true, false] {
         for empty in [true, false] {

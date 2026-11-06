@@ -550,6 +550,8 @@ struct Focus {
 pub(super) struct SidebarNavigation {
     active: bool,
     focus: Option<Focus>,
+    // Focus can arrive before the command lane publishes the new Workspace's parent.
+    pub(super) reveal_workspace: Option<SidebarTarget>,
     // Folded Project and Recents headings; every group starts expanded.
     collapsed: Vec<SidebarTarget>,
     // Every Context is expanded by default; retain independent explicit collapse choices.
@@ -1172,6 +1174,14 @@ impl Picker {
         true
     }
     pub(super) fn reconcile_sidebar_navigation(&mut self) {
+        if let Some(target) = self.navigation.reveal_workspace.as_ref()
+            && let Some(parent) = self.sidebar_parent(target)
+        {
+            self.navigation.collapsed.retain(|held| held != &parent);
+            self.navigation.reveal_workspace = None;
+            self.navigation.focus = None;
+            self.spaces.reveal();
+        }
         let collapsed = std::mem::take(&mut self.navigation.collapsed);
         self.navigation.collapsed = collapsed
             .into_iter()

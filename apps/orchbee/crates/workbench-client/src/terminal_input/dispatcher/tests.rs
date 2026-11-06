@@ -2904,3 +2904,32 @@ fn pane_ref() -> crate::workbench_state::PaneRef {
         0,
     )
 }
+
+#[test]
+fn host_background_follows_runtime_theme_and_releases_to_terminal_native() {
+    let mut dispatcher = InputDispatcher::default();
+    let mut requests = Vec::new();
+    let mut mode = |request| {
+        requests.push(request);
+        Ok::<(), ()>(())
+    };
+    let native = crate::tui_theme::Theme::terminal_native();
+    let dark = crate::tui_theme::Theme::orchbee_dark();
+    let light = crate::tui_theme::Theme::orchbee_light();
+    for theme in [native, dark, dark, light, native, native] {
+        dispatcher
+            .synchronize_host_background(&theme, &mut mode)
+            .unwrap();
+    }
+    assert_eq!(
+        requests,
+        vec![
+            ModeRequest::HostBackground(dark.host_background()),
+            ModeRequest::HostBackground(light.host_background()),
+            ModeRequest::HostBackground(None),
+        ]
+    );
+    assert!(dark.host_background().is_some());
+    assert_ne!(dark.host_background(), light.host_background());
+    assert!(dark.with_no_color(true).host_background().is_none());
+}

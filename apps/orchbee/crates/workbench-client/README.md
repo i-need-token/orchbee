@@ -161,8 +161,9 @@ all stages a full-null reset, saved through the ordinary explicit Save boundary 
 `unreadable` basis. Storage rechecks the current refused record and preserves a concurrent repair.
 
 The main frame uses the same terse recovery wording and directs the user to Reset all in Settings,
-rather than `orchbee config check`. The Session's historical shared-preference diagnostic stops
-producing a frame notice once confirmed Settings values arrive; unrelated configuration warnings
-retain their existing guidance.
+rather than `orchbee config check`. Once a confirmed Settings snapshot arrives, its source decides
+the notice instead of the Session's historical diagnostic: it stays while the source is unreadable
+and ends when Reset all replaces the record. Unrelated configuration warnings retain their existing
+guidance.
 The [shared preference contract](../../../../crates/workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
 owns token and storage rules. No read silently repairs or migrates a record.

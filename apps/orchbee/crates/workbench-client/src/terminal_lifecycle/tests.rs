@@ -1206,3 +1206,71 @@ fn graphics_cleanup_precedes_mode_restore_and_retains_debt_after_failed_flush() 
         );
     }
 }
+
+// Static checks cannot prove restoration after an unknown host-effect write.
+#[test]
+fn host_background_write_failure_is_fenced_and_cleanup_runs_before_leaving_screen() -> io::Result<()>
+{
+    use crossterm::Command;
+    let mut wire = String::new();
+    super::HostBackground(Some(0x123456))
+        .write_ansi(&mut wire)
+        .unwrap();
+    super::HostBackground(None).write_ansi(&mut wire).unwrap();
+    assert!(wire.contains("\x1b]11;#123456\x1b\\"));
+    assert!(wire.contains("\x1b]111\x1b\\"));
+    let control = FakeTerminalModes::with_failures([
+        (Operation::HostBackground(Some(0x123456)), 1),
+        (Operation::HostBackground(None), 1),
+    ]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    assert!(guard.set_host_background(Some(0x123456)).is_err());
+    assert!(guard.set_host_background(Some(0xabcdef)).is_err());
+    guard.restore().map_err(io::Error::other)?;
+    let ops = control.operations();
+    assert_eq!(
+        ops.iter()
+            .filter(|op| **op == Operation::HostBackground(None))
+            .count(),
+        2
+    );
+    assert!(
+        ops.iter()
+            .position(|op| *op == Operation::HostBackground(None))
+            < ops.iter().position(|op| *op == Operation::LeaveAlternate)
+    );
+    guard.restore().map_err(io::Error::other)?;
+    assert!(guard.set_host_background(Some(0x123456)).is_err());
+    assert_eq!(control.operations(), ops);
+    Ok(())
+}
+
+#[test]
+fn host_background_panic_and_terminal_native_release_consume_cleanup_once() -> io::Result<()> {
+    let _lock = lock_panic_hook_tests()?;
+    for release_first in [false, true] {
+        let control = FakeTerminalModes::default();
+        let mut guard = TerminalModeGuard::enter(control.clone())?;
+        guard.set_host_background(None)?;
+        assert!(
+            !control
+                .operations()
+                .contains(&Operation::HostBackground(None))
+        );
+        guard.set_host_background(Some(0x123456))?;
+        if release_first {
+            guard.set_host_background(None)?;
+        }
+        assert!(catch_unwind(AssertUnwindSafe(|| panic!("background owner panic"))).is_err());
+        drop(guard);
+        assert_eq!(
+            control
+                .operations()
+                .iter()
+                .filter(|op| **op == Operation::HostBackground(None))
+                .count(),
+            1
+        );
+    }
+    Ok(())
+}

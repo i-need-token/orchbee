@@ -151,6 +151,15 @@ impl Picker {
             return false;
         }
         let selected = self.selection();
+        if self.current != machine || self.current_context != context {
+            self.navigation.reveal_workspace =
+                context
+                    .as_ref()
+                    .map(|target| super::SidebarTarget::Context {
+                        machine: machine.clone(),
+                        target: target.clone(),
+                    });
+        }
         self.agent_attention_refresh = true;
         self.current = machine;
         self.current_context = context;

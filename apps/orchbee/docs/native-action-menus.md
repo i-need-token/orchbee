@@ -230,18 +230,12 @@ pointer capture. Unknown asynchronous prerequisites continue through their origi
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose New Workspace ▸ and Rename Project, then a separated Dissolve Project, shown as Rename and Dissolve. New
-Workspace ▸ lists New Worktree…; a Folders group with the directories recorded by the Project's
-Workspaces (navigation order, deduplicated by `same_directory_spelling`, so on Windows ASCII case,
-either separator and a trailing separator never split one directory, labelled by directory name, or by the
-full path when names repeat); and a Git Worktrees group with the discovered non-bare checkouts
-(labelled by branch without `refs/heads/`, else by path). Group headings use `text-secondary` and
-are never selectable. A folder row creates a Workspace in that directory through the existing
-Project quick path of the [setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership),
-including empty and noncurrent Projects, without a Project picker. While the Project records no
-folder, as an empty Project does, New Workspace leads the submenu and runs the same Project quick
-path as the row's create action, so the submenu always holds a usable row. It stays a submenu even
-when that is its only enabled row, because each row kind has one shared menu. Rename
+Project menus expose New Workspace and Rename Project, then a separated Dissolve Project, shown as Rename and Dissolve.
+The New Workspace submenu uses the same choices as the exact Project's sidebar `+` button: New Workspace,
+New Workspace in directory, and the discovered openable Worktree paths. Both creation entries
+use the same composition and availability rules, including empty and noncurrent Projects. Directory
+entry runs the existing setup workflow; default creation runs the Project quick path. The submenu
+stays a submenu even when only one choice is enabled. Rename
 and Dissolve also target the drawn Project without entering a child. Dissolve Project removes only
 that organization: every member Workspace, terminal, program and identity survives ungrouped, so the
 row is not destructive. It never composes Close All with removal.
@@ -314,7 +308,7 @@ Their frame title is New Workspace, which names what every row does, as the new-
 profile menu is titled New Tab; a Project entry never carries the Project's name, which would read
 as adding a Project. The Project entry puts Quick Workspace first. Existing Worktree paths and their preceding separator
 appear only after source discovery yields openable entries; an empty or unresolved list contributes
-neither. This checkout list is independent of the row menu's New Workspace ▸. Successful asynchronous
+neither. This checkout list is shared with the row menu's New Workspace ▸. Successful asynchronous
 composition mints a fresh menu token and requires a new complete draw; late replies cannot reopen
 cancelled menus or retarget another episode. The [shell layout](tui-shell-layout.md#quick-creation-controls)
 owns the entry geometry and direct Tab-strip create gesture.

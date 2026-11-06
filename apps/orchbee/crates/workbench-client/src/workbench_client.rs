@@ -457,6 +457,7 @@ impl WorkbenchClient {
         if let Some(snapshot) = native.take_settings_snapshot() {
             // ClientView is the single writer of confirmed preferences; the UI receives the
             // owner's values in the same settlement, before any input or paint observes them.
+            view.preferences_source(&snapshot.source);
             view.apply_user_preferences(snapshot.values);
             if let Some(values) = view.user_preferences() {
                 native.apply_user_preferences(values);

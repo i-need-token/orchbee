@@ -78,6 +78,11 @@ Definite refusal removes the provisional display. Unknown or committed-but-unrec
 retain their existing request/resource recovery facts without replay or replacement.
 Carrier retirement immediately hides creation feedback while preserving those recovery facts.
 
+When the initiating Client enters the created Workspace, its Project or Recents group expands and
+sidebar navigation follows that Workspace. Focus and topology may arrive in either order; a topology
+publication alone does not expand a folded group, and a later explicit fold stays folded. A newer
+navigation intent still revokes automatic entry by the rules above.
+
 The known Workspace ID replaces the provisional row. The active Client's validated command-lane
 snapshot supplies canonical sidebar topology without waiting for the independent metadata observer.
 A newer same-Session checkpoint supersedes older topology, including when it removed the Workspace.

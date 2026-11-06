@@ -451,6 +451,15 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// Named themes align non-cell host padding with the rendered canvas.
+    pub fn host_background(&self) -> Option<u32> {
+        if self.palette.is_none() || self.no_color {
+            return None;
+        }
+        let (r, g, b) = sampled_color(self.color(Role::SurfaceCanvas))?;
+        Some((u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b))
+    }
+
     /// The filled `⬢` U+2B22 and hollow `⬡` U+2B21 hexagons echo the honeycomb mark. Both are East
     /// Asian Neutral, so they keep one cell even on hosts that widen ambiguous-width text.
     pub(crate) fn agent_glyph(

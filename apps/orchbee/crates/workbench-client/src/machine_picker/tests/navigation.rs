@@ -39,6 +39,48 @@ fn picker() -> Picker {
 }
 
 #[test]
+fn entering_a_created_workspace_reveals_its_group_in_either_publication_order() {
+    for focus_first in [false, true] {
+        let mut picker = picker();
+        picker.observe_focus(Choice::Local, Some(workspace(2, 23).target), None);
+        let created = SidebarTarget::Context {
+            machine: Choice::Local,
+            target: workspace(1, 24).target,
+        };
+        let existing = SidebarTarget::Context {
+            machine: Choice::Local,
+            target: workspace(1, 21).target,
+        };
+        let parent = picker.sidebar_parent(&existing).unwrap();
+        assert!(picker.toggle_sidebar_group(&parent));
+        assert!(!picker.sidebar_group_expanded(&parent));
+        let publish = |picker: &mut Picker| {
+            picker.observe_local(vec![workspace(1, 21), workspace(1, 24), workspace(2, 23)]);
+        };
+        if !focus_first {
+            publish(&mut picker);
+            assert!(
+                !picker.sidebar_group_expanded(&parent),
+                "publication alone preserves disclosure"
+            );
+        }
+        picker.observe_focus(Choice::Local, Some(workspace(1, 24).target), None);
+        if focus_first {
+            publish(&mut picker);
+        }
+        assert!(picker.sidebar_group_expanded(&parent));
+        assert!(picker.enter_sidebar_navigation());
+        assert_eq!(picker.sidebar_focused_target(), Some(&created));
+        assert!(picker.toggle_sidebar_group(&parent));
+        picker.observe_focus(Choice::Local, Some(workspace(1, 24).target), None);
+        assert!(
+            !picker.sidebar_group_expanded(&parent),
+            "same focus does not undo an explicit fold"
+        );
+    }
+}
+
+#[test]
 fn sorting_bindings_emit_the_focused_identity_without_navigation_or_repeat() {
     let mut picker = picker();
     assert!(picker.enter_sidebar_navigation());

@@ -5,7 +5,8 @@
 The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
 choose an application appearance (Light, Dark, System), one theme for each of the light and dark
 slots, the native Client's color source (Theme or Terminal colors) and terminal defaults (Theme,
-Host, Custom). The TUI does not change the outer host's font or appearance.
+Host, Custom). The TUI does not change the outer host's font or configured theme. While it owns the screen,
+its named canvas temporarily sets the default background on admitted hosts, as described below.
 
 The [source resolver](../crates/workbench-client/src/tui_theme/source.rs) decides what the TUI
 paints. The first matching row wins:
@@ -142,6 +143,26 @@ every fill. Disabled text stays quieter than primary text without faint intensit
 readability. The catalog's contrast floors cover chrome; its [README](../../../crates/color-themes/README.md)
 records them. Real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies perceptual
 evidence.
+
+## Outer-terminal background
+
+On native Windows, a plain GUID-shaped `WT_SESSION` admits OSC 11/111 background control for
+Windows Terminal only when no nested host is marked: `TMUX`, `ZELLIJ`, `STY`, `HERDR_ENV`,
+`ORCHBEE_PANE_ID` and `TERM_PROGRAM` are all absent. Windows Terminal sets no `TERM_PROGRAM`, so its
+presence names another host between the TUI and the window, whose panes would otherwise retint the
+whole outer window. Other hosts remain unchanged until
+an adapter contract admits them. A named theme sets the host default background to `surface-canvas`
+between frames, so window padding, the scrollbar gutter and fractional cells match the TUI.
+Runtime theme changes, including Settings previews and their cancellation, update that background.
+Terminal-native and no-color presentation leave the host background alone; returning to either
+after a named theme releases the override with OSC 111 (the host's configured default).
+
+The lifecycle records cleanup before writing the override, including an unknown or partial write,
+and restores it before leaving the alternate screen on normal exit, detach, fatal error and panic.
+The same lease must be released before any future shell suspension or external-program handoff.
+A failed effect fences frame output and is never replayed. Existing bounded cleanup attempts still
+run after another cleanup fails. Forced process termination cannot restore in process.
+This boundary has no GUI equivalent; Desktop owns its entire window surface.
 
 ## Sidebar row state
 

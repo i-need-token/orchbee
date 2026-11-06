@@ -51,6 +51,7 @@ pub struct InputDispatcher {
     graphics: crate::terminal_graphics::Probe,
     pointer_admission: crate::terminal_pointer_admission::Probe,
     host_appearance: crate::terminal_host_appearance::Probe,
+    host_background: Option<u32>,
     pointer_capture: PointerCaptureRequest,
     /// A real button-free report is independent of optional DECRQM support on
     /// the admitted Windows console endpoint. It grants presentation only.
@@ -160,6 +161,20 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    /// Called between frames; retire an unknown write rather than replaying it.
+    pub fn synchronize_host_background<E>(
+        &mut self,
+        theme: &crate::tui_theme::Theme,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), E>,
+    ) -> Result<(), E> {
+        let background = theme.host_background();
+        if self.host_background == background {
+            return Ok(());
+        }
+        self.host_background = background;
+        mode(ModeRequest::HostBackground(background))
+    }
+
     fn projected_capture(
         _view: &ClientView,
         port: &(impl TerminalInputPort + ?Sized),

@@ -209,7 +209,8 @@ where
                         | crate::terminal_input::ModeRequest::Bell => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
-                        crate::terminal_input::ModeRequest::WindowTitle(_)
+                        crate::terminal_input::ModeRequest::HostBackground(_)
+                        | crate::terminal_input::ModeRequest::WindowTitle(_)
                         | crate::terminal_input::ModeRequest::Notification(_) => {
                             Err(io::ErrorKind::Unsupported.into())
                         }

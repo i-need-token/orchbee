@@ -691,17 +691,6 @@ impl WorkbenchClientUi {
                 return false;
             }
         };
-        if let (MenuTarget::WorkspaceCreation(project), Some(state)) = (&entry, state) {
-            let folders = sidebar::project_folders(state, project);
-            // Without a recorded folder no row would create a Workspace, so the Project's own
-            // quick path, the row's [+] New Workspace, leads.
-            actions = if folders.is_empty() {
-                vec![MenuAction::QuickWorkspace, MenuAction::NewWorktree]
-            } else {
-                vec![MenuAction::NewWorktree]
-            };
-            actions.extend(folders.into_iter().map(MenuAction::WorkspaceInFolder));
-        }
         if matches!(entry, MenuTarget::WorkspaceWorktrees(_)) {
             // Discovery supplies every row of the Open Worktree submenu.
             actions = Vec::new();

@@ -38,6 +38,25 @@ fn write_bell(output: &mut impl io::Write) -> io::Result<()> {
 }
 pub(crate) mod graphics;
 
+struct HostBackground(Option<u32>);
+
+impl crossterm::Command for HostBackground {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        match self.0 {
+            Some(rgb) => write!(output, "\x1b]11;#{:06x}\x1b\\", rgb & 0xffffff),
+            None => output.write_str("\x1b]111\x1b\\"),
+        }
+    }
+}
+
 struct FocusReporting(bool);
 
 struct GraphicsQuery(crate::terminal_graphics::Query);
@@ -179,6 +198,9 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 }
 
 pub trait TerminalModes: Send + Sync + 'static {
+    fn set_host_background(&self, _rgb: Option<u32>) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     fn ring_bell(&self) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
@@ -239,6 +261,7 @@ pub trait TerminalModes: Send + Sync + 'static {
 enum RestorationStep {
     CleanupGraphics,
     RestoreWindowTitle,
+    RestoreHostBackground,
     DisableBracketedPaste,
     DisablePointerCapture,
     DisableFocusReporting,
@@ -252,6 +275,7 @@ impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::CleanupGraphics => formatter.write_str("clean up owned graphics"),
+            Self::RestoreHostBackground => formatter.write_str("restore host background"),
             Self::RestoreWindowTitle => formatter.write_str("restore window title"),
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
             Self::DisableFocusReporting => formatter.write_str("disable focus reporting"),
@@ -383,6 +407,7 @@ impl SynchronizedUpdateLease {
 
 #[derive(Debug)]
 struct TerminalModeState {
+    host_background: ModeLease,
     window_title: ModeLease,
     bracketed_paste: ModeLease,
     pointer_capture: ModeLease,
@@ -396,6 +421,7 @@ struct TerminalModeState {
 impl TerminalModeState {
     fn new() -> Self {
         Self {
+            host_background: ModeLease::new(),
             window_title: ModeLease::new(),
             bracketed_paste: ModeLease::new(),
             pointer_capture: ModeLease::new(),
@@ -562,6 +588,28 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         }
         self.control.notify_terminal(message)
     }
+    /// The caller admits OSC 11/111 for this endpoint. A failed write is never replayed.
+    pub fn set_host_background(&mut self, rgb: Option<u32>) -> io::Result<()> {
+        let lease = &self.state.synchronized_update;
+        if !self.state.raw_mode.restoration_required() || lease.frame_output_blocked() {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        if lease.frame_open() {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        if rgb.is_none() && !self.state.host_background.restoration_required() {
+            return Ok(());
+        }
+        self.state.host_background.mark_operation_started();
+        let result = self.control.set_host_background(rgb);
+        if result.is_err() {
+            lease.block_frame_output();
+        } else if rgb.is_none() {
+            self.state.host_background.clear_after_success();
+        }
+        result
+    }
+
     pub fn set_window_title(&mut self, title: &str) -> io::Result<()> {
         if self.state.synchronized_update.frame_output_blocked() {
             return Err(io::ErrorKind::BrokenPipe.into());
@@ -745,6 +793,12 @@ fn restore_modes<C: TerminalModes>(
         &state.synchronized_update.obligation,
         RestorationStep::EndSynchronizedUpdate,
         || control.end_synchronized_update(),
+        &mut failures,
+    );
+    restore_mode(
+        &state.host_background,
+        RestorationStep::RestoreHostBackground,
+        || control.set_host_background(None),
         &mut failures,
     );
     restore_mode(
@@ -1063,6 +1117,9 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    fn set_host_background(&self, rgb: Option<u32>) -> io::Result<()> {
+        self.write_command(HostBackground(rgb))
+    }
     fn ring_bell(&self) -> io::Result<()> {
         write_bell(&mut self.terminal.output()?)
     }

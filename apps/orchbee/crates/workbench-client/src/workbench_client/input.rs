@@ -48,6 +48,8 @@ pub enum PointerCaptureRequest {
 pub enum ModeRequest {
     /// One pane bell, emitted after the completed frame has flushed.
     Bell,
+    /// Match admitted outer-terminal padding to the current canvas; None restores it.
+    HostBackground(Option<u32>),
     /// Bounded metadata queries on the already-admitted host terminal.
     GraphicsQuery(crate::terminal_graphics::Query),
     /// The endpoint's sole any-motion capability query, after ButtonOnly is active.

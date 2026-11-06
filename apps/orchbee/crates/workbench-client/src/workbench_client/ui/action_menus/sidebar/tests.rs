@@ -81,6 +81,33 @@ fn open_creation(ui: &mut WorkbenchClientUi) -> Vec<MenuAction> {
 }
 
 #[test]
+fn project_creation_submenu_and_button_share_choices_before_and_after_discovery() {
+    let (mut ui, _, _, _) = context_selection::ready(false);
+    let target = project_target(&ui);
+    assert!(ui.open_action_menu(target, None, false));
+    let SidebarWorktreeTarget::Project(project) =
+        ui.menus.discovery().unwrap().source().target.clone()
+    else {
+        unreachable!()
+    };
+    let submenu = MenuTarget::WorkspaceCreation(project.clone());
+    let button = MenuTarget::Create(Some(project));
+    for discovered in [false, true] {
+        if discovered {
+            let discovery = ready_discovery(&ui);
+            ui.menus.mark_discovery_querying();
+            let id = ui.menus.discovery().unwrap().id();
+            ui.settle_sidebar_worktrees(id, Ok(Box::new(discovery)));
+        }
+        let submenu_rows = actions(&submenu, Vec::new(), ui.menus.discovery(), |_| true);
+        let button_rows = actions(&button, Vec::new(), ui.menus.discovery(), |_| true);
+        assert_eq!(submenu_rows, button_rows);
+        assert!(submenu_rows.contains(&MenuAction::QuickWorkspace));
+        assert!(submenu_rows.contains(&MenuAction::WorkspaceAtDirectory));
+    }
+}
+
+#[test]
 fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_without_navigation() {
     let (mut ui, mailbox, _, _) = context_selection::ready(false);
     let original = Origin::capture(ui.state.as_ref());
@@ -101,7 +128,6 @@ fn discovery_appends_checkouts_to_new_workspace_and_requires_a_fresh_draw_withou
         let menu = view.action_menu().unwrap();
         assert_ne!(menu.token, old);
         assert!(menu.candidate_hidden, "discovery does not choose a row");
-        assert!(menu.actions.contains(&MenuAction::NewWorktree));
         assert!(menu.actions.contains(&MenuAction::OpenWorktreeAt(
             WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap()
         )));

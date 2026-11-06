@@ -50,6 +50,12 @@ enabling.
 | Synchronized output        | DEC `2026` around each frame                                                                | End the update                       | Every frame; harmless when unsupported                |
 | Color-scheme notifications | DEC `2031`                                                                                  | Disable                              | When the host answers the appearance query            |
 
+- A named-theme canvas may temporarily align non-cell host padding with `surface-canvas` using
+  OSC `11` only under an explicitly admitted host adapter contract. Record restoration before
+  the first mutation; restore the saved background or the admitted OSC `111` configured default
+  before leaving the alternate screen, including error, panic, detach and handoff. Runtime theme
+  changes update the override between frames; returning to terminal-native or no-color releases
+  it. Unknown hosts and multiplexers require their own admission and otherwise remain unchanged.
 - Emit mode changes as explicit command sequences owned by the terminal lifecycle module, with a
   recorded restoration step for each. No other module writes mode sequences.
 - Create a pending restoration entry before issuing each owned acquisition. Mark it acquired after
