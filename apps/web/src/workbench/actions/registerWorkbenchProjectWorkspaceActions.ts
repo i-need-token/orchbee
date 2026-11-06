@@ -144,8 +144,23 @@ export function registerWorkbenchProjectWorkspaceActions({
 		closure: WorkbenchAuthorityClosure,
 	): Promise<ActionResult<void>> => {
 		const handover = beginTerminalHandover?.();
-		const result = await authority.close(context, closure);
-		if (result.kind === 'completed') handover?.complete();
+		let returned = false;
+		// As the TUI attaches the neighbour before the close settles, the keyboard goes to the terminal
+		// left shown once the closed Workspaces leave, at the Server's acceptance.
+		const returnKeyboard = (): void => {
+			if (returned) return;
+			returned = true;
+			handover?.complete();
+		};
+		const result = await authority.close(
+			{
+				markCommitted: () => context.markCommitted(),
+				markLeft: returnKeyboard,
+				signal: context.signal,
+			},
+			closure,
+		);
+		if (result.kind === 'completed') returnKeyboard();
 		return result;
 	};
 	const workspaceCloseConfirmation = (input: WorkbenchWorkspaceInput) => ({

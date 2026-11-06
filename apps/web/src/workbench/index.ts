@@ -54,6 +54,7 @@ export type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityClosure,
+	WorkbenchAuthorityCloseContext,
 	WorkbenchAuthorityContext,
 	WorkbenchAuthorityCreation,
 	WorkbenchAuthorityPanelTerminalCreation,

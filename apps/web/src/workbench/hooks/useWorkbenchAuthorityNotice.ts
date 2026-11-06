@@ -103,7 +103,8 @@ function reportingWorktrees(
 /**
  * Reports what the authority decided without taking the person from what they are doing: only a
  * refusal or an unknown outcome needs words, because a committed change shows in the Workbench.
- * Closing ends terminals for every Client, so it also says how it is going and how it ended, and
+ * Closing ends terminals for every Client, so it also says how it is going and how it ended, a
+ * Workspace or Project close saying Closed once its Workspaces leave at the Server's acceptance, and
  * dissolving a Project says that its Workspaces remain.
  */
 export function useWorkbenchAuthorityNotice(
@@ -155,10 +156,17 @@ export function useWorkbenchAuthorityNotice(
 				const subject = readWorkbenchCloseSubject(closure, projectWorkspaceRuntime);
 				const origin = projectWorkspaceRuntime.getSnapshot().activeLocation;
 				const landsAutomatically = closesActiveLocation(closure, projectWorkspaceRuntime);
+				const sawClosed = (): boolean =>
+					landsAutomatically ||
+					workbenchActiveLocationsEqual(
+						origin,
+						projectWorkspaceRuntime.getSnapshot().activeLocation,
+					);
 				let progress: WorkbenchAuthorityNotice | null = null;
 				let closingShown = false;
+				let left = false;
 				const showProgress = (): void => {
-					if (!closingShown) return;
+					if (!closingShown || left) return;
 					progress = workbenchCloseProgressNotice(subject, projectWorkspaceRuntime);
 					setNotice(progress);
 				};
@@ -168,18 +176,40 @@ export function useWorkbenchAuthorityNotice(
 					showProgress();
 				}, CLOSING_NOTICE_DELAY_MILLISECONDS);
 				const stopWatching = projectWorkspaceRuntime.subscribe(showProgress);
+				// As in the TUI, a close whose Workspaces have left reads as closed while it settles, so
+				// Closed shows with the landing and only a later failure or lost outcome replaces it.
+				const markLeft = (): void => {
+					if (!left) {
+						left = true;
+						clearTimeout(closingDelay);
+						const closed = workbenchCloseResultNotice(
+							subject,
+							{ kind: 'completed' },
+							projectWorkspaceRuntime,
+							authority,
+							sawClosed(),
+						);
+						const shown = progress;
+						setNotice((current) => {
+							if (closed === null) return current === shown ? null : current;
+							return current?.lifetime === 'until-press' ? current : closed;
+						});
+					}
+					context.markLeft?.();
+				};
 				try {
-					const result = await authority.close(context, closure);
+					const result = await authority.close(
+						{ markCommitted: () => context.markCommitted(), markLeft, signal: context.signal },
+						closure,
+					);
+					// Closed has already been said, and its time runs from then.
+					if (left && result.kind === 'completed') return result;
 					const next = workbenchCloseResultNotice(
 						subject,
 						result,
 						projectWorkspaceRuntime,
 						authority,
-						landsAutomatically ||
-							workbenchActiveLocationsEqual(
-								origin,
-								projectWorkspaceRuntime.getSnapshot().activeLocation,
-							),
+						sawClosed(),
 					);
 					const shown = progress;
 					setNotice((current) => {

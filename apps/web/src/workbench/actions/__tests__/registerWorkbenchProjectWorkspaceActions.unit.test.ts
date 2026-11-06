@@ -383,9 +383,14 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		expect(complete).not.toHaveBeenCalled();
 	});
 
-	it('closes a Workspace that runs nothing without asking and returns the keyboard', async () => {
-		const close = vi.fn<WorkbenchAuthority['close']>(() => Promise.resolve({ kind: 'completed' }));
+	it('closes a Workspace that runs nothing without asking and returns the keyboard once it leaves', async () => {
 		const complete = vi.fn<() => void>();
+		let returnedAtAcceptance = 0;
+		const close = vi.fn<WorkbenchAuthority['close']>((context) => {
+			context.markLeft?.();
+			returnedAtAcceptance = complete.mock.calls.length;
+			return Promise.resolve({ kind: 'completed' });
+		});
 		const confirm = vi.fn<() => boolean>(() => true);
 		const { execute } = createHarness({ close }, { complete, held: () => true }, confirm);
 
@@ -397,6 +402,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			{ type: 'workspace-close-if-idle', workspaceId: PRIMARY_WORKSPACE_ID },
 		]);
 		expect(confirm).not.toHaveBeenCalled();
+		expect(returnedAtAcceptance).toBe(1);
 		expect(complete).toHaveBeenCalledOnce();
 	});
 

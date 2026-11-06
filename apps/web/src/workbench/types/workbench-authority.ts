@@ -266,6 +266,15 @@ export type WorkbenchTabCloseStop = 'awaiting-removal' | 'cleanup-blocked';
 export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommitted' | 'signal'>;
 
 /**
+ * What a close takes besides cancellation and the commit point. A Workspace or Project close calls
+ * `markLeft` once, when the Server accepts it and its Workspaces leave this Client's view, before
+ * the close settles; a later failure or lost outcome shows them again with its result.
+ */
+export interface WorkbenchAuthorityCloseContext extends WorkbenchAuthorityContext {
+	readonly markLeft?: (() => void) | undefined;
+}
+
+/**
  * Whoever decides the shared Workbench when this Client does not. A result settles only once this
  * Client's read model holds what it reports, so the caller can act on what it reads next. A caller
  * never repeats a change whose outcome is unknown.
@@ -287,7 +296,7 @@ export interface WorkbenchAuthority {
 	 * stopped. Its details hold the operation identity when the target alone cannot name it.
 	 */
 	close(
-		context: WorkbenchAuthorityContext,
+		context: WorkbenchAuthorityCloseContext,
 		closure: WorkbenchAuthorityClosure,
 	): Promise<ActionResult<void>>;
 	/** A completed creation without a receipt exists, but this Client can no longer read it. */

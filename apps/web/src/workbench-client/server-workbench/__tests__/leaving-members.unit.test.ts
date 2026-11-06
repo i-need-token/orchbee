@@ -10,6 +10,7 @@ import {
 	createSnapshotRuntime,
 	FIXTURE_INTL,
 	fixtureContextId,
+	fixtureDirectoryId,
 	fixtureId,
 	fixturePanelId,
 	fixtureProjectId,
@@ -45,7 +46,6 @@ const PROJECT = fixtureProjectId(1);
 const CLOSING = { kind: 'closing', phase: 'queued' };
 const BLOCKED = { kind: 'cleanup-blocked', reason: 'host-refused', resumable: false };
 const PANEL_TARGET = { kind: 'panel', tabId: TAB, terminalContextId: CONTEXT };
-const WORKSPACE_TARGET = { kind: 'workspace', workspaceId: WORKSPACE };
 
 function response(record: Readonly<Record<string, unknown>>) {
 	return parseWorkbenchResponse({ protocolVersion: 1, requestId: REQUEST, ...record });
@@ -195,32 +195,60 @@ describe('leaving members', () => {
 		expect(leaving.panel(CONTEXT, TAB, PANEL)).toBe(false);
 	});
 
-	it('leaves a Workspace out from its close acceptance and shows it again once the close stops', async () => {
-		const snapshot = oneWorkspaceSnapshot(5, [snapshotTab(1)]);
-		const leaving = new ServerLeaving(
-			() => snapshot,
-			() => undefined,
+	it('leaves a Workspace at its close acceptance for its neighbour, and shows it again once the close stops', async () => {
+		// Workspaces 1, 2 and 3 in Recents; the window shows Workspace 2, which closes.
+		const snapshot = workbenchSnapshot(
+			5,
+			{
+				directories: [snapshotDirectory(1)],
+				workspaces: [1, 2, 3].map((sequence) =>
+					snapshotWorkspace(sequence, { primaryDirectoryId: fixtureDirectoryId(1) }),
+				),
+			},
+			[1, 2, 3].map((sequence) => snapshotContext(sequence, [snapshotTab(sequence)])),
 		);
-		const leftWhileReads: boolean[] = [];
+		const closing = fixtureWorkspaceId(2);
+		const closingTarget = { kind: 'workspace', workspaceId: closing };
+		const neighbour = { kind: 'workspace', workspaceId: fixtureWorkspaceId(3) };
+		const runtime = createSnapshotRuntime(snapshot);
+		runtime.transition({ type: 'workspace-activated', workspaceId: closing });
+		const leaving: ServerLeaving = new ServerLeaving(
+			() => snapshot,
+			() =>
+				runtime.applyPublishedWorkbench(
+					projectServerSnapshot(snapshot, FIXTURE_INTL, undefined, leaving),
+				),
+		);
+		const shownWorkspaces = () => runtime.getSnapshot().workspaces.map(({ id }) => id);
+		const reads: boolean[] = [];
 		const session = serverSession(
 			snapshot,
 			settledWith({
 				acceptedRevision: '5',
 				closeRequestId: CLOSE_REQUEST,
 				kind: 'workspace-close-accepted',
-				terminalContextId: CONTEXT,
-				workspaceId: WORKSPACE,
+				terminalContextId: fixtureContextId(2),
+				workspaceId: closing,
 			}),
-			[readOf(CLOSING, WORKSPACE_TARGET), readOf(BLOCKED, WORKSPACE_TARGET)],
-			() => leftWhileReads.push(leaving.workspace(WORKSPACE)),
+			[readOf(CLOSING, closingTarget), readOf(BLOCKED, closingTarget)],
+			() => reads.push(shownWorkspaces().includes(closing)),
 		);
-		const closes = createServerWorkbenchClose(session, leaving);
+		const atAcceptance: unknown[] = [];
+		const markLeft = vi.fn<() => void>(() => {
+			atAcceptance.push(reads.length, shownWorkspaces(), runtime.getSnapshot().activeLocation);
+		});
 
 		await expect(
-			closes.close(executionContext(), { type: 'workspace-close', workspaceId: WORKSPACE }),
+			createServerWorkbenchClose(session, leaving).close(
+				{ ...executionContext(), markLeft },
+				{ type: 'workspace-close', workspaceId: closing },
+			),
 		).resolves.toEqual({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
-		expect(leftWhileReads).toEqual([true, true]);
-		expect(leaving.workspace(WORKSPACE)).toBe(false);
+		expect(markLeft).toHaveBeenCalledOnce();
+		expect(atAcceptance).toEqual([0, [fixtureWorkspaceId(1), fixtureWorkspaceId(3)], neighbour]);
+		expect(reads).toEqual([false, false]);
+		expect(shownWorkspaces()).toContain(closing);
+		expect(runtime.getSnapshot().activeLocation).toEqual(neighbour);
 	});
 
 	it('leaves each Workspace of a Project out once the Server accepts the Project close', async () => {
@@ -249,11 +277,16 @@ describe('leaving members', () => {
 			() => leftWhileReads.push(leaving.workspace(WORKSPACE)),
 		);
 		const closes = createServerWorkbenchClose(session, leaving);
+		const markLeft = vi.fn<() => void>(() => leftWhileReads.push(leaving.workspace(WORKSPACE)));
 
 		await expect(
-			closes.close(executionContext(), { projectId: PROJECT, type: 'project-workspaces-close' }),
+			closes.close(
+				{ ...executionContext(), markLeft },
+				{ projectId: PROJECT, type: 'project-workspaces-close' },
+			),
 		).resolves.toMatchObject({ failure: { code: 'outcome-unknown' }, kind: 'failed' });
-		expect(leftWhileReads).toEqual([false, true]);
+		expect(markLeft).toHaveBeenCalledOnce();
+		expect(leftWhileReads).toEqual([false, true, true]);
 		expect(leaving.workspace(WORKSPACE)).toBe(false);
 	});
 

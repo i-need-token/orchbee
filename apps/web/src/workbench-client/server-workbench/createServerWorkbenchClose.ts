@@ -1,6 +1,7 @@
 import type { ActionResult } from '@orchbee/actions';
 import type {
 	WorkbenchAuthority,
+	WorkbenchAuthorityCloseContext,
 	WorkbenchAuthorityClosure,
 	WorkbenchAuthorityContext,
 	WorkbenchTabCloseStop,
@@ -79,7 +80,7 @@ type TabTarget = Pick<
 >;
 
 /** The Action's context, which also knows whether any step has been handed over yet. */
-interface CloseContext extends WorkbenchAuthorityContext {
+interface CloseContext extends WorkbenchAuthorityCloseContext {
 	readonly handedOver: () => boolean;
 }
 
@@ -184,7 +185,7 @@ function delay(milliseconds: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function closeContext(context: WorkbenchAuthorityContext): CloseContext {
+function closeContext(context: WorkbenchAuthorityCloseContext): CloseContext {
 	let handedOver = false;
 	return {
 		handedOver: () => handedOver,
@@ -192,6 +193,7 @@ function closeContext(context: WorkbenchAuthorityContext): CloseContext {
 			handedOver = true;
 			context.markCommitted();
 		},
+		markLeft: context.markLeft,
 		signal: context.signal,
 	};
 }
@@ -430,6 +432,7 @@ async function closeWorkspace(
 	if (outcome.kind !== 'workspace-close-accepted') return refused(outcome);
 	// The Server keeps the Workspace until its removal publishes, so the window leaves it out from here.
 	const stay = follow.leave.leave([{ kind: 'workspace', workspaceId: closure.workspaceId }]);
+	context.markLeft?.();
 	try {
 		const observed = await observeClose(
 			session,
@@ -856,10 +859,14 @@ function lastClosedRevision(members: readonly ClosingMember[]): string | null {
 	return last;
 }
 
-/** The Server owns the sequence and captures the members; this Client only watches it settle. */
+/**
+ * The Server owns the sequence and captures the members; this Client only watches it settle. As the
+ * TUI hides them while the group close is pending or closed, the members leave once it is accepted
+ * and not already stopped.
+ */
 async function closeProject(
 	session: CloseSession,
-	context: WorkbenchAuthorityContext,
+	context: WorkbenchAuthorityCloseContext,
 	closure: Extract<WorkbenchAuthorityClosure, { readonly type: 'project-workspaces-close' }>,
 	leave: ServerLeave,
 ): Promise<ActionResult<void>> {
@@ -885,12 +892,17 @@ async function closeProject(
 			kind: 'blocked',
 		};
 	}
+	// A close that stopped before anything left takes nothing out of view.
+	if (report.status.kind === 'failed') {
+		return watchProjectClose(session, operationId, report, deadline);
+	}
 	// The Server accepted the Project's close and captured its members, so they leave from here.
 	const stay = leave.leave(
 		report.members.map(
 			({ workspaceId }): ServerLeavingMember => ({ kind: 'workspace', workspaceId }),
 		),
 	);
+	context.markLeft?.();
 	try {
 		return await watchProjectClose(session, operationId, report, deadline);
 	} finally {

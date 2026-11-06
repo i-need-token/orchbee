@@ -51,7 +51,8 @@ Panel of several leaves its Tab's split the way the Server removes it: its sibli
 place, and a Tab left with no Panel leaves too. A focused Panel that leaves hands focus to the
 Panel at its place in the Tab's previous order, clamped to the Panels that remain, as the TUI picks
 its stand-in. A Workspace leaves with its terminal context, and a
-Project's close leaves each of its Workspaces once the Server accepts it. A context's fingerprint
+Project's close leaves each of its Workspaces once the Server accepts it, unless that first answer
+already reports the close stopped. A context's fingerprint
 covers the Server's context, the window's language, the ends the window saw, and the Tabs and Panels
 it shows, so it changes exactly when the projected context does. A member whose close is refused,
 stops, or is lost shows again with its report, as the Server still holds it; a completed close has
@@ -111,8 +112,12 @@ Tab's Group. A location whose Workspace is gone moves to the next Workspace afte
 in the sidebar order the window showed, Projects first and then Recents, else the one before it, as
 the TUI lands when the current Workspace closes; without either, to the first Workspace the sidebar
 lists, and to No Workspace once none is left. Since a closing Workspace leaves at the Server's
-acceptance, the selection lands on that neighbour at once. Reconciliation is idempotent and never
-changes the publication.
+acceptance, the selection lands on that neighbour at once, and on No Workspace when no other
+Workspace is shown. The TUI keeps such a last closing Workspace current until publication, because
+its canonical projection admits the no-Workspace location only for a snapshot without Workspaces;
+the window has no such limit. A Workspace whose close then stops or is lost shows again, and the
+selection stays where it landed, unless it landed on No Workspace, which gives way to it.
+Reconciliation is idempotent and never changes the publication.
 
 An action that changes shared structure and implies navigation changes the two shapes separately:
 creating a Tab adds it for every Client and selects it only in the window that asked. Every other
