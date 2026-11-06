@@ -103,6 +103,7 @@ impl View {
                     label
                 },
                 label,
+                row.name.as_deref().unwrap_or_default(),
                 &row.workspace,
                 &row.label,
                 row.provider(),

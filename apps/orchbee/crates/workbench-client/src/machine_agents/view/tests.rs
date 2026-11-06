@@ -194,6 +194,18 @@ fn view_priority_and_state_sequence_are_stable_and_display_metadata_cannot_retar
     assert_eq!(project(&view, &rows, &Choice::Local, None).len(), 2);
 }
 #[test]
+fn view_matches_an_alias_present_only_in_the_runtime_name() {
+    let mut named = row();
+    named.name = Some("Review Orchid".into());
+    let rows = [(Choice::Local, named)];
+    let view = View {
+        query: "  REVIEW orchid  ".into(),
+        ..View::default()
+    };
+    assert_eq!(project(&view, &rows, &Choice::Local, None).len(), 1);
+}
+
+#[test]
 fn view_searches_guarded_display_and_tokens_and_rejects_host_control_characters() {
     let mut row = row();
     row.metadata.title = Some(MetadataTokenValue::parse("Fix rendering").unwrap());

@@ -770,3 +770,8 @@ Whole-cohort and real emulator/SSH acceptance remain separate evidence.
 With no configured remote profile, search omits remote totals and Local prefixes. The selected mode uses the shared selection surface plus bold and underline; it does not add an asterisk. Internal IDs do not appear in rows or details. The selected row exposes Copy ID (Ctrl+y); pointer activation retains its exact catalog/index proof, and keyboard copying uses the current selection. The validated identifier enters the existing bounded post-draw clipboard queue once, with no navigation or remote write. A connected native pane supplies the delivery lifecycle; without one, copying reports unavailable. Switching or retiring that pane cancels an undelivered request. Remote totals count remote observations only.
 
 The Agent picker shows the assigned name and a distinct task title when present. Its details reserve separate rows for workspace, provider, title and custom tokens, plus machine context when remote profiles exist, while keeping Copy ID available. The mode bar uses the shared current-state track so every mode keeps a distinct painted label and hit region.
+
+The Agent picker's query includes the assigned runtime name even when no other field contains
+that alias. It uses the same sanitized, case-insensitive substring matching as its existing
+machine, Workspace, Panel label, provider, title, member and token fields; sorting and entry
+points remain unchanged.
