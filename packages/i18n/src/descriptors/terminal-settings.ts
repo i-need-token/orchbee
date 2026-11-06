@@ -9,6 +9,7 @@ export const terminalSettingsMessages = defineMessages({
 	sharedScope: message('terminal.settings.shared.scope'),
 	sharedPending: message('terminal.settings.shared.pending'),
 	sharedUnavailable: message('terminal.settings.shared.unavailable'),
+	sharedUnreadable: message('terminal.settings.shared.unreadable'),
 	sharedFailed: message('terminal.settings.shared.failed'),
 	sharedConflict: message('terminal.settings.shared.conflict'),
 	sharedUnknown: message('terminal.settings.shared.unknown'),

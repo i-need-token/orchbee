@@ -410,3 +410,15 @@ approval and active-work states retain their semantics. Board open and completio
 reproject cached rows immediately, without waiting for its next list. Raw observations still
 feed notifications and the focused-Panel-only unread rules. Missing completion stays unknown/none;
 reading or changing focus never consumes it. Only the Server's accepted-input boundary does.
+
+## Unreadable shared preference recovery
+
+An `invalid-source` Settings read presents built-in defaults with the dedicated localized
+unreadable-file notice. They carry the virtual `unreadable` recovery source, never a confirmed
+save. Ordinary updates remain unavailable; explicit Reset all stays available with confirmation.
+Only the complete all-null patch uses the recovery source. The Server rechecks storage under its
+writer lock, refuses a concurrent repair, and returns a real digest after confirmed replacement.
+Reload and pushed Settings snapshots observe later repairs without silently repairing the record.
+The [shared preference contract](../../crates/workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
+owns recovery and admission. Other unavailable/save/unknown-outcome states retain their existing
+wording and recovery controls.

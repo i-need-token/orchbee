@@ -21,6 +21,8 @@ export function SharedPreferenceStatus({
 	let descriptor: MessageDescriptor = terminalSettingsMessages.sharedScope;
 	if (state.pending) descriptor = terminalSettingsMessages.sharedPending;
 	else if (state.failure === 'outcome-unknown') descriptor = terminalSettingsMessages.sharedUnknown;
+	else if (state.failure === 'invalid-source')
+		descriptor = terminalSettingsMessages.sharedUnreadable;
 	else if (state.failure === 'source-changed') descriptor = terminalSettingsMessages.sharedConflict;
 	else if (!state.available) descriptor = terminalSettingsMessages.sharedUnavailable;
 	else if (state.failure !== null) descriptor = terminalSettingsMessages.sharedFailed;
@@ -43,7 +45,7 @@ export function SharedPreferenceStatus({
 					<>
 						<span>{intl.formatMessage(terminalSettingsMessages.sharedConfirmReset)}</span>
 						<Button
-							disabled={state.pending || !state.available}
+							disabled={state.pending || (!state.available && state.failure !== 'invalid-source')}
 							size='sm'
 							variant='destructive'
 							onClick={() => {
@@ -59,7 +61,7 @@ export function SharedPreferenceStatus({
 					</>
 				) : (
 					<Button
-						disabled={state.pending || !state.available}
+						disabled={state.pending || (!state.available && state.failure !== 'invalid-source')}
 						size='sm'
 						variant='ghost'
 						onClick={() => setConfirming(true)}

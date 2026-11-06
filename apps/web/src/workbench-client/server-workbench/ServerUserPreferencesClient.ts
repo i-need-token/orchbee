@@ -1,5 +1,8 @@
 import {
 	UserPreferencesPatchSchema,
+	DEFAULT_USER_PREFERENCES,
+	USER_PREFERENCE_KEYS,
+	type UserPreferencesSnapshot,
 	WORKBENCH_PROTOCOL_VERSION,
 	parseWorkbenchRequest,
 	type UserPreferenceKey,
@@ -89,7 +92,11 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 
 	async refresh(): Promise<UserPreferencesResponse> {
 		const response = await this.#request({ kind: 'open' });
-		if (!this.#disposed && response.kind === 'snapshot') {
+		if (
+			!this.#disposed &&
+			(response.kind === 'snapshot' ||
+				(response.kind === 'refused' && response.reason === 'invalid-source'))
+		) {
 			this.#publish({ ...this.#state, draftResetRevision: this.#state.draftResetRevision + 1 });
 			// Observing starts after this answer, so the stream's first snapshot is never the older one.
 			if (this.#observation === null) this.#observe();
@@ -101,16 +108,24 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 		if (this.#disposed) return Promise.resolve({ kind: 'refused', reason: 'unavailable' });
 		const { available, snapshot } = this.#state;
 		if (snapshot === null || !available) {
-			this.#publish({ ...this.#state, failure: 'unavailable' });
-			return Promise.resolve({ kind: 'refused', reason: 'unavailable' });
+			const reason = this.#state.failure === 'invalid-source' ? 'invalid-source' : 'unavailable';
+			this.#publish({ ...this.#state, failure: reason });
+			return Promise.resolve({ kind: 'refused', reason });
 		}
 		return this.#request({ changes, kind: 'save', source: source ?? snapshot.source });
 	}
 
 	reset(keys: readonly UserPreferenceKey[]): Promise<UserPreferencesResponse> {
-		return this.update(
-			UserPreferencesPatchSchema.parse(Object.fromEntries(keys.map((key) => [key, null]))),
+		const changes = UserPreferencesPatchSchema.parse(
+			Object.fromEntries(keys.map((key) => [key, null])),
 		);
+		if (
+			this.#state.failure === 'invalid-source' &&
+			Object.keys(changes).length === USER_PREFERENCE_KEYS.length
+		) {
+			return this.#request({ kind: 'save', source: 'unreadable', changes });
+		}
+		return this.update(changes);
 	}
 
 	dispose(): void {
@@ -137,7 +152,7 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 			available: response.kind === 'snapshot',
 			failure,
 			pending: false,
-			snapshot: response.kind === 'snapshot' ? response.snapshot : this.#state.snapshot,
+			snapshot: observedSnapshot(response, this.#state.snapshot),
 		});
 		// A source is a digest, not an ordered revision, so a snapshot observed around this save may be
 		// older than its answer. A new stream's first snapshot is read after the save and has the last word.
@@ -212,7 +227,7 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 		const observed = readResponse(response.outcome);
 		if (observed.kind === 'outcome-unknown') return;
 		const available = observed.kind === 'snapshot';
-		const snapshot = observed.kind === 'snapshot' ? observed.snapshot : this.#state.snapshot;
+		const snapshot = observedSnapshot(observed, this.#state.snapshot);
 		let failure: UserPreferencesState['failure'] = null;
 		if (this.#retainFailure) failure = this.#state.failure;
 		else if (observed.kind === 'refused') failure = observed.reason;
@@ -253,4 +268,16 @@ export class ServerUserPreferencesClient implements UserPreferencesControl {
 			}
 		}
 	}
+}
+
+/** A refused read has a virtual recovery basis, never an ordinary save source. */
+function observedSnapshot(
+	response: UserPreferencesResponse,
+	previous: UserPreferencesSnapshot | null,
+): UserPreferencesSnapshot | null {
+	if (response.kind === 'snapshot') return response.snapshot;
+	if (response.kind === 'refused' && response.reason === 'invalid-source') {
+		return { source: 'unreadable', values: { ...DEFAULT_USER_PREFERENCES }, claimed: [] };
+	}
+	return previous;
 }

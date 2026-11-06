@@ -1,6 +1,8 @@
 export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shared.scope':
 		'Shared with the TUI on this device and configuration. Display and interaction changes apply now; launch profiles and scrollback apply to new terminals.',
+	'terminal.settings.shared.unreadable':
+		"Settings file can't be read · using defaults · Reset all to replace it",
 	'terminal.settings.shared.pending': 'Saving settings…',
 	'terminal.settings.shared.unavailable':
 		'Shared settings could not be read. The last confirmed values remain in use.',
@@ -13,7 +15,7 @@ export const enUSTerminalSettingsMessages = {
 		'Settings are saved, but the terminal service has not applied them. New terminals may still use the previous defaults.',
 	'terminal.settings.shared.refresh': 'Reload settings and discard drafts',
 	'terminal.settings.shared.reloadDraft': 'Load current values',
-	'terminal.settings.shared.reset': 'Reset shared settings',
+	'terminal.settings.shared.reset': 'Reset all',
 	'terminal.settings.shared.confirmReset': 'Reset all shared settings and launch profiles?',
 	'terminal.settings.shared.system': 'Follow system',
 	'terminal.settings.shared.sound': 'Notification sound',

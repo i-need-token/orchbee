@@ -3,6 +3,7 @@ import type { TerminalSettingsMessageId } from '../en-US';
 export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shared.scope':
 		'与本设备、同一配置作用域的 TUI 共享。显示和交互设置立即生效；启动配置与滚动缓存用于新终端。',
+	'terminal.settings.shared.unreadable': '无法读取设置文件 · 正在使用默认值 · 可用“全部重置”替换',
 	'terminal.settings.shared.pending': '正在保存设置…',
 	'terminal.settings.shared.unavailable': '无法读取共享设置，继续使用上次确认的值。',
 	'terminal.settings.shared.failed': '设置未保存，此次编辑尚未生效。',
@@ -11,7 +12,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shared.host': '设置已保存，但终端服务尚未应用；新终端可能仍使用之前的默认值。',
 	'terminal.settings.shared.refresh': '重载设置并放弃草稿',
 	'terminal.settings.shared.reloadDraft': '载入当前值',
-	'terminal.settings.shared.reset': '重置共享设置',
+	'terminal.settings.shared.reset': '全部重置',
 	'terminal.settings.shared.confirmReset': '重置所有共享设置和启动配置？',
 	'terminal.settings.shared.system': '跟随系统',
 	'terminal.settings.shared.sound': '通知声音',

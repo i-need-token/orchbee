@@ -1089,3 +1089,5 @@ advance its revision; configuration reload retains it and late Clients can read 
 A successful Settings read or reset supplies current preference values independently of this
 historical diagnostic. Using the existing bounded Session configuration channel and retaining the
 fact until Session end are vetoable decisions.
+
+The proposed preference-specific Unavailable Tab reason is superseded by this fallback; Settings recovery supplies the explanation without guessing old launch causes or migrating failed generations.
