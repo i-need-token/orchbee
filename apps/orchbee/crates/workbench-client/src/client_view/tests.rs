@@ -279,10 +279,10 @@ fn resizes_without_turning_a_docked_sidebar_into_an_automatic_overlay() {
     );
 }
 
-/// The mobile list is on demand like the narrow overlay: it opens with the keyboard, and any
-/// threshold crossing closes it, so each class comes back to its own resting state.
+/// The mobile list is on demand like the narrow overlay: it opens with the keyboard, crossing
+/// 60 columns keeps it open as the overlay, and crossing 90 columns closes it.
 #[test]
-fn mobile_list_takes_the_keyboard_and_any_threshold_crossing_closes_it() {
+fn mobile_list_takes_the_keyboard_and_only_the_wide_threshold_closes_it() {
     let mobile = crate::sidebar_width::COMPACT_MINIMUM_COLUMNS - 1;
     let mut view = ClientView::new(mobile);
     view.machines.available = true;
@@ -290,23 +290,24 @@ fn mobile_list_takes_the_keyboard_and_any_threshold_crossing_closes_it() {
     assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
     assert!(!view.sidebar_screen());
 
-    for crossing in [mobile + 1, WIDE_VIEWPORT_MINIMUM_COLUMNS] {
-        enter_prefix(&mut view);
-        commit(&mut view, plain('b'));
-        assert!(view.sidebar_screen());
-        assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
-        assert!(view.machines.sidebar_navigation_active());
+    enter_prefix(&mut view);
+    commit(&mut view, plain('b'));
+    assert!(view.sidebar_screen());
+    assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+    assert!(view.machines.sidebar_navigation_active());
 
-        view.resize(crossing);
-        assert_eq!(view.overlay(), None);
-        assert_eq!(
-            matches!(view.sidebar_surface(), SidebarSurface::Docked(_)),
-            crossing >= WIDE_VIEWPORT_MINIMUM_COLUMNS
-        );
-        view.resize(mobile);
-        assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
-        assert!(!view.machines.sidebar_navigation_active());
-    }
+    view.resize(mobile + 1);
+    assert!(matches!(view.sidebar_surface(), SidebarSurface::Overlay(_)));
+    assert!(!view.sidebar_screen());
+    view.resize(mobile);
+    assert!(view.sidebar_screen());
+
+    view.resize(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    assert_eq!(view.overlay(), None);
+    assert!(matches!(view.sidebar_surface(), SidebarSurface::Docked(_)));
+    view.resize(mobile);
+    assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
+    assert!(!view.machines.sidebar_navigation_active());
 }
 
 #[test]

@@ -765,15 +765,16 @@ impl ClientView {
         }
     }
 
-    /// Crossing a viewport threshold closes the on-demand sidebar, so each class returns to its
-    /// own resting state: Wide to its kept visibility, Narrow and Mobile to hidden.
+    /// Crossing 60 columns keeps an open on-demand sidebar open in the other form, the mobile list
+    /// or the narrow overlay; crossing 90 columns closes it, so Wide returns to its kept visibility.
     pub fn resize(&mut self, width: u16) {
         let next = ViewportClass::from_width(width);
         if next == self.viewport {
             return;
         }
+        let crosses_wide = next == ViewportClass::Wide || self.viewport == ViewportClass::Wide;
         self.viewport = next;
-        if self.overlay == Some(Overlay::BusinessSidebar) {
+        if crosses_wide && self.overlay == Some(Overlay::BusinessSidebar) {
             self.replace_overlay(None);
         }
         // Navigation never outlives the sidebar it moves through.

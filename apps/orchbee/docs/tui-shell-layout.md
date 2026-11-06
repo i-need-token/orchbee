@@ -697,9 +697,9 @@ included. It is hidden by default, so a Client opens on the current terminal. `C
 sidebar focus does; a key or paste that reaches the open list while its navigation is idle, after a
 pointer press or a closed dialog, returns to that navigation instead of reaching the covered
 terminal. The hide toggle, Esc or choosing a row closes it; a chosen row opens its terminal even
-when it is already current. Crossing 60 or 90 columns closes the list or the narrow overlay, so each
-class returns to its own resting state: wide hosts keep their docked visibility and narrower hosts
-start hidden. The list draws no divider and keeps the right padding cell. Row density follows the
+when it is already current. Crossing 60 columns keeps an open list open as the narrow overlay, and an
+open overlay open as the list; crossing 90 columns closes either, so wide hosts return to their
+docked visibility and narrower hosts start hidden. The list draws no divider and keeps the right padding cell. Row density follows the
 width the list would have with a divider, the window width plus one.
 
 The status shows no sidebar-navigation chip on the list screen, whose hide toggle and Help stay
