@@ -237,6 +237,11 @@ describe('useWorkbenchActions', () => {
 								name: 'Group',
 							},
 							[WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: { projectId: 'missing' },
+							[WORKBENCH_ACTION_IDS.closePanelTarget]: {
+								panelId: 'missing-panel',
+								tabId: 'missing-tab',
+								terminalContextId: 'missing-context',
+							},
 							[WORKBENCH_ACTION_IDS.openSearch]: {
 								filter: 'all',
 							},
@@ -299,6 +304,8 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed &&
 						// The Project creation workflow registers its own entry.
 						actionId !== WORKBENCH_ACTION_IDS.newProject &&
+						// Only the Panel close's own question runs this, after the authority has asked.
+						actionId !== WORKBENCH_ACTION_IDS.closePanelTargetConfirmed &&
 						// Only the authority's answer names the Tab this asks about.
 						actionId !== WORKBENCH_ACTION_IDS.closeTabConfirmed &&
 						// Only an authority's close can stop where Resume continues it.

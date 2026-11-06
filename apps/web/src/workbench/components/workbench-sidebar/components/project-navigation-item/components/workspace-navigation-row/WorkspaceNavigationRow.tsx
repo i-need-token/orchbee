@@ -14,6 +14,7 @@ import type {
 } from '../../../../../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../../../../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../../../model/workbench-terminal-location-activation';
+import type { WorkbenchPanelTargetInput } from '../../../../../../actions/workbench-action-ids';
 import type { WorkbenchActionMenuEntry } from '../../../../../../types/workbench-action-menu';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../../../types/workbench-agent-overview';
 import { WorkbenchActionContextMenuContent } from '../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
@@ -62,6 +63,8 @@ interface WorkspaceNavigationRowProps {
 	readonly menuFocus: ProjectNavigationMenuFocus;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
+	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
 	readonly refreshWorktrees: (workspaceId: string) => void;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
@@ -87,8 +90,10 @@ export function WorkspaceNavigationRow({
 	location,
 	menuFocus,
 	messages,
+	closeAgentPanel,
 	navigateAgent,
 	onPointerDown,
+	renameAgentPanel,
 	refreshWorktrees,
 	setWorkspaceProject,
 	showWorkspaceProjectCreation,
@@ -303,6 +308,9 @@ export function WorkspaceNavigationRow({
 						navigateAgent({ presentationId, workspaceId: workspace.id })
 					}
 					overview={agentOverview}
+					closeAgentPanel={closeAgentPanel}
+					messages={messages}
+					renameAgentPanel={renameAgentPanel}
 				/>
 			)}
 		</li>

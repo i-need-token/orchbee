@@ -17,12 +17,12 @@ const AUTOMATIC_NUMBER = /^\d+$/u;
 
 /**
  * What names an Agent ahead of its provider, by the TUI Agent row's rule: the name a person gave the
- * Agent; then the title an Agent report or Panel metadata gives the terminal, or else a Panel name a
- * person chose; then what the terminal's own title names; then the label the Server gave the
- * terminal at creation. The terminal's title is the one the Server reports for every terminal, as
- * the TUI reads it, and until that first report the one this window last saw. Blank text, an
- * automatic number and text that only names the provider, as an Agent's idle title does, name
- * nothing; null leaves the provider alone.
+ * Agent; then a Panel name a person chose, or else the title an Agent report or Panel metadata gives
+ * the terminal; then what the terminal's own title names; then the label the Server gave the
+ * terminal at creation. A Panel name fixes the title, so later terminal titles leave it be. The
+ * terminal's title is the one the Server reports for every terminal, as the TUI reads it, and until
+ * that first report the one this window last saw. Blank text, an automatic number and text that only
+ * names the provider, as an Agent's idle title does, name nothing; null leaves the provider alone.
  */
 export function resolveWorkbenchAgentTitle(
 	{ creationLabel, customTitle, naturalTask }: WorkbenchAgentTitleSource,
@@ -32,7 +32,7 @@ export function resolveWorkbenchAgentTitle(
 	const providerKeys = new Set(providerNames.map(nameKey));
 	const candidates: ReadonlyArray<readonly [string | null | undefined, boolean]> = [
 		[reported?.name, false],
-		[reported?.reportedTitle ?? customTitle, true],
+		[customTitle === undefined ? reported?.reportedTitle : customTitle, true],
 		[reported?.terminalTitle === undefined ? naturalTask : reported.terminalTitle, false],
 		[customTitle === undefined ? creationLabel : undefined, true],
 	];

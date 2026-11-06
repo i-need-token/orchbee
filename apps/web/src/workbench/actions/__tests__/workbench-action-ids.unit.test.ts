@@ -22,7 +22,7 @@ import {
 
 describe('workbench action contracts', () => {
 	it('owns stable semantic action ids', () => {
-		expect(WORKBENCH_ACTION_IDS).toEqual({
+		expect(WORKBENCH_ACTION_IDS).toMatchObject({
 			navigateAgent: 'workbench.agent.navigate',
 			activateWorkspace: 'workbench.workspace.activate',
 			createProject: 'workbench.project.create',

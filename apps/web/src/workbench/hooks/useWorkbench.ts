@@ -83,6 +83,7 @@ import {
 } from '../utils/workbench-shortcuts';
 import {
 	WORKBENCH_ACTION_IDS,
+	type WorkbenchPanelTargetInput,
 	type WorkbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
 import type { WorkbenchTabTitleEditorRequest } from '../actions/registerWorkbenchTabTitleAction';
@@ -176,6 +177,8 @@ interface WorkbenchView {
 	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
+	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly actionScope: ActionScope;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
 	/** Present when an authority may stop a Tab's close where Resume continues it. */
@@ -931,6 +934,12 @@ export function useWorkbench({
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		closeResume,
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
+		closeAgentPanel: (input) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.closePanelTarget, input, 'menu');
+		},
+		renameAgentPanel: (input) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.renamePanel, { kind: 'open', ...input }, 'menu');
+		},
 		setWorkspaceProject: (workspaceId, projectId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.setWorkspaceProject, { workspaceId, projectId }, 'menu');
 		},
@@ -1024,6 +1033,8 @@ export function useWorkbench({
 			formatWorkbenchShortcut('newWorkspace', shortcutPlatform, shortcutBindings),
 		),
 		projectNavigationMessages: {
+			agentMenuClose: intl.formatMessage(workbenchMessages.panelClose),
+			agentMenuRename: intl.formatMessage(workbenchMessages.panelRenameMenu),
 			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
 			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
 			workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),

@@ -10,6 +10,8 @@ import type { PointerEvent, ReactNode } from 'react';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../../../model/project-workbench-agent-overview';
+import type { WorkbenchPanelTargetInput } from '../../../../actions/workbench-action-ids';
+
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../model/workbench-terminal-location-activation';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
@@ -51,6 +53,8 @@ interface ProjectNavigationItemProps {
 	readonly heldWorkspaceId: string | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
+	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly project: WorkbenchProject | null;
 	readonly projectWorktreeRows: (sourceWorkspaceId: string | null) => ProjectWorktreeRows;
 	/**
@@ -90,8 +94,10 @@ export function ProjectNavigationItem({
 	dragging,
 	expanded,
 	heldWorkspaceId,
+	closeAgentPanel,
 	messages,
 	navigateAgent,
+	renameAgentPanel,
 	project,
 	projectWorktreeRows,
 	refreshWorktrees,
@@ -305,6 +311,8 @@ export function ProjectNavigationItem({
 							menuFocus={menuFocus}
 							messages={messages}
 							navigateAgent={navigateAgent}
+							closeAgentPanel={closeAgentPanel}
+							renameAgentPanel={renameAgentPanel}
 							onPointerDown={(event) =>
 								onEntryPointerDown({ id: workspace.id, kind: 'workspace' }, event)
 							}

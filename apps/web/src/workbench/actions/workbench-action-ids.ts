@@ -29,6 +29,8 @@ export const WORKBENCH_ACTION_IDS = {
 	closeProjectWorkspaces: 'workbench.project.close-all',
 	closeWorkspaceConfirmed: 'workbench.workspace.close-confirmed',
 	closeTabConfirmed: 'workbench.tab.close-confirmed',
+	closePanelTarget: 'workbench.panel.target.close',
+	closePanelTargetConfirmed: 'workbench.panel.target.close-confirmed',
 	deleteWorkspace: 'workbench.workspace.delete',
 	equalizeActivePanels: 'workbench.panel.active.equalize',
 	focusActiveTerminal: 'workbench.focus.active-terminal',
@@ -224,6 +226,13 @@ export type WorkbenchTabTitleInput =
 			readonly title: string | null;
 	  };
 
+/** A Panel named by its location, whichever Workspace shows it. */
+export type WorkbenchPanelTargetInput = {
+	readonly panelId: string;
+	readonly tabId: string;
+	readonly terminalContextId: string;
+};
+
 export type WorkbenchPanelNameInput =
 	| undefined
 	| {
@@ -259,6 +268,8 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeTabConfirmed]: ActionSignature<WorkbenchTabSetTargetInput>;
+	readonly [WORKBENCH_ACTION_IDS.closePanelTarget]: ActionSignature<WorkbenchPanelTargetInput>;
+	readonly [WORKBENCH_ACTION_IDS.closePanelTargetConfirmed]: ActionSignature<WorkbenchPanelTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
@@ -515,6 +526,27 @@ export const workbenchTabTitleInput: ActionInputValidation<WorkbenchTabTitleInpu
 				title: input['title'],
 			},
 			success: true,
+		};
+	},
+};
+
+export const workbenchPanelTargetInput: ActionInputValidation<WorkbenchPanelTargetInput> = {
+	name: 'WorkbenchPanelTargetInput',
+	parse: (input) => {
+		if (
+			!isRecord(input) ||
+			typeof input['panelId'] !== 'string' ||
+			typeof input['tabId'] !== 'string' ||
+			typeof input['terminalContextId'] !== 'string'
+		)
+			return { success: false, code: 'expected-panel-target-input' };
+		return {
+			success: true,
+			data: {
+				panelId: input['panelId'],
+				tabId: input['tabId'],
+				terminalContextId: input['terminalContextId'],
+			},
 		};
 	},
 };

@@ -10,6 +10,8 @@ import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
+import type { WorkbenchPanelTargetInput } from '../../actions/workbench-action-ids';
+
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
 import { NameDialog } from '../name-dialog/NameDialog';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
@@ -40,6 +42,8 @@ interface WorkbenchSidebarProps {
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
+	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly focusRequest: number;
 	readonly label: string;
 	readonly newWorkspaceLabel: string;
@@ -91,7 +95,9 @@ export function WorkbenchSidebar({
 	setWorkspaceProject,
 	createWorkspaceProject,
 	deleteWorkspace,
+	closeAgentPanel,
 	navigateAgent,
+	renameAgentPanel,
 	focusRequest,
 	label,
 	newWorkspaceLabel,
@@ -286,6 +292,8 @@ export function WorkbenchSidebar({
 										workspaceActivation.cancel();
 										navigateAgent(input);
 									}}
+									closeAgentPanel={closeAgentPanel}
+									renameAgentPanel={renameAgentPanel}
 									project={project}
 									projectWorktreeRows={workspaceWorktrees.projectRows}
 									refreshWorktrees={workspaceWorktrees.refresh}

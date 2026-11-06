@@ -255,8 +255,12 @@ export function useWorkbenchAgentPresentation({
 							}),
 							agentLabel,
 							current: destination.presentationId === currentPresentationId,
+							panelId: destination.panelId,
 							presentationId: destination.presentationId,
+							primary: destination.terminalPosition.kind === 'primary',
 							status,
+							tabId: destination.tabId,
+							terminalContextId: destination.terminalContextId,
 							titleLabel,
 							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
 						};

@@ -8,8 +8,14 @@ interface WorkbenchWorkspaceAgentRowView {
 	readonly agentLabel: string;
 	/** Whether this Agent's terminal is the focused Panel's in the open Workspace. */
 	readonly current: boolean;
+	/** The Panel holding the Agent's terminal; Rename and Close name it. */
+	readonly panelId: string;
 	readonly presentationId: TerminalPresentationId;
+	/** Whether the terminal is its Panel's primary one, the only one Panel rename names. */
+	readonly primary: boolean;
 	readonly status: WorkbenchAgentStatusView;
+	readonly tabId: string;
+	readonly terminalContextId: string;
 	/** What names the Agent before its provider, by the TUI's rule; empty leaves the provider alone. */
 	readonly titleLabel: string;
 	readonly unreadLabel?: string | undefined;

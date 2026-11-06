@@ -20,6 +20,8 @@ export interface WorkbenchWorktreeCommands {
 }
 
 export interface WorkbenchProjectNavigationMessages {
+	readonly agentMenuClose: string;
+	readonly agentMenuRename: string;
 	readonly workspaceMoveToProject: string;
 	readonly workspaceCreateProject: string;
 	readonly workspaceUngroup: string;

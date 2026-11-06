@@ -33,6 +33,7 @@ import {
 	registerWorkbenchPanelNameAction,
 	type WorkbenchPanelNameEditorRequest,
 } from '../actions/registerWorkbenchPanelNameAction';
+import { registerWorkbenchPanelTargetCloseAction } from '../actions/registerWorkbenchPanelTargetCloseAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
 import { registerWorkbenchWorktreeActions } from '../actions/registerWorkbenchWorktreeActions';
@@ -206,6 +207,12 @@ export function useWorkbenchActions({
 			registerWorkbenchPanelNameAction({
 				authority,
 				openEditor: openPanelNameEditor,
+				projectWorkspaceRuntime,
+				scope,
+				typedRuntime,
+			}),
+			...registerWorkbenchPanelTargetCloseAction({
+				authority,
 				projectWorkspaceRuntime,
 				scope,
 				typedRuntime,

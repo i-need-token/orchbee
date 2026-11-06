@@ -184,6 +184,8 @@ export function Workbench({
 				createWorkspaceProject={view.createWorkspaceProject}
 				deleteWorkspace={view.deleteWorkspace}
 				navigateAgent={view.navigateAgent}
+				closeAgentPanel={view.closeAgentPanel}
+				renameAgentPanel={view.renameAgentPanel}
 				label={view.sidebarLabel}
 				onSearch={view.search}
 				onSettings={view.settings}
