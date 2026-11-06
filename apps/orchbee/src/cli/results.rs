@@ -252,6 +252,7 @@ pub(crate) struct TerminalRow {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TerminalListDetails {
     pub(crate) placement: Option<TerminalPlacement>,
+    /// The Host frame's raw title, which the human table names with the shared terminal title rule.
     pub(crate) title: Option<String>,
     pub(crate) agent: Option<String>,
     pub(crate) state: Option<TerminalListState>,

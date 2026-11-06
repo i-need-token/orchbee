@@ -144,7 +144,7 @@ fn observe_rows(
             super::terminal_observation::Observation::Observed(_)
         );
         let details_row = &mut details[index];
-        details_row.title = fields["terminalTitleStripped"].as_str().map(str::to_owned);
+        details_row.title = fields["terminalTitle"].as_str().map(str::to_owned);
         details_row.cwd = fields["cwd"].as_str().map(str::to_owned);
         details_row.agent = report
             .and_then(|report| report.agent.as_deref())

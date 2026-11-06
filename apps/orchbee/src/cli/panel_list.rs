@@ -7,6 +7,7 @@ use super::{
     results::{self, PanelRow, Projection},
 };
 use crate::cli_text::CliText;
+use crate::terminal_title::display_name;
 use crate::{
     invocation::{QueryCommand, Target},
     local_client::LocalClient,
@@ -32,6 +33,7 @@ pub(super) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     panels: &[PanelRow],
+    locale: Locale,
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
@@ -78,11 +80,7 @@ pub(super) fn read(
             "ended" => 1,
             _ => 0,
         });
-        let mut title = panel
-            .custom_label
-            .as_ref()
-            .unwrap_or(&panel.display_label)
-            .clone();
+        let mut terminal_title = None;
         let mut cwd = None;
         if index < 64
             && let Some(terminal) = &panel.primary_terminal_id
@@ -116,13 +114,7 @@ pub(super) fn read(
                         super::terminal_observation::Observation::Observed(Box::new(observation))
                             .fields();
                     cwd = fields["cwd"].as_str().map(str::to_owned);
-                    if panel.custom_label.is_none()
-                        && let Some(actual) = fields["terminalTitleStripped"]
-                            .as_str()
-                            .filter(|s| !s.is_empty())
-                    {
-                        title = actual.to_owned();
-                    }
+                    terminal_title = fields["terminalTitle"].as_str().map(str::to_owned);
                 }
                 Err(error) if error.kind == FailureKind::ServiceUnavailable => {}
                 Err(error) => return Err(error),
@@ -134,7 +126,7 @@ pub(super) fn read(
                 .get(panel.panel_id.as_str())
                 .expect("complete Panel membership")
                 .clone(),
-            title,
+            title: panel_title(panel, terminal_title.as_deref(), locale),
             agents: if providers.is_empty() {
                 "-".into()
             } else {
@@ -155,6 +147,21 @@ pub(super) fn read(
     signals.check_before(deadline)?;
     Ok(Document { rows })
 }
+
+/// The Panel list TITLE: the Panel's own label, else the primary terminal's title named by the
+/// shared terminal title rule, else the Presentation label.
+pub(super) fn panel_title(
+    panel: &PanelRow,
+    terminal_title: Option<&str>,
+    locale: Locale,
+) -> String {
+    panel
+        .custom_label
+        .clone()
+        .or_else(|| terminal_title.and_then(|title| display_name(title, locale)))
+        .unwrap_or_else(|| panel.display_label.clone())
+}
+
 impl Document {
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
         let headers = CliText::new(locale).cli_panel_table_headers();

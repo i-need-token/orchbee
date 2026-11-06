@@ -4,6 +4,7 @@
 //! render aborts at the 8 MiB bound instead of assembling the full body.
 
 use crate::cli_text::{CliLabels, CliText};
+use crate::terminal_title::display_name;
 use serde_json::Value;
 mod agent_screen;
 
@@ -302,34 +303,14 @@ fn terminal_list_cells(
         details
             .title
             .as_deref()
-            .map_or_else(|| "-".to_owned(), terminal_title),
+            .and_then(|title| display_name(title, locale))
+            .unwrap_or_else(|| "-".to_owned()),
         details.agent.clone().unwrap_or_else(|| "-".to_owned()),
         state.to_owned(),
         placement.map_or_else(|| "-".to_owned(), |p| p.workspace.clone()),
         placement.map_or_else(|| "-".to_owned(), |p| p.panel.clone()),
         details.cwd.clone().unwrap_or_else(|| "-".to_owned()),
     ]
-}
-
-/// A title that is only the launched program's absolute path shows the
-/// program name; every other title is kept as the terminal set it.
-fn terminal_title(title: &str) -> String {
-    let absolute = title.starts_with('/')
-        || title.starts_with("\\\\")
-        || matches!(title.as_bytes(), [drive, b':', b'\\' | b'/', ..] if drive.is_ascii_alphabetic());
-    let name = title.rsplit(['\\', '/']).next().unwrap_or(title);
-    match name.rsplit_once('.') {
-        Some((stem, extension))
-            if absolute
-                && !stem.is_empty()
-                && ["exe", "com", "cmd", "bat", "ps1"]
-                    .iter()
-                    .any(|known| extension.eq_ignore_ascii_case(known)) =>
-        {
-            stem.to_owned()
-        }
-        _ => title.to_owned(),
-    }
 }
 
 /// Print stable compact identities when no snapshot placement was attached.

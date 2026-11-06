@@ -109,7 +109,7 @@ pub(crate) fn run(
             );
         }
     };
-    let result = execute(command, selected, format, deadline, &mut signals);
+    let result = execute(command, selected, format, locale, deadline, &mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -223,6 +223,7 @@ fn execute(
     command: &QueryCommand,
     selected: Option<&WorkbenchClientId>,
     format: OutputFormat,
+    locale: Locale,
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<(Value, Document), Failure> {
@@ -236,7 +237,8 @@ fn execute(
         let initial = selected
             .map(|id| current(&mut client, &snapshot, id, deadline, signals, true))
             .transpose()?;
-        let table = super::panel_list::read(&mut client, &snapshot, rows, deadline, signals)?;
+        let table =
+            super::panel_list::read(&mut client, &snapshot, rows, locale, deadline, signals)?;
         if let Some(initial) = initial {
             let final_client = current(
                 &mut client,

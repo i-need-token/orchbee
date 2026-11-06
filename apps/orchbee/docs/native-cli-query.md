@@ -361,7 +361,9 @@ primary directory as a process CWD or expose internal context IDs as names.
 `panel list` includes `workspaceId`, plus the primary
 presentation's `label`, nullable `customLabel`, and `displayLabel`. These are the
 same canonical values returned by `panel get`, not inferred process or Agent titles.
-JSON preserves labels exactly; text escapes them and bounds list display width.
+JSON preserves labels exactly; text escapes them and bounds list display width. The text
+`TITLE` column is a human projection: the custom label when one is set, otherwise the primary
+terminal's title named as the terminal list names it, otherwise `displayLabel`.
 
 These projections consume one validated Workbench snapshot and retain its source
 revision, existing-only admission, bounded output, and headless availability. They
@@ -1844,9 +1846,12 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
   changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The text-only enrichment shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
-  reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title; a title
-  that is only an absolute path to an `.exe`, `.com`, `.cmd`, `.bat` or `.ps1` program shows that
-  program's name. `TITLE`, `AGENT` and `STATE` are the only cells shortened to fit 80 cells;
+  reads; later rows retain `-` for enrichment. `TITLE` names the Host frame title by the TUI Tab
+  rule: an absolute drive or UNC path to an `.exe`, `.com`, `.cmd` or `.bat` program shows the
+  program in the display language (for example `PowerShell` or `Command Prompt`), keeping cmd's
+  ` - <command>` suffix, and any other title shows its stripped text. The
+  [native tab labels](native-tab-labels.md#canonical-state-and-display) contract owns that rule.
+  `TITLE`, `AGENT` and `STATE` are the only cells shortened to fit 80 cells;
   handles and `CWD` are never cut. `CWD` is the validated terminal-frame directory, falling back to the observed root process directory;
   it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
   then bounded foreground-process detection; `STATE` preserves a known presentation report state.

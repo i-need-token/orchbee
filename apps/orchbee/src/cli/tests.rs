@@ -169,7 +169,8 @@ fn launch_profile_documents_preserve_platform_paths_and_reject_relative_paths() 
 }
 
 use super::results::{
-    ContextRef, Projection, TabDoc, TabRow, TerminalListDetails, TerminalListDocument, TerminalRow,
+    ContextRef, PanelRow, Projection, TabDoc, TabRow, TerminalListDetails, TerminalListDocument,
+    TerminalRow,
 };
 use super::{OutputFormat, output};
 use crate::cli_outcome::TerminalListState;
@@ -481,9 +482,66 @@ fn terminal_list_shows_location_handles_and_program_names() {
         let line = text.lines().nth(1).unwrap();
         let cells: Vec<_> = line.split_whitespace().collect();
         assert_eq!(cells[0], "@terminal:0xf", "{text}");
-        assert_eq!(cells[1], "pwsh", "{text}");
         assert!(line.contains("@panel:0x3"), "{text}");
         assert!(line.contains(workspace), "{text}");
+    }
+}
+
+#[test]
+fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
+    // Both human lists read the same Host frame title. A launch path gets one TITLE in each list,
+    // and that TITLE is never the path itself.
+    let launch_path = r"C:\Program Files\PowerShell\7\pwsh.exe";
+    let row = TerminalRow {
+        terminal_id: ID.into(),
+        worker_id: "1".repeat(32),
+        presentation_id: "2".repeat(32),
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+    };
+    let panel = PanelRow {
+        workspace_id: "1".repeat(32),
+        label: "1".to_owned(),
+        custom_label: None,
+        display_label: "1".to_owned(),
+        right_click: orchbee_workbench_protocol::PanelRightClickTarget::Orchbee,
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+        primary_presentation_id: "2".repeat(32),
+        presentation_count: 1,
+        primary_terminal_id: Some(ID.to_owned()),
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let output = super::success_output(
+            Projection::TerminalListHuman(TerminalListDocument {
+                rows: vec![row.clone()],
+                details: vec![TerminalListDetails {
+                    // A short handle keeps the row inside 80 cells, so TITLE is compared untruncated.
+                    placement: Some(super::results::TerminalPlacement {
+                        handle: "@terminal:0xf".into(),
+                        workspace: "@workspace:0x9".into(),
+                        panel: "@panel:0x3".into(),
+                    }),
+                    title: Some(launch_path.into()),
+                    ..TerminalListDetails::default()
+                }],
+            }),
+            json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
+            &QueryCommand::TerminalList { filter: None },
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        let terminal_title = text
+            .lines()
+            .nth(1)
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap();
+        let panel_title = super::panel_list::panel_title(&panel, Some(launch_path), locale);
+        assert_eq!(panel_title, terminal_title, "{text}");
+        assert!(!terminal_title.contains('\\'), "{text}");
     }
 }
 

@@ -23,6 +23,13 @@ pub fn stripped(title: &str) -> Option<&str> {
     (!title.is_empty()).then_some(title)
 }
 
+/// The name a terminal title shows in human output, in the words native chrome uses. Pass the raw
+/// Host frame title: a launched program is named by its program, and any other title stays as its
+/// terminal set it.
+pub fn display_name(title: &str, locale: crate::localization::Locale) -> Option<String> {
+    ChromeName::of_title(title).map(|name| locale.chrome_name(name).into_owned())
+}
+
 /// What native chrome shows for an automatic name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ChromeName<'a> {
