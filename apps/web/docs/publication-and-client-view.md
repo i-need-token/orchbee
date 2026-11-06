@@ -107,9 +107,12 @@ terminal-runtime authority.
 `createDefaultWorkbenchClientView(publication)` derives one complete deterministic view.
 `reconcileWorkbenchClientView(publication, candidate)` keeps every choice that still names something
 published and derives the rest: the first Tab, the first Panel, no maximized Panel, and the active
-Tab's Group. A location whose Workspace is gone moves to the first Workspace the sidebar lists,
-Projects first and then Recents, and to No Workspace once none is left. Reconciliation is idempotent
-and never changes the publication.
+Tab's Group. A location whose Workspace is gone moves to the next Workspace after it that remains
+in the sidebar order the window showed, Projects first and then Recents, else the one before it, as
+the TUI lands when the current Workspace closes; without either, to the first Workspace the sidebar
+lists, and to No Workspace once none is left. Since a closing Workspace leaves at the Server's
+acceptance, the selection lands on that neighbour at once. Reconciliation is idempotent and never
+changes the publication.
 
 An action that changes shared structure and implies navigation changes the two shapes separately:
 creating a Tab adds it for every Client and selects it only in the window that asked. Every other

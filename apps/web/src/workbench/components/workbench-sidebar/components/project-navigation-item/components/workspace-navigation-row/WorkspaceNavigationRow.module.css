@@ -113,6 +113,13 @@
 	white-space: nowrap;
 }
 
+/* The end area's items all sit on line 1, so a folded Workspace's states run under it to the row's
+   8 px end inset, as the TUI's status line spans the sidebar, and `+N` appears only when they do not
+   fit there. */
+.line2[data-agent-status] {
+	margin-inline-end: calc(-1 * (var(--ob-ref-space-12) + var(--ob-ref-space-0-5)));
+}
+
 /* Text beside icons sits on the icons' center line (G19): trimmed to its cap height and baseline,
    then raised a quarter of the cap height's lead over the x-height. Lowercase no longer sits about
    2 px low, as Segoe UI sets it, and capitals and CJK stay within a pixel. The padding keeps

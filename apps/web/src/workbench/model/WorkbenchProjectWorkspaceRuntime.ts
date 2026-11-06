@@ -6,6 +6,7 @@ import {
 	reconcileWorkbenchClientView,
 	type WorkbenchClientTabPanelView,
 	type WorkbenchClientView,
+	workspaceIdsInDisplayOrder,
 } from '../document/workbench-client-view';
 import {
 	createProjectWorkspaceState,
@@ -125,6 +126,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 					new Map([...tabs].map(([tabId, withheld]) => [tabId, withheld.view])),
 				]),
 			),
+			workspaceIdsInDisplayOrder(this.state),
 		);
 		const contextViews = new Map(
 			view.terminalContexts.map((context) => [context.terminalContextId, context]),

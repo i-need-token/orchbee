@@ -2,7 +2,7 @@ import type { TabModelSnapshot } from '@orchbee/tab-strip/model';
 import { z } from 'zod';
 import { TerminalPresentationIdSchema } from '@orchbee/workbench-client-protocol';
 
-import type { ProjectWorkspaceState, WorkbenchWorkspace } from '../../project-workspace';
+import type { ProjectWorkspaceState } from '../../project-workspace';
 import {
 	collectPanelLeaves,
 	type PanelLeaf,
@@ -138,19 +138,25 @@ export function projectWorkbenchClientView(source: WorkbenchClientViewSource): W
 /**
  * Keeps every choice of `candidate` that still names something `publication` holds. A Tab that
  * `candidate` lacks takes its view from `returning`, where this Client kept it while an earlier
- * publication withheld the Tab.
+ * publication withheld the Tab. `previousWorkspaceIds` is the sidebar order `candidate` was chosen
+ * in, which places a Workspace that is gone among the ones that remain.
  */
 export function reconcileWorkbenchClientView(
 	publication: WorkbenchPublication,
 	candidate: WorkbenchClientView | undefined,
 	returning: ReturningTabPanelViews = NO_RETURNING_TAB_PANEL_VIEWS,
+	previousWorkspaceIds: readonly string[] = [],
 ): WorkbenchClientView {
 	const expandedCandidates = new Set(candidate?.expandedProjectIds ?? []);
 	const candidateContexts = new Map(
 		(candidate?.terminalContexts ?? []).map((context) => [context.terminalContextId, context]),
 	);
 	return createWorkbenchClientView({
-		activeLocation: reconcileActiveLocation(publication, candidate?.activeLocation),
+		activeLocation: reconcileActiveLocation(
+			publication,
+			candidate?.activeLocation,
+			previousWorkspaceIds,
+		),
 		expandedProjectIds: publication.projects
 			.filter((project) => expandedCandidates.has(project.id))
 			.map((project) => project.id),
@@ -165,34 +171,44 @@ export function reconcileWorkbenchClientView(
 	});
 }
 
-/** A Workspace that is gone gives way to the first one the sidebar lists, and the last one to none. */
+/**
+ * A Workspace that is gone gives way to the next one after it in the sidebar order it was chosen
+ * in that remains, else the one before it, the neighbour the TUI lands on when it closes; without
+ * either, to the first one the sidebar lists, and the last one to none.
+ */
 function reconcileActiveLocation(
 	publication: WorkbenchPublication,
 	candidate: WorkbenchClientView['activeLocation'] | undefined,
+	previousWorkspaceIds: readonly string[],
 ): WorkbenchClientView['activeLocation'] {
-	if (
-		candidate?.kind === 'workspace' &&
-		publication.workspaces.some((workspace) => workspace.id === candidate.workspaceId)
-	) {
+	const workspaceIds = new Set(publication.workspaces.map((workspace) => workspace.id));
+	if (candidate?.kind === 'workspace' && workspaceIds.has(candidate.workspaceId)) {
 		return { ...candidate };
 	}
-	const workspace = firstWorkspaceInDisplayOrder(publication);
-	return workspace === undefined
-		? { kind: 'no-workspace' }
-		: { kind: 'workspace', workspaceId: workspace.id };
+	const position =
+		candidate?.kind === 'workspace' ? previousWorkspaceIds.indexOf(candidate.workspaceId) : -1;
+	let neighbour: string | undefined;
+	if (position >= 0) {
+		neighbour = previousWorkspaceIds.slice(position + 1).find((id) => workspaceIds.has(id));
+		for (let index = position - 1; neighbour === undefined && index >= 0; index -= 1) {
+			const previous = previousWorkspaceIds[index];
+			if (previous !== undefined && workspaceIds.has(previous)) neighbour = previous;
+		}
+	}
+	const workspaceId = neighbour ?? workspaceIdsInDisplayOrder(publication)[0];
+	return workspaceId === undefined ? { kind: 'no-workspace' } : { kind: 'workspace', workspaceId };
 }
 
 /** The sidebar lists each Project's Workspaces in Project order, then Recents. */
-function firstWorkspaceInDisplayOrder(
-	publication: WorkbenchPublication,
-): WorkbenchWorkspace | undefined {
-	for (const project of publication.projects) {
-		const workspace = publication.workspaces.find(
-			(candidate) => candidate.projectId === project.id,
-		);
-		if (workspace !== undefined) return workspace;
-	}
-	return publication.workspaces.find((workspace) => workspace.projectId === null);
+export function workspaceIdsInDisplayOrder(
+	listing: Pick<WorkbenchPublication, 'projects' | 'workspaces'>,
+): readonly string[] {
+	return [
+		...listing.projects.flatMap((project) =>
+			listing.workspaces.filter((workspace) => workspace.projectId === project.id),
+		),
+		...listing.workspaces.filter((workspace) => workspace.projectId === null),
+	].map((workspace) => workspace.id);
 }
 
 /**

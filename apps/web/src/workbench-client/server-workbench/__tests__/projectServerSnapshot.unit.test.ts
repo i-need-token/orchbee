@@ -295,44 +295,6 @@ describe('applyPublishedWorkbench', () => {
 		}
 	});
 
-	it('moves to the first Workspace when its Workspace is gone, and to none when all are', () => {
-		const runtime = createSnapshotRuntime(
-			workbenchSnapshot(
-				1,
-				{
-					directories: [snapshotDirectory(1), snapshotDirectory(2), snapshotDirectory(3)],
-					workspaces: [snapshotWorkspace(1), snapshotWorkspace(2), snapshotWorkspace(3)],
-				},
-				[
-					snapshotContext(1, [snapshotTab(1)]),
-					snapshotContext(2, [snapshotTab(2)]),
-					snapshotContext(3, [snapshotTab(3)]),
-				],
-			),
-		);
-		runtime.transition({ type: 'workspace-activated', workspaceId: fixtureId(0x403) });
-
-		publishSnapshot(
-			runtime,
-			workbenchSnapshot(
-				2,
-				{
-					directories: [snapshotDirectory(1), snapshotDirectory(2)],
-					workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
-				},
-				[snapshotContext(1, [snapshotTab(1)]), snapshotContext(2, [snapshotTab(2)])],
-			),
-		);
-		expect(runtime.getSnapshot().activeLocation).toEqual({
-			kind: 'workspace',
-			workspaceId: fixtureId(0x401),
-		});
-
-		publishSnapshot(runtime, workbenchSnapshot(3, { workspaces: [] }, []));
-		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'no-workspace' });
-		expect(runtime.getActiveTerminalContext()).toBeNull();
-	});
-
 	it('expands a Project it has not seen and leaves a collapsed one collapsed', () => {
 		const firstProject = { label: 'First', projectId: fixtureId(0x201) };
 		const runtime = createSnapshotRuntime(

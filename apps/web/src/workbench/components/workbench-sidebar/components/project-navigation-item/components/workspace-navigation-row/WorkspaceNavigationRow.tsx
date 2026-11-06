@@ -228,7 +228,7 @@ export function WorkspaceNavigationRow({
 							</Tooltip>
 						)}
 					</span>
-					<span className={styles['line2']}>
+					<span className={styles['line2']} data-agent-status={folded ? '' : undefined}>
 						{folded ? <WorkspaceAgentStatusLine overview={agentOverview} /> : null}
 						{!folded && line !== null ? (
 							<Tooltip disabled={(location?.directory ?? null) === null}>

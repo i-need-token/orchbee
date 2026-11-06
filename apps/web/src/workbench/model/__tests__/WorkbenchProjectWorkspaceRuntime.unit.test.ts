@@ -289,6 +289,39 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 	});
 
+	it('lands on the next remaining Workspace, else the previous one, and on none when all leave', () => {
+		// Workspaces `sequences` in Recents, each in Directory 1 with one Tab numbered like it.
+		const workspacesSnapshot = (revision: number, sequences: readonly number[]) =>
+			workbenchSnapshot(
+				revision,
+				{
+					directories: [snapshotDirectory(1)],
+					workspaces: sequences.map((sequence) =>
+						snapshotWorkspace(sequence, { primaryDirectoryId: fixtureDirectoryId(1) }),
+					),
+				},
+				sequences.map((sequence) => snapshotContext(sequence, [snapshotTab(sequence)])),
+			);
+		const runtime = createSnapshotRuntime(workspacesSnapshot(1, [1, 2, 3]));
+		runtime.transition({ type: 'workspace-activated', workspaceId: fixtureWorkspaceId(2) });
+
+		publishSnapshot(runtime, workspacesSnapshot(2, [1, 3]));
+		expect(runtime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: fixtureWorkspaceId(3),
+		});
+
+		publishSnapshot(runtime, workspacesSnapshot(3, [1]));
+		expect(runtime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			workspaceId: fixtureWorkspaceId(1),
+		});
+
+		publishSnapshot(runtime, workspacesSnapshot(4, []));
+		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'no-workspace' });
+		expect(runtime.getActiveTerminalContext()).toBeNull();
+	});
+
 	it('disposes the context of a Workspace the Server no longer publishes', () => {
 		const runtime = createSnapshotRuntime(twoWorkspaceSnapshot(1));
 		const firstContext = activeTerminalContext(runtime);
