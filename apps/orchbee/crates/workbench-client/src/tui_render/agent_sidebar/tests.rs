@@ -64,7 +64,7 @@ fn default_agent_row_names_the_agent_then_its_provider_and_never_an_automatic_nu
             None,
             Some("Fix input"),
             "frontend",
-            true,
+            false,
             observed(Some("Respond to greeting")),
             "Fix input · codex",
         ),

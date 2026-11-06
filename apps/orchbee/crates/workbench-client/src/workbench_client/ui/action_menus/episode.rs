@@ -88,6 +88,10 @@ pub(super) enum Target {
         project: Box<orchbee_workbench_protocol::Project>,
         context: Option<Box<ProjectContext>>,
     },
+    /// One Agent row's Panel, which the menu focuses before a Rename or Close runs there.
+    Agent {
+        target: Box<crate::machine_agents::Target>,
+    },
 }
 
 #[derive(Clone)]
@@ -110,6 +114,8 @@ pub(super) enum Stage {
         deadline: Instant,
     },
     Wait(Origin, Instant),
+    /// Waits until an Agent's Panel holds focus, whose origin the navigation itself changes.
+    Reach(Instant),
     Offered(Origin, Instant),
 }
 
@@ -121,6 +127,7 @@ impl Stage {
             | Self::Context { deadline, .. }
             | Self::Tab { deadline, .. }
             | Self::Wait(_, deadline)
+            | Self::Reach(deadline)
             | Self::Offered(_, deadline) => Some(*deadline),
         }
     }

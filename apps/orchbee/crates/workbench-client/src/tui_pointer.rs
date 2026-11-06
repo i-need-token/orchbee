@@ -746,7 +746,7 @@ impl PointerState {
             .as_ref()?
             .regions
             .iter()
-            .filter(|region| region.target.sidebar_target().as_ref() == Some(target))
+            .filter(|region| region.target.row_menu_target().as_ref() == Some(target))
             .max_by_key(|region| u32::from(region.rect.width) * u32::from(region.rect.height))
             .map(|region| (region.rect.x, region.rect.y))
     }
@@ -782,12 +782,23 @@ impl PointerState {
             {
                 MenuTarget::Workspace(target.location.clone())
             }
+            SidebarTarget::Agent {
+                machine,
+                target: agent,
+            } if machine == &view.machines.current
+                && agent.context.session_id == source.session =>
+            {
+                MenuTarget::Agent {
+                    target: agent.clone(),
+                    title: view.machines.sidebar_agent_title(target)?,
+                }
+            }
             _ => return None,
         };
         let drawn = map.regions.iter().any(|region| {
-            region.target.sidebar_target().as_ref() == Some(target)
+            region.target.row_menu_target().as_ref() == Some(target)
                 && matches!(map.hit(region.rect.x, region.rect.y),
-                    HitResolution::Region(hit) if hit.sidebar_target().as_ref() == Some(target))
+                    HitResolution::Region(hit) if hit.row_menu_target().as_ref() == Some(target))
         });
         drawn.then(|| MenuTarget::Drawn {
             source: source.clone(),
@@ -1924,9 +1935,9 @@ impl PointerState {
                     Some(crate::action_menu::MenuTarget::TabProfiles(target.clone()))
                 }
                 HitResolution::Region(hit)
-                    if hit.sidebar_target().is_some() && event.button == MouseButton::Right =>
+                    if hit.row_menu_target().is_some() && event.button == MouseButton::Right =>
                 {
-                    hit.sidebar_target()
+                    hit.row_menu_target()
                         .and_then(|target| self.sidebar_menu_target(view, &target))
                 }
                 HitResolution::Region(HitTarget::Pane { pane, content })

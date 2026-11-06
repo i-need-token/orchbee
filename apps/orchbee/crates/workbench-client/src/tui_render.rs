@@ -2584,6 +2584,10 @@ fn sidebar_menu_hold(
                 location: location.clone(),
             },
         },
+        MenuTarget::Agent { target, .. } => SidebarTarget::Agent {
+            machine,
+            target: target.clone(),
+        },
         _ => return None,
     };
     Some((

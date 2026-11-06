@@ -168,17 +168,17 @@ impl Row {
             .map_or(&self.target.agent, |v| v.as_str())
     }
 
-    /// What names this Agent ahead of its provider, sanitized: a person's name for it, then an
-    /// explicit title or Panel name, then the title its terminal program set, then the Panel's
-    /// creation label. Blank text, an automatic number, a console's launch path, and text that
-    /// only names the provider or its program, as an Agent's idle title does, name nothing.
+    /// What names this Agent ahead of its provider, sanitized: a person's name for it, then a Panel
+    /// name the person chose, then an explicit title, then the title its terminal program set, then
+    /// the Panel's creation label. Blank text, an automatic number, a console's launch path, and
+    /// text that only names the provider or its program, as an Agent's idle title does, name
+    /// nothing.
     pub(crate) fn identity_title(&self) -> Option<String> {
+        // A Panel name the person chose outranks a title a program reported, as in the Panel header.
         let explicit = self
-            .metadata
-            .title
-            .as_ref()
-            .map(|title| title.as_str())
-            .or_else(|| self.label_custom.then_some(self.label.as_str()));
+            .label_custom
+            .then_some(self.label.as_str())
+            .or_else(|| self.metadata.title.as_ref().map(|title| title.as_str()));
         let observed = match &self.terminal_title {
             TerminalTitleObservation::Observed {
                 title: Some(title), ..

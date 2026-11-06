@@ -12,7 +12,9 @@ use crate::action_menu::{
 use crate::action_projection::ActionAvailability;
 use crate::client_view::KeyEvent;
 use crate::tui_presentation::GeometrySettlement;
-use crate::workbench_projection::{ClientContextLocation, MenuContextSource};
+use crate::workbench_projection::{
+    ClientContextLocation, MenuContextSource, project_native_context_tabs,
+};
 use crate::workbench_state::TabCloseResumePermit;
 use episode::{
     Discovery, Intent, Origin, ParentMenu, ProjectContext, ResumeHandoff, Stage, TabResolverSource,
@@ -35,6 +37,49 @@ fn selected_presentation(
         .get(state.cache().tab_index(pane.anchor().tab_id())?)?;
     let panel = tab.panel(tab.panel_index(pane.pane().panel())?)?;
     Some(state.selected_presentation(panel).presentation_id().clone())
+}
+
+/// The Agent's terminal in the canonical snapshot: whether it is its Panel's primary terminal, or
+/// `None` once its Panel no longer holds that terminal.
+fn agent_member(
+    state: &WorkbenchClientState,
+    target: &crate::machine_agents::Target,
+) -> Option<bool> {
+    let destination =
+        project_native_context_tabs(state.cache().canonical_snapshot(), &target.context.location)
+            .ok()?;
+    let tab = destination
+        .tabs()
+        .get(destination.tab_index(&target.tab)?)?;
+    let panel = tab.panel(tab.panel_index(&target.panel)?)?;
+    let member = panel.presentation(panel.presentation_index(&target.member)?)?;
+    let binding = member.binding()?;
+    (binding.worker_id() == &target.terminal.worker_id
+        && binding.terminal_id() == &target.terminal.terminal_id)
+        .then(|| panel.presentation_id() == &target.member)
+}
+
+/// Whether the Agent's Panel holds focus with its terminal selected, in the Workspace it belongs to.
+fn agent_focused(state: &WorkbenchClientState, target: &crate::machine_agents::Target) -> bool {
+    state.cache().location() == &target.context.location
+        && state.focus_pane_ref().is_some_and(|pane| {
+            pane.anchor().tab_id() == &target.tab
+                && pane.pane().panel() == &target.panel
+                && state.desired() == Some(pane.pane())
+                && selected_presentation(state, &pane).as_ref() == Some(&target.member)
+        })
+}
+
+/// Whether the Agent's Panel is focused and the Client has settled on it, so its action may run.
+fn agent_reached(state: &WorkbenchClientState, target: &crate::machine_agents::Target) -> bool {
+    agent_focused(state, target)
+        && matches!(
+            state.phase_kind(),
+            ClientPhaseKind::Empty
+                | ClientPhaseKind::Ready
+                | ClientPhaseKind::SelectedWithoutAttachment
+                | ClientPhaseKind::RetryableAttachUnavailable
+        )
 }
 
 /// Whether a Pane target can copy its terminal selection now. `Hidden` when the target is not the
@@ -95,6 +140,13 @@ fn action_availability(
         if hidden {
             return ActionAvailability::Hidden;
         }
+    }
+    // Rename Panel names only a Panel's primary terminal, so another terminal's row offers Close alone.
+    if let Target::Agent { target: agent } = target
+        && action == MenuAction::RenamePanel
+        && state.and_then(|state| agent_member(state, agent)) != Some(true)
+    {
+        return ActionAvailability::Hidden;
     }
     if action == MenuAction::CopySelection {
         return match (target, copy) {
@@ -683,6 +735,22 @@ impl WorkbenchClientUi {
                     actions.to_vec(),
                 )
             }
+            MenuTarget::Agent { target, title } => {
+                if !live {
+                    return false;
+                }
+                let Some(state) = state else {
+                    return false;
+                };
+                if agent_member(state, &target).is_none() {
+                    return false;
+                }
+                (
+                    Target::Agent { target },
+                    title,
+                    crate::action_menu::AGENT_ACTIONS.to_vec(),
+                )
+            }
             MenuTarget::Drawn { .. }
             | MenuTarget::Create(_)
             | MenuTarget::TabCreate(_)
@@ -1262,6 +1330,7 @@ impl WorkbenchClientUi {
                             == Some(&context.source)
                     })
             }
+            Target::Agent { target } => agent_member(state, target).is_some(),
         }
     }
 
@@ -1325,6 +1394,10 @@ impl WorkbenchClientUi {
                 state.focus_pane_ref().as_ref() == Some(pane)
                     && state.desired() == Some(pane.pane())
             }),
+            Target::Agent { target } => self
+                .state
+                .as_ref()
+                .is_some_and(|state| agent_focused(state, target)),
         }
     }
 
@@ -1488,6 +1561,17 @@ impl WorkbenchClientUi {
                                 deadline,
                             })
                     }
+                    // Rename and Close act on the focused Panel, so the Agent's Panel takes focus first.
+                    Target::Agent { target } => match self.navigate_agent(target) {
+                        crate::workbench_client::ContextNavigationAdmission::Current => {
+                            Some(Stage::Offered(current.clone(), deadline))
+                        }
+                        crate::workbench_client::ContextNavigationAdmission::Admitted => {
+                            Some(Stage::Reach(deadline))
+                        }
+                        crate::workbench_client::ContextNavigationAdmission::Busy
+                        | crate::workbench_client::ContextNavigationAdmission::Unavailable => None,
+                    },
                     Target::Pane { pane, .. } => {
                         let exact = self.state.as_ref().and_then(|s| s.focus_pane_ref())
                             == Some(pane.clone());
@@ -1520,6 +1604,20 @@ impl WorkbenchClientUi {
                             | ClientPhaseKind::RetryableAttachUnavailable
                     )
                 }) {
+                    intent.advance(Stage::Offered(current.clone(), deadline));
+                    changed = true;
+                }
+            }
+            Stage::Reach(deadline) => {
+                let deadline = *deadline;
+                let reached = match intent.target() {
+                    Target::Agent { target } => self
+                        .state
+                        .as_ref()
+                        .is_some_and(|state| agent_reached(state, target)),
+                    _ => false,
+                };
+                if reached {
                     intent.advance(Stage::Offered(current.clone(), deadline));
                     changed = true;
                 }

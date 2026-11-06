@@ -376,8 +376,8 @@ with its new peer. Other Clients keep their selection. Escape hides observation 
 and retains the operation ID.
 
 Windows `Ctrl+B F2` opens [action menus](docs/native-action-menus.md).
-Right-click a pane, Tab, Workspace or Project row for its existing actions; Agent rows have no
-menu. Opening and cancelling preserve focus; addressed organization and Close actions also preserve
+Right-click a pane, Tab, Workspace, Project or Agent row for its existing actions; an Agent row
+offers Rename and Close. Opening and cancelling preserve focus; addressed organization and Close actions also preserve
 the current terminal. A pointer-opened menu starts at the pressed column below its trigger row,
 else above it, and shifts left to stay inside the viewport; a keyboard-opened row menu opens beside
 its row. Hover moves the candidate without executing it; click or Enter executes, and Esc or an

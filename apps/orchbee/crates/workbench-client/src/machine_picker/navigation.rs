@@ -822,7 +822,9 @@ impl Picker {
                 let target = row.target();
                 let menu = matches!(
                     &target,
-                    SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
+                    SidebarTarget::Project { .. }
+                        | SidebarTarget::Context { .. }
+                        | SidebarTarget::Agent { .. }
                 ) && target.machine() == &self.current
                     && menu_session == Some(target.session_id());
                 SidebarCatalogRow {
@@ -1014,6 +1016,29 @@ impl Picker {
                 })
             }
         }
+    }
+
+    /// The name an Agent row shows, which the Agent's row menu is titled with.
+    pub(crate) fn sidebar_agent_title(&self, target: &SidebarTarget) -> Option<String> {
+        let SidebarTarget::Agent { machine, target } = target else {
+            return None;
+        };
+        self.agent_rows
+            .iter()
+            .find(|row| {
+                row.enabled
+                    && &row.choice == machine
+                    && row
+                        .agent
+                        .as_ref()
+                        .is_some_and(|agent| &agent.target == target.as_ref())
+            })
+            .and_then(|row| row.agent.as_ref())
+            .map(|agent| {
+                agent
+                    .identity_title()
+                    .unwrap_or_else(|| agent.provider().to_owned())
+            })
     }
     /// Whether a Project or Recents heading shows its Workspaces.
     pub(crate) fn sidebar_group_expanded(&self, target: &SidebarTarget) -> bool {
@@ -1387,7 +1412,9 @@ impl Picker {
             SidebarCommand::OpenMenu
                 if matches!(
                     focus.target,
-                    SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
+                    SidebarTarget::Project { .. }
+                        | SidebarTarget::Context { .. }
+                        | SidebarTarget::Agent { .. }
                 ) && self.sidebar_target_exists(&focus.target) =>
             {
                 return SidebarIntent::OpenMenu(focus.target);

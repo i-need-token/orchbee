@@ -27,6 +27,11 @@ pub enum MenuTarget {
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Organization actions address the Project directly; terminal actions require a member.
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
+    /// One Agent row's terminal, titled by the name the row shows.
+    Agent {
+        target: Box<crate::machine_agents::Target>,
+        title: String,
+    },
     Workspace(crate::workbench_projection::ClientContextLocation),
     WorkspaceProjects(crate::workbench_projection::ClientContextLocation),
     /// One Workspace's Open Worktree submenu: the Git Worktrees other than its own checkout.
@@ -127,6 +132,8 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::RenameProject,
     MenuAction::DeleteProject,
 ];
+/// Rename and Close address the Agent's Panel, which the menu focuses before either runs.
+pub(crate) const AGENT_ACTIONS: &[MenuAction] = &[MenuAction::RenamePanel, MenuAction::ClosePane];
 /// The Tab section acts on the current Tab, keeping selection and movement reachable by keyboard.
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::TabCreation,

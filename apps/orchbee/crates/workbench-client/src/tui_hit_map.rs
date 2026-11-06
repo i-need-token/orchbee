@@ -321,6 +321,25 @@ impl HitTarget {
             _ => None,
         }
     }
+
+    /// The sidebar row a right-press or keyboard row menu opens for. An Agent row opens a menu, but
+    /// a press on it still leaves sidebar navigation as it always has, so `sidebar_target` keeps
+    /// excluding Agent rows.
+    pub(super) fn row_menu_target(&self) -> Option<crate::machine_picker::SidebarTarget> {
+        use crate::machine_picker::SidebarTarget;
+        match self {
+            Self::MachineAgentRow { selected, .. } => match &selected.context {
+                Some(crate::startup_directory::ClientStartupTarget::Agent(target)) => {
+                    Some(SidebarTarget::Agent {
+                        machine: selected.machine.clone(),
+                        target: target.clone(),
+                    })
+                }
+                _ => None,
+            },
+            _ => self.sidebar_target(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -709,7 +728,7 @@ impl HitMapBuilder {
             .iter()
             .filter(|region| {
                 contains(region.rect, column, row)
-                    && (region.target.sidebar_target().is_some()
+                    && (region.target.row_menu_target().is_some()
                         || matches!(
                             region.target,
                             HitTarget::Tab(_) | HitTarget::TabGroup { .. }
@@ -726,7 +745,7 @@ impl HitMapBuilder {
             .map
             .regions
             .into_iter()
-            .filter(|region| region.target.sidebar_target().is_some())
+            .filter(|region| region.target.row_menu_target().is_some())
             .map(|region| region.rect)
             .collect();
     }

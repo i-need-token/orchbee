@@ -11,7 +11,7 @@ localized unsupported outcome. Shared Workbench actions retain their own admissi
 
 `Ctrl+B F2` and `[keys].menu` open the global action menu. These keyboard routes remain
 available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
-pane, Tab, Project or Workspace row; an Agent row has no menu. Opening or cancelling does not change focus. Pane content retains its configured
+pane, Tab, Project, Workspace or Agent row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
@@ -30,6 +30,8 @@ retried. Rename continues to address the primary Presentation independently of t
 The Workspace sidebar admits right-click only for an exact, still-present row on the
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
+
+An Agent row's menu holds Rename, which only a Panel's primary terminal offers, then a separated Close. Both name the row's Panel rather than its terminal: Rename edits the primary Presentation's shared override as the Panel menu does, and Close ends the whole Panel, asking first when one of its terminals runs something. The Panel actions act only on the focused Panel, so the menu first focuses the Agent's Panel, as a click on the row does, and offers the action once that Panel holds focus. An Agent in a child terminal has no Rename row.
 
 A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
 
