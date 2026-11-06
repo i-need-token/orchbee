@@ -252,6 +252,7 @@ pub(super) enum QueuedCommand {
     Viewport(Tagged<ViewportStep>),
     /// One Host selection or export command for this exact pane incarnation.
     Selection(Tagged<super::terminal_selection::Command>),
+    ClearTerminal(Tagged<()>),
     /// Set-level pane reconciliation: the executor attaches the listed pane
     /// incarnations and canonically disposes every attachment of the anchor it
     /// holds that the list does not name — one absolute deadline, bounded steps.
@@ -367,6 +368,7 @@ impl QueuedCommand {
             | Self::Poll(_)
             | Self::Viewport(_)
             | Self::Selection(_) => None,
+            Self::ClearTerminal(_) => None,
         }
     }
 }
@@ -821,6 +823,10 @@ pub(super) enum WorkerEvent {
         command: super::terminal_selection::Command,
         outcome: orchbee_client_server_protocol::TerminalViewerOutcome,
     },
+    TerminalClearOutcome {
+        key: PaneRef,
+        outcome: orchbee_client_server_protocol::TerminalControlOutcome,
+    },
 }
 
 /// The outcome of one `QueuedCommand::Viewport` step as the executor
@@ -867,6 +873,7 @@ impl WorkerEvent {
                 | Self::PaneFailed { .. }
                 | Self::ViewportOutcome { .. }
                 | Self::SelectionOutcome { .. }
+                | Self::TerminalClearOutcome { .. }
                 | Self::ControllerObserved { .. }
         )
     }
@@ -1008,6 +1015,7 @@ impl WorkerEvent {
             | Self::SelectionOutcome { .. } => {
                 return None;
             }
+            Self::TerminalClearOutcome { .. } => return None,
         };
         Some(UiWaitKey {
             serial,
@@ -1689,6 +1697,7 @@ impl CommandMailbox {
             // it, and recovery must stay admissible even if focus moved.
             QueuedCommand::Viewport(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Selection(tagged) => state.desired.admits(tagged.key()),
+            QueuedCommand::ClearTerminal(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)

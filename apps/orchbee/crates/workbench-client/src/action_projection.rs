@@ -209,6 +209,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Pane,
             &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
         ),
+        PrefixAction::Client(A::ClearTerminal) => built_in("terminal.clear", C::Pane, PANE),
         PrefixAction::Client(A::RequestCloseTab) => built_in("tabs.tab.close", C::Tab, CLOSE_TAB),
         PrefixAction::Client(A::MovePreviousTab | A::MoveNextTab) => {
             built_in("tabs.tab.move", C::Tab, MOVE_TAB)
@@ -403,6 +404,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             C::Pane,
             &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
         ),
+        A::ClearTerminal => built_in("terminal.clear", C::Pane, PANE),
         A::ResumeTabClose => built_in("orchbee.native.tab-close.resume", C::Tab, CLOSE_TAB),
         A::CloseSelectedTabs | A::CloseOtherTabs | A::CloseTrailingTabs | A::CloseGroup => {
             built_in("tabs.tab.close", C::Tab, CLOSE_TAB)

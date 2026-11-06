@@ -908,6 +908,10 @@ impl ClientExecutor {
                         let deadline = self.client.next_operation_deadline();
                         settle_ready_flow(self.run_selection(&lease, tagged, deadline))
                     }
+                    QueuedCommand::ClearTerminal(tagged) => {
+                        let deadline = self.client.next_operation_deadline();
+                        settle_ready_flow(self.run_terminal_clear(&lease, tagged, deadline))
+                    }
                     QueuedCommand::Switch(marker) => {
                         self.run_switch(&lease, marker.target().clone())
                     }
@@ -1237,6 +1241,45 @@ impl ClientExecutor {
                 &self.clock,
             )
             .map_err(|error| self.ready_event_error(lease, &key, deadline, error))?;
+        Ok(())
+    }
+
+    /// Clear uses the same viewer-only, one-shot request as the CLI; it sends no program input.
+    fn run_terminal_clear(
+        &mut self,
+        lease: &CommandLease,
+        tagged: &Tagged<()>,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let key = tagged.key();
+        if self.attached_ref(key).is_err() || !self.pane_admitted(lease, key)? {
+            return Ok(());
+        }
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        self.ensure_ready_before(lease, key, deadline, cutoff)?;
+        let action = TerminalControlAction::Clear {
+            attachment_id: self.viewer_id_for(key)?,
+        };
+        let outcome = self.control_once_ready(lease, key, action, deadline, cutoff)?;
+        if !matches!(
+            outcome,
+            TerminalControlOutcome::Cleared { .. }
+                | TerminalControlOutcome::Rejected { .. }
+                | TerminalControlOutcome::Unavailable { .. }
+                | TerminalControlOutcome::OutcomeUnknown {}
+        ) {
+            return Err(CarrierFailure::Protocol.into());
+        }
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::TerminalClearOutcome {
+                    key: key.clone(),
+                    outcome,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, key, deadline, error))?;
         Ok(())
     }
 

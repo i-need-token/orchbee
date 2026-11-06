@@ -13,6 +13,7 @@ mod sidebar_reorder;
 mod status_text;
 mod tab_duplication;
 mod tab_groups;
+mod terminal_clear;
 
 pub(crate) use crate::localization::NoticeContext;
 #[cfg(test)]
@@ -3041,6 +3042,7 @@ impl WorkbenchClientUi {
                     ClientActionDisposition::KeepNavigator
                 }
             }
+            ClientAction::ClearTerminal => self.request_terminal_clear(),
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::RequestWorkspaceCloseAt(workspace) => {
@@ -3741,6 +3743,9 @@ impl WorkbenchClientUi {
             return self.apply_poll_result(mailbox, poll_key, record);
         }
         if wait_key.is_none() {
+            if let WorkerEvent::TerminalClearOutcome { key, outcome } = event {
+                return self.apply_terminal_clear_outcome(key, outcome);
+            }
             if let WorkerEvent::SelectionOutcome {
                 key,
                 command,
@@ -3951,6 +3956,7 @@ impl WorkbenchClientUi {
                 | WorkerEvent::SelectionOutcome { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
+                WorkerEvent::TerminalClearOutcome { .. } => return Err(CarrierFailure::Protocol),
                 WorkerEvent::SwitchForwardExpired { .. } => return Err(CarrierFailure::Protocol),
                 WorkerEvent::SetupConfigured {
                     key,

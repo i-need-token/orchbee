@@ -113,6 +113,7 @@ fn action_availability(
             action,
             MenuAction::RenameTab
                 | MenuAction::RenamePanel
+                | MenuAction::ClearTerminal
                 | MenuAction::NewTabToRight
                 | MenuAction::DuplicateTab
                 | MenuAction::MoveTabPrevious

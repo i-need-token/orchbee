@@ -1458,6 +1458,9 @@ impl UiDriver {
     ) -> TestResult<UiEvent> {
         let (wait_key, event) = taken.into_parts();
         match event {
+            WorkerEvent::TerminalClearOutcome { .. } => {
+                Err(test_error("inspect the clear outcome directly"))
+            }
             WorkerEvent::ControllerObserved { .. } => {
                 panic!("unexpected ownership observation in setup fixture")
             }

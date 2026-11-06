@@ -237,6 +237,7 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
     let expected = [
         (MenuAction::RenameTab, ClientAction::RequestRenameTab),
         (MenuAction::RenamePanel, ClientAction::RequestRenamePanel),
+        (MenuAction::ClearTerminal, ClientAction::ClearTerminal),
         // The Tab section's other rows act on the current Tab, so they name no Tab.
         (
             MenuAction::NewTabToRight,

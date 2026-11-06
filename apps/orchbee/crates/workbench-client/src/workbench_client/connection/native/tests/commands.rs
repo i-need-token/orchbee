@@ -21,6 +21,64 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 #[test]
+fn terminal_clear_is_one_viewer_request_and_preserves_the_server_outcome() -> TestResult {
+    use crate::workbench_client::mailbox::WorkerEvent;
+    for outcome in [
+        TerminalControlOutcome::Cleared {
+            generation: std::num::NonZeroU64::new(1).unwrap(),
+            revision: std::num::NonZeroU64::new(2).unwrap(),
+            cleanup_confirmed: true,
+        },
+        TerminalControlOutcome::Cleared {
+            generation: std::num::NonZeroU64::new(1).unwrap(),
+            revision: std::num::NonZeroU64::new(2).unwrap(),
+            cleanup_confirmed: false,
+        },
+        TerminalControlOutcome::OutcomeUnknown {},
+        TerminalControlOutcome::Rejected {
+            reason: orchbee_client_server_protocol::ControlRejectedReason::HostClearAlternateScreen,
+        },
+        TerminalControlOutcome::Unavailable {
+            reason: ControlUnavailableReason::ServerBusy,
+        },
+    ] {
+        let geometry = fixture_geometry()?;
+        let mut kinds = vec![WireKind::Workbench];
+        kinds.extend([WireKind::Obcs; 6]);
+        let mut harness = Harness::start(kinds, geometry)?;
+        drive_controlling_ready(&mut harness, geometry)?;
+        let key = harness.ui.state().focus_pane_ref().unwrap();
+        harness
+            .mailbox
+            .try_enqueue(QueuedCommand::ClearTerminal(Tagged::new(key.clone(), ())))
+            .unwrap();
+        let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+            return Err(test_error(
+                "clear must use terminal control, not terminal input",
+            ));
+        };
+        assert_eq!(
+            request.action(),
+            &TerminalControlAction::Clear {
+                attachment_id: attached_viewer_id()?
+            }
+        );
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalControlResult(
+                TerminalControlResult::new(request.request_id().clone(), outcome.clone()),
+            ))?;
+        let (wait, event) = harness.ui.take_next()?.into_parts();
+        assert!(wait.is_none());
+        assert!(
+            matches!(event, WorkerEvent::TerminalClearOutcome { key: actual, outcome: result } if actual == key && result == outcome)
+        );
+        harness.finish()?;
+    }
+    Ok(())
+}
+
+#[test]
 fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_generation()
 -> TestResult {
     let geometry = fixture_geometry()?;
