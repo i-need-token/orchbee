@@ -525,7 +525,7 @@ describe('TerminalSettingsSurface', () => {
 			new TerminalSettingsController({
 				storage,
 				themeTarget: document.documentElement,
-				userPreferences: memoryUserPreferences(),
+				userPreferences: memoryUserPreferences({ copyOnSelect: true }),
 			}),
 		);
 		const interactionController = trackDisposable(

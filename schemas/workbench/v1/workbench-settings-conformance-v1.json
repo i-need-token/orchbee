@@ -89,7 +89,7 @@
 					"kind": "save",
 					"source": "missing",
 					"changes": {
-						"copyOnSelect": false
+						"copyOnSelect": true
 					}
 				}
 			}

@@ -70,7 +70,7 @@ export const DEFAULT_USER_PREFERENCES: Readonly<UserPreferencesValues> = Object.
 		terminalDisplayTheme: 'theme',
 		customForeground: '#141414',
 		customBackground: '#fcfcfc',
-		copyOnSelect: true,
+		copyOnSelect: false,
 		trimTrailingBlankRowsForAgents: true,
 		agentNotificationMode: 'never',
 		completionReminderMode: 'never',

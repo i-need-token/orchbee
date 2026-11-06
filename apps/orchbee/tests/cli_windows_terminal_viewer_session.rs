@@ -3,8 +3,8 @@
 //! another Workspace.
 //!
 //! The Client drives a split Workspace with pointer input as a user would: a click whose pointer
-//! moves before release focuses a pane and leaves a selection in it, which the default
-//! copy-on-select exports. A divider drag about 400 ms later resizes that pane once per column.
+//! moves before release focuses a pane and leaves a selection in it, which copy-on-select, turned
+//! on in this Session's preferences, exports. A divider drag about 400 ms later resizes that pane once per column.
 //! The Host reports the selection again at each new generation, faster than a busy Client polls,
 //! and refuses the export's cancellation or later chunk acknowledgements once the export is over.
 //! None of that may cost a pane its viewer: the TUI never shows a terminal as unavailable.
@@ -23,6 +23,10 @@ mod session;
 #[path = "cli_windows_terminal_viewer_session/focus_control.rs"]
 mod focus_control;
 
+use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
+use orchbee_workbench_protocol::{
+    PreferenceKey, UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse,
+};
 use session::{Control, Fixture, OBSERVATION};
 use std::{
     thread,
@@ -65,6 +69,7 @@ const LINE_MARK: &str = "LINE-";
 fn a_divider_drag_after_a_selecting_click_keeps_every_viewer() {
     let fixture = Fixture::new("orchbee-terminal-viewer-", &[]);
     let (left, right) = split_workspace(&fixture);
+    enable_copy_on_select(&fixture);
     let tui = fixture.start_tui(COLUMNS, ROWS);
     fixture.background_output();
     fixture.settle_ready(&tui.client);
@@ -276,4 +281,25 @@ fn motion(column: u16, row: u16) -> Vec<u8> {
 
 fn release(column: u16, row: u16) -> Vec<u8> {
     format!("\x1b[<0;{column};{row}m").into_bytes()
+}
+
+/// Copy-on-select is off by default; this test needs its exports, so it saves the preference in
+/// the fixture's own configuration before the TUI starts.
+fn enable_copy_on_select(fixture: &Fixture) {
+    let roaming = fixture.path("roaming");
+    let scope = UserPreferencesScope::from_environment(|name| {
+        (name == "APPDATA").then(|| roaming.clone().into())
+    })
+    .unwrap();
+    let response = UserPreferencesStore::new(scope).execute(&UserPreferencesRequest::Update {
+        source: "missing".to_owned(),
+        changes: UserPreferencesPatch::set(PreferenceKey::CopyOnSelect, true.into()).unwrap(),
+    });
+    assert!(
+        matches!(
+            response,
+            UserPreferencesResponse::Snapshot { changed: true, .. }
+        ),
+        "{response:?}"
+    );
 }

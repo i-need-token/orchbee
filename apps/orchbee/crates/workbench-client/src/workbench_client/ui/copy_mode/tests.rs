@@ -643,6 +643,7 @@ fn rejected_current_start_releases_copy_entry_but_an_old_generation_reply_does_n
 #[test]
 fn copy_entry_preserves_a_pointer_exports_queued_cancellation_behind_its_flight() {
     let (mut ui, mailbox, _, _) = ready_ui();
+    ui.preferences.copy_on_select = true;
     let key = install_projection(&mut ui, Some((0, true, 24)), 0);
     assert_eq!(
         ui.pointer_selection(

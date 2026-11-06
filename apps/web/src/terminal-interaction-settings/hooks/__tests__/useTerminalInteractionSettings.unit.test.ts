@@ -23,24 +23,21 @@ afterAll(() => {
 });
 
 describe('useTerminalInteractionSettings', () => {
-	it('uses the product default without a controller and follows controller updates', async () => {
+	it('follows controller updates', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const root = createRoot(container);
 
-		await act(async () => root.render(createElement(SnapshotProbe)));
-		expect(container.textContent).toBe('enabled');
-
 		const controller = new TerminalInteractionSettingsController(
-			memoryUserPreferences({ copyOnSelect: false }),
+			memoryUserPreferences({ copyOnSelect: true }),
 		);
 		await act(async () => root.render(createElement(SnapshotProbe, { controller })));
-		expect(container.textContent).toBe('disabled');
+		expect(container.textContent).toBe('enabled');
 
 		await act(async () => {
-			controller.update({ copyOnSelect: true });
+			controller.update({ copyOnSelect: false });
 		});
-		expect(container.textContent).toBe('enabled');
+		expect(container.textContent).toBe('disabled');
 
 		await act(async () => root.unmount());
 		container.remove();

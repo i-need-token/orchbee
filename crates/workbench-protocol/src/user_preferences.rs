@@ -182,7 +182,7 @@ impl Default for UserPreferencesValues {
             terminal_display_theme: TerminalDisplayAppearance::Theme,
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),
-            copy_on_select: true,
+            copy_on_select: false,
             trim_trailing_blank_rows_for_agents: true,
             agent_notification_mode: AgentReminderMode::Never,
             completion_reminder_mode: CompletionReminderMode::Never,

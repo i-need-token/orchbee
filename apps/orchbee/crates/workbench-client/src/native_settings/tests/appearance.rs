@@ -247,7 +247,7 @@ fn passive_unrelated_updates_keep_preview_and_reset_claims_all_appearance_leaves
     editor.edit(Edit::Adjust(true));
     let mut external = basis();
     external.source = "b".repeat(64);
-    external.values.copy_on_select = false;
+    external.values.copy_on_select = true;
     external.values.locale = PreferencesLocale::ZhCn;
     external.values.custom_foreground = "#abcdef".into();
     external.values.custom_background = "#123456".into();

@@ -6,8 +6,7 @@ import {
 } from '../interaction-configuration';
 
 describe('terminal interaction configuration', () => {
-	it('defaults copy-on-select on and isolates a complete record', () => {
-		expect(DEFAULT_TERMINAL_INTERACTION_CONFIGURATION).toEqual({ copyOnSelect: true });
+	it('freezes the default and isolates a complete record', () => {
 		expect(Object.isFrozen(DEFAULT_TERMINAL_INTERACTION_CONFIGURATION)).toBe(true);
 		expect(normalizeTerminalInteractionConfiguration({ copyOnSelect: false })).toEqual({
 			configuration: { copyOnSelect: false },

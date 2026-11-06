@@ -159,7 +159,7 @@ pub(super) struct Driver {
 impl Driver {
     pub(super) fn new(attachment: AttachmentId) -> Self {
         Self {
-            copy_on_select: true,
+            copy_on_select: false,
             attachment,
             generation: None,
             gesture: None,

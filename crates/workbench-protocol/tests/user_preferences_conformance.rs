@@ -59,14 +59,14 @@ fn common_preferences_obey_shared_defaults_and_every_boundary_case() {
 fn every_reset_uses_the_same_complete_defaults_and_preserves_unselected_values() {
     let changed = UserPreferencesValues {
         sound_enabled: true,
-        copy_on_select: false,
+        copy_on_select: true,
         ..UserPreferencesValues::default()
     };
     let only_sound = UserPreferencesPatch::reset([PreferenceKey::SoundEnabled])
         .apply(&changed)
         .unwrap();
     assert!(!only_sound.sound_enabled);
-    assert!(!only_sound.copy_on_select);
+    assert!(only_sound.copy_on_select);
     assert_eq!(
         UserPreferencesPatch::reset(PreferenceKey::ALL)
             .apply(&changed)

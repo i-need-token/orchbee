@@ -14,7 +14,7 @@ export interface TerminalInteractionConfigurationSource {
 }
 
 export const DEFAULT_TERMINAL_INTERACTION_CONFIGURATION: TerminalInteractionConfiguration =
-	Object.freeze({ copyOnSelect: true });
+	Object.freeze({ copyOnSelect: false });
 
 export const DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE: TerminalInteractionConfigurationSource =
 	Object.freeze({

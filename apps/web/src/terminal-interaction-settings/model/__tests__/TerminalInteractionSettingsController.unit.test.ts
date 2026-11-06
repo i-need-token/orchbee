@@ -6,7 +6,9 @@ import { TerminalInteractionSettingsController } from '../TerminalInteractionSet
 
 describe('TerminalInteractionSettingsController', () => {
 	it('publishes a confirmed copy-on-select transition live', async () => {
-		const controller = new TerminalInteractionSettingsController(memoryUserPreferences());
+		const controller = new TerminalInteractionSettingsController(
+			memoryUserPreferences({ copyOnSelect: true }),
+		);
 		const configurations: TerminalInteractionConfiguration[] = [];
 		controller.subscribe((configuration) => configurations.push(configuration));
 
@@ -20,7 +22,9 @@ describe('TerminalInteractionSettingsController', () => {
 	});
 
 	it('publishes the Agent tail preference without changing terminal interaction configuration', async () => {
-		const controller = new TerminalInteractionSettingsController(memoryUserPreferences());
+		const controller = new TerminalInteractionSettingsController(
+			memoryUserPreferences({ copyOnSelect: true }),
+		);
 		const configurations = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
 		const tailPreference = vi.fn<(enabled: boolean) => void>();
 		controller.subscribe(configurations);

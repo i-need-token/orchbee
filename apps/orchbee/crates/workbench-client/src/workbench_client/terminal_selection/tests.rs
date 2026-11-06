@@ -2,7 +2,9 @@ use super::*;
 use orchbee_terminal_protocol::{SelectionExportFormat, SelectionExportStatus, SelectionPoint};
 
 fn driver() -> Driver {
-    Driver::new(AttachmentId::parse("00000000000000000000000000000007").unwrap())
+    let mut driver = Driver::new(AttachmentId::parse("00000000000000000000000000000007").unwrap());
+    driver.set_copy_on_select(true);
+    driver
 }
 fn cell(column: u16) -> PointerSelectionCell {
     PointerSelectionCell { column, row: 0 }

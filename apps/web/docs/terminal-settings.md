@@ -79,7 +79,7 @@ The complete product default is:
 | Custom foreground      | `#141414`                                                          |
 | Custom background      | `#fcfcfc`                                                          |
 | Background opacity     | `100`                                                              |
-| Copy on select         | `true`                                                             |
+| Copy on select         | `false`                                                            |
 | Trim Agent tail blanks | `true`                                                             |
 
 ### CLI Agent trailing-blank-row preference

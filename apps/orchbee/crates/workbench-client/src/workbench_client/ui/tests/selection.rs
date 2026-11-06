@@ -47,6 +47,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
     };
     use std::num::NonZeroU64;
     let (mut ui, mailbox, _, _) = ready_ui();
+    ui.preferences.copy_on_select = true;
     let key = super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     assert_eq!(
         ui.pointer_selection(

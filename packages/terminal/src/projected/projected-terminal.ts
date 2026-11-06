@@ -114,6 +114,7 @@ import {
 	type TerminalInputConfiguration,
 	type TerminalOptionAsAltMode,
 } from '../input-configuration';
+import { DEFAULT_TERMINAL_INTERACTION_CONFIGURATION } from '../interaction-configuration';
 import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
@@ -1107,7 +1108,8 @@ export class ProjectedTerminal {
 		this.#optionAsAltMode =
 			options.inputConfiguration?.optionAsAlt ?? DEFAULT_TERMINAL_INPUT_CONFIGURATION.optionAsAlt;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
-		this.#copyOnSelect = options.copyOnSelect ?? true;
+		this.#copyOnSelect =
+			options.copyOnSelect ?? DEFAULT_TERMINAL_INTERACTION_CONFIGURATION.copyOnSelect;
 		this.#trimTrailingBlankRows = options.trimTrailingBlankRows ?? false;
 		this.#ownsResizeLease = options.canResize === true;
 		this.#presentationConfiguration = presentationConfigurationFromRendererOptions(

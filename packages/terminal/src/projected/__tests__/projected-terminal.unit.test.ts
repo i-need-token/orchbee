@@ -12297,6 +12297,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
@@ -12395,6 +12396,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
@@ -12831,6 +12833,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
@@ -12896,6 +12899,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
@@ -13067,6 +13071,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
@@ -13141,6 +13146,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
@@ -14230,6 +14236,7 @@ describe('ProjectedTerminal', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
+			copyOnSelect: true,
 			creationId,
 			hostEpoch,
 			labels: { input: 'input', screen: 'screen' },
