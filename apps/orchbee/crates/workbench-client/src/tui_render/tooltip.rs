@@ -15,7 +15,7 @@ use crate::{
     client_view::{ClientAction, ClientView, PrefixAction},
     localization::Locale,
     terminal_text::{display_width, truncate_display, truncate_display_middle},
-    tui_hit_map::{LegendItem, OpenTooltip, TooltipContent, TooltipText},
+    tui_hit_map::{LegendItem, OpenTooltip, RosterItem, TooltipContent, TooltipText},
     tui_theme::{Role, Theme},
 };
 
@@ -82,16 +82,20 @@ pub(super) fn describe(
     (text.is_some() || !legend.is_empty()).then_some(TooltipContent::Describe { text, legend })
 }
 
-/// Hidden Agents, each its state glyph and name, one per line in the order given; none when
-/// there are none.
+/// Hidden Agents, each its state glyph and word and then its identity, one per line in the order
+/// given; none when there are none.
 pub(super) fn roster(
     agents: impl IntoIterator<Item = (MetadataState, String)>,
     working_frame: usize,
+    locale: Locale,
     theme: &Theme,
 ) -> Option<TooltipContent> {
-    let items: Vec<LegendItem> = agents
+    let items: Vec<RosterItem> = agents
         .into_iter()
-        .map(|(state, name)| state_item(state, name, working_frame, theme))
+        .map(|(state, identity)| RosterItem {
+            state: agent_state(state, working_frame, locale, theme),
+            identity,
+        })
         .collect();
     (!items.is_empty()).then_some(TooltipContent::Roster { items })
 }
@@ -254,9 +258,10 @@ fn lines(content: &TooltipContent, room: usize, theme: &Theme) -> Vec<Line<'stat
     }
 }
 
-/// Agents one per line, each its state glyph then its name, cut to the room. When the roster
-/// outgrows [`ROSTER_LINES`], its last line counts the Agents left out.
-fn roster_lines(items: &[LegendItem], room: usize, theme: &Theme) -> Vec<Line<'static>> {
+/// Agents one per line, each its state glyph and word, then its identity in secondary text, cut
+/// to the room. The identity goes first, so a word stays whole until the room cannot hold it.
+/// When the roster outgrows [`ROSTER_LINES`], its last line counts the Agents left out.
+fn roster_lines(items: &[RosterItem], room: usize, theme: &Theme) -> Vec<Line<'static>> {
     let on_box = |role: Role, style: Style| {
         theme.content_on_surface(Role::SurfaceOverlay, None, Some(role), style)
     };
@@ -268,19 +273,7 @@ fn roster_lines(items: &[LegendItem], room: usize, theme: &Theme) -> Vec<Line<'s
     let mut lines: Vec<Line<'static>> = items
         .iter()
         .take(shown)
-        .map(|item| {
-            Line::from(truncate_spans(
-                vec![
-                    Span::styled(item.glyph.clone(), on_box(item.role, item.style)),
-                    Span::styled(
-                        format!(" {}", item.label),
-                        on_box(Role::TextPrimary, theme.style(Role::TextPrimary)),
-                    ),
-                ],
-                room,
-                theme,
-            ))
-        })
+        .map(|item| roster_row(item, room, theme))
         .collect();
     if shown < items.len() {
         lines.push(Line::from(Span::styled(
@@ -289,6 +282,37 @@ fn roster_lines(items: &[LegendItem], room: usize, theme: &Theme) -> Vec<Line<'s
         )));
     }
     lines
+}
+
+/// One roster row: the state glyph and its word, then the identity after [`LEGEND_GAP`] as far as
+/// the room left over holds it. An identity that cannot keep a cell beside the ellipsis is left
+/// out, and a state word wider than the room is cut instead.
+fn roster_row(item: &RosterItem, room: usize, theme: &Theme) -> Line<'static> {
+    let on_box = |role: Role, style: Style| {
+        theme.content_on_surface(Role::SurfaceOverlay, None, Some(role), style)
+    };
+    let ellipsis = theme.glyphs.ellipsis;
+    let mut spans = vec![
+        Span::styled(
+            item.state.glyph.clone(),
+            on_box(item.state.role, item.state.style),
+        ),
+        Span::styled(
+            format!(" {}", item.state.label),
+            on_box(Role::TextPrimary, theme.style(Role::TextPrimary)),
+        ),
+    ];
+    let state_width: usize = spans.iter().map(Span::width).sum();
+    let identity_room = room.saturating_sub(state_width + display_width(LEGEND_GAP));
+    let identity = truncate_display(&item.identity, identity_room, ellipsis);
+    if !identity.is_empty() && identity != ellipsis {
+        spans.push(Span::raw(LEGEND_GAP));
+        spans.push(Span::styled(
+            identity,
+            on_box(Role::TextSecondary, theme.style(Role::TextSecondary)),
+        ));
+    }
+    Line::from(truncate_spans(spans, room, theme))
 }
 
 /// A name's lines within `count`; whatever is left out ends the last line with the ellipsis, or

@@ -1998,6 +1998,7 @@ pub(super) fn render(
                         )
                     }),
                     working_frame,
+                    locale,
                     theme,
                 )
             {

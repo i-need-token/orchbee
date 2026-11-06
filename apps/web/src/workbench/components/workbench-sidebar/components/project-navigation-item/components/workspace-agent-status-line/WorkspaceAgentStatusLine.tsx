@@ -13,7 +13,8 @@ interface WorkspaceAgentStatusLineProps {
 /**
  * A folded Workspace's second line: its Agents' states as 12 px glyphs, most urgent first, as many
  * as the line has room for, then `+N` for the rest. The glyphs' tooltip names each state once, and
- * the `+N` tooltip lists the Agents it hides in the same order.
+ * the `+N` tooltip lists the Agents it hides in the same order, each with its state word and then
+ * its identity.
  */
 export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineProps): ReactNode {
 	const status = overview.foldedStatus;
@@ -63,7 +64,8 @@ export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineP
 							{hiddenGlyphs.map((glyph) => (
 								<span key={glyph.presentationId} className={styles['rosterRow']}>
 									<WorkbenchAgentStateGlyph size='small' status={glyph} />
-									<span className={styles['rosterName']}>{glyph.label}</span>
+									<span className={styles['rosterState']}>{glyph.status}</span>
+									<span className={styles['rosterIdentity']}>{glyph.identity}</span>
 								</span>
 							))}
 						</span>

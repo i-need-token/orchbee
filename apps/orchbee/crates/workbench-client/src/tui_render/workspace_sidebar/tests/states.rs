@@ -560,8 +560,14 @@ fn folded_status_line_lists_states_by_urgency_and_fits_the_most_before_the_remai
                 };
                 // The glyphs show the most urgent states in order, one blank cell apart.
                 let mut shown = 0;
-                while shown < total && symbol(2 * shown) == theme.agent_glyph(expected[shown]) {
-                    assert_eq!(symbol(2 * shown + 1), " ", "{width}");
+                // The blank after a glyph is read only while the line goes on past it.
+                while shown < total
+                    && 2 * shown < cells
+                    && symbol(2 * shown) == theme.agent_glyph(expected[shown])
+                {
+                    if 2 * shown + 1 < cells {
+                        assert_eq!(symbol(2 * shown + 1), " ", "{width}");
+                    }
                     shown += 1;
                 }
                 let hidden = total - shown;
@@ -648,13 +654,16 @@ fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_h
         vec![State::Unknown; 2],
     ]
     .concat();
-    let glyphs: Vec<&str> = first.iter().map(|item| item.glyph.as_str()).collect();
-    let tail: Vec<&str> = sorted[states.len() - hidden..]
-        .iter()
-        .map(|state| theme.agent_glyph(*state))
-        .collect();
-    assert_eq!(glyphs, tail);
-    assert!(first.iter().all(|item| !item.label.is_empty()));
+    let tail = &sorted[states.len() - hidden..];
+    let glyphs: Vec<&str> = first.iter().map(|item| item.state.glyph.as_str()).collect();
+    let expected: Vec<&str> = tail.iter().map(|state| theme.agent_glyph(*state)).collect();
+    assert_eq!(glyphs, expected);
+    // Each row names its state as the legend does, then gives the Agent's identity.
+    for (item, state) in first.iter().zip(tail) {
+        let legend = crate::tui_render::tooltip::legend([*state], false, 0, Locale::EnUs, &theme);
+        assert_eq!(item.state.label, legend[0].label);
+    }
+    assert!(first.iter().all(|item| !item.identity.is_empty()));
 }
 
 #[test]

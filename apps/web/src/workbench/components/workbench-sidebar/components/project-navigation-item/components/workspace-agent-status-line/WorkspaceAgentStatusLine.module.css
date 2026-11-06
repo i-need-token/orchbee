@@ -45,7 +45,9 @@
 	gap: var(--ob-ref-space-0-5);
 }
 
+/* One column as wide as the roster, so a row never outgrows it and its identity is what gets cut. */
 .roster {
+	grid-template-columns: minmax(0, 1fr);
 	max-inline-size: var(--ob-ref-size-menu);
 }
 
@@ -57,9 +59,16 @@
 	white-space: nowrap;
 }
 
-.rosterName {
+/* The state word keeps its whole text; the identity beside it is the part a short row cuts. */
+.rosterState {
+	flex: none;
+}
+
+/* Secondary text on the inverse surface, at the text hierarchy's 70% level. */
+.rosterIdentity {
 	min-inline-size: 0;
 	overflow: hidden;
+	color: color-mix(in srgb, var(--ob-sys-color-text-inverse) 70%, transparent);
 	text-overflow: ellipsis;
 }
 

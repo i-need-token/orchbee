@@ -101,8 +101,9 @@ pub(crate) enum TooltipContent {
         text: Option<TooltipText>,
         legend: Vec<LegendItem>,
     },
-    /// Agents one per line, each its state glyph then its name, in the order its target lists them.
-    Roster { items: Vec<LegendItem> },
+    /// Agents one per line, each its state glyph and word, then its identity, in the order its
+    /// target lists them.
+    Roster { items: Vec<RosterItem> },
 }
 
 /// A complete name and where it may be cut when it outgrows the box.
@@ -120,6 +121,14 @@ pub(crate) struct LegendItem {
     pub(crate) role: Role,
     pub(crate) style: Style,
     pub(crate) label: String,
+}
+
+/// One Agent a roster lists: its state as a legend names it, then the identity its expanded row
+/// shows, which a line cuts first when the room runs short.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RosterItem {
+    pub(crate) state: LegendItem,
+    pub(crate) identity: String,
 }
 
 /// The open tooltip one candidate frame paints: its target and the pointer cell it opened at.

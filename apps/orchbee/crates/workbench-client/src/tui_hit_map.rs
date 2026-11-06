@@ -27,7 +27,7 @@ pub(crate) use list_scroll::Target as ListScrollTarget;
 pub use presentation::{DrawnPresentationTarget, PointerUnboundPane};
 pub(crate) use sidebar_reorder::{SidebarReorderDraw, SidebarReorderPaint};
 pub(crate) use tabs::TabDragPreview;
-pub(crate) use tooltip::{LegendItem, OpenTooltip, TooltipContent, TooltipText};
+pub(crate) use tooltip::{LegendItem, OpenTooltip, RosterItem, TooltipContent, TooltipText};
 
 /// Whether a painted interaction may currently accept its declared gesture.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -159,24 +159,35 @@ fn a_legend_keeps_two_cells_between_items_and_ends_a_cut_line_with_a_secondary_e
 #[test]
 fn a_roster_lists_one_agent_per_line_and_counts_the_ones_it_cuts() {
     let theme = Theme::rgb_test_dark().with_glyphs(GlyphSet::ASCII);
-    let agent = |index: usize| LegendItem {
-        glyph: "!".to_owned(),
-        role: Role::StatusWorking,
-        style: theme.style(Role::StatusWorking),
-        label: format!("agent {index}"),
+    let agent = |index: usize| RosterItem {
+        state: LegendItem {
+            glyph: "!".to_owned(),
+            role: Role::StatusWorking,
+            style: theme.style(Role::StatusWorking),
+            label: "Working".to_owned(),
+        },
+        identity: format!("agent {index}"),
     };
     let roster = |count: usize| TooltipContent::Roster {
         items: (0..count).map(&agent).collect(),
     };
-    // A roster that fits lists every Agent in its order, one per line.
+    // A roster that fits lists every Agent in its order, one per line: glyph, state, identity.
     let fits = text(&lines(&roster(3), 40, &theme));
     assert_eq!(fits.len(), 3);
     for (index, line) in fits.iter().enumerate() {
         assert!(
-            line.starts_with('!') && line.ends_with(&format!("agent {index}")),
+            line.starts_with("! Working") && line.ends_with(&format!("agent {index}")),
             "{line}"
         );
     }
+    // A row that runs out of room cuts its identity first, so its state word stays whole.
+    let narrow = text(&lines(&roster(1), 16, &theme));
+    assert!(
+        narrow[0].starts_with("! Working")
+            && narrow[0].ends_with(theme.glyphs.ellipsis)
+            && display_width(&narrow[0]) <= 16,
+        "{narrow:?}"
+    );
     // A longer one stops at eight lines, and its last line counts the Agents it leaves out.
     let cut = text(&lines(&roster(10), 40, &theme));
     assert_eq!(cut.len(), 8);

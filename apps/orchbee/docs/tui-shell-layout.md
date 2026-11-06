@@ -205,7 +205,7 @@ expanded. While folded, its second line becomes a status line in place of the co
 line: the states of its Agents from the complete physical Agent checkpoint, most urgent first
 (Blocked, Error, Done, Working, Idle, Unknown), one cell apart: all of them when they fit the
 line, otherwise as many as fit beside a secondary-text `+N` for the rest. Hovering `+N` lists the
-Agents it hides, one per line, each with its state glyph and the name its expanded row shows. A
+Agents it hides, one per line, each with its state glyph, its state word, and then the identity its expanded row shows, which a short row cuts first. A
 one-line configured layout gains that second line
 while folded; configured lines after the second remain. Eligible Project
 create controls are revealed with the row's other controls, right-aligned, with no overflow-menu slot after them. At 52 columns

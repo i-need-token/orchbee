@@ -27,9 +27,9 @@ interface WorkbenchWorkspaceAgentFoldedStatusView {
 	 * Every Agent's state, keyed by its terminal Presentation. The line shows as many leading glyphs
 	 * as it has room for and counts the rest as `+N`.
 	 */
-	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'shape' | 'tone'> & {
-		/** The Agent's name as its expanded row shows it; the `+N` list names the Agents it hides. */
-		readonly label: string;
+	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'shape' | 'status' | 'tone'> & {
+		/** The Agent's identity as its expanded row shows it: its title and provider. */
+		readonly identity: string;
 		readonly presentationId: TerminalPresentationId;
 	})[];
 	/** Each distinct state in words, most urgent first. */

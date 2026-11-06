@@ -230,9 +230,10 @@ export function useWorkbenchAgentPresentation({
 							const { agentLabel, titleLabel } = rowNames({ destination, observation });
 							const status = formatWorkbenchAgentStatus(intl, observation.state);
 							return {
-								label: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
+								identity: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
 								presentationId: destination.presentationId,
 								shape: status.shape,
+								status: status.status,
 								tone: status.tone,
 							};
 						}),
