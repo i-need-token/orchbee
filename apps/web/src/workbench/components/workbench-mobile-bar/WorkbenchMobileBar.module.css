@@ -1,0 +1,123 @@
+/* Both sides take the wider side's width, so the current Tab stays centered on the whole bar while
+   it fits and then keeps 16 px from each button, its name ending in … (D20). The bar's own click
+   opens the Tab list, so a tap anywhere between the buttons does. It paints the Tab strip's track,
+   which the current Tab joins to the content below. */
+.root {
+	display: grid;
+	box-sizing: border-box;
+	flex: none;
+	grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+	column-gap: var(--ob-ref-space-3);
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
+	padding-inline: var(--ob-ref-space-1);
+	background-color: var(--ob-sys-color-surface-canvas);
+	background-image: linear-gradient(
+		var(--ob-sys-color-surface-subtle),
+		var(--ob-sys-color-surface-subtle)
+	);
+	cursor: pointer;
+	user-select: none;
+}
+
+/* Touch sizes (D18, D19): the bar is a 44 px row and its buttons own it to the window's edges. */
+.root[data-touch] {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	padding-inline: var(--ob-ref-space-0);
+}
+
+.start,
+.end {
+	display: grid;
+	align-self: stretch;
+}
+
+.start {
+	grid-area: 1 / 1;
+	justify-self: start;
+}
+
+.start > * {
+	grid-area: 1 / 1;
+}
+
+.end {
+	grid-area: 1 / 3;
+	justify-self: end;
+}
+
+/* The sidebar button's place: its fill and 4 px on each side. */
+.leading {
+	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-2));
+}
+
+.root[data-touch] .leading {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+.middle {
+	display: flex;
+	grid-area: 1 / 2;
+	min-width: var(--ob-ref-space-0);
+	align-items: flex-end;
+	align-self: stretch;
+	justify-content: center;
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-0);
+	border: none;
+	background: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.middle:focus-visible {
+	outline: none;
+}
+
+/* The current Tab as the strip draws it: the content's surface, 4 px below the bar's top and joined
+   to the content below. Its content keeps the buttons' center line, 4 px above the bar's bottom. */
+.tab {
+	display: flex;
+	box-sizing: border-box;
+	height: calc(100% - var(--ob-ref-space-1));
+	min-width: var(--ob-ref-space-0);
+	max-width: 100%;
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-2) var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-ui-md) var(--ob-ref-radius-ui-md) var(--ob-ref-radius-none)
+		var(--ob-ref-radius-none);
+	background: var(--ob-sys-color-surface-raised);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-md);
+	white-space: nowrap;
+}
+
+.middle:focus-visible .tab {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+/* Text beside icons sits on the icons' center line (G19); the padding keeps ascenders and
+   descenders inside the truncation clip. */
+.name {
+	min-width: var(--ob-ref-space-0);
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+}
+
+.dot {
+	flex: none;
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
+}

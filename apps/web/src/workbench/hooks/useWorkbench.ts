@@ -26,10 +26,8 @@ import {
 	MAXIMUM_LEFT_PANEL_WIDTH,
 	MINIMUM_LEFT_PANEL_WIDTH,
 	readWorkbenchLeftPanelWidth,
-	readWorkbenchSidebarVisibility,
 	readWorkbenchTabStripOrientation,
 	writeWorkbenchLeftPanelWidth,
-	writeWorkbenchSidebarVisibility,
 	writeWorkbenchTabStripOrientation,
 	type WorkbenchLayoutStorage,
 } from '../../workbench-layout-storage';
@@ -59,12 +57,7 @@ import {
 } from '../components/workbench-project-creation/hooks/useWorkbenchProjectCreation';
 import type { WorkbenchProjectCreationMessages } from '../components/workbench-project-creation/types/workbench-project-creation-messages';
 import { createFocusedPanelWorktreePicker } from '../model/createFocusedPanelWorktreePicker';
-import {
-	resolveWorkbenchSidebarPresentation,
-	transitionWorkbenchSidebarPresentation,
-	WORKBENCH_NARROW_WINDOW_QUERY,
-	type WorkbenchSidebarPresentation,
-} from '../model/workbench-sidebar-presentation';
+import type { WorkbenchSidebarPresentation } from '../model/workbench-sidebar-presentation';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
 import {
 	projectWorkbenchEmptyWorkspace,
@@ -97,6 +90,7 @@ import type {
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
+import { useWorkbenchSidebarPresentation } from './useWorkbenchSidebarPresentation';
 import {
 	createSharedTab,
 	createSharedTerminal,
@@ -191,8 +185,24 @@ interface WorkbenchView {
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
-	/** Docked beside the content, hidden, or, in a narrow window, open over the content. */
+	/**
+	 * Docked beside the content, hidden, open over the content in a narrow window, or filling the
+	 * window in the mobile layout.
+	 */
 	readonly sidebarPresentation: WorkbenchSidebarPresentation;
+	/** Below 481 px wide: the bar replaces the Tab strip and the lists fill the window. */
+	readonly mobileLayout: boolean;
+	/** Touch sizes, which the mobile layout takes from 408 px high. */
+	readonly touchSizes: boolean;
+	/** The mobile layout's Tab list, filling the window. */
+	readonly tabListOpen: boolean;
+	readonly toggleTabList: () => void;
+	/** Closes the Tab list and gives the keyboard back to the terminal. */
+	readonly dismissTabList: () => void;
+	/** Esc inside the Tab list closes it; a menu's own Esc stays in its portal, a drag's in the drag. */
+	readonly onTabListKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+	/** The current Workspace's name, which heads the Tab list. */
+	readonly activeWorkspaceName: string | null;
 	/** Closes the sidebar opened over the content and gives the keyboard back to the terminal. */
 	readonly dismissSidebarOverlay: () => void;
 	/** Esc inside the overlay closes it; a menu's own Esc stays in its portal, a drag's in the drag. */
@@ -381,25 +391,9 @@ export function useWorkbench({
 		readTabCount,
 		readTabCount,
 	);
-	const [sidebarState, dispatchSidebar] = React.useReducer(
-		transitionWorkbenchSidebarPresentation,
-		storage,
-		(initialStorage) => ({
-			docked: readWorkbenchSidebarVisibility(initialStorage),
-			narrow: readNarrowWindow(),
-			overlayOpen: false,
-		}),
-	);
-	const sidebarPresentation = resolveWorkbenchSidebarPresentation(sidebarState);
+	const sidebar = useWorkbenchSidebarPresentation(storage);
+	const sidebarPresentation = sidebar.presentation;
 	const isSidebarVisible = sidebarPresentation !== 'hidden';
-	React.useEffect(() => {
-		if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-		const query = window.matchMedia(WORKBENCH_NARROW_WINDOW_QUERY);
-		const update = () => dispatchSidebar({ narrow: query.matches, type: 'window-resized' });
-		update();
-		query.addEventListener('change', update);
-		return () => query.removeEventListener('change', update);
-	}, []);
 	const resolveTerminalFocusTarget = useMemoizedFn(() =>
 		terminalSurfaceAvailable ? resolveActiveTerminalPresentationId(projectWorkspaceRuntime) : null,
 	);
@@ -532,18 +526,18 @@ export function useWorkbench({
 			? capturedTarget
 			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
 	});
-	const toggleSidebar = useMemoizedFn(() => {
-		// Only a wide window's choice is kept: a narrow one opens and closes the overlay.
-		if (!sidebarState.narrow) writeWorkbenchSidebarVisibility(storage, !sidebarState.docked);
-		dispatchSidebar({ type: 'toggled' });
-	});
-	const closeSidebarOverlay = useMemoizedFn(() => dispatchSidebar({ type: 'overlay-dismissed' }));
-	// The overlay takes the keyboard as it opens, as the TUI's does.
-	const sidebarOverlayOpen = sidebarPresentation === 'overlay';
+	const toggleSidebar = sidebar.toggle;
+	const closeSidebarOverlay = sidebar.dismissOverlay;
+	// The overlay and the full-window lists take the keyboard as they open, as the TUI's do.
+	const sidebarOverlayOpen = sidebarPresentation === 'overlay' || sidebarPresentation === 'fill';
+	const tabListOpen = sidebar.tabListOpen;
 	const focusRegion = focusRouting.focus;
 	React.useEffect(() => {
 		if (sidebarOverlayOpen) focusRegion({ kind: 'direct', region: 'sidebar' });
 	}, [focusRegion, sidebarOverlayOpen]);
+	React.useEffect(() => {
+		if (tabListOpen) focusRegion({ kind: 'direct', region: 'tab-strip' });
+	}, [focusRegion, tabListOpen]);
 	const setTabStripOrientation = useMemoizedFn((orientation: TabStripOrientation) => {
 		setTabStripOrientationState(orientation);
 		writeWorkbenchTabStripOrientation(storage, orientation);
@@ -964,20 +958,27 @@ export function useWorkbench({
 		},
 		isSidebarVisible,
 		sidebarPresentation,
+		mobileLayout: sidebar.mobile,
+		touchSizes: sidebar.touch,
+		tabListOpen,
+		toggleTabList: sidebar.toggleTabList,
+		dismissTabList: () => {
+			sidebar.dismissTabList();
+			focusRouting.requestTerminalFocus();
+		},
+		onTabListKeyDown: (event) => {
+			if (!isUnclaimedEscape(event)) return;
+			event.preventDefault();
+			sidebar.dismissTabList();
+			focusRouting.requestTerminalFocus();
+		},
+		activeWorkspaceName: findActiveWorkspaceName(projectWorkspaceState),
 		dismissSidebarOverlay: () => {
 			closeSidebarOverlay();
 			focusRouting.requestTerminalFocus();
 		},
 		onSidebarOverlayKeyDown: (event) => {
-			if (
-				event.key !== 'Escape' ||
-				event.defaultPrevented ||
-				!(event.target instanceof Node) ||
-				!event.currentTarget.contains(event.target) ||
-				event.currentTarget.querySelector('[data-dragging]') !== null
-			) {
-				return;
-			}
+			if (!isUnclaimedEscape(event)) return;
 			event.preventDefault();
 			closeSidebarOverlay();
 			focusRouting.requestTerminalFocus();
@@ -1017,6 +1018,7 @@ export function useWorkbench({
 		resizeSidebar: (delta) => setLeftPanelWidth(leftPanelWidth.current + delta),
 		returnToTerminal: () => {
 			closeSidebarOverlay();
+			sidebar.dismissTabList();
 			focusRouting.requestTerminalFocus();
 		},
 		onRootBlurCapture: focusRouting.onBlurCapture,
@@ -1283,7 +1285,19 @@ export function useWorkbench({
 	};
 }
 
-function readNarrowWindow(): boolean {
-	if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-	return window.matchMedia(WORKBENCH_NARROW_WINDOW_QUERY).matches;
+/** Esc that no menu, field or drag inside the surface has already taken. */
+function isUnclaimedEscape(event: React.KeyboardEvent<HTMLElement>): boolean {
+	return (
+		event.key === 'Escape' &&
+		!event.defaultPrevented &&
+		event.target instanceof Node &&
+		event.currentTarget.contains(event.target) &&
+		event.currentTarget.querySelector('[data-dragging]') === null
+	);
+}
+
+function findActiveWorkspaceName(state: ProjectWorkspaceState): string | null {
+	const location = state.activeLocation;
+	if (location.kind !== 'workspace') return null;
+	return state.workspaces.find((workspace) => workspace.id === location.workspaceId)?.name ?? null;
 }

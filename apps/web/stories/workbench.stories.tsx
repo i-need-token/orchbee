@@ -824,6 +824,25 @@ export const HiddenSidebar: Story = {
 	),
 };
 
+/**
+ * Below 481 px wide (ORC-342): the bar in place of the Tab strip, whose `Tabs` button and middle
+ * open the Tab list, the sidebar filling the window, and touch sizes from 408 px high.
+ */
+export const MobileLayout: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1', 'Terminal 2', 'Terminal 3']),
+		shortcutPlatform: 'standard',
+	},
+	globals: { viewport: { isRotated: false, value: 'mobile2' } },
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
 /** The window while the Server holds no Workspace. */
 export const NoWorkspace: Story = {
 	args: {

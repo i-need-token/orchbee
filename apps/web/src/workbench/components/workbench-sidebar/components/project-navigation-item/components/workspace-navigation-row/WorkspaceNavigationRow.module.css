@@ -262,3 +262,14 @@
 		transition: none;
 	}
 }
+
+/* Touch sizes (D18): a Workspace grows by the same 16 px as a one-line row, to 54 px = 12 + 18 + 12
+   + 12, its lines centered in the fill; the end area and the tools follow the name line. */
+:global([data-workbench-touch]) .row {
+	padding-block: calc(var(--ob-ref-space-1) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .endInfo,
+:global([data-workbench-touch]) .tools {
+	top: calc(var(--ob-ref-space-1) + var(--ob-ref-space-2));
+}

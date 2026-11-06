@@ -228,3 +228,19 @@
 .dragLayer {
 	display: contents;
 }
+
+/* Touch sizes (D18, D19), which the mobile layout takes from 408 px high: the band that holds the
+   sidebar button and every one-line row are 44 px, and Shortcuts owns a 44 px square. Fonts and
+   icons keep their sizes. */
+:global([data-workbench-touch]) .root {
+	padding-block-start: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .primaryItem {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .help {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}

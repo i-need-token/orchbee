@@ -1252,6 +1252,23 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setOrientation'],
 		description: 'Action that sets the Workbench tab-strip orientation.',
 	},
+	mobileTabs: {
+		id: 'workbench.tabs.mobile.all',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.mobile.all'],
+		description:
+			'Mobile layout bar button and Tab list title naming all Tabs of the Workspace; the count follows it.',
+	},
+	mobileTabsLabel: {
+		id: 'workbench.tabs.mobile.allLabel',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.mobile.allLabel'],
+		description: 'Accessible name of the mobile layout button that shows or hides the Tab list.',
+	},
+	mobileCurrentTab: {
+		id: 'workbench.tabs.mobile.current',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.mobile.current'],
+		description:
+			'Accessible name of the current Tab centered on the mobile layout bar; choosing it shows the Tab list.',
+	},
 	sidebarLabel: {
 		id: 'workbench.sidebar.label',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.label'],

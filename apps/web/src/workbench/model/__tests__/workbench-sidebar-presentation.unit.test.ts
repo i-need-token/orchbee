@@ -16,8 +16,9 @@ function run(
 
 const WIDE_DOCKED: WorkbenchSidebarPresentationState = {
 	docked: true,
-	narrow: false,
 	overlayOpen: false,
+	tabListOpen: false,
+	tier: 'wide',
 };
 
 describe('workbench sidebar presentation', () => {
@@ -29,7 +30,7 @@ describe('workbench sidebar presentation', () => {
 	});
 
 	it('steps aside in a narrow window, and the toggle opens it over the content', () => {
-		const narrow = run(WIDE_DOCKED, { narrow: true, type: 'window-resized' });
+		const narrow = run(WIDE_DOCKED, { tier: 'narrow', type: 'window-resized' });
 		expect(resolveWorkbenchSidebarPresentation(narrow)).toBe('hidden');
 		const opened = run(narrow, { type: 'toggled' });
 		expect(resolveWorkbenchSidebarPresentation(opened)).toBe('overlay');
@@ -39,7 +40,11 @@ describe('workbench sidebar presentation', () => {
 	});
 
 	it('closes the overlay when dismissed, and dismissing a closed overlay changes nothing', () => {
-		const opened = run(WIDE_DOCKED, { narrow: true, type: 'window-resized' }, { type: 'toggled' });
+		const opened = run(
+			WIDE_DOCKED,
+			{ tier: 'narrow', type: 'window-resized' },
+			{ type: 'toggled' },
+		);
 		const dismissed = run(opened, { type: 'overlay-dismissed' });
 		expect(resolveWorkbenchSidebarPresentation(dismissed)).toBe('hidden');
 		expect(run(dismissed, { type: 'overlay-dismissed' })).toBe(dismissed);
@@ -47,12 +52,51 @@ describe('workbench sidebar presentation', () => {
 	});
 
 	it('docks again as it was left once the window widens, closing any overlay', () => {
-		const opened = run(WIDE_DOCKED, { narrow: true, type: 'window-resized' }, { type: 'toggled' });
-		expect(run(opened, { narrow: false, type: 'window-resized' })).toEqual(WIDE_DOCKED);
+		const opened = run(
+			WIDE_DOCKED,
+			{ tier: 'narrow', type: 'window-resized' },
+			{ type: 'toggled' },
+		);
+		expect(run(opened, { tier: 'wide', type: 'window-resized' })).toEqual(WIDE_DOCKED);
 		const hiddenWide = { ...WIDE_DOCKED, docked: false };
-		const narrowed = run(hiddenWide, { narrow: true, type: 'window-resized' }, { type: 'toggled' });
+		const narrowed = run(
+			hiddenWide,
+			{ tier: 'narrow', type: 'window-resized' },
+			{ type: 'toggled' },
+		);
 		expect(
-			resolveWorkbenchSidebarPresentation(run(narrowed, { narrow: false, type: 'window-resized' })),
+			resolveWorkbenchSidebarPresentation(run(narrowed, { tier: 'wide', type: 'window-resized' })),
 		).toBe('hidden');
+	});
+	it('keeps an open sidebar open across the mobile width and closes it across the docking width', () => {
+		const narrowOpen = run(
+			WIDE_DOCKED,
+			{ tier: 'narrow', type: 'window-resized' },
+			{ type: 'toggled' },
+		);
+		const mobileOpen = run(narrowOpen, { tier: 'mobile', type: 'window-resized' });
+		expect(resolveWorkbenchSidebarPresentation(mobileOpen)).toBe('fill');
+		expect(
+			resolveWorkbenchSidebarPresentation(
+				run(mobileOpen, { tier: 'narrow', type: 'window-resized' }),
+			),
+		).toBe('overlay');
+		expect(run(mobileOpen, { tier: 'wide', type: 'window-resized' })).toEqual(WIDE_DOCKED);
+		const mobileFromWide = run(WIDE_DOCKED, { tier: 'mobile', type: 'window-resized' });
+		expect(resolveWorkbenchSidebarPresentation(mobileFromWide)).toBe('hidden');
+	});
+
+	it('lets only one of the Tab list and the sidebar fill a mobile window', () => {
+		const mobile = run(WIDE_DOCKED, { tier: 'mobile', type: 'window-resized' });
+		const tabs = run(mobile, { type: 'toggled' }, { type: 'tab-list-toggled' });
+		expect(tabs.tabListOpen).toBe(true);
+		expect(resolveWorkbenchSidebarPresentation(tabs)).toBe('hidden');
+		const sidebar = run(tabs, { type: 'toggled' });
+		expect(sidebar.tabListOpen).toBe(false);
+		expect(resolveWorkbenchSidebarPresentation(sidebar)).toBe('fill');
+		expect(run(tabs, { type: 'tab-list-dismissed' }).tabListOpen).toBe(false);
+		expect(run(tabs, { tier: 'narrow', type: 'window-resized' }).tabListOpen).toBe(false);
+		const narrow = run(WIDE_DOCKED, { tier: 'narrow', type: 'window-resized' });
+		expect(run(narrow, { type: 'tab-list-toggled' })).toBe(narrow);
 	});
 });

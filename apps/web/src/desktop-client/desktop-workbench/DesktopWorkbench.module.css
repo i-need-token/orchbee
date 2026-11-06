@@ -11,7 +11,8 @@
 		[data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-horizontal-leading-actions]
 	),
 .root
-	:global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-horizontal-track]) {
+	:global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-horizontal-track]),
+.root :global([data-slot='workbench-mobile-bar']) {
 	-webkit-app-region: drag;
 	app-region: drag;
 }
@@ -21,19 +22,33 @@
 .root :global([data-slot='workbench-sidebar-scrim']),
 .root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-tab-id]),
 .root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-group-id]),
-.root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] button) {
+.root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] button),
+.root :global([data-slot='workbench-mobile-bar'] button) {
 	-webkit-app-region: no-drag;
 	app-region: no-drag;
 }
 
-.root[data-window-controls='leading'] :global([data-slot='workbench-sidebar-toggle-position']) {
+.root[data-window-controls='leading'] :global([data-slot='workbench-sidebar-toggle-position']),
+.root[data-window-controls='leading']
+	:global([data-workbench-touch] [data-slot='workbench-sidebar-toggle-position']) {
 	/* After the traffic lights, which start at x 12: the toggle sits at x 76. */
 	inset-inline-start: calc(var(--ob-ref-space-16) + var(--ob-ref-space-3));
 }
 
-.root[data-window-controls='leading'] :global([data-slot='workbench-tab-bar-leading-actions']) {
+.root[data-window-controls='leading'] :global([data-slot='workbench-tab-bar-leading-actions']),
+.root[data-window-controls='leading'] :global([data-slot='workbench-mobile-bar-leading']) {
 	width: calc(
 		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-sm) +
+			var(--ob-ref-space-2)
+	);
+}
+
+.root[data-window-controls='leading']
+	:global(
+		[data-slot='workbench-mobile-bar'][data-touch] [data-slot='workbench-mobile-bar-leading']
+	) {
+	width: calc(
+		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-lg) +
 			var(--ob-ref-space-2)
 	);
 }

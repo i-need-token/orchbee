@@ -17,6 +17,8 @@ interface WorkbenchSidebarToggleProps {
 	readonly shortcutId: string;
 	/** Absent while a configured command holds the chord. */
 	readonly shortcutLabel: string | undefined;
+	/** Touch sizes: a 36 px fill in a 44 px target. */
+	readonly touch?: boolean | undefined;
 }
 
 export function WorkbenchSidebarToggle({
@@ -25,6 +27,7 @@ export function WorkbenchSidebarToggle({
 	onToggle,
 	shortcutId,
 	shortcutLabel,
+	touch = false,
 }: WorkbenchSidebarToggleProps): React.ReactNode {
 	return (
 		<Tooltip>
@@ -36,6 +39,7 @@ export function WorkbenchSidebarToggle({
 						className={styles['trigger']}
 						data-shortcut-action={shortcutId}
 						data-slot='workbench-sidebar-toggle'
+						data-touch={touch || undefined}
 						size='icon-sm'
 						variant='ghost'
 						onClick={onToggle}

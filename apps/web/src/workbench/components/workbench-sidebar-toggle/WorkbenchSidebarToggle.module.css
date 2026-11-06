@@ -6,3 +6,16 @@
 .trigger:focus-visible {
 	color: var(--ob-sys-color-icon-hover);
 }
+
+/* Touch sizes (D19): a 36 px fill that owns a 44 px target, 4 px past it on every side. */
+.trigger[data-touch] {
+	position: relative;
+	width: var(--ob-ref-size-control-lg);
+	height: var(--ob-ref-size-control-lg);
+}
+
+.trigger[data-touch]::after {
+	position: absolute;
+	inset: calc(var(--ob-ref-space-1) * -1);
+	content: '';
+}

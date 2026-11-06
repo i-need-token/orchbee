@@ -113,9 +113,30 @@ button.statusNoticeText {
 	box-shadow: var(--ob-sys-shadow-overlay);
 }
 
-.sidebarOverlay > .leftPanel {
+.sidebarOverlay > .leftPanel,
+.sidebarFill > .leftPanel {
 	flex: 1;
 	min-width: var(--ob-ref-space-0);
+}
+
+/* The mobile layout: the sidebar list fills the window and covers the terminal (D3). */
+.sidebarFill {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	background: var(--ob-sys-color-surface-raised);
+}
+
+/* Touch sizes (D19): the sidebar button's 36 px fill stands 4 px from the 44 px row's edges. */
+.root[data-workbench-touch] .sidebarToggle {
+	inset-block-start: var(--ob-ref-space-1);
+	inset-inline-start: var(--ob-ref-space-1);
+}
+
+.root[data-workbench-touch] .noWorkspaceChrome,
+.root[data-workbench-touch] .windowDragRegion {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
 .leftPanel,

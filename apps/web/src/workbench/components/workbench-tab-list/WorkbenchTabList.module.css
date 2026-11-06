@@ -1,0 +1,136 @@
+/* Fills the window over the bar and the terminal, on the sidebar list's surface, which its strip
+   shares. */
+.root {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	flex-direction: column;
+	background-color: var(--ob-sys-color-surface-raised);
+	background-image: linear-gradient(
+		var(--ob-sys-color-surface-subtle),
+		var(--ob-sys-color-surface-subtle)
+	);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+/* `Tabs 8` keeps the bar's place at the top end. */
+.band {
+	display: flex;
+	box-sizing: border-box;
+	flex: none;
+	justify-content: flex-end;
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
+	padding-inline: var(--ob-ref-space-1);
+}
+
+.root[data-touch] .band {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	padding-inline: var(--ob-ref-space-0);
+}
+
+.actions {
+	display: grid;
+	flex: none;
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-2);
+}
+
+/* New Tab is a sidebar action row. */
+.action {
+	height: var(--ob-ref-size-control-navigation);
+	width: 100%;
+	justify-content: flex-start;
+	gap: var(--ob-ref-space-1-5);
+	padding-inline: var(--ob-ref-space-1);
+	padding-inline-end: var(--ob-ref-space-2);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	white-space: normal;
+}
+
+.root[data-touch] .action {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+.action:hover,
+.action:focus-visible {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.action:hover .icon,
+.action:focus-visible .icon {
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.icon {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-lg);
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+/* Text beside icons sits on the icons' center line (G19). */
+.label,
+.headingName {
+	min-width: var(--ob-ref-space-0);
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+	white-space: nowrap;
+}
+
+.label {
+	text-align: start;
+}
+
+.shortcut {
+	flex: none;
+	height: auto;
+	min-width: var(--ob-ref-space-0);
+	margin-inline-start: auto;
+	padding: var(--ob-ref-space-0);
+	border-radius: var(--ob-ref-radius-none);
+	background: transparent;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	opacity: 0;
+	transition: opacity var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.action:hover .shortcut,
+.action:focus-visible .shortcut {
+	opacity: var(--ob-sys-opacity-muted);
+}
+
+.list {
+	display: flex;
+	min-height: var(--ob-ref-space-0);
+	flex: 1;
+	flex-direction: column;
+	margin-block-start: var(--ob-ref-space-6);
+}
+
+/* The Workspace's name heads its Tabs, as a sidebar group heading does. */
+.heading {
+	display: flex;
+	box-sizing: border-box;
+	flex: none;
+	height: var(--ob-ref-size-control-sm);
+	align-items: center;
+	margin-inline: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-1) var(--ob-ref-space-0) var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.root[data-touch] .heading {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}

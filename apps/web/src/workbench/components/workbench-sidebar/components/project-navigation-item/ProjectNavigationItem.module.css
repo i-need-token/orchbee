@@ -163,3 +163,8 @@
 		transition: none;
 	}
 }
+
+/* Touch sizes (D18): a heading is a 44 px row. */
+:global([data-workbench-touch]) .heading {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}

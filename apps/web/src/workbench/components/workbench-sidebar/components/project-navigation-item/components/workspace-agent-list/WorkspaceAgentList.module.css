@@ -142,3 +142,8 @@
 	border-radius: var(--ob-ref-radius-full);
 	background: var(--ob-sys-color-status-unread);
 }
+
+/* Touch sizes (D18): an Agent row is a 44 px row. */
+:global([data-workbench-touch]) .row {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}

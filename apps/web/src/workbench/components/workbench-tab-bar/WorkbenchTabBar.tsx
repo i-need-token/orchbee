@@ -35,7 +35,14 @@ interface WorkbenchTabBarProps {
 	readonly getTabCreationAvailability?:
 		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
 		| undefined;
-	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
+	/**
+	 * The mobile layout's Tab list: a vertical strip at the host's full width without its own
+	 * controls or New Tab button, which the list leads with instead.
+	 */
+	readonly fill?: boolean | undefined;
+	readonly onDraggingChange?: ((dragging: boolean) => void) | undefined;
+	/** Absent, the strip offers no orientation change. */
+	readonly onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
 	readonly onTabsChange: TabStripChangeCallback | undefined;
@@ -46,15 +53,19 @@ interface WorkbenchTabBarProps {
 	readonly tabModel: TabModel;
 	readonly statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
 	readonly tabStripMessages: TabStripMessages;
+	/** Touch rows: 44 px targets 2 px apart. */
+	readonly touchUi?: boolean | undefined;
 	readonly verticalCollapsed: boolean;
 }
 
 export function WorkbenchTabBar({
 	actionRuntime,
 	closeResume,
+	fill = false,
 	newTabChoices,
 	onNewTerminal,
 	onCloseTabs,
+	onDraggingChange,
 	focusRequest,
 	getTabCreationAvailability,
 	onOrientationChange,
@@ -69,6 +80,7 @@ export function WorkbenchTabBar({
 	tabModel,
 	statusAdornments,
 	tabStripMessages,
+	touchUi = false,
 	verticalCollapsed,
 }: WorkbenchTabBarProps): ReactNode {
 	const groupName = useTabGroupNameDialog(tabModel);
@@ -78,6 +90,7 @@ export function WorkbenchTabBar({
 				className={styles['root']}
 				data-slot='workbench-tab-bar'
 				data-workbench-focus-region='tab-strip'
+				data-fill={fill || undefined}
 				data-orientation={orientation}
 				data-reserve-sidebar-toggle-space={reserveSidebarToggleSpace || undefined}
 			>
@@ -98,6 +111,7 @@ export function WorkbenchTabBar({
 					statusAdornments={statusAdornments}
 					onNewTab={onNewTerminal}
 					onCloseTabs={onCloseTabs}
+					onDraggingChange={onDraggingChange}
 					closeResume={closeResume}
 					getTabCreationAvailability={getTabCreationAvailability}
 					onOrientationChange={onOrientationChange}
@@ -111,7 +125,11 @@ export function WorkbenchTabBar({
 					showHoverCardMemoryUsage={false}
 					showHoverCardPreviews={false}
 					newTabChoices={newTabChoices}
-					verticalCollapsed={verticalCollapsed}
+					showNewTabButton={!fill}
+					showVerticalTopControls={!fill}
+					touchUi={touchUi}
+					verticalCollapsed={!fill && verticalCollapsed}
+					verticalFill={fill}
 					onVerticalCollapsedChange={onVerticalCollapsedChange}
 				/>
 			</div>

@@ -19,3 +19,11 @@
 	height: 100%;
 	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
 }
+
+/* The Tab list's strip takes the list's remaining height. */
+.root[data-fill] {
+	box-sizing: border-box;
+	height: auto;
+	min-height: 0;
+	flex: 1;
+}

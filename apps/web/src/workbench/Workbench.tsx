@@ -30,6 +30,8 @@ import { WorkbenchProjectCreation } from './components/workbench-project-creatio
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
+import { WorkbenchMobileBar } from './components/workbench-mobile-bar/WorkbenchMobileBar';
+import { WorkbenchTabList } from './components/workbench-tab-list/WorkbenchTabList';
 import { NameDialog } from './components/name-dialog/NameDialog';
 import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
@@ -167,9 +169,11 @@ export function Workbench({
 			onToggle={view.toggleSidebar}
 			shortcutId={view.sidebarShortcutId}
 			shortcutLabel={view.sidebarShortcutLabel}
+			touch={view.touchSizes}
 		/>
 	);
-	// One sidebar, docked in its resizable panel or opened over the content in a narrow window.
+	// One sidebar, docked in its resizable panel, opened over the content in a narrow window, or
+	// filling the window in the mobile layout.
 	const sidebarPanel = (
 		<div
 			className={styles['leftPanel']}
@@ -300,9 +304,60 @@ export function Workbench({
 			/>
 		);
 
+	// No Workspace has no Tab Strip, so its row keeps the toggle's place and the window's drag. The
+	// mobile layout's bar takes the strip's place.
+	let tabChrome: React.ReactNode;
+	if (terminalContext === null) {
+		tabChrome = (
+			<div
+				aria-hidden='true'
+				className={styles['noWorkspaceChrome']}
+				data-slot='workbench-window-drag-region'
+			/>
+		);
+	} else if (view.mobileLayout) {
+		tabChrome = (
+			<WorkbenchMobileBar
+				identityIcons={agentPresentation.tabIdentityIcons}
+				onOpenTabList={view.toggleTabList}
+				statusAdornments={agentPresentation.tabStatusAdornments}
+				tabListOpen={view.tabListOpen}
+				tabModel={terminalContext.tabModel}
+				touch={view.touchSizes}
+				untitledTabTitle={tabStripMessages.newTabTitle}
+			/>
+		);
+	} else {
+		tabChrome = (
+			<WorkbenchTabBar
+				actionRuntime={actionRuntime}
+				closeResume={view.closeResume}
+				newTabChoices={view.newTabChoices}
+				onNewTerminal={view.newTab}
+				onOrientationChange={view.onTabStripOrientationChange}
+				onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
+				orientation={view.tabStripOrientation}
+				onCloseTabs={view.onCloseTabs}
+				focusRequest={view.tabStripFocusRequest}
+				getTabCreationAvailability={view.getTabCreationAvailability}
+				onSelectTab={navigation?.selectTab}
+				onSetTabTitle={view.setTabTitle}
+				onTabsChange={view.onTabsChange}
+				parentActionScope={view.actionScope}
+				reserveSidebarToggleSpace={view.sidebarPresentation !== 'docked'}
+				tabModel={terminalContext.tabModel}
+				statusAdornments={agentPresentation.tabStatusAdornments}
+				tabIdentityIcons={agentPresentation.tabIdentityIcons}
+				tabStripMessages={tabStripMessages}
+				verticalCollapsed={view.verticalTabStripCollapsed}
+			/>
+		);
+	}
+
 	return (
 		<div
 			className={styles['root']}
+			data-workbench-touch={view.touchSizes || undefined}
 			onBlurCapture={view.onRootBlurCapture}
 			onFocusCapture={view.onRootFocusCapture}
 			ref={view.shortcutScopeReference}
@@ -357,9 +412,45 @@ export function Workbench({
 					</div>
 				</>
 			) : null}
-			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
-				{sidebarToggle}
-			</div>
+			{view.sidebarPresentation === 'fill' ? (
+				<div
+					className={styles['sidebarFill']}
+					data-slot='workbench-sidebar-fill'
+					onKeyDown={view.onSidebarOverlayKeyDown}
+				>
+					{sidebarPanel}
+				</div>
+			) : null}
+			{/* The Tab list covers the sidebar button, as it covers the bar. */}
+			{view.tabListOpen ? null : (
+				<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
+					{sidebarToggle}
+				</div>
+			)}
+			{view.tabListOpen && terminalContext !== null ? (
+				<WorkbenchTabList
+					actionRuntime={actionRuntime}
+					closeResume={view.closeResume}
+					focusRequest={view.tabStripFocusRequest}
+					getTabCreationAvailability={view.getTabCreationAvailability}
+					identityIcons={agentPresentation.tabIdentityIcons}
+					newTabChoices={view.newTabChoices}
+					newTabShortcutLabel={shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal)}
+					onClose={view.dismissTabList}
+					onCloseTabs={view.onCloseTabs}
+					onKeyDown={view.onTabListKeyDown}
+					onNewTab={view.newTab}
+					onSelectTab={navigation?.selectTab}
+					onSetTabTitle={view.setTabTitle}
+					onTabsChange={view.onTabsChange}
+					parentActionScope={view.actionScope}
+					statusAdornments={agentPresentation.tabStatusAdornments}
+					tabModel={terminalContext.tabModel}
+					tabStripMessages={tabStripMessages}
+					touch={view.touchSizes}
+					workspaceName={view.activeWorkspaceName}
+				/>
+			) : null}
 			<div className={styles['layout']}>
 				<ResizablePanelGroup
 					disableCursor
@@ -392,40 +483,10 @@ export function Workbench({
 							className={styles['rightPanel']}
 							data-slot='workbench-right-panel'
 							data-tab-strip-orientation={
-								terminalContext === null ? undefined : view.tabStripOrientation
+								terminalContext === null || view.mobileLayout ? undefined : view.tabStripOrientation
 							}
 						>
-							{terminalContext === null ? (
-								// No Workspace has no Tab Strip, so its row keeps the toggle's place and the window's drag.
-								<div
-									aria-hidden='true'
-									className={styles['noWorkspaceChrome']}
-									data-slot='workbench-window-drag-region'
-								/>
-							) : (
-								<WorkbenchTabBar
-									actionRuntime={actionRuntime}
-									closeResume={view.closeResume}
-									newTabChoices={view.newTabChoices}
-									onNewTerminal={view.newTab}
-									onOrientationChange={view.onTabStripOrientationChange}
-									onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
-									orientation={view.tabStripOrientation}
-									onCloseTabs={view.onCloseTabs}
-									focusRequest={view.tabStripFocusRequest}
-									getTabCreationAvailability={view.getTabCreationAvailability}
-									onSelectTab={navigation?.selectTab}
-									onSetTabTitle={view.setTabTitle}
-									onTabsChange={view.onTabsChange}
-									parentActionScope={view.actionScope}
-									reserveSidebarToggleSpace={view.sidebarPresentation !== 'docked'}
-									tabModel={terminalContext.tabModel}
-									statusAdornments={agentPresentation.tabStatusAdornments}
-									tabIdentityIcons={agentPresentation.tabIdentityIcons}
-									tabStripMessages={tabStripMessages}
-									verticalCollapsed={view.verticalTabStripCollapsed}
-								/>
-							)}
+							{tabChrome}
 							<div
 								className={styles['tabContent']}
 								data-slot='workbench-tab-content'
