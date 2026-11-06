@@ -372,10 +372,16 @@ impl WorkbenchClientUi {
                 && episode
                     .source()
                     .unchanged(state.cache().canonical_snapshot())
-                && (matches!(
-                    episode.state(),
-                    DiscoveryState::Ready(_) | DiscoveryState::NotGit | DiscoveryState::Absent
-                ) || self.clock.now() < episode.deadline())
+                && match episode.state() {
+                    // Git's own answer for an unchanged source holds until the source changes.
+                    DiscoveryState::Ready(_) | DiscoveryState::NotGit => true,
+                    // A failure is no answer, so the next opening of the menu asks Git again.
+                    DiscoveryState::Absent => false,
+                    // A query still in flight is awaited until its own deadline.
+                    DiscoveryState::Waiting | DiscoveryState::Querying => {
+                        self.clock.now() < episode.deadline()
+                    }
+                }
         }) {
             return;
         }

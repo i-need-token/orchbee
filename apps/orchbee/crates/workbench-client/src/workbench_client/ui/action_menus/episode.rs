@@ -277,6 +277,8 @@ pub(super) enum DiscoveryState {
     Ready(Box<SidebarDiscovery>),
     /// Git's probe refused the directory: it is not in a repository, or Git does not trust it.
     NotGit,
+    /// No usable answer for this source: a failure, a timeout, or an answer that no longer fits it.
+    /// Never reused, so the next opening of the menu asks Git again.
     Absent,
 }
 

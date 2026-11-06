@@ -679,6 +679,28 @@ fn unknown_or_failed_workspace_has_no_git_actions_from_its_first_menu_paint() {
     }
 }
 
+/// A failed answer is no answer: reopening the creation submenu on the same snapshot asks Git again.
+#[test]
+fn transient_failure_is_asked_again_when_the_creation_submenu_reopens() {
+    let (mut ui, _, _, _) = context_selection::ready(false);
+    let target = project_target(&ui);
+    assert!(ui.open_action_menu(target, None, false));
+    open_creation(&mut ui);
+    settle(&mut ui, Err(WorktreeNotice::ListingUnavailable));
+    let failed = ui.menus.discovery().unwrap().id();
+    assert!(matches!(
+        ui.menus.discovery().unwrap().state(),
+        DiscoveryState::Absent
+    ));
+
+    // Esc returns to the Project menu, and New Workspace ▸ opens again over the same snapshot.
+    press(&mut ui, KeyCode::Esc);
+    open_creation(&mut ui);
+    let episode = ui.menus.discovery().unwrap();
+    assert_ne!(episode.id(), failed, "reopening must start a new query");
+    assert!(matches!(episode.state(), DiscoveryState::Waiting));
+}
+
 #[test]
 fn non_git_discovery_removes_worktree_actions_and_a_new_repository_restores_them() {
     let rows = [MenuAction::NewWorktree, MenuAction::WorkspaceWorktrees];

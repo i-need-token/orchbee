@@ -379,3 +379,25 @@ fn uncertain_start_reconnects_for_read_without_replaying_start() {
     assert!(lane.close());
     server.finish().unwrap();
 }
+
+#[test]
+fn only_probe_exit_128_is_reported_as_not_a_repository() {
+    // Git's refusal names the directory; any other probe failure is transient and stays generic.
+    let probe = |status| WorkbenchWorktreeQueryOutcome::Failed {
+        reason: WorktreeQueryFailure::GitFailed {
+            stage: WorktreeListStage::Probe,
+            status,
+        },
+    };
+    for status in [None, Some(1)] {
+        assert_eq!(
+            listing_failure(&probe(status)),
+            WorktreeNotice::ListingUnavailable,
+            "probe status {status:?}"
+        );
+    }
+    assert_eq!(
+        listing_failure(&probe(Some(128))),
+        WorktreeNotice::NotRepository
+    );
+}

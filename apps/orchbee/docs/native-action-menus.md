@@ -251,10 +251,13 @@ a matching successful discovery proves Git. Unknown, non-Git, failed, expired or
 contribute neither Git-only rows nor their separator. A known Git source may show Open Worktree ▸
 disabled until its checkout list arrives, and while the Workspace's own checkout is the only one. Until the first answer, a menu shows the last success the Client keeps for
 the same source, the newest for each of up to 16 recent sources, while the source stands in the
-checkout it describes; a failed answer drops it. Git refusing the directory, as not in a repository
+checkout it describes; a failed answer drops it. A failed or expired answer is never reused: each later opening of a
+Project or Workspace menu or submenu, including a return to its parent, asks Git again for the same
+unchanged source, and until that answer arrives the rows follow the first-opening rule above; a
+query still in flight is awaited until its 10 s deadline. Git refusing the directory with exit status 128, as not in a repository
 or not trusted, is kept the same way for that exact directory only, since a folder outside Git may
 hold a repository below it: a later menu there omits New Worktree…, Open Worktree ▸ and their
-separator, and a Project's New Workspace ▸ omits New Worktree…. The current addressed answer also updates an already-open menu: a refusal or failed discovery removes both
+separator, and a Project's New Workspace ▸ omits New Worktree…. Any other probe failure, including one that ends without an exit status, is transient: it is not kept, and the next opening asks Git again. The current addressed answer also updates an already-open menu: a refusal or failed discovery removes both
 Git-only actions and their separator immediately, including on the first opening. A directory that
 becomes a repository regains them when discovery succeeds. Every membership change invalidates
 old pointer and keyboard draw proofs before the rebuilt menu accepts input. A sidebar row that shows a branch there outweighs a kept refusal. Otherwise a Workspace menu opened from a sidebar row that already shows a

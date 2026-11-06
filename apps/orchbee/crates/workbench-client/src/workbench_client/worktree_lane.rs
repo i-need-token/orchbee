@@ -222,14 +222,16 @@ fn snapshot(
         }
     }
 }
-/// Names the one listing failure a person can act on directly; others stay generic.
+/// Names the one listing failure a person can act on directly: Git's refusal of a directory outside
+/// a repository, which is exit status 128 at the probe, the same rule the Server applies. Any other
+/// probe failure, including one without an exit status, is transient and stays generic.
 fn listing_failure(outcome: &WorkbenchWorktreeQueryOutcome) -> WorktreeNotice {
     match outcome {
         WorkbenchWorktreeQueryOutcome::Failed {
             reason:
                 WorktreeQueryFailure::GitFailed {
                     stage: WorktreeListStage::Probe,
-                    ..
+                    status: Some(128),
                 },
         } => WorktreeNotice::NotRepository,
         _ => WorktreeNotice::ListingUnavailable,
