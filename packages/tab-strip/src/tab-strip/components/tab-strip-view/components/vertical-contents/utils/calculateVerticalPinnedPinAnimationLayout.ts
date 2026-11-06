@@ -12,9 +12,11 @@ function tween(value: number, start: number, target: number): number {
 
 export function calculateVerticalPinnedPinAnimationLayout({
 	children,
+	tileHeight = LAYOUT_CONSTANTS.verticalTabPinnedHeight,
 	...layoutInput
 }: Omit<PinnedTabContainerLayoutInput, 'children'> & {
 	children: readonly VerticalPinAnimationEntry[];
+	tileHeight?: number;
 }): ProposedLayout {
 	const calculate = (entries: readonly VerticalPinAnimationEntry[]) =>
 		calculatePinnedTabContainerLayout({
@@ -22,8 +24,8 @@ export function calculateVerticalPinnedPinAnimationLayout({
 			children: entries.map((entry) => ({
 				id: entry.key,
 				preferredSize: {
-					width: LAYOUT_CONSTANTS.verticalTabMinWidth,
-					height: LAYOUT_CONSTANTS.verticalTabPinnedHeight,
+					width: layoutInput.childMinimumWidth ?? LAYOUT_CONSTANTS.verticalTabMinWidth,
+					height: tileHeight,
 				},
 			})),
 		});

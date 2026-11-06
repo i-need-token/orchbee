@@ -24,6 +24,8 @@ export interface PinnedTabContainerLayoutInput {
 	collapseState: VerticalTabStripCollapseState;
 	expandOnHoverEnabled?: boolean;
 	rtl?: boolean;
+	/** The narrowest tile; touch tiles keep a 44 px target. */
+	childMinimumWidth?: number;
 }
 
 /** Port of PinnedTabContainerView::CalculateVerticalLayout. */
@@ -39,7 +41,7 @@ export function calculatePinnedTabContainerLayout(
 	let totalWidth = 0;
 	let totalHeight = 0;
 	let childrenOnRow = input.children.length;
-	let childWidth = LAYOUT_CONSTANTS.verticalTabMinWidth;
+	let childWidth = input.childMinimumWidth ?? LAYOUT_CONSTANTS.verticalTabMinWidth;
 
 	if (input.sizeBounds.width !== null && input.sizeBounds.width > 0) {
 		let availableWidth =

@@ -40,6 +40,7 @@ export function TabStripView({
 		onVerticalExpandOnHoverChange,
 		showNewTabButton,
 		touchUi,
+		verticalFill,
 		onTabKeyboardFocusChanged,
 		onRovingFocusChanged,
 		onRovingFocusExited,
@@ -104,6 +105,8 @@ export function TabStripView({
 		);
 	};
 
+	const fill = !horizontal && verticalFill;
+
 	return (
 		<ContextMenu
 			open={menu !== null}
@@ -120,6 +123,7 @@ export function TabStripView({
 				data-ct-root=''
 				data-orientation={orientation}
 				data-touch-ui={touchUi || undefined}
+				data-fill={fill || undefined}
 				data-collapsed={effectiveVerticalCollapsed || undefined}
 				data-expanded-on-hover={expandedOnHover || undefined}
 				data-waiting-to-expand={expandOnHoverSnapshot.waitingToExpand || undefined}
@@ -310,7 +314,9 @@ export function TabStripView({
 						closeButtonAllowed
 					/>
 				) : null}
+				{/* A full-width list leaves no room beside its rows for a card, and shows each title whole. */}
 				{hover &&
+				!fill &&
 				hoverCardSnapshot.visible &&
 				hoverCardSnapshot.targetId === `${hover.kind}:${hover.id}` &&
 				!drag?.started &&

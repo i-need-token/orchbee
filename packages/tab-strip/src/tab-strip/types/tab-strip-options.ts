@@ -164,7 +164,7 @@ export interface TabStripOptions {
 	/** Host-owned semantic status keyed by Tab identity. */
 	statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
 	orientation?: TabStripOrientation;
-	onOrientationChange?: (orientation: TabStripOrientation) => void;
+	onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
 	verticalCollapsed?: boolean;
 	verticalExpandOnHover?: boolean;
 	verticalExpandOnHoverController?: VerticalTabStripExpandOnHoverController;
@@ -188,12 +188,20 @@ export interface TabStripOptions {
 	onVerticalExpandOnHoverChange?: (enabled: boolean) => void;
 	showNewTabButton?: boolean;
 	horizontalFrameCondensed?: boolean;
-	/** Mirrors ui::TouchUiController's touch-optimized tab metrics. */
+	/**
+	 * Mirrors ui::TouchUiController's touch-optimized tab metrics. A vertical strip's rows, group
+	 * headers, and pinned tiles then take a 44 px target with a 2 px gap between rows.
+	 */
 	touchUi?: boolean;
+	/**
+	 * A vertical strip that fills its host's inline size, as a full-window Tab list does, instead of
+	 * taking its own expanded or collapsed width. The host keeps it expanded.
+	 */
+	verticalFill?: boolean;
 	/** Mirrors current Chrome tab decluttering; pass false for legacy channels. */
 	tabStripDeclutter?: boolean;
 	/** Host bridge for Chromium's immersive-reveal drag lock lifecycle. */
-	onDraggingChange?: (dragging: boolean) => void;
+	onDraggingChange?: ((dragging: boolean) => void) | undefined;
 	/** Host bridge for BrowserCommandController::TabKeyboardFocusChangedTo. */
 	onTabKeyboardFocusChanged?: (tabId: string | null) => void;
 	ariaLabel?: string;

@@ -23,6 +23,7 @@ import {
 	VerticalTabStripCollapseState,
 } from '../../../../types/tab-strip-types';
 import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
+import { getVerticalTabMetrics } from '../../../../layout/getVerticalTabMetrics';
 import { RoundedScrollbar } from './components/rounded-scrollbar/RoundedScrollbar';
 import { VerticalTabStripTopContainer } from './components/vertical-tab-strip-top-container/VerticalTabStripTopContainer';
 import { VerticalTabStripBottomContainer } from './components/vertical-tab-strip-bottom-container/VerticalTabStripBottomContainer';
@@ -135,6 +136,7 @@ export function VerticalContents({
 	const { isAnimatingSize, pinnedScrollRef, regionsRef, regionsSize, scrollRef } =
 		useVerticalContents({ availableWidth, collapsed, drag, onDragScrolled, snapshot });
 	const { pinned, unpinned } = useVerticalPinAnimation({ snapshot });
+	const metrics = getVerticalTabMetrics(touchUi);
 	const { fullyCollapsedGroupIds, onGroupTabsTransitionEnd } = useVerticalGroupCollapseCompletion(
 		snapshot.groups,
 	);
@@ -183,7 +185,8 @@ export function VerticalContents({
 				style={
 					{
 						'--ob-comp-tab-strip-block-size': `${
-							LAYOUT_CONSTANTS.verticalTabHeight * entry.mainAxisScale
+							(tab.group === null ? metrics.tabHeight : metrics.groupTabHeight) *
+							entry.mainAxisScale
 						}px`,
 						'--ob-comp-tab-strip-runtime-opacity': entry.opacity,
 					} satisfies CSSProperties &
@@ -241,6 +244,8 @@ export function VerticalContents({
 			: VerticalTabStripCollapseState.Expanded,
 		expandOnHoverEnabled,
 		children: pinned,
+		childMinimumWidth: metrics.pinnedTabMinWidth,
+		tileHeight: metrics.pinnedTabHeight,
 	});
 
 	const unpinnedDirectChildren: Array<{
@@ -264,28 +269,30 @@ export function VerticalContents({
 			);
 			const groupCollapsed = group?.collapsed === true;
 			const animatedGroupHeight = currentGroupExists
-				? 36 +
+				? metrics.groupHeaderBlockSize +
 					groupTabs.reduce(
-						(height, candidate) =>
-							height + LAYOUT_CONSTANTS.verticalTabHeight * candidate.mainAxisScale,
+						(height, candidate) => height + metrics.groupTabHeight * candidate.mainAxisScale,
 						0,
 					)
-				: (36 + groupTabs.length * LAYOUT_CONSTANTS.verticalTabHeight) * sourceGroupScale;
+				: (metrics.groupHeaderBlockSize + groupTabs.length * metrics.groupTabHeight) *
+					sourceGroupScale;
 			unpinnedDirectChildren.push({
 				id: `group-${tab.group}`,
 				group: true,
 				preferredSize: {
 					width: availableWidth,
-					height: groupCollapsed ? 34 : animatedGroupHeight,
+					height: groupCollapsed ? metrics.collapsedGroupBlockSize : animatedGroupHeight,
 				},
 				minimumSize: {
 					width: LAYOUT_CONSTANTS.verticalTabMinWidth,
-					height: groupCollapsed ? 34 : Math.min(34, animatedGroupHeight),
+					height: groupCollapsed
+						? metrics.collapsedGroupBlockSize
+						: Math.min(metrics.collapsedGroupBlockSize, animatedGroupHeight),
 				},
 			});
 			continue;
 		}
-		const animatedTabHeight = LAYOUT_CONSTANTS.verticalTabHeight * entry.mainAxisScale;
+		const animatedTabHeight = metrics.tabHeight * entry.mainAxisScale;
 		unpinnedDirectChildren.push({
 			id: tab.id,
 			preferredSize: { width: defaultTabWidth, height: animatedTabHeight },
@@ -500,15 +507,16 @@ export function VerticalContents({
 								let groupBlockSize: number;
 								if (!currentGroupExists) {
 									groupBlockSize =
-										(36 + groupTabs.length * LAYOUT_CONSTANTS.verticalTabHeight) * sourceGroupScale;
+										(metrics.groupHeaderBlockSize + groupTabs.length * metrics.groupTabHeight) *
+										sourceGroupScale;
 								} else if (group.collapsed) {
-									groupBlockSize = 34;
+									groupBlockSize = metrics.collapsedGroupBlockSize;
 								} else {
 									groupBlockSize =
-										36 +
+										metrics.groupHeaderBlockSize +
 										groupTabs.reduce(
 											(height, candidate) =>
-												height + LAYOUT_CONSTANTS.verticalTabHeight * candidate.mainAxisScale,
+												height + metrics.groupTabHeight * candidate.mainAxisScale,
 											0,
 										);
 								}

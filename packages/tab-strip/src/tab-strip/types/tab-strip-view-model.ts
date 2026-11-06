@@ -52,6 +52,7 @@ export interface TabStripViewModel {
 	readonly showNewTabButton: boolean;
 	readonly horizontalFrameCondensed: boolean;
 	readonly touchUi: boolean;
+	readonly verticalFill: boolean;
 	readonly tabStripDeclutter: boolean;
 	readonly onTabKeyboardFocusChanged: TabStripOptions['onTabKeyboardFocusChanged'];
 	readonly onRovingFocusChanged: (key: TabStripRovingItem['key'] | null) => void;

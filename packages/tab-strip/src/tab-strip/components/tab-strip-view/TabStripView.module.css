@@ -1804,6 +1804,48 @@
 	color: var(--ob-sys-color-status-agent-done);
 }
 
+/* A vertical strip that fills its host, as a full-window Tab list does, on the host's surface. Its
+   rows follow the host's heading 2 px below it, as list rows follow one another. */
+.ct-tab-strip[data-orientation='vertical'][data-fill] {
+	width: 100%;
+	min-height: 0;
+	padding-top: var(--ob-comp-tab-strip-length-2);
+	background: none;
+}
+/* A group keeps the Tabs' inset from the host's edges instead of spanning them. */
+.ct-tab-strip[data-fill] .ct-vertical-unpinned__unit > .ct-vertical-group {
+	width: auto;
+	margin-inline: var(--ob-comp-tab-strip-length-12);
+}
+
+/* Touch rows (getVerticalTabMetrics): a Tab, a group header, and a pinned tile are 44 px targets
+   that start at their unit's top, 2 px apart. The layout leaves that gap between units; a group's
+   Tabs carry it above them. */
+.ct-tab-strip[data-touch-ui] .ct-tab[data-orientation='vertical'],
+.ct-tab-strip[data-touch-ui] .ct-vertical-pinned .ct-vertical-tab-wrap,
+.ct-tab-strip[data-touch-ui] .ct-group-header[data-orientation='vertical'] {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+.ct-tab-strip[data-touch-ui] .ct-vertical-unpinned__unit > .ct-vertical-tab-wrap {
+	padding-block: 0;
+}
+.ct-tab-strip[data-touch-ui] .ct-vertical-group__tabs .ct-vertical-tab-wrap {
+	padding-block: var(--ob-comp-tab-strip-length-2) 0;
+}
+.ct-tab-strip[data-touch-ui] .ct-vertical-group,
+.ct-tab-strip[data-touch-ui] .ct-vertical-group[data-group-collapsed],
+.ct-tab-strip[data-touch-ui] .ct-vertical-group[data-group-collapsing] {
+	padding: 0;
+}
+.ct-tab-strip[data-touch-ui] .ct-vertical-group__tabs {
+	padding-top: 0;
+}
+.ct-tab-strip[data-touch-ui] .ct-vertical-group::before {
+	top: calc(
+		var(--ob-ref-size-control-lg) + var(--ob-ref-space-2) + var(--ob-comp-tab-strip-length-2)
+	);
+}
+
 @keyframes agent-breath {
 	50% {
 		opacity: var(--ob-ref-opacity-50);
