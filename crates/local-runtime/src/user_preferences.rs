@@ -136,12 +136,34 @@ impl UserPreferencesStore {
             UserPreferencesRequest::Read {} => unreachable!("read handled before write admission"),
         };
         changes.apply(&UserPreferencesValues::default())?;
+        if matches!(request, UserPreferencesRequest::Update { source, .. } if source == "unreadable")
+            && !changes.is_reset_all()
+        {
+            return Err(PreferencesFailure::InvalidChanges.into());
+        }
         if changes.is_empty() {
             return Err(PreferencesFailure::InvalidChanges.into());
         }
         let mut writer = storage::Writer::acquire(&self.scope)?;
         let before = writer.read()?;
-        let (previous, previous_source) = self.decode(before.as_deref())?;
+        let (previous, previous_source) = match self.decode(before.as_deref()) {
+            Ok(previous) => previous,
+            Err(PreferencesFailure::InvalidSource)
+                if matches!(request, UserPreferencesRequest::Update { source, .. }
+                    if source == "unreadable")
+                    && changes.is_reset_all() =>
+            {
+                (
+                    Record {
+                        version: 1,
+                        values: UserPreferencesValues::default(),
+                        claimed: BTreeSet::new(),
+                    },
+                    "unreadable".into(),
+                )
+            }
+            Err(reason) => return Err(reason.into()),
+        };
         let mut candidate = previous.clone();
         match request {
             UserPreferencesRequest::Update { source, changes } => {

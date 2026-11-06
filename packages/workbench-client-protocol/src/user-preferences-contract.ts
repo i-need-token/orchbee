@@ -107,7 +107,9 @@ export const UserPreferencesPatchSchema = z.strictObject({
 	launchProfiles: UserLaunchProfileCatalogSchema.nullable().optional(),
 });
 
-export const UserPreferencesSourceSchema = z.string().regex(/^(?:missing|[\da-f]{64})$/u);
+export const UserPreferencesSourceSchema = z
+	.string()
+	.regex(/^(?:missing|unreadable|[\da-f]{64})$/u);
 const UserPreferencesSnapshotSchema = z.strictObject({
 	source: UserPreferencesSourceSchema,
 	values: UserPreferencesValuesSchema,

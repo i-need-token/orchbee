@@ -8,6 +8,7 @@ pub(crate) enum SettingsNotice {
     NoChange,
     SourceChanged,
     Failed,
+    Unreadable,
     Unknown,
     Busy,
     PresentationUnavailable,
@@ -553,6 +554,10 @@ impl Locale {
             SourceChanged => self.setting(
                 "Settings changed elsewhere; draft kept · reload to resolve",
                 "另一端已修改设置；草稿已保留 · 请重新读取",
+            ),
+            Unreadable => self.setting(
+                "Settings file can't be read · using defaults · Reset all to replace it",
+                "无法读取设置文件 · 正在使用默认值 · 可用“全部重置”替换",
             ),
             Failed => self.setting(
                 "Settings operation failed; no save confirmed",

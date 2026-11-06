@@ -3,6 +3,7 @@ import {
 	MAXIMUM_USER_PREFERENCES_BYTES,
 	UserPreferencesPatchSchema,
 	UserPreferencesSourceSchema,
+	USER_PREFERENCE_KEYS,
 } from '../user-preferences-contract';
 import { z } from 'zod';
 
@@ -28,11 +29,18 @@ export const SettingsRequestSchema = z
 		...correlation,
 		operation: z.discriminatedUnion('kind', [
 			z.strictObject({ kind: z.literal('open') }),
-			z.strictObject({
-				kind: z.literal('save'),
-				source: SettingsSourceSchema,
-				changes: SettingsChangesSchema,
-			}),
+			z
+				.strictObject({
+					kind: z.literal('save'),
+					source: SettingsSourceSchema,
+					changes: SettingsChangesSchema,
+				})
+				.refine(
+					(operation) =>
+						operation.source !== 'unreadable' ||
+						(Object.keys(operation.changes).length === USER_PREFERENCE_KEYS.length &&
+							Object.values(operation.changes).every((value) => value === null)),
+				),
 		]),
 	})
 	.readonly();

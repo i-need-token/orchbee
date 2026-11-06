@@ -704,3 +704,19 @@ fn send_on_a_dead_carrier_is_unavailable_and_not_reused() -> TestResult {
     }
     Ok(())
 }
+
+#[test]
+fn a_send_acknowledges_only_typed_records_in_its_accepted_prefix() {
+    use orchbee_client_server_protocol::{SendBytes, SendRecord};
+    let records = [
+        SendRecord::Bytes {
+            bytes: SendBytes::new(b"\x1b[I\x1b[<0;3;4M".to_vec()).unwrap(),
+        },
+        SendRecord::Bytes {
+            bytes: SendBytes::new(b"x".to_vec()).unwrap(),
+        },
+    ];
+    assert!(!acknowledges_records(&records, 0));
+    assert!(!acknowledges_records(&records, 1));
+    assert!(acknowledges_records(&records, 2));
+}

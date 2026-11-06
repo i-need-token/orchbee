@@ -83,8 +83,10 @@ impl LocalTerminalService {
             Ok(_) => unreachable!("send request returned another operation result"),
             Err(error) => carrier_outcome(error),
         };
-        if outcome.progress().records_accepted() > 0
-            && let Ok(mut coordinator) = self.coordinator.lock()
+        if acknowledges_records(
+            request.records().as_slice(),
+            outcome.progress().records_accepted() as usize,
+        ) && let Ok(mut coordinator) = self.coordinator.lock()
         {
             coordinator.acknowledge_terminal_input(prepared.target);
         }
@@ -314,6 +316,20 @@ fn unavailable(reason: Unavailable, status: Cleanup) -> Outcome {
         progress: SendProgress::none(),
         cleanup: status,
     }
+}
+
+fn acknowledges_records(
+    records: &[orchbee_client_server_protocol::SendRecord],
+    accepted: usize,
+) -> bool {
+    records.iter().take(accepted).any(|record| match record {
+        orchbee_client_server_protocol::SendRecord::Bytes { bytes } => {
+            super::controller_connection::contains_typed_input(bytes.as_bytes())
+        }
+        orchbee_client_server_protocol::SendRecord::Text(_)
+        | orchbee_client_server_protocol::SendRecord::Stroke(_)
+        | orchbee_client_server_protocol::SendRecord::Paste { .. } => true,
+    })
 }
 
 #[cfg(test)]

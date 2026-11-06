@@ -72,7 +72,7 @@ no explicit override is present; release uses the native platform location. A TU
 development identity must select the same absolute `ORCHBEE_CONFIG_FILE`. This keeps development
 preferences isolated from the installed release while preserving one authority within each scope.
 
-Read returns a complete validated snapshot, exact source token and claimed keys. An absent record returns canonical defaults, no claimed keys and the `missing` source token; an existing record uses a lowercase SHA-256 token of its bytes. Invalid, unreadable, unsafe or oversized records are refused rather than replaced. The complete record/exchange bound is 2 MiB.
+Read returns a complete validated snapshot, exact source token and claimed keys. An absent record returns canonical defaults, no claimed keys and the `missing` source token; an existing record uses a lowercase SHA-256 token of its bytes. Invalid, unreadable, unsafe or oversized records are refused on read rather than silently replaced. The complete record/exchange bound is 2 MiB.
 
 An update contains an expected source and a nonempty typed patch. Omitted keys
 remain unchanged; null resets a key to its canonical default. An OS-held lock
@@ -84,6 +84,25 @@ from a later edit. Noncooperating external editors are outside the shared lock's
 transaction boundary.
 
 Desktop windows and native Clients read or update the current shared record through the Server. Explicit edits and resets claim keys even when the reset value already equals the default. Configuration files select the storage scope without supplying preference values.
+
+## Explicit recovery from a refused record
+
+On `invalid-source`, Clients show the localized unreadable-file notice and built-in defaults.
+The virtual `unreadable` source names this recovery view; it is not a digest or a successful read.
+Only a patch resetting **every** preference key to null may use it. Ordinary edits and partial
+resets remain disabled until Reset all is confirmed and saved. Clients never submit these
+fallback values as an ordinary save or silently repair or migrate the record.
+
+Under the existing writer lock, replacement requires that the current safely readable bytes still
+fail record validation. A now-valid or missing record returns `source-changed`, preserving another
+Client's repair. A successful reset writes a complete current record, claims all keys, and returns
+its real digest. Storage/path/ACL admission remains enforced; a file the storage owner cannot
+safely read or replace is still refused. Using a recovery source rather than a separate reset
+operation, and allowing explicit replacement of changed but still invalid bytes, are vetoable.
+
+Unreadable preferences do not block terminal creation: the Server captures built-in system shell,
+scrollback and Orchbee theme defaults without writing the record. Its Session diagnostic owns the
+historical failure fact; Settings reads own the current record's validity.
 
 ## Client behavior and capability boundaries
 

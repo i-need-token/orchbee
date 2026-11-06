@@ -24,16 +24,22 @@ impl LocalTerminalService {
 
     /// Reads one creation's launch intent from the frozen store before the caller takes any lock,
     /// so a saved change reaches only later creations and the dispatched launch and its published
-    /// program share this one read. A missing store, failed read or default program beyond the
-    /// selection budget captures `Unavailable`; an explicit selection never carries a program.
+    /// program share this one read. A missing store or program beyond the selection budget
+    /// captures `Unavailable`; a refused record uses built-in defaults without repairing it.
     pub(super) fn launch_capture(&self) -> LaunchCapture {
-        let Some(intent) = self
-            .preferences
-            .get()
-            .and_then(|store| store.terminal_launch_intent(true).ok())
-        else {
+        let Some(store) = self.preferences.get() else {
             return LaunchCapture::unavailable();
         };
+        let intent = store.terminal_launch_intent(true).unwrap_or_else(|_| {
+            self.configuration.note_unreadable_preferences();
+            UserTerminalLaunchIntent {
+                program: Some(UserLaunchCommand::SystemShell { login: false }),
+                scrollback_bytes: orchbee_workbench_protocol::UserPreferencesValues::default()
+                    .scrollback_bytes,
+                colors: None,
+                themes: Default::default(),
+            }
+        });
         let explicit = UserTerminalLaunchIntent {
             program: None,
             scrollback_bytes: intent.scrollback_bytes,

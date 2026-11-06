@@ -36,6 +36,32 @@ confirmed exit may reset the matching report source. A newer visible blocker may
 reported state without inventing a report source. Effective views contain Agent label, state,
 authority source and message. Clearing reports does not end a canonical Agent Session.
 
+## Completion remains Done until later typing
+
+The Session retains completion for the exact terminal generation. A Working turn that reaches Idle
+publishes `awaiting-input`; Clients present green Done while preserving raw Idle for Agent rules.
+Input accepted during Working cannot consume the future completion, including typing ahead of an
+Idle observation. A transient Unknown does not lose that turn. The next Working observation starts
+a new turn and clears the previous completion.
+
+Only accepted keys, text or paste **after** `awaiting-input` acknowledge it. Focus, read/unread
+acknowledgements, viewport visibility and mouse reports never do. Semantic Focus/Mouse records are
+excluded explicitly. Raw controller input skips complete focus and mouse reports, including
+concatenated reports; a record with typed bytes as well still counts as typing. This classification
+does not change or drop the bytes delivered to the child. One-shot send uses the same raw-byte
+classification and inspects only its confirmed accepted record prefix, so an unsent key cannot
+acknowledge a preceding report-only send.
+
+Raw classification treats complete report encodings in one input record as reports; other raw
+bytes retain their key/text meaning. A lone Escape remains a key. This record-level boundary is a
+vetoable decision: Clients should send complete generated reports, or use typed semantic records,
+rather than splitting terminal reports across requests.
+
+An input arriving just before the Server observes Idle may leave Done visible until the next typed
+input or Working edge. The user explicitly accepts this ordering in preference to losing Done.
+TUI terminal chrome, sidebar and Agent board, and the corresponding GUI surfaces all project this
+Server fact; Client-local unread acknowledgement does not change completion.
+
 ## Commit and verification boundary
 
 `changed` describes candidate state independently of applied/ignored disposition. Report and matching

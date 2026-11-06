@@ -14,7 +14,7 @@ pub const MAXIMUM_SETTINGS_REQUEST_BYTES: usize = MAXIMUM_USER_PREFERENCES_BYTES
 pub struct SettingsSource(String);
 impl SettingsSource {
     pub fn parse(value: &str) -> Result<Self, ContractError> {
-        if value == "missing"
+        if matches!(value, "missing" | "unreadable")
             || value.len() == 64
                 && value
                     .bytes()

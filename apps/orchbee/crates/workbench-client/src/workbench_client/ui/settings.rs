@@ -259,40 +259,9 @@ impl WorkbenchClientUi {
         self.settings.pending = false;
         self.settings.started = None;
         match reply.result {
-            Ok(reply) if self.settings.session.as_ref() == Some(&reply.session_id) => match reply
-                .outcome
-            {
-                SettingsOutcome::Opened { snapshot } => {
-                    self.settings.editor.loaded(token, snapshot);
-                }
-                SettingsOutcome::Saved { changed, .. } => {
-                    if self.settings.editor.complete(token) {
-                        self.settings.note(
-                            if changed {
-                                Notice::Saved
-                            } else {
-                                Notice::NoChange
-                            },
-                            self.clock.now(),
-                        );
-                    }
-                }
-                SettingsOutcome::OutcomeUnknown {} => self.fail_settings(token, Notice::Unknown),
-                SettingsOutcome::Refused { reason } => self.fail_settings(
-                    token,
-                    match reason {
-                        SettingsFailure::SourceChanged => Notice::SourceChanged,
-                        SettingsFailure::Busy => Notice::Busy,
-                        SettingsFailure::Denied
-                        | SettingsFailure::Unavailable
-                        | SettingsFailure::SessionMismatch
-                        | SettingsFailure::InvalidSource
-                        | SettingsFailure::InvalidChanges
-                        | SettingsFailure::WriteFailed
-                        | SettingsFailure::ResponseTooLarge => Notice::Failed,
-                    },
-                ),
-            },
+            Ok(reply) if self.settings.session.as_ref() == Some(&reply.session_id) => {
+                self.finish_settings(token, reply.outcome)
+            }
             result => self.fail_settings(
                 token,
                 if self.settings.saving && !matches!(result, Err(false)) {
@@ -303,6 +272,54 @@ impl WorkbenchClientUi {
             ),
         }
         true
+    }
+    fn finish_settings(&mut self, token: Token, outcome: SettingsOutcome) {
+        match outcome {
+            SettingsOutcome::Opened { snapshot } => {
+                self.settings.editor.loaded(token, snapshot);
+            }
+            SettingsOutcome::Saved { changed, .. } => {
+                if self.settings.editor.complete(token) {
+                    self.settings.note(
+                        if changed {
+                            Notice::Saved
+                        } else {
+                            Notice::NoChange
+                        },
+                        self.clock.now(),
+                    );
+                }
+            }
+            SettingsOutcome::OutcomeUnknown {} => self.fail_settings(token, Notice::Unknown),
+            SettingsOutcome::Refused {
+                reason: SettingsFailure::InvalidSource,
+            } => {
+                let defaults = UserPreferencesSnapshot {
+                    source: "unreadable".into(),
+                    values: Default::default(),
+                    claimed: Default::default(),
+                };
+                if self.settings.editor.loaded(token, defaults) {
+                    self.settings.note(Notice::Unreadable, self.clock.now());
+                } else {
+                    self.fail_settings(token, Notice::Unreadable);
+                }
+            }
+            SettingsOutcome::Refused { reason } => self.fail_settings(
+                token,
+                match reason {
+                    SettingsFailure::InvalidSource => Notice::Unreadable,
+                    SettingsFailure::SourceChanged => Notice::SourceChanged,
+                    SettingsFailure::Busy => Notice::Busy,
+                    SettingsFailure::Denied
+                    | SettingsFailure::Unavailable
+                    | SettingsFailure::SessionMismatch
+                    | SettingsFailure::InvalidChanges
+                    | SettingsFailure::WriteFailed
+                    | SettingsFailure::ResponseTooLarge => Notice::Failed,
+                },
+            ),
+        }
     }
     pub(in crate::workbench_client) fn take_settings_snapshot(
         &mut self,

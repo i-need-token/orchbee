@@ -1076,3 +1076,16 @@ cleanup retain the current owner rather than the obsolete Create authority.
 The accepted model and current implementation boundary are maintained in [Windows Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.
 
 Canonical split ratios are shared by native Clients and retained in checkpoint v6, guarded by catalog v5. The [checkpoint contract](docs/workbench-checkpoint.md) owns strict migration from versions 1–5; the [shared ratio contract](docs/shared-split-ratios.md) owns ratio mutation, projection and compatibility.
+
+## Unreadable shared preferences
+
+A refused shared preference record does not block terminal creation. The Session captures built-in
+system-shell, scrollback and Orchbee theme defaults, including when a custom default program was
+stored. Explicit executable selections still win. Reading never repairs or migrates the record.
+
+The first failed launch-preference read retains one historical Session configuration diagnostic:
+`field: sharedPreferences`, `reason: unreadable`, `disposition: defaulted`. Repeated failures do not
+advance its revision; configuration reload retains it and late Clients can read it via Current.
+A successful Settings read or reset supplies current preference values independently of this
+historical diagnostic. Using the existing bounded Session configuration channel and retaining the
+fact until Session end are vetoable decisions.

@@ -233,3 +233,83 @@ fn takeover_fences_incumbent_and_pending_reservations_cannot_be_stolen() {
     remove_exact(&mut owners, target, new.controller_id);
     assert_eq!(reserve(&mut owners, target, new, true), Ok(None));
 }
+
+#[test]
+fn focus_and_mouse_reports_do_not_acknowledge_a_completed_turn() {
+    for bytes in [
+        b"\x1b[I".as_slice(),
+        b"\x1b[O",
+        b"\x1b[I\x1b[O",
+        b"\x1b[<0;4;9M",
+        b"\x1b[<0;4;9m",
+        b"\x1b[M !!",
+    ] {
+        let action = Action::Input {
+            attachment_id: orchbee_client_server_protocol::ViewerId::parse(&"1".repeat(32))
+                .unwrap(),
+            controller_id: orchbee_client_server_protocol::ControllerId::parse(&"2".repeat(32))
+                .unwrap(),
+            sequence: std::num::NonZeroU64::new(1).unwrap(),
+            bytes: orchbee_client_server_protocol::ControlInput::new(bytes.to_vec()).unwrap(),
+        };
+        assert!(
+            !acknowledges_input(&action),
+            "report {bytes:?} is not typing"
+        );
+    }
+}
+
+#[test]
+fn report_batches_preserve_done_but_real_keys_text_and_mixed_input_acknowledge() {
+    for bytes in [
+        b"\x1b[<64;4;9M\x1b[O".as_slice(),
+        b"\x1b[32;4;9M",
+        b"\x1b[M \xc3\xa9",
+        b"\x9bI",
+        b"\x9b<0;4;9m",
+        b"\x1b[M \xc4\x80\xc4\x81",
+    ] {
+        assert!(!contains_typed_input(bytes), "report {bytes:?}");
+    }
+    for bytes in [
+        b"x".as_slice(),
+        b"\r",
+        b"\x1b",
+        b"\x1b[A",
+        b"\x1b[1;5C",
+        b"\x1b[Ihi\x1b[O",
+        b"\x1b[<0;4;9Mx",
+        b"\x1b[200~paste\x1b[201~",
+    ] {
+        assert!(contains_typed_input(bytes), "typed input {bytes:?}");
+    }
+    for (kind, expected) in [
+        (
+            orchbee_client_server_protocol::SemanticInputKind::Focus,
+            false,
+        ),
+        (
+            orchbee_client_server_protocol::SemanticInputKind::Mouse,
+            false,
+        ),
+        (orchbee_client_server_protocol::SemanticInputKind::Key, true),
+        (
+            orchbee_client_server_protocol::SemanticInputKind::Text,
+            true,
+        ),
+    ] {
+        assert_eq!(
+            acknowledges_input(&Action::SemanticInput {
+                attachment_id: orchbee_client_server_protocol::ViewerId::parse(&"1".repeat(32))
+                    .unwrap(),
+                controller_id: orchbee_client_server_protocol::ControllerId::parse(&"2".repeat(32))
+                    .unwrap(),
+                sequence: std::num::NonZeroU64::new(1).unwrap(),
+                input_kind: kind,
+                payload: orchbee_client_server_protocol::SemanticInputPayload::new(vec![1])
+                    .unwrap(),
+            }),
+            expected
+        );
+    }
+}

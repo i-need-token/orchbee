@@ -334,15 +334,8 @@ pub(super) fn execute<'service>(
     {
         Ok(WorkerOperationResult::Control(result)) => match result.outcome {
             WorkerOutcome::InputAccepted => {
-                if matches!(
-                    request.action(),
-                    Action::Input { .. }
-                        | Action::SemanticInput {
-                            input_kind: orchbee_client_server_protocol::SemanticInputKind::Key
-                                | orchbee_client_server_protocol::SemanticInputKind::Text,
-                            ..
-                        }
-                ) && let Ok(mut coordinator) = service.coordinator.lock()
+                if acknowledges_input(request.action())
+                    && let Ok(mut coordinator) = service.coordinator.lock()
                 {
                     coordinator.acknowledge_terminal_input(controller.target);
                 }
@@ -712,6 +705,95 @@ fn worker_rejection(reason: ControlRejection) -> Rejected {
         ControlRejection::ViewerUnavailable
         | ControlRejection::WrongWorker
         | ControlRejection::StaleWorkerGeneration => Rejected::ViewerUnavailable,
+    }
+}
+
+/// Raw controller input also transports terminal-generated reports. Classify only for the
+/// completion acknowledgement; the Worker still receives every original byte unchanged.
+fn acknowledges_input(action: &Action) -> bool {
+    match action {
+        Action::Input { bytes, .. } => contains_typed_input(bytes.as_bytes()),
+        Action::SemanticInput { input_kind, .. } => matches!(
+            input_kind,
+            orchbee_client_server_protocol::SemanticInputKind::Key
+                | orchbee_client_server_protocol::SemanticInputKind::Text
+        ),
+        _ => false,
+    }
+}
+
+pub(super) fn contains_typed_input(mut bytes: &[u8]) -> bool {
+    while !bytes.is_empty() {
+        let Some(length) = terminal_report_length(bytes) else {
+            return true;
+        };
+        bytes = &bytes[length..];
+    }
+    false
+}
+
+/// Complete CSI focus, SGR/URXVT mouse, or legacy/UTF-8 X10 mouse reports. Everything else
+/// retains its ordinary key/text meaning (including Escape and keyboard CSI sequences).
+fn terminal_report_length(bytes: &[u8]) -> Option<usize> {
+    let (body, prefix) = if let Some(body) = bytes.strip_prefix(b"\x1b[") {
+        (body, 2)
+    } else {
+        (bytes.strip_prefix(b"\x9b")?, 1)
+    };
+    match *body.first()? {
+        b'I' | b'O' => Some(prefix + 1),
+        b'M' => {
+            if body.len() == 4 {
+                return Some(prefix + 4);
+            }
+            let mut offset = 1;
+            for _ in 0..3 {
+                let lead = *body.get(offset)?;
+                let width = match lead {
+                    0xc2..=0xdf => 2,
+                    0xe0..=0xef => 3,
+                    0xf0..=0xf4 => 4,
+                    _ => 1,
+                };
+                // Legacy mouse coordinates are opaque bytes, UTF-8 mode emits codepoints.
+                let width = if width > 1
+                    && body
+                        .get(offset..offset + width)
+                        .is_some_and(|part| std::str::from_utf8(part).is_ok())
+                {
+                    width
+                } else {
+                    1
+                };
+                offset += width;
+            }
+            Some(prefix + offset)
+        }
+        first if first == b'<' || first.is_ascii_digit() => {
+            let sgr = first == b'<';
+            let mut offset = usize::from(sgr);
+            for field in 0..3 {
+                let start = offset;
+                while body.get(offset).is_some_and(u8::is_ascii_digit) {
+                    offset += 1;
+                }
+                if start == offset {
+                    return None;
+                }
+                if field < 2 {
+                    if body.get(offset) != Some(&b';') {
+                        return None;
+                    }
+                    offset += 1;
+                }
+            }
+            match *body.get(offset)? {
+                b'M' => Some(prefix + offset + 1),
+                b'm' if sgr => Some(prefix + offset + 1),
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }
 

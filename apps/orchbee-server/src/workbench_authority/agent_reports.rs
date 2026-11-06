@@ -106,13 +106,6 @@ pub(super) struct Reports {
 }
 impl Reports {
     pub(super) fn transition(&self, event: Event, at: u64) -> Transition {
-        let explicit_work = matches!(
-            &event,
-            Event::State {
-                status: Status::Working,
-                ..
-            }
-        );
         let mut next = self.clone();
         let mut released = false;
         let mut metadata_exit = None;
@@ -151,15 +144,8 @@ impl Reports {
         }
         match after.status {
             Status::Working if after.agent.is_some() => {
-                // A repeated screen sample cannot resurrect the turn acknowledged by input.
-                // A later Idle->Working edge or fresh explicit work report starts a new turn.
-                if next.completion != orchbee_workbench_protocol::AgentCompletion::Acknowledged
-                    || !matches!(before.status, Status::Working | Status::Unknown)
-                    || (explicit_work && disposition == Disposition::Applied)
-                {
-                    next.worked = true;
-                    next.completion = orchbee_workbench_protocol::AgentCompletion::None;
-                }
+                next.worked = true;
+                next.completion = orchbee_workbench_protocol::AgentCompletion::None;
             }
             Status::Idle if next.worked => {
                 next.worked = false;
@@ -365,9 +351,7 @@ impl Reports {
         }
     }
     pub(super) fn acknowledge_input(&mut self) -> bool {
-        if !self.worked
-            && self.completion != orchbee_workbench_protocol::AgentCompletion::AwaitingInput
-        {
+        if self.completion != orchbee_workbench_protocol::AgentCompletion::AwaitingInput {
             return false;
         }
         self.worked = false;

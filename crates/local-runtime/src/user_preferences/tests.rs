@@ -422,3 +422,32 @@ fn shared_preferences_ignore_configuration_bytes_before_first_save() {
         "invalid TOML remains independent"
     );
 }
+
+#[test]
+fn only_explicit_reset_all_may_replace_a_refused_record_and_cannot_clobber_a_repair() {
+    let fixture = Fixture::new();
+    fixture.update("missing", PreferenceKey::ApplicationTheme, json!("dark"));
+    let file = fixture.store.scope().directory().join("preferences.json");
+    fs::write(&file, b"{refused record}").unwrap();
+    let reset = UserPreferencesRequest::Update {
+        source: "unreadable".into(),
+        changes: UserPreferencesPatch::reset(PreferenceKey::ALL),
+    };
+    let partial = fixture.store.execute(&UserPreferencesRequest::Update {
+        source: "unreadable".into(),
+        changes: UserPreferencesPatch::reset([PreferenceKey::ApplicationTheme]),
+    });
+    assert!(matches!(partial, UserPreferencesResponse::Refused { .. }));
+    assert_eq!(fs::read(&file).unwrap(), b"{refused record}");
+    let repaired = accepted(fixture.store.execute(&reset));
+    assert_eq!(repaired.values, UserPreferencesValues::default());
+    assert_eq!(repaired.claimed.len(), PreferenceKey::ALL.len());
+    assert_ne!(repaired.source, "unreadable");
+    assert_eq!(fixture.store.read().unwrap(), repaired);
+    assert_eq!(
+        fixture.store.execute(&reset),
+        UserPreferencesResponse::Refused {
+            reason: PreferencesFailure::SourceChanged,
+        }
+    );
+}

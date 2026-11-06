@@ -24,6 +24,7 @@ pub(super) struct Registry {
     state: Mutex<Option<State>>,
     /// Sampled publications have no requesting connection; this wakes every subscriber.
     changes: orchbee_server::SessionChangeSource,
+    preferences_unreadable: std::sync::atomic::AtomicBool,
 }
 pub(super) struct PreparedInitial(State);
 /// `current` also carries the frozen startup location: every read at that location reports it.
@@ -124,7 +125,7 @@ impl Registry {
             reloading: false,
         }))
     }
-    pub(super) fn install_initial(&self, prepared: PreparedInitial) -> std::io::Result<()> {
+    pub(super) fn install_initial(&self, mut prepared: PreparedInitial) -> std::io::Result<()> {
         let mut slot = self
             .state
             .lock()
@@ -132,8 +133,44 @@ impl Registry {
         if slot.is_some() {
             return Err(std::io::ErrorKind::AlreadyExists.into());
         }
+        if self
+            .preferences_unreadable
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            retain_preferences_notice(&mut prepared.0.snapshot.diagnostics);
+        }
         *slot = Some(prepared.0);
         Ok(())
+    }
+    /// One historical Session fact, not one warning per terminal creation. Readable Settings
+    /// and an explicit reset remain authoritative for current preference values.
+    pub(super) fn note_unreadable_preferences(&self) {
+        let Ok(mut slot) = self.state.lock() else {
+            return;
+        };
+        if self
+            .preferences_unreadable
+            .swap(true, std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+        if let Some(state) = slot.as_mut() {
+            let Some(revision) = state.snapshot.revision.value().checked_add(1) else {
+                return;
+            };
+            let mut next = state.snapshot.clone();
+            retain_preferences_notice(&mut next.diagnostics);
+            next.revision = WorkbenchRevision::new(revision);
+            if preflight_publication(&Outcome::Current {
+                snapshot: next.clone(),
+            })
+            .is_err()
+            {
+                return;
+            }
+            state.snapshot = next;
+            self.changes.notify();
+        }
     }
     #[cfg(all(test, windows))]
     pub(super) fn initialized_for_test(&self) -> bool {
@@ -221,9 +258,15 @@ impl Registry {
                 };
             }
         };
-        let Some(diagnostics) = protocol_diagnostics(&candidate.diagnostics) else {
+        let Some(mut diagnostics) = protocol_diagnostics(&candidate.diagnostics) else {
             return Outcome::failed(Failure::LoadFailed);
         };
+        if self
+            .preferences_unreadable
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            retain_preferences_notice(&mut diagnostics);
+        }
         let changed = (publication == Publication::Explicit
             && frozen.snapshot.revision.value() == 0)
             || candidate.settings != frozen.current
@@ -383,6 +426,29 @@ fn snapshot(
             }
         },
     }
+}
+
+/// Keep the preference fact inside the existing bounded Session configuration channel.
+fn retain_preferences_notice(diagnostics: &mut ConfigurationDiagnostics) {
+    const FIELD: &str = "sharedPreferences";
+    if diagnostics.items.iter().any(|item| item.field == FIELD) {
+        return;
+    }
+    if diagnostics.items.len() == orchbee_workbench_protocol::MAXIMUM_CONFIGURATION_DIAGNOSTICS {
+        diagnostics.items.pop();
+        diagnostics.omitted_count = diagnostics
+            .omitted_count
+            .saturating_add(1)
+            .min(MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED);
+    }
+    diagnostics.items.push(ConfigurationDiagnostic {
+        field: FIELD.into(),
+        reason: "unreadable".into(),
+        disposition: ConfigurationDiagnosticDisposition::Defaulted,
+    });
+    diagnostics
+        .items
+        .sort_by(|a, b| (&a.field, &a.reason).cmp(&(&b.field, &b.reason)));
 }
 
 fn protocol_diagnostics(diagnostics: &SettingsDiagnostics) -> Option<ConfigurationDiagnostics> {

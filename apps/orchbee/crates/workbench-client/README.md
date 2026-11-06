@@ -151,3 +151,13 @@ The crate inherits the repository toolchain, lints, and shared dependency versio
 [repository verification gate](../../../../docs/VERIFICATION.md) from the repository root.
 Keep exported modules and items tied to real application consumers and preserve private test
 ownership.
+
+## Refused shared preference recovery
+
+Opening Settings after an `invalid-source` refusal keeps a populated defaults view and shows the
+dedicated unreadable-file notice in both locales. These are recovery defaults, not confirmed
+storage. Ordinary editing stays disabled; Reload and confirmed Reset all remain available. Reset
+all stages a full-null reset, saved through the ordinary explicit Save boundary with the virtual
+`unreadable` basis. Storage rechecks the current refused record and preserves a concurrent repair.
+The [shared preference contract](../../../../crates/workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
+owns token and storage rules. No read silently repairs or migrates a record.

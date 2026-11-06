@@ -412,7 +412,7 @@ fn presence_preserves_screen_age_and_replacement_clears_it() {
 }
 
 #[test]
-fn accepted_input_before_idle_does_not_recreate_an_unanswered_completion() {
+fn input_during_work_preserves_done_until_input_after_completion() {
     for transient_unknown in [false, true] {
         let mut current = Reports::default();
         let agent = Provider::lookup("codex").unwrap();
@@ -421,8 +421,10 @@ fn accepted_input_before_idle_does_not_recreate_an_unanswered_completion() {
             process(Some(agent), Status::Working, false),
             1,
         );
-        assert!(current.acknowledge_input());
-        // Repeated screen observations are not a new work turn.
+        assert!(
+            !current.acknowledge_input(),
+            "typing during Working does not consume completion"
+        );
         step(
             &mut current,
             process(Some(agent), Status::Working, false),
@@ -436,15 +438,19 @@ fn accepted_input_before_idle_does_not_recreate_an_unanswered_completion() {
             );
         }
         step(&mut current, process(Some(agent), Status::Idle, false), 4);
-        assert_eq!(current.view().display_state(), Status::Idle);
-        step(
-            &mut current,
-            process(Some(agent), Status::Working, false),
-            5,
-        );
-        step(&mut current, process(Some(agent), Status::Idle, false), 6);
+        assert_eq!(current.view().display_state(), Status::Done);
+        // Further observations and merely viewing the terminal leave the Server fact intact.
+        step(&mut current, process(Some(agent), Status::Idle, false), 5);
         assert_eq!(current.view().display_state(), Status::Done);
         assert!(current.acknowledge_input());
         assert_eq!(current.view().display_state(), Status::Idle);
+        assert!(!current.acknowledge_input());
+        step(
+            &mut current,
+            process(Some(agent), Status::Working, false),
+            6,
+        );
+        step(&mut current, process(Some(agent), Status::Idle, false), 7);
+        assert_eq!(current.view().display_state(), Status::Done);
     }
 }

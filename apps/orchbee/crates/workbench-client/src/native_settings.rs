@@ -171,7 +171,6 @@ pub(crate) struct DraftView<'a> {
     pub(crate) token: Token,
     pub(crate) values: &'a UserPreferencesValues,
     pub(crate) basis_values: &'a UserPreferencesValues,
-    #[cfg(test)]
     pub(crate) basis_source: &'a str,
     #[cfg(test)]
     pub(crate) effective_values: &'a UserPreferencesValues,
@@ -431,6 +430,13 @@ impl DraftView<'_> {
 
     pub(crate) fn enabled(self, row: Row) -> bool {
         use orchbee_workbench_protocol::UserLaunchCommand;
+        if self.basis_source == "unreadable" {
+            return match row {
+                Row::ResetAll | Row::Reload => true,
+                Row::Save => self.reset_all && !self.conflict && self.reconciliation.is_none(),
+                _ => false,
+            };
+        }
         let catalog = &self.values.launch_profiles;
         let profile = &catalog.profiles[self.profile];
         let arguments = match &profile.command {
@@ -602,7 +608,6 @@ impl Draft {
             token: self.token,
             values: &self.values,
             basis_values: &self.basis.values,
-            #[cfg(test)]
             basis_source: &self.basis.source,
             #[cfg(test)]
             effective_values: &self.effective.values,

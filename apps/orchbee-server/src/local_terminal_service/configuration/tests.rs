@@ -648,3 +648,39 @@ fn sampler_publishes_only_changed_files_and_retains_fatal_edits() {
     assert!(current(&registry).keys_profile.contains("ctrl+x"));
     assert_eq!(signal.revision(), 2);
 }
+
+#[test]
+fn unreadable_preferences_are_one_retained_session_fact_across_configuration_reload() {
+    let fixture = Fixture::new();
+    fixture.write("");
+    let registry = Registry::default();
+    // Detection can precede configuration startup; publication must retain it.
+    registry.note_unreadable_preferences();
+    registry.initialize_load(&fixture.load(true)).unwrap();
+    let first = current(&registry);
+    assert!(
+        first
+            .diagnostics
+            .items
+            .iter()
+            .any(|item| item.field == "sharedPreferences"
+                && item.reason == "unreadable"
+                && item.disposition == ConfigurationDiagnosticDisposition::Defaulted)
+    );
+    registry.note_unreadable_preferences();
+    assert_eq!(current(&registry), first);
+    fixture.write("[ui]\nwindow_title = 'changed'\n");
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!("reload");
+    };
+    assert_eq!(snapshot.diagnostics, first.diagnostics);
+    let registry = Registry::default();
+    registry.initialize_load(&fixture.load(true)).unwrap();
+    let before = current(&registry);
+    registry.note_unreadable_preferences();
+    let after = current(&registry);
+    assert_eq!(after.revision.value(), before.revision.value() + 1);
+    registry.note_unreadable_preferences();
+    assert_eq!(current(&registry), after);
+}

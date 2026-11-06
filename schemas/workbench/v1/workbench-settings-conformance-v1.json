@@ -420,6 +420,38 @@
 					"reason": "response-too-large"
 				}
 			}
+		},
+		{
+			"name": "unreadable-reset-all",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"source": "unreadable",
+					"changes": {
+						"locale": null,
+						"applicationTheme": null,
+						"lightTheme": null,
+						"darkTheme": null,
+						"tuiColorSource": null,
+						"terminalDisplayTheme": null,
+						"customForeground": null,
+						"customBackground": null,
+						"copyOnSelect": null,
+						"trimTrailingBlankRowsForAgents": null,
+						"agentNotificationMode": null,
+						"completionReminderMode": null,
+						"completionReminderMinimumSeconds": null,
+						"soundEnabled": null,
+						"scrollbackBytes": null,
+						"launchProfiles": null
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -828,6 +860,55 @@
 					"source": "BAD",
 					"changes": {
 						"soundEnabled": true
+					}
+				}
+			}
+		},
+		{
+			"name": "unreadable-partial-reset",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"source": "unreadable",
+					"changes": {
+						"applicationTheme": null
+					}
+				}
+			}
+		},
+		{
+			"name": "unreadable-update",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"source": "unreadable",
+					"changes": {
+						"locale": null,
+						"applicationTheme": "dark",
+						"lightTheme": null,
+						"darkTheme": null,
+						"tuiColorSource": null,
+						"terminalDisplayTheme": null,
+						"customForeground": null,
+						"customBackground": null,
+						"copyOnSelect": null,
+						"trimTrailingBlankRowsForAgents": null,
+						"agentNotificationMode": null,
+						"completionReminderMode": null,
+						"completionReminderMinimumSeconds": null,
+						"soundEnabled": null,
+						"scrollbackBytes": null,
+						"launchProfiles": null
 					}
 				}
 			}

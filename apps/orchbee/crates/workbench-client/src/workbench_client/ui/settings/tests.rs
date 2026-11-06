@@ -617,3 +617,52 @@ fn settings_pending_threshold_and_hidden_completion_do_not_reopen_a_surface() {
     ui.clear_settings_notice();
     assert!(ui.settings.notice(ui.clock.now()).is_none());
 }
+
+#[test]
+fn opening_an_unreadable_record_keeps_settings_open_with_defaults_and_a_recovery_notice() {
+    let (mut ui, _, _, _) = super::super::test_support::ready(true);
+    let token = ui.settings.editor.open().unwrap();
+    ui.finish_settings(
+        token,
+        SettingsOutcome::Refused {
+            reason: SettingsFailure::InvalidSource,
+        },
+    );
+    let Some(View::Draft(draft)) = ui.settings.editor.view() else {
+        panic!("defaults must remain visible");
+    };
+    assert_eq!(
+        draft.values,
+        &orchbee_workbench_protocol::UserPreferencesValues::default()
+    );
+    assert_eq!(draft.basis_source, "unreadable");
+    assert!(!draft.enabled(Row::Theme));
+    assert!(!draft.enabled(Row::Save));
+    assert!(draft.enabled(Row::ResetAll));
+    assert_eq!(ui.settings.notice(ui.clock.now()), Some(Notice::Unreadable));
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        assert!(!locale.settings_notice(Notice::Unreadable).is_empty());
+    }
+    ui.settings.editor.edit(Edit::Select(Row::ResetAll));
+    let token = ui.settings.editor.view().unwrap().token();
+    ui.settings.editor.draw(token);
+    ui.settings.editor.edit(Edit::Activate);
+    let token = ui.settings.editor.view().unwrap().token();
+    ui.settings.editor.draw(token);
+    ui.settings.editor.edit(Edit::Activate);
+    let token = ui.settings.editor.view().unwrap().token();
+    ui.settings.editor.draw(token);
+    let submission = ui
+        .settings
+        .editor
+        .edit(Edit::Save)
+        .expect("confirmed full reset may save");
+    let SettingsOperation::Save { source, changes } = submission.operation else {
+        panic!("reset save");
+    };
+    assert_eq!(source.as_str(), "unreadable");
+    assert!(changes.is_reset_all());
+}

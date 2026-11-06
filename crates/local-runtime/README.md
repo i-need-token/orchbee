@@ -50,6 +50,13 @@ Reads preserve validated current values, claims and source without reinterpretin
 
 An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Session consume this same storage owner, not separate stores.
 
+An explicit full-null reset with recovery source `unreadable` may replace a safely readable but
+invalid record under the same OS writer lock. A valid/missing record refuses that recovery source,
+so a concurrent repair is preserved; partial resets and ordinary edits cannot use it. Unsafe
+paths, ACL failures and bounded-read failures retain their storage refusal. Reads never repair a
+record. The [shared preference contract](../workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
+owns the recovery token and Client notice.
+
 ## Shared launch and notification policy
 
 `default_interactive_launch` owns pure platform shell selection and native executable admission,

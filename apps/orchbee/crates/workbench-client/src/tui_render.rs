@@ -1090,6 +1090,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             let role = match notice {
                 crate::localization::SettingsNotice::Saved => Role::StatusSuccess,
                 crate::localization::SettingsNotice::Failed => Role::StatusError,
+                crate::localization::SettingsNotice::Unreadable => Role::StatusWarning,
                 crate::localization::SettingsNotice::SourceChanged
                 | crate::localization::SettingsNotice::Unknown
                 | crate::localization::SettingsNotice::PresentationUnavailable

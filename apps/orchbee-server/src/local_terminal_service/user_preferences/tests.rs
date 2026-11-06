@@ -175,3 +175,42 @@ fn launch_capture_reads_the_frozen_scope_and_refuses_without_a_store() {
     assert_eq!(explicit.colors(), default.colors());
     assert_eq!(explicit.scrollback_bytes(), default.scrollback_bytes());
 }
+
+#[test]
+fn unreadable_preferences_launch_defaults_without_repairing_the_record() {
+    let fixture = private_root();
+    let scope = UserPreferencesScope::for_configuration(&fixture.0.join("config.toml")).unwrap();
+    let store = UserPreferencesStore::new(scope.clone());
+    assert!(matches!(
+        store.execute(&UserPreferencesRequest::Update {
+            source: "missing".into(),
+            changes: UserPreferencesPatch::set(PreferenceKey::ApplicationTheme, json!("dark"))
+                .unwrap(),
+        }),
+        UserPreferencesResponse::Snapshot { .. }
+    ));
+    let record = scope.directory().join("preferences.json");
+    std::fs::write(&record, b"{refused record}").unwrap();
+    let service = LocalTerminalService::from_identity(
+        Arc::new(Mutex::new(WorkerRegistry::new())),
+        Ok(
+            orchbee_workbench_protocol::SessionId::parse("11111111111111111111111111111111")
+                .unwrap(),
+        ),
+    );
+    service.initialize_preferences(scope).unwrap();
+    for _ in 0..2 {
+        let capture = service.launch_capture();
+        let LaunchPreferences::Available(defaults) = capture.preferences(None) else {
+            panic!("unreadable shared preferences must not block a terminal");
+        };
+        assert_eq!(
+            defaults.program(),
+            Some(&DefaultLaunchProgram::SystemShell { login: false })
+        );
+        assert_eq!(defaults.scrollback_bytes(), 10_000_000);
+        assert_eq!(defaults.themes().light(), "orchbee-light");
+        assert_eq!(defaults.themes().dark(), "orchbee-dark");
+    }
+    assert_eq!(std::fs::read(&record).unwrap(), b"{refused record}");
+}

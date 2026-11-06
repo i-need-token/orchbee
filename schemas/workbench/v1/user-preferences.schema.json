@@ -311,7 +311,7 @@
 			"properties": {
 				"source": {
 					"type": "string",
-					"pattern": "^(missing|[0-9a-f]{64})$"
+					"pattern": "^(missing|unreadable|[0-9a-f]{64})$"
 				},
 				"values": {
 					"$ref": "#/$defs/values"
@@ -366,7 +366,7 @@
 						},
 						"source": {
 							"type": "string",
-							"pattern": "^(missing|[0-9a-f]{64})$"
+							"pattern": "^(missing|unreadable|[0-9a-f]{64})$"
 						},
 						"changes": {
 							"allOf": [
@@ -378,7 +378,93 @@
 							"type": "object"
 						}
 					},
-					"required": ["operation", "source", "changes"]
+					"required": ["operation", "source", "changes"],
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"source": {
+										"const": "unreadable"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"changes": {
+										"type": "object",
+										"required": [
+											"locale",
+											"applicationTheme",
+											"lightTheme",
+											"darkTheme",
+											"tuiColorSource",
+											"terminalDisplayTheme",
+											"customForeground",
+											"customBackground",
+											"copyOnSelect",
+											"trimTrailingBlankRowsForAgents",
+											"agentNotificationMode",
+											"completionReminderMode",
+											"completionReminderMinimumSeconds",
+											"soundEnabled",
+											"scrollbackBytes",
+											"launchProfiles"
+										],
+										"properties": {
+											"locale": {
+												"type": "null"
+											},
+											"applicationTheme": {
+												"type": "null"
+											},
+											"lightTheme": {
+												"type": "null"
+											},
+											"darkTheme": {
+												"type": "null"
+											},
+											"tuiColorSource": {
+												"type": "null"
+											},
+											"terminalDisplayTheme": {
+												"type": "null"
+											},
+											"customForeground": {
+												"type": "null"
+											},
+											"customBackground": {
+												"type": "null"
+											},
+											"copyOnSelect": {
+												"type": "null"
+											},
+											"trimTrailingBlankRowsForAgents": {
+												"type": "null"
+											},
+											"agentNotificationMode": {
+												"type": "null"
+											},
+											"completionReminderMode": {
+												"type": "null"
+											},
+											"completionReminderMinimumSeconds": {
+												"type": "null"
+											},
+											"soundEnabled": {
+												"type": "null"
+											},
+											"scrollbackBytes": {
+												"type": "null"
+											},
+											"launchProfiles": {
+												"type": "null"
+											}
+										}
+									}
+								}
+							}
+						}
+					]
 				}
 			]
 		},

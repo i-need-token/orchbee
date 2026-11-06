@@ -254,6 +254,10 @@ impl UserPreferencesPatch {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+    /// Only an explicit reset of every key may replace a refused record.
+    pub fn is_reset_all(&self) -> bool {
+        self.0.len() == PreferenceKey::ALL.len() && self.0.values().all(Value::is_null)
+    }
     /// Exact affected identities used by the update and reset owner.
     pub fn keys(&self) -> impl Iterator<Item = PreferenceKey> + '_ {
         self.0.keys().copied()
@@ -294,7 +298,8 @@ pub enum UserPreferencesRequest {
     },
 }
 
-/// A token binds a complete observation to exact durable bytes, not a clock or guessed revision.
+/// A digest binds exact durable bytes; `missing` denotes absence. `unreadable` is a recovery
+/// basis of built-in defaults, never confirmed storage, and only permits a complete reset.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct UserPreferencesSnapshot {
@@ -346,13 +351,16 @@ pub fn parse_user_preferences_request(
     let changes = match &request {
         UserPreferencesRequest::Read {} => return Ok(request),
         UserPreferencesRequest::Update { source, changes } => {
-            if !(source == "missing"
+            if !(matches!(source.as_str(), "missing" | "unreadable")
                 || source.len() == 64
                     && source
                         .bytes()
                         .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')))
             {
                 return Err(PreferencesFailure::InvalidRequest);
+            }
+            if source == "unreadable" && !changes.is_reset_all() {
+                return Err(PreferencesFailure::InvalidChanges);
             }
             if changes.is_empty() {
                 return Err(PreferencesFailure::InvalidChanges);
@@ -366,7 +374,7 @@ pub fn parse_user_preferences_request(
 
 fn source_value<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
     let value = String::deserialize(deserializer)?;
-    if value == "missing"
+    if matches!(value.as_str(), "missing" | "unreadable")
         || value.len() == 64
             && value
                 .bytes()
