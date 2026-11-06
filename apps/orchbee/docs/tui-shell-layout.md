@@ -81,34 +81,37 @@ business behavior into the renderer.
 
 ## Viewport tiers
 
-Width and height are classified independently and the lower tier wins.
+Width and height are classified independently and the lower tier wins, except that a width below
+60 columns is Mobile at any height that is not TooSmall.
 
 | Tier     | Width tier (columns) | Height tier (rows) |
 | -------- | -------------------- | ------------------ |
 | Full     | >= 100               | >= 24              |
 | Compact  | 60..=99              | 12..=23            |
-| Minimal  | 20..=59              | 5..=11             |
+| Minimal  | >= 60                | 5..=11             |
+| Mobile   | 20..=59              | >= 5               |
 | TooSmall | < 20                 | < 5                |
 
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                             | Compact                                                                       | Minimal        | TooSmall      |
-| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | ------------- |
-| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | none          |
-| Status       | chip, last row                   | chip, last row                                                                | chip, last row | full last row |
-| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | hidden        |
-| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn     |
-| Content      | remainder                        | remainder                                                                     | remainder      | notice only   |
+| Chrome       | Full                             | Compact                                                                       | Minimal        | Mobile                                                         | TooSmall      |
+| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------- | ------------- |
+| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | 1 row (tabs) at >= 12 rows, else none                          | none          |
+| Status       | chip, last row                   | chip, last row                                                                | chip, last row | chip, last row; on the list screen the row above Settings      | full last row |
+| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | [list screen](#mobile-sidebar-list) over the window, on demand | hidden        |
+| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn                                                      | not drawn     |
+| Content      | remainder                        | remainder                                                                     | remainder      | remainder                                                      | notice only   |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
 `project_shell_areas` translates it per tier (`Docked` and `Overlay` both mean visible: docked at
 Full; at Compact a docked intent stays docked while the content keeps the 60-column Compact minimum
-beside the effective sidebar, and becomes an overlay otherwise; hidden below), so the rendered chrome
-and the wire geometry agree without the caller knowing the tier. Hosts at least as wide as the
-default sidebar plus that minimum (90 columns) are wide and show the sidebar by default; narrower
-hosts open it only as an explicitly requested overlay.
+beside the effective sidebar, and becomes an overlay otherwise; at Mobile an overlay intent becomes
+the list screen and a docked intent hides; hidden at Minimal), so the rendered chrome and the wire
+geometry agree without the caller knowing the tier. Hosts at least as wide as the default sidebar
+plus that minimum (90 columns) are wide and show the sidebar by default; narrower hosts open it only
+as an explicitly requested overlay, or below 60 columns as the list screen.
 
 When directory input is supported, the sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The first row starts at the sidebar's
@@ -159,7 +162,10 @@ Both sidebar presentations keep one right padding cell, with no outer top or lef
 first fixed-action row shares the Tab strip's row. Row surfaces, the footer
 divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
 divider; pointer targets keep the list's own columns. Only an overflowing list reserves its last
-row for the range; a list that fits reaches the row directly above Settings.
+row, for the overflow footer: the secondary action `[ All Workspaces ]` (`[ 全部工作区 ]`), which
+opens the Workspace picker, and at the row's end, at least two blank cells after it, the number of
+entries the window leaves out in secondary text (`N more`; `还有 N 行`). The count is omitted when
+it cannot fit in full. A list that fits reaches the row directly above Settings.
 
 The tree shape comes from shared columns. Project, Recents and Workspace rows keep a one-cell
 navigation marker at the list's left edge, followed at the next column by their identity: headings
@@ -437,9 +443,9 @@ palette or font behavior.
 
 The unified sidebar joins the existing eligible Agent projection to exact owners.
 Only actual Agent rows appear in the tree; loading, unavailable, empty and
-no-match placeholders remain in the global Agents picker. The tree footer counts
-visible navigation entries, including Project and Context rows, and reports a
-range only on overflow. It does not present that count as an Agent total.
+no-match placeholders remain in the global Agents picker. The overflow footer counts
+the navigation entries the window leaves out, including Project and Context rows,
+and appears only on overflow. It does not present that count as an Agent total.
 
 A folded Project or Recents heading shows no Agent summary. A folded Workspace's status line
 lists the complete physical Agent checkpoint, so waiting evidence stays visible through folding and
@@ -492,8 +498,7 @@ suppresses the sidebar focus border, row navigation cue and owner-local labels s
 surface remains the only visible keyboard owner.
 The existing global `Ctrl+B Shift+N` creation route remains available. Query editing and
 cancellation retain the picker's capture rules, and opening either action consumes the
-input packet tail. A visible range footer opens the Workspace picker; a blank footer
-is not an action. Workspace browsing and Agent filters remain reachable through the existing
+input packet tail. A visible overflow footer's action opens the Workspace picker. Workspace browsing and Agent filters remain reachable through the existing
 Machine picker modes; this layout does not assign new browse/filter controls to group headings. The fixed bottom Settings entry opens the existing settings editor directly,
 matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
 label. Its complete configured key path appears when it fits, using the binding registry rather
@@ -505,7 +510,7 @@ admission and capture ownership.
 Rendering consumes trusted picker rows, the shared window, geometry and binding
 registry. It performs no observation or backend command. Render and input tests
 cover both locales, themes, configured rows, tree connectors, picker/Settings entry
-points and the Full/Compact/Minimal/TooSmall matrix. Host interaction requires
+points and the Full/Compact/Minimal/Mobile/TooSmall matrix. Host interaction requires
 separate native evidence.
 
 ## Sidebar navigation model
@@ -615,7 +620,8 @@ the preference for later restoration.
 
 | State / event            | Decision and invariant                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact docks while content keeps 60 columns and otherwise shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                          |
+| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact docks while content keeps 60 columns and otherwise shows an explicitly requested overlay, Minimal hides the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                             |
+| Mobile                   | Only an explicit request opens the [list screen](#mobile-sidebar-list). It has no width drag or keyboard width adjustment and keeps the retained preference for wider hosts.                                                                                                                                                                                                               |
 | Keyboard width           | While sidebar navigation owns input, exact Shift+Left and Shift+Right emit a two-column narrower/wider intent; `0` emits reset to 30. The shared binding registry also supplies localized help. Require an exact current painted sidebar target even when mouse capture is released. No target means no mutation.                                                                          |
 | Adjustment at a limit    | Start from the effective width. If the clamped result equals that width, preserve the original preferred value; reset explicitly writes the default.                                                                                                                                                                                                                                       |
 | Pointer press / motion   | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible live width: rows, border hits and docked terminal geometry move together. Width preference, row focus, expansion and navigation requests remain unchanged while held.                          |
@@ -673,14 +679,53 @@ columns, so both controls fit beside their actions at every presentable width in
 the default 30 columns the first row's English shortcut hint gives way to the toggle. Each control
 keeps two blank cells after the action it follows: in a narrower painted region, the toggle drops
 once the first row cannot keep them after New workspace, and Help once the Settings row cannot
-keep them after Settings. Neither overlaps New workspace, Search, Settings or row text. Minimal and TooSmall paint neither toggle; the keyboard toggle remains. The GUI does not
-present these controls yet.
+keep them after Settings. Neither overlaps New workspace, Search, Settings or row text. Minimal and TooSmall paint neither toggle; the keyboard toggle remains. A touch-spaced
+[list screen](#mobile-sidebar-list) paints both at touch size. The GUI does not present these
+controls yet.
 
 The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)
 cover 120x40, 80x24 and 60x12 at widths 24, 30 and 60 in both locales with native, RGB and
 simplified glyphs, the hidden strip toggle and the drop order in 3- to 24-column regions. The
 [dispatcher trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/sidebar_width.rs)
 clicks the painted controls: hide, show at the retained width, and Help.
+
+## Mobile sidebar list
+
+Below 60 columns the sidebar is a list screen that covers the whole window, top strip and terminal
+included. It is hidden by default, so a Client opens on the current terminal. `Ctrl+B b`
+(`ToggleBusinessSidebar`) or the strip's show toggle opens it, and the list takes the keyboard as
+sidebar focus does; a key or paste that reaches the open list while its navigation is idle, after a
+pointer press or a closed dialog, returns to that navigation instead of reaching the covered
+terminal. The hide toggle, Esc or choosing a row closes it; a chosen row opens its terminal even
+when it is already current. Crossing 60 or 90 columns closes the list or the narrow overlay, so each
+class returns to its own resting state: wide hosts keep their docked visibility and narrower hosts
+start hidden. The list draws no divider and keeps the right padding cell. Row density follows the
+width the list would have with a divider, the window width plus one.
+
+The status shows no sidebar-navigation chip on the list screen, whose hide toggle and Help stay
+painted. Other notices float at the end of the row above Settings and never cover Settings or Help.
+Below 24 rows the list keeps the ordinary sidebar composition at full width: three-cell `[«]` and
+`[?]`, one line per entry and the overflow footer.
+
+At 24 rows or more the list is spaced for touch. Column R is the window's last, the right padding
+cell, and line B the window's last:
+
+| Lines    | Content                                                                                    | Pointer target                                         |
+| -------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| 0–2      | Line 1: `[ New workspace ]`, its shortcut hint ending two cells before `[ « ]` at R-5..R-1 | New workspace from the left edge to R-7; toggle R-6..R |
+| 3–4      | Line 3: `[ Search ]`, its shortcut hint ending at R-1                                      | both lines, left edge to R                             |
+| 5        | blank                                                                                      | none                                                   |
+| 6 to B-3 | the list; each entry is its text and one touch line below it                               | the entry's own columns over its text and touch line   |
+| B-2, B-1 | Line B-2: `[ Settings ]`, then `[ ? ]` at R-5..R-1                                         | Settings from the left edge to R-7; Help R-6..R        |
+
+A group after the first keeps one inert blank line before it, and touch spacing replaces the
+configured item gaps. On overflow the footer takes the list's last two lines, its action and count
+on the first, and its target spans both from the left edge to R. Hover and press fill a fixed
+action's part of its content line, hint included; hovering `[ « ]` or `[ ? ]` only brightens its
+glyph, and pressing fills all seven target cells. Row, selection and current fills cover the
+entry's text line. Under a named color theme with a concrete fill, `▀` and `▄` half blocks carry
+the fill onto the blank lines above and below, never over text; terminal-native, monochrome and
+ASCII glyphs draw none. A press on a touch line counts for the entry or action above it.
 
 ## Status line
 
@@ -804,15 +849,15 @@ keeping the last valid geometry below that floor is the environment slice's conc
 ## Correctness evidence
 
 `cargo test -p orchbee` covers: the tier boundary matrix including the width/height lower-of-two
-rule, content reaching the last row beneath the status chip, the strip, sidebar presentation per
+rule and the width-only Mobile rule, content reaching the last row beneath the status chip, the strip, sidebar presentation per
 tier, overlay clamping, centering, and refusal, pane division geometry and the shared divider, plus
 TestBackend renders at 120x40, 80x24, 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and
 `zh-CN` proving the status chip is never covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
 display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
-independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists omit redundant
-ranges, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
+independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists omit the
+overflow footer, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
 `workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
 occlusion, a status chip hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
@@ -858,7 +903,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow range. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow footer. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

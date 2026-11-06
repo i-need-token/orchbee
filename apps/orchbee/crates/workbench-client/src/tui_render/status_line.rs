@@ -1082,7 +1082,11 @@ fn input_indicator(
     if capture_owner.is_none() && view.navigator_active() {
         return Some(InputIndicator::Navigator);
     }
-    if capture_owner.is_none() && view.machines.sidebar_navigation_active() {
+    // The mobile list shows its own way back and Help, so it adds no navigation chip.
+    if capture_owner.is_none()
+        && view.machines.sidebar_navigation_active()
+        && !view.sidebar_screen()
+    {
         return Some(InputIndicator::Sidebar);
     }
     // A pending resize holds no input: a refusal of the person's next resize outranks it.

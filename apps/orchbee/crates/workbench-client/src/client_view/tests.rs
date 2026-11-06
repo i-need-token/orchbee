@@ -279,6 +279,36 @@ fn resizes_without_turning_a_docked_sidebar_into_an_automatic_overlay() {
     );
 }
 
+/// The mobile list is on demand like the narrow overlay: it opens with the keyboard, and any
+/// threshold crossing closes it, so each class comes back to its own resting state.
+#[test]
+fn mobile_list_takes_the_keyboard_and_any_threshold_crossing_closes_it() {
+    let mobile = crate::sidebar_width::COMPACT_MINIMUM_COLUMNS - 1;
+    let mut view = ClientView::new(mobile);
+    view.machines.available = true;
+    assert_eq!(ViewportClass::from_width(mobile), ViewportClass::Mobile);
+    assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
+    assert!(!view.sidebar_screen());
+
+    for crossing in [mobile + 1, WIDE_VIEWPORT_MINIMUM_COLUMNS] {
+        enter_prefix(&mut view);
+        commit(&mut view, plain('b'));
+        assert!(view.sidebar_screen());
+        assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+        assert!(view.machines.sidebar_navigation_active());
+
+        view.resize(crossing);
+        assert_eq!(view.overlay(), None);
+        assert_eq!(
+            matches!(view.sidebar_surface(), SidebarSurface::Docked(_)),
+            crossing >= WIDE_VIEWPORT_MINIMUM_COLUMNS
+        );
+        view.resize(mobile);
+        assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
+        assert!(!view.machines.sidebar_navigation_active());
+    }
+}
+
 #[test]
 fn marks_only_wide_sidebar_reflow_as_a_layout_change() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);

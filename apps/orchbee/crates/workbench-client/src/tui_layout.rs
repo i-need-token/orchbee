@@ -38,16 +38,31 @@ pub(crate) const MINIMUM_OVERLAY_INNER_ROWS: u16 = 3;
 pub(crate) const MINIMUM_PANE_COLUMNS: u16 = 4;
 pub(crate) const MINIMUM_PANE_ROWS: u16 = 3;
 
+/// Rows from which the mobile list spaces its rows and fixed actions for touch; a shorter host
+/// keeps them one line apart. The same height gives a wider host its Full tier.
+pub(crate) const TOUCH_SPACING_MINIMUM_ROWS: u16 = FULL_MINIMUM_ROWS;
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ViewportTier {
     TooSmall,
+    /// Narrower than the Compact minimum at any admitted height: the sidebar opens as a list over
+    /// the whole window instead of beside or over a terminal too narrow to read.
+    Mobile,
     Minimal,
     Compact,
     Full,
 }
 
 impl ViewportTier {
+    /// Width alone selects Mobile; from the Compact minimum width the lower of the width and
+    /// height tiers decides, so wider hosts keep their tiers.
     pub(crate) const fn from_size(columns: u16, rows: u16) -> Self {
+        if columns < TOO_SMALL_MINIMUM_COLUMNS || rows < TOO_SMALL_MINIMUM_ROWS {
+            return Self::TooSmall;
+        }
+        if columns < COMPACT_MINIMUM_COLUMNS {
+            return Self::Mobile;
+        }
         let width = Self::from_columns(columns);
         let height = Self::from_rows(rows);
         if width.rank() <= height.rank() {
@@ -60,7 +75,7 @@ impl ViewportTier {
     const fn rank(self) -> u8 {
         match self {
             Self::TooSmall => 0,
-            Self::Minimal => 1,
+            Self::Mobile | Self::Minimal => 1,
             Self::Compact => 2,
             Self::Full => 3,
         }
@@ -71,11 +86,7 @@ impl ViewportTier {
     }
 
     const fn from_columns(columns: u16) -> Self {
-        if columns < TOO_SMALL_MINIMUM_COLUMNS {
-            Self::TooSmall
-        } else if columns < COMPACT_MINIMUM_COLUMNS {
-            Self::Minimal
-        } else if columns < FULL_MINIMUM_COLUMNS {
+        if columns < FULL_MINIMUM_COLUMNS {
             Self::Compact
         } else {
             Self::Full
@@ -83,9 +94,7 @@ impl ViewportTier {
     }
 
     const fn from_rows(rows: u16) -> Self {
-        if rows < TOO_SMALL_MINIMUM_ROWS {
-            Self::TooSmall
-        } else if rows < COMPACT_MINIMUM_ROWS {
+        if rows < COMPACT_MINIMUM_ROWS {
             Self::Minimal
         } else if rows < FULL_MINIMUM_ROWS {
             Self::Compact
@@ -94,8 +103,13 @@ impl ViewportTier {
         }
     }
 
-    pub(crate) const fn shows_tab_strip(self) -> bool {
-        matches!(self, Self::Compact | Self::Full)
+    /// The top strip keeps its height rule in every tier: none under the Compact minimum height.
+    const fn shows_tab_strip(self, rows: u16) -> bool {
+        match self {
+            Self::TooSmall | Self::Minimal => false,
+            Self::Mobile => rows >= COMPACT_MINIMUM_ROWS,
+            Self::Compact | Self::Full => true,
+        }
     }
 
     pub const fn shows_panel_frame(self) -> bool {
@@ -107,12 +121,34 @@ impl ViewportTier {
 pub(crate) enum SidebarLayer {
     Docked,
     Overlay,
+    /// The Mobile tier's list, covering the whole window.
+    Screen,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SidebarArea {
     pub(crate) area: Rect,
     pub(crate) layer: SidebarLayer,
+}
+
+impl SidebarArea {
+    /// Whether the sidebar covers content beneath it instead of standing beside it.
+    pub(crate) fn covers(self) -> bool {
+        self.layer != SidebarLayer::Docked
+    }
+
+    /// Whether the mobile list has the height to space its rows and actions for touch.
+    pub(crate) fn touch_spaced(self) -> bool {
+        self.layer == SidebarLayer::Screen && self.area.height >= TOUCH_SPACING_MINIMUM_ROWS
+    }
+
+    /// The mobile list's Settings row: one line above the last while spaced for touch, so its
+    /// target can take the last line too, and the last line otherwise.
+    pub(crate) fn settings_row(self) -> u16 {
+        self.area
+            .bottom()
+            .saturating_sub(1 + u16::from(self.touch_spaced()))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -166,6 +202,13 @@ pub fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> Shell
             )
         }
         SidebarSurface::Hidden => (body, None),
+        SidebarSurface::Overlay(_) if tier == ViewportTier::Mobile => (
+            body,
+            Some(SidebarArea {
+                area: body,
+                layer: SidebarLayer::Screen,
+            }),
+        ),
         SidebarSurface::Overlay(width) => (
             body,
             Some(SidebarArea {
@@ -179,7 +222,7 @@ pub fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> Shell
             }),
         ),
     };
-    let (tabs, panel) = if tier.shows_tab_strip() {
+    let (tabs, panel) = if tier.shows_tab_strip(area.height) {
         let [tabs, panel] =
             Layout::vertical([Constraint::Length(TAB_STRIP_ROWS), Constraint::Min(0)])
                 .areas(workbench);
@@ -188,13 +231,24 @@ pub fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> Shell
         (Rect::new(workbench.x, workbench.y, 0, 0), workbench)
     };
 
-    let status_left = sidebar.map_or(workbench.x, |sidebar| sidebar.area.right());
-    let status = Rect::new(
-        status_left,
-        area.bottom().saturating_sub(STATUS_ROWS),
-        area.right().saturating_sub(status_left),
-        STATUS_ROWS.min(area.height),
-    );
+    let status = match sidebar {
+        // The mobile list keeps Settings and Help clear: notices float on the row above them.
+        Some(sidebar) if sidebar.layer == SidebarLayer::Screen => Rect::new(
+            area.x,
+            sidebar.settings_row().saturating_sub(STATUS_ROWS),
+            area.width,
+            STATUS_ROWS.min(sidebar.settings_row().saturating_sub(area.y)),
+        ),
+        _ => {
+            let status_left = sidebar.map_or(workbench.x, |sidebar| sidebar.area.right());
+            Rect::new(
+                status_left,
+                area.bottom().saturating_sub(STATUS_ROWS),
+                area.right().saturating_sub(status_left),
+                STATUS_ROWS.min(area.height),
+            )
+        }
+    };
     ShellAreas {
         body,
         panel,
@@ -217,6 +271,11 @@ fn effective_sidebar_surface(
     };
     match tier {
         ViewportTier::TooSmall | ViewportTier::Minimal => SidebarSurface::Hidden,
+        // Only the on-demand surface opens the mobile list; a docked preference waits for width.
+        ViewportTier::Mobile => match surface {
+            SidebarSurface::Overlay(_) => surface,
+            SidebarSurface::Docked(_) | SidebarSurface::Hidden => SidebarSurface::Hidden,
+        },
         // A docked sidebar stays beside the content while the content keeps the Compact minimum;
         // only a narrower host, or an explicit overlay request, covers the content instead.
         ViewportTier::Compact => match surface {
@@ -367,7 +426,7 @@ mod tests;
 
 /// The honest terminal content area inside `panel`: inset by one cell only
 /// when the panel frame is actually drawn (`tier.shows_panel_frame()`). At
-/// Minimal and TooSmall no frame exists, so no cells are deducted — the rect
+/// Mobile, Minimal and TooSmall no frame exists, so no cells are deducted — the rect
 /// equals what is painted and what the session is resized to. A degenerate
 /// panel yields an empty rect; callers must treat that as "cannot present",
 /// never as a resize target.

@@ -105,13 +105,17 @@ fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_t
     use crate::terminal_device::WindowDimensions;
     use crate::tui_layout::ViewportTier;
 
-    for (width, height) in [(40, 14), (59, 11), (20, 5)] {
+    for (width, height, tier) in [
+        (60, 11, ViewportTier::Minimal),
+        (59, 11, ViewportTier::Mobile),
+        (20, 5, ViewportTier::Mobile),
+    ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let (mut ui, mailbox, _, _) = ready_ui();
             let view = ClientView::new(width);
             let host = Rect::new(0, 0, width, height);
             let areas = project_shell_areas(host, view.sidebar_surface());
-            assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
+            assert_eq!(areas.tier, tier, "{width}x{height}");
             assert!(areas.tabs.is_empty(), "{width}x{height}");
 
             let pane = crate::tui_layout::arranged_pane_area(&areas, &ui.view())

@@ -1756,6 +1756,18 @@ impl InputDispatcher {
                 return Ok(DispatchOutcome::Continue);
             }
         }
+        // The mobile list covers the terminal, so a key or paste reaching it returns to the list's
+        // navigation instead of reaching the terminal hidden beneath, after a pointer press or a
+        // closed dialog left that navigation.
+        if !self.sidebar_packet
+            && !matches!(item.kind, DecodedKind::Mouse(_))
+            && view.sidebar_screen()
+            && view.overlay() == Some(crate::client_view::Overlay::BusinessSidebar)
+            && !view.machines.sidebar_navigation_active()
+        {
+            mode(ModeRequest::BracketedPaste(true))?;
+            view.machines.enter_sidebar_navigation();
+        }
         if self.sidebar_packet
             || (view.machines.sidebar_navigation_active()
                 && !matches!(item.kind, DecodedKind::Mouse(_)))
@@ -1782,6 +1794,14 @@ impl InputDispatcher {
                     }
                     _ => crate::machine_picker::SidebarIntent::None,
                 };
+                // Leaving the mobile list's navigation, as Esc does, closes the list.
+                if !view.machines.sidebar_navigation_active()
+                    && view.overlay() == Some(crate::client_view::Overlay::BusinessSidebar)
+                    && view.sidebar_screen()
+                {
+                    view.dismiss_overlay();
+                    after_layout(view, port)?;
+                }
                 match intent {
                     crate::machine_picker::SidebarIntent::NewWorkspace => {
                         self.sidebar_packet = true;
@@ -2065,12 +2085,15 @@ impl InputDispatcher {
                                             let changed = view
                                                 .machines
                                                 .activate_sidebar_selection(&selection);
-                                            if changed {
+                                            // Choosing a row closes the mobile list even when it
+                                            // is already the current one.
+                                            let closes = changed || view.sidebar_screen();
+                                            if closes {
                                                 view.machines.leave_sidebar_navigation();
                                                 view.dismiss_overlay();
                                                 self.machine_packet = true;
                                             }
-                                            changed
+                                            closes
                                         }
                                         Some(SidebarActivation::CloseWorkspace(_)) | None => false,
                                     };
@@ -2356,6 +2379,15 @@ impl InputDispatcher {
             self.sidebar_packet = true;
             self.keys.capture_pending();
             self.cancel_pointer(port);
+            self.pointer.invalidate_map_with_port(port);
+        }
+        // Opening the mobile list gives it the keyboard, as focusing the sidebar does.
+        if action == Some(ClientAction::ToggleBusinessSidebar)
+            && view.machines.sidebar_navigation_active()
+        {
+            mode(ModeRequest::BracketedPaste(true))?;
+            self.sidebar_packet = true;
+            self.keys.capture_pending();
             self.pointer.invalidate_map_with_port(port);
         }
         if view.machines.available {

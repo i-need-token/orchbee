@@ -1034,6 +1034,7 @@ fn paint_navigation_buffers_with_pointer(
                     source: &source,
                 },
                 &rows,
+                None,
                 Some(&mut hits),
             );
             candidate = Some(frame.buffer_mut().clone());

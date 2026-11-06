@@ -5,6 +5,7 @@ use super::controls::{
     PointerPresentation, RowContentBand, RowFocusCue, RowTracks, action_rect, icon_action_rect,
     paint_pointer_target, paint_row_interaction, render_action, render_icon_action,
 };
+use super::sidebar_chrome::TRAILING_GAP;
 use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
     Theme, display_width, sidebar_text, tooltip, truncate_display,
@@ -1144,11 +1145,15 @@ fn group_label(view: &ClientView, row: &SidebarRow<'_>, locale: Locale) -> Strin
     display_label(&format!("{machine}{}", label(row, locale)))
 }
 
+/// Paints the list into `area`. With `halos`, the list is spaced for touch: each entry owns one
+/// blank line after its text, a tap there counts for it, and its fill keeps to its text lines
+/// while `halos` collects them for the halves the blank lines show.
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
     context: RenderContext<'_>,
     rows: &[SidebarRow<'_>],
+    mut halos: Option<&mut super::sidebar_touch::Halos>,
     mut hits: Option<&mut HitMapBuilder>,
 ) {
     let RenderContext {
@@ -1208,12 +1213,21 @@ pub(super) fn render(
     }
     // The list opens directly under the fixed actions; Project and Recents headings name groups.
     let insertion = extra_creation.map(|preview| creation_insertion(view, rows, preview));
+    // Touch spacing gives every entry its own trailing blank line, which replaces the configured
+    // gaps; only groups keep one more line between them.
+    let touch = u16::from(halos.is_some());
     let mut heights: Vec<_> = rows
         .iter()
-        .map(|row| entry_height(view, row, locale))
+        .map(|row| entry_height(view, row, locale) + touch)
         .collect();
-    let space_gap = view.machines.space_settings().row_gap();
-    let agent_gap = view.machines.sidebar_settings().row_gap();
+    let (space_gap, agent_gap) = if touch > 0 {
+        (0, 0)
+    } else {
+        (
+            view.machines.space_settings().row_gap(),
+            view.machines.sidebar_settings().row_gap(),
+        )
+    };
     let mut gaps: Vec<_> = (0..rows.len())
         .map(|index| {
             if index + 1 < rows.len() {
@@ -1224,7 +1238,7 @@ pub(super) fn render(
         })
         .collect();
     if let Some(index) = insertion {
-        heights.insert(index, configured_height(view));
+        heights.insert(index, configured_height(view) + touch);
         let following_gap = if index < rows.len() && starts_group(rows, index) {
             space_gap.max(1)
         } else {
@@ -1268,14 +1282,16 @@ pub(super) fn render(
             creation_index,
         )
     };
-    // The list runs down to Settings. Only an overflowing list gives its last row to the range
-    // footer, so a list that fits never leaves a blank row above Settings.
+    // The list runs down to Settings. Only an overflowing list gives its last row, and with touch
+    // spacing that row's blank line, to the footer, so a list that fits never leaves a blank row
+    // above Settings.
+    let footer_rows = (1 + touch).min(area.height);
     let whole = window_in(area.height);
     let overflows = whole.top > 0 || whole.end() < whole.total;
     let (body, window) = if overflows {
         (
-            Rect::new(area.x, area.y, area.width, area.height - 1),
-            window_in(area.height - 1),
+            Rect::new(area.x, area.y, area.width, area.height - footer_rows),
+            window_in(area.height - footer_rows),
         )
     } else {
         (area, whole)
@@ -1288,11 +1304,13 @@ pub(super) fn render(
         } else {
             gaps[index - 1].min(body.bottom().saturating_sub(y))
         };
-        let content_height =
-            heights[index].min(body.bottom().saturating_sub(y).saturating_sub(leading_gap));
+        let room = body.bottom().saturating_sub(y).saturating_sub(leading_gap);
+        let content_height = (heights[index] - touch).min(room);
         if content_height == 0 {
             break;
         }
+        // The blank line a touch-spaced entry owns after its text.
+        let touch_line = touch.min(room - content_height);
         if insertion == Some(index) {
             if let Some(preview) = extra_creation {
                 let row = Rect::new(body.x, y + leading_gap, body.width, content_height);
@@ -1308,15 +1326,17 @@ pub(super) fn render(
                     locale,
                     theme,
                 );
-                extend_surface(
-                    frame,
-                    row,
-                    trailing_padding,
-                    winning_surface(PointerPresentation::Rest, false, current),
-                    theme,
-                );
+                let interaction = winning_surface(PointerPresentation::Rest, false, current);
+                extend_surface(frame, row, trailing_padding, interaction, theme);
+                if let Some(halos) = halos.as_deref_mut() {
+                    halos.fill(
+                        theme,
+                        Rect::new(row.x, row.y, row.width + trailing_padding, row.height),
+                        interaction,
+                    );
+                }
             }
-            y += leading_gap + content_height;
+            y += leading_gap + content_height + touch_line;
             continue;
         }
         let row_index = index - usize::from(insertion.is_some_and(|slot| index > slot));
@@ -1363,6 +1383,8 @@ pub(super) fn render(
             body.width,
             leading_gap - group_gap - separator + content_height,
         );
+        // The row's target: its band and the blank line it owns after its text.
+        let hit_band = Rect::new(band.x, band.y, band.width, band.height + touch_line);
         let target = row.target();
         let actions = auxiliary_actions(source, &target);
         let Some(tracks) = layout::Tracks::resolve_for_width(
@@ -1389,7 +1411,10 @@ pub(super) fn render(
                 .and_then(|focused| view.machines.sidebar_parent(focused))
                 .as_ref()
                 == Some(&target);
-        frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
+        frame.render_widget(
+            Block::new().style(theme.style(Role::SurfaceChrome)),
+            hit_band,
+        );
 
         let expanded = match row {
             SidebarRow::Project { .. } | SidebarRow::Recents { .. } => {
@@ -1626,7 +1651,7 @@ pub(super) fn render(
         let row_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
         let row_pointer = match (hits.as_deref_mut(), row_target.as_ref()) {
             (Some(hits), Some(target)) => {
-                project(hits, &revealed_children, (band, target, row_spec))
+                project(hits, &revealed_children, (hit_band, target, row_spec))
             }
             _ => PointerPresentation::Rest,
         };
@@ -1858,9 +1883,36 @@ pub(super) fn render(
                     .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
                 theme,
             );
+            // The guide runs on through the blank line before a sibling Agent.
+            if touch_line > 0
+                && rows
+                    .get(row_index + 1)
+                    .is_some_and(|next| matches!(next, SidebarRow::Agent { .. }))
+            {
+                paint_tree_guide(
+                    frame,
+                    Rect::new(band.x, band.bottom(), band.width, touch_line),
+                    tracks,
+                    true,
+                    theme,
+                );
+            }
         }
         restore_interaction_background(frame, surface, interaction, theme);
         extend_surface(frame, surface, trailing_padding, interaction, theme);
+        if let Some(halos) = halos.as_deref_mut() {
+            halos.fill(
+                theme,
+                Rect::new(
+                    surface.x,
+                    surface.y,
+                    surface.width + trailing_padding,
+                    surface.height,
+                ),
+                interaction,
+            );
+            halos.text(band);
+        }
         if let Some(target) = disclosure_target
             && paint_pointer_target(
                 frame,
@@ -1985,7 +2037,7 @@ pub(super) fn render(
             ];
             for (rect, legend) in parts.into_iter().flatten() {
                 if let Some(content) = tooltip::describe(None, legend) {
-                    hits.record_part_tooltip(layer, rect, band, &target, content);
+                    hits.record_part_tooltip(layer, rect, hit_band, &target, content);
                 }
             }
             if let Some(line) = status_line
@@ -2002,24 +2054,24 @@ pub(super) fn render(
                     theme,
                 )
             {
-                hits.record_part_tooltip(layer, rect, band, &target, content);
+                hits.record_part_tooltip(layer, rect, hit_band, &target, content);
             }
             if let Some((rect, directory)) = folder
                 && let Some(content) = tooltip::describe(Some(directory), Vec::new())
             {
-                hits.record_part_tooltip(layer, rect, band, &target, content);
+                hits.record_part_tooltip(layer, rect, hit_band, &target, content);
             }
             for (rect, name) in line_names {
                 if let Some(content) = tooltip::describe(Some(name), Vec::new()) {
-                    hits.record_part_tooltip(layer, rect, band, &target, content);
+                    hits.record_part_tooltip(layer, rect, hit_band, &target, content);
                 }
             }
             if let Some(content) = tooltip::describe(cut_name, Vec::new()) {
-                hits.record_interaction_tooltip(layer, band, &target, content);
+                hits.record_interaction_tooltip(layer, hit_band, &target, content);
             }
-            hits.record_interaction(layer, band, band, target, row_spec);
+            hits.record_interaction(layer, hit_band, hit_band, target, row_spec);
         }
-        y = band.bottom();
+        y = hit_band.bottom();
     }
 
     if let Some(hits) = hits.as_deref_mut() {
@@ -2032,7 +2084,7 @@ pub(super) fn render(
     // A Project dropped below the last row moves to the end: the range footer, or the free rows
     // under a list that fits. A Workspace has no destination here.
     let footer = if overflows {
-        Rect::new(area.x, area.bottom() - 1, area.width, 1)
+        Rect::new(area.x, body.bottom(), area.width, footer_rows)
     } else {
         Rect::new(area.x, y, area.width, area.bottom().saturating_sub(y))
     };
@@ -2048,40 +2100,72 @@ pub(super) fn render(
             source: source.clone(),
         });
     }
-    let range = if window.top > 0 || window.end() < window.total {
-        format!(
-            "{}-{}/{}",
-            if window.capacity > 0 {
-                window.top + 1
-            } else {
-                0
-            },
-            window.end(),
-            window.total,
-        )
-    } else {
-        String::new()
-    };
-    if range.is_empty() {
+    if !overflows {
         return;
     }
-    let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    let label = format!(
-        "{} {range}",
-        locale.machine_picker_text("workspace-sidebar-open")
+    render_footer(
+        frame,
+        footer,
+        Footer {
+            view,
+            locale,
+            theme,
+            layer,
+            source,
+            trailing_padding,
+            more: window.total.saturating_sub(window.end() - window.top),
+        },
+        halos,
+        hits,
     );
+}
+
+struct Footer<'a> {
+    view: &'a ClientView,
+    locale: Locale,
+    theme: &'a Theme,
+    layer: HitLayer,
+    source: &'a SidebarSource,
+    trailing_padding: u16,
+    /// The rows the list leaves out.
+    more: usize,
+}
+
+/// The overflowing list's last row: `[ All Workspaces ]`, which opens every Workspace, and the
+/// count of rows left out at the row's end in secondary text, dropped when it would crowd the
+/// action. A touch-spaced footer also owns its blank line and the trailing padding, and its hover
+/// and press fill that whole row.
+fn render_footer(
+    frame: &mut Frame<'_>,
+    footer: Rect,
+    context: Footer<'_>,
+    halos: Option<&mut super::sidebar_touch::Halos>,
+    hits: Option<&mut HitMapBuilder>,
+) {
+    let Footer {
+        view,
+        locale,
+        theme,
+        layer,
+        source,
+        trailing_padding,
+        more,
+    } = context;
+    let row = Rect::new(footer.x, footer.y, footer.width, 1);
+    let label = locale.machine_picker_text("workspace-sidebar-all");
     let target = InteractionTarget::SidebarFixed(
         view.machines
             .drawn_sidebar_fixed(source, SidebarFixedAction::Browse),
     );
-    let spec = interaction_spec(PrimaryContract::ActivateOnRelease, view.machines.available);
+    let enabled = view.machines.available;
+    let spec = interaction_spec(PrimaryContract::ActivateOnRelease, enabled);
     let base_state = InteractionState::new(
         FocusState::Unfocused,
         PointerPresentation::Rest,
         NavigationState::None,
         CurrentState::NotCurrent,
         CheckedState::Unchecked,
-        if view.machines.available {
+        if enabled {
             Availability::Enabled
         } else {
             Availability::Disabled
@@ -2089,32 +2173,88 @@ pub(super) fn render(
         OperationState::Idle,
     );
     let rest = ActionSpec::new(
-        &label,
+        label,
         ActionKind::Secondary,
         ControlSurface::Chrome,
         base_state,
     );
-    let Some(rect) = action_rect(frame.area(), footer, rest, theme) else {
+    let Some(rect) = action_rect(frame.area(), row, rest, theme) else {
         return;
     };
+    let touch = halos.is_some();
+    let hit = if touch {
+        Rect::new(
+            footer.x,
+            footer.y,
+            footer.width + trailing_padding,
+            footer.height,
+        )
+        .intersection(frame.area())
+    } else {
+        rect
+    };
     let pointer = hits.as_deref().map_or(PointerPresentation::Rest, |hits| {
-        pointer_presentation(hits.projected_pointer(layer, rect, rect, &target, spec))
+        pointer_presentation(hits.projected_pointer(layer, hit, hit, &target, spec))
     });
+    let pointer = if enabled {
+        pointer
+    } else {
+        PointerPresentation::Rest
+    };
+    let fill = match pointer {
+        PointerPresentation::Rest => None,
+        PointerPresentation::Hovered => Some(Role::SurfaceHover),
+        PointerPresentation::Pressed => Some(Role::SurfacePressed),
+    };
+    if let Some(halos) = halos {
+        let band = Rect::new(hit.x, row.y, hit.width, 1);
+        if let Some(role) = fill {
+            frame.buffer_mut().set_style(
+                band,
+                theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    Some(role),
+                    None,
+                    theme.style(Role::SurfaceChrome),
+                ),
+            );
+        }
+        halos.fill(theme, band, fill);
+    }
     let painted = render_action(
         frame,
-        footer,
+        row,
         ActionSpec::new(
-            &label,
+            label,
             ActionKind::Secondary,
             ControlSurface::Chrome,
             base_state.with_pointer(pointer),
         ),
         theme,
     );
-    if painted == Some(rect)
-        && let Some(hits) = hits
+    if painted != Some(rect) {
+        return;
+    }
+    let count = locale.workspace_sidebar_more(more);
+    let count_width = u16::try_from(display_width(&count)).unwrap_or(u16::MAX);
+    if let Some(x) = row.right().checked_sub(count_width)
+        && count_width > 0
+        && x >= rect.right().saturating_add(TRAILING_GAP)
     {
-        hits.record_interaction(layer, rect, rect, target, spec);
+        // Only a touch-spaced footer's fill reaches the count.
+        let style = theme.content_on_surface(
+            Role::SurfaceChrome,
+            fill.filter(|_| touch),
+            Some(Role::TextSecondary),
+            theme.style(Role::TextSecondary),
+        );
+        frame.render_widget(
+            Paragraph::new(count).style(style),
+            Rect::new(x, row.y, count_width, 1),
+        );
+    }
+    if let Some(hits) = hits {
+        hits.record_interaction(layer, hit, hit, target, spec);
     }
 }
 #[cfg(test)]

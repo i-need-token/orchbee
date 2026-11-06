@@ -968,10 +968,10 @@ fn settings_sits_alone_on_the_sidebar_last_row_as_an_exact_action_without_a_shor
     }
 }
 
-/// The range row exists only while the list overflows, so a list that fits reaches the row
+/// The overflow footer exists only while the list overflows, so a list that fits reaches the row
 /// directly above Settings.
 #[test]
-fn list_runs_down_to_settings_and_reserves_the_range_row_only_while_overflowing() {
+fn list_runs_down_to_settings_and_reserves_the_footer_row_only_while_overflowing() {
     for (width, height) in [(120, 40), (80, 24)] {
         let above = height - 2;
         let mut reached = false;
@@ -984,7 +984,7 @@ fn list_runs_down_to_settings_and_reserves_the_range_row_only_while_overflowing(
                 width,
                 height,
             );
-            let browse = Locale::EnUs.machine_picker_text("workspace-sidebar-open");
+            let footer = Locale::EnUs.machine_picker_text("workspace-sidebar-all");
             let list_row = |y: u16| {
                 (0..28).any(|x| {
                     matches!(
@@ -996,13 +996,46 @@ fn list_runs_down_to_settings_and_reserves_the_range_row_only_while_overflowing(
                     )
                 })
             };
-            let range = rows[usize::from(above)].contains(browse);
-            if range {
+            let overflowing = rows[usize::from(above)].contains(footer);
+            if overflowing {
                 assert!(list_row(above - 1), "{width}x{height} {count}: {rows:?}");
             }
-            reached |= !range && list_row(above);
+            reached |= !overflowing && list_row(above);
         }
         assert!(reached, "{width}x{height}: no list ever reached Settings");
+    }
+}
+
+/// On the touch-spaced mobile list each entry owns the blank line under it, so a press there counts
+/// for the entry above; below the spacing height entries keep one line each.
+#[test]
+fn touch_spaced_mobile_rows_own_the_blank_line_below_them() {
+    for (height, spaced) in [(28, true), (23, false)] {
+        let width = 46;
+        let view = view(width, height, 12);
+        let (rows, hits) = paint(&view, Locale::EnUs, &Theme::orchbee_dark(), width, height);
+        let row_at = |y: u16| match hits.hit_target_at(4, y) {
+            Some(HitTarget::MachineAgentRow { selected, .. }) => Some(selected.clone()),
+            _ => None,
+        };
+        let starts: Vec<u16> = (0..height)
+            .filter(|y| row_at(*y).is_some() && (*y == 0 || row_at(*y - 1) != row_at(*y)))
+            .collect();
+        assert!(starts.len() > 2, "{height}: {rows:?}");
+        for y in starts {
+            assert_eq!(
+                row_at(y + 1) == row_at(y),
+                spaced,
+                "{height} at {y}: {rows:?}"
+            );
+            if spaced {
+                assert!(
+                    rows[usize::from(y + 1)]
+                        .trim_start_matches([' ', '│'])
+                        .is_empty()
+                );
+            }
+        }
     }
 }
 
@@ -1194,9 +1227,10 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                             inspected.push(selected.clone());
                             // The Recents heading, its Workspace and twenty Agents.
                             assert!(window.capacity > 0 && window.end() <= 22);
-                            // The range footer appears exactly when the window clips entries.
+                            // The overflow footer appears exactly when the window clips entries.
                             assert_eq!(
-                                joined.contains("/22"),
+                                joined
+                                    .contains(locale.machine_picker_text("workspace-sidebar-all")),
                                 window.top > 0 || window.end() < 22,
                                 "{rows:?}"
                             );

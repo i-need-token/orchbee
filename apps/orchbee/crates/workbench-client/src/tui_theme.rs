@@ -203,6 +203,9 @@ pub struct GlyphSet {
     /// one. The ASCII forms appear only inside that bracketed toggle, never in a marker track.
     pub(crate) sidebar_hide: &'static str,
     pub(crate) sidebar_show: &'static str,
+    /// Upper and lower half blocks that show half a fill on a touch-spaced list's blank lines;
+    /// a host without them keeps every fill to its text lines.
+    pub(crate) half_blocks: Option<(&'static str, &'static str)>,
     /// One-cell Working frames; every frame has the same display width.
     pub(crate) working_frames: &'static [&'static str],
 }
@@ -226,6 +229,7 @@ impl GlyphSet {
         tree_guide: "│",
         sidebar_hide: "«",
         sidebar_show: "»",
+        half_blocks: Some(("▀", "▄")),
         working_frames: &["⬢"],
     };
 
@@ -248,6 +252,7 @@ impl GlyphSet {
         tree_guide: "|",
         sidebar_hide: "<",
         sidebar_show: ">",
+        half_blocks: None,
         working_frames: &["-", "\\", "|", "/"],
     };
 
@@ -745,6 +750,21 @@ impl Theme {
     #[must_use]
     pub(crate) fn style(&self, role: Role) -> Style {
         self.styles.style(role)
+    }
+
+    /// The concrete fill color a half block can show for `role`. Only a named theme with color
+    /// paints one: a reverse-video or host-default fill has no color to draw half of, and
+    /// `terminal-native` fills rest on host palette entries that its underlines already carry.
+    #[must_use]
+    pub(crate) fn half_block_fill(&self, role: Role) -> Option<Color> {
+        let style = self.style(role);
+        (self.palette.is_some()
+            && !self.no_color
+            && self.color_level != ColorLevel::Monochrome
+            && !style.add_modifier.contains(Modifier::REVERSED))
+        .then_some(style.bg)
+        .flatten()
+        .filter(|color| *color != Color::Reset && Some(*color) != self.styles.surface_chrome.bg)
     }
 
     /// Whether form fields paint their own `surface-field` band. Without one, as in

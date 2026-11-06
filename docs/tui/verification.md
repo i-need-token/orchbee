@@ -55,8 +55,8 @@ between the installed product and source are not evidence that they implement th
   contract under [design-pinning assertions](../TESTING.md#design-pinning-assertions). Adding a
   snapshot library is a dependency decision under
   [`DEVELOPMENT.md`](../DEVELOPMENT.md#decision-authority).
-- Every surface renders at these geometries: 80×24, 120×40, one Compact and one Minimal geometry
-  from [`layout.md`](layout.md#size-tiers), and the too-small geometry.
+- Every surface renders at these geometries: 80×24, 120×40, one Compact, one Minimal and one
+  Mobile geometry from [`layout.md`](layout.md#size-tiers), and the too-small geometry.
 - Every surface renders under the `terminal-native` theme and one RGB theme, and under `en-US` and
   `zh-CN`. Wide-character fixtures are present wherever text truncates or wraps.
 - Changed controls cover applicable rest, hover, pressed, focus, current, provisional, checked,

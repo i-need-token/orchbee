@@ -181,8 +181,8 @@ impl Locale {
             (Self::ZhCn, "workspaces-mode") => "工作区",
             (Self::EnUs, "agents-mode") => "Agents",
             (Self::ZhCn, "agents-mode") => "智能体",
-            (Self::EnUs, "workspace-sidebar-open") => "Browse",
-            (Self::ZhCn, "workspace-sidebar-open") => "浏览",
+            (Self::EnUs, "workspace-sidebar-all") => "All Workspaces",
+            (Self::ZhCn, "workspace-sidebar-all") => "全部工作区",
             (Self::EnUs, "sidebar-create") => "Create",
             (Self::ZhCn, "sidebar-create") => "新建",
             (Self::EnUs, "sidebar-recents") => "Recents",
@@ -328,6 +328,14 @@ impl Locale {
             }
         }
     }
+    /// The overflowing sidebar footer's count of rows the list leaves out.
+    pub(crate) fn workspace_sidebar_more(self, rows: usize) -> String {
+        match self {
+            Self::EnUs => format!("{rows} more"),
+            Self::ZhCn => format!("还有 {rows} 行"),
+        }
+    }
+
     pub(crate) fn machine_details(self, projects: usize, workspaces: usize, tabs: usize) -> String {
         match self {
             Self::EnUs => {

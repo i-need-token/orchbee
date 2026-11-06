@@ -110,6 +110,7 @@ mod sidebar_reorder;
 pub use sidebar_reorder::render_sidebar_reorder_preview;
 mod scrollbar;
 mod sidebar_text;
+mod sidebar_touch;
 mod status_line;
 mod tab_close;
 mod tab_rename;
@@ -258,9 +259,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         && !view.navigator_active()
         && !view.machines.sidebar_navigation_active()
         && !view.resize_pending
-        && areas
-            .sidebar
-            .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay);
+        && areas.sidebar.is_none_or(|sidebar| !sidebar.covers());
     let graphics_uncovered = position_uncovered
         && !status_overlay_visible(view, workbench_client.as_ref(), capture_owner);
     if let Some(native) = workbench_client.as_mut() {
@@ -945,13 +944,9 @@ pub fn render_terminal_shell_with_resize<'a>(
     let receipt = receipt.with_worktree(worktree);
     let receipt = receipt.with_attention(match workbench_client.as_ref() {
         Some(native)
-            if capture_owner.is_none() && view.overlay().is_none() && {
-                {
-                    areas
-                        .sidebar
-                        .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay)
-                }
-            } =>
+            if capture_owner.is_none()
+                && view.overlay().is_none()
+                && areas.sidebar.is_none_or(|sidebar| !sidebar.covers()) =>
         {
             native.attention_draw(hits.painted_panes())
         }
@@ -1276,7 +1271,7 @@ fn render_unavailable_workbench(
     // Authored guidance stays readable beside an overlay sidebar. This changes only
     // its paint area; terminal geometry continues to use the canonical shell areas.
     let visible_area = |area: Rect| match areas.sidebar {
-        Some(sidebar) if sidebar.layer == SidebarLayer::Overlay => {
+        Some(sidebar) if sidebar.covers() => {
             let x = area.x.max(sidebar.area.right().min(area.right()));
             Rect::new(x, area.y, area.right().saturating_sub(x), area.height)
         }
@@ -1383,10 +1378,7 @@ fn render_native_workbench(
             .is_none();
     // An overlay sidebar paints over the panes' leading columns after them, so it covers the pane
     // cursor just as it covers pane graphics and attention.
-    let cursor_visible = input_enabled
-        && areas
-            .sidebar
-            .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay);
+    let cursor_visible = input_enabled && areas.sidebar.is_none_or(|sidebar| !sidebar.covers());
     let panel_area = areas.panel;
     // The last Tab leaves the Panel with its strip entry: no other Tab remains for the selection
     // to follow, so the Panel reads as the empty Workbench its removal leaves.
@@ -2469,7 +2461,7 @@ fn render_sidebar(
     agent_line: Option<String>,
     theme: &Theme,
 ) {
-    if sidebar.layer == SidebarLayer::Overlay {
+    if sidebar.covers() {
         frame.render_widget(Clear, sidebar.area);
     }
 
@@ -2521,7 +2513,12 @@ fn render_sidebar(
     frame.render_widget(
         List::new(items).block(
             Block::new()
-                .borders(Borders::RIGHT)
+                // The mobile list fills the window, so it has no divider beside other content.
+                .borders(if sidebar.layer == SidebarLayer::Screen {
+                    Borders::NONE
+                } else {
+                    Borders::RIGHT
+                })
                 .border_style(theme.style(Role::FrameDivider))
                 .padding(Padding::new(2, 1, 1, 0))
                 .style(theme.style(Role::SurfaceChrome))

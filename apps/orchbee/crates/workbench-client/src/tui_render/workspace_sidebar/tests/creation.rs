@@ -158,6 +158,7 @@ fn paint_creation_members(
                     creation: Some(creation),
                 },
                 &rows,
+                None,
                 Some(&mut hits),
             );
             candidate = Some(frame.buffer_mut().clone());
@@ -498,6 +499,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                         },
                         &rows,
                         None,
+                        None,
                     )
                 })
                 .unwrap();
@@ -614,6 +616,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                                 },
                                 &rows,
                                 None,
+                                None,
                             )
                         })
                         .unwrap();
@@ -683,6 +686,7 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
                                 creation: Some(preview),
                             },
                             &rows,
+                            None,
                             None,
                         );
                     })
@@ -777,6 +781,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_never_fills
                                 creation: Some(preview),
                             },
                             &rows,
+                            None,
                             None,
                         );
                     })

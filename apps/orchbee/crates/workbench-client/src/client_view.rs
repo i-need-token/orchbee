@@ -40,6 +40,8 @@ pub(crate) struct TerminalQueryColors {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {
+    /// Below the Compact minimum width: the sidebar opens as a list over the whole window.
+    Mobile,
     Narrow,
     Wide,
 }
@@ -48,9 +50,16 @@ impl ViewportClass {
     pub(crate) const fn from_width(width: u16) -> Self {
         if width >= WIDE_VIEWPORT_MINIMUM_COLUMNS {
             Self::Wide
-        } else {
+        } else if width >= crate::sidebar_width::COMPACT_MINIMUM_COLUMNS {
             Self::Narrow
+        } else {
+            Self::Mobile
         }
+    }
+
+    /// Narrow and Mobile hosts show the sidebar only on request; Wide keeps a visibility choice.
+    const fn on_demand(self) -> bool {
+        matches!(self, Self::Mobile | Self::Narrow)
     }
 }
 
@@ -695,24 +704,35 @@ impl ClientView {
 
         match self.viewport {
             ViewportClass::Wide if self.wide_sidebar_visible => SidebarSurface::Docked(width),
-            ViewportClass::Narrow
-                if self.overlay == Some(Overlay::ShortcutHelp)
+            viewport
+                if viewport.on_demand()
+                    && self.overlay == Some(Overlay::ShortcutHelp)
                     && self.machines.sidebar_navigation_active() =>
             {
                 SidebarSurface::Overlay(width)
             }
-            ViewportClass::Narrow if matches!(self.overlay, Some(Overlay::BusinessSidebar)) => {
+            viewport
+                if viewport.on_demand()
+                    && matches!(self.overlay, Some(Overlay::BusinessSidebar)) =>
+            {
                 SidebarSurface::Overlay(width)
             }
-            ViewportClass::Narrow | ViewportClass::Wide => SidebarSurface::Hidden,
+            ViewportClass::Mobile | ViewportClass::Narrow | ViewportClass::Wide => {
+                SidebarSurface::Hidden
+            }
         }
+    }
+
+    /// Whether the sidebar shows as the Mobile tier's list over the whole window.
+    pub(crate) fn sidebar_screen(&self) -> bool {
+        self.viewport == ViewportClass::Mobile && self.sidebar_surface() != SidebarSurface::Hidden
     }
 
     /// Consumes the original sidebar intent before applying an exact Ready return.
     pub(crate) fn complete_project_quick_entry(&mut self) -> bool {
         let eligible = self.project_quick_entry_eligible.take();
         if eligible != Some(true)
-            || self.viewport != ViewportClass::Narrow
+            || !self.viewport.on_demand()
             || self.overlay != Some(Overlay::BusinessSidebar)
             || self.prefix_active
             || self.resize_mode
@@ -731,10 +751,8 @@ impl ClientView {
     }
 
     fn arm_project_quick_entry(&mut self) {
-        self.project_quick_entry_eligible = Some(
-            self.viewport == ViewportClass::Narrow
-                && self.overlay == Some(Overlay::BusinessSidebar),
-        );
+        self.project_quick_entry_eligible =
+            Some(self.viewport.on_demand() && self.overlay == Some(Overlay::BusinessSidebar));
         self.machines.leave_sidebar_navigation();
         self.machines.reveal_sidebar_current();
     }
@@ -747,12 +765,21 @@ impl ClientView {
         }
     }
 
+    /// Crossing a viewport threshold closes the on-demand sidebar, so each class returns to its
+    /// own resting state: Wide to its kept visibility, Narrow and Mobile to hidden.
     pub fn resize(&mut self, width: u16) {
         let next = ViewportClass::from_width(width);
-        if next == ViewportClass::Wide && self.overlay == Some(Overlay::BusinessSidebar) {
-            self.replace_overlay(None);
+        if next == self.viewport {
+            return;
         }
         self.viewport = next;
+        if self.overlay == Some(Overlay::BusinessSidebar) {
+            self.replace_overlay(None);
+        }
+        // Navigation never outlives the sidebar it moves through.
+        if self.sidebar_surface() == SidebarSurface::Hidden {
+            self.machines.leave_sidebar_navigation();
+        }
     }
 
     pub(crate) fn report_backend_unavailable(&mut self, action: BackendAction) {
@@ -796,7 +823,7 @@ impl ClientView {
             return;
         }
         if self.overlay == Some(Overlay::ShortcutHelp)
-            && self.viewport == ViewportClass::Narrow
+            && self.viewport.on_demand()
             && self.machines.sidebar_navigation_active()
         {
             self.replace_overlay(Some(Overlay::BusinessSidebar));
@@ -1214,6 +1241,10 @@ impl ClientView {
             ClientAction::ToggleBusinessSidebar => {
                 self.machines.leave_sidebar_navigation();
                 self.toggle_sidebar();
+                // The mobile list covers the terminal, so it takes the keyboard while it shows.
+                if self.sidebar_screen() {
+                    self.machines.enter_sidebar_navigation();
+                }
                 (action, ShellCommand::None)
             }
             ClientAction::OpenSettings => {
@@ -1226,7 +1257,7 @@ impl ClientView {
                 if self.machines.available && !was_active {
                     match self.viewport {
                         ViewportClass::Wide => self.wide_sidebar_visible = true,
-                        ViewportClass::Narrow => {
+                        ViewportClass::Mobile | ViewportClass::Narrow => {
                             self.replace_overlay(Some(Overlay::BusinessSidebar));
                         }
                     }
@@ -1426,7 +1457,7 @@ impl ClientView {
                 self.wide_sidebar_visible = !self.wide_sidebar_visible;
                 self.replace_overlay(None);
             }
-            ViewportClass::Narrow => {
+            ViewportClass::Mobile | ViewportClass::Narrow => {
                 let overlay = if self.overlay == Some(Overlay::BusinessSidebar) {
                     None
                 } else {

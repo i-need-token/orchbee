@@ -1,5 +1,5 @@
 //! Bounded sidebar width and reversible painted-edge geometry; no input or terminal effects.
-use super::{SidebarArea, project_shell_areas};
+use super::{SidebarArea, SidebarLayer, project_shell_areas};
 use crate::{
     client_view::SidebarSurface,
     sidebar_width::{SidebarWidth, SidebarWidthChange},
@@ -15,8 +15,11 @@ pub struct DrawnSidebarWidth {
 }
 
 impl DrawnSidebarWidth {
+    /// The mobile list fills the window, so it has no width to drag or step.
     pub fn new(viewport: Rect, surface: SidebarSurface) -> Option<Self> {
-        let sidebar = project_shell_areas(viewport, surface).sidebar?;
+        let sidebar = project_shell_areas(viewport, surface)
+            .sidebar
+            .filter(|sidebar| sidebar.layer != SidebarLayer::Screen)?;
         Some(Self {
             viewport,
             surface,

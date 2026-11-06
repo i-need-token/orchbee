@@ -30,6 +30,17 @@ fn sidebar_width_bounds_and_tiers_share_one_offset_geometry_projection() {
             ] {
                 let areas = project_shell_areas(viewport, surface);
                 let target = DrawnSidebarWidth::new(viewport, surface);
+                // The mobile list covers the window, has no width to drag and floats the status
+                // clear of its Settings row.
+                if let Some(screen) = areas
+                    .sidebar
+                    .filter(|sidebar| sidebar.layer == SidebarLayer::Screen)
+                {
+                    assert_eq!(target, None);
+                    assert_eq!(screen.area, viewport);
+                    assert_eq!(areas.status.bottom(), screen.settings_row());
+                    continue;
+                }
                 assert_eq!(areas.status.bottom(), viewport.bottom());
                 // Content reaches the last row; the status floats over it.
                 assert_eq!(areas.panel.bottom(), areas.status.bottom());
@@ -54,7 +65,7 @@ fn sidebar_width_bounds_and_tiers_share_one_offset_geometry_projection() {
                         assert_eq!(areas.workbench.x, target.sidebar.area.right());
                         assert_eq!(areas.workbench.width + effective, columns);
                     }
-                    SidebarLayer::Overlay => {
+                    SidebarLayer::Overlay | SidebarLayer::Screen => {
                         assert_eq!(areas.workbench, areas.body);
                     }
                 }

@@ -19,13 +19,13 @@ completion condition.
 
 A full-screen Client divides the host area into persistent chrome and content, with transient status overlays:
 
-| Region        | Contract                                                                                                                                                               |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Top strip     | At most one row; holds navigation such as tabs and the current location                                                                                                |
-| Status line   | An end-aligned chip over the last row when needed; never reserves terminal height; remains above other overlays                                                        |
-| Side panel    | Optional; docked at Full width, and at Compact width while content keeps the Compact minimum beside it; otherwise an overlay at Compact width; hidden at Minimal width |
-| Content       | The remaining area; receives every row and column the chrome does not claim                                                                                            |
-| Pane boundary | One cell between split panes, shared by both neighbors                                                                                                                 |
+| Region        | Contract                                                                                                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Top strip     | At most one row; holds navigation such as tabs and the current location                                                                                                                                                            |
+| Status line   | An end-aligned chip over the last row when needed; never reserves terminal height; remains above other overlays                                                                                                                    |
+| Side panel    | Optional; docked at Full width, and at Compact width while content keeps the Compact minimum beside it; otherwise an overlay at Compact width; hidden at Minimal height; at Mobile width a screen that covers the window on demand |
+| Content       | The remaining area; receives every row and column the chrome does not claim                                                                                                                                                        |
+| Pane boundary | One cell between split panes, shared by both neighbors                                                                                                                                                                             |
 
 - Chrome row and column counts are fixed per tier and documented by the owner. Chrome never grows
   to fit its content; content adapts through tiers.
@@ -74,6 +74,10 @@ then decoration. A lower-priority item never displaces, clips, or visually domin
   wrap, expand, or reveal detail.
 - Selection, current-context fill, and hit rectangles cover the row's complete resolved height,
   including deliberate internal padding but excluding the gap between groups.
+- A touch-spaced row (see [Size tiers](#size-tiers)) is the one exception: its hit rectangle also
+  takes the blank touch line below it, while its fill covers its text and reaches the blank lines
+  above and below only as half-cell blocks, never over another row's text. Themes that cannot draw
+  a concrete half-cell fill draw none, and the hit rectangle stays the same.
 - When an intent must reveal a semantic row, the viewport scrolls only enough to draw that row in
   full. A row taller than the viewport aligns to its start and exposes its own documented scroll or
   expansion behavior.
@@ -83,13 +87,20 @@ then decoration. A lower-priority item never displaces, clips, or visually domin
 ## Size tiers
 
 Tiers give hints, chrome, and overlays a shared vocabulary for degradation. Width and height are
-classified independently; a surface uses the lower of the two.
+classified independently; a surface uses the lower of the two, except that a width below 60
+columns is Mobile at any height that is not too small.
 
 | Tier    | Width         | Height     | Behavior                                                                                                                                                                         |
 | ------- | ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Full    | ≥ 100 columns | ≥ 24 rows  | Complete hints, docked side panel, full labels                                                                                                                                   |
 | Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel docked while content keeps 60 columns beside it and otherwise an overlay, truncated labels                                                           |
-| Minimal | < 60 columns  | < 12 rows  | Hide optional top-strip actions to keep the first terminal row clear; preserve complete return/exit and primary actions while usable, otherwise suspend into the too-small state |
+| Minimal | ≥ 60 columns  | < 12 rows  | Hide optional top-strip actions to keep the first terminal row clear; preserve complete return/exit and primary actions while usable, otherwise suspend into the too-small state |
+| Mobile  | < 60 columns  | any        | Content alone by default; the side panel opens on demand as a screen covering the window and closes when a row is chosen; the top strip shows only from 12 rows                  |
+
+A Mobile side panel screen with at least 24 rows is spaced for touch: each fixed action and list
+row keeps one line of content and owns one blank line below it, and the panel's controls take a
+target wider than their painted extent where the owner documents one. Shorter Mobile screens keep
+one line per row. The owner documents the concrete cells.
 
 Below 20 columns or 5 rows the Client paints one localized too-small notice and the status line,
 nothing else, and resumes normal rendering when the host grows. Any suspended surface remains in

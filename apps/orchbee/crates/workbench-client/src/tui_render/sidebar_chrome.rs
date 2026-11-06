@@ -4,13 +4,14 @@
 //! Tab strip while it is hidden, so it stays on the first row in both states; Help ends the
 //! Settings row. Each paints only when its complete extent fits beside the content it must not
 //! cover, and publishes the existing sidebar visibility or shortcut-help action through global
-//! chrome.
+//! chrome. On a touch-spaced list both take their five-cell size and a target one cell wider on
+//! each side that spans their row's touch lines.
 
 use ratatui::{Frame, layout::Rect};
 
 use super::controls::{
     Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
-    icon_action_rect, render_icon_action,
+    TOUCH_ICON_ACTION_WIDTH, icon_action_rect, render_icon_action, render_touch_icon_action,
 };
 use crate::{
     client_view::{ClientView, PrefixAction},
@@ -19,7 +20,7 @@ use crate::{
         GlobalChromeAction, HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget,
         PrimaryContract, ProjectedPointer, TooltipContent,
     },
-    tui_theme::Theme,
+    tui_theme::{Role, Theme},
 };
 
 /// Blank cells between a fixed action and the icon action ending its row, the same separation a
@@ -77,6 +78,49 @@ pub(super) struct Context<'a> {
     pub(super) layer: HitLayer,
 }
 
+fn projected(
+    hits: Option<&HitMapBuilder>,
+    layer: HitLayer,
+    target: Rect,
+    control: Control,
+) -> PointerPresentation {
+    let interaction = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+    hits.map_or(PointerPresentation::Rest, |hits| {
+        match hits.projected_pointer(
+            layer,
+            target,
+            target,
+            &InteractionTarget::GlobalChrome(control.action()),
+            interaction,
+        ) {
+            ProjectedPointer::Rest => PointerPresentation::Rest,
+            ProjectedPointer::Hovered => PointerPresentation::Hovered,
+            ProjectedPointer::Pressed => PointerPresentation::Pressed,
+        }
+    })
+}
+
+fn publish(hits: &mut HitMapBuilder, target: Rect, control: Control, context: &Context<'_>) {
+    let Context {
+        view,
+        locale,
+        theme,
+        layer,
+    } = *context;
+    let interaction = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+    let action = InteractionTarget::GlobalChrome(control.action());
+    hits.record_interaction(layer, target, target, action.clone(), interaction);
+    hits.record_interaction_tooltip(
+        layer,
+        target,
+        &action,
+        TooltipContent::Action {
+            label: locale.tooltip_label(control.label()).to_owned(),
+            key: super::tooltip::binding_key(view, control.binding(), theme),
+        },
+    );
+}
+
 fn paint(
     frame: &mut Frame<'_>,
     rect: Rect,
@@ -85,38 +129,84 @@ fn paint(
     context: &Context<'_>,
     hits: Option<&mut HitMapBuilder>,
 ) -> Option<Rect> {
-    let Context {
-        view,
-        locale,
-        theme,
-        layer,
-    } = *context;
-    let target = InteractionTarget::GlobalChrome(control.action());
-    let interaction = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
-    let pointer = hits.as_deref().map_or(PointerPresentation::Rest, |hits| {
-        match hits.projected_pointer(layer, rect, rect, &target, interaction) {
-            ProjectedPointer::Rest => PointerPresentation::Rest,
-            ProjectedPointer::Hovered => PointerPresentation::Hovered,
-            ProjectedPointer::Pressed => PointerPresentation::Pressed,
-        }
-    });
+    let pointer = projected(hits.as_deref(), context.layer, rect, control);
     let painted = render_icon_action(
         frame,
         rect,
         IconActionSpec::new(control.glyph(), surface, Availability::Enabled, pointer),
+        context.theme,
+    )?;
+    if let Some(hits) = hits {
+        publish(hits, painted, control, context);
+    }
+    Some(painted)
+}
+
+/// Where a touch-sized control sits: its content row and the lines its target spans.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct TouchRow {
+    pub(super) row: Rect,
+    pub(super) top: u16,
+    pub(super) height: u16,
+}
+
+/// Where a touch-sized control ending `row` paints its brackets, after `leading` and the
+/// [`TRAILING_GAP`] it keeps, with one cell before it for its target; `None` when it drops.
+pub(super) fn touch_trailing_x(row: Rect, leading: Option<Rect>) -> Option<u16> {
+    let x = row
+        .right()
+        .checked_sub(TOUCH_ICON_ACTION_WIDTH)
+        .filter(|&x| x > row.x)?;
+    (!leading.is_some_and(|leading| x < leading.right().saturating_add(TRAILING_GAP))).then_some(x)
+}
+
+/// The touch-sized `control` ending `place.row`, a content row of a touch-spaced list, with a
+/// target that also owns one cell beyond each bracket and every line of `place`. A press fills
+/// all seven cells on the row; hover only brightens the glyph. Returns the five painted cells.
+fn paint_touch_trailing(
+    frame: &mut Frame<'_>,
+    place: TouchRow,
+    leading: Option<Rect>,
+    control: Control,
+    context: &Context<'_>,
+    halos: &mut super::sidebar_touch::Halos,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
+    let TouchRow { row, top, height } = place;
+    let x = touch_trailing_x(row, leading)?;
+    let target = Rect::new(x - 1, top, TOUCH_ICON_ACTION_WIDTH + 2, height);
+    if frame.area().intersection(target) != target {
+        return None;
+    }
+    let theme = context.theme;
+    let pointer = projected(hits.as_deref(), context.layer, target, control);
+    let band = Rect::new(target.x, row.y, target.width, 1);
+    let fill = (pointer == PointerPresentation::Pressed).then_some(Role::SurfacePressed);
+    if let Some(role) = fill {
+        frame.buffer_mut().set_style(
+            band,
+            theme.content_on_surface(
+                Role::SurfaceChrome,
+                Some(role),
+                None,
+                theme.style(Role::SurfaceChrome),
+            ),
+        );
+    }
+    halos.fill(theme, band, fill);
+    let painted = render_touch_icon_action(
+        frame,
+        Rect::new(x, row.y, TOUCH_ICON_ACTION_WIDTH, 1),
+        IconActionSpec::new(
+            control.glyph(),
+            ControlSurface::Chrome,
+            Availability::Enabled,
+            pointer,
+        ),
         theme,
     )?;
     if let Some(hits) = hits {
-        hits.record_interaction(layer, painted, painted, target.clone(), interaction);
-        hits.record_interaction_tooltip(
-            layer,
-            painted,
-            &target,
-            TooltipContent::Action {
-                label: locale.tooltip_label(control.label()).to_owned(),
-                key: super::tooltip::binding_key(view, control.binding(), theme),
-            },
-        );
+        publish(hits, target, control, context);
     }
     Some(painted)
 }
@@ -195,10 +285,34 @@ pub(super) fn render_help(
     settings: Option<Rect>,
     context: &Context<'_>,
     hits: Option<&mut HitMapBuilder>,
-) {
-    if settings.is_some() {
-        let _ = paint_trailing(frame, row, settings, Control::Help, context, hits);
-    }
+) -> Option<Rect> {
+    settings.and_then(|_| paint_trailing(frame, row, settings, Control::Help, context, hits))
+}
+
+/// The touch-spaced list's toggle: [`render_sidebar_toggle`] at touch size.
+pub(super) fn render_touch_sidebar_toggle(
+    frame: &mut Frame<'_>,
+    place: TouchRow,
+    action: Option<Rect>,
+    context: &Context<'_>,
+    halos: &mut super::sidebar_touch::Halos,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
+    paint_touch_trailing(frame, place, action, Control::Hide, context, halos, hits)
+}
+
+/// The touch-spaced list's Help: [`render_help`] at touch size.
+pub(super) fn render_touch_help(
+    frame: &mut Frame<'_>,
+    place: TouchRow,
+    settings: Option<Rect>,
+    context: &Context<'_>,
+    halos: &mut super::sidebar_touch::Halos,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
+    settings.and_then(|_| {
+        paint_touch_trailing(frame, place, settings, Control::Help, context, halos, hits)
+    })
 }
 
 #[cfg(test)]

@@ -74,7 +74,7 @@ fn empty_sidebar_keeps_actions_and_settings_without_session_business_or_zero_cou
                                     },
                                     Some(&mut builder),
                                 );
-                                if sidebar.layer == SidebarLayer::Overlay {
+                                if sidebar.covers() {
                                     // The shell installs overlay ownership after the feature paints.
                                     builder.mark_overlay_active();
                                     builder.record(

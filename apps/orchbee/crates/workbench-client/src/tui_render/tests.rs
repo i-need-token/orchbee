@@ -557,7 +557,12 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
                 Some(Rect::new(left, y, right - left, 1))
             };
             assert!(target_rect(&HitTarget::MenuButton).is_none());
-            if projected.tier == ViewportTier::Minimal {
+            // The restore action lives on the top strip, so a viewport without one has none.
+            if projected.tabs.is_empty() {
+                assert!(matches!(
+                    projected.tier,
+                    ViewportTier::Minimal | ViewportTier::Mobile
+                ));
                 assert!(target_rect(&HitTarget::SidebarRestoreButton).is_none());
             } else {
                 // The hidden sidebar's toggle is a resting icon action at the strip's leading edge.
@@ -989,11 +994,6 @@ fn degrades_to_minimal_chrome_below_sixty_columns_or_twelve_rows() {
     let short = rendered_text(120, 10, &view, Locale::EnUs);
     assert!(!short.contains("Ctrl+b q · exit"));
     assert!(!short.contains("ORCHBEE"));
-
-    let mut toggled = ClientView::new(50);
-    prefix(&mut toggled, plain('b'));
-    let toggled_render = rendered_text(50, 10, &toggled, Locale::EnUs);
-    assert!(!toggled_render.contains("ORCHBEE"));
 }
 
 #[test]

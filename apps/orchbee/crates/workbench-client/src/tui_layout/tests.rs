@@ -22,11 +22,15 @@ fn classifies_tiers_by_the_lower_of_the_width_and_height_tiers() {
         (100, 23, ViewportTier::Compact),
         (80, 24, ViewportTier::Compact),
         (60, 12, ViewportTier::Compact),
+        (60, 11, ViewportTier::Minimal),
         (120, 10, ViewportTier::Minimal),
-        (59, 40, ViewportTier::Minimal),
-        (50, 10, ViewportTier::Minimal),
-        (20, 5, ViewportTier::Minimal),
+        // Below the Compact minimum width is Mobile at any height that is not too small.
+        (59, 40, ViewportTier::Mobile),
+        (59, 11, ViewportTier::Mobile),
+        (50, 10, ViewportTier::Mobile),
+        (20, 5, ViewportTier::Mobile),
         (19, 40, ViewportTier::TooSmall),
+        (59, 4, ViewportTier::TooSmall),
         (120, 4, ViewportTier::TooSmall),
         (15, 4, ViewportTier::TooSmall),
     ];
@@ -115,14 +119,14 @@ fn compact_docks_beside_usable_content_and_otherwise_overlays_without_reflowing(
 #[test]
 fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
     let minimal = project_shell_areas(
-        Rect::new(0, 0, 50, 10),
+        Rect::new(0, 0, 80, 10),
         SidebarSurface::Overlay(SidebarWidth::DEFAULT),
     );
     assert_eq!(minimal.tier, ViewportTier::Minimal);
     assert!(minimal.tabs.is_empty());
-    assert_eq!(minimal.panel, Rect::new(0, 0, 50, 10));
+    assert_eq!(minimal.panel, Rect::new(0, 0, 80, 10));
     assert_eq!(minimal.sidebar, None);
-    assert_eq!(minimal.status, Rect::new(0, 9, 50, 1));
+    assert_eq!(minimal.status, Rect::new(0, 9, 80, 1));
 
     let tiny = project_shell_areas(
         Rect::new(0, 0, 15, 4),
@@ -145,12 +149,17 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
 }
 
 #[test]
-fn minimal_viewports_keep_the_terminal_at_the_first_row_without_a_top_strip() {
-    for (width, height) in [(40, 14), (59, 11), (20, 5)] {
+fn short_viewports_keep_the_terminal_at_the_first_row_without_a_top_strip() {
+    for (width, height, tier) in [
+        (60, 11, ViewportTier::Minimal),
+        (120, 5, ViewportTier::Minimal),
+        (59, 11, ViewportTier::Mobile),
+        (20, 5, ViewportTier::Mobile),
+    ] {
         let viewport = Rect::new(7, 3, width, height);
         let areas = project_shell_areas(viewport, SidebarSurface::Hidden);
 
-        assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
+        assert_eq!(areas.tier, tier, "{width}x{height}");
         assert!(areas.tabs.is_empty(), "{width}x{height}");
         assert_eq!(
             areas.panel,

@@ -15,6 +15,8 @@ use crate::tui_hit_map::{
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
 use ratatui::style::Style;
 
+mod touch;
+
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
     match pointer {
         ProjectedPointer::Rest => PointerPresentation::Rest,
@@ -250,11 +252,18 @@ pub(super) fn render(
         held,
     } = context;
     let owns_keyboard = input == SidebarInput::Navigation;
-    if sidebar.layer == SidebarLayer::Overlay {
+    if sidebar.covers() {
         frame.render_widget(Clear, sidebar.area);
     }
+    // The mobile list fills the window: it keeps the trailing padding but has no divider beside
+    // any content.
+    let screen = sidebar.layer == SidebarLayer::Screen;
     let block = Block::new()
-        .borders(Borders::RIGHT)
+        .borders(if screen {
+            Borders::NONE
+        } else {
+            Borders::RIGHT
+        })
         .border_style(theme.style(if owns_keyboard {
             Role::AccentFocus
         } else {
@@ -263,8 +272,15 @@ pub(super) fn render(
         .padding(Padding::new(0, 1, 0, 0))
         .style(theme.style(Role::SurfaceChrome));
     let mut inner = block.inner(sidebar.area);
-    // The fixed actions continue through the trailing padding to the divider.
-    let content_right = sidebar.area.right().saturating_sub(1).max(inner.right());
+    // The fixed actions continue through the trailing padding to the divider, which for the
+    // mobile list lies just past the window's edge.
+    let content_right = if screen {
+        sidebar.area.right()
+    } else {
+        sidebar.area.right().saturating_sub(1).max(inner.right())
+    };
+    // Row density follows the width the list would have with its divider.
+    let sidebar_width = sidebar.area.width.saturating_add(u16::from(screen));
     frame.render_widget(block, sidebar.area);
     let layer = if view.overlay() == Some(Overlay::BusinessSidebar) {
         HitLayer::Overlay
@@ -293,6 +309,30 @@ pub(super) fn render(
         layer,
     };
     let source = view.machines.sidebar_source();
+    if sidebar.touch_spaced() {
+        touch::render(
+            frame,
+            sidebar,
+            inner,
+            touch::Context {
+                native,
+                view,
+                locale,
+                theme,
+                layer,
+                input,
+                owns_keyboard,
+                source: &source,
+                controls: &controls,
+                creation,
+                held,
+                sidebar_width,
+                trailing_padding: content_right.saturating_sub(inner.right()),
+            },
+            hits,
+        );
+        return;
+    }
     render_actions(
         frame,
         inner,
@@ -369,7 +409,7 @@ pub(super) fn render(
             locale,
             theme,
             layer,
-            sidebar_width: sidebar.area.width,
+            sidebar_width,
             trailing_padding: content_right - area.right(),
             owns_keyboard,
             source: &source,
@@ -377,6 +417,7 @@ pub(super) fn render(
             held,
         },
         &rows,
+        None,
         hits,
     );
 }
