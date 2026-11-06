@@ -77,7 +77,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.recents.actions.collapse': '折叠“最近”',
 	'workbench.recents.actions.expand': '展开“最近”',
 	'workbench.recents.actions.toggleExpansion': '切换“最近”展开状态',
-	'workbench.sidebar.drop.noProject': '不属于项目',
 	'workbench.sidebar.drop.endOfProjects': '项目列表末尾',
 	'workbench.projects.actions.collapse': '折叠项目',
 	'workbench.projects.actions.create': '创建项目',

@@ -1,5 +1,6 @@
 //! Transient feedback for a sidebar drag. The sidebar already paints the move in place, with a held
-//! Workspace filled as current; this adds the bottom drop target and the localized result.
+//! Workspace filled as current; this adds the bottom drop target of a Project drag and the
+//! localized result.
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
     InteractionState, NavigationState, OperationState, PointerPresentation, render_action,
@@ -25,20 +26,22 @@ pub fn render_sidebar_reorder_preview(
     let emphasis = theme
         .style(Role::SurfaceSelection)
         .patch(theme.style(Role::TextPrimary));
-    // The whole footer accepts the drop, yet only one row shows it: a sidebar action, hovered
-    // while the pointer is on the footer. A blank row keeps it apart from the last group when the
-    // footer has room for one.
+    // The whole footer accepts a Project's drop, yet only one row shows it: a sidebar action,
+    // hovered while the pointer is on the footer. A blank row keeps it apart from the last group
+    // when the footer has room for one. A Workspace drag has no such target, so its footer keeps
+    // the rows the sidebar painted.
     let footer = preview.footer.intersection(frame.area());
-    if !footer.is_empty() {
+    if !footer.is_empty() && !preview.workspace {
         let row = Rect::new(
             footer.x,
             footer.y + u16::from(footer.height > 1),
             footer.width,
             1,
         );
-        let active = preview.destination.as_ref().is_some_and(|(placement, _)| {
-            matches!(placement, Placement::Ungrouped | Placement::End)
-        });
+        let active = preview
+            .destination
+            .as_ref()
+            .is_some_and(|(placement, _)| matches!(placement, Placement::End));
         let state = InteractionState::new(
             FocusState::Unfocused,
             if active {
@@ -61,7 +64,7 @@ pub fn render_sidebar_reorder_preview(
             frame,
             row,
             ActionSpec::new(
-                locale.sidebar_drop_zone(preview.workspace),
+                locale.sidebar_drop_zone(),
                 ActionKind::Secondary,
                 ControlSurface::Chrome,
                 state,
@@ -73,6 +76,7 @@ pub fn render_sidebar_reorder_preview(
     if area.height > 0 {
         let status = Rect::new(area.x, area.bottom() - 1, area.width, 1);
         let hint = locale.sidebar_reorder_hint(
+            preview.workspace,
             preview
                 .destination
                 .as_ref()

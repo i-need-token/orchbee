@@ -36,8 +36,8 @@ interface SidebarDragOptions {
 }
 
 interface SidebarDragView {
-	/** The drop area to show after the list: one for the held kind, while a drag is latched. */
-	readonly dropArea: SidebarDragItem['kind'] | null;
+	/** The End of Projects drop area to show after the list, while a Project drag is latched. */
+	readonly dropArea: 'project' | null;
 	readonly dropAreaHovered: boolean;
 	/** The entry a latched or settling drag holds. */
 	readonly held: SidebarDragItem | null;
@@ -429,7 +429,7 @@ export function useSidebarDrag({
 	const shown = gesture.kind === 'dragging' || gesture.kind === 'settling' ? gesture.shown : null;
 	const order = React.useMemo(() => shownOrder(state, shown), [state, shown]);
 	return {
-		dropArea: gesture.kind === 'dragging' ? gesture.item.kind : null,
+		dropArea: gesture.kind === 'dragging' && gesture.item.kind === 'project' ? 'project' : null,
 		dropAreaHovered: gesture.kind === 'dragging' && gesture.dropAreaHovered,
 		held: gesture.kind === 'dragging' || gesture.kind === 'settling' ? gesture.item : null,
 		onEntryPointerDown,

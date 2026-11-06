@@ -305,16 +305,14 @@ export function WorkbenchSidebar({
 								/>
 							))}
 						</ul>
-						{/* Drop areas exist only while dragging: out of every Project, or after the last. */}
+						{/* The drop area exists only while a Project is dragged, after the last one. */}
 						{drag.dropArea === null ? null : (
 							<div
 								className={styles['dropArea']}
 								data-hovered={drag.dropAreaHovered || undefined}
 								data-sidebar-drop-area={drag.dropArea}
 							>
-								{drag.dropArea === 'workspace'
-									? projectNavigationMessages.dropNoProject
-									: projectNavigationMessages.dropEndOfProjects}
+								{projectNavigationMessages.dropEndOfProjects}
 							</div>
 						)}
 					</div>

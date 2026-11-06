@@ -1969,8 +1969,8 @@ pub(super) fn render(
             crate::tui_hit_map::HitTarget::MachineWorkspaceSurface(window),
         );
     }
-    // A drop below the last row moves to the end: the range footer, or the free rows under a
-    // list that fits.
+    // A Project dropped below the last row moves to the end: the range footer, or the free rows
+    // under a list that fits. A Workspace has no destination here.
     let footer = if overflows {
         Rect::new(area.x, area.bottom() - 1, area.width, 1)
     } else {

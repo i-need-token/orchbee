@@ -8,7 +8,7 @@ import {
 const SIDEBAR_DRAG_ENTRY_ATTRIBUTE = 'data-drag-entry';
 /** The id of the Project or Workspace a drag entry stands for. */
 const SIDEBAR_DRAG_ID_ATTRIBUTE = 'data-drag-id';
-/** The drop area after the list, present only while dragging. */
+/** The End of Projects drop area after the list, present only while a Project is dragged. */
 const SIDEBAR_DROP_AREA_ATTRIBUTE = 'data-sidebar-drop-area';
 
 function readEntry(element: Element): SidebarDragItem | null {

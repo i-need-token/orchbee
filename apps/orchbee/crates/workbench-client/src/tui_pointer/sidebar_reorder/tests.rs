@@ -423,42 +423,32 @@ fn workspace_drag_moves_into_between_and_out_of_projects_or_reorders_siblings() 
         // becomes the first, and from below it ends the Project before, or leads the first one.
         (
             0,
-            Some(Item::Project(project(2))),
+            Item::Project(project(2)),
             Some(project(2)),
             Some(workspace(2)),
         ),
         (
             3,
-            Some(Item::Project(project(1))),
+            Item::Project(project(1)),
             Some(project(1)),
             Some(workspace(0)),
         ),
-        (3, Some(Item::Project(project(2))), Some(project(1)), None),
-        (0, None, None, None),
-        (
-            0,
-            Some(Item::Workspace(workspace(1))),
-            Some(project(1)),
-            None,
-        ),
+        (3, Item::Project(project(2)), Some(project(1)), None),
+        // A Workspace outside every Project is the way out of one: the held Workspace lands after
+        // it, among the ungrouped Workspaces.
+        (0, Item::Workspace(workspace(3)), None, None),
+        (0, Item::Workspace(workspace(1)), Some(project(1)), None),
         (
             1,
-            Some(Item::Workspace(workspace(0))),
+            Item::Workspace(workspace(0)),
             Some(project(1)),
             Some(workspace(0)),
         ),
-        (
-            0,
-            Some(Item::Workspace(workspace(2))),
-            Some(project(2)),
-            None,
-        ),
+        (0, Item::Workspace(workspace(2)), Some(project(2)), None),
     ] {
         let (mut pointer, mut view, mut port, map) = fixture();
         let origin = row(&map, Item::Workspace(workspace(source)));
-        let target = target.map_or(map.sidebar_reorder.as_ref().unwrap().footer, |item| {
-            row(&map, item)
-        });
+        let target = row(&map, target);
         send(
             &mut pointer,
             &mut view,
@@ -509,6 +499,71 @@ fn workspace_drag_moves_into_between_and_out_of_projects_or_reorders_siblings() 
         );
         assert_eq!(port.writes.len(), 1);
     }
+}
+
+/// The free rows below the list end a Project drag only. Over them a Workspace keeps the move the
+/// sidebar shows, as over a gap, so the release commits that move and no move out of its Project.
+#[test]
+fn a_workspace_over_the_free_rows_below_the_list_keeps_the_shown_move() {
+    let (mut pointer, mut view, mut port, map) = fixture();
+    let origin = row(&map, Item::Workspace(workspace(0)));
+    let anchor = row(&map, Item::Workspace(workspace(2)));
+    let free = map.sidebar_reorder.as_ref().unwrap().footer;
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Press,
+        origin,
+    );
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Motion,
+        anchor,
+    );
+    let shown = pointer
+        .sidebar_reorder_preview()
+        .unwrap()
+        .resolve(pointer.map.as_ref().unwrap())
+        .unwrap()
+        .destination;
+    assert!(shown.is_some());
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Motion,
+        free,
+    );
+    assert_eq!(
+        pointer
+            .sidebar_reorder_preview()
+            .unwrap()
+            .resolve(pointer.map.as_ref().unwrap())
+            .unwrap()
+            .destination,
+        shown
+    );
+    assert_eq!(
+        send(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Release,
+            free
+        ),
+        PointerOutcome::SidebarReorderEnded
+    );
+    assert_eq!(
+        port.writes,
+        [NavigationConfiguration::MoveWorkspace {
+            workspace_id: workspace(0),
+            project_id: Some(project(2)),
+            before_workspace_id: None,
+        }]
+    );
 }
 
 /// ORC-317: with no gap between two-line rows, the line under the pointer decides the side. A

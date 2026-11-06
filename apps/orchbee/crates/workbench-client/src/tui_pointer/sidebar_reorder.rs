@@ -251,6 +251,8 @@ impl SidebarReorder {
         let paint = map.sidebar_reorder.as_ref()?;
         let (x, y) = self.position;
         let landing = if contains(paint.footer, x, y) {
+            // The free rows end a Project drag only; a Workspace has no destination there, so the
+            // shown move stays, as over a gap.
             self.source.destination(&self.item, None, false)
         } else if !contains(paint.body, x, y) {
             // Outside the list the sidebar shows the canonical order, which a release there keeps.

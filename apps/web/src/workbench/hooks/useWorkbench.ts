@@ -1038,7 +1038,6 @@ export function useWorkbench({
 				workbenchMessages.projectCreateWorkspaceAtDirectory,
 			),
 			dropEndOfProjects: intl.formatMessage(workbenchMessages.sidebarDropEndOfProjects),
-			dropNoProject: intl.formatMessage(workbenchMessages.sidebarDropNoProject),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
 			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
 			nameRequired: intl.formatMessage(workbenchMessages.nameRequired),

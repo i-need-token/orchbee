@@ -81,7 +81,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.recents.actions.collapse': 'Collapse Recents',
 	'workbench.recents.actions.expand': 'Expand Recents',
 	'workbench.recents.actions.toggleExpansion': 'Toggle Recents expansion',
-	'workbench.sidebar.drop.noProject': 'No Project',
 	'workbench.sidebar.drop.endOfProjects': 'End of Projects',
 	'workbench.projects.actions.collapse': 'Collapse project',
 	'workbench.projects.actions.create': 'Create Project',

@@ -57,7 +57,7 @@
 			"id": "applications-web-workbench--project-workspace-drag",
 			"states": [
 				"Drag a Project across the other Projects and onto End of Projects: it moves as one group with its Workspaces and keeps its look, a raised copy follows the pointer 8 px right of the press, touching a heading moves it past that heading, and the list scrolls one row every 120 ms at its edges.",
-				"Drag a Workspace within its Project, into another Project, onto a folded Project's heading, and onto No Project: it stands at its destination with the current fill and without its chevron or Agent rows, a folded destination shows it alone, No Project turns solid while the pointer is on it, and Esc restores the order; the held Workspace becomes current as the drag latches and stays current after release or Esc, and Project disclosure is unchanged."
+				"Drag a Workspace within its Project, into another Project, onto a folded Project's heading, and onto a Recents Workspace to leave its Project: it stands at its destination with the current fill and without its chevron or Agent rows, a folded destination shows it alone, the free space below the list keeps the shown move, and Esc restores the order; the held Workspace becomes current as the drag latches and stays current after release or Esc, and Project disclosure is unchanged."
 			]
 		},
 		{
@@ -158,7 +158,7 @@
 		"Every Workspace row is two lines and 38 px. The end area is reserved at all times, so the name truncates at one width: it shows ↑N and ↓N only when positive and the folded unread dot at rest, and ⋯ and × under the pointer or focus. The second line names the branch, otherwise the folder name, ~ for home, and stays blank while neither is known.",
 		"A held name, folder, and Git facts from the location source stand together, so a moved row changes all three at once; Workbench never decides location facts and observes a source only while the sidebar is mounted.",
 		"A drag follows the TUI's destination rules and shows the canonical order with its one navigation.configure operation applied; only release asks the Server for that move, and the list keeps showing it until the move settles.",
-		"A Workspace drag may land in any Project or outside every Project and preserves terminal ownership, identity, and Project disclosure; a held Workspace becomes current as the drag latches, as in the TUI, and stays current whether the drag commits or is cancelled. Every key belongs to a live drag, and Esc cancels it.",
+		"A Workspace drag may land in any Project, or outside every Project through a Recents Workspace, and preserves terminal ownership, identity, and Project disclosure; a held Workspace becomes current as the drag latches, as in the TUI, and stays current whether the drag commits or is cancelled. Every key belongs to a live drag, and Esc cancels it.",
 		"A Workspace with no live Agent shows no fold chevron; retained ended Sessions never leave an Agent count, status, or detail row.",
 		"A Workspace Agent summary counts deduplicated live Sessions and exposes its resolved status through text or an accessible label as well as color.",
 		"Every Workspace lists its Agent rows until this Client folds them, each Workspace independently; a fold is client-local, lasts while its Workspace exists through regrouping, a collapsed Project, a hidden sidebar, and Agents ending, and only the held Workspace hides its rows during a drag.",

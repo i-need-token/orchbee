@@ -175,17 +175,6 @@ describe('sidebar drag destinations', () => {
 		).toEqual({ kind: 'keep' });
 	});
 
-	it('moves a Workspace out of every Project through the drop area, to the end of that list', () => {
-		const out = moved(workspace('a2'), WORKSPACE_ENTRIES, { kind: 'drop-area' });
-		expect(out).toEqual({
-			beforeWorkspaceId: null,
-			kind: 'move-workspace',
-			projectId: null,
-			workspaceId: 'a2',
-		});
-		expect(groups(out)).toMatchObject({ A: ['a1'], none: ['r1', 'a2'] });
-	});
-
 	it('reorders Projects on headings and makes a Project last through the drop area', () => {
 		expect(
 			projectOrder(
@@ -214,8 +203,10 @@ describe('sidebar drag destinations', () => {
 				entryAt(WORKSPACE_ENTRIES, workspace('b1'), false),
 			),
 		).toEqual({ kind: 'keep' });
+		// A Workspace has no drop area, so the free space below the list keeps the shown move too.
 		for (const hit of [
 			{ kind: 'gap' },
+			{ kind: 'drop-area' },
 			entryAt(WORKSPACE_ENTRIES, workspace('a1'), true),
 		] satisfies SidebarDragHit[]) {
 			expect(resolveSidebarDrop(ORDER, workspace('a1'), WORKSPACE_ENTRIES, hit)).toEqual({

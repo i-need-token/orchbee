@@ -870,12 +870,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.recents.actions.expand'],
 		description: 'Action that expands the Recents group in the Workbench sidebar.',
 	},
-	sidebarDropNoProject: {
-		id: 'workbench.sidebar.drop.noProject',
-		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.drop.noProject'],
-		description:
-			'Drop area shown after the sidebar list while a Workspace is dragged; dropping there moves the Workspace out of every Project.',
-	},
 	sidebarDropEndOfProjects: {
 		id: 'workbench.sidebar.drop.endOfProjects',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.drop.endOfProjects'],

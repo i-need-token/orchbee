@@ -89,8 +89,8 @@ impl SidebarReorderSource {
         }
     }
 
-    /// The move that places `source` before or after `target`, into a Project `target`, or, with
-    /// no target, at the end: outside any Project for a Workspace, last for a Project.
+    /// The move that places `source` before or after `target`, or into a Project `target`. With no
+    /// target, only a Project has a destination: last of all Projects. A Workspace has none.
     pub(super) fn destination(&self, source: &Item, target: Option<&Item>, after: bool) -> Landing {
         self.candidate(source, target, after)
             .map_or(Landing::Unavailable, |drop| self.validate(drop))
@@ -170,15 +170,9 @@ impl SidebarReorderSource {
                 )
             }
             (Item::Project(_), Some(Item::Workspace(_))) => return None,
-            (Item::Workspace(workspace_id), None) => (
-                MoveWorkspace {
-                    workspace_id: workspace_id.clone(),
-                    project_id: None,
-                    before_workspace_id: None,
-                },
-                Placement::Ungrouped,
-                String::new(),
-            ),
+            // A Workspace has no free-row destination: it leaves a Project by landing on a
+            // Workspace outside every Project.
+            (Item::Workspace(_), None) => return None,
             (Item::Workspace(workspace_id), Some(Item::Project(project_id))) => (
                 MoveWorkspace {
                     workspace_id: workspace_id.clone(),

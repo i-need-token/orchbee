@@ -225,10 +225,11 @@ order, and `readSidebarDragHit` reads what the pointer is over from the list as 
   from above, the Workspace becomes the Project's first; reached from below, it follows the Workspace
   shown just above the heading.
 - Projects land only on Project headings; a Project on a Workspace changes nothing.
-- The drop area after the list, with the free space below it, ends the list: **No Project** moves a
-  held Workspace out of every Project, to the end of Recents, and **End of Projects** makes a held
-  Project last. It exists only while a drag is latched, 30 px tall with a dashed strong border, and
-  turns solid on the hovered surface while the pointer is on it.
+- The drop area after the list, with the free space below it, ends a Project drag: **End of Projects**
+  makes a held Project last. It exists only while a Project is latched, 30 px tall with a dashed strong
+  border, and turns solid on the hovered surface while the pointer is on it. A held Workspace has no drop
+  area: over the free space below the list it keeps the shown move, and it leaves its Project by landing
+  on a Recents Workspace.
 - Over the held entry, gaps, Recents' heading and destinations the order refuses, the shown move stays,
   so a pointer at rest never makes the list oscillate. Outside the list, and on a destination that
   changes nothing, the canonical order shows.

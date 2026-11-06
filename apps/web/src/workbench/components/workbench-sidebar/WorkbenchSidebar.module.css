@@ -202,8 +202,8 @@
 	user-select: none;
 }
 
-/* The drop area exists only while dragging, after the list: dashed at rest, solid and filled while
-   the pointer is on it. */
+/* The End of Projects drop area exists only while a Project is dragged, after the list: dashed at
+   rest, solid and filled while the pointer is on it. */
 .dropArea {
 	display: flex;
 	box-sizing: border-box;

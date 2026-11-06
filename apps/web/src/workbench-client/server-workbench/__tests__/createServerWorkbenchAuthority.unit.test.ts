@@ -297,7 +297,7 @@ describe('createServerWorkbenchAuthority', () => {
 			},
 		],
 		[
-			'moves a Workspace out of every Project, to the end of that list',
+			'moves a Workspace out of its Project, to the end of Recents',
 			{
 				beforeWorkspaceId: null,
 				projectId: null,

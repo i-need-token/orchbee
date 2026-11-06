@@ -29,7 +29,6 @@ pub(crate) enum SidebarPlacementLabel {
     Before,
     After,
     Into,
-    Ungrouped,
     End,
 }
 
@@ -57,35 +56,37 @@ pub(crate) enum MachineControlLabel {
 }
 
 impl Locale {
-    pub(crate) const fn sidebar_drop_zone(self, workspace: bool) -> &'static str {
-        match (self, workspace) {
-            (Self::EnUs, true) => "No project",
-            (Self::ZhCn, true) => "不属于项目",
-            (Self::EnUs, false) => "End of projects",
-            (Self::ZhCn, false) => "项目列表末尾",
+    /// The bottom drop target of a Project drag; a Workspace drag has none.
+    pub(crate) const fn sidebar_drop_zone(self) -> &'static str {
+        match self {
+            Self::EnUs => "End of projects",
+            Self::ZhCn => "项目列表末尾",
         }
     }
     pub(crate) fn sidebar_reorder_hint(
         self,
+        workspace: bool,
         destination: Option<(SidebarPlacementLabel, &str)>,
     ) -> String {
         use SidebarPlacementLabel::*;
         let Some((placement, label)) = destination else {
-            return match self {
-                Self::EnUs => "Drag to a row or the bottom drop area · Esc cancel".to_owned(),
-                Self::ZhCn => "拖到目标行或底部放置区 · Esc 取消".to_owned(),
+            return match (self, workspace) {
+                (Self::EnUs, true) => "Drag to a row · Esc cancel".to_owned(),
+                (Self::ZhCn, true) => "拖到目标行 · Esc 取消".to_owned(),
+                (Self::EnUs, false) => {
+                    "Drag to a row or the bottom drop area · Esc cancel".to_owned()
+                }
+                (Self::ZhCn, false) => "拖到目标行或底部放置区 · Esc 取消".to_owned(),
             };
         };
         match (self, placement) {
             (Self::EnUs, Before) => format!("Release to place before {label} · Esc cancel"),
             (Self::EnUs, After) => format!("Release to place after {label} · Esc cancel"),
             (Self::EnUs, Into) => format!("Release to move into {label} · Esc cancel"),
-            (Self::EnUs, Ungrouped) => "Release to move out of Project · Esc cancel".to_owned(),
             (Self::EnUs, End) => "Release to place at end of Projects · Esc cancel".to_owned(),
             (Self::ZhCn, Before) => format!("释放后放到「{label}」前面 · Esc 取消"),
             (Self::ZhCn, After) => format!("释放后放到「{label}」后面 · Esc 取消"),
             (Self::ZhCn, Into) => format!("释放后移入「{label}」 · Esc 取消"),
-            (Self::ZhCn, Ungrouped) => "释放后移出项目 · Esc 取消".to_owned(),
             (Self::ZhCn, End) => "释放后放到项目列表末尾 · Esc 取消".to_owned(),
         }
     }

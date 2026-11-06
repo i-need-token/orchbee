@@ -289,10 +289,11 @@ takes the Workspace in; otherwise the heading is the Project's top edge: from ab
 becomes its first, from below it follows the Workspace shown just above the heading. Projects
 reorder on other Project headers as complete groups, by the same one-line rule. The held entry, gaps
 and rows that are no entry keep the shown destination, so a pointer resting where the move put the
-entry never makes it oscillate. During dragging, every free row below the list accepts a drop,
-and one sidebar action row names it, a blank row below the last group when there is room: No
-Project moves a Workspace out of its group; End of Projects appends a Project. It shows hovered
-while the pointer is on the free rows. Outside the list, and on a
+entry never makes it oscillate. During a Project drag, every free row below the list accepts a drop,
+and one sidebar action row names it, a blank row below the last group when there is room: End of
+Projects appends the Project. It shows hovered while the pointer is on the free rows. A Workspace
+drag shows no such row: its free rows keep the shown destination, and a Workspace leaves its Project
+by landing on a Workspace row in Recents. Outside the list, and on a
 destination that changes nothing, the canonical order shows; an invalid destination keeps the shown
 one. The window keeps its top row index while rows move under the pointer. Holding at the list edge
 scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains

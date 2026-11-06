@@ -27,7 +27,6 @@ pub(crate) enum Placement {
     Before,
     After,
     Into,
-    Ungrouped,
     End,
 }
 impl From<Placement> for crate::localization::SidebarPlacementLabel {
@@ -36,7 +35,6 @@ impl From<Placement> for crate::localization::SidebarPlacementLabel {
             Placement::Before => Self::Before,
             Placement::After => Self::After,
             Placement::Into => Self::Into,
-            Placement::Ungrouped => Self::Ungrouped,
             Placement::End => Self::End,
         }
     }

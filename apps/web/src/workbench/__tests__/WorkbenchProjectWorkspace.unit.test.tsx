@@ -1612,8 +1612,8 @@ describe('Workbench Project and Workspace management', () => {
 		movePointer(195);
 		await waitFor(() => expect(listedWorkspaces(2)).toEqual([3, 1]));
 		expect(listedWorkspaces(1)).toEqual([2]);
-		expect(dropArea()?.textContent).toBe('No Project');
-		expect(dropArea()?.hasAttribute('data-hovered')).toBe(false);
+		// A Workspace drag shows no drop area below the list.
+		expect(dropArea()).toBeNull();
 		expect(projectWorkspaceRuntime.getSnapshot().workspaces[0]?.projectId).toBe(
 			fixtureProjectId(1),
 		);
@@ -1636,7 +1636,7 @@ describe('Workbench Project and Workspace management', () => {
 		});
 	});
 
-	it('moves a Workspace out of every Project through No Project, and a Project last through End of Projects', async () => {
+	it('moves a Workspace out of its Project into Recents, and a Project last through End of Projects', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(dragSnapshot(1));
 		const change = completingChange();
 		renderWorkbench({ authority: inertWorkbenchAuthority({ change }), projectWorkspaceRuntime });
@@ -1644,13 +1644,18 @@ describe('Workbench Project and Workspace management', () => {
 
 		pressRow(dragRow('workspace', 2), 90);
 		movePointer(94);
-		await waitFor(() => expect(dropArea()).not.toBeNull());
+		// The lower half of Scratch, the Recents Workspace, places it after Scratch.
+		movePointer(275);
+		await waitFor(() => expect(listedRecents()).toEqual([4, 2]));
+		// A Workspace drag shows no drop area, and the free space below the list keeps the move.
+		expect(dropArea()).toBeNull();
 		movePointer(290);
-		await waitFor(() => expect(dropArea()?.hasAttribute('data-hovered')).toBe(true));
-		// It stands at the end of Recents, the list of Workspaces outside any Project.
+		expect(dropArea()).toBeNull();
 		expect(listedRecents()).toEqual([4, 2]);
 		releasePointer(290);
-		await waitFor(() => expect(dropArea()).toBeNull());
+		await waitFor(() =>
+			expect(dragEntry('workspace', 2)?.hasAttribute('data-dragging')).toBe(false),
+		);
 
 		pressRow(dragRow('project', 1), 10);
 		movePointer(14);

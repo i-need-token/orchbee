@@ -47,7 +47,7 @@ export type SidebarNavigationMoveResult<TOrder> =
 export type SidebarDragHit =
 	/** Beyond the list: the canonical order shows, and a release there keeps it. */
 	| { readonly kind: 'outside' }
-	/** The drop area after the list and the free space below it. */
+	/** The End of Projects drop area after the list and the free space below it; a Project drag only. */
 	| { readonly kind: 'drop-area' }
 	/** A gap, or a row that is no entry for this drag. */
 	| { readonly kind: 'gap' }
@@ -183,14 +183,8 @@ function candidate(
 			projectId: held.id,
 		};
 	}
-	if (target === null) {
-		return {
-			beforeWorkspaceId: null,
-			kind: 'move-workspace',
-			projectId: null,
-			workspaceId: held.id,
-		};
-	}
+	// A Workspace has no drop area: it leaves a Project by landing on a Workspace outside every one.
+	if (target === null) return null;
 	if (target.kind === 'project') {
 		return {
 			beforeWorkspaceId: null,
