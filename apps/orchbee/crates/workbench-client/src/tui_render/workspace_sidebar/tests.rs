@@ -943,7 +943,9 @@ fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
                 TooltipContent::Describe {
                     text: Some(text), ..
                 } => Some(text.text.as_str()),
-                TooltipContent::Describe { text: None, .. } | TooltipContent::Action { .. } => None,
+                TooltipContent::Describe { text: None, .. }
+                | TooltipContent::Action { .. }
+                | TooltipContent::Roster { .. } => None,
             })
             .collect();
         let buffer = terminal.backend().buffer();

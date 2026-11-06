@@ -90,7 +90,8 @@ impl Key {
     }
 }
 
-/// What one tooltip says: an action and its key, or a cut name and the glyphs its target shows.
+/// What one tooltip says: an action and its key, a cut name and the glyphs its target shows, or
+/// the Agents a collapsed remainder hides.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TooltipContent {
     /// A glyph or bracket control's action, then the key that does the same to the same target now.
@@ -100,6 +101,8 @@ pub(crate) enum TooltipContent {
         text: Option<TooltipText>,
         legend: Vec<LegendItem>,
     },
+    /// Agents one per line, each its state glyph then its name, in the order its target lists them.
+    Roster { items: Vec<LegendItem> },
 }
 
 /// A complete name and where it may be cut when it outgrows the box.
@@ -110,7 +113,7 @@ pub(crate) struct TooltipText {
     pub(crate) middle: bool,
 }
 
-/// One glyph the target shows, in its own role and style, and the word for it.
+/// One glyph the target shows, in its own role and style, and the word or name beside it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LegendItem {
     pub(crate) glyph: String,

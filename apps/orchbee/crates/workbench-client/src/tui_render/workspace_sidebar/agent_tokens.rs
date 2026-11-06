@@ -99,6 +99,21 @@ pub(in crate::tui_render) fn height(view: &ClientView, row: &Row, locale: Locale
 /// A cut default title keeps at least this many cells before its ellipsis beside the provider.
 const MINIMUM_TITLE_CELLS: usize = 3;
 
+/// The separator between an Agent's identity title and its provider.
+fn identity_separator(theme: &Theme) -> String {
+    format!(" {} ", theme.glyphs.middle_dot)
+}
+
+/// The whole name an Agent row shows: its identity title, the separator, then its provider; the
+/// provider alone without an identity title. A folded Workspace's roster names Agents the same way.
+pub(super) fn identity_label(agent: &crate::machine_agents::Row, theme: &Theme) -> String {
+    let provider = display_label(agent.provider());
+    match agent.identity_title() {
+        Some(title) => format!("{title}{}{provider}", identity_separator(theme)),
+        None => provider,
+    }
+}
+
 /// The default row: what names the Agent, then its provider in quieter text, or the provider
 /// alone; its leading glyph and pointer tooltip carry state. Within `width` the title gives way
 /// first, so the provider stays whole while the title keeps its first few cells; narrower still,
@@ -117,8 +132,8 @@ fn default_row(
         ))])
         .with_names(vec![(0, full_name(provider))]);
     };
-    let separator = format!(" {} ", theme.glyphs.middle_dot);
-    let whole = format!("{title}{separator}{provider}");
+    let separator = identity_separator(theme);
+    let whole = identity_label(agent, theme);
     let ellipsis = theme.glyphs.ellipsis;
     let trailing = display_width(&separator) + display_width(&provider);
     let kept = display_width(&title).min(MINIMUM_TITLE_CELLS + display_width(ellipsis));

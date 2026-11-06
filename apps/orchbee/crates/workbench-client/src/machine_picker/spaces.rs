@@ -440,6 +440,17 @@ impl Picker {
     }
     /// Every Agent state in one Workspace, most urgent first; empty without a complete checkpoint.
     pub(crate) fn workspace_agent_states(&self, row: &Row) -> Vec<MetadataState> {
+        self.workspace_agent_rows(row)
+            .into_iter()
+            .map(crate::machine_agents::checkpoint::Row::display_state)
+            .collect()
+    }
+    /// Every Agent in one Workspace, most urgent state first, as the Workspace's status line lists
+    /// them; empty without a complete checkpoint.
+    pub(crate) fn workspace_agent_rows(
+        &self,
+        row: &Row,
+    ) -> Vec<&crate::machine_agents::checkpoint::Row> {
         let Some(context) = row.context.as_ref() else {
             return Vec::new();
         };
@@ -455,14 +466,13 @@ impl Picker {
             return Vec::new();
         }
         // These are complete, attention-projected physical rows, before every view/source filter.
-        let mut states = cp
+        let mut agents = cp
             .rows
             .iter()
             .filter(|r| r.target.context == context.target)
-            .map(crate::machine_agents::checkpoint::Row::display_state)
             .collect::<Vec<_>>();
-        states.sort_by_key(|state| urgency(*state));
-        states
+        agents.sort_by_key(|agent| urgency(agent.display_state()));
+        agents
     }
     /// The attached machine's Agents in one Tab, summarized like a collapsed Workspace row.
     pub(crate) fn tab_agent(

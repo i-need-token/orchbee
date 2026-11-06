@@ -402,7 +402,7 @@ A pointer tooltip states in words what one painted chrome target shows only as g
 control, or a cut name. It supplements discovery: everything it says stays reachable without a
 pointer through help, menus, or the binding table.
 
-- Content is a legend, a full name, or an action. A legend names each glyph the target shows, in
+- Content is a legend, a full name, an action, or a roster. A legend names each glyph the target shows, in
   the glyph's own role, followed by its word; items stand two cells apart with no separator. A cut
   name appears whole before its legend. An action states its label, then the key that does the same
   to the same target now, taken from the effective binding table and never hard-coded. A target
@@ -411,11 +411,16 @@ pointer through help, menus, or the binding table.
   pointer rests on that glyph; so does a short name that stands for a longer one, such as a folder
   named in place of its directory, which gives the longer one in full. The rest of the target
   gives only its cut name.
+- A roster lists the Agents a folded Workspace's `+N` hides, one per line: each state glyph, then
+  the name its expanded row shows, in the order the line lists them. It shows at most eight lines;
+  when the Agents outgrow them, the eighth reads `+k` in `text-secondary`, counting those it leaves
+  out. Each line is cut to the box's text width with the ellipsis. The two-line limit applies to
+  legends and names, not to rosters.
 - The box is the context-menu frame without a heading, marker, or arrow: `surface-overlay` inside a
   `frame-unfocused` border with one padding cell each side, so it is its text width plus four cells
   by its line count plus two rows. Text is `text-primary`, keys use `hint-key`, and the box looks
   the same in every theme without an inverted fill.
-- Text takes at most 40 cells by two lines and wraps at spaces; wide characters may break between
+- Legend and name text takes at most 40 cells by two lines and wraps at spaces; wide characters may break between
   characters. Whatever is left out ends the last line with the ellipsis, a path keeps both ends, an
   action key stays whole while its label truncates, and a cut legend ends with a `text-secondary`
   ellipsis.

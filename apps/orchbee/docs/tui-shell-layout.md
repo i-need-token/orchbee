@@ -203,8 +203,10 @@ and descriptive metadata uses secondary text.
 Each Workspace with Agents folds them away on its own, independent of its siblings, and starts
 expanded. While folded, its second line becomes a status line in place of the configured second
 line: the states of its Agents from the complete physical Agent checkpoint, most urgent first
-(Blocked, Error, Done, Working, Idle, Unknown), up to five glyphs one cell apart, or four glyphs
-followed by a secondary-text `+N` remainder. A one-line configured layout gains that second line
+(Blocked, Error, Done, Working, Idle, Unknown), one cell apart: all of them when they fit the
+line, otherwise as many as fit beside a secondary-text `+N` for the rest. Hovering `+N` lists the
+Agents it hides, one per line, each with its state glyph and the name its expanded row shows. A
+one-line configured layout gains that second line
 while folded; configured lines after the second remain. Eligible Project
 create controls are revealed with the row's other controls, right-aligned, with no overflow-menu slot after them. At 52 columns
 and above they use a localized Create action; narrower sidebars use the fixed three-cell `[+]` icon

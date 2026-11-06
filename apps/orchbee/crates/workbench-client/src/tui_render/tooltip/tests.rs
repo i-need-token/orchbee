@@ -155,3 +155,31 @@ fn a_legend_keeps_two_cells_between_items_and_ends_a_cut_line_with_a_secondary_e
     let more = painted[1].spans.last().unwrap();
     assert_eq!(more.style.fg, theme.style(Role::TextSecondary).fg);
 }
+
+#[test]
+fn a_roster_lists_one_agent_per_line_and_counts_the_ones_it_cuts() {
+    let theme = Theme::rgb_test_dark().with_glyphs(GlyphSet::ASCII);
+    let agent = |index: usize| LegendItem {
+        glyph: "!".to_owned(),
+        role: Role::StatusWorking,
+        style: theme.style(Role::StatusWorking),
+        label: format!("agent {index}"),
+    };
+    let roster = |count: usize| TooltipContent::Roster {
+        items: (0..count).map(&agent).collect(),
+    };
+    // A roster that fits lists every Agent in its order, one per line.
+    let fits = text(&lines(&roster(3), 40, &theme));
+    assert_eq!(fits.len(), 3);
+    for (index, line) in fits.iter().enumerate() {
+        assert!(
+            line.starts_with('!') && line.ends_with(&format!("agent {index}")),
+            "{line}"
+        );
+    }
+    // A longer one stops at eight lines, and its last line counts the Agents it leaves out.
+    let cut = text(&lines(&roster(10), 40, &theme));
+    assert_eq!(cut.len(), 8);
+    assert_eq!(cut[7], "+3");
+    assert!(cut[6].ends_with("agent 6"), "{cut:?}");
+}

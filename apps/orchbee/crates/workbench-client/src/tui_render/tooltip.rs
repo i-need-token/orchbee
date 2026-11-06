@@ -31,6 +31,8 @@ const FRAME_COLUMNS: usize = 4;
 const FRAME_ROWS: usize = 2;
 /// Legend items stand this far apart, with no separator glyph.
 const LEGEND_GAP: &str = "  ";
+/// A roster takes at most this many lines; when it cuts, the last line counts the Agents left out.
+const ROSTER_LINES: usize = 8;
 
 /// The first key the binding table shows now for a Client action, in the theme's key glyphs.
 pub(super) fn action_key(view: &ClientView, action: ClientAction, theme: &Theme) -> Option<String> {
@@ -80,6 +82,20 @@ pub(super) fn describe(
     (text.is_some() || !legend.is_empty()).then_some(TooltipContent::Describe { text, legend })
 }
 
+/// Hidden Agents, each its state glyph and name, one per line in the order given; none when
+/// there are none.
+pub(super) fn roster(
+    agents: impl IntoIterator<Item = (MetadataState, String)>,
+    working_frame: usize,
+    theme: &Theme,
+) -> Option<TooltipContent> {
+    let items: Vec<LegendItem> = agents
+        .into_iter()
+        .map(|(state, name)| state_item(state, name, working_frame, theme))
+        .collect();
+    (!items.is_empty()).then_some(TooltipContent::Roster { items })
+}
+
 /// An Agent state glyph and its word, as the sidebar, the Tab strip and pane titles draw it.
 fn agent_state(
     state: MetadataState,
@@ -87,13 +103,28 @@ fn agent_state(
     locale: Locale,
     theme: &Theme,
 ) -> LegendItem {
+    state_item(
+        state,
+        locale
+            .machine_picker_text(super::sidebar_text::state_role(state).0)
+            .to_owned(),
+        working_frame,
+        theme,
+    )
+}
+
+/// A state glyph in the role and style the Agent row draws it with, beside `label`.
+fn state_item(
+    state: MetadataState,
+    label: String,
+    working_frame: usize,
+    theme: &Theme,
+) -> LegendItem {
     LegendItem {
         glyph: super::sidebar_text::state_glyph(state, theme, working_frame).to_owned(),
         role: Theme::agent_role(state),
         style: theme.agent_style(state, working_frame),
-        label: locale
-            .machine_picker_text(super::sidebar_text::state_role(state).0)
-            .to_owned(),
+        label,
     }
 }
 
@@ -219,7 +250,45 @@ fn lines(content: &TooltipContent, room: usize, theme: &Theme) -> Vec<Line<'stat
             lines.extend(self::legend_lines(legend, room, legend_count, theme));
             lines
         }
+        TooltipContent::Roster { items } => roster_lines(items, room, theme),
     }
+}
+
+/// Agents one per line, each its state glyph then its name, cut to the room. When the roster
+/// outgrows [`ROSTER_LINES`], its last line counts the Agents left out.
+fn roster_lines(items: &[LegendItem], room: usize, theme: &Theme) -> Vec<Line<'static>> {
+    let on_box = |role: Role, style: Style| {
+        theme.content_on_surface(Role::SurfaceOverlay, None, Some(role), style)
+    };
+    let shown = if items.len() > ROSTER_LINES {
+        ROSTER_LINES - 1
+    } else {
+        items.len()
+    };
+    let mut lines: Vec<Line<'static>> = items
+        .iter()
+        .take(shown)
+        .map(|item| {
+            Line::from(truncate_spans(
+                vec![
+                    Span::styled(item.glyph.clone(), on_box(item.role, item.style)),
+                    Span::styled(
+                        format!(" {}", item.label),
+                        on_box(Role::TextPrimary, theme.style(Role::TextPrimary)),
+                    ),
+                ],
+                room,
+                theme,
+            ))
+        })
+        .collect();
+    if shown < items.len() {
+        lines.push(Line::from(Span::styled(
+            format!("+{}", items.len() - shown),
+            on_box(Role::TextSecondary, theme.style(Role::TextSecondary)),
+        )));
+    }
+    lines
 }
 
 /// A name's lines within `count`; whatever is left out ends the last line with the ellipsis, or

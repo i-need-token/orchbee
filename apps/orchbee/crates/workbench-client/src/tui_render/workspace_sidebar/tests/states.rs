@@ -470,12 +470,41 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
     }
 }
 
+/// A folded Workspace holding one Agent in each of `states`, so its status line lists them.
+fn folded_workspace_with_agents(states: &[PanelAgentState]) -> (ClientView, SidebarTarget) {
+    let mut view = view(120, 40);
+    configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
+    let workspace = view.machines.space_rows()[0].sidebar_target().unwrap();
+    let SidebarTarget::Context { target, .. } = &workspace else {
+        unreachable!()
+    };
+    let agents = states
+        .iter()
+        .zip(30..)
+        .map(|(state, number)| {
+            let mut agent = agent_for(target.clone(), number);
+            agent.state = *state;
+            agent
+        })
+        .collect();
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
+            agents,
+        )),
+    )]);
+    if view.machines.sidebar_context_agents_expanded(&workspace) {
+        assert!(view.machines.toggle_sidebar_context_agents(&workspace));
+    }
+    (view, workspace)
+}
+
 #[test]
-fn folded_workspace_status_line_orders_agent_states_by_urgency_and_bounds_the_remainder() {
+fn folded_status_line_lists_states_by_urgency_and_fits_the_most_before_the_remainder() {
     use MetadataState as State;
     use PanelAgentState::*;
     for theme in [Theme::terminal_native(), Theme::orchbee_dark()] {
-        for (states, expected, remainder) in [
+        let cases = [
             (
                 vec![Idle, Working, Done, Error, Blocked],
                 vec![
@@ -485,72 +514,147 @@ fn folded_workspace_status_line_orders_agent_states_by_urgency_and_bounds_the_re
                     State::Working,
                     State::Idle,
                 ],
-                "",
             ),
             (
-                vec![Idle, Working, Done, Error, Blocked, Unknown, Working],
-                vec![State::Blocked, State::Error, State::Done, State::Working],
-                "+3",
+                [
+                    vec![Idle; 4],
+                    vec![Unknown; 2],
+                    vec![Working; 4],
+                    vec![Done; 3],
+                    vec![Error; 3],
+                    vec![Blocked; 4],
+                ]
+                .concat(),
+                [
+                    vec![State::Blocked; 4],
+                    vec![State::Error; 3],
+                    vec![State::Done; 3],
+                    vec![State::Working; 4],
+                    vec![State::Idle; 4],
+                    vec![State::Unknown; 2],
+                ]
+                .concat(),
             ),
-        ] {
-            let mut view = view(120, 40);
-            configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
-            let workspace = view.machines.space_rows()[0].sidebar_target().unwrap();
-            let SidebarTarget::Context { target, .. } = &workspace else {
-                unreachable!()
-            };
-            let agents = states
-                .iter()
-                .zip(30..)
-                .map(|(state, number)| {
-                    let mut agent = agent_for(target.clone(), number);
-                    agent.state = *state;
-                    agent
-                })
-                .collect();
-            view.machines.observe_agents(vec![(
-                Choice::Local,
-                crate::machine_agents::Observation::Ready(
-                    crate::machine_agents::test_support::checkpoint(agents),
-                ),
-            )]);
-            if view.machines.sidebar_context_agents_expanded(&workspace) {
-                assert!(view.machines.toggle_sidebar_context_agents(&workspace));
-            }
-            let (buffer, _, hits) = paint_navigation_buffers(&view, Locale::EnUs, &theme, 40, 20);
-            let rows = sidebar_target_rows(&hits, 40, 20, &workspace);
-            assert_eq!(rows.len(), 2, "folding adds one status line under the name");
-            let tracks = layout::Tracks::resolve(
-                Rect::new(0, rows[0], 40, 2),
-                0,
-                auxiliary_actions(&view.machines.sidebar_source(), &workspace),
-                layout::RowKind::for_target(&workspace),
-            )
-            .unwrap();
-            let y = rows[1];
-            let mut x = tracks.primary.x;
-            for state in &expected {
-                assert_eq!(
-                    buffer[(x, y)].symbol(),
-                    theme.agent_glyph(*state),
-                    "{state:?}"
-                );
-                assert_eq!(buffer[(x + 1, y)].symbol(), " ");
-                x += 2;
-            }
-            let rest: String = (x..40).map(|x| buffer[(x, y)].symbol()).collect();
-            assert_eq!(rest.trim_end(), remainder);
-            if !remainder.is_empty() {
-                assert_eq!(
-                    buffer[(x, y)].fg,
-                    theme
-                        .style(Role::TextSecondary)
-                        .fg
-                        .unwrap_or(ratatui::style::Color::Reset)
-                );
+        ];
+        for (states, expected) in cases {
+            let (view, workspace) = folded_workspace_with_agents(&states);
+            let total = expected.len();
+            for width in 24..=40 {
+                let (buffer, _, hits) =
+                    paint_navigation_buffers(&view, Locale::EnUs, &theme, width, 20);
+                let rows = sidebar_target_rows(&hits, width, 20, &workspace);
+                assert_eq!(rows.len(), 2, "folding adds one status line under the name");
+                let tracks = layout::Tracks::resolve(
+                    Rect::new(0, rows[0], width, 2),
+                    0,
+                    auxiliary_actions(&view.machines.sidebar_source(), &workspace),
+                    layout::RowKind::for_target(&workspace),
+                )
+                .unwrap();
+                let (x, y) = (tracks.primary.x, rows[1]);
+                let cells = usize::from(tracks.primary.width);
+                let symbol = |offset: usize| {
+                    buffer[(x + u16::try_from(offset).unwrap(), y)]
+                        .symbol()
+                        .to_owned()
+                };
+                // The glyphs show the most urgent states in order, one blank cell apart.
+                let mut shown = 0;
+                while shown < total && symbol(2 * shown) == theme.agent_glyph(expected[shown]) {
+                    assert_eq!(symbol(2 * shown + 1), " ", "{width}");
+                    shown += 1;
+                }
+                let hidden = total - shown;
+                let rest: String = (2 * shown..cells).map(&symbol).collect();
+                let remainder = format!("+{hidden}");
+                if hidden == 0 {
+                    // Every state shows once the glyphs fit: one cell each, one blank cell between.
+                    assert!(2 * total - 1 <= cells, "{width}: {total} states fit");
+                    assert!(rest.trim_end().is_empty(), "{width}: {rest:?}");
+                } else if 2 * shown + remainder.len() <= cells {
+                    // The remainder follows the glyphs after one blank cell and counts the rest.
+                    assert_eq!(rest.trim_end(), remainder, "{width}");
+                    assert_eq!(
+                        buffer[(x + u16::try_from(2 * shown).unwrap(), y)].fg,
+                        theme
+                            .style(Role::TextSecondary)
+                            .fg
+                            .unwrap_or(ratatui::style::Color::Reset)
+                    );
+                    // One more glyph would not fit beside its remainder, or would complete the run.
+                    let next = shown + 1;
+                    let beside = if next == total {
+                        2 * total - 1
+                    } else {
+                        2 * next + format!("+{}", total - next).len()
+                    };
+                    assert!(
+                        beside > cells,
+                        "{width}: {shown} glyphs are not the most that fit"
+                    );
+                } else {
+                    // Not even the remainder fits, so the line shows nothing.
+                    assert_eq!(shown, 0, "{width}");
+                    assert!(rest.trim_end().is_empty(), "{width}: {rest:?}");
+                }
             }
         }
     }
+}
+
+#[test]
+fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_hides() {
+    use MetadataState as State;
+    use PanelAgentState::*;
+    let theme = Theme::rgb_test_dark();
+    let states = [
+        vec![Idle; 4],
+        vec![Unknown; 2],
+        vec![Working; 4],
+        vec![Done; 3],
+        vec![Error; 3],
+        vec![Blocked; 4],
+    ]
+    .concat();
+    let (view, _) = folded_workspace_with_agents(&states);
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            render_terminal_shell(frame, &view, Locale::EnUs, None, &theme, &mut hits);
+        })
+        .unwrap();
+    // Only the remainder offers a roster, so every cell that offers one is the remainder's.
+    let rosters: Vec<_> = (0..120u16)
+        .flat_map(|x| (0..40u16).map(move |y| (x, y)))
+        .filter_map(|(x, y)| match hits.tooltip_content_at(x, y) {
+            Some(TooltipContent::Roster { items }) => Some(items.clone()),
+            _ => None,
+        })
+        .collect();
+    let (first, others) = rosters
+        .split_first()
+        .expect("the remainder offers the Agents it hides");
+    assert!(others.iter().all(|items| items == first));
+    // The roster lists the hidden Agents, most urgent first: the tail of the urgency order.
+    let hidden = first.len();
+    assert!(0 < hidden && hidden < states.len(), "{hidden}");
+    let sorted = [
+        vec![State::Blocked; 4],
+        vec![State::Error; 3],
+        vec![State::Done; 3],
+        vec![State::Working; 4],
+        vec![State::Idle; 4],
+        vec![State::Unknown; 2],
+    ]
+    .concat();
+    let glyphs: Vec<&str> = first.iter().map(|item| item.glyph.as_str()).collect();
+    let tail: Vec<&str> = sorted[states.len() - hidden..]
+        .iter()
+        .map(|state| theme.agent_glyph(*state))
+        .collect();
+    assert_eq!(glyphs, tail);
+    assert!(first.iter().all(|item| !item.label.is_empty()));
 }
 
 #[test]
