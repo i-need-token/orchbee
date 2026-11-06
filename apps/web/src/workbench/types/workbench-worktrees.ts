@@ -50,6 +50,7 @@ export type WorkbenchWorktreeDiscoveryResult =
  * `listing-unavailable` stop a creation from the focused Panel, which reads Git first.
  */
 export type WorkbenchWorktreeFailureCause =
+	| 'launch-request-too-large'
 	| 'checkout-in-use'
 	| 'checkout-not-found'
 	| 'close-incomplete'

@@ -38,6 +38,12 @@ impl super::CliText {
             (Locale::ZhCn, _) => "不可用",
         };
         let mut text = format!("{label}\n");
+        if status["reason"]["kind"] == "launch-request-too-large"
+            || status["progress"]["restoration"]["failure"]["kind"] == "launch-request-too-large"
+        {
+            text.push_str(self.locale.launch_request_too_large());
+            text.push('\n');
+        }
         let fields = [
             ("Operation", "操作", Some(id)),
             ("Phase", "阶段", status["phase"].as_str()),

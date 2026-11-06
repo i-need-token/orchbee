@@ -30,6 +30,14 @@ impl WorkbenchClientView<'_> {
     pub(crate) fn status(&self, locale: Locale, columns: u16) -> NativeStatus {
         let view = self;
         if let Some(notice) = view.worktree_stated_notice() {
+            if notice == crate::localization::WorktreeNotice::Failed
+                && matches!(
+                    view.worktree_failure(),
+                    Some(orchbee_workbench_protocol::WorktreeOperationFailure::LaunchRequestTooLarge {})
+                )
+            {
+                return NativeStatus::fact(locale.launch_request_too_large().to_owned());
+            }
             return NativeStatus::fact(
                 locale.worktree_status_line(notice, view.worktree().map(|v| v.stage())),
             );

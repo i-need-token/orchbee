@@ -723,6 +723,7 @@ impl<'a> WorkbenchClientView<'a> {
             }
             ClientNotice::CreateNotCreated => WorkbenchClientNotice::CreateNotCreated,
             ClientNotice::CreateOrderConflict => WorkbenchClientNotice::CreateOrderConflict,
+            ClientNotice::LaunchRequestTooLarge => WorkbenchClientNotice::LaunchRequestTooLarge,
             ClientNotice::DuplicatePending => WorkbenchClientNotice::DuplicatePending,
             ClientNotice::DuplicateNotStarted => WorkbenchClientNotice::DuplicateNotStarted,
             ClientNotice::DuplicateOutcomeUnknown => WorkbenchClientNotice::DuplicateOutcomeUnknown,
@@ -1721,7 +1722,9 @@ impl WorkbenchClientUi {
         let Some(state) = self.state.as_ref() else {
             return match self.retirement {
                 Some(DisplayRetirement::OutcomeUnknown) => TerminalStatus::OutcomeUnknown,
-                Some(DisplayRetirement::Unavailable) => TerminalStatus::Unavailable,
+                Some(DisplayRetirement::Unavailable | DisplayRetirement::LaunchRequestTooLarge) => {
+                    TerminalStatus::Unavailable
+                }
                 None => TerminalStatus::Connecting,
             };
         };
@@ -1743,7 +1746,8 @@ impl WorkbenchClientUi {
             ) => TerminalStatus::ReadOnly,
             (ClientPhaseKind::Retired, _) => match self.retirement {
                 Some(DisplayRetirement::OutcomeUnknown) => TerminalStatus::OutcomeUnknown,
-                Some(DisplayRetirement::Unavailable) | None => TerminalStatus::Unavailable,
+                Some(DisplayRetirement::Unavailable | DisplayRetirement::LaunchRequestTooLarge)
+                | None => TerminalStatus::Unavailable,
             },
             (
                 ClientPhaseKind::SelectedWithoutAttachment
@@ -1895,10 +1899,10 @@ impl WorkbenchClientUi {
         }
         self.clear_projections();
         self.retirement_finalized = true;
-        self.retirement = Some(if failure == CarrierFailure::OutcomeUnknown {
-            DisplayRetirement::OutcomeUnknown
-        } else {
-            DisplayRetirement::Unavailable
+        self.retirement = Some(match failure {
+            CarrierFailure::OutcomeUnknown => DisplayRetirement::OutcomeUnknown,
+            CarrierFailure::LaunchRequestTooLarge => DisplayRetirement::LaunchRequestTooLarge,
+            _ => DisplayRetirement::Unavailable,
         });
         accepted
     }
@@ -4928,6 +4932,10 @@ impl WorkbenchClientUi {
 
 const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNotice {
     match outcome {
+        CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected {
+            reason: orchbee_workbench_protocol::WorkbenchRejectionReason::LaunchRequestTooLarge,
+            ..
+        }) => ClientNotice::LaunchRequestTooLarge,
         CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected {
             reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
             ..

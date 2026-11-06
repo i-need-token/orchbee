@@ -817,6 +817,7 @@ fn tab_create_rejection_is_compatible(
             | WorkbenchRejectionReason::IdentityExhausted
             | WorkbenchRejectionReason::RevisionExhausted
             | WorkbenchRejectionReason::RequestIdentityConflict
+            | WorkbenchRejectionReason::LaunchRequestTooLarge
     )
 }
 

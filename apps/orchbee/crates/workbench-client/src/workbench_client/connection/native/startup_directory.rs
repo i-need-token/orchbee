@@ -73,6 +73,16 @@ impl ClientExecutor {
         directory.retain(Progress::WorkspaceUnknown(workspace_request))?;
         let commit = match self.client.submit_workspace_launch(request, deadline) {
             WorkspaceLaunchSubmission::Committed(commit) => Arc::new(commit),
+            WorkspaceLaunchSubmission::DefinitePrecommit(
+                crate::local_client::workbench::WorkbenchTabCreatePrecommit::Rejected {
+                    reason:
+                        orchbee_workbench_protocol::WorkbenchRejectionReason::LaunchRequestTooLarge,
+                    ..
+                },
+            ) => {
+                directory.retain(Progress::Initial)?;
+                return Err(CarrierFailure::LaunchRequestTooLarge);
+            }
             WorkspaceLaunchSubmission::DefinitelyNotSubmitted(_)
             | WorkspaceLaunchSubmission::DefinitePrecommit(_) => {
                 directory.retain(Progress::Initial)?;

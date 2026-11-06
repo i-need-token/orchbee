@@ -503,6 +503,7 @@
 				"same-tab",
 				"resource-limit",
 				"identity-exhausted",
+				"launch-request-too-large",
 				"revision-exhausted",
 				"request-identity-conflict"
 			]

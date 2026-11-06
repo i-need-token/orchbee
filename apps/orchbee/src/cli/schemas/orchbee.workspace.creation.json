@@ -386,6 +386,7 @@
 						"rejectionReason": {
 							"enum": [
 								"identity-exhausted",
+								"launch-request-too-large",
 								"panel-unavailable",
 								"project-unavailable",
 								"request-identity-conflict",

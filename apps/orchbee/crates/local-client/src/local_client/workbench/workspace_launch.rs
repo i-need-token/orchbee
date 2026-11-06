@@ -220,6 +220,7 @@ fn classify_outcome(
                     | WorkbenchRejectionReason::IdentityExhausted
                     | WorkbenchRejectionReason::RevisionExhausted
                     | WorkbenchRejectionReason::RequestIdentityConflict
+                    | WorkbenchRejectionReason::LaunchRequestTooLarge
             ) =>
         {
             return Ok(WorkspaceLaunchSubmission::DefinitePrecommit(

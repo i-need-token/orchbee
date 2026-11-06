@@ -29,6 +29,7 @@ pub(crate) enum FieldError {
 /// Observed setup outcome, including facts retained after loss of publication.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SetupStatus {
+    LaunchRequestTooLarge,
     PresentationUnavailable,
     WorkspaceOrganized,
     ProjectDissolved,
@@ -267,6 +268,7 @@ impl Locale {
 
     pub(crate) const fn setup_status(self, status: SetupStatus) -> &'static str {
         match (self, status) {
+            (_, SetupStatus::LaunchRequestTooLarge) => self.launch_request_too_large(),
             (Self::EnUs, SetupStatus::PresentationUnavailable) => {
                 "Cannot open here: enlarge the terminal."
             }

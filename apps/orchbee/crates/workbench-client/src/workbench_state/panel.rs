@@ -425,6 +425,7 @@ impl PreparedPanel {
 
 enum PreparedPanelResult {
     NotApplied,
+    LaunchRequestTooLarge,
     /// The Server asks before this conditional close: the armed confirmation presents.
     ConfirmationRequired,
     Unchanged,
@@ -563,6 +564,10 @@ impl WorkbenchClientState {
         result: PanelResult,
     ) -> PreparedPanel {
         let result = match result {
+            PanelResult::Precommit(PanelPrecommit::Rejected {
+                reason: WorkbenchRejectionReason::LaunchRequestTooLarge,
+                ..
+            }) => PreparedPanelResult::LaunchRequestTooLarge,
             PanelResult::Precommit(PanelPrecommit::Rejected {
                 reason: WorkbenchRejectionReason::ConfirmationRequired,
                 ..
@@ -705,6 +710,9 @@ impl WorkbenchClientState {
         }
         match prepared.result {
             PreparedPanelResult::NotApplied => self.notice = Some(ClientNotice::PanelNotApplied),
+            PreparedPanelResult::LaunchRequestTooLarge => {
+                self.notice = Some(ClientNotice::LaunchRequestTooLarge)
+            }
             PreparedPanelResult::Unchanged | PreparedPanelResult::ConfirmationRequired => {
                 self.notice = None;
             }

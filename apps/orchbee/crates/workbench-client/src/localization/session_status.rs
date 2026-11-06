@@ -10,6 +10,14 @@ pub(crate) use parameters::{
 pub use parameters::{DisplayPhase, TerminalStatus};
 
 impl Locale {
+    pub const fn launch_request_too_large(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "Launch request too large. Shorten the custom program's arguments or environment variables before trying again."
+            }
+            Self::ZhCn => "启动请求过大。请缩短自定义程序的参数或环境变量后再试。",
+        }
+    }
     pub(crate) const fn terminal_status(
         self,
         status: crate::localization::TerminalStatus,
@@ -97,6 +105,7 @@ impl Locale {
 
         if let Some(retirement) = retirement {
             return match retirement {
+                Retirement::LaunchRequestTooLarge => self.launch_request_too_large().to_owned(),
                 Retirement::OutcomeUnknown => self
                     .terminal_status(crate::localization::TerminalStatus::OutcomeUnknown)
                     .to_owned(),
@@ -225,6 +234,7 @@ impl Locale {
             },
             WorkbenchClientNotice::NoTabAtPosition(position) => self.native_no_tab(position),
             WorkbenchClientNotice::CreateNotCreated => self.native_create_not_created().to_owned(),
+            WorkbenchClientNotice::LaunchRequestTooLarge => self.launch_request_too_large().to_owned(),
             WorkbenchClientNotice::CreateOrderConflict => match self {
                 Self::EnUs => "Cannot create an unpinned tab inside the pinned tabs".to_owned(),
                 Self::ZhCn => "无法在固定标签页之间创建未固定的标签页".to_owned(),

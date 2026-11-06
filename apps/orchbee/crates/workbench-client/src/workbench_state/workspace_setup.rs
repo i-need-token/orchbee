@@ -120,6 +120,7 @@ pub(crate) enum SetupWorkerEvidence {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SetupResult {
     NotApplied,
+    LaunchRequestTooLarge,
     /// A definite refusal proving this session's baseline is behind the Server.
     Stale,
     ConfirmationRequired,
@@ -542,6 +543,9 @@ impl WorkbenchClientState {
                 Some(operation.status(LocationLabelStatus::Stale, SetupStatus::Stale));
         }
         true
+    }
+    pub(crate) fn setup_launch_too_large(&mut self) {
+        self.setup.status = Some(SetupStatus::LaunchRequestTooLarge);
     }
     pub(super) fn setup_target_matches(&self, target: &ClientContextLocation) -> bool {
         self.setup

@@ -242,6 +242,8 @@ function failureCause(reason: WorktreeOperationFailure): WorkbenchWorktreeFailur
 		}
 	}
 	switch (reason.kind) {
+		case 'launch-request-too-large':
+			return reason.kind;
 		case 'checkout-in-use':
 		case 'close-incomplete':
 		case 'session-stopping':
@@ -341,7 +343,11 @@ export function createServerWorktrees(session: WorktreeSession): WorkbenchWorktr
 				) {
 					return { kind: 'unknown', operationId: operation.operationId };
 				}
-				const cause = failureCause(status.reason);
+				const cause = failureCause(
+					status.progress.restoration?.failure?.kind === 'launch-request-too-large'
+						? status.progress.restoration.failure
+						: status.reason,
+				);
 				if (
 					expectation.kind !== 'removed' ||
 					!status.resumable ||

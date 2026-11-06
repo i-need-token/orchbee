@@ -477,12 +477,17 @@ impl WorkbenchClientUi {
                 changed
             }
             result @ (SetupResult::NotApplied
+            | SetupResult::LaunchRequestTooLarge
             | SetupResult::Stale
             | SetupResult::ConfirmationRequired) => {
                 let stale = matches!(result, SetupResult::Stale);
+                let too_large = matches!(result, SetupResult::LaunchRequestTooLarge);
                 let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
                     if !state.settle_setup_refusal(&operation, stale) {
                         return Err(CarrierFailure::Protocol);
+                    }
+                    if too_large {
+                        state.setup_launch_too_large();
                     }
                     let prepared = crate::workbench_state::PreparedRefresh::DefiniteFailure {
                         generation: operation.generation,

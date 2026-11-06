@@ -158,6 +158,11 @@ impl<'a> WorkbenchClientView<'a> {
         let launcher = self.worktree?;
         self.worktree_notice().and(launcher.stated_notice())
     }
+    pub(crate) fn worktree_failure(
+        &self,
+    ) -> Option<&'a orchbee_workbench_protocol::WorktreeOperationFailure> {
+        self.worktree?.failure()
+    }
 }
 impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn configure_worktrees_directory(

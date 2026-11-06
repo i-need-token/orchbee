@@ -282,6 +282,9 @@ impl super::CliText {
                     .filter(|reason| !reason.is_empty());
                 // A refusal without a stable reason omits the parenthetical instead of printing `()`.
                 match (self.locale, reason) {
+                    (_, Some("launch-request-too-large")) => {
+                        format!("{}\n", self.locale.launch_request_too_large())
+                    }
                     (Locale::EnUs, Some(reason)) => {
                         format!("The local session rejected the command ({reason}); nothing was applied.\n")
                     }

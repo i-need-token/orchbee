@@ -1,6 +1,7 @@
 import type { WorkbenchMessageId } from '../en-US';
 
 export const zhCNWorkbenchMessages = {
+	'workbench.launch.requestTooLarge': '启动请求过大。请缩短自定义程序的参数或环境变量后再试。',
 	'workbench.workspaces.moveToProject': '移动到项目',
 	'workbench.workspaces.createProject': '新建项目并移入',
 	'workbench.workspaces.ungroup': '移出项目',

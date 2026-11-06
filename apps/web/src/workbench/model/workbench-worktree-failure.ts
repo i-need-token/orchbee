@@ -10,6 +10,7 @@ type WorktreeFailureDescriptor = (typeof workbenchMessages)[keyof typeof workben
 const WORKTREE_FAILURE_DESCRIPTORS: Readonly<
 	Record<WorkbenchWorktreeFailureCause, WorktreeFailureDescriptor>
 > = {
+	'launch-request-too-large': workbenchMessages.launchRequestTooLarge,
 	'checkout-in-use': workbenchMessages.worktreeFailureCheckoutInUse,
 	'checkout-not-found': workbenchMessages.worktreeFailureCheckoutNotFound,
 	'close-incomplete': workbenchMessages.worktreeFailureCloseIncomplete,
@@ -32,6 +33,7 @@ const WORKTREE_FAILURE_DESCRIPTORS: Readonly<
 
 /** Causes whose words fit any Worktree command; the rest describe only a removal. */
 const WORKTREE_COMMAND_FAILURES: ReadonlySet<WorkbenchWorktreeFailureCause> = new Set([
+	'launch-request-too-large',
 	'checkout-not-found',
 	'configuration-unavailable',
 	'denied',

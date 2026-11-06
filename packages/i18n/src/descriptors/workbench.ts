@@ -3,6 +3,12 @@ import { defineMessages } from 'react-intl';
 import { enUSWorkbenchMessages } from '../locales';
 
 export const workbenchMessages = defineMessages({
+	launchRequestTooLarge: {
+		description:
+			'A deterministic launch frame overflow; edit arguments or environment before retrying.',
+		id: 'workbench.launch.requestTooLarge',
+		defaultMessage: enUSWorkbenchMessages['workbench.launch.requestTooLarge'],
+	},
 	workspaceMoveToProject: {
 		description: 'Workspace grouping submenu.',
 		id: 'workbench.workspaces.moveToProject',

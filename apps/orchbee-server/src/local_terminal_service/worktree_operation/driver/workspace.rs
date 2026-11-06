@@ -209,6 +209,16 @@ impl Driver<'_> {
                 },
             };
             let prepared = coordinator.prepare_workspace_launch(command, inputs);
+            if matches!(
+                &prepared,
+                crate::session_coordinator::PreparedTerminalTabCreate::Ready(result)
+                    if matches!(result.outcome, WorkbenchCommandOutcome::Rejected {
+                        reason: orchbee_workbench_protocol::WorkbenchRejectionReason::LaunchRequestTooLarge,
+                        ..
+                    })
+            ) {
+                return Err(Failure::LaunchRequestTooLarge {});
+            }
             let authority = coordinator
                 .worktree_authority()
                 .ok_or(Failure::Internal {})?;

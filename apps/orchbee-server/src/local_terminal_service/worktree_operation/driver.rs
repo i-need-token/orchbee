@@ -40,10 +40,12 @@ pub(super) fn run(
                 .progress
                 .restoration
                 .as_ref()
-                .is_none_or(|receipt| receipt.unknown == 0)
+                .is_none_or(|receipt| receipt.unknown == 0
+                    && !matches!(receipt.failure, Some(Failure::LaunchRequestTooLarge {})))
                 && !matches!(
                     reason,
                     Failure::TransportUnknown {}
+                        | Failure::LaunchRequestTooLarge {}
                         | Failure::PhysicalUnknown {}
                         | Failure::SessionStopping {}
                         | Failure::Internal {}

@@ -603,6 +603,16 @@
 					},
 					"required": ["kind"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "launch-request-too-large"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
 				}
 			]
 		},

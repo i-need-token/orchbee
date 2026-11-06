@@ -1,4 +1,6 @@
 export const enUSWorkbenchMessages = {
+	'workbench.launch.requestTooLarge':
+		"Launch request too large. Shorten the custom program's arguments or environment variables before trying again.",
 	'workbench.workspaces.moveToProject': 'Move to Project',
 	'workbench.workspaces.createProject': 'New Project and Move',
 	'workbench.workspaces.ungroup': 'Remove from Project',

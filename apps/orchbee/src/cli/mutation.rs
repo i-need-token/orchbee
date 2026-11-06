@@ -2552,6 +2552,7 @@ mod workflow {
             WorkbenchRejectionReason::RevisionExhausted => "revision-exhausted",
             WorkbenchRejectionReason::RequestIdentityConflict => "request-identity-conflict",
             WorkbenchRejectionReason::ConfirmationRequired => "confirmation-required",
+            WorkbenchRejectionReason::LaunchRequestTooLarge => "launch-request-too-large",
         }
     }
 

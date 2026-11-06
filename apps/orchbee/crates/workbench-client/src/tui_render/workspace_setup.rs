@@ -156,6 +156,7 @@ pub(super) fn render(
 fn status_row(status: Option<SetupStatus>, locale: Locale) -> Option<DialogRow<'static>> {
     let role = match status? {
         SetupStatus::NotApplied
+        | SetupStatus::LaunchRequestTooLarge
         | SetupStatus::LocationLabel {
             status: LocationLabelStatus::NotApplied,
             ..

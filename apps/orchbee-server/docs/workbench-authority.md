@@ -424,6 +424,11 @@ The direct terminal-create protocol uses the same rejected reason. Plugin enviro
 preferences count toward that unchanged frame budget. No terminal reservation, Workbench revision,
 identity allocation or Worker dispatch occurs. Shorten the custom program's arguments or environment
 before submitting again. Worktree restore reports the same named failure without making it resumable.
+Worktree creation/opening preserves this failure before association. A failed removal keeps its
+original Git failure and records the oversized launch in its separate shell-restoration receipt;
+neither path offers Resume for that deterministic launch refusal. Clients localize the restoration
+cause as well as the main failure, and the CLI's embedded command, operation and event schemas mirror
+the extended reason vocabulary.
 Other encoding failures retain their existing invariant-failure classification and planning is unchanged.
 
 This extends the closed OBCS/OBWP v1 reason sets. Deploy the matching Server, native and GUI Clients

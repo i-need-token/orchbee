@@ -96,6 +96,7 @@ impl LocalClient {
                             | WorkbenchRejectionReason::SplitUnavailable
                             | WorkbenchRejectionReason::RequestIdentityConflict
                             | WorkbenchRejectionReason::ConfirmationRequired
+                            | WorkbenchRejectionReason::LaunchRequestTooLarge
                             | WorkbenchRejectionReason::SameTab => Reason::TargetUnavailable,
                         };
                         return Err(before(reason));

@@ -94,10 +94,14 @@ impl UiDriver {
                         self.state().prepare_refresh(operation.generation, *outcome)
                     }
                     result @ (SetupResult::NotApplied
+                    | SetupResult::LaunchRequestTooLarge
                     | SetupResult::Stale
                     | SetupResult::ConfirmationRequired) => {
                         let stale = matches!(result, SetupResult::Stale);
                         assert!(self.state_mut().settle_setup_refusal(&operation, stale));
+                        if matches!(result, SetupResult::LaunchRequestTooLarge) {
+                            self.state_mut().setup_launch_too_large();
+                        }
                         PreparedRefresh::DefiniteFailure {
                             generation: operation.generation,
                             baseline_revision: self.state().cache().revision(),

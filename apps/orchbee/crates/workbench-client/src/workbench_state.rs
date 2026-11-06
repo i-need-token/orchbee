@@ -670,6 +670,7 @@ pub(crate) enum ClientNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     CreateOrderConflict,
+    LaunchRequestTooLarge,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
@@ -1149,6 +1150,7 @@ enum ClientPhase {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CarrierFailure {
+    LaunchRequestTooLarge,
     AuthorityDivergence,
     Deadline,
     IdentityExhausted,

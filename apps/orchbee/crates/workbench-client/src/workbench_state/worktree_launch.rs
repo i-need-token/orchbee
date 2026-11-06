@@ -758,6 +758,17 @@ impl Launcher {
     pub(crate) fn view(&self) -> Option<WorktreeView<'_>> {
         self.visible.then_some(WorktreeView { launcher: self })
     }
+    pub(crate) fn failure(&self) -> Option<&orchbee_workbench_protocol::WorktreeOperationFailure> {
+        if let Some(WorkbenchWorktreeOutcome::Available { status, .. }) =
+            self.operation().and_then(|operation| operation.outcome.as_ref())
+            && let WorktreeOperationStatus::Failed { progress, .. } = status.as_ref()
+            && let Some(reason @ orchbee_workbench_protocol::WorktreeOperationFailure::LaunchRequestTooLarge {}) =
+                progress.restoration.as_ref().and_then(|receipt| receipt.failure.as_ref())
+        {
+            return Some(reason);
+        }
+        WorktreeView { launcher: self }.removal_failure()
+    }
 }
 impl Discovery {
     fn matches_source(&self, origin: &Origin, source: &WorktreeSource) -> bool {

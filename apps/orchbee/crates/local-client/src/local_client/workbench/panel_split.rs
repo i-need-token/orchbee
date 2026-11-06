@@ -493,6 +493,7 @@ fn panel_split_rejection_is_compatible(reason: WorkbenchRejectionReason) -> bool
             | WorkbenchRejectionReason::IdentityExhausted
             | WorkbenchRejectionReason::RevisionExhausted
             | WorkbenchRejectionReason::RequestIdentityConflict
+            | WorkbenchRejectionReason::LaunchRequestTooLarge
     )
 }
 

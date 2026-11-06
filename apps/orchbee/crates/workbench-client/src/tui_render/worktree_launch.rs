@@ -282,6 +282,9 @@ fn render_task(
     }
     if let Some(notice) = view.stated_notice().filter(|_| !decision) {
         let text = match view.removal_failure() {
+            Some(
+                orchbee_workbench_protocol::WorktreeOperationFailure::LaunchRequestTooLarge {},
+            ) if notice == WorktreeNotice::Failed => locale.launch_request_too_large(),
             Some(reason) if removal.is_some() && notice == WorktreeNotice::Failed => {
                 locale.worktree_remove_failure(reason)
             }

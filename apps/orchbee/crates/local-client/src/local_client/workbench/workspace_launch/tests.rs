@@ -36,6 +36,22 @@ fn workspace_launch_only_accepts_correlated_unique_committed_resources() {
     let action = action();
     let revision = WorkbenchRevision::new(1);
     assert!(matches!(
+        classify_outcome(
+            &action,
+            revision,
+            WorkbenchCommandOutcome::Rejected {
+                revision,
+                reason: WorkbenchRejectionReason::LaunchRequestTooLarge,
+            },
+        ),
+        Ok(WorkspaceLaunchSubmission::DefinitePrecommit(
+            Precommit::Rejected {
+                reason: WorkbenchRejectionReason::LaunchRequestTooLarge,
+                ..
+            }
+        ))
+    ));
+    assert!(matches!(
         classify_outcome(&action, revision, outcome()),
         Ok(WorkspaceLaunchSubmission::Committed(_))
     ));

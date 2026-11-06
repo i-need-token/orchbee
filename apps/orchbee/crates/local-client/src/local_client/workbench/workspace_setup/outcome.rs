@@ -349,7 +349,8 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         | WorkbenchRejectionReason::TabGroupUnavailable => {
             matches!(action, WorkbenchAction::TabsConfigure { .. })
         }
-        WorkbenchRejectionReason::SplitUnavailable => false,
+        WorkbenchRejectionReason::SplitUnavailable
+        | WorkbenchRejectionReason::LaunchRequestTooLarge => false,
     }
 }
 

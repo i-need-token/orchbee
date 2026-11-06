@@ -75,6 +75,11 @@ impl ClientExecutor {
                         || revision != &operation.command.expected_revision)
                 {
                     SetupResult::Stale
+                } else if matches!(&reason, WorkbenchSetupPrecommit::Rejected {
+                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::LaunchRequestTooLarge,
+                    ..
+                }) {
+                    SetupResult::LaunchRequestTooLarge
                 } else {
                     SetupResult::NotApplied
                 }

@@ -54,6 +54,7 @@ impl Locale {
     pub(crate) fn worktree_remove_failure(self, reason: &WorktreeOperationFailure) -> &'static str {
         use WorktreeOperationFailure as F;
         match (self, reason) {
+            (_, F::LaunchRequestTooLarge {}) => self.launch_request_too_large(),
             (
                 Self::EnUs,
                 F::Git {
@@ -239,13 +240,21 @@ impl Locale {
             unknown,
             ..
         } = receipt;
-        match self {
+        let mut text = match self {
             Self::EnUs => format!(
                 "Shell recovery: {started}/{total} started, {failed} failed, {unknown} unknown."
             ),
             Self::ZhCn => {
                 format!("Shell 恢复：已启动 {started}/{total}，失败 {failed}，未知 {unknown}。")
             }
+        };
+        if matches!(
+            receipt.failure,
+            Some(WorktreeOperationFailure::LaunchRequestTooLarge {})
+        ) {
+            text.push(' ');
+            text.push_str(self.launch_request_too_large());
         }
+        text
     }
 }

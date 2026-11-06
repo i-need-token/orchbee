@@ -368,6 +368,9 @@ function failureNotice(
 	notApplied: WorkbenchAuthorityNotice['descriptor'],
 	stale: WorkbenchAuthorityNotice['descriptor'],
 ): WorkbenchAuthorityNotice | null {
+	if (result.kind === 'blocked' && result.code === 'launch-request-too-large') {
+		return { descriptor: workbenchMessages.launchRequestTooLarge, lifetime: 'until-press' };
+	}
 	switch (result.kind) {
 		case 'blocked':
 			return {

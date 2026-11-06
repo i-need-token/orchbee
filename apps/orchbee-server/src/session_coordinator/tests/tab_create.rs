@@ -722,16 +722,14 @@ fn oversized_launch_capture_is_a_definite_non_retryable_rejection_without_a_comm
     ))
     .unwrap();
     // Both components are valid, but plugin metadata and captured preferences exceed one frame.
-    let refusal = coordinator
-        .terminals
-        .plan_create(
-            request,
-            Some(worker(1)),
-            Some(expiry()),
-            &LaunchCapture::new(preferences.clone(), preferences),
-        )
-        .err()
-        .expect("the combined launch must exceed the frame");
+    let Err(refusal) = coordinator.terminals.plan_create(
+        request,
+        Some(worker(1)),
+        Some(expiry()),
+        &LaunchCapture::new(preferences.clone(), preferences),
+    ) else {
+        panic!("the combined launch must exceed the frame");
+    };
     let authority = coordinator.workbench.as_mut().unwrap();
     let grant =
         WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());

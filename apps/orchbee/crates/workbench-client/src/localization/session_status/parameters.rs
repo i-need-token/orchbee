@@ -47,6 +47,7 @@ pub(crate) enum WorkbenchClientNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     CreateOrderConflict,
+    LaunchRequestTooLarge,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
@@ -125,6 +126,7 @@ pub(crate) enum ClientProjectionStatus {
 /// Why display freshness was retired; unknown never authorizes replay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DisplayRetirement {
+    LaunchRequestTooLarge,
     Unavailable,
     OutcomeUnknown,
 }
