@@ -43,7 +43,7 @@ pub(super) fn render_controls(
     frame
         .buffer_mut()
         .set_style(bar, theme.style(Role::SurfaceChrome));
-    let area = super::controls::mode_bar_row(bar);
+    let area = crate::tui_layout::strip_row(bar);
 
     let Some(close_area) = super::controls::close_rect(frame.area(), area) else {
         return;

@@ -134,7 +134,18 @@ impl TabDrag {
             return None;
         }
         let area = *self.pressed.first()?;
-        crate::tui_hit_map::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
+        // The Tab list's rows sit on the overlay layer the list paints them on.
+        let layer = if self.vertical {
+            crate::tui_hit_map::HitLayer::Overlay
+        } else {
+            crate::tui_hit_map::HitLayer::Foreground
+        };
+        crate::tui_hit_map::chrome::Fingerprint::tab_on(
+            layer,
+            &self.source.drawn,
+            &self.target,
+            area,
+        )
     }
 
     fn over_pressed_target(&self, column: u16, row: u16) -> bool {

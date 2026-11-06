@@ -96,7 +96,7 @@ pub(super) fn render(
     }
     let viewport = frame.area();
     let bar = super::controls::mode_bar(viewport, view.sidebar_surface());
-    let area = super::controls::mode_bar_row(bar);
+    let area = crate::tui_layout::strip_row(bar);
     let Some(geometry) = resolve_geometry(
         viewport,
         area,

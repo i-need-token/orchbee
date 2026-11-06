@@ -573,6 +573,13 @@ impl ClientView {
         self.overlay == Some(Overlay::WorkbenchNavigator)
     }
 
+    /// Whether a view surface owns the keyboard without a capture: the navigator, sidebar
+    /// navigation or the Tab list. Bracketed paste stays on while one does, so a paste reaches it
+    /// as paste rather than as keys.
+    pub(crate) fn surface_owns_input(&self) -> bool {
+        self.navigator_active() || self.machines.sidebar_navigation_active() || self.tab_list_open()
+    }
+
     pub(crate) fn close_navigator(&mut self, notice: Option<Notice>) {
         if self.navigator_active() {
             self.replace_overlay(None);

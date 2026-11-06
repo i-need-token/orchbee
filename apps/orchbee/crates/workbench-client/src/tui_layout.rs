@@ -167,18 +167,15 @@ pub struct ShellAreas {
     pub(crate) workbench: Rect,
 }
 
-impl ShellAreas {
-    /// The top strip's content row: the middle line of the touch-spaced Mobile bar, else its only
-    /// row. Empty without a strip.
-    pub(crate) fn tab_row(&self) -> Rect {
-        let tabs = self.tabs;
-        Rect::new(
-            tabs.x,
-            tabs.y + tabs.height / 2,
-            tabs.width,
-            tabs.height.min(1),
-        )
-    }
+/// The content row of a top strip, or of the mode bar replacing it: the middle line of the
+/// touch-spaced Mobile bar, else its only row. Empty for an empty strip.
+pub(crate) fn strip_row(strip: Rect) -> Rect {
+    Rect::new(
+        strip.x,
+        strip.y + strip.height / 2,
+        strip.width,
+        strip.height.min(1),
+    )
 }
 
 /// Authored guidance yields rows occupied by a global chrome action without

@@ -775,7 +775,8 @@ At 24 rows or more, with column R the window's last and line B its last:
 - Pinned Tabs come first; the strip's rule falls on the touch line above the first unpinned row.
 - A Tab Group shows as its name in its color, bold, with ` ▸` after a collapsed name; its member
   Tabs are indented by two cells. A collapsed group's row carries its hidden members' state glyph
-  and dot, as its strip header does.
+  and dot, as its strip header does, and takes the current fill while it hides the current Tab,
+  which then shows no row and no `[ x ]`, as on the strip.
 - Row content follows the strip token: state glyph, name cut with `…`, unread dot. The current
   Tab's row has the current fill across the width and ends with `[ x ]` at R-5..R-1, a seven-cell
   target that requests its close as the strip's close button does.

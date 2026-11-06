@@ -297,7 +297,8 @@ pub(in crate::tui_render) fn render(
             paint_rule(frame, inner, y - 1, theme);
             halos.text(Rect::new(area.x, y - 1, area.width, 1));
         }
-        let height = lines.spacing.min(area.bottom() - y);
+        // No row targets the last line, where the status chip floats.
+        let height = lines.spacing.min(list_bottom - y);
         paint_row(
             frame,
             RowPlace {

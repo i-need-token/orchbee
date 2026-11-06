@@ -97,11 +97,7 @@ impl InputDispatcher {
             return Ok(None);
         }
         let capturing = self.decoder.owns_input() || Self::projected_capture(view, port).is_some();
-        if capturing
-            || view.prefix_active()
-            || view.navigator_active()
-            || view.machines.sidebar_navigation_active()
-        {
+        if capturing || view.prefix_active() || view.surface_owns_input() {
             return Ok(None);
         }
         for item in chords.into_iter().flatten().chain(introducer) {

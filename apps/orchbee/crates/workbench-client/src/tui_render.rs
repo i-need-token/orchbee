@@ -238,7 +238,7 @@ pub fn render_terminal_shell_with_resize<'a>(
         .then_some(areas.tabs)
         .filter(|_| workbench_client.is_some());
     if areas.tier == ViewportTier::Mobile {
-        areas.tabs = areas.tab_row();
+        areas.tabs = crate::tui_layout::strip_row(areas.tabs);
     }
     // The Tab row includes the hidden sidebar's restore control.
     let tab_row = Role::SurfaceStrip;

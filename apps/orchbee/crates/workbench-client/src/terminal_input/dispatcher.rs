@@ -705,10 +705,7 @@ impl InputDispatcher {
         // is already visible to the pure projector here, but it has not yet
         // acquired the host paste lease.
         let owned_input = self.decoder.owns_input() || self.capture_owner.is_some();
-        let owned_input = owned_input
-            || view.navigator_active()
-            || view.machines.sidebar_navigation_active()
-            || view.tab_list_open();
+        let owned_input = owned_input || view.surface_owns_input();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
@@ -746,10 +743,7 @@ impl InputDispatcher {
         changed |= self.pointer.tick(view, port, now, pointer_owner);
         changed |= self.reconcile(view, port, now);
         let capturing = self.decoder.owns_input() || Self::projected_capture(view, port).is_some();
-        let capturing = capturing
-            || view.navigator_active()
-            || view.machines.sidebar_navigation_active()
-            || view.tab_list_open();
+        let capturing = capturing || view.surface_owns_input();
         if !capturing {
             mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
@@ -1076,7 +1070,7 @@ impl InputDispatcher {
                     != Some(CaptureOwner::Native(WorkbenchCaptureOwner::Settings))
                 {
                     self.settle_settings_closed(port);
-                    if Self::projected_capture(view, port).is_none() {
+                    if Self::projected_capture(view, port).is_none() && !view.surface_owns_input() {
                         mode(ModeRequest::BracketedPaste(false))?;
                     }
                 }
@@ -1169,9 +1163,7 @@ impl InputDispatcher {
                     != Some(CaptureOwner::Native(WorkbenchCaptureOwner::ActionMenu))
                 {
                     self.settle_action_menu_closed(port);
-                    if Self::projected_capture(view, port).is_none()
-                        && !view.machines.sidebar_navigation_active()
-                    {
+                    if Self::projected_capture(view, port).is_none() && !view.surface_owns_input() {
                         mode(ModeRequest::BracketedPaste(false))?;
                     }
                 }
@@ -1901,9 +1893,7 @@ impl InputDispatcher {
                                 self.keys.capture_pending();
                                 self.pointer.invalidate_map_with_port(port);
                             } else {
-                                mode(ModeRequest::BracketedPaste(
-                                    view.machines.sidebar_navigation_active(),
-                                ))?;
+                                mode(ModeRequest::BracketedPaste(view.surface_owns_input()))?;
                             }
                         }
                     }
@@ -2214,9 +2204,7 @@ impl InputDispatcher {
                                 self.keys.capture_pending();
                                 self.pointer.invalidate_map_with_port(port);
                             } else {
-                                mode(ModeRequest::BracketedPaste(
-                                    view.machines.sidebar_navigation_active(),
-                                ))?;
+                                mode(ModeRequest::BracketedPaste(view.surface_owns_input()))?;
                             }
                         }
                         if outcome == PointerOutcome::RegionsChanged {
@@ -2460,9 +2448,7 @@ impl InputDispatcher {
         self.reconcile(view, port, now);
         let capture_admitted =
             self.epoch.is_some() || Self::projected_capture(view, port).is_some();
-        let capture_admitted = capture_admitted
-            || view.navigator_active()
-            || view.machines.sidebar_navigation_active();
+        let capture_admitted = capture_admitted || view.surface_owns_input();
         if (requests_modal || requests_copy || requests_navigator || item.is_none())
             && !capture_admitted
         {

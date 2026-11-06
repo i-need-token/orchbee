@@ -64,14 +64,6 @@ impl Fingerprint {
         }
     }
 
-    pub(crate) fn tab(
-        source: &crate::action_menu::DrawnTabCreate,
-        target: &HitTarget,
-        area: Rect,
-    ) -> Option<Self> {
-        Self::tab_on(HitLayer::Foreground, source, target, area)
-    }
-
     pub(crate) fn tab_on(
         layer: HitLayer,
         source: &crate::action_menu::DrawnTabCreate,

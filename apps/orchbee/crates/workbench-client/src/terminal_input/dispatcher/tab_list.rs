@@ -1,6 +1,7 @@
 //! Keys reaching the Mobile tier's Tab list. The list covers the terminal, so keys move through
-//! its rows and act through the Tab strip's own actions, and paste is dropped; the configured
-//! prefix still opens the shell binding layer.
+//! its rows and act through the Tab strip's own actions, while paste and every other non-pointer
+//! sequence are dropped rather than reaching the covered terminal; the configured prefix still
+//! opens the shell binding layer.
 
 use std::time::Instant;
 
@@ -12,13 +13,10 @@ use crate::client_view::{ClientAction, tab_list::Intent};
 use crate::tui_hit_map::chrome::TabTarget;
 
 impl InputDispatcher {
-    /// Whether this item belongs to the open Tab list rather than to the terminal it covers.
+    /// Whether this item belongs to the open Tab list rather than to the terminal it covers: all
+    /// input but the pointer's, as on the sidebar list.
     pub(super) fn tab_list_owns(view: &ClientView, item: &DecodedItem) -> bool {
-        view.tab_list_open()
-            && matches!(
-                item.kind,
-                DecodedKind::Key(_) | DecodedKind::Paste { .. } | DecodedKind::RejectedPaste
-            )
+        view.tab_list_open() && !matches!(item.kind, DecodedKind::Mouse(_))
     }
 
     pub(super) fn tab_list_item<Port: TerminalInputPort + ?Sized, Error>(
