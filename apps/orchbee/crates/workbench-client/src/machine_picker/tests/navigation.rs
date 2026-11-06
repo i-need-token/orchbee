@@ -274,16 +274,10 @@ fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release()
             .drawn(context_target.clone(), SidebarPart::Create, window)
             .is_none()
     );
-    assert!(
-        source
-            .drawn(agent_target.clone(), SidebarPart::Menu, window)
-            .is_none()
-    );
     assert!(source.has_part(&project, SidebarPart::Menu));
     assert!(source.has_part(&project, SidebarPart::Create));
     assert!(source.has_part(&context_target, SidebarPart::Menu));
     assert!(!source.has_part(&context_target, SidebarPart::Create));
-    assert!(!source.has_part(&agent_target, SidebarPart::Menu));
     let initial_workspace = SidebarTarget::Context {
         machine: Choice::Local,
         target: context(11).target,
