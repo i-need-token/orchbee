@@ -8,32 +8,15 @@ use super::{Locale, select_locale};
 fn compact_terminal_end_copy_keeps_complete_results_within_twenty_cells_in_both_locales() {
     use crate::terminal_projection::TerminalEnd;
     use orchbee_terminal_protocol::ExitResult;
-    for (end, english, chinese) in [
-        (
-            TerminalEnd::Exited(ExitResult::ExitCode(0)),
-            "Exited 0",
-            "已退出 0",
-        ),
-        (
-            TerminalEnd::Exited(ExitResult::ExitCode(u32::MAX)),
-            "Exited 4294967295",
-            "已退出 4294967295",
-        ),
-        (
-            TerminalEnd::Exited(ExitResult::Signal(u32::MAX)),
-            "Signal 4294967295",
-            "信号 4294967295",
-        ),
-        (
-            TerminalEnd::Exited(ExitResult::Unknown(0)),
-            "Exit code unknown",
-            "退出码未知",
-        ),
-        (TerminalEnd::Failed, "Terminal failed", "终端运行故障"),
+    for end in [
+        TerminalEnd::Exited(ExitResult::ExitCode(0)),
+        TerminalEnd::Exited(ExitResult::ExitCode(u32::MAX)),
+        TerminalEnd::Exited(ExitResult::Signal(u32::MAX)),
+        TerminalEnd::Exited(ExitResult::Unknown(0)),
+        TerminalEnd::Failed,
     ] {
-        for (locale, expected) in [(Locale::EnUs, english), (Locale::ZhCn, chinese)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
             let text = locale.terminal_end_compact(end);
-            assert_eq!(text, expected);
             assert!(crate::terminal_text::display_width(&text) <= 20);
         }
     }

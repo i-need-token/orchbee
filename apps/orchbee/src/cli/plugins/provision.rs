@@ -203,6 +203,7 @@ fn render(
         }
         if let Some(output) = &report.output {
             if let Some(code) = output.exit_code {
+                let code = orchbee_terminal_protocol::format_exit_code(code);
                 writeln!(
                     out,
                     "{}: {code}",

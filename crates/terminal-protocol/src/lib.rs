@@ -190,6 +190,7 @@ pub use terminal_effect::{
 };
 pub use terminal_fact::{
     ExitResult, ProcessObservation, RuntimeCleanupFailure, RuntimeFailure, TerminalIdentity,
+    format_exit_code,
 };
 pub use theme_control::{
     ApplyTerminalTheme, EncodedThemeControl, TerminalThemeResult, TerminalThemeTransition,

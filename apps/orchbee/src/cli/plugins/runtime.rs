@@ -224,6 +224,7 @@ fn render(
                     };
                     for log in logs.iter().rev() {
                         if let Some(code) = log.exit_code {
+                            let code = orchbee_terminal_protocol::format_exit_code(code);
                             out.write(format_args!(
                                 "{}: {code}\n",
                                 CliText::new(locale).plugin_runtime_state("exit-code")

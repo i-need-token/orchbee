@@ -26,9 +26,11 @@ impl Locale {
         use orchbee_terminal_protocol::ExitResult;
         match (self, end) {
             (Self::EnUs, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
+                let code = orchbee_terminal_protocol::format_exit_code(code);
                 format!("Shell exited · code {code} · output retained")
             }
             (Self::ZhCn, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
+                let code = orchbee_terminal_protocol::format_exit_code(code);
                 format!("Shell 已结束 · 退出码 {code} · 输出已保留")
             }
             (Self::EnUs, TerminalEnd::Exited(ExitResult::Signal(signal))) => {
@@ -56,9 +58,11 @@ impl Locale {
         use orchbee_terminal_protocol::ExitResult;
         match (self, end) {
             (Self::EnUs, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
+                let code = orchbee_terminal_protocol::format_exit_code(code);
                 format!("Exited {code}")
             }
             (Self::ZhCn, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
+                let code = orchbee_terminal_protocol::format_exit_code(code);
                 format!("已退出 {code}")
             }
             (Self::EnUs, TerminalEnd::Exited(ExitResult::Signal(signal))) => {

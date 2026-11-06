@@ -22,6 +22,18 @@ pub enum ExitResult {
     Unknown(u32),
 }
 
+/// Human-readable signed decimal for either an unsigned Windows status or a signed process code.
+/// This changes presentation only; wire encoders retain the original numeric value.
+pub fn format_exit_code(code: impl Into<i64>) -> String {
+    let code = code.into();
+    let signed = if code > i64::from(i32::MAX) {
+        code - (1_i64 << 32)
+    } else {
+        code
+    };
+    signed.to_string()
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeFailure {
     AdmitTerminalReply,
@@ -479,4 +491,27 @@ const fn invalid_identity() -> ProtocolError {
         ProtocolErrorCode::InvalidIdentifier,
         "terminal identity is not canonical nonzero 128-bit hexadecimal text",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ExitResult, exit_result_to_wire, format_exit_code};
+
+    #[test]
+    fn windows_status_display_preserves_unsigned_wire_facts() {
+        for (raw, expected) in [
+            (0, "0"),
+            (7, "7"),
+            (0x7FFF_FFFF, "2147483647"),
+            (0x8000_0000, "-2147483648"),
+            (0xC000_0005, "-1073741819"),
+            (0xFFFF_FFFF, "-1"),
+        ] {
+            let wire =
+                serde_json::to_value(exit_result_to_wire(ExitResult::ExitCode(raw))).unwrap();
+            assert_eq!(wire["code"], raw);
+            assert_eq!(format_exit_code(raw), expected);
+        }
+        assert_eq!(format_exit_code(-1_i32), "-1");
+    }
 }

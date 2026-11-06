@@ -17,7 +17,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.names.renameSubmit': '重命名',
 	'workbench.panels.rename.title': '重命名面板',
 	'workbench.panels.rename.menu': '重命名',
-	'workbench.panels.rename.help': '留空可恢复原名。',
+	'workbench.panels.rename.help': '留空恢复原名。',
 	'workbench.projects.closeAll': '关闭所有工作区',
 	'workbench.projects.close.closed': '项目工作区已关闭 · {label}',
 	'workbench.projects.close.closing': '正在关闭项目工作区 · {label}',

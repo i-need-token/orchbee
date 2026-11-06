@@ -9,8 +9,8 @@ impl Locale {
     }
     pub(crate) const fn panel_rename_help(self) -> &'static str {
         match self {
-            Self::EnUs => "Leave empty to restore the original name.",
-            Self::ZhCn => "留空可恢复原名。",
+            Self::EnUs => "Empty restores the original name.",
+            Self::ZhCn => "留空恢复原名。",
         }
     }
     pub(crate) const fn rename_cancel_label(self) -> &'static str {

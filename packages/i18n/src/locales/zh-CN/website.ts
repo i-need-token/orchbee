@@ -88,7 +88,7 @@ export const zhCNWebsiteMessages = {
 		'Orchbee 正在开发中，暂未提供预编译下载包。准备好后，这里会提供下载链接和安装说明。',
 	'website.faqThreeQ': '我现在的 Shell 和工具还能用吗？',
 	'website.faqThreeA':
-		'可以。Orchbee 运行的是终端会话，你的 Shell、脚本和 CLI 工具仍然照常使用。Agent 集成在此基础上提供会话状态和操作命令。',
+		'可以。Orchbee 运行的是终端会话，你的 Shell、脚本和 CLI 工具仍然照常使用。智能体集成在此基础上提供会话状态和操作命令。',
 	'website.faqFourQ': '可以从网页和手机访问吗？',
 	'website.faqFourA': '网页和手机访问在规划中。目前主要开发原生终端和本地运行时。',
 	'website.closingTitle': 'GitHub 见。',

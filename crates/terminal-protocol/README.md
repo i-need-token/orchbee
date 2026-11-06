@@ -14,6 +14,12 @@ These sequences describe captured styles, without claiming historical PTY input-
 This crate decodes and validates the bounded terminal frame and row-window contracts used by native
 runtime owners. It performs no process, viewer, file or terminal I/O.
 
+## Exit-code display
+
+`format_exit_code` renders process exit codes as signed 32-bit decimal in human-facing native
+output. Unsigned Windows statuses such as `4294967295` display as `-1`; already signed codes and
+ordinary success/failure codes retain their values. Wire and JSON numeric fields stay unchanged.
+
 ## Bounded frame metadata
 
 The text-frame decoder exposes each row's existing prompt class and the existing extension-4
