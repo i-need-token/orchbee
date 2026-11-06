@@ -302,3 +302,25 @@ describe('Client-Server carrier binding', () => {
 		);
 	});
 });
+
+it('reads the Server controller and recent-focus facts without inventing a local owner', () => {
+	expect(
+		admitsResponse(
+			JSON.stringify({
+				kind: 'terminal.control.result',
+				protocolVersion: 1,
+				requestId: '1'.repeat(32),
+				outcome: {
+					kind: 'observed',
+					state: {
+						controller: '2'.repeat(32),
+						controllerId: null,
+						sequence: '0',
+						geometry: null,
+						recentFocus: ['2'.repeat(32), '3'.repeat(32)],
+					},
+				},
+			}),
+		),
+	).toBe(true);
+});

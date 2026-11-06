@@ -39,6 +39,7 @@ import type { ServerConnection } from '../server-connection';
 import { bindServerClientView } from './bindServerClientView';
 import { bindServerAgentBoard } from './bindServerAgentBoard';
 import { bindServerConfiguredCommands } from './bindServerConfiguredCommands';
+import { bindServerFocusControl } from './bindServerFocusControl';
 import { bindServerWindowTitle, type ServerTitleWindow } from './bindServerWindowTitle';
 import {
 	createServerWorkbenchAuthority,
@@ -91,7 +92,8 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly connection: ServerConnection;
 	/** Where New Workspace starts while the person works in no Workspace. */
 	readonly defaultDirectory: string;
-	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
+	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'> &
+		Partial<Pick<HTMLElement, 'ownerDocument'>>;
 	readonly focusRecoveryStorage?: WorkbenchFocusRecoveryStorage | undefined;
 	/**
 	 * The person's home folder where the Server runs, which a Workspace folder under it shows as `~`;
@@ -317,6 +319,17 @@ export function createServerWorkbenchRuntime({
 					},
 					titleWindow,
 				});
+	const focusControl =
+		titleWindow === undefined
+			? null
+			: bindServerFocusControl({
+					readTarget: () => resolveActiveTerminalPresentationId(projectWorkspaceRuntime),
+					subscribeNavigation: projectWorkspaceRuntime.subscribeNavigation,
+					projectionClient,
+					titleWindow,
+					ownerDocument: documentElement.ownerDocument,
+				});
+
 	const stopLocaleObservation = applicationLocaleSource.subscribe(() => {
 		const next = applicationLocaleSource.current();
 		if (disposed || next === locale) return;
@@ -384,6 +397,7 @@ export function createServerWorkbenchRuntime({
 					() => terminalEnds.dispose(),
 					() => stopLocaleObservation(),
 					() => windowTitle?.dispose(),
+					() => focusControl?.dispose(),
 					() => stopFocusRecoveryTopologyObservation?.(),
 					() => stopFocusRecoveryViewObservation?.(),
 					() => actionRuntime.dispose(),

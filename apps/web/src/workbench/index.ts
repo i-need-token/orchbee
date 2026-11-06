@@ -113,3 +113,5 @@ export type {
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
 } from './types/workbench-terminal-surface';
+
+export { hasWorkbenchExclusiveFocusSurface } from './utils/workbench-focus-dom';

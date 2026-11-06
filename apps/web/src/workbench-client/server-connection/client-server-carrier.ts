@@ -127,7 +127,28 @@ const ViewerOutcomeSchema = z.discriminatedUnion('kind', [
 	]),
 ]);
 
+const ControllerStateSchema = z
+	.strictObject({
+		controller: IdentitySchema.nullable(),
+		controllerId: IdentitySchema.nullable(),
+		geometry: ClientServerGeometrySchema.nullable(),
+		recentFocus: z
+			.array(IdentitySchema)
+			.max(8)
+			.refine((values) => new Set(values).size === values.length),
+		sequence: z
+			.string()
+			.regex(/^(0|[1-9][0-9]{0,19})$/u)
+			.refine((value) => BigInt(value) <= 0xffff_ffff_ffff_ffffn),
+	})
+	.refine((state) =>
+		state.controllerId === null
+			? state.geometry === null && state.sequence === '0'
+			: state.controller !== null && state.geometry !== null,
+	);
+
 const ControlOutcomeSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('observed'), state: ControllerStateSchema }),
 	z.strictObject({ controllerId: IdentitySchema, kind: z.literal('acquired') }),
 	z.strictObject({ kind: z.literal('input-accepted') }),
 	z.strictObject({ geometry: ClientServerGeometrySchema, kind: z.literal('resized') }),
@@ -270,7 +291,15 @@ export type ClientServerViewerAction =
 type ClientServerSemanticInputKind = 'focus' | 'key' | 'mouse' | 'text';
 
 export type ClientServerControlAction =
-	| { readonly attachmentId: string; readonly kind: 'acquire' | 'clear' | 'reset' | 'takeover' }
+	| {
+			readonly attachmentId: string;
+			readonly kind: 'activate';
+			readonly geometry: ClientServerGeometry;
+	  }
+	| {
+			readonly attachmentId: string;
+			readonly kind: 'acquire' | 'clear' | 'reset' | 'takeover' | 'observe';
+	  }
 	| {
 			readonly attachmentId: string;
 			readonly bytes: string;

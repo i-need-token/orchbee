@@ -8,7 +8,7 @@ import {
 	encodeSelectionExportChunk,
 } from '@orchbee/terminal-protocol';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { type ServerCarrier, ServerConnection } from '../server-connection';
 import {
@@ -54,6 +54,7 @@ function encodeJsonFrame(value: object): Uint8Array {
 /** Answers OBCS requests over the real multiplex codec; a test scripts only the control replies. */
 class ScriptedServer implements ServerCarrier {
 	readonly controlRequests: ControlRequest[] = [];
+	acquireOutcome: Outcome = { controllerId: CONTROLLER_ID, kind: 'acquired' };
 	/** Holds a control answer back when a test sets it, to keep later input queued. */
 	holdControl: Promise<void> | null = null;
 	lanesClosed = 0;
@@ -136,7 +137,7 @@ class ScriptedServer implements ServerCarrier {
 			if (request.action.kind === 'acquire') {
 				return encodeJsonFrame({
 					kind: 'terminal.control.result',
-					outcome: { controllerId: CONTROLLER_ID, kind: 'acquired' },
+					outcome: this.acquireOutcome,
 					requestId,
 				});
 			}
@@ -693,4 +694,112 @@ describe('openServerTerminalProjection', () => {
 			vi.useRealTimers();
 		}
 	});
+});
+
+function ownership(ours: boolean, sequence = '0'): Outcome {
+	return {
+		kind: 'observed',
+		state: {
+			controller: ours ? ATTACHMENT_ID : CREATION_ID,
+			controllerId: ours ? CONTROLLER_ID : null,
+			geometry: ours ? GEOMETRY : null,
+			sequence: ours ? sequence : '0',
+			recentFocus: [ATTACHMENT_ID, CREATION_ID],
+		},
+	};
+}
+
+describe('Server focus activation', () => {
+	it('keeps an existing controller input-capable through first focus and return', async () => {
+		const server = new ScriptedServer((request) =>
+			request.action.kind === 'activate' || request.action.kind === 'observe'
+				? ownership(true)
+				: accepted(request),
+		);
+		const { projection, events } = await open(server);
+		onTestFinished(() => projection.close());
+		const activation = new AbortController();
+		await projection.activateFocus(true, activation.signal);
+		await projection.activateFocus(false, activation.signal);
+		expect(
+			server.controlRequests.find((r) => r.action.kind === 'activate')?.action['geometry'],
+		).toEqual(GEOMETRY);
+		projection.transport.send(textInput(projection, 'first keys'));
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'semantic-input'));
+		expect(server.controlRequests.filter((r) => r.action.kind === 'takeover')).toHaveLength(0);
+		expect(events.filter((e) => e.kind === 'attachment-input-capability-changed')).toHaveLength(0);
+	});
+	it('cancels a gesture before transfer and never retries a refused transfer', async () => {
+		const server = new ScriptedServer((request) =>
+			request.action.kind === 'activate' || request.action.kind === 'observe'
+				? ownership(false)
+				: { kind: 'rejected', reason: 'controller-busy' },
+		);
+		server.acquireOutcome = { kind: 'rejected', reason: 'controller-busy' };
+		const { projection } = await open(server);
+		onTestFinished(() => projection.close());
+		let release = () => {};
+		server.holdControl = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const activation = new AbortController();
+		const pending = projection.activateFocus(false, activation.signal);
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'activate'));
+		activation.abort();
+		server.holdControl = null;
+		release();
+		await pending;
+		expect(server.controlRequests.filter((r) => r.action.kind === 'takeover')).toHaveLength(0);
+		await projection.activateFocus(false, new AbortController().signal);
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'observe'));
+		expect(server.controlRequests.filter((r) => r.action.kind === 'takeover')).toHaveLength(1);
+	});
+	it('adopts Server promotion and its sequence without a local takeover', async () => {
+		let promoted = false;
+		const server = new ScriptedServer((request) => {
+			if (request.action.kind === 'activate' || request.action.kind === 'observe')
+				return ownership(promoted, promoted ? '5' : '0');
+			if (request.action.kind === 'acquire' || request.action.kind === 'takeover')
+				return { kind: 'rejected', reason: 'controller-busy' };
+			return accepted(request);
+		});
+		server.acquireOutcome = { kind: 'rejected', reason: 'controller-busy' };
+		const { projection, events } = await open(server);
+		onTestFinished(() => projection.close());
+		await projection.activateFocus(false, new AbortController().signal);
+		promoted = true;
+		await settled(() => events.some((e) => e.kind === 'attachment-input-capability-changed'));
+		projection.transport.send({
+			kind: 'resize-terminal',
+			payload: { attachmentId: projection.bootstrap.attachmentId, ...GEOMETRY },
+		});
+		await settled(() => server.controlRequests.some((r) => r.action.kind === 'resize'));
+		expect(server.controlRequests.find((r) => r.action.kind === 'resize')?.action.sequence).toBe(
+			'6',
+		);
+		expect(server.controlRequests.filter((r) => r.action.kind === 'takeover')).toHaveLength(1);
+	});
+});
+
+it('takes a read-only focus target once and publishes its real grant', async () => {
+	const server = new ScriptedServer((request) => {
+		if (request.action.kind === 'activate') return ownership(false);
+		if (request.action.kind === 'takeover')
+			return { kind: 'acquired', controllerId: CONTROLLER_ID };
+		if (request.action.kind === 'observe') return ownership(true);
+		return accepted(request);
+	});
+	server.acquireOutcome = { kind: 'rejected', reason: 'controller-busy' };
+	const { projection, events } = await open(server);
+	onTestFinished(() => projection.close());
+	await projection.activateFocus(true, new AbortController().signal);
+	expect(server.controlRequests.filter((r) => r.action.kind === 'takeover')).toHaveLength(1);
+	expect(events).toContainEqual(
+		expect.objectContaining({
+			kind: 'attachment-input-capability-changed',
+			capabilities: expect.objectContaining({
+				capabilities: { input: true, read: true, resize: true },
+			}),
+		}),
+	);
 });

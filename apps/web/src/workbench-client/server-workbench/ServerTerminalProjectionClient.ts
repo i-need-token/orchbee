@@ -43,6 +43,27 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 	readonly #readSnapshot: () => WorkbenchSnapshot;
 	readonly #releases = new Set<() => void>();
 	readonly #tails = new Map<string, Promise<void>>();
+	readonly #opened = new Map<TerminalPresentationId, ServerTerminalProjection>();
+	#focus: {
+		id: TerminalPresentationId;
+		initial: boolean;
+		signal: AbortSignal;
+		started: boolean;
+	} | null = null;
+
+	activateFocus(id: TerminalPresentationId, initial: boolean, signal: AbortSignal): void {
+		this.#focus = { id, initial, signal, started: false };
+		this.#driveFocus();
+	}
+	#driveFocus(): void {
+		const focus = this.#focus;
+		if (focus === null || focus.started || focus.signal.aborted) return;
+		const projection = this.#opened.get(focus.id);
+		if (projection === undefined) return;
+		focus.started = true;
+		void projection.activateFocus(focus.initial, focus.signal);
+	}
+
 	#disposed = false;
 
 	constructor(
@@ -72,6 +93,7 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 			released = true;
 			this.#releases.delete(release);
 			if (projection === null) return;
+			if (this.#opened.get(presentationId) === projection) this.#opened.delete(presentationId);
 			const closing = projection.close();
 			this.#closing.set(key, closing);
 			void closing.then(() => {
@@ -96,6 +118,8 @@ export class ServerTerminalProjectionClient implements TerminalProjectionClient 
 				throw new ServerTerminalProjectionError('terminal-projection-released', false);
 			}
 			projection = opened;
+			this.#opened.set(presentationId, opened);
+			this.#driveFocus();
 			return opened;
 		});
 		const settled = result.then(

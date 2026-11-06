@@ -1147,10 +1147,12 @@ These choices stand unless review changes them:
   and returns the keyboard unless the person has moved it. Nothing repeats a request: a busy Server
   read nothing, and an unknown outcome is reported for the person to repeat. Unlike the TUI, input
   resumes at the grant rather than after a fresh frame, and Take control has no default shortcut.
-- **Three TUI behaviors still differ in the GUI.** Focusing a Panel does not take control
-  automatically until the TUI's own focus rule is fixed (ORC-334), so Take control stays the way
-  back. A turn that ends from working to idle shows idle rather than the TUI's done, because the
-  Server publishes no fact that a turn ended. Configured commands run from Search under their
+- **Focus control delivered in ORC-339 part 1.** GUI Panel/window focus activates the exact
+  target once, cancels unsubmitted requests on focus loss and consumes Server ownership/MRU
+  observations. An unchanged controlling Client keeps input and its picture. Manual Take control
+  remains available; real-window checks are batched separately.
+- **Remaining Agent presentation follow-up.** The GUI has not yet adopted the Server-owned
+  completion fact, so a working-to-idle turn still shows idle. Configured commands run from Search under their
   descriptions, without the keys and names the TUI gives them, until a later step-5 batch.
 - **Typing carries across a layer swap.** While both layers are inert, keys that reach nothing are
   held, and once the new terminal has focus they reach it in order, with the text a real key would

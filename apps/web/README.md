@@ -256,8 +256,16 @@ key/mouse/focus state, and recalculates terminal Action availability from the li
 history, selection, copy, retained output, and approved links remain available. A later upgrade
 admits only future input carrying the new revision; it does not replay pre-downgrade DOM or queued
 work. Electron uses the same renderer contract, and no renderer command can request its
-own upgrade. Where the transport offers `takeControl`, only a person's Take control Action asks
-for one, outside the command channel, and a grant arrives as the next capability revision.
+own upgrade. The Server composition admits one automatic focus activation for the focused Panel,
+including its active child Presentation. Initial focus observes an already held grant; focus return
+records activation. A read-only target may request takeover once. Window blur, a modal or target
+replacement aborts unsubmitted work, and refusals or uncertain outcomes never retry automatically.
+Already controlling Clients retain ordinary input admission and their picture. Periodic Server
+Observe replies supply current controller, sequence and recent-focus facts, including Server-owned
+promotion; the GUI never invents a local focus-order fallback. The manual Take control Action
+remains available. Grants arrive through the same next capability revision as manual takeover.
+An already submitted transfer cannot be recalled: its receipt is reconciled even after focus loss,
+without another transfer. This cancellation boundary is a vetoable decision.
 
 The stable headed Canvas 2D `terminal-parity/IN-10-read-only` witness controls exact attachment
 capability revisions and observes immediate local repair, retained search/selection/history/copy,

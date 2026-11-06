@@ -73,6 +73,8 @@ export class ServerTerminalProjectionError extends Error {
 }
 
 export interface ServerTerminalProjection extends TerminalProjection {
+	/** One focus gesture; abort prevents any transfer that has not yet been submitted. */
+	activateFocus(initial: boolean, signal: AbortSignal): Promise<void>;
 	/** Closes the transport, and settles once what was already typed has gone and the lane closed. */
 	close(): Promise<void>;
 }
@@ -216,6 +218,9 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 	#closed = false;
 	#closing: Promise<void> | null = null;
 	#controllerId: string | null;
+	#geometry: TerminalGeometry;
+	#observingControl = false;
+	#observeDue = 0;
 	#latestOutcomeRevision: bigint | null = null;
 	#listener: ((event: ProjectedTerminalEvent) => void) | null = null;
 	#nextControlSequence = 1n;
@@ -231,12 +236,14 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		laneId: bigint,
 		bootstrap: ProjectedAttachmentBootstrap,
 		controllerId: string | null,
+		geometry: TerminalGeometry,
 		hostColors: ServerHostColorsSource | undefined,
 		onSettled: ((settlement: ServerTerminalSettlement) => void) | undefined,
 	) {
 		this.#bootstrap = bootstrap;
 		this.#connection = connection;
 		this.#controllerId = controllerId;
+		this.#geometry = geometry;
 		this.#effects = new ServerTerminalEffects(bootstrap.attachmentId, (event) => this.#post(event));
 		this.#hostColors =
 			hostColors === undefined
@@ -312,6 +319,12 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				this.#paste(command);
 				return;
 			case 'resize-terminal': {
+				this.#geometry = {
+					cellPixelHeight: command.payload.cellPixelHeight,
+					cellPixelWidth: command.payload.cellPixelWidth,
+					columns: command.payload.columns,
+					rows: command.payload.rows,
+				};
 				const { cellPixelHeight, cellPixelWidth, columns, rows } = command.payload;
 				this.#controlAction(command, (controllerId, sequence) => ({
 					attachmentId,
@@ -379,6 +392,70 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			this.#controlSteps.whenIdle(finish);
 		});
 		return this.#closing;
+	}
+
+	activateFocus(initial: boolean, signal: AbortSignal): Promise<void> {
+		this.#observingControl = true;
+		return new Promise((resolve) => {
+			this.#controlSteps.push(async () => {
+				try {
+					if (signal.aborted || this.#closed || this.#closing !== null) return;
+					const outcome = this.#controlOutcome(
+						await this.#exchange({
+							kind: 'terminal.control',
+							requestId: createClientServerRequestId(),
+							action:
+								initial && this.#controllerId !== null
+									? { attachmentId: this.#bootstrap.attachmentId, kind: 'observe' }
+									: {
+											attachmentId: this.#bootstrap.attachmentId,
+											kind: 'activate',
+											geometry: this.#geometry,
+										},
+						}),
+					);
+					if (outcome.kind !== 'observed' || this.#closed || this.#closing !== null) return;
+					this.#adoptController(outcome.state);
+					this.#observeDue = Date.now() + 250;
+					if (signal.aborted || this.#controllerId !== null) return;
+					// One mutation at most, never a retry of an uncertain or refused gesture.
+					await this.takeControl();
+				} catch {
+					/* Ownership remains whatever was last confirmed; a new gesture may try again. */
+				} finally {
+					resolve();
+				}
+			});
+		});
+	}
+
+	#adoptController(
+		state: Extract<ClientServerControlOutcome, { kind: 'observed' }>['state'],
+	): void {
+		this.#setController(state.controllerId);
+		const next = BigInt(state.sequence) + 1n;
+		if (next > this.#nextControlSequence) this.#nextControlSequence = next;
+	}
+
+	#observeController(): void {
+		if (!this.#observingControl || Date.now() < this.#observeDue) return;
+		this.#observeDue = Date.now() + 250;
+		this.#controlSteps.push(async () => {
+			if (this.#closed || this.#closing !== null) return;
+			try {
+				const outcome = this.#controlOutcome(
+					await this.#exchange({
+						kind: 'terminal.control',
+						requestId: createClientServerRequestId(),
+						action: { kind: 'observe', attachmentId: this.#bootstrap.attachmentId },
+					}),
+				);
+				if (!this.#closed && this.#closing === null && outcome.kind === 'observed')
+					this.#adoptController(outcome.state);
+			} catch {
+				/* A later bounded observation can read the Server again, never transfer control. */
+			}
+		});
 	}
 
 	/**
@@ -782,6 +859,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		const previous = this.#controllerId;
 		const hasControl = controllerId !== null;
 		this.#controllerId = controllerId;
+		if (controllerId !== previous && hasControl) this.#nextControlSequence = 1n;
 		if ((previous !== null) !== hasControl) {
 			if (!hasControl) this.#controlSteps.clear();
 			this.#capabilityRevision += 1n;
@@ -892,6 +970,7 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 			clearTimeout(this.#pollTimer);
 			this.#pollTimer = null;
 		}
+		this.#observeController();
 		this.#pollInFlight = true;
 		this.#recordReady = false;
 		this.#exchange({
@@ -1108,6 +1187,7 @@ export async function openServerTerminalProjection(
 			laneId,
 			bootstrap,
 			controllerId,
+			geometry,
 			hostColors,
 			onSettled,
 		);
@@ -1117,7 +1197,12 @@ export async function openServerTerminalProjection(
 				payload: { attachmentId: bootstrap.attachmentId, ...geometry },
 			});
 		}
-		return { bootstrap, close: () => transport.close(), transport };
+		return {
+			bootstrap,
+			close: () => transport.close(),
+			activateFocus: (initial, signal) => transport.activateFocus(initial, signal),
+			transport,
+		};
 	} catch (error) {
 		connection.closeLane(laneId);
 		throw error;
