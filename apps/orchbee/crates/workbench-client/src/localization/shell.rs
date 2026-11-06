@@ -291,6 +291,12 @@ impl Locale {
                 "Configuration published; keys updated"
             }
             (Self::ZhCn, Some(Notice::ConfigurationPublished)) => "配置已发布；键位已更新",
+            (Self::EnUs, Some(Notice::PreferencesUnreadable)) => {
+                "Settings file can't be read · using defaults · Reset all in Settings"
+            }
+            (Self::ZhCn, Some(Notice::PreferencesUnreadable)) => {
+                "无法读取设置文件 · 正在使用默认值 · 请在设置中全部重置"
+            }
             (Self::EnUs, Some(Notice::ConfigurationWarning)) => {
                 "Configuration loaded with warnings; run orchbee config check"
             }

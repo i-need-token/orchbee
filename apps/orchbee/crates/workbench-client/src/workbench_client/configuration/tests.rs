@@ -750,3 +750,45 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
     assert_eq!(view.bindings(), &keys);
     assert!(view.notifications.card_delivery());
 }
+
+// The Session retains the read-failure diagnostic even after Settings repairs the record.
+// Exercise the watcher projection, rather than pinning rendered wording.
+#[test]
+fn unreadable_preferences_have_a_recovery_notice_until_confirmed_settings_arrive() {
+    use orchbee_workbench_protocol::{ConfigurationDiagnostic, ConfigurationDiagnosticDisposition};
+    let mut watcher = Watcher {
+        shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        connection: Mutex::new(None),
+        revision: None,
+        applied_snapshot: None,
+        notification_update: None,
+        creation_update: None,
+    };
+    let mut view = ClientView::new(120);
+    let mut published = snapshot(1, "[keys]\nprefix='ctrl+a'");
+    published.diagnostics.items.push(ConfigurationDiagnostic {
+        field: "sharedPreferences".into(),
+        reason: "unreadable".into(),
+        disposition: ConfigurationDiagnosticDisposition::Defaulted,
+    });
+    watcher.shared.0.lock().unwrap().snapshot = Some(published.clone());
+    assert!(watcher.tick(&mut view));
+    assert_eq!(view.notice(), Some(Notice::PreferencesUnreadable));
+
+    view.apply_user_preferences(Default::default());
+    assert_eq!(view.notice(), None);
+    published.revision = WorkbenchRevision::new(2);
+    watcher.shared.0.lock().unwrap().snapshot = Some(published.clone());
+    assert!(watcher.tick(&mut view));
+    assert_eq!(view.notice(), None);
+
+    published.revision = WorkbenchRevision::new(3);
+    published.diagnostics.items.push(ConfigurationDiagnostic {
+        field: "keys.help".into(),
+        reason: "unsafe-binding".into(),
+        disposition: ConfigurationDiagnosticDisposition::Disabled,
+    });
+    watcher.shared.0.lock().unwrap().snapshot = Some(published);
+    assert!(watcher.tick(&mut view));
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+}

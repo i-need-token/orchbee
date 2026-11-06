@@ -172,6 +172,7 @@ pub struct ClientView {
     notice: Option<Notice>,
     notice_timer: crate::transient_notice::NoticeTimer<Notice>,
     configuration_warning: bool,
+    preferences_unreadable: bool,
     overlay: Option<Overlay>,
     // Some(false) still tracks a launch opened without a compact sidebar;
     // None means a newer intent has retired that launch's return permission.
@@ -222,6 +223,7 @@ impl ClientView {
             notice: None,
             notice_timer: Default::default(),
             configuration_warning: false,
+            preferences_unreadable: false,
             overlay: None,
             project_quick_entry_eligible: None,
             navigator: navigator::Navigator::default(),
@@ -257,6 +259,10 @@ impl ClientView {
     pub(crate) const fn notice(&self) -> Option<Notice> {
         if self.notice.is_some() {
             return self.notice;
+        }
+        // The configuration diagnostic is historical. A confirmed Settings snapshot supersedes it.
+        if self.preferences_unreadable && self.user_preferences.is_none() {
+            return Some(Notice::PreferencesUnreadable);
         }
         if self.configuration_warning {
             return Some(Notice::ConfigurationWarning);
@@ -846,6 +852,10 @@ impl ClientView {
 
     pub(crate) fn configuration_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
+    }
+
+    pub(crate) fn preferences_unreadable(&mut self, present: bool) {
+        self.preferences_unreadable = present;
     }
 
     pub(crate) fn configuration_warning(&mut self, present: bool) {

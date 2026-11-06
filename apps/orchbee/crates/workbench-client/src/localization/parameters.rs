@@ -54,6 +54,7 @@ pub enum Notice {
     CheckpointEmpty,
     ConfigurationPublished,
     ConfigurationWarning,
+    PreferencesUnreadable,
     ConfigurationFailed,
     ConfigurationUnknown,
     WindowTitleUnavailable,
