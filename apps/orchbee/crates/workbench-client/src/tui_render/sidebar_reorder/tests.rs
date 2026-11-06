@@ -1,4 +1,5 @@
 use super::*;
+use crate::terminal_text::display_width;
 use crate::{
     tui_hit_map::sidebar_reorder::Placement as SidebarDropPlacement, tui_theme::ColorLevel,
 };
@@ -69,14 +70,13 @@ fn drag_feedback_replaces_the_previous_notice_and_draws_the_footer_only_for_proj
                             "x".repeat(usize::from(footer.width))
                         );
                     } else {
+                        // An action shows whole or not at all, so a footer too narrow for the
+                        // target leaves its row cleared.
                         let zone = format!("[ {} ]", locale.sidebar_drop_zone());
+                        let fits = display_width(&zone) <= usize::from(footer.width);
                         assert_eq!(
                             row_text(buffer, footer).trim_end(),
-                            truncate_display(
-                                &zone,
-                                usize::from(footer.width),
-                                theme.glyphs.ellipsis
-                            )
+                            if fits { zone.as_str() } else { "" }
                         );
                     }
                     for x in status.x..status.right() {
@@ -149,8 +149,10 @@ fn preview_preserves_identity_styles_clips_wide_labels_and_keeps_monochrome_cues
                             .iter()
                             .all(|cell| !cell.symbol().chars().any(char::is_control))
                     );
-                    // The bracketed drop target is the non-color cue of a Project drag only.
-                    if !workspace {
+                    // The bracketed drop target is the non-color cue of a Project drag only, shown
+                    // when the footer fits it whole.
+                    let zone = format!("[ {} ]", locale.sidebar_drop_zone());
+                    if !workspace && display_width(&zone) <= usize::from(row_width) {
                         assert!((0..row_width).any(|x| buffer[(x, height - 2)].symbol() == "["));
                     }
                 }
