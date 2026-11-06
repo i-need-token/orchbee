@@ -692,6 +692,32 @@ impl CloseState {
         Ok(())
     }
 
+    /// Retains a Tab close the Server accepted from a request this Client sent as another action,
+    /// the close of the Tab's last Panel, and follows it from its first status read as a submitted
+    /// Tab close is followed. A Tab that already holds a retained close keeps that record.
+    fn retain_accepted(
+        &mut self,
+        selection: CloseSelection,
+        accepted: &WorkbenchTabCloseAccepted,
+        submitted_at: Instant,
+    ) -> Result<(), CloseStateError> {
+        if self.record_index(&selection.target).is_some()
+            || self.records.len() == MAXIMUM_CLOSE_RECORDS
+        {
+            return Err(CloseStateError::Busy);
+        }
+        let target = selection.target.clone();
+        self.records.push(CloseRecord::new(selection, submitted_at));
+        if let Err(error) = self.record_acceptance(&target, accepted) {
+            self.records.pop();
+            return Err(error);
+        }
+        if let Some(record) = self.records.last_mut() {
+            record.initial_read_pending = true;
+        }
+        Ok(())
+    }
+
     pub(crate) fn record_acceptance(
         &mut self,
         target: &CloseTarget,
@@ -913,6 +939,23 @@ impl super::WorkbenchClientState {
             confirmation.local_focus = Some(focus);
         }
         Ok(())
+    }
+
+    /// Follows the accepted close of a Tab's last Panel as the close of that Tab, which it is on the
+    /// Server: from this acceptance the Tab leaves the Client's view, the selection follows it, and
+    /// its status reads, report and Resume are those of any accepted Tab close. Refused while the
+    /// Tab already holds a retained close, which keeps its own record and report.
+    pub(super) fn retain_last_panel_close(
+        &mut self,
+        accepted: &WorkbenchTabCloseAccepted,
+        submitted_at: Instant,
+    ) -> Result<(), CloseStateError> {
+        if !matches!(self.close.carrier, CloseCarrier::Client) {
+            return Err(CloseStateError::Busy);
+        }
+        let selection = self.close_set_selection(&accepted.tab_id)?;
+        self.close
+            .retain_accepted(selection, accepted, submitted_at)
     }
 
     /// Whether the Tab at `index` is still in the Client's view, not leaving with its close.

@@ -6,11 +6,12 @@ use crate::workbench_state::{
     CloseResult, CloseSelection, CloseTarget, PendingCloseResult,
 };
 use orchbee_workbench_protocol::{
-    TabSetCloseAction, TabSetCloseCondition, TabSetCloseMember, TabSetCloseOutcome,
-    TabSetCloseStatus, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchLabel,
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
-    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus, WorkbenchTabSetCloseResult,
+    CloseOperationOutcome, CloseOperationResult, CloseOperationTarget, TabSetCloseAction,
+    TabSetCloseCondition, TabSetCloseMember, TabSetCloseOutcome, TabSetCloseStatus,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchLabel, WorkbenchRequestId,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult,
+    WorkbenchTabCloseStatus, WorkbenchTabSetCloseResult,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -189,11 +190,11 @@ fn receive(harness: &Harness, family: Family, operation: &CloseOperation) -> Tes
                 }
             );
         }
-        (Family::Read, WorkbenchRequest::TabCloseRead(read)) => {
+        // A close whose operation is known is read by that identity, not by its Tab's address.
+        (Family::Read, WorkbenchRequest::CloseOperationRead(read)) => {
             assert_eq!(&read.request_id, operation.key().request_id());
             assert_eq!(&read.session_id, target.session_id());
-            assert_eq!(&read.terminal_context_id, target.terminal_context_id());
-            assert_eq!(&read.tab_id, target.tab_id());
+            assert_eq!(read.operation_id, canonical_id()?);
         }
         (Family::Resume, WorkbenchRequest::TabCloseResume(resume)) => {
             assert_eq!(&resume.request_id, operation.key().request_id());
@@ -222,14 +223,17 @@ fn response(family: Family, operation: &CloseOperation) -> TestResult<WorkbenchR
                 accepted_revision: WorkbenchRevision::new(1),
             },
         }),
-        Family::Read => WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
+        Family::Read => WorkbenchResponse::CloseOperation(CloseOperationResult {
             protocol_version: ProtocolVersion,
             request_id,
-            outcome: WorkbenchTabCloseReadOutcome::Available {
-                close_request_id: canonical_id()?,
-                terminal_context_id: target.terminal_context_id().clone(),
-                tab_id: target.tab_id().clone(),
-                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(5)?,
+            session_id: target.session_id().clone(),
+            operation_id: canonical_id()?,
+            outcome: CloseOperationOutcome::Available {
+                target: CloseOperationTarget::Tab {
+                    terminal_context_id: target.terminal_context_id().clone(),
+                    tab_id: target.tab_id().clone(),
+                },
+                generation: WorkbenchTabCloseAttemptGeneration::new(5)?,
                 status: WorkbenchTabCloseStatus::Closed {
                     revision: WorkbenchRevision::new(2),
                 },
@@ -398,7 +402,7 @@ fn close_family_wrong_wire_correlation_never_becomes_a_typed_success() -> TestRe
         assert_ne!(&wrong_id, operation.key().request_id());
         match &mut wrong {
             WorkbenchResponse::Command(result) => result.request_id = wrong_id,
-            WorkbenchResponse::TabCloseRead(result) => result.request_id = wrong_id,
+            WorkbenchResponse::CloseOperation(result) => result.request_id = wrong_id,
             WorkbenchResponse::TabCloseResume(result) => result.request_id = wrong_id,
             _ => return Err(test_error("wrong response fixture")),
         }
@@ -444,9 +448,8 @@ fn accepted_disposed_and_closed_results_survive_retirement_before_ui_ack() -> Te
         let operation = admit(&mut harness, family)?;
         receive(&harness, family, &operation)?;
         let mut reply = response(family, &operation)?;
-        if let (Some(status), WorkbenchResponse::TabCloseRead(read)) = (status, &mut reply)
-            && let WorkbenchTabCloseReadOutcome::Available { status: actual, .. } =
-                &mut read.outcome
+        if let (Some(status), WorkbenchResponse::CloseOperation(read)) = (status, &mut reply)
+            && let CloseOperationOutcome::Available { status: actual, .. } = &mut read.outcome
         {
             *actual = status;
         }

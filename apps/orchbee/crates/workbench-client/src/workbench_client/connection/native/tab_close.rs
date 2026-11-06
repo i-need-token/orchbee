@@ -3,6 +3,9 @@
 //! that a close succeeded from connection loss or repeat a possibly delivered close.
 
 use super::{ClientExecutor, Result, closed, event, io_failure};
+use crate::local_client::workbench::metadata_exchange::{
+    MetadataExchangeError, MetadataExchangeReason,
+};
 use crate::local_client::workbench::{
     TabSetCloseExchangeError, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
     WorkbenchTabCloseReadError, WorkbenchTabCloseRequest, WorkbenchTabCloseResumeSubmission,
@@ -13,8 +16,11 @@ use crate::workbench_state::{
     CarrierFailure, CloseOperation, CloseOperationKind, CloseResult, PendingCloseResult,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, TabSetCloseAction, WorkbenchAction, WorkbenchCommand, WorkbenchTabCloseRead,
-    WorkbenchTabCloseResume, WorkbenchTabSetCloseRequest, WorkbenchWireError,
+    CloseOperationOutcome, CloseOperationRead, CloseOperationTarget, ProtocolVersion,
+    TabSetCloseAction, WorkbenchAction, WorkbenchCommand, WorkbenchRequestId,
+    WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseResume,
+    WorkbenchTabCloseUnavailableReason, WorkbenchTabId, WorkbenchTabSetCloseRequest,
+    WorkbenchTerminalContextId, WorkbenchWireError,
 };
 use std::time::Instant;
 
@@ -113,8 +119,55 @@ impl ClientExecutor {
                     }
                 }
             }
+            // A close whose operation is known is read by that identity. The Tab's address can
+            // answer with an earlier close of one of its Panels, which the Server keeps as well.
             CloseOperationKind::Read {
-                expected_operation, ..
+                expected_operation: Some(operation_id),
+                ..
+            } => {
+                let request = CloseOperationRead {
+                    protocol_version: ProtocolVersion,
+                    request_id,
+                    session_id: target.session_id().clone(),
+                    operation_id: operation_id.clone(),
+                };
+                match self.client.close_operation(request, cutoff, None) {
+                    Ok(result) => match tab_close_read_outcome(
+                        result.outcome,
+                        operation_id,
+                        target.terminal_context_id(),
+                        target.tab_id(),
+                    ) {
+                        Some(outcome) => CloseResult::Read(outcome),
+                        None => {
+                            return Ok((
+                                CloseResult::ObservationUnavailable,
+                                Some(CarrierFailure::Protocol),
+                            ));
+                        }
+                    },
+                    Err(MetadataExchangeError {
+                        submitted: false,
+                        reason,
+                    }) => {
+                        let unavailable = reason == MetadataExchangeReason::ConnectionUnavailable
+                            || self.client.generation().is_none();
+                        return Ok((
+                            CloseResult::NotSubmitted,
+                            unavailable.then_some(CarrierFailure::Transport),
+                        ));
+                    }
+                    Err(MetadataExchangeError { reason, .. }) => {
+                        return Ok((
+                            CloseResult::ObservationUnavailable,
+                            Some(close_operation_read_failure(reason)),
+                        ));
+                    }
+                }
+            }
+            CloseOperationKind::Read {
+                expected_operation: None,
+                ..
             } => {
                 let request = WorkbenchTabCloseRead {
                     protocol_version: ProtocolVersion,
@@ -123,11 +176,10 @@ impl ClientExecutor {
                     terminal_context_id: target.terminal_context_id().clone(),
                     tab_id: target.tab_id().clone(),
                 };
-                match self.client.submit_workbench_tab_close_read(
-                    request,
-                    expected_operation.as_ref(),
-                    cutoff,
-                ) {
+                match self
+                    .client
+                    .submit_workbench_tab_close_read(request, None, cutoff)
+                {
                     Ok(outcome) => CloseResult::Read(outcome),
                     Err(WorkbenchTabCloseReadError::NotSubmitted(reason)) => {
                         return Ok(self.close_not_submitted(reason));
@@ -238,5 +290,67 @@ fn close_read_failure(reason: WorkbenchTabCloseFailure) -> CarrierFailure {
         | WorkbenchTabCloseFailure::OperationMismatch { .. }
         | WorkbenchTabCloseFailure::AcceptedRevisionMismatch { .. }
         | WorkbenchTabCloseFailure::AttemptGenerationMismatch { .. } => CarrierFailure::Protocol,
+    }
+}
+
+/// The identity read's answer in the terms of the Tab's status read, which the close owner
+/// settles. An answer about another target is a protocol fault.
+fn tab_close_read_outcome(
+    outcome: CloseOperationOutcome,
+    operation_id: &WorkbenchRequestId,
+    expected_context: &WorkbenchTerminalContextId,
+    expected_tab: &WorkbenchTabId,
+) -> Option<WorkbenchTabCloseReadOutcome> {
+    Some(match outcome {
+        CloseOperationOutcome::Available {
+            target:
+                CloseOperationTarget::Tab {
+                    terminal_context_id,
+                    tab_id,
+                }
+                | CloseOperationTarget::Panel {
+                    terminal_context_id,
+                    tab_id,
+                },
+            generation,
+            status,
+        } => {
+            if terminal_context_id != *expected_context || tab_id != *expected_tab {
+                return None;
+            }
+            WorkbenchTabCloseReadOutcome::Available {
+                close_request_id: operation_id.clone(),
+                terminal_context_id,
+                tab_id,
+                attempt_generation: generation,
+                status,
+            }
+        }
+        CloseOperationOutcome::Available {
+            target: CloseOperationTarget::Workspace { .. },
+            ..
+        } => return None,
+        // For a close the Server accepted, holding no such operation is the same lost fact as the
+        // Tab holding no close.
+        CloseOperationOutcome::NotFound {} => WorkbenchTabCloseReadOutcome::NotClosing {},
+        CloseOperationOutcome::Denied {} => WorkbenchTabCloseReadOutcome::Denied {},
+        CloseOperationOutcome::Unavailable {} => WorkbenchTabCloseReadOutcome::Unavailable {
+            reason: WorkbenchTabCloseUnavailableReason::ServerBusy,
+        },
+    })
+}
+
+fn close_operation_read_failure(reason: MetadataExchangeReason) -> CarrierFailure {
+    match reason {
+        MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
+            CarrierFailure::Deadline
+        }
+        MetadataExchangeReason::ConnectionUnavailable
+        | MetadataExchangeReason::NotSubmitted
+        | MetadataExchangeReason::Write
+        | MetadataExchangeReason::Read => CarrierFailure::Transport,
+        MetadataExchangeReason::Encoding
+        | MetadataExchangeReason::Correlation
+        | MetadataExchangeReason::Protocol => CarrierFailure::Protocol,
     }
 }

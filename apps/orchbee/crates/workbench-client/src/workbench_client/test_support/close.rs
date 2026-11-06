@@ -12,9 +12,9 @@ use super::{
     write_server_message, write_workbench_response,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
-    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
+    CloseOperationOutcome, CloseOperationResult, CloseOperationTarget, WorkbenchRequestId,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+    WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
 };
 use std::{convert::Infallible, sync::atomic::AtomicUsize};
 
@@ -116,18 +116,26 @@ pub(crate) fn status_close_server(
                             continue;
                         }
                         WorkbenchRequest::Command(command) => command,
-                        WorkbenchRequest::TabCloseRead(request) if resumes.is_some() => {
+                        // Every close this peer follows was accepted, so it is read by identity.
+                        WorkbenchRequest::CloseOperationRead(request) if resumes.is_some() => {
+                            assert_eq!(Some(&request.operation_id), operation.as_ref());
                             write_workbench_response(
                                 &mut stream,
-                                &WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
+                                &WorkbenchResponse::CloseOperation(CloseOperationResult {
                                     protocol_version: ProtocolVersion,
                                     request_id: request.request_id,
-                                    outcome: WorkbenchTabCloseReadOutcome::Available {
-                                        close_request_id: operation.clone().unwrap(),
-                                        terminal_context_id: request.terminal_context_id,
-                                        tab_id: request.tab_id,
-                                        attempt_generation:
-                                            WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                                    session_id: request.session_id,
+                                    operation_id: request.operation_id,
+                                    outcome: CloseOperationOutcome::Available {
+                                        target: CloseOperationTarget::Tab {
+                                            terminal_context_id: WorkbenchTerminalContextId::parse(
+                                                ID,
+                                            )
+                                            .unwrap(),
+                                            tab_id: WorkbenchTabId::parse(ID).unwrap(),
+                                        },
+                                        generation: WorkbenchTabCloseAttemptGeneration::new(1)
+                                            .unwrap(),
                                         status: WorkbenchTabCloseStatus::CleanupBlocked {
                                             reason: WorkbenchTabCloseBlockedReason::HostRefused,
                                             resumable: true,

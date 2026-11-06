@@ -7,6 +7,7 @@ use crate::local_client::workbench::panel_close::WorkbenchPanelCloseAccepted;
 use crate::local_client::workbench::panel_placement::WorkbenchPanelPlacementCommit;
 use crate::local_client::workbench::panel_split::WorkbenchPanelSplitCommit;
 use crate::tui_presentation::GeometrySettlement;
+use crate::workbench_state::CloseResult;
 use crate::workbench_state::panel::{
     PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelPrecommit, PanelRequestKind,
     PanelResult, PendingPanelCommit,
@@ -14,7 +15,9 @@ use crate::workbench_state::panel::{
 use crate::workbench_state::panel_close::PanelCloseStateError;
 use orchbee_workbench_protocol::{
     WorkbenchCommandUnavailableReason, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason, WorkbenchTabMoveDirection,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus,
+    WorkbenchTabMoveDirection,
 };
 
 fn plan(state: &WorkbenchClientState, request: u128, kind: PanelRequestKind) -> PanelOperation {
@@ -1599,6 +1602,70 @@ fn accepted_panel_close_hides_the_leaf_and_moves_focus_to_the_survivor() {
     assert_eq!(tab.panel_tree().leaf_count(), 2);
     assert_eq!(state.display_panel_tree(tab).leaf_count(), 1);
     assert_ne!(state.focus_panel_id(), Some(&closing));
+}
+
+/// Regression: an accepted close of a Tab's last Panel left the strip only when the Server
+/// published the Tab's removal, five seconds later for a busy terminal on Windows. That Panel
+/// takes its Tab, so it leaves at acceptance as a Tab close does, and comes back with its report
+/// when the close stops.
+#[test]
+fn accepted_last_panel_close_leaves_with_its_tab_at_acceptance() {
+    let mut state = ready(2);
+    let now = Instant::now();
+    let operation = plan(&state, 70_155, PanelRequestKind::Close);
+    let closing = state.active().unwrap().index();
+    assert!(state.begin_panel(operation.clone()));
+    let close_request_id = WorkbenchRequestId::parse(&id(70_155)).unwrap();
+    let terminal_context_id = operation.baseline().terminal_context_id().unwrap().clone();
+    let tab_id = operation.target().tab_id().clone();
+    let accepted = WorkbenchPanelCloseAccepted {
+        close_request_id: close_request_id.clone(),
+        terminal_context_id: terminal_context_id.clone(),
+        tab_id: tab_id.clone(),
+        panel_id: operation.panel_id().clone(),
+        accepted_revision: WorkbenchRevision::new(1),
+    };
+    let prepared = state.prepare_panel(&operation, PanelResult::CloseAccepted(accepted));
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+
+    // No publication arrived: the canonical list still holds the Tab, the Client already does not.
+    assert_eq!(state.cache().tabs().len(), 2);
+    assert!(!state.tab_shown(closing));
+    let neighbour = state.leaving_selection_successor();
+    assert!(neighbour.is_some_and(|index| index != closing && state.tab_shown(index)));
+    assert!(state.invariant_holds());
+
+    // The close is followed as the Tab's own; one that stops shows the Tab again with its report.
+    let read = state
+        .plan_close_read(
+            WorkbenchRequestId::parse(&id(70_156)).unwrap(),
+            now + OPERATION_TOTAL,
+            now,
+        )
+        .unwrap();
+    state.begin_close_exchange(&read, now).unwrap();
+    state
+        .settle_close_exchange(
+            &read,
+            &CloseResult::Read(
+                orchbee_workbench_protocol::WorkbenchTabCloseReadOutcome::Available {
+                    close_request_id,
+                    terminal_context_id,
+                    tab_id,
+                    attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                    status: WorkbenchTabCloseStatus::CleanupBlocked {
+                        reason: WorkbenchTabCloseBlockedReason::HostRefused,
+                        resumable: true,
+                    },
+                },
+            ),
+        )
+        .unwrap();
+    assert!(state.tab_shown(closing));
+    assert!(state.view().announced_close_status().is_some());
 }
 
 #[test]

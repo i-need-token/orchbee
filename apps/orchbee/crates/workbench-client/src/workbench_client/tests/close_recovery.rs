@@ -1,7 +1,8 @@
 use super::*;
 mod close_membership;
 use orchbee_workbench_protocol::{
-    WorkbenchCommand, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+    CloseOperationOutcome, CloseOperationResult, CloseOperationTarget, WorkbenchCommand,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseStatus,
 };
 
@@ -295,43 +296,60 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
             return Ok(()); // The submitted Close has no reply.
         }
         admit(&mut stream)?;
-        let WorkbenchRequest::TabCloseRead(request) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            return Err(io::Error::other("recovery must start with status Read"));
-        };
         let command = original.as_ref().unwrap();
-        assert_eq!(request.session_id, command.session_id);
-        assert_eq!(request.terminal_context_id.as_str(), ID);
-        assert_eq!(request.tab_id.as_str(), ID);
-        assert_ne!(Some(&request.request_id), previous_request.as_ref());
-        previous_request = Some(request.request_id.clone());
-        let status = if index == 1 {
-            WorkbenchTabCloseStatus::CleanupBlocked {
-                reason: WorkbenchTabCloseBlockedReason::HostRefused,
-                resumable: true,
+        let attempt_generation = WorkbenchTabCloseAttemptGeneration::new(index as u64).unwrap();
+        let response = match (
+            index,
+            read_workbench_request(&mut stream).map_err(io::Error::other)?,
+        ) {
+            // The submission's answer was lost, so the first Read finds the close by its Tab.
+            (1, WorkbenchRequest::TabCloseRead(request)) => {
+                assert_eq!(request.session_id, command.session_id);
+                assert_eq!(request.terminal_context_id.as_str(), ID);
+                assert_eq!(request.tab_id.as_str(), ID);
+                assert_ne!(Some(&request.request_id), previous_request.as_ref());
+                previous_request = Some(request.request_id.clone());
+                WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome: WorkbenchTabCloseReadOutcome::Available {
+                        close_request_id: command.request_id.clone(),
+                        terminal_context_id: request.terminal_context_id,
+                        tab_id: request.tab_id,
+                        attempt_generation,
+                        status: WorkbenchTabCloseStatus::CleanupBlocked {
+                            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+                            resumable: true,
+                        },
+                    },
+                })
             }
-        } else {
-            WorkbenchTabCloseStatus::Closed {
-                revision: WorkbenchRevision::new(2),
+            // That Read named the operation, so every later Read asks for it by identity.
+            (2, WorkbenchRequest::CloseOperationRead(request)) => {
+                assert_eq!(request.session_id, command.session_id);
+                assert_eq!(request.operation_id, command.request_id);
+                assert_ne!(Some(&request.request_id), previous_request.as_ref());
+                previous_request = Some(request.request_id.clone());
+                WorkbenchResponse::CloseOperation(CloseOperationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    session_id: request.session_id,
+                    operation_id: request.operation_id,
+                    outcome: CloseOperationOutcome::Available {
+                        target: CloseOperationTarget::Tab {
+                            terminal_context_id: WorkbenchTerminalContextId::parse(ID).unwrap(),
+                            tab_id: WorkbenchTabId::parse(ID).unwrap(),
+                        },
+                        generation: attempt_generation,
+                        status: WorkbenchTabCloseStatus::Closed {
+                            revision: WorkbenchRevision::new(2),
+                        },
+                    },
+                })
             }
+            _ => return Err(io::Error::other("recovery must start with status Read")),
         };
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                outcome: WorkbenchTabCloseReadOutcome::Available {
-                    close_request_id: command.request_id.clone(),
-                    terminal_context_id: request.terminal_context_id,
-                    tab_id: request.tab_id,
-                    attempt_generation: WorkbenchTabCloseAttemptGeneration::new(index as u64)
-                        .unwrap(),
-                    status,
-                },
-            }),
-        )
-        .map_err(io::Error::other)?;
+        write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         if index == 1 {
             let WorkbenchRequest::TabCloseResume(resume) =
                 read_workbench_request(&mut stream).map_err(io::Error::other)?

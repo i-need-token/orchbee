@@ -81,12 +81,22 @@ does not move and the leaf keeps drawing until publication removes it. Refused a
 `confirmation-required` results never start this overlay. The canonical install releases the
 closed Panel's attachment, as before.
 
+A Tab's last Panel has no sibling to collapse onto. The Server admits its close as the close of the
+whole Tab, so its `Accepted` is retained as an accepted Tab close of that Tab instead of this
+overlay: the Tab leaves the strip and sidebar at once, the selection moves to the next Tab still
+shown, else the previous one, and the close is read, reported and offered for Resume as any
+accepted Tab close is ([close status](native-tab-close-sets.md#close-status)). A close that stops
+or loses its observation shows the Tab again with its report and leaves the selection where it
+moved. A Tab that already holds a retained close keeps that record, and its last Panel keeps
+drawing until publication removes it.
+
 ## Invariants and temporal rules
 
 The single-operation implementation contract requires one selected attachment per operation; exact request/serial/baseline correlation; structural exclusion while a panel flight freezes its baseline; and retention of every known committed fact. Invalid grafts must not apply. A legal superseding leaf removal repairs membership instead of fabricating divergence.
 
 Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance changes only the drawn layout and, when the closed Panel was focused, the
-selection; the cached canonical tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
+selection, or for a Tab's last Panel starts the retained close of its Tab; the cached canonical
+tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
 
 These operation-specific traces do not claim exhaustive TLC progress. The retained pane collection core below checks the shared identity and cleanup protocol separately.
 

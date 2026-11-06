@@ -121,6 +121,13 @@ impl PanelOperation {
     pub(crate) const fn deadline(&self) -> Instant {
         self.deadline
     }
+    /// When the operation was admitted. Every Panel operation is admitted with the whole
+    /// `OPERATION_TOTAL` budget, so its deadline is that instant plus the budget.
+    pub(crate) fn admitted_at(&self) -> Instant {
+        self.deadline
+            .checked_sub(super::OPERATION_TOTAL)
+            .unwrap_or(self.deadline)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -429,7 +436,7 @@ enum PreparedPanelResult {
     /// The Server asks before this conditional close: the armed confirmation presents.
     ConfirmationRequired,
     Unchanged,
-    CloseAccepted,
+    CloseAccepted(WorkbenchPanelCloseAccepted),
     Committed {
         pending: PendingPanelCommit,
         candidate: Option<ClientContextTabs>,
@@ -612,7 +619,7 @@ impl WorkbenchClientState {
                     && accepted.panel_id == operation.panel_id
                     && accepted.accepted_revision <= operation.baseline.revision()
                 {
-                    PreparedPanelResult::CloseAccepted
+                    PreparedPanelResult::CloseAccepted(accepted)
                 } else {
                     PreparedPanelResult::Divergent { pending: None }
                 }
@@ -708,13 +715,10 @@ impl WorkbenchClientState {
         {
             self.cancel_panel_close_confirmation();
         }
-        let accepted_close =
-            matches!(prepared.result, PreparedPanelResult::CloseAccepted).then(|| {
-                (
-                    prepared.operation.target.tab_id().clone(),
-                    prepared.operation.panel_id.clone(),
-                )
-            });
+        let accepted_close = match &prepared.result {
+            PreparedPanelResult::CloseAccepted(accepted) => Some(accepted.clone()),
+            _ => None,
+        };
         match prepared.result {
             PreparedPanelResult::NotApplied => self.notice = Some(ClientNotice::PanelNotApplied),
             PreparedPanelResult::LaunchRequestTooLarge => {
@@ -723,7 +727,7 @@ impl WorkbenchClientState {
             PreparedPanelResult::Unchanged | PreparedPanelResult::ConfirmationRequired => {
                 self.notice = None;
             }
-            PreparedPanelResult::CloseAccepted => {
+            PreparedPanelResult::CloseAccepted(_) => {
                 self.notice = None;
                 self.note_publication_hint();
             }
@@ -763,8 +767,8 @@ impl WorkbenchClientState {
             }
         }
         self.pending_mutation = None;
-        if let Some((tab_id, panel_id)) = accepted_close {
-            self.begin_panel_leaving(&tab_id, &panel_id);
+        if let Some(accepted) = accepted_close {
+            self.leave_accepted_panel_close(&prepared.operation, &accepted);
         }
         PanelDecision::Continue
     }

@@ -14,29 +14,51 @@ fn serve_closed(
     stream: &mut UnixStream,
     operation: orchbee_workbench_protocol::WorkbenchRequestId,
 ) -> io::Result<String> {
-    let WorkbenchRequest::TabCloseRead(request) =
-        read_workbench_request_absorbing_probes(stream).map_err(io::Error::other)?
-    else {
-        return Err(io::Error::other("expected exact Close Read"));
+    let closed = WorkbenchTabCloseStatus::Closed {
+        revision: WorkbenchRevision::new(2),
     };
-    let id = request.request_id.as_str().to_owned();
-    write_workbench_response(
-        stream,
-        &WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id,
-            outcome: WorkbenchTabCloseReadOutcome::Available {
-                close_request_id: operation,
-                terminal_context_id: request.terminal_context_id,
-                tab_id: request.tab_id,
-                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
-                status: WorkbenchTabCloseStatus::Closed {
-                    revision: WorkbenchRevision::new(2),
-                },
-            },
-        }),
-    )
-    .map_err(io::Error::other)?;
+    let attempt_generation = WorkbenchTabCloseAttemptGeneration::new(1).unwrap();
+    let (id, response) =
+        match read_workbench_request_absorbing_probes(stream).map_err(io::Error::other)? {
+            // A close whose acceptance was lost is found by its Tab.
+            WorkbenchRequest::TabCloseRead(request) => (
+                request.request_id.as_str().to_owned(),
+                WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome: WorkbenchTabCloseReadOutcome::Available {
+                        close_request_id: operation,
+                        terminal_context_id: request.terminal_context_id,
+                        tab_id: request.tab_id,
+                        attempt_generation,
+                        status: closed,
+                    },
+                }),
+            ),
+            // An accepted close is read by its operation.
+            WorkbenchRequest::CloseOperationRead(request) => {
+                assert_eq!(request.operation_id, operation);
+                (
+                    request.request_id.as_str().to_owned(),
+                    WorkbenchResponse::CloseOperation(CloseOperationResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: request.request_id,
+                        session_id: request.session_id,
+                        operation_id: request.operation_id,
+                        outcome: CloseOperationOutcome::Available {
+                            target: CloseOperationTarget::Tab {
+                                terminal_context_id: WorkbenchTerminalContextId::parse(ID).unwrap(),
+                                tab_id: WorkbenchTabId::parse(ID).unwrap(),
+                            },
+                            generation: attempt_generation,
+                            status: closed,
+                        },
+                    }),
+                )
+            }
+            _ => return Err(io::Error::other("expected exact Close Read")),
+        };
+    write_workbench_response(stream, &response).map_err(io::Error::other)?;
     Ok(id)
 }
 

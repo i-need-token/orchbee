@@ -104,8 +104,11 @@ closes ask the Server and which present at once.
 
 ## Close status
 
-A close of one Tab behaves the same from every route. The Tab leaving reports a normal close, so it
-adds no notice and no count. From the draw after its close is submitted, or accepted when the Server
+A close of one Tab behaves the same from every route. That includes the close of a Tab's last
+Panel, confirmed or closed unasked because it was idle: the Server admits it as the close of the
+Tab, so from its acceptance the Client retains it as it retains an accepted Tab close, with the
+leaving, selection, status, report and Resume described here. The Tab leaving reports a normal
+close, so it adds no notice and no count. From the draw after its close is submitted, or accepted when the Server
 decided it unasked, while that close is progressing normally, the Client treats the Tab as gone
 instead of waiting for the Server's publication to remove it from the canonical list: the strip
 leaves it out, next, previous and numbered Tab selection skip it and count positions without it, and
@@ -131,7 +134,11 @@ Terminate ends the shell and the close waits out the five-second grace.
 Status reads of a retained close are 250 ms apart, except that a Workbench publication lets the
 next one go at once: the Server publishes a closed Tab as it finishes, and the Client holds every
 refresh until a read confirms it, so the Tab leaves without waiting out the interval. A wake admits
-one read; reads stay one at a time.
+one read; reads stay one at a time. A read names the close by its operation,
+`workbench.close-operation.read`, once the Client knows that operation. Only a close whose
+acceptance never arrived is read by its Tab, `workbench.tab-close.read`: the Server keeps every
+close of a Tab's address, earlier closes of its Panels included, and that read may answer with one
+of them.
 
 Blocked, unknown, unavailable and uncertain closes report at once, and a later validated `Closed`
 clears the report. A refusal keeps the Tab and reports only its notice. `close_status` stays

@@ -6,6 +6,9 @@ use super::{
     AttachmentKey, ClientPhase, PaneKey, PanelIntent, PanelOperation, PanelRequestKind,
     WorkbenchClientState,
 };
+use crate::exchange_values::workbench::{
+    WorkbenchTabCloseAccepted, panel_close::WorkbenchPanelCloseAccepted,
+};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use crate::workbench_projection::{
     ClientContextTabs, ClientPanelTree, ClientTab, ClientTerminalBinding,
@@ -451,15 +454,43 @@ impl WorkbenchClientState {
         }
     }
 
+    /// Starts drawing what an accepted Panel close removes as gone. A Tab's last Panel takes its
+    /// Tab, which is what the Server closes, so that close is retained and followed as the close of
+    /// the Tab: the Tab leaves the strip at once and the selection follows it as it follows any
+    /// accepted Tab close. Any other Panel leaves its Tab's split.
+    pub(super) fn leave_accepted_panel_close(
+        &mut self,
+        operation: &PanelOperation,
+        accepted: &WorkbenchPanelCloseAccepted,
+    ) {
+        let tab_id = operation.target().tab_id();
+        let last_panel = self
+            .cache
+            .tab_index(tab_id)
+            .and_then(|index| self.cache.tabs().get(index))
+            .is_some_and(|tab| tab.panel_count() == 1);
+        if last_panel {
+            // A Tab that already holds a retained close keeps that close and its report; a close
+            // that cannot be retained leaves the Tab drawn until publication removes it.
+            let _ = self.retain_last_panel_close(
+                &WorkbenchTabCloseAccepted {
+                    close_request_id: accepted.close_request_id.clone(),
+                    terminal_context_id: accepted.terminal_context_id.clone(),
+                    tab_id: accepted.tab_id.clone(),
+                    accepted_revision: accepted.accepted_revision,
+                },
+                operation.admitted_at(),
+            );
+            return;
+        }
+        self.begin_panel_leaving(tab_id, operation.panel_id());
+    }
+
     /// Starts drawing a Panel as gone once the Server accepted its close. When the focus is on that
     /// Panel it moves first to the survivor the canonical install would choose, so the publication
     /// confirms the leaf the user already sees. Without a live survivor the leaf keeps drawing until
     /// the publication removes it.
-    pub(super) fn begin_panel_leaving(
-        &mut self,
-        tab_id: &WorkbenchTabId,
-        panel_id: &WorkbenchPanelId,
-    ) {
+    fn begin_panel_leaving(&mut self, tab_id: &WorkbenchTabId, panel_id: &WorkbenchPanelId) {
         let Some(index) = self.cache.tab_index(tab_id) else {
             return;
         };
