@@ -1465,8 +1465,8 @@ fn plugin_terminal_launch_rejects_oversized_frames_before_reserving_and_preserve
             Some(expiry()),
             &LaunchCapture::absent()
         )),
-        CreateOutcome::Failed {
-            reason: CreateFailureReason::TerminalCreateFailed
+        CreateOutcome::Rejected {
+            reason: CreateRejectedReason::LaunchRequestTooLarge
         }
     ));
     assert_eq!(coordinator.next_identity, identity);

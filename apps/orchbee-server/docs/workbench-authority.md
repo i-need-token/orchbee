@@ -418,6 +418,19 @@ The Client's read-error and structural-selection rules belong to [Workspace star
 
 Workbench prepares the candidate Tab/Panel/Presentation, publication, identities and pending/final ledger reservation. The terminal coordinator separately prepares its exact runtime reservation. Session validates both plans before committing either under one gate; Worker I/O runs after releasing it. Dropping preparation has no effect. Transient precommit Worker/resource refusal does not retain success. A known launch failure retains the committed member and reports failure; an uncertain outcome remains unknown and never causes an automatic second launch.
 
+An encoded launch exceeding the existing Capability Node frame limit is a definite precommit
+`rejected {reason:launch-request-too-large}`, not retryable `unavailable {reason:server-busy}`.
+The direct terminal-create protocol uses the same rejected reason. Plugin environment and captured
+preferences count toward that unchanged frame budget. No terminal reservation, Workbench revision,
+identity allocation or Worker dispatch occurs. Shorten the custom program's arguments or environment
+before submitting again. Worktree restore reports the same named failure without making it resumable.
+Other encoding failures retain their existing invariant-failure classification and planning is unchanged.
+
+This extends the closed OBCS/OBWP v1 reason sets. Deploy the matching Server, native and GUI Clients
+together; older strict readers can reject the new value. Rust/TypeScript mirrors, public JSON schemas
+and conformance fixtures travel in this delivery. There is no frame-version, size-limit or persistent
+state migration; reverting the matched cohort restores the previous reason vocabulary.
+
 ### Completion and replay
 
 Origin-bound consuming tokens name the original pending command, retained runtime request and exact binding. Completion validates those facts before publishing a final result. A stale or foreign token cannot settle another request. Close or relocation can change current membership without rewriting a historical Create result; replay returns that original result and dispatches no Worker effect. Postcommit internal inconsistency closes the mixed carrier without fabricating a result.

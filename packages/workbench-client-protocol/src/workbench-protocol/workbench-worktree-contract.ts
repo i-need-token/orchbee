@@ -181,6 +181,7 @@ const WorktreeOperationFailureSchema = z.discriminatedUnion('kind', [
 			kind: z.enum([
 				'worker-unavailable',
 				'worker-busy',
+				'launch-request-too-large',
 				'worker-capacity',
 				'unsupported',
 				'transport-unknown',

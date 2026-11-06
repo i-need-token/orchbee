@@ -715,6 +715,11 @@
 			"direction": "client-to-server",
 			"name": "viewer-read-viewport-rows-render",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"render\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":1,\"revision\":\"0\",\"generation\":\"1\",\"requestSequence\":\"1\",\"maximumBytes\":112}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-rejected-launch-request-too-large",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"launch-request-too-large\"}}"
 		}
 	],
 	"equivalentMessages": [

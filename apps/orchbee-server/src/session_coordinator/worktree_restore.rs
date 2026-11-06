@@ -82,9 +82,10 @@ impl SessionCoordinator {
             )
             .map_err(
                 |message| match tab_create::terminal_preflight_reason(&message) {
-                    WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker => {
+                    Ok(WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker) => {
                         Failure::WorkerUnavailable {}
                     }
+                    Err(_) => Failure::LaunchRequestTooLarge {},
                     _ => Failure::WorkerBusy {},
                 },
             )?;

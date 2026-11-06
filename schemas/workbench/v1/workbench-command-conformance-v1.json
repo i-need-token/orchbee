@@ -7478,6 +7478,20 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "launch-request-too-large-non-retryable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "launch-request-too-large"
+				}
+			}
 		}
 	],
 	"invalid": [

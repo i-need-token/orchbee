@@ -790,13 +790,18 @@ impl TerminalCoordinator {
             }
         };
         // Plugin metadata and the preference capture must fit one OBCN frame before admission.
-        if orchbee_capability_node_protocol::encode_message(
+        if let Err(error) = orchbee_capability_node_protocol::encode_message(
             &CapabilityNodeMessage::AuthorizedTerminalLaunch(command.clone()),
-        )
-        .is_err()
-        {
-            return Err(ready(CreateOutcome::Failed {
-                reason: CreateFailureReason::TerminalCreateFailed,
+        ) {
+            return Err(ready(match error {
+                orchbee_capability_node_protocol::ProtocolError::PayloadTooLarge { .. } => {
+                    CreateOutcome::Rejected {
+                        reason: CreateRejectedReason::LaunchRequestTooLarge,
+                    }
+                }
+                _ => CreateOutcome::Failed {
+                    reason: CreateFailureReason::TerminalCreateFailed,
+                },
             }));
         }
         Ok(PlannedCreate {

@@ -211,6 +211,18 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
         result(&self.command, unavailable(reason.into()))
     }
 
+    /// A definite planning rejection commits no membership or terminal reservation.
+    #[must_use]
+    pub fn preflight_rejected(self, reason: WorkbenchRejectionReason) -> WorkbenchCommandResult {
+        result(
+            &self.command,
+            WorkbenchCommandOutcome::Rejected {
+                revision: self.authority.projection.snapshot().revision,
+                reason,
+            },
+        )
+    }
+
     #[must_use]
     pub fn retire_composition_failure(self) -> WorkbenchCommandResult {
         self.authority.retired = true;

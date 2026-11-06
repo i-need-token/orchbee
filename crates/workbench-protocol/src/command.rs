@@ -1144,6 +1144,8 @@ pub enum WorkbenchRejectionReason {
     RequestIdentityConflict,
     /// A conditional action had no effect; explicit reviewed confirmation is required.
     ConfirmationRequired,
+    /// The complete encoded launch cannot fit the transport; retrying unchanged cannot help.
+    LaunchRequestTooLarge,
     /// The relocation destination resolved to the source Tab itself.
     SameTab,
 }

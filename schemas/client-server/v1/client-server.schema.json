@@ -291,7 +291,12 @@
 			]
 		},
 		"createRejectedReason": {
-			"enum": ["not-authorized", "worker-constraint-unsatisfied", "cwd-not-accepted"]
+			"enum": [
+				"not-authorized",
+				"worker-constraint-unsatisfied",
+				"cwd-not-accepted",
+				"launch-request-too-large"
+			]
 		},
 		"createUnavailableReason": {
 			"enum": ["no-compatible-worker", "terminal-runtime-unavailable", "server-busy"]

@@ -6,8 +6,8 @@ use super::{SessionCoordinator, presentation_binding};
 use crate::terminal_coordinator::{Completion, CreateInputs, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, TerminalOperationAuthorization};
 use orchbee_client_server_protocol::{
-    CreateAcceptedState, CreateOutcome, CreateUnavailableReason, Geometry, RequestId,
-    ServerMessage, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
+    CreateAcceptedState, CreateOutcome, CreateRejectedReason, CreateUnavailableReason, Geometry,
+    RequestId, ServerMessage, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
 };
 use orchbee_server::{
     PendingWorkbenchTabCreate, WorkbenchAuthority, WorkbenchGrant, WorkbenchTabCreateBegin,
@@ -16,8 +16,8 @@ use orchbee_server::{
 use orchbee_workbench_protocol::{
     PresentationBinding, ProtocolVersion, TerminalPresentationId, WorkbenchAction,
     WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
-    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    WorkbenchCommandUnavailableReason, WorkbenchRejectionReason, WorkbenchTerminalFailureReason,
+    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
 };
 
 pub(crate) enum PreparedTerminalTabCreate {
@@ -315,8 +315,12 @@ impl SessionCoordinator {
         {
             Ok(plan) => plan,
             Err(result) => {
-                let reason = terminal_preflight_reason(&result);
-                return PreparedTerminalTabCreate::Ready(admission.runtime_unavailable(reason));
+                return PreparedTerminalTabCreate::Ready(
+                    match terminal_preflight_reason(&result) {
+                        Ok(reason) => admission.runtime_unavailable(reason),
+                        Err(reason) => admission.preflight_rejected(reason),
+                    },
+                );
             }
         };
         terminal.set_profile_provenance(profile_provenance);
@@ -492,7 +496,11 @@ pub(super) fn pending_authorization_from_message(
 
 pub(super) fn terminal_preflight_reason(
     result: &ServerMessage,
-) -> WorkbenchTabCreateRuntimeUnavailableReason {
+) -> Result<WorkbenchTabCreateRuntimeUnavailableReason, WorkbenchRejectionReason> {
+    if matches!(result, ServerMessage::TerminalCreateResult(result) if result.outcome() == CreateOutcome::Rejected { reason: CreateRejectedReason::LaunchRequestTooLarge })
+    {
+        return Err(WorkbenchRejectionReason::LaunchRequestTooLarge);
+    }
     if matches!(
         result,
         ServerMessage::TerminalCreateResult(result)
@@ -500,9 +508,9 @@ pub(super) fn terminal_preflight_reason(
                 reason: CreateUnavailableReason::NoCompatibleWorker,
             }
     ) {
-        WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker
+        Ok(WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker)
     } else {
-        WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy
+        Ok(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy)
     }
 }
 

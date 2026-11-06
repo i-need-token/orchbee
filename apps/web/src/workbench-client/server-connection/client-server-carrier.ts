@@ -82,6 +82,7 @@ const CreateOutcomeSchema = z.discriminatedUnion('kind', [
 		'not-authorized',
 		'worker-constraint-unsatisfied',
 		'cwd-not-accepted',
+		'launch-request-too-large',
 	]),
 	reasonOutcome('unavailable', [
 		'no-compatible-worker',

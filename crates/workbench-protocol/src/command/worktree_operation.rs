@@ -357,6 +357,7 @@ pub enum WorktreeOperationFailure {
     },
     WorkerUnavailable {},
     WorkerBusy {},
+    LaunchRequestTooLarge {},
     WorkerCapacity {},
     Unsupported {},
     TransportUnknown {},

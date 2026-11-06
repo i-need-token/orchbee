@@ -563,6 +563,45 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "launch-request-too-large-not-resumable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "launch-request-too-large"
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 3,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			}
 		}
 	],
 	"invalid": [

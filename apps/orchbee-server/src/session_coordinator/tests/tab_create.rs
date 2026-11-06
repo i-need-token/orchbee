@@ -682,6 +682,79 @@ fn workbench_and_terminal_preflight_refusals_leave_all_three_session_owners_unch
 }
 
 #[test]
+fn oversized_launch_capture_is_a_definite_non_retryable_rejection_without_a_commit() {
+    use orchbee_capability_node_protocol::{
+        LaunchPreferences, TerminalLaunchPreferences, TerminalLaunchThemes,
+    };
+    let mut coordinator = session();
+    let before = snapshot(&mut coordinator);
+    let command = tab_command(&coordinator, 8001, 0, "oversized");
+    let preferences = LaunchPreferences::Available(
+        TerminalLaunchPreferences::new(
+            1000,
+            None,
+            TerminalLaunchThemes::new("light".into(), "dark".into()).unwrap(),
+            None,
+        )
+        .unwrap(),
+    );
+    let mut environment: Vec<_> = orchbee_client_server_protocol::PLUGIN_TERMINAL_ENVIRONMENT_NAMES
+        [..7]
+        .iter()
+        .map(|name| ((*name).into(), "literal".to_owned()))
+        .collect();
+    environment[5].1 = "x".repeat(20 * 1024);
+    let request = TerminalCreateRequest::new(
+        id(8002),
+        None,
+        None,
+        StartMode::Deferred,
+        Some(
+            orchbee_client_server_protocol::LaunchSelection::new(
+                "C:/plugin.exe".into(),
+                vec!["x".repeat(30 * 1024 - 100)],
+            )
+            .unwrap(),
+        ),
+    )
+    .with_plugin_environment(Some(
+        orchbee_client_server_protocol::PluginTerminalEnvironment::new(environment).unwrap(),
+    ))
+    .unwrap();
+    // Both components are valid, but plugin metadata and captured preferences exceed one frame.
+    let refusal = coordinator
+        .terminals
+        .plan_create(
+            request,
+            Some(worker(1)),
+            Some(expiry()),
+            &LaunchCapture::new(preferences.clone(), preferences),
+        )
+        .err()
+        .expect("the combined launch must exceed the frame");
+    let authority = coordinator.workbench.as_mut().unwrap();
+    let grant =
+        WorkbenchGrant::manage_navigation_and_terminal_create(authority.session_id().clone());
+    let orchbee_server::WorkbenchTabCreateBegin::Admitted(admission) =
+        authority.begin_terminal_tab_create(Some(&grant), command)
+    else {
+        panic!("admitted Tab creation")
+    };
+    let result = match crate::session_coordinator::tab_create::terminal_preflight_reason(&refusal) {
+        Ok(reason) => admission.runtime_unavailable(reason),
+        Err(reason) => admission.preflight_rejected(reason),
+    };
+    let outcome = serde_json::to_value(&result.outcome).unwrap();
+    assert_eq!(
+        outcome["kind"], "rejected",
+        "deterministic oversize must not be retryable runtime unavailability: {outcome}"
+    );
+    assert_eq!(outcome["reason"], "launch-request-too-large");
+    assert_eq!(snapshot(&mut coordinator), before);
+    assert_eq!(coordinator.allocate_identity(), Some(1_u128.to_be_bytes()));
+}
+
+#[test]
 fn missing_and_retired_workbench_use_service_unavailable_without_terminal_effects() {
     let command_for = |session_id| WorkbenchCommand {
         protocol_version: ProtocolVersion,

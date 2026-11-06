@@ -246,9 +246,11 @@ impl SessionCoordinator {
         {
             Ok(plan) => plan,
             Err(result) => {
-                let reason = terminal_preflight_reason(&result);
                 return PreparedTerminalPanelCreate::Ready(
-                    admission.runtime_unavailable(reason.into()),
+                    match terminal_preflight_reason(&result) {
+                        Ok(reason) => admission.runtime_unavailable(reason.into()),
+                        Err(reason) => admission.preflight_rejected(reason),
+                    },
                 );
             }
         };

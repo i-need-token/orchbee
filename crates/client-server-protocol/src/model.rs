@@ -195,6 +195,7 @@ pub enum CreateRejectedReason {
     NotAuthorized,
     WorkerConstraintUnsatisfied,
     CwdNotAccepted,
+    LaunchRequestTooLarge,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

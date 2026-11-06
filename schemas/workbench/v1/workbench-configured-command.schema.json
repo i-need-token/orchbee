@@ -3031,7 +3031,8 @@
 				"workspace-move-index-out-of-bounds",
 				"workspace-move-target-in-block",
 				"tab-group-unavailable",
-				"invalid-navigation-configuration"
+				"invalid-navigation-configuration",
+				"launch-request-too-large"
 			]
 		},
 		"wc_commandUnavailableReason": {

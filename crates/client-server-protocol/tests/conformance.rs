@@ -330,6 +330,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "create-failed-terminal-create-failed",
         "create-outcome-unknown",
         "create-rejected-cwd-not-accepted",
+        "create-rejected-launch-request-too-large",
         "create-rejected-not-authorized",
         "create-rejected-worker-constraint-unsatisfied",
         "create-request-cwd-null",
@@ -839,6 +840,9 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 CreateOutcome::Rejected {
                     reason: CreateRejectedReason::CwdNotAccepted,
                 } => "create-rejected-cwd-not-accepted",
+                CreateOutcome::Rejected {
+                    reason: CreateRejectedReason::LaunchRequestTooLarge,
+                } => "create-rejected-launch-request-too-large",
                 CreateOutcome::Unavailable {
                     reason: CreateUnavailableReason::NoCompatibleWorker,
                 } => "create-unavailable-no-compatible-worker",

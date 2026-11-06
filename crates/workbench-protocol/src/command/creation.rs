@@ -76,6 +76,7 @@ impl WorkbenchCommand {
                             )
                     }
                     Rejection::TabUnavailable
+                    | Rejection::LaunchRequestTooLarge
                     | Rejection::PanelUnavailable
                     | Rejection::WorkspaceDirectoryUnavailable => !structure,
                     Rejection::ProjectUnavailable

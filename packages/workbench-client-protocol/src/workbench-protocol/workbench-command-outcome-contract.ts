@@ -57,6 +57,7 @@ const WorkbenchRejectionReasonSchema = z.enum([
 	'revision-exhausted',
 	'request-identity-conflict',
 	'confirmation-required',
+	'launch-request-too-large',
 ]);
 
 const WorkbenchCommandUnavailableReasonSchema = z.enum([
