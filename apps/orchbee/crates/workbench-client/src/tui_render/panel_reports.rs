@@ -2,7 +2,8 @@
 use crate::{terminal_text::sanitize_terminal_text, workbench_client::PanelReportView};
 use orchbee_workbench_protocol::{MetadataState, PanelAgentState};
 
-/// The shared Panel name is independent of Agent metadata. Tokens follow as literal key/value text.
+/// The shared Panel name already resolves custom, guarded metadata and automatic precedence.
+/// Tokens follow as literal key/value text.
 pub(super) fn title(display_label: &str, view: PanelReportView<'_>, separator: &str) -> String {
     let row = match view {
         PanelReportView::Ready(row) => Some(row),

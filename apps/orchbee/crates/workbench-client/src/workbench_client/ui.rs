@@ -455,7 +455,7 @@ impl<'a> WorkbenchClientView<'a> {
         orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, &title)
     }
 
-    pub(crate) fn panel_report(&self, panel: &super::ClientPanel) -> super::PanelReportView<'_> {
+    pub(crate) fn panel_report(&self, panel: &super::ClientPanel) -> super::PanelReportView<'a> {
         if self.retirement.is_some() {
             return super::PanelReportView::Unavailable;
         }
@@ -572,11 +572,38 @@ impl<'a> WorkbenchClientView<'a> {
             })
             .unwrap_or(0)
             + 1;
-        panel_label(
-            self.presentation_name(&tab.inner, panel, panel.primary()),
-            position,
-            locale,
-        )
+        panel_label(self.panel_name(&tab.inner, panel), position, locale)
+    }
+
+    /// Panel chrome preserves the guarded metadata title above the shared automatic rule.
+    /// The observation owner qualifies metadata by the selected Presentation and exact binding;
+    /// custom labels and the automatic terminal fallback still belong to the primary.
+    fn panel_name(
+        &self,
+        tab: &StateTabView<'a>,
+        panel: &'a super::ClientPanel,
+    ) -> Option<ChromeName<'a>> {
+        panel
+            .primary()
+            .custom_label()
+            .map(ChromeName::Text)
+            .or_else(|| self.panel_fallback(tab, panel))
+    }
+
+    fn panel_fallback(
+        &self,
+        tab: &StateTabView<'a>,
+        panel: &'a super::ClientPanel,
+    ) -> Option<ChromeName<'a>> {
+        let metadata = match self.panel_report(panel) {
+            super::PanelReportView::Ready(row) => row
+                .metadata
+                .title
+                .as_ref()
+                .map(|title| ChromeName::Text(title.as_str())),
+            _ => None,
+        };
+        metadata.or_else(|| self.presentation_fallback(tab, panel, panel.primary()))
     }
 
     fn presentation_name(

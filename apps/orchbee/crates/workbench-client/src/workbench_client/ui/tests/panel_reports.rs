@@ -10,6 +10,121 @@ use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
 
 #[test]
+fn panel_names_share_custom_guarded_metadata_automatic_and_position_precedence() {
+    use orchbee_workbench_protocol::{PanelCustomLabel, PanelNode, PresentationLaunchProgram};
+    for custom in [None, Some("Named Panel")] {
+        for metadata in [None, Some("Guarded title")] {
+            for program in [false, true] {
+                let mut source = super::super::tests::publication_hint::split_snapshot(1);
+                let PanelNode::Split {
+                    children,
+                    orientation,
+                    ..
+                } = &mut source.terminal_contexts[0].tabs[0].root
+                else {
+                    panic!()
+                };
+                *orientation = orchbee_workbench_protocol::PanelOrientation::Vertical;
+                let PanelNode::Panel {
+                    primary_presentation,
+                    ..
+                } = &mut children[0].node
+                else {
+                    panic!()
+                };
+                primary_presentation.custom_label =
+                    custom.map(|label| PanelCustomLabel::parse(label).unwrap());
+                primary_presentation.launch_program =
+                    program.then(|| PresentationLaunchProgram::parse("pwsh.exe").unwrap());
+                let (mut ui, _, _, _) =
+                    super::super::tests::move_membership::ready_ui_with_snapshot(source);
+                let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
+                let row = PanelReport {
+                    report: None,
+                    metadata: serde_json::from_value(
+                        json!({"title":metadata,"displayAgent":null,"stateLabels":{}}),
+                    )
+                    .unwrap(),
+                    tokens: Default::default(),
+                };
+                ui.reports.publish_for_test(Round {
+                    rows: scope
+                        .panels
+                        .iter()
+                        .map(|panel| (panel.panel_id.clone(), row.clone()))
+                        .collect(),
+                    scope,
+                });
+                let expected = |locale: Locale, include_custom: bool| {
+                    include_custom
+                        .then_some(custom)
+                        .flatten()
+                        .or(metadata)
+                        .or(program.then_some("PowerShell"))
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| format!("{} 1", locale.shell().panel_title))
+                };
+                for locale in [Locale::EnUs, Locale::ZhCn] {
+                    let view = ui.view();
+                    let tab = view.tab(0).unwrap();
+                    assert_eq!(
+                        view.panel_label(&tab, tab.panel(0).unwrap(), locale),
+                        expected(locale, true)
+                    );
+                    assert!(
+                        paint(
+                            &ui,
+                            120,
+                            40,
+                            locale,
+                            &crate::tui_theme::Theme::terminal_native()
+                        )
+                        .contains(&expected(locale, true))
+                    );
+                }
+                let pane = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+                assert!(ui.open_action_menu(
+                    crate::action_menu::MenuTarget::Pane(pane),
+                    None,
+                    false
+                ));
+                for locale in [Locale::EnUs, Locale::ZhCn] {
+                    assert!(
+                        paint(
+                            &ui,
+                            120,
+                            40,
+                            locale,
+                            &crate::tui_theme::Theme::terminal_native()
+                        )
+                        .contains(&expected(locale, true))
+                    );
+                }
+                ui.cancel_action_menu();
+                ui.request_panel_close_confirmation();
+                for locale in [Locale::EnUs, Locale::ZhCn] {
+                    assert_eq!(
+                        ui.view()
+                            .panel_close_confirmation()
+                            .unwrap()
+                            .panel_label(locale),
+                        expected(locale, true)
+                    );
+                }
+                ui.state.as_mut().unwrap().cancel_panel_close_confirmation();
+                ui.request_panel_rename_draft().unwrap();
+                for locale in [Locale::EnUs, Locale::ZhCn] {
+                    assert_eq!(
+                        ui.view().rename_draft().unwrap().target_label(locale),
+                        expected(locale, false)
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn completion_state_cells_use_server_facts_even_without_a_client_working_observation() {
     use orchbee_workbench_protocol::{AgentCompletion, MetadataState, PanelAgentState};
     let source = super::super::tests::publication_hint::split_snapshot(1);
@@ -300,8 +415,16 @@ fn paint(
         .backend()
         .buffer()
         .content()
-        .iter()
-        .map(|c| c.symbol())
+        .chunks(usize::from(width))
+        .map(|row| {
+            let mut text = String::new();
+            let mut column = 0;
+            while let Some(cell) = row.get(column) {
+                text.push_str(cell.symbol());
+                column += crate::terminal_text::display_width(cell.symbol()).max(1);
+            }
+            text
+        })
         .collect()
 }
 #[test]
@@ -342,6 +465,7 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
                         theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked);
                     assert!(text.contains(glyph), "{text}");
                     assert!(text.contains("branch=test"), "{text}");
+                    assert!(text.contains("Approval title"), "{text}");
                 }
             }
         }

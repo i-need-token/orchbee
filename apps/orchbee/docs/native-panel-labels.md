@@ -106,20 +106,28 @@ schema versions and the catalog are owned by [Native CLI queries](native-cli-que
 
 ## Automatic display names
 
-A Panel always names its primary Presentation, including while a child terminal is displayed.
-It reuses the [Tab naming rule](native-tab-labels.md): the custom override, then the program-set
+A Panel's custom label and automatic name belong to its primary Presentation, including while a child terminal is displayed.
+For TUI names, the primary custom override wins, followed by the guarded title from the existing
+selected-Presentation [metadata observation](windows-panel-report-presentation.md#header-behavior).
+Without either, it reuses the [Tab naming rule](native-tab-labels.md): the program-set
 title or a normalized console default title, then the committed launched program or failed-launch
 program, with its localized position last. The existing guarded live/retained observation owner
 qualifies a title by exact Presentation and binding; a child's frame never names its parent.
-An explicit custom number stays exact. A creation label, current directory or Agent metadata
-title never outranks that rule. Agent tokens and state remain separate annotations.
+An explicit custom number stays exact. A creation label or current directory never outranks
+that rule. Agent tokens and state remain separate annotations.
 
 The TUI Panel menu, split header, close confirmation, rename placeholder and notification context
 use this name. Rename placeholders omit the current override, showing what a clear would restore.
 The navigator lists Tabs rather than Panels and keeps the existing Tab naming rule. GUI Panel
-headers, close confirmations and rename placeholders use the primary by the same rule; child
+headers, close confirmations and rename placeholders use the primary custom/automatic rule; child
 terminal strips and terminal accessibility names still identify their own Presentation. The
 human CLI `panel list` title uses the same terminal-title and launch-program naming functions;
 its ordinal/handle columns and JSON remain unchanged. The `{pane}` window-title token remains
 the explicitly documented manual override, not a chrome-name projection. All displayed names
 retain sanitization and display-cell truncation, without changing canonical labels or identities.
+
+The GUI Panel/terminal observation path does not carry a guarded metadata title, so this delivery
+leaves GUI naming unchanged. `ServerAgentNameSource` reads a separate Agent-scoped `reportedTitle`;
+that is not a Panel observation and cannot name Agent-less Panels. It is not repurposed as an OSC
+or canonical title. GUI metadata-title parity remains unavailable until its Panel observation
+owner carries that field with the required guards and binding lifetime.
