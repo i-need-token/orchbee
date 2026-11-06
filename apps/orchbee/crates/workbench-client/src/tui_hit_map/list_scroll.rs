@@ -11,4 +11,8 @@ pub enum Target {
     Menu(crate::action_menu::MenuToken),
     Navigator(crate::client_view::navigator::Row),
     MachinePicker(crate::machine_picker::DrawnPickerList),
+    /// The Tab list, by the first row it painted.
+    TabList {
+        first: usize,
+    },
 }

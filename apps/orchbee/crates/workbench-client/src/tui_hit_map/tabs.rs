@@ -6,6 +6,8 @@ use ratatui::layout::Rect;
 pub struct TabDragPreview {
     pub(crate) grabbed: Vec<Rect>,
     pub(crate) marker: Option<(u16, u16)>,
+    /// A drag down the Tab list marks its drop with a line this wide from `marker`.
+    pub(crate) marker_line: Option<u16>,
     pub(crate) count: usize,
 }
 

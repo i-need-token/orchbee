@@ -17,7 +17,7 @@ pub(crate) enum ControlSurface {
 }
 
 impl ControlSurface {
-    pub(super) fn role(self) -> Role {
+    pub(crate) fn role(self) -> Role {
         match self {
             Self::Chrome => Role::SurfaceChrome,
             Self::Strip => Role::SurfaceStrip,

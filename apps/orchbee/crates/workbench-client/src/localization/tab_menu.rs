@@ -13,6 +13,14 @@ pub(crate) enum TabMenuScope {
 }
 
 impl Locale {
+    /// The Mobile bar's button that opens the Tab list, before the Tab count.
+    pub(crate) const fn tab_list_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Tabs",
+            Self::ZhCn => "标签页",
+        }
+    }
+
     /// Scope is captured owner data, not a count recovered from translated row copy.
     pub(crate) fn menu_tab_action(
         self,

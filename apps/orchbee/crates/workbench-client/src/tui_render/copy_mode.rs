@@ -31,18 +31,19 @@ pub(super) fn render_controls(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let area = super::controls::mode_bar(frame.area(), view.sidebar_surface());
+    let bar = super::controls::mode_bar(frame.area(), view.sidebar_surface());
     let Some(token) = mode.pointer else {
         return;
     };
-    if area.is_empty() {
+    if bar.is_empty() {
         return;
     }
-    hits.cover_chrome(area);
-    frame.render_widget(Clear, area);
+    hits.cover_chrome(bar);
+    frame.render_widget(Clear, bar);
     frame
         .buffer_mut()
-        .set_style(area, theme.style(Role::SurfaceChrome));
+        .set_style(bar, theme.style(Role::SurfaceChrome));
+    let area = super::controls::mode_bar_row(bar);
 
     let Some(close_area) = super::controls::close_rect(frame.area(), area) else {
         return;
@@ -193,7 +194,7 @@ pub(super) fn render_controls(
             hits,
         );
     }
-    hits.record(HitLayer::Chrome, area, HitTarget::OverlaySurface);
+    hits.record(HitLayer::Chrome, bar, HitTarget::OverlaySurface);
 }
 
 fn after_control(rect: Rect, close_x: u16) -> Rect {

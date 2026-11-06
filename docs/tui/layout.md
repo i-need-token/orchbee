@@ -90,17 +90,18 @@ Tiers give hints, chrome, and overlays a shared vocabulary for degradation. Widt
 classified independently; a surface uses the lower of the two, except that a width below 60
 columns is Mobile at any height that is not too small.
 
-| Tier    | Width         | Height     | Behavior                                                                                                                                                                         |
-| ------- | ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Full    | ≥ 100 columns | ≥ 24 rows  | Complete hints, docked side panel, full labels                                                                                                                                   |
-| Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel docked while content keeps 60 columns beside it and otherwise an overlay, truncated labels                                                           |
-| Minimal | ≥ 60 columns  | < 12 rows  | Hide optional top-strip actions to keep the first terminal row clear; preserve complete return/exit and primary actions while usable, otherwise suspend into the too-small state |
-| Mobile  | < 60 columns  | any        | Content alone by default; the side panel opens on demand as a screen covering the window and closes when a row is chosen; the top strip shows only from 12 rows                  |
+| Tier    | Width         | Height     | Behavior                                                                                                                                                                                                                       |
+| ------- | ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Full    | ≥ 100 columns | ≥ 24 rows  | Complete hints, docked side panel, full labels                                                                                                                                                                                 |
+| Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel docked while content keeps 60 columns beside it and otherwise an overlay, truncated labels                                                                                                         |
+| Minimal | ≥ 60 columns  | < 12 rows  | Hide optional top-strip actions to keep the first terminal row clear; preserve complete return/exit and primary actions while usable, otherwise suspend into the too-small state                                               |
+| Mobile  | < 60 columns  | any        | Content alone by default; the side panel and the Tabs each open on demand as a screen covering the window, one at a time, and close when a row is chosen; the top strip shows only from 12 rows and holds only the current Tab |
 
-A Mobile side panel screen with at least 24 rows is spaced for touch: each fixed action and list
-row keeps one line of content and owns one blank line below it, and the panel's controls take a
-target wider than their painted extent where the owner documents one. Shorter Mobile screens keep
-one line per row. The owner documents the concrete cells.
+A Mobile side panel or Tab screen with at least 24 rows is spaced for touch: each fixed action and
+list row keeps one line of content and owns one blank line below it, and the screen's controls take
+a target wider than their painted extent where the owner documents one. At that height the top
+strip also keeps one blank line above and below its row, which its targets share. Shorter Mobile
+screens keep one line per row. The owner documents the concrete cells.
 
 Below 20 columns or 5 rows the Client paints one localized too-small notice and the status line,
 nothing else, and resumes normal rendering when the host grows. Any suspended surface remains in

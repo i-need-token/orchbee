@@ -6,15 +6,10 @@
 //! list; Settings and Help take the line above the last, which their targets share.
 
 use super::super::sidebar_chrome::{self, TRAILING_GAP, TouchRow};
-use super::super::sidebar_touch::Halos;
-use super::{
-    ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
-    InteractionState, NavigationState, OperationState, PointerPresentation, Rect, Role,
-    SidebarArea, SidebarInput, Theme, action_rect, display_width, pointer_presentation,
-    render_action,
-};
+use super::super::sidebar_touch::{Halos, Painted, TouchAction, paint_action, resolve};
+use super::{ActionKind, Rect, Role, SidebarArea, SidebarInput, Theme, display_width};
 use super::{ClientView, Frame, HitLayer, HitMapBuilder, Locale, Paragraph};
-use crate::tui_hit_map::{InteractionSpec, InteractionTarget, PrimaryContract};
+use crate::tui_hit_map::InteractionTarget;
 
 /// The first fixed action's content line; the line above it is the window's first.
 const FIRST_ACTION_LINE: u16 = 1;
@@ -39,123 +34,6 @@ pub(super) struct Context<'a> {
     pub(super) held: Option<&'a crate::machine_picker::SidebarTarget>,
     pub(super) sidebar_width: u16,
     pub(super) trailing_padding: u16,
-}
-
-/// One fixed action at touch size: `[ Label ]` on `place.row`, owning every line of `place` from
-/// the row's start to the column its owner passes when painting it. Hover and press fill the
-/// whole target on the content row, key included.
-struct TouchAction<'a> {
-    label: &'a str,
-    kind: ActionKind,
-    enabled: bool,
-    target: InteractionTarget,
-    place: TouchRow,
-}
-
-struct Painted {
-    action: Rect,
-    fill: Option<Role>,
-}
-
-fn rest_state(enabled: bool) -> InteractionState {
-    InteractionState::new(
-        FocusState::Unfocused,
-        PointerPresentation::Rest,
-        NavigationState::None,
-        CurrentState::NotCurrent,
-        CheckedState::Unchecked,
-        if enabled {
-            Availability::Enabled
-        } else {
-            Availability::Disabled
-        },
-        OperationState::Idle,
-    )
-}
-
-/// Resolves the action's painted extent before anything paints, so its trailing icon action can
-/// decide whether it fits beside it.
-fn resolve(frame: &Frame<'_>, action: &TouchAction<'_>, theme: &Theme) -> Option<Rect> {
-    let rest = ActionSpec::new(
-        action.label,
-        action.kind,
-        ControlSurface::Chrome,
-        rest_state(action.enabled),
-    );
-    action_rect(frame.area(), action.place.row, rest, theme)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn paint_action(
-    frame: &mut Frame<'_>,
-    action: TouchAction<'_>,
-    end: u16,
-    theme: &Theme,
-    layer: HitLayer,
-    halos: &mut Halos,
-    hits: Option<&mut HitMapBuilder>,
-) -> Option<Painted> {
-    let TouchAction {
-        label,
-        kind,
-        enabled,
-        target,
-        place,
-    } = action;
-    let row = place.row;
-    let hit = Rect::new(row.x, place.top, end.saturating_sub(row.x), place.height);
-    if hit.is_empty() || frame.area().intersection(hit) != hit {
-        return None;
-    }
-    let interaction = if enabled {
-        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
-    } else {
-        InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
-    };
-    let pointer = hits.as_deref().map_or(PointerPresentation::Rest, |hits| {
-        pointer_presentation(hits.projected_pointer(layer, hit, hit, &target, interaction))
-    });
-    let pointer = if enabled {
-        pointer
-    } else {
-        PointerPresentation::Rest
-    };
-    let fill = match pointer {
-        PointerPresentation::Rest => None,
-        PointerPresentation::Hovered => Some(Role::SurfaceHover),
-        PointerPresentation::Pressed => Some(Role::SurfacePressed),
-    };
-    let band = Rect::new(hit.x, row.y, hit.width, 1);
-    if let Some(role) = fill {
-        frame.buffer_mut().set_style(
-            band,
-            theme.content_on_surface(
-                Role::SurfaceChrome,
-                Some(role),
-                None,
-                theme.style(Role::SurfaceChrome),
-            ),
-        );
-    }
-    halos.fill(theme, band, fill);
-    let painted = render_action(
-        frame,
-        row,
-        ActionSpec::new(
-            label,
-            kind,
-            ControlSurface::Chrome,
-            rest_state(enabled).with_pointer(pointer),
-        ),
-        theme,
-    )?;
-    if let Some(hits) = hits {
-        hits.record_interaction(layer, hit, hit, target, interaction);
-    }
-    Some(Painted {
-        action: painted,
-        fill,
-    })
 }
 
 /// Right-aligns `hint` to the exclusive column `right` on the action's row, two blank cells clear

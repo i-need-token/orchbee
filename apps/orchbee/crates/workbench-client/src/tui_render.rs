@@ -112,6 +112,7 @@ mod scrollbar;
 mod sidebar_text;
 mod sidebar_touch;
 mod status_line;
+mod tab_bar;
 mod tab_close;
 mod tab_rename;
 mod tabs;
@@ -229,20 +230,31 @@ pub fn render_terminal_shell_with_resize<'a>(
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
 
     let sidebar_surface = resize.sidebar(view.sidebar_surface());
-    let areas = project_shell_areas(area, sidebar_surface);
+    let mut areas = project_shell_areas(area, sidebar_surface);
+    // The Mobile tier's bar stands for the strip: it paints over the strip's whole area after the
+    // workbench, which sees only the bar's content row. Without a Workbench Client that row keeps
+    // the strip's unavailable status and restore control.
+    let mobile_bar = (areas.tier == ViewportTier::Mobile && !areas.tabs.is_empty())
+        .then_some(areas.tabs)
+        .filter(|_| workbench_client.is_some());
+    if areas.tier == ViewportTier::Mobile {
+        areas.tabs = areas.tab_row();
+    }
     // The Tab row includes the hidden sidebar's restore control.
     let tab_row = Role::SurfaceStrip;
 
     frame
         .buffer_mut()
         .set_style(areas.tabs, theme.style(tab_row));
-    let mut areas = areas;
-    let restore_button =
-        if view.machines.available && areas.sidebar.is_none() && !areas.tabs.is_empty() {
-            sidebar_chrome::take_strip_toggle(area, &mut areas.tabs)
-        } else {
-            None
-        };
+    let restore_button = if mobile_bar.is_none()
+        && view.machines.available
+        && areas.sidebar.is_none()
+        && !areas.tabs.is_empty()
+    {
+        sidebar_chrome::take_strip_toggle(area, &mut areas.tabs)
+    } else {
+        None
+    };
 
     let tier = areas.tier;
     if tier != ViewportTier::TooSmall {
@@ -374,6 +386,20 @@ pub fn render_terminal_shell_with_resize<'a>(
         }
     }
 
+    if let (Some(bar), Some(native)) = (mobile_bar, workbench_client.as_ref()) {
+        tab_bar::render_native(
+            frame,
+            bar,
+            tab_bar::Native {
+                view,
+                native,
+                locale,
+                theme,
+                toggle: view.machines.available && areas.sidebar.is_none(),
+            },
+            hits,
+        );
+    }
     if let Some(button) = restore_button {
         sidebar_chrome::render_strip_toggle(
             frame,
@@ -501,6 +527,27 @@ pub fn render_terminal_shell_with_resize<'a>(
                 render_sidebar(frame, sidebar, text, session_status, agent_line, theme);
             }
         }
+        // The Tab list covers the window as the sidebar list does. Under a capture, such as the
+        // Tab menu opened from one of its rows, it keeps only the geometry that menu anchors to.
+        if view.tab_list_open()
+            && let Some(native) = workbench_client.as_ref()
+        {
+            let context = tabs::list::Context {
+                native,
+                view,
+                locale,
+                theme,
+            };
+            if client_chrome_overlay_allowed(capture_owner) {
+                hits.mark_overlay_active();
+                hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+                tabs::list::render(frame, area, &context, hits);
+            } else {
+                let mut covered = HitMapBuilder::new();
+                tabs::list::render(frame, area, &context, &mut covered);
+                hits.record_covered_sidebar_geometry(covered);
+            }
+        }
 
         let overlay = match view
             .overlay()
@@ -543,6 +590,9 @@ pub fn render_terminal_shell_with_resize<'a>(
             // The sidebar overlay claimed the pointer before its rows painted; without a
             // sidebar area it is refused.
             Some(Overlay::BusinessSidebar) => areas.sidebar.is_none().then_some(None),
+            // The Tab list claimed the pointer before its rows painted; without a Workbench
+            // Client it has no Tabs and is refused.
+            Some(Overlay::TabList) => workbench_client.is_none().then_some(None),
             None => None,
         };
         if let Some(None) = overlay {
@@ -889,9 +939,7 @@ pub fn render_terminal_shell_with_resize<'a>(
     // box hides what lies beneath: a press there reaches nothing.
     if tier != ViewportTier::TooSmall
         && capture_owner.is_none()
-        && view
-            .overlay()
-            .is_none_or(|overlay| overlay == Overlay::BusinessSidebar)
+        && view.overlay().is_none_or(Overlay::keeps_chrome_pointer)
         && !view.prefix_active()
         && let Some(tooltip) = hits.open_tooltip()
         && let Some(surface) = tooltip::paint(frame, tooltip, &status_surfaces, theme)
@@ -1427,14 +1475,20 @@ fn render_native_workbench(
     {
         tabs_area.width = end.saturating_sub(tabs_area.x);
     }
-    render_tab_strip(frame, tabs_area, native, client_view, locale, theme, hits);
-    if let Some(selector) = &strip_selector {
+    // The Mobile tier's bar stands for the strip and its end controls.
+    if areas.tier != ViewportTier::Mobile {
+        render_tab_strip(frame, tabs_area, native, client_view, locale, theme, hits);
+    }
+    if let Some(selector) = strip_selector
+        .as_ref()
+        .filter(|_| areas.tier != ViewportTier::Mobile)
+    {
         frame
             .buffer_mut()
             .set_style(selector.area, theme.style(Role::SurfaceStrip));
         selector.paint(frame, STRIP_CONTROL_SURFACE, theme, hits);
     }
-    if let Some((area, count)) = strip_count {
+    if let Some((area, count)) = strip_count.filter(|_| areas.tier != ViewportTier::Mobile) {
         frame
             .buffer_mut()
             .set_style(area, theme.style(Role::SurfaceStrip));
@@ -1932,36 +1986,9 @@ fn render_tab_strip(
         .set_style(strip, theme.style(Role::SurfaceStrip));
 
     let create_offset = {
-        let selected = native.selected_tab_ids();
-        // A Tab whose close is progressing leaves the strip at once; the Server's publication
-        // removes it from the canonical list shortly after. Strip indices map through `shown`.
-        let shown = (0..native.tab_count())
-            .filter(|&index| {
-                native
-                    .tab(index)
-                    .is_some_and(|tab| !native.tab_leaving(tab.tab_id()))
-            })
-            .collect::<Vec<_>>();
+        // Strip indices map through `shown`.
+        let (shown, displayed) = tabs::shown_tabs(native, view, locale);
         let shown_tab = |index: usize| native.tab(*shown.get(index)?);
-        let displayed = (0..shown.len())
-            .filter_map(|index| {
-                let tab = shown_tab(index)?;
-                Some(tabs::groups::GroupTabDisplay {
-                    selected: selected.len() > 1 && selected.contains(tab.tab_id()),
-                    tab: tabs::TabDisplay {
-                        position: tab.position(),
-                        active: tab.active(),
-                        label: tab.display_label(locale),
-                    },
-                    group: tab.group(),
-                    collapsed: tab
-                        .group()
-                        .is_some_and(|group| native.group_collapsed(&group.group_id)),
-                    pinned: tab.pinned(),
-                    agent: machines.tab_agent(tab.tab_id()),
-                })
-            })
-            .collect::<Vec<_>>();
         let tab_target = |index: usize, part: tabs::groups::StripPart| {
             let tab = shown_tab(index)?;
             match part {

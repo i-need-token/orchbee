@@ -30,6 +30,7 @@ use super::{
 
 mod fenced_chord;
 mod navigator;
+mod tab_list;
 
 struct ActionDecision {
     transition: crate::client_view::ClientTransition,
@@ -704,8 +705,10 @@ impl InputDispatcher {
         // is already visible to the pure projector here, but it has not yet
         // acquired the host paste lease.
         let owned_input = self.decoder.owns_input() || self.capture_owner.is_some();
-        let owned_input =
-            owned_input || view.navigator_active() || view.machines.sidebar_navigation_active();
+        let owned_input = owned_input
+            || view.navigator_active()
+            || view.machines.sidebar_navigation_active()
+            || view.tab_list_open();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
@@ -743,8 +746,10 @@ impl InputDispatcher {
         changed |= self.pointer.tick(view, port, now, pointer_owner);
         changed |= self.reconcile(view, port, now);
         let capturing = self.decoder.owns_input() || Self::projected_capture(view, port).is_some();
-        let capturing =
-            capturing || view.navigator_active() || view.machines.sidebar_navigation_active();
+        let capturing = capturing
+            || view.navigator_active()
+            || view.machines.sidebar_navigation_active()
+            || view.tab_list_open();
         if !capturing {
             mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
@@ -1756,6 +1761,9 @@ impl InputDispatcher {
                 return Ok(DispatchOutcome::Continue);
             }
         }
+        if Self::tab_list_owns(view, &item) {
+            return self.tab_list_item(view, port, now, item, after_layout, mode);
+        }
         // The mobile list covers the terminal, so a key or paste reaching it returns to the list's
         // navigation instead of reaching the terminal hidden beneath, after a pointer press or a
         // closed dialog left that navigation.
@@ -2002,6 +2010,19 @@ impl InputDispatcher {
                                                 (view.overlay()
                                                     != Some(crate::client_view::Overlay::ShortcutHelp))
                                                 .then_some(ClientAction::OpenShortcutHelp)
+                                            }
+                                            // The Tab list is the strip's own presentation; opening
+                                            // or leaving it changes no Workbench state.
+                                            crate::tui_hit_map::GlobalChromeAction::OpenTabList => {
+                                                // Paste reaches the list, never the terminal it covers.
+                                                if view.open_tab_list() {
+                                                    mode(ModeRequest::BracketedPaste(true))?;
+                                                }
+                                                None
+                                            }
+                                            crate::tui_hit_map::GlobalChromeAction::CloseTabList => {
+                                                view.close_tab_list();
+                                                None
                                             }
                                         };
                                         if let Some(action) = action {

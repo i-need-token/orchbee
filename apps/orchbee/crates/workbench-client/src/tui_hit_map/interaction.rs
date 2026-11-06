@@ -127,6 +127,8 @@ impl InteractionTarget {
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
                 super::GlobalChromeAction::HideSidebar => HitTarget::SidebarHideButton,
                 super::GlobalChromeAction::ShortcutHelp => HitTarget::ShortcutHelpButton,
+                super::GlobalChromeAction::OpenTabList => HitTarget::TabListButton,
+                super::GlobalChromeAction::CloseTabList => HitTarget::TabListCloseButton,
             },
             Self::SettingsRow { token, row } => HitTarget::SettingsRow {
                 token: *token,

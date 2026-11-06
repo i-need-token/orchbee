@@ -5,7 +5,7 @@
 //! Settings row. Each paints only when its complete extent fits beside the content it must not
 //! cover, and publishes the existing sidebar visibility or shortcut-help action through global
 //! chrome. On a touch-spaced list both take their five-cell size and a target one cell wider on
-//! each side that spans their row's touch lines.
+//! each side that spans their row's touch lines; the Mobile bar's toggle takes the same size.
 
 use ratatui::{Frame, layout::Rect};
 
@@ -34,12 +34,14 @@ enum Control {
     Hide,
     Show,
     Help,
+    /// The Tab list's way back, which shares the visible sidebar toggle's glyph and place.
+    CloseTabs,
 }
 
 impl Control {
     const fn glyph(self) -> IconActionGlyph {
         match self {
-            Self::Hide => IconActionGlyph::HideSidebar,
+            Self::Hide | Self::CloseTabs => IconActionGlyph::HideSidebar,
             Self::Show => IconActionGlyph::ShowSidebar,
             Self::Help => IconActionGlyph::Help,
         }
@@ -50,6 +52,7 @@ impl Control {
             Self::Hide => GlobalChromeAction::HideSidebar,
             Self::Show => GlobalChromeAction::RestoreSidebar,
             Self::Help => GlobalChromeAction::ShortcutHelp,
+            Self::CloseTabs => GlobalChromeAction::CloseTabList,
         }
     }
 
@@ -58,14 +61,16 @@ impl Control {
             Self::Hide => TooltipLabel::HideSidebar,
             Self::Show => TooltipLabel::ShowSidebar,
             Self::Help => TooltipLabel::Shortcuts,
+            Self::CloseTabs => TooltipLabel::HideTabs,
         }
     }
 
     /// The binding whose key the tooltip names: the same action from the keyboard.
-    const fn binding(self) -> PrefixAction {
+    const fn binding(self) -> Option<PrefixAction> {
         match self {
-            Self::Hide | Self::Show => PrefixAction::SidebarToggle,
-            Self::Help => PrefixAction::ShowHelp,
+            Self::Hide | Self::Show => Some(PrefixAction::SidebarToggle),
+            Self::Help => Some(PrefixAction::ShowHelp),
+            Self::CloseTabs => None,
         }
     }
 }
@@ -116,7 +121,9 @@ fn publish(hits: &mut HitMapBuilder, target: Rect, control: Control, context: &C
         &action,
         TooltipContent::Action {
             label: locale.tooltip_label(control.label()).to_owned(),
-            key: super::tooltip::binding_key(view, control.binding(), theme),
+            key: control
+                .binding()
+                .and_then(|binding| super::tooltip::binding_key(view, binding, theme)),
         },
     );
 }
@@ -172,9 +179,37 @@ fn paint_touch_trailing(
     halos: &mut super::sidebar_touch::Halos,
     hits: Option<&mut HitMapBuilder>,
 ) -> Option<Rect> {
+    let x = touch_trailing_x(place.row, leading)?;
+    paint_touch(
+        frame,
+        place,
+        x,
+        control,
+        ControlSurface::Chrome,
+        context,
+        halos,
+        hits,
+    )
+}
+
+/// The touch-sized `control` with its brackets from column `x` on `place.row`, its target one
+/// cell wider on each side and spanning every line of `place`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one control paint takes its placement, surface and shared ports together"
+)]
+fn paint_touch(
+    frame: &mut Frame<'_>,
+    place: TouchRow,
+    x: u16,
+    control: Control,
+    surface: ControlSurface,
+    context: &Context<'_>,
+    halos: &mut super::sidebar_touch::Halos,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
     let TouchRow { row, top, height } = place;
-    let x = touch_trailing_x(row, leading)?;
-    let target = Rect::new(x - 1, top, TOUCH_ICON_ACTION_WIDTH + 2, height);
+    let target = Rect::new(x.checked_sub(1)?, top, TOUCH_ICON_ACTION_WIDTH + 2, height);
     if frame.area().intersection(target) != target {
         return None;
     }
@@ -186,10 +221,10 @@ fn paint_touch_trailing(
         frame.buffer_mut().set_style(
             band,
             theme.content_on_surface(
-                Role::SurfaceChrome,
+                surface.role(),
                 Some(role),
                 None,
-                theme.style(Role::SurfaceChrome),
+                theme.style(surface.role()),
             ),
         );
     }
@@ -197,18 +232,54 @@ fn paint_touch_trailing(
     let painted = render_touch_icon_action(
         frame,
         Rect::new(x, row.y, TOUCH_ICON_ACTION_WIDTH, 1),
-        IconActionSpec::new(
-            control.glyph(),
-            ControlSurface::Chrome,
-            Availability::Enabled,
-            pointer,
-        ),
+        IconActionSpec::new(control.glyph(), surface, Availability::Enabled, pointer),
         theme,
     )?;
     if let Some(hits) = hits {
         publish(hits, target, control, context);
     }
     Some(painted)
+}
+
+/// The Mobile bar's sidebar toggle at the bar's leading edge: at touch size, one cell in from the
+/// edge with a target from the edge across every line of `place`; closed up, the plain toggle.
+/// Returns the cells its target takes.
+pub(super) fn render_bar_toggle(
+    frame: &mut Frame<'_>,
+    place: TouchRow,
+    touch: bool,
+    context: &Context<'_>,
+    halos: &mut super::sidebar_touch::Halos,
+    hits: &mut HitMapBuilder,
+) -> Option<Rect> {
+    if touch {
+        let x = place.row.x.checked_add(1)?;
+        paint_touch(
+            frame,
+            place,
+            x,
+            Control::Show,
+            ControlSurface::Strip,
+            context,
+            halos,
+            Some(hits),
+        )?;
+        return Some(Rect::new(
+            place.row.x,
+            place.row.y,
+            TOUCH_ICON_ACTION_WIDTH + 2,
+            1,
+        ));
+    }
+    let rect = icon_action_rect(frame.area(), place.row)?;
+    paint(
+        frame,
+        rect,
+        Control::Show,
+        ControlSurface::Strip,
+        context,
+        Some(hits),
+    )
 }
 
 /// The hidden sidebar's toggle at the leading end of `tabs`; `tabs` gives up its extent and the
@@ -299,6 +370,32 @@ pub(super) fn render_touch_sidebar_toggle(
     hits: Option<&mut HitMapBuilder>,
 ) -> Option<Rect> {
     paint_touch_trailing(frame, place, action, Control::Hide, context, halos, hits)
+}
+
+/// The Tab list's way back at the trailing end of `place.row`, after `action`: touch-sized on a
+/// touch-spaced list, else the plain three-cell control.
+pub(super) fn render_close_tabs(
+    frame: &mut Frame<'_>,
+    place: TouchRow,
+    action: Option<Rect>,
+    touch: bool,
+    context: &Context<'_>,
+    halos: &mut super::sidebar_touch::Halos,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
+    if touch {
+        paint_touch_trailing(
+            frame,
+            place,
+            action,
+            Control::CloseTabs,
+            context,
+            halos,
+            hits,
+        )
+    } else {
+        paint_trailing(frame, place.row, action, Control::CloseTabs, context, hits)
+    }
 }
 
 /// The touch-spaced list's Help: [`render_help`] at touch size.

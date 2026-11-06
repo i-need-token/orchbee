@@ -132,5 +132,11 @@ pub(super) fn mode_bar(
     }
 }
 
+/// The line of a mode bar its controls sit on: the middle line of the Mobile tier's touch-sized
+/// bar, which the bar's blank lines leave centered.
+pub(super) fn mode_bar_row(bar: ratatui::layout::Rect) -> ratatui::layout::Rect {
+    ratatui::layout::Rect::new(bar.x, bar.y + bar.height / 2, bar.width, bar.height.min(1))
+}
+
 #[cfg(test)]
 mod tests;

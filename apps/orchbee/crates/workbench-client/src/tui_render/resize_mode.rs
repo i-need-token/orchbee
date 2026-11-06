@@ -95,7 +95,8 @@ pub(super) fn render(
         return;
     }
     let viewport = frame.area();
-    let area = super::controls::mode_bar(viewport, view.sidebar_surface());
+    let bar = super::controls::mode_bar(viewport, view.sidebar_surface());
+    let area = super::controls::mode_bar_row(bar);
     let Some(geometry) = resolve_geometry(
         viewport,
         area,
@@ -113,12 +114,12 @@ pub(super) fn render(
             sidebar: view.sidebar_surface(),
         });
 
-    hits.cover_chrome(area);
-    hits.record(HitLayer::ChromeSurface, area, HitTarget::OverlaySurface);
-    frame.render_widget(Clear, area);
+    hits.cover_chrome(bar);
+    hits.record(HitLayer::ChromeSurface, bar, HitTarget::OverlaySurface);
+    frame.render_widget(Clear, bar);
     frame
         .buffer_mut()
-        .set_style(area, theme.style(Role::SurfaceChrome));
+        .set_style(bar, theme.style(Role::SurfaceChrome));
 
     for control in &geometry.controls {
         paint_compact_control(

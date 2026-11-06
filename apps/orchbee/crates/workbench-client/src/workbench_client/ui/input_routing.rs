@@ -65,7 +65,8 @@ impl WorkbenchClientUi {
                 .map(ListScrollTarget::Menu),
             ListScrollTarget::Help(_)
             | ListScrollTarget::Navigator(_)
-            | ListScrollTarget::MachinePicker(_) => None,
+            | ListScrollTarget::MachinePicker(_)
+            | ListScrollTarget::TabList { .. } => None,
         }
     }
 

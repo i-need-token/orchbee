@@ -9,6 +9,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 pub(super) mod groups;
+pub(super) mod list;
 
 pub fn render_tab_drag_preview(
     frame: &mut Frame<'_>,
@@ -25,7 +26,25 @@ pub fn render_tab_drag_preview(
                 .add_modifier(Modifier::UNDERLINED),
         );
     }
-    if let Some((x, y)) = preview.marker
+    if let (Some((x, y)), Some(width)) = (preview.marker, preview.marker_line) {
+        // Between the Tab list's rows: a rule over blank cells, an underline under text.
+        let rule = Rect::new(x, y, width, 1).intersection(frame.area());
+        let style = theme
+            .style(Role::TextPrimary)
+            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+        let glyph = match theme.glyphs.mode() {
+            crate::tui_theme::GlyphMode::Unicode => "─",
+            #[cfg(any(test, feature = "test-support"))]
+            crate::tui_theme::GlyphMode::Simplified => "-",
+        };
+        for column in rule.x..rule.right() {
+            let cell = &mut frame.buffer_mut()[(column, rule.y)];
+            if cell.symbol().trim().is_empty() {
+                cell.set_symbol(glyph);
+            }
+            cell.set_style(style);
+        }
+    } else if let Some((x, y)) = preview.marker
         && frame.area().contains((x, y).into())
     {
         frame.render_widget(
@@ -68,6 +87,42 @@ use super::controls::{
     NavigationState, OperationState, PointerPresentation, RowContentBand, RowFocusCue, RowTracks,
     paint_row_interaction,
 };
+
+/// The Tabs the strip shows, by canonical index, with what each one displays. A Tab whose close is
+/// progressing leaves at once; the Server's publication removes it from the canonical list
+/// shortly after.
+pub(super) fn shown_tabs<'a>(
+    native: &crate::workbench_client::WorkbenchClientView<'a>,
+    view: &ClientView,
+    locale: Locale,
+) -> (Vec<usize>, Vec<groups::GroupTabDisplay<'a>>) {
+    let selected = native.selected_tab_ids();
+    let (shown, displayed) = (0..native.tab_count())
+        .filter_map(|index| {
+            let tab = native.tab(index)?;
+            (!native.tab_leaving(tab.tab_id())).then(|| {
+                (
+                    index,
+                    groups::GroupTabDisplay {
+                        selected: selected.len() > 1 && selected.contains(tab.tab_id()),
+                        tab: TabDisplay {
+                            position: tab.position(),
+                            active: tab.active(),
+                            label: tab.display_label(locale),
+                        },
+                        group: tab.group(),
+                        collapsed: tab
+                            .group()
+                            .is_some_and(|group| native.group_collapsed(&group.group_id)),
+                        pinned: tab.pinned(),
+                        agent: view.machines.tab_agent(tab.tab_id()),
+                    },
+                )
+            })
+        })
+        .unzip();
+    (shown, displayed)
+}
 
 #[derive(Clone)]
 pub(super) struct TabDisplay<'a> {

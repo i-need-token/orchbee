@@ -31,6 +31,9 @@ pub(crate) const TOO_SMALL_MINIMUM_COLUMNS: u16 = 20;
 pub(crate) const TOO_SMALL_MINIMUM_ROWS: u16 = 5;
 pub(crate) const STATUS_ROWS: u16 = 1;
 pub(crate) const TAB_STRIP_ROWS: u16 = 1;
+/// The Mobile bar's rows while spaced for touch: its content row and a blank line on each side,
+/// which the bar's fills and targets share.
+pub(crate) const MOBILE_BAR_TOUCH_ROWS: u16 = 3;
 pub(crate) const OVERLAY_HORIZONTAL_MARGIN: u16 = 4;
 pub(crate) const OVERLAY_VERTICAL_MARGIN: u16 = 2;
 pub(crate) const MINIMUM_OVERLAY_INNER_COLUMNS: u16 = 4;
@@ -103,12 +106,14 @@ impl ViewportTier {
         }
     }
 
-    /// The top strip keeps its height rule in every tier: none under the Compact minimum height.
-    const fn shows_tab_strip(self, rows: u16) -> bool {
+    /// The top strip's rows. It keeps its height rule in every tier, none under the Compact minimum
+    /// height; from the touch-spacing height the Mobile bar spaces its row for touch.
+    const fn tab_strip_rows(self, rows: u16) -> u16 {
         match self {
-            Self::TooSmall | Self::Minimal => false,
-            Self::Mobile => rows >= COMPACT_MINIMUM_ROWS,
-            Self::Compact | Self::Full => true,
+            Self::TooSmall | Self::Minimal => 0,
+            Self::Mobile if rows < COMPACT_MINIMUM_ROWS => 0,
+            Self::Mobile if rows >= TOUCH_SPACING_MINIMUM_ROWS => MOBILE_BAR_TOUCH_ROWS,
+            Self::Mobile | Self::Compact | Self::Full => TAB_STRIP_ROWS,
         }
     }
 
@@ -160,6 +165,20 @@ pub struct ShellAreas {
     pub(crate) tabs: Rect,
     pub tier: ViewportTier,
     pub(crate) workbench: Rect,
+}
+
+impl ShellAreas {
+    /// The top strip's content row: the middle line of the touch-spaced Mobile bar, else its only
+    /// row. Empty without a strip.
+    pub(crate) fn tab_row(&self) -> Rect {
+        let tabs = self.tabs;
+        Rect::new(
+            tabs.x,
+            tabs.y + tabs.height / 2,
+            tabs.width,
+            tabs.height.min(1),
+        )
+    }
 }
 
 /// Authored guidance yields rows occupied by a global chrome action without
@@ -222,10 +241,10 @@ pub fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> Shell
             }),
         ),
     };
-    let (tabs, panel) = if tier.shows_tab_strip(area.height) {
+    let strip_rows = tier.tab_strip_rows(area.height);
+    let (tabs, panel) = if strip_rows > 0 {
         let [tabs, panel] =
-            Layout::vertical([Constraint::Length(TAB_STRIP_ROWS), Constraint::Min(0)])
-                .areas(workbench);
+            Layout::vertical([Constraint::Length(strip_rows), Constraint::Min(0)]).areas(workbench);
         (tabs, panel)
     } else {
         (Rect::new(workbench.x, workbench.y, 0, 0), workbench)

@@ -15,6 +15,8 @@ pub(crate) enum TooltipLabel {
     ShowSidebar,
     /// The sidebar's control that opens shortcut help.
     Shortcuts,
+    /// The Tab list's way back to the terminal.
+    HideTabs,
 }
 
 impl Locale {
@@ -34,6 +36,8 @@ impl Locale {
             (Self::ZhCn, TooltipLabel::ShowSidebar) => "显示边栏",
             (Self::EnUs, TooltipLabel::Shortcuts) => "Shortcuts",
             (Self::ZhCn, TooltipLabel::Shortcuts) => "快捷键",
+            (Self::EnUs, TooltipLabel::HideTabs) => "Hide Tabs",
+            (Self::ZhCn, TooltipLabel::HideTabs) => "隐藏标签页",
         }
     }
 }

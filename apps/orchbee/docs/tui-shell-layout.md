@@ -95,13 +95,13 @@ Width and height are classified independently and the lower tier wins, except th
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                             | Compact                                                                       | Minimal        | Mobile                                                         | TooSmall      |
-| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------- | ------------- |
-| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | 1 row (tabs) at >= 12 rows, else none                          | none          |
-| Status       | chip, last row                   | chip, last row                                                                | chip, last row | chip, last row; on the list screen the row above Settings      | full last row |
-| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | [list screen](#mobile-sidebar-list) over the window, on demand | hidden        |
-| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn                                                      | not drawn     |
-| Content      | remainder                        | remainder                                                                     | remainder      | remainder                                                      | notice only   |
+| Chrome       | Full                             | Compact                                                                       | Minimal        | Mobile                                                                      | TooSmall      |
+| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------- | ------------- |
+| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | [Tab bar](#mobile-tab-bar): 3 rows at >= 24 rows, 1 row at >= 12, else none | none          |
+| Status       | chip, last row                   | chip, last row                                                                | chip, last row | chip, last row; on the list screen the row above Settings                   | full last row |
+| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | [list screen](#mobile-sidebar-list) over the window, on demand              | hidden        |
+| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn                                                                   | not drawn     |
+| Content      | remainder                        | remainder                                                                     | remainder      | remainder                                                                   | notice only   |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -391,7 +391,9 @@ own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
 
 The top strip reserves its space for terminal navigation. Copy and resize modes replace it with
-their controls, or overlay the first workbench row when no strip exists.
+their controls, or overlay the first workbench row when no strip exists. On the three-row
+[Mobile Tab bar](#mobile-tab-bar) they cover all three rows and put their controls on the middle
+one.
 These controls reserve no additional terminal geometry; painted control cells take pointer
 precedence over the content beneath them. Their behavior belongs to the owning action, copy
 and resize references.
@@ -726,6 +728,77 @@ glyph, and pressing fills all seven target cells. Row, selection and current fil
 entry's text line. Under a named color theme with a concrete fill, `▀` and `▄` half blocks carry
 the fill onto the blank lines above and below, never over text; terminal-native, monochrome and
 ASCII glyphs draw none. A press on a touch line counts for the entry or action above it.
+
+The Tab list replaces the list screen when it opens, and the list screen replaces the Tab list:
+the two never show together.
+
+## Mobile Tab bar
+
+Below 60 columns the top strip shows only the current Tab. From 24 rows the bar takes three rows,
+its content row in the middle and a touch line above and below it; from 12 rows it is one row;
+under 12 rows there is no bar. At 60 columns and wider the strip is unchanged.
+
+- `[ » ]` leads the content row while the sidebar can open, as the
+  [show toggle](#sidebar-toggle-and-help), and opens the [list screen](#mobile-sidebar-list).
+- `[ Tabs 8 ]` (`[ 标签页 8 ]`) ends it, the count in the secondary text color, and opens the
+  [Tab list](#tab-list). When the word would leave the current Tab fewer than 8 name cells, about
+  35 columns with the toggle, the button shows only the count, `[ 8 ]`.
+- The current Tab, with its state glyph and unread dot, is centered on the whole bar in the bold
+  current fill. Its fill keeps at least 3 blank cells from each button, and a name that does not fit
+  ends in `…` and shows in full in the pointer tooltip. While a new Workspace replaces the content,
+  the bar shows its pending Tab and a count of 1.
+
+On the three-row bar each button's target spans one cell beyond its brackets and all three rows;
+the space between the two targets opens the Tab list too. Pressing that space fills it; hovering
+the Tabs button fills it, and the count-only button brightens as an icon action. On the one-row bar
+both buttons drop the blank cell inside each bracket (`[»]`, `[Tabs 8]`) and sit at the bar's
+edges. Without a native Workbench Client the row keeps the ordinary strip. The
+multiple-Presentation selector is not on the bar; `Ctrl+B (` and `Ctrl+B )` still switch
+Presentations.
+
+## Tab list
+
+The Tab list is the Mobile tier's Tab strip turned vertical. It covers the whole window like the
+[list screen](#mobile-sidebar-list), with the same touch rows, spacing, fills and half-block halos,
+and draws every row from the strip's own tokens in the strip's order. Every row keeps the strip's
+targets and actions, so no Tab action, menu or persisted record is new.
+
+At 24 rows or more, with column R the window's last and line B its last:
+
+| Lines    | Content                                                                                         |
+| -------- | ----------------------------------------------------------------------------------------------- |
+| 0–2      | Line 1: `[ New Tab ]` (`[ 新建标签页 ]`) and `[ « ]` at R-5..R-1, targets as on the list screen |
+| 4        | the current Workspace's name                                                                    |
+| 6 to B-1 | one row per Tab or group header: its text line and one touch line below it, scrolling           |
+| B        | the status chip                                                                                 |
+
+- Pinned Tabs come first; the strip's rule falls on the touch line above the first unpinned row.
+- A Tab Group shows as its name in its color, bold, with ` ▸` after a collapsed name; its member
+  Tabs are indented by two cells. A collapsed group's row carries its hidden members' state glyph
+  and dot, as its strip header does.
+- Row content follows the strip token: state glyph, name cut with `…`, unread dot. The current
+  Tab's row has the current fill across the width and ends with `[ x ]` at R-5..R-1, a seven-cell
+  target that requests its close as the strip's close button does.
+- Hover and press fill a row's text line; a selected row keeps the selection fill.
+
+Below 24 rows the list closes up: `[ New Tab ]` and `[«]` on line 0, the Workspace's name on line
+1, rows from line 3 at one line each, the rule on a line of its own and the current row's close
+`[x]`. The last line stays free of row text in both forms.
+
+Choosing a Tab row selects that Tab and closes the list; choosing a group header collapses or
+expands the group and keeps the list open. `[ « ]`, Esc and `[ New Tab ]` close it; it also closes
+when the window reaches 60 columns, and it opens only in the Mobile tier. The secondary button on a
+row opens the Tab menu (rename, pin, group, close) beside it, as on the strip. Dragging a row
+reorders through the strip's drag with the same rules: into and out of groups, never across the
+pinned rule. The drop shows as a line between rows, indented when the drop joins a group. The wheel
+scrolls three rows a notch.
+
+While open, the list owns the keyboard as the list screen does, with the sidebar bindings: Up and
+Down, Home and End move a focus that shows the selection fill; Enter chooses the focused row, or
+the current Tab's before any move; Right and Left expand and collapse a focused header, and Left on
+a member moves to its header; F2 opens the focused row's Tab menu; Ctrl+Up and Ctrl+Down move the
+focused Tab; Shift+N creates a Tab. Paste is dropped, and the prefix still opens the shell's
+binding layer. No key opens the list; the bar's targets do.
 
 ## Status line
 

@@ -15,6 +15,7 @@ use crate::terminal_events::keys;
 pub(crate) mod navigator;
 pub(crate) mod notifications;
 mod resize;
+pub(crate) mod tab_list;
 
 pub use bindings::Bindings;
 pub(crate) use bindings::{DiscoveryEntry, PrefixAction, PrefixDesc};
@@ -67,7 +68,17 @@ impl ViewportClass {
 pub enum Overlay {
     BusinessSidebar,
     ShortcutHelp,
+    /// The Mobile tier's Tab list over the whole window.
+    TabList,
     WorkbenchNavigator,
+}
+
+impl Overlay {
+    /// A chrome list whose rows keep the pointer's tooltips and drags, as the chrome beneath an
+    /// overlay would: the sidebar's overlay and the Tab list.
+    pub(crate) const fn keeps_chrome_pointer(self) -> bool {
+        matches!(self, Self::BusinessSidebar | Self::TabList)
+    }
 }
 
 pub(crate) use crate::localization::PanelDirection;
@@ -201,6 +212,7 @@ pub struct ClientView {
     /// Client-local Help incarnation, filter, requested scroll offset, and
     /// successful-frame proof. It never enters WorkbenchClient business state.
     help: help::State,
+    tab_list: tab_list::State,
     /// The pointer-capture release flag: `Ctrl+B m` and `--mouse off`
     /// release host mouse reporting; while released the status line carries
     /// the persistent indicator and every Client pointer gesture is inert.
@@ -247,6 +259,7 @@ impl ClientView {
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
             help: help::State::default(),
+            tab_list: tab_list::State::default(),
             pointer_released: false,
         }
     }
@@ -450,7 +463,46 @@ impl ClientView {
         if self.overlay == Some(Overlay::ShortcutHelp) && overlay != Some(Overlay::ShortcutHelp) {
             self.help.close();
         }
+        if overlay != Some(Overlay::TabList) {
+            self.tab_list = tab_list::State::default();
+        }
         self.overlay = overlay;
+    }
+
+    /// Whether the Mobile tier's Tab list covers the window.
+    pub(crate) fn tab_list_open(&self) -> bool {
+        self.overlay == Some(Overlay::TabList)
+    }
+
+    /// Opens the Tab list in place of any other overlay, the sidebar list among them; only the
+    /// Mobile tier has one.
+    pub(crate) fn open_tab_list(&mut self) -> bool {
+        if self.viewport != ViewportClass::Mobile || self.tab_list_open() {
+            return false;
+        }
+        self.project_quick_entry_eligible = None;
+        self.machines.leave_sidebar_navigation();
+        if self.navigator_active() {
+            self.close_navigator(None);
+        }
+        self.replace_overlay(Some(Overlay::TabList));
+        true
+    }
+
+    pub(crate) fn close_tab_list(&mut self) -> bool {
+        if !self.tab_list_open() {
+            return false;
+        }
+        self.replace_overlay(None);
+        true
+    }
+
+    pub(crate) const fn tab_list(&self) -> &tab_list::State {
+        &self.tab_list
+    }
+
+    pub(crate) fn tab_list_mut(&mut self) -> Option<&mut tab_list::State> {
+        self.tab_list_open().then_some(&mut self.tab_list)
     }
 
     fn open_help(&mut self) -> bool {
@@ -767,6 +819,7 @@ impl ClientView {
 
     /// Crossing 60 columns keeps an open on-demand sidebar open in the other form, the mobile list
     /// or the narrow overlay; crossing 90 columns closes it, so Wide returns to its kept visibility.
+    /// Leaving the Mobile tier closes the Tab list.
     pub fn resize(&mut self, width: u16) {
         let next = ViewportClass::from_width(width);
         if next == self.viewport {
@@ -775,6 +828,10 @@ impl ClientView {
         let crosses_wide = next == ViewportClass::Wide || self.viewport == ViewportClass::Wide;
         self.viewport = next;
         if crosses_wide && self.overlay == Some(Overlay::BusinessSidebar) {
+            self.replace_overlay(None);
+        }
+        // Only the Mobile tier has a Tab list; wider hosts show the strip it stands for.
+        if next != ViewportClass::Mobile && self.overlay == Some(Overlay::TabList) {
             self.replace_overlay(None);
         }
         // Navigation never outlives the sidebar it moves through.
@@ -1313,6 +1370,10 @@ impl ClientView {
             && disposition == ClientActionDisposition::WorkspaceCreationStarted
         {
             next.arm_project_quick_entry();
+        }
+        // A new Tab becomes the current one, so the list closes on it as on a chosen row.
+        if transition.action == Some(ClientAction::CreateTab) {
+            next.close_tab_list();
         }
         if disposition == ClientActionDisposition::DismissNavigator
             && next.overlay == Some(Overlay::WorkbenchNavigator)

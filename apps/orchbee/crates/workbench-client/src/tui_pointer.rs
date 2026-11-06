@@ -583,7 +583,7 @@ impl PointerState {
             && !probe.input_captured
             && view
                 .overlay()
-                .is_none_or(|overlay| overlay == crate::client_view::Overlay::BusinessSidebar)
+                .is_none_or(crate::client_view::Overlay::keeps_chrome_pointer)
             && !view.prefix_active()
             && !view.navigator_active()
             && !view.machines.sidebar_navigation_active()
@@ -749,6 +749,42 @@ impl PointerState {
             .filter(|region| region.target.row_menu_target().as_ref() == Some(target))
             .max_by_key(|region| u32::from(region.rect.width) * u32::from(region.rect.height))
             .map(|region| (region.rect.x, region.rect.y))
+    }
+
+    /// The Tab list rows the last frame painted, which its keyboard navigation moves through.
+    pub(crate) fn tab_list_paint(&self) -> Option<&crate::client_view::tab_list::Paint> {
+        self.map.as_ref()?.tab_list_paint()
+    }
+
+    /// A keyboard-opened Tab menu from a Tab list row: the strip's own menu for that Tab or group,
+    /// opened beside the row's first cell as the last frame painted it.
+    pub(crate) fn tab_list_menu(
+        &self,
+        target: &crate::tui_hit_map::chrome::TabTarget,
+    ) -> Option<(
+        crate::action_menu::MenuTarget,
+        crate::action_menu::MenuAnchor,
+    )> {
+        use crate::{action_menu::MenuTarget, tui_hit_map::chrome::TabTarget};
+        if !self.can_open_action_menu() {
+            return None;
+        }
+        let map = self.map.as_ref()?;
+        let (column, row) = map.tab_list_anchor(target)?;
+        let menu = match target {
+            TabTarget::Tab(tab) => MenuTarget::Tab(tab.clone()),
+            TabTarget::Group { tab, .. } => MenuTarget::TabGroups {
+                tab_id: tab.clone(),
+                colors: false,
+            },
+        };
+        Some((
+            MenuTarget::Drawn {
+                source: map.menu_source.clone()?,
+                target: Box::new(menu),
+            },
+            crate::action_menu::MenuAnchor::Row { column, row },
+        ))
     }
 
     /// Keyboard and pointer entries share one successfully painted row witness.
@@ -1770,9 +1806,10 @@ impl PointerState {
         let mut changed = tooltip_changed;
         if matches!(&self.gesture, Gesture::Tab(drag) if port.tab_drag_source().as_ref() != Some(&drag.source))
             || (self.tab_drag_captured()
-                && (view.overlay().is_some_and(|overlay| {
-                    overlay != crate::client_view::Overlay::BusinessSidebar
-                }) || view.resize_mode()))
+                && (view
+                    .overlay()
+                    .is_some_and(|overlay| !overlay.keeps_chrome_pointer())
+                    || view.resize_mode()))
         {
             changed |= self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
@@ -2016,6 +2053,8 @@ impl PointerState {
                 | HitTarget::SidebarRestoreButton
                 | HitTarget::SidebarHideButton
                 | HitTarget::ShortcutHelpButton
+                | HitTarget::TabListButton
+                | HitTarget::TabListCloseButton
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::Worktree { .. }
                 | HitTarget::NavigatorRow(_)

@@ -138,6 +138,14 @@ impl PointerState {
                 .machines
                 .scroll_drawn_picker(target, pending.up, lines)
                 .map(Target::MachinePicker),
+            Target::TabList { .. } => map.tab_list_paint().and_then(|paint| {
+                let state = view.tab_list_mut()?;
+                state
+                    .scroll(paint, pending.up, lines)
+                    .then(|| state.first())
+                    .flatten()
+                    .map(|first| Target::TabList { first })
+            }),
         };
         let Some(next) = next else {
             return false;

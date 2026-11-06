@@ -69,12 +69,21 @@ impl Fingerprint {
         target: &HitTarget,
         area: Rect,
     ) -> Option<Self> {
+        Self::tab_on(HitLayer::Foreground, source, target, area)
+    }
+
+    pub(crate) fn tab_on(
+        layer: HitLayer,
+        source: &crate::action_menu::DrawnTabCreate,
+        target: &HitTarget,
+        area: Rect,
+    ) -> Option<Self> {
         (!area.is_empty()).then_some(Self {
             target: Target::Tab {
                 source: source.clone(),
                 target: TabTarget::from_hit(target)?,
             },
-            layer: HitLayer::Foreground,
+            layer,
             area,
         })
     }

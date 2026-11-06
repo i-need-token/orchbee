@@ -77,7 +77,7 @@ const MINIMUM_CLOSE_TOKEN: usize = 7;
 /// A truncated label keeps this many leading cells before its ellipsis.
 const MINIMUM_LABEL_CELLS: usize = 3;
 
-enum Kind {
+pub(super) enum Kind {
     Tab {
         active: bool,
         checked: bool,
@@ -95,15 +95,15 @@ enum Kind {
     Divider,
 }
 
-struct Token {
+pub(super) struct Token {
     /// The Tab this token activates; a header's representative member.
-    index: usize,
+    pub(super) index: usize,
     /// The header of the group this token belongs to.
-    header: Option<usize>,
-    agent: Option<TabAgent>,
+    pub(super) header: Option<usize>,
+    pub(super) agent: Option<TabAgent>,
     /// Each distinct state behind `agent`, most urgent first.
-    states: Vec<MetadataState>,
-    kind: Kind,
+    pub(super) states: Vec<MetadataState>,
+    pub(super) kind: Kind,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -229,7 +229,12 @@ impl Token {
     }
 }
 
-fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> Vec<Token> {
+/// The strip's tokens in painted order, which the Tab list shows as its rows.
+pub(super) fn tokens(
+    tabs: &[GroupTabDisplay<'_>],
+    unnamed_group: &str,
+    theme: &Theme,
+) -> Vec<Token> {
     let mut tokens = Vec::<Token>::new();
     let mut current_header = None;
     for (index, item) in tabs.iter().enumerate() {

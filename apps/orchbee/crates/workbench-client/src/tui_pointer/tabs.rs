@@ -36,6 +36,8 @@ struct Drop {
     index: WorkbenchTabInsertIndex,
     group: Option<WorkbenchTabGroupId>,
     marker: (u16, u16),
+    /// The Tab list's marker is a line this wide from `marker`, between its rows.
+    line: Option<u16>,
 }
 
 pub(super) struct TabDrag {
@@ -49,6 +51,8 @@ pub(super) struct TabDrag {
     ids: WorkbenchTabIdSet,
     carries_group: bool,
     pinned: bool,
+    /// The drag runs down the Mobile tier's Tab list, whose rows stand for the strip's tokens.
+    vertical: bool,
     phase: Phase,
 }
 
@@ -59,7 +63,11 @@ impl TabDrag {
         target: HitTarget,
         event: MouseEvent,
     ) -> Option<Self> {
-        if map.overlay_active || map.menu_source.as_ref() != Some(&source.drawn.source) {
+        // The Tab list is the one overlay whose rows are the strip's tokens.
+        let vertical = map.tab_list_paint().is_some();
+        if (map.overlay_active && !vertical)
+            || map.menu_source.as_ref() != Some(&source.drawn.source)
+        {
             return None;
         }
         let id = match &target {
@@ -102,6 +110,7 @@ impl TabDrag {
             ids: WorkbenchTabIdSet::try_from(ids).ok()?,
             carries_group,
             pinned,
+            vertical,
             phase: Phase::Pressed {
                 activation_cancelled: false,
             },
@@ -109,7 +118,8 @@ impl TabDrag {
     }
 
     pub(super) fn painted_in(&self, map: &FrameHitMap) -> bool {
-        !map.overlay_active
+        (!map.overlay_active || self.vertical)
+            && map.tab_list_paint().is_some() == self.vertical
             && map.menu_source.as_ref() == Some(&self.source.drawn.source)
             && tab_regions(map) == self.regions
     }
@@ -131,7 +141,107 @@ impl TabDrag {
         self.pressed.iter().any(|area| contains(*area, column, row))
     }
 
+    /// A drop on the Tab list, by rows rather than columns: a spaced row's text line inserts before
+    /// it and its blank line after it; a closed-up row inserts on the side the drag came from.
+    fn vertical_destination(&self, column: u16, row: u16) -> Option<Drop> {
+        let left = self.regions.iter().map(|(area, _)| area.x).min()?;
+        let right = self.regions.iter().map(|(area, _)| area.right()).max()?;
+        let top = self.regions.iter().map(|(area, _)| area.y).min()?;
+        let bottom = self.regions.iter().map(|(area, _)| area.bottom()).max()?;
+        if column < left || column >= right || row < top || row >= bottom {
+            return None;
+        }
+        let (area, target) = self
+            .regions
+            .iter()
+            .find(|(area, _)| row >= area.y && row < area.bottom())?;
+        let after = if area.height > 1 {
+            row >= area.y + area.height / 2
+        } else {
+            row > self.origin.1
+        };
+        let before_line = area.y.saturating_sub(1);
+        let after_line = area.bottom().saturating_sub(1);
+        let (index, group, line) = match target {
+            HitTarget::Tab(id) => {
+                let index = self.source.tabs.iter().position(|tab| &tab.id == id)?;
+                let tab = &self.source.tabs[index];
+                if tab.pinned != self.pinned {
+                    return None;
+                }
+                (
+                    index + usize::from(after),
+                    (!self.carries_group && !self.pinned && !tab.collapsed)
+                        .then(|| tab.group.clone())
+                        .flatten(),
+                    if after { after_line } else { before_line },
+                )
+            }
+            HitTarget::TabGroup { group, .. } => {
+                if self.pinned {
+                    return None;
+                }
+                let (start, end) = self.group_span(group)?;
+                let end_line = self
+                    .member_regions(group)
+                    .map(|area| area.bottom().saturating_sub(1))
+                    .max()
+                    .unwrap_or(after_line);
+                (
+                    if after { end } else { start },
+                    None,
+                    if after { end_line } else { before_line },
+                )
+            }
+            _ => return None,
+        };
+        // The line spans the list's rule, indented like a member row when the drop joins a group,
+        // so the boundary after a group's last member reads apart from the one before the next row.
+        let start = left + 1 + if group.is_some() { 2 } else { 0 };
+        let width = right.saturating_sub(1).saturating_sub(start);
+        self.drop_at(index, group, (start, line), Some(width))
+    }
+
+    /// The canonical index span of `group` within the drag's source.
+    fn group_span(&self, group: &WorkbenchTabGroupId) -> Option<(usize, usize)> {
+        let start = self
+            .source
+            .tabs
+            .iter()
+            .position(|tab| tab.group.as_ref() == Some(group))?;
+        let end = start
+            + self.source.tabs[start..]
+                .iter()
+                .take_while(|tab| tab.group.as_ref() == Some(group))
+                .count();
+        Some((start, end))
+    }
+
+    /// The painted member Tabs of `group`.
+    fn member_regions<'a>(
+        &'a self,
+        group: &'a WorkbenchTabGroupId,
+    ) -> impl Iterator<Item = &'a Rect> + 'a {
+        self.regions
+            .iter()
+            .filter_map(move |(rect, target)| match target {
+                HitTarget::Tab(id)
+                    if self
+                        .source
+                        .tabs
+                        .iter()
+                        .any(|tab| &tab.id == id && tab.group.as_ref() == Some(group)) =>
+                {
+                    Some(rect)
+                }
+                _ => None,
+            })
+    }
+
     fn destination(&self, column: u16, row: u16) -> Option<Drop> {
+        if self.vertical {
+            return self.vertical_destination(column, row);
+        }
         let first = self.regions.iter().min_by_key(|(area, _)| area.x)?.0;
         let last = self.regions.iter().max_by_key(|(area, _)| area.right())?.0;
         if row != first.y || column < first.x || column >= last.right() {
@@ -241,6 +351,19 @@ impl TabDrag {
                 (index, None, (column, row))
             }
         };
+        self.drop_at(index, group, marker, None)
+    }
+
+    /// The drop inserting at `index`, shown at `marker` unless it lands between two members of a
+    /// group it does not join, where the marker moves to that group's near edge: the same
+    /// collection boundary the pure authority will choose.
+    fn drop_at(
+        &self,
+        index: usize,
+        group: Option<WorkbenchTabGroupId>,
+        marker: (u16, u16),
+        line: Option<u16>,
+    ) -> Option<Drop> {
         let partition = self.source.tabs.iter().take_while(|tab| tab.pinned).count();
         if (self.pinned && index > partition) || (!self.pinned && index < partition) {
             return None;
@@ -284,15 +407,30 @@ impl TabDrag {
                 })
                 .map(|(area, _)| area)
                 .collect();
-            let column = if index <= first_index {
-                group_regions.iter().map(|area| area.x).min()
+            if self.vertical {
+                let line = if index <= first_index {
+                    group_regions
+                        .iter()
+                        .map(|area| area.y.saturating_sub(1))
+                        .min()
+                } else {
+                    group_regions
+                        .iter()
+                        .map(|area| area.bottom().saturating_sub(1))
+                        .max()
+                };
+                (marker.0, line?)
             } else {
-                group_regions
-                    .iter()
-                    .map(|area| area.right().saturating_sub(1))
-                    .max()
-            };
-            (column?, row)
+                let column = if index <= first_index {
+                    group_regions.iter().map(|area| area.x).min()
+                } else {
+                    group_regions
+                        .iter()
+                        .map(|area| area.right().saturating_sub(1))
+                        .max()
+                };
+                (column?, marker.1)
+            }
         } else {
             marker
         };
@@ -300,6 +438,7 @@ impl TabDrag {
             index: WorkbenchTabInsertIndex::new(index).ok()?,
             group,
             marker,
+            line,
         })
     }
 
@@ -324,6 +463,7 @@ impl TabDrag {
                 .map(|(area, _)| *area)
                 .collect(),
             marker: drop.as_ref().map(|drop| drop.marker),
+            marker_line: drop.as_ref().and_then(|drop| drop.line),
             count: self.ids.as_slice().len(),
         })
     }
@@ -427,6 +567,10 @@ impl PointerState {
                                         source: &drag.source.drawn,
                                         tab: &id,
                                     });
+                                    // A chosen Tab list row closes the list on its Tab.
+                                    if drag.vertical {
+                                        view.close_tab_list();
+                                    }
                                     self.tab_click = Some(TabClick {
                                         source: drag.source.drawn.clone(),
                                         tab: id.clone(),
@@ -471,9 +615,14 @@ impl PointerState {
             }
             return PointerOutcome::TabGestureEnded;
         } else if event.action == MouseAction::Motion && event.button == MouseButton::Left {
-            let crossed_drag_threshold =
-                drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row;
             let over_pressed_target = drag.over_pressed_target(event.column, event.row);
+            // A Tab list row spans its blank line too, so the drag starts when the pointer leaves
+            // the row rather than its line.
+            let crossed_drag_threshold = if drag.vertical {
+                !over_pressed_target || drag.origin.1.abs_diff(event.row) >= 2
+            } else {
+                drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row
+            };
             if matches!(drag.phase, Phase::Dragging(_)) || crossed_drag_threshold {
                 drag.phase = Phase::Dragging(drag.destination(event.column, event.row));
             } else if let Phase::Pressed {

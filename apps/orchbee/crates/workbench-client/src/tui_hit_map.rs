@@ -190,6 +190,8 @@ pub enum HitTarget {
     SidebarRestoreButton,
     SidebarHideButton,
     ShortcutHelpButton,
+    TabListButton,
+    TabListCloseButton,
     Popup {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
         content: Rect,
@@ -271,6 +273,10 @@ pub enum GlobalChromeAction {
     HideSidebar,
     /// The sidebar's Help control beside Settings.
     ShortcutHelp,
+    /// The Mobile bar's current Tab and Tabs button.
+    OpenTabList,
+    /// The Tab list's way back.
+    CloseTabList,
 }
 
 /// Finite controls shared by the two capturing pickers. A row index has meaning
@@ -393,6 +399,7 @@ pub struct FrameHitMap {
     pub(super) link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
     pub(super) menu_source: Option<crate::action_menu::DrawnMenuSource>,
     pub(super) navigator: Option<crate::client_view::navigator::Paint>,
+    pub(super) tab_list: Option<crate::client_view::tab_list::Paint>,
     /// Regions this frame painted with a tooltip; their content stays with the candidate frame.
     pub(super) tooltips: Vec<tooltip::Key>,
     /// Interactions this frame projected the pointer onto in the exposure that pointer recorded,
@@ -407,6 +414,20 @@ impl FrameHitMap {
 
     pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
         self.navigator.as_ref()
+    }
+
+    /// The Tab list rows this frame painted, which keyboard navigation moves through.
+    pub(crate) fn tab_list_paint(&self) -> Option<&crate::client_view::tab_list::Paint> {
+        self.tab_list.as_ref()
+    }
+
+    /// Where a keyboard-opened Tab menu opens beside its row: the row's first cell.
+    pub(crate) fn tab_list_anchor(&self, target: &chrome::TabTarget) -> Option<(u16, u16)> {
+        let target = target.hit_target();
+        self.regions
+            .iter()
+            .find(|region| region.layer == HitLayer::Overlay && region.target == target)
+            .map(|region| (region.rect.x, region.rect.y))
     }
     pub(super) fn hit_region_with<'a>(
         &'a self,
@@ -739,15 +760,28 @@ impl HitMapBuilder {
             .filter(|rect| contains(*rect, column, row))
             .max_by_key(|rect| rect.height)
     }
-    /// Covered chrome supplies placement geometry only, never activation authority.
+    /// Covered chrome supplies placement geometry only, never activation authority. The sidebar's
+    /// rows and the Tab list's rows both anchor a menu opened from them.
     pub(crate) fn record_covered_sidebar_geometry(&mut self, painted: Self) {
-        self.covered_sidebar_rows = painted
-            .map
-            .regions
-            .into_iter()
-            .filter(|region| region.target.row_menu_target().is_some())
-            .map(|region| region.rect)
-            .collect();
+        self.covered_sidebar_rows.extend(
+            painted
+                .map
+                .regions
+                .into_iter()
+                .filter(|region| {
+                    region.target.row_menu_target().is_some()
+                        || matches!(
+                            region.target,
+                            HitTarget::Tab(_) | HitTarget::TabGroup { .. }
+                        )
+                })
+                .map(|region| region.rect),
+        );
+    }
+
+    /// Publishes the Tab list rows this frame painted and the window it showed.
+    pub(crate) fn record_tab_list(&mut self, paint: crate::client_view::tab_list::Paint) {
+        self.map.tab_list = Some(paint);
     }
     pub(crate) fn start_action_menu(&mut self) {
         self.map.backdrop_dismissal = None;
@@ -774,6 +808,7 @@ impl HitMapBuilder {
                 link_sources: Vec::new(),
                 menu_source: None,
                 navigator: None,
+                tab_list: None,
                 tooltips: Vec::new(),
                 pointer_reveals: Vec::new(),
             },
@@ -954,7 +989,18 @@ impl HitMapBuilder {
         target: &HitTarget,
         rect: Rect,
     ) -> ProjectedPointer {
-        chrome::Fingerprint::tab(source, target, rect)
+        self.projected_tab_pointer_on(HitLayer::Foreground, source, target, rect)
+    }
+
+    /// The same projection for a token painted on `layer`, as the Tab list's rows are.
+    pub(crate) fn projected_tab_pointer_on(
+        &self,
+        layer: HitLayer,
+        source: &crate::action_menu::DrawnTabCreate,
+        target: &HitTarget,
+        rect: Rect,
+    ) -> ProjectedPointer {
+        chrome::Fingerprint::tab_on(layer, source, target, rect)
             .map_or(ProjectedPointer::Rest, |fingerprint| {
                 self.projection.project_chrome(&fingerprint)
             })
@@ -968,11 +1014,23 @@ impl HitMapBuilder {
         rect: Rect,
         target: HitTarget,
     ) {
-        let Some(fingerprint) = chrome::Fingerprint::tab(source, &target, rect) else {
+        self.record_tab_target_on(HitLayer::Foreground, source, rect, target);
+    }
+
+    /// A Tab or group token on `layer`: the Tab list paints the strip's tokens as rows of the
+    /// overlay that covers the window.
+    pub(crate) fn record_tab_target_on(
+        &mut self,
+        layer: HitLayer,
+        source: &crate::action_menu::DrawnTabCreate,
+        rect: Rect,
+        target: HitTarget,
+    ) {
+        let Some(fingerprint) = chrome::Fingerprint::tab_on(layer, source, &target, rect) else {
             return;
         };
         self.map.regions.push(HitRegion {
-            layer: HitLayer::Foreground,
+            layer,
             rect,
             target,
             interaction: None,
