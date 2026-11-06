@@ -20,7 +20,11 @@ use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
 use std::{
     io::{self, Read},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -53,12 +57,8 @@ enum Cut {
     StaleTarget,
     RemovedTarget,
     UnknownStart,
-    AcceptedReadLost,
-    PendingReadLost,
-    ObservationUnavailable,
-    ObservationRemoved,
-    WrongReadOperation,
-    ClosedSnapshotLost,
+    /// The canonical read that follows admission is lost with the connection.
+    AcceptedSnapshotLost,
     UiDeliveryLost,
     Complete,
 }
@@ -140,9 +140,20 @@ fn ready(
     LocalOperationClock,
     Snapshot,
 ) {
-    let clock = crate::local_client::test_support::server::adjustable_operation_clock(Arc::new(
-        std::sync::atomic::AtomicU64::new(0),
-    ));
+    ready_at(scope, Arc::new(AtomicU64::new(0)))
+}
+/// The ready fixture on an injected clock whose elapsed milliseconds the caller advances.
+fn ready_at(
+    scope: Scope,
+    elapsed_millis: Arc<AtomicU64>,
+) -> (
+    WorkbenchClientUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+) {
+    let clock =
+        crate::local_client::test_support::server::adjustable_operation_clock(elapsed_millis);
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
@@ -463,124 +474,30 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
                 return Ok(());
             }
             write_workbench_response(&mut stream, &initial).map_err(io::Error::other)?;
-            if scope != Scope::EmptyProject {
-                let reads = if scope.project() { 1 } else { 2 };
-                for index in 0..reads {
-                    let request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
-                    let close_observed = index + 1 == reads;
-                    let mut response = if scope.project() {
-                        let WorkbenchRequest::WorkspaceGroupClose(read) = request else {
-                            return Err(io::Error::other("only Project read may follow Start"));
-                        };
-                        assert_eq!(
-                            read.action,
-                            WorkspaceGroupCloseAction::Read {
-                                operation_id: expected.request_id.clone()
-                            }
-                        );
-                        assert_ne!(read.request_id, expected.request_id);
-                        let mut reply = group_receipt(&expected, scope, true);
-                        reply.request_id = read.request_id;
-                        if matches!(cut, Cut::ObservationUnavailable | Cut::ObservationRemoved) {
-                            reply.outcome = WorkspaceGroupCloseOutcome::NotFound {};
-                        }
-                        if cut == Cut::WrongReadOperation {
-                            reply.operation_id = WorkbenchRequestId::parse(&id(999)).unwrap();
-                        }
-                        WorkbenchResponse::WorkspaceGroupClose(reply)
-                    } else {
-                        let WorkbenchRequest::WorkspaceCloseRead(read) = request else {
-                            return Err(io::Error::other(
-                                "only Workspace status read may follow admission",
-                            ));
-                        };
-                        assert_eq!(
-                            read.workspace_id,
-                            snapshot.navigation.workspaces[scope.index()].workspace_id
-                        );
-                        assert_ne!(read.request_id, expected.request_id);
-                        if cut == Cut::AcceptedReadLost {
-                            return Ok(());
-                        }
-                        let mut outcome = available(&expected, scope, close_observed);
-                        if cut == Cut::WrongReadOperation && index == 1 {
-                            let WorkbenchWorkspaceCloseReadOutcome::Available {
-                                close_request_id,
-                                ..
-                            } = &mut outcome
-                            else {
-                                unreachable!()
-                            };
-                            *close_request_id = WorkbenchRequestId::parse(&id(999)).unwrap();
-                        }
-                        WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
-                            protocol_version: ProtocolVersion,
-                            request_id: read.request_id,
-                            outcome,
-                        })
-                    };
-                    if cut == Cut::PendingReadLost && close_observed {
-                        return Ok(());
-                    }
-                    if matches!(cut, Cut::ObservationUnavailable | Cut::ObservationRemoved)
-                        && close_observed
-                        && let WorkbenchResponse::WorkspaceCloseRead(result) = &mut response
-                    {
-                        result.outcome = WorkbenchWorkspaceCloseReadOutcome::NotClosing {};
-                    }
-                    write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
-                    if cut == Cut::WrongReadOperation && close_observed {
-                        break;
-                    }
-                }
+            // The submission lease ends at admission: only the canonical read follows it, and the
+            // target is still published then. Settlement reads run in leases of their own.
+            let WorkbenchRequest::PublicationRead(read) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other(
+                    "only the canonical read follows admission",
+                ));
+            };
+            assert_eq!(read.known_revision, WorkbenchRevision::new(1));
+            if cut == Cut::AcceptedSnapshotLost {
+                return Ok(());
             }
-            if cut != Cut::WrongReadOperation {
-                let WorkbenchRequest::PublicationRead(read) =
-                    read_workbench_request(&mut stream).map_err(io::Error::other)?
-                else {
-                    return Err(io::Error::other(
-                        "canonical repair follows retained lifecycle evidence",
-                    ));
-                };
-                assert_eq!(read.known_revision, WorkbenchRevision::new(1));
-                if cut == Cut::ClosedSnapshotLost {
-                    return Ok(());
-                }
-                let final_snapshot = if cut == Cut::ObservationUnavailable {
-                    let mut unchanged = snapshot.clone();
-                    unchanged.revision = WorkbenchRevision::new(2);
-                    unchanged
-                } else {
-                    closed_snapshot(snapshot.clone(), scope)
-                };
-                assert_eq!(
-                    final_snapshot.navigation.projects, snapshot.navigation.projects,
-                    "Project metadata is retained"
-                );
-                assert_eq!(
-                    final_snapshot.navigation.directories, snapshot.navigation.directories,
-                    "the shared checkout is retained"
-                );
-                write_workbench_response(
-                    &mut stream,
-                    &WorkbenchResponse::Publication(WorkbenchPublicationResult {
-                        protocol_version: ProtocolVersion,
-                        request_id: read.request_id,
-                        outcome: if scope == Scope::EmptyProject {
-                            WorkbenchPublicationOutcome::Current {
-                                revision: snapshot.revision,
-                            }
-                        } else {
-                            WorkbenchPublicationOutcome::Published {
-                                publications: vec![WorkbenchPublicationDocument::Snapshot(
-                                    final_snapshot,
-                                )],
-                            }
-                        },
-                    }),
-                )
-                .map_err(io::Error::other)?;
-            }
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: read.request_id,
+                    outcome: WorkbenchPublicationOutcome::Current {
+                        revision: snapshot.revision,
+                    },
+                }),
+            )
+            .map_err(io::Error::other)?;
         }
         let mut trailing = [0];
         assert_eq!(
@@ -617,15 +534,7 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
     }
     let (result, evidence) = worker.join().unwrap();
     server.finish()?;
-    if cut.rejects_source()
-        || matches!(
-            cut,
-            Cut::RevisionRaced
-                | Cut::Complete
-                | Cut::ObservationUnavailable
-                | Cut::ObservationRemoved
-        )
-    {
+    if cut.rejects_source() || matches!(cut, Cut::RevisionRaced | Cut::Complete) {
         assert_eq!(result, Ok(()), "{scope:?} {cut:?}");
         assert!(evidence.is_none());
         match cut {
@@ -675,22 +584,17 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
                 );
                 assert!(mailbox.try_recv().unwrap().is_none());
             }
-            _ => {
-                let expected_status = if cut == Cut::Complete {
-                    WorkspaceCloseStatus::Closed
-                } else {
-                    WorkspaceCloseStatus::Closing
-                };
-                assert_eq!(
-                    ui.view()
-                        .workspace_close_status()
-                        .unwrap_or_else(|| panic!(
-                            "{scope:?} {cut:?}: close status must retain its admitted result"
-                        ))
-                        .status(),
-                    expected_status
-                );
-            }
+            // Admission is announced at once, after the landing when the close takes the
+            // current Workspace, while settlement continues behind it.
+            _ => assert_eq!(
+                ui.view()
+                    .workspace_close_status()
+                    .unwrap_or_else(|| panic!(
+                        "{scope:?} {cut:?}: close status must retain its admitted result"
+                    ))
+                    .status(),
+                WorkspaceCloseStatus::Closed
+            ),
         }
         let active = ui
             .view()
@@ -709,23 +613,15 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
             })
             .collect();
         let removes_current = !scope.project() && scope != Scope::BackgroundWorkspace;
-        let settling = ui.view().workspace_close_status().is_some_and(|status| {
-            matches!(
-                status.status(),
-                WorkspaceCloseStatus::Closing | WorkspaceCloseStatus::Closed
-            )
-        });
-        if removes_current && matches!(cut, Cut::Complete | Cut::ObservationRemoved) {
+        if removes_current && cut == Cut::Complete {
             assert!(
                 surviving_locations.contains(&active),
                 "{scope:?} {cut:?}: a removed current Workspace lands on a surviving Workspace"
             );
-        } else if removes_current && settling {
-            // The accepted close has taken its row out of navigation, so the mark has left the
-            // closing row. This fixture keeps other Workspaces, so a neighbour row carries it.
-            assert_ne!(
-                active, original_location,
-                "{scope:?} {cut:?}: the mark leaves the closing row while the close settles"
+            assert_eq!(
+                ui.current_location_for_test().as_ref(),
+                Some(&active),
+                "{scope:?} {cut:?}: the neighbour is installed before the close settles"
             );
         } else {
             assert_eq!(
@@ -745,6 +641,19 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
                 )),
                 "the empty compatibility slot is not a navigation row"
             );
+            // Settlement continues behind the landing, followed by reads alone.
+            let follow = mailbox.try_recv().unwrap();
+            if scope == Scope::EmptyProject {
+                assert!(follow.is_none(), "a close admitted as Closed needs no read");
+            } else {
+                assert!(
+                    matches!(
+                        follow.as_ref().map(CommandLease::record),
+                        Some(QueuedCommand::WorkspaceCloseRead(_))
+                    ),
+                    "{scope:?}: an admitted close is followed by a read, never resubmitted"
+                );
+            }
         }
         if !matches!(cut, Cut::StaleSource | Cut::RevisionRaced) {
             assert!(mailbox.workspace_close_worker_loss().is_none());
@@ -758,12 +667,9 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
         );
         match cut {
             Cut::UnknownStart => assert_eq!(evidence.result, WorkspaceCloseResult::Unknown),
-            Cut::AcceptedReadLost => assert!(matches!(
-                evidence.result,
-                WorkspaceCloseResult::WorkspaceAccepted(_)
-            )),
-            Cut::PendingReadLost | Cut::WrongReadOperation => assert!(evidence.result.is_pending()),
-            Cut::ClosedSnapshotLost | Cut::UiDeliveryLost => assert!(evidence.result.is_closed()),
+            Cut::AcceptedSnapshotLost | Cut::UiDeliveryLost => {
+                assert!(evidence.result.is_pending(), "{scope:?} {cut:?}");
+            }
             _ => unreachable!(),
         }
         assert!(ui.finalize_workspace_close_worker(Some(evidence)));
@@ -787,10 +693,7 @@ fn background_workspace_close_carrier_validates_exact_target_and_preserves_origi
     for cut in [
         Cut::StaleTarget,
         Cut::RemovedTarget,
-        Cut::AcceptedReadLost,
-        Cut::ObservationRemoved,
-        Cut::WrongReadOperation,
-        Cut::ClosedSnapshotLost,
+        Cut::AcceptedSnapshotLost,
         Cut::UiDeliveryLost,
         Cut::Complete,
     ] {
@@ -805,12 +708,7 @@ fn workspace_close_carrier_single_scope_and_every_failure_boundary_preserve_trut
         Cut::StaleSource,
         Cut::RevisionRaced,
         Cut::UnknownStart,
-        Cut::AcceptedReadLost,
-        Cut::PendingReadLost,
-        Cut::ObservationUnavailable,
-        Cut::ObservationRemoved,
-        Cut::WrongReadOperation,
-        Cut::ClosedSnapshotLost,
+        Cut::AcceptedSnapshotLost,
         Cut::UiDeliveryLost,
         Cut::Complete,
     ] {
@@ -824,17 +722,213 @@ fn project_close_all_carrier_captures_members_retains_empty_metadata_and_never_s
     for cut in [
         Cut::StaleSource,
         Cut::UnknownStart,
-        Cut::PendingReadLost,
-        Cut::ObservationUnavailable,
-        Cut::ObservationRemoved,
-        Cut::WrongReadOperation,
-        Cut::ClosedSnapshotLost,
+        Cut::AcceptedSnapshotLost,
         Cut::UiDeliveryLost,
         Cut::Complete,
     ] {
         exercise(Scope::Project, cut)?;
     }
     exercise(Scope::EmptyProject, Cut::Complete)
+}
+/// Ticks the Client until the worker reports one more finished lease and the Client has applied
+/// everything that lease published, then once more so its schedulers see the result.
+fn tick_until_finished(
+    ui: &mut WorkbenchClientUi,
+    mailbox: &CommandMailbox,
+    finished: &mpsc::Receiver<()>,
+) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(4);
+    let mut done = false;
+    while Instant::now() < deadline {
+        ui.tick();
+        done = done || finished.try_recv().is_ok();
+        if done && mailbox.cells().0 == "empty" {
+            ui.tick();
+            return true;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    false
+}
+fn displayed(ui: &WorkbenchClientUi) -> Vec<ClientContextLocation> {
+    let view = ui.view();
+    (0..view.context_count())
+        .map(|index| view.context_at(index).unwrap().location().clone())
+        .collect()
+}
+#[test]
+fn accepted_current_close_lands_on_the_neighbour_before_settlement_and_is_never_resubmitted()
+-> TestResult {
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let (mut ui, mailbox, _, snapshot) = ready_at(Scope::Workspace, Arc::clone(&elapsed));
+    let location = |workspace: &Workspace| ClientContextLocation::Workspace {
+        workspace_id: workspace.workspace_id.clone(),
+        terminal_context_id: workspace.terminal_context_id.clone(),
+    };
+    let closing = snapshot.navigation.workspaces[0].clone();
+    let closing_location = location(&closing);
+    let neighbour = location(&snapshot.navigation.workspaces[1]);
+    let lease = submit(&mut ui, &mailbox, Scope::Workspace);
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("one Close lease");
+    };
+    let marker = marker.clone();
+    let expected = marker.workspace_close().unwrap().clone();
+    let server = FakeServer::start(move |mut stream| {
+        admit(&mut stream)?;
+        let WorkbenchRequest::SnapshotRead(read) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            return Err(io::Error::other("fresh source check precedes mutation"));
+        };
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                protocol_version: ProtocolVersion,
+                request_id: read.request_id,
+                outcome: WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot.clone(),
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        assert_eq!(
+            read_workbench_request(&mut stream).map_err(io::Error::other)?,
+            WorkbenchRequest::Command(expected.workspace_command().unwrap())
+        );
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Command(WorkbenchCommandResult {
+                protocol_version: ProtocolVersion,
+                request_id: expected.request_id.clone(),
+                outcome: WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+                    close_request_id: expected.request_id.clone(),
+                    workspace_id: closing.workspace_id.clone(),
+                    terminal_context_id: closing.terminal_context_id.clone(),
+                    accepted_revision: snapshot.revision,
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        let WorkbenchRequest::PublicationRead(read) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            return Err(io::Error::other(
+                "only the canonical read follows admission",
+            ));
+        };
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                protocol_version: ProtocolVersion,
+                request_id: read.request_id,
+                outcome: WorkbenchPublicationOutcome::Current {
+                    revision: snapshot.revision,
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        // The close may already have been delivered, so settlement is followed by reads alone.
+        for status in [
+            WorkbenchTabCloseStatus::Closing {
+                phase: WorkbenchTabClosePhase::Queued,
+            },
+            WorkbenchTabCloseStatus::CleanupBlocked {
+                reason: WorkbenchTabCloseBlockedReason::HostRefused,
+                resumable: false,
+            },
+        ] {
+            let WorkbenchRequest::WorkspaceCloseRead(read) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("only a status read follows admission"));
+            };
+            assert_eq!(read.workspace_id, closing.workspace_id);
+            let mut outcome = available(&expected, Scope::Workspace, false);
+            if let WorkbenchWorkspaceCloseReadOutcome::Available {
+                status: observed, ..
+            } = &mut outcome
+            {
+                *observed = status;
+            }
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: read.request_id,
+                    outcome,
+                }),
+            )
+            .map_err(io::Error::other)?;
+        }
+        let mut trailing = [0];
+        assert_eq!(
+            stream.read(&mut trailing)?,
+            0,
+            "the close is never submitted again"
+        );
+        Ok(())
+    })?;
+    let client = LocalClient::connect(server.endpoint(), "native-close-test")?;
+    let worker_mailbox = Arc::clone(&mailbox);
+    let (report, finished) = mpsc::channel();
+    let worker = thread::spawn(move || -> Result<(), CarrierFailure> {
+        let mut executor = ClientExecutor::new(client, Arc::clone(&worker_mailbox));
+        executor.run_refresh(&lease, marker)?;
+        worker_mailbox
+            .finish_lease(lease)
+            .map_err(|closed| closed.failure())?;
+        report.send(()).ok();
+        for _ in 0..2 {
+            let lease = worker_mailbox.recv().map_err(|closed| closed.failure())?;
+            let QueuedCommand::WorkspaceCloseRead(read) = lease.record() else {
+                return Err(CarrierFailure::Protocol);
+            };
+            let read = read.clone();
+            executor.run_workspace_close_read(&lease, &read)?;
+            worker_mailbox
+                .finish_lease(lease)
+                .map_err(|closed| closed.failure())?;
+            report.send(()).ok();
+        }
+        Ok(())
+    });
+
+    assert!(tick_until_finished(&mut ui, &mailbox, &finished));
+    // Accepted, not settled: the row has left, the neighbour is installed and receives input,
+    // and the Closed notice shows now.
+    assert_eq!(ui.current_location_for_test().as_ref(), Some(&neighbour));
+    assert!(!displayed(&ui).contains(&closing_location));
+    assert_eq!(
+        ui.view().workspace_close_status().unwrap().status(),
+        WorkspaceCloseStatus::Closed
+    );
+    // The close key pressed again at once does not close the neighbour it never saw.
+    ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    assert_eq!(
+        ui.view().notice(),
+        Some(crate::localization::WorkbenchClientNotice::WorkspaceChanged)
+    );
+
+    // Still closing: the next read waits for the follow interval.
+    assert!(tick_until_finished(&mut ui, &mailbox, &finished));
+    assert_eq!(ui.current_location_for_test().as_ref(), Some(&neighbour));
+    assert!(!displayed(&ui).contains(&closing_location));
+    elapsed.fetch_add(50, Ordering::SeqCst);
+
+    // A later failure returns the row and its notice; the selection stays on the neighbour.
+    assert!(tick_until_finished(&mut ui, &mailbox, &finished));
+    assert_eq!(ui.current_location_for_test().as_ref(), Some(&neighbour));
+    assert!(displayed(&ui).contains(&closing_location));
+    assert_eq!(
+        ui.view().workspace_close_status().unwrap().status(),
+        WorkspaceCloseStatus::Failed
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(worker.join().unwrap(), Ok(()));
+    server.finish()?;
+    Ok(())
 }
 #[test]
 fn workspace_and_project_close_shell_matrix_discloses_exact_scope_and_requires_a_complete_draw() {

@@ -936,6 +936,9 @@ impl ClientExecutor {
                         self.run_close_reconciliation(&lease, marker)
                     }
                     QueuedCommand::ReconcilePanes(marker) => self.run_reconcile(&lease, marker),
+                    QueuedCommand::WorkspaceCloseRead(read) => {
+                        self.run_workspace_close_read(&lease, read)
+                    }
                 };
                 step?;
             }

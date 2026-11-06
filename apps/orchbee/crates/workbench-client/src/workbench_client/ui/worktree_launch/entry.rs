@@ -151,12 +151,7 @@ impl WorkbenchClientUi {
                     }
                     return true;
                 }
-                let Some(index) = state
-                    .cache()
-                    .navigation()
-                    .iter()
-                    .position(|c| c.location == target)
-                else {
+                let Some(index) = state.display_position(&target) else {
                     self.worktrees
                         .launcher
                         .entry_notice(WorktreeNotice::EntryFailed);

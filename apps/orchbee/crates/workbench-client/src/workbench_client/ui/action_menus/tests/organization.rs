@@ -302,7 +302,6 @@ fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
         ui.tick();
         assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
         mailbox.finish_lease(lease).unwrap();
-        assert!(mailbox.try_recv().unwrap().is_none());
         assert_eq!(
             ui.state
                 .as_ref()

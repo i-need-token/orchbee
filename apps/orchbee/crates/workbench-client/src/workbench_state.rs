@@ -3219,6 +3219,9 @@ impl WorkbenchClientState {
         if self.context_selection.is_some() {
             return self.prepare_context_selection(generation, &snapshot);
         }
+        if let Some(prepared) = self.prepare_accepted_close_landing(generation, &snapshot) {
+            return prepared;
+        }
         let Ok(candidate) = self.cache.project_snapshot(&snapshot) else {
             // The current context no longer projects — either a peer workspace
             // close removed it (a permit-carrying landing candidate) or plain
@@ -4011,7 +4014,7 @@ impl WorkbenchClientState {
 
     pub(crate) fn phase_allows_refresh(&self) -> bool {
         self.pending_mutation.is_none()
-            && !self.workspace_close_blocks_structure()
+            && !self.workspace_close_blocks_refresh()
             && !self.setup_pending_or_draft()
             && !self.rename_draft_blocks_structure()
             && matches!(
@@ -4073,6 +4076,7 @@ impl WorkbenchClientState {
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();
         self.cancel_workspace_close();
+        self.end_workspace_close_follow();
         self.cancel_panel_close_confirmation();
         self.cancel_rename_draft();
         self.cancel_setup_on_retirement();
@@ -4278,14 +4282,15 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.cache.location()
     }
 
-    /// Every navigation entry's location, in navigation order.
+    /// Every displayed navigation entry's location, in navigation order. A Workspace an accepted
+    /// close takes out of navigation is left out, so Navigator rows and the positions Context
+    /// selection indexes agree.
     pub(crate) fn navigation_locations(
         &self,
     ) -> impl Iterator<Item = &'a crate::client_context::ClientContextLocation> + 'a {
         self.state
-            .cache
-            .navigation()
-            .iter()
+            .display_navigation()
+            .into_iter()
             .map(|entry| &entry.location)
     }
 

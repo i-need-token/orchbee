@@ -266,6 +266,9 @@ pub(super) enum QueuedCommand {
     WorkspaceSetup(Box<WorkspaceSetupMarker>),
     Close(CloseMarker),
     ReconcileClose(CloseReconciliationMarker),
+    /// One settlement read of an accepted Workspace or Project close. It never holds the refresh
+    /// slot, so Context selection and publication reads run between reads.
+    WorkspaceCloseRead(crate::workbench_state::workspace_close::WorkspaceCloseSettlementRead),
 }
 
 /// The desired pane set for one epoch, as the state last reported it. The
@@ -368,7 +371,7 @@ impl QueuedCommand {
             | Self::Poll(_)
             | Self::Viewport(_)
             | Self::Selection(_) => None,
-            Self::ClearTerminal(_) => None,
+            Self::ClearTerminal(_) | Self::WorkspaceCloseRead(_) => None,
         }
     }
 }
@@ -684,6 +687,12 @@ pub(super) enum WorkerEvent {
         evidence: crate::workbench_state::workspace_close::WorkspaceCloseEvidence,
         outcome: Box<WorkbenchSnapshotOutcome>,
     },
+    /// What one settlement read of the close with refresh `generation` observed; `None` when the
+    /// Server no longer answers for it. The read has no effect, so the UI drops a stale one.
+    WorkspaceCloseObserved {
+        generation: u64,
+        observation: Option<crate::workbench_state::workspace_close::WorkspaceCloseResult>,
+    },
     WorktreePrepared {
         preparation: Box<crate::workbench_state::worktree_launch::Preparation>,
         source: Option<orchbee_workbench_protocol::WorktreeSource>,
@@ -875,6 +884,7 @@ impl WorkerEvent {
                 | Self::SelectionOutcome { .. }
                 | Self::TerminalClearOutcome { .. }
                 | Self::ControllerObserved { .. }
+                | Self::WorkspaceCloseObserved { .. }
         )
     }
 
@@ -1015,7 +1025,7 @@ impl WorkerEvent {
             | Self::SelectionOutcome { .. } => {
                 return None;
             }
-            Self::TerminalClearOutcome { .. } => return None,
+            Self::TerminalClearOutcome { .. } | Self::WorkspaceCloseObserved { .. } => return None,
         };
         Some(UiWaitKey {
             serial,
@@ -1698,6 +1708,8 @@ impl CommandMailbox {
             QueuedCommand::Viewport(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Selection(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::ClearTerminal(tagged) => state.desired.admits(tagged.key()),
+            // A settlement read names a Server close, not a pane.
+            QueuedCommand::WorkspaceCloseRead(_) => true,
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)

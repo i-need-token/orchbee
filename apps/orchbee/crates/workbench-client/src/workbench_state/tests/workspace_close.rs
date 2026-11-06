@@ -575,7 +575,6 @@ fn admission_survives_later_unknown_and_correlated_reads_never_regress() {
     assert!(retains_close_result(&closed, &closed));
     evidence.result = closed;
     assert!(state.finish_workspace_close(&evidence));
-    assert!(!state.workspace_close_blocks_structure());
     assert!(state.invariant_holds());
 }
 #[test]
@@ -1162,7 +1161,8 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
         operation: operation.clone(),
         result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
     };
-    assert!(state.finish_workspace_close(&admitted));
+    let sampled = operation.deadlines.total() - OPERATION_TOTAL;
+    assert!(state.accept_workspace_close_event(&admitted, sampled));
     // Hidden but present: the canonical cache still names the Workspace until publication.
     assert_eq!(state.leaving_workspace_ids(), vec![workspace_id(1)]);
     assert_eq!(state.display_navigation().len(), 3);
@@ -1193,7 +1193,10 @@ fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
             }),
         },
     };
-    assert!(state.finish_workspace_close(&failed));
+    assert_eq!(
+        state.observe_workspace_close(operation.generation, Some(failed.result), sampled),
+        Some(true)
+    );
     assert!(state.leaving_workspace_ids().is_empty());
     assert_eq!(state.display_navigation().len(), 4);
 }
@@ -1213,7 +1216,8 @@ fn accepted_current_close_marks_the_neighbour_and_lands_on_it() {
         operation: operation.clone(),
         result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
     };
-    assert!(state.finish_workspace_close(&admitted));
+    let sampled = operation.deadlines.total() - OPERATION_TOTAL;
+    assert!(state.accept_workspace_close_event(&admitted, sampled));
 
     // The next shown Workspace in navigation order is marked at once, while the cache keeps the
     // closing row until its landing.
@@ -1238,4 +1242,59 @@ fn accepted_current_close_marks_the_neighbour_and_lands_on_it() {
     surviving.revision = WorkbenchRevision::new(2);
     let landing = state.removed_context_landing(&surviving).unwrap();
     assert_eq!(landing.location(), &neighbour);
+}
+
+#[test]
+fn closing_the_only_shown_workspace_announces_closed_with_its_landing_not_before() {
+    use crate::workbench_client::WorkspaceCloseStatus as CloseStatus;
+    let mut source = close_snapshot();
+    source.navigation.workspaces.truncate(1);
+    source.navigation.workspace_order.truncate(1);
+    source.terminal_contexts.truncate(1);
+    let workspace = &source.navigation.workspaces[0];
+    let closing = workspace.workspace_id.clone();
+    let location = ClientContextLocation::Workspace {
+        workspace_id: workspace.workspace_id.clone(),
+        terminal_context_id: workspace.terminal_context_id.clone(),
+    };
+    let mut state = ready_with_cache(project_native_context_tabs(&source, &location).unwrap());
+    let operation = start(&mut state, false);
+    let sampled = operation.deadlines.total() - OPERATION_TOTAL;
+    let admitted = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
+    };
+    assert!(state.accept_workspace_close_event(&admitted, sampled));
+    let status = |state: &WorkbenchClientState| state.workspace_close_status().unwrap().status();
+
+    // No other Workspace is shown to land on: no row is marked and the closing Workspace stays
+    // current, so the close reads Closing, settled or not, until publication lands elsewhere.
+    assert_eq!(state.display_active_location(), None);
+    assert_eq!(state.cache().location(), &location);
+    assert_eq!(status(&state), CloseStatus::Closing);
+    assert_eq!(
+        state.observe_workspace_close(
+            operation.generation,
+            Some(observed(&operation, true)),
+            sampled
+        ),
+        Some(true)
+    );
+    assert!(state.invariant_holds());
+    assert_eq!(status(&state), CloseStatus::Closing);
+    assert_eq!(state.leaving_workspace_ids(), vec![closing]);
+    let cutoff = operation.deadlines.forward_cutoff();
+    assert!(
+        state
+            .workspace_close_read_due(cutoff - Duration::from_millis(1))
+            .is_none(),
+        "a settled close is read no more"
+    );
+
+    // Without a landing by the original cutoff, Closed shows beside it.
+    assert!(!state.release_settled_workspace_close_follow(cutoff - Duration::from_millis(1)));
+    assert!(!state.expire_workspace_close_follow(cutoff));
+    assert!(state.release_settled_workspace_close_follow(cutoff));
+    assert_eq!(status(&state), CloseStatus::Closed);
+    assert!(state.invariant_holds());
 }

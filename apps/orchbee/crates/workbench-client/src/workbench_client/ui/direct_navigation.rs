@@ -61,12 +61,8 @@ impl WorkbenchClientUi {
         self.retained_frames
             .fence_selection(&target.context, &selection);
         if destination.location() != state.cache().location() {
-            let Some(context_index) = state
-                .cache()
-                .navigation()
-                .iter()
-                .position(|entry| &entry.location == destination.location())
-            else {
+            // A Workspace an accepted close takes out of navigation is not a destination.
+            let Some(context_index) = state.display_position(destination.location()) else {
                 return Admission::Unavailable;
             };
             self.remember_history_positions();

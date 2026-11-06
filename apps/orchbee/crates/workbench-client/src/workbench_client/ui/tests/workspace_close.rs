@@ -932,10 +932,6 @@ fn workspace_close_mailbox_keeps_admission_before_the_first_successful_read() {
     assert!(ui.finalize_workspace_close_worker(Some(evidence.clone())));
     mailbox.close(CarrierFailure::Transport);
     assert_eq!(mailbox.workspace_close_worker_loss(), Some(evidence));
-    assert_eq!(
-        ui.view().workspace_close_status().unwrap().status(),
-        WorkspaceCloseStatus::Closing
-    );
 }
 
 #[test]

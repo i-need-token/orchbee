@@ -8,9 +8,9 @@ use crate::exchange_values::workbench::WorkbenchWorkspaceCloseAccepted;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use crate::workbench_projection::{ClientContext, ClientContextLocation};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId,
+    ProtocolVersion, SessionId, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId,
     WorkbenchRequestId, WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceCloseReadOutcome,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome,
     WorkbenchWorkspaceGroupCloseRequest, WorkbenchWorkspaceGroupCloseResult, WorkbenchWorkspaceId,
     WorkspaceGroupCloseAction, WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
 };
@@ -130,6 +130,10 @@ fn project_facts<'a>(
 /// Retries of a request that only a newer projection kept from admission, while its scope stays
 /// unchanged. Each takes one read round trip, so the bound stays within a few seconds.
 pub(crate) const STALE_RETRY_LIMIT: u8 = 4;
+
+/// The pause between settlement reads. Physical Close settlement has no complete progress
+/// notification in this protocol, so an accepted close is sampled while it stays pending.
+const FOLLOW_INTERVAL: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceCloseOperation {
@@ -328,10 +332,111 @@ pub(super) struct WorkspaceCloseState {
     confirmation: Option<Confirmation>,
     pub(super) pending: Option<WorkspaceCloseOperation>,
     evidence: Option<WorkspaceCloseEvidence>,
+    /// Present while settlement reads follow the retained accepted close after its submission
+    /// lease ended, and while a close that settled Closed still waits for its landing. Accepted
+    /// evidence without it can no longer settle here and reads as unknown.
+    follow: Option<CloseFollow>,
     automatic_landing: Option<ClosedLanding>,
     show_pending: bool,
-    /// The settled Closed result is a one-shot notice; retiring it keeps the evidence.
+    /// The Closed result is a one-shot notice; retiring it keeps the evidence.
     closed_notice_retired: bool,
+}
+
+/// Paces the settlement reads of one accepted close, one at a time, each in its own lease.
+struct CloseFollow {
+    /// When the next read may be admitted.
+    due: Instant,
+    /// The operation's original forward cutoff. No read is admitted after it, and a close still
+    /// pending then ends unsettled.
+    until: Instant,
+    /// The close read Closed while the Workspace it removes is still current, because no other
+    /// Workspace was shown to land on. No read follows; the follow only keeps the Closing status
+    /// until publication lands the Client elsewhere or the cutoff passes.
+    settled: bool,
+}
+
+/// One repeatable status read of the retained accepted close. It names the Server's admission and
+/// never carries the close request, so no read can submit the close again.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct WorkspaceCloseSettlementRead {
+    generation: u64,
+    session_id: SessionId,
+    target: SettlementTarget,
+    deadline: Instant,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum SettlementTarget {
+    Workspace(WorkbenchWorkspaceCloseAccepted),
+    /// The group operation, whose identity is the Start request's.
+    Project(WorkbenchRequestId),
+}
+impl WorkspaceCloseSettlementRead {
+    pub(crate) const fn generation(&self) -> u64 {
+        self.generation
+    }
+    pub(crate) const fn deadline(&self) -> Instant {
+        self.deadline
+    }
+    /// The Workspace status read and the canonical close identity it must answer for, or `None`
+    /// for a Project close.
+    pub(crate) fn workspace_request(
+        &self,
+        request_id: WorkbenchRequestId,
+    ) -> Option<(WorkbenchWorkspaceCloseRead, &WorkbenchRequestId)> {
+        let SettlementTarget::Workspace(accepted) = &self.target else {
+            return None;
+        };
+        Some((
+            WorkbenchWorkspaceCloseRead {
+                protocol_version: ProtocolVersion,
+                request_id,
+                session_id: self.session_id.clone(),
+                workspace_id: accepted.workspace_id.clone(),
+            },
+            &accepted.close_request_id,
+        ))
+    }
+    /// The group status read, or `None` for a Workspace close.
+    pub(crate) fn project_request(
+        &self,
+        request_id: WorkbenchRequestId,
+    ) -> Option<WorkbenchWorkspaceGroupCloseRequest> {
+        let SettlementTarget::Project(operation_id) = &self.target else {
+            return None;
+        };
+        Some(WorkbenchWorkspaceGroupCloseRequest {
+            protocol_version: ProtocolVersion,
+            request_id,
+            session_id: self.session_id.clone(),
+            action: WorkspaceGroupCloseAction::Read {
+                operation_id: operation_id.clone(),
+            },
+        })
+    }
+    /// What a Workspace read observed, or `None` when the Server no longer answers for the close.
+    pub(crate) fn workspace_observation(
+        &self,
+        outcome: WorkbenchWorkspaceCloseReadOutcome,
+    ) -> Option<WorkspaceCloseResult> {
+        let SettlementTarget::Workspace(accepted) = &self.target else {
+            return None;
+        };
+        matches!(
+            outcome,
+            WorkbenchWorkspaceCloseReadOutcome::Available { .. }
+        )
+        .then(|| WorkspaceCloseResult::WorkspaceObserved {
+            accepted: accepted.clone(),
+            outcome: Box::new(outcome),
+        })
+    }
+    /// What a group read observed, or `None` when the Server no longer answers for the close.
+    pub(crate) fn project_observation(
+        reply: WorkbenchWorkspaceGroupCloseResult,
+    ) -> Option<WorkspaceCloseResult> {
+        matches!(reply.outcome, WorkspaceGroupCloseOutcome::Available { .. })
+            .then(|| WorkspaceCloseResult::ProjectObserved(Box::new(reply)))
+    }
 }
 
 /// Display continuity for one validated removal install, never navigation or input authority.
@@ -445,14 +550,47 @@ impl WorkbenchClientState {
                 .evidence
                 .as_ref()
                 .is_none_or(|evidence| evidence.operation.admits(&evidence.result))
+            && self.workspace_close.follow.as_ref().is_none_or(|follow| {
+                self.workspace_close.pending.is_none()
+                    && self
+                        .workspace_close
+                        .evidence
+                        .as_ref()
+                        .is_some_and(|evidence| {
+                            if follow.settled {
+                                evidence.result.is_closed()
+                            } else {
+                                evidence.result.is_pending()
+                            }
+                        })
+            })
     }
-    pub(crate) fn workspace_close_blocks_structure(&self) -> bool {
+    /// Whether the retained result reads as closed: settled Closed, or accepted while settlement
+    /// reads still follow it. Acceptance is announced at once; a later failure replaces it.
+    fn reads_closed(&self, result: &WorkspaceCloseResult) -> bool {
+        result.is_closed() || (result.is_pending() && self.workspace_close.follow.is_some())
+    }
+    /// A close owns the refresh slot or its confirmation, or its outcome stays unresolved with no
+    /// read following it. A followed accepted close leaves refresh and navigation among the
+    /// remaining Workspaces to the user.
+    pub(crate) fn workspace_close_blocks_refresh(&self) -> bool {
         self.workspace_close_blocks_membership()
             || self
                 .workspace_close
                 .evidence
                 .as_ref()
-                .is_some_and(|evidence| evidence.result.unresolved())
+                .is_some_and(|evidence| {
+                    evidence.result.unresolved() && !self.reads_closed(&evidence.result)
+                })
+    }
+    /// Structure also waits while the current Workspace is the one leaving, so nothing selects
+    /// from, attaches to, or changes it before its landing.
+    pub(crate) fn workspace_close_blocks_structure(&self) -> bool {
+        self.workspace_close_blocks_refresh() || self.current_workspace_leaves()
+    }
+    /// Whether the current location is a Workspace an accepted close takes out of navigation.
+    pub(crate) fn current_workspace_leaves(&self) -> bool {
+        current_leaves(self.cache.location(), &self.leaving_workspace_ids())
     }
     /// Finished evidence still fences effects, but canonical read-only membership repair may run.
     pub(crate) fn workspace_close_blocks_membership(&self) -> bool {
@@ -476,9 +614,16 @@ impl WorkbenchClientState {
             )
     }
     /// Shared availability for either Close scope; opening additionally resolves its exact target.
+    /// A close whose outcome is unresolved, including one still followed, keeps its recovery
+    /// identity, so no second close starts beside it.
     pub(crate) fn close_scope_available(&self) -> bool {
         self.workspace_close_quiet()
             && !self.workspace_close_blocks_structure()
+            && !self
+                .workspace_close
+                .evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.result.unresolved())
             && self.invariant_holds()
     }
     pub(crate) fn open_workspace_close(&mut self) -> Option<WorkspaceCloseToken> {
@@ -797,6 +942,7 @@ impl WorkbenchClientState {
         self.pending_refresh = Some(PendingRefreshFlight::recovery(operation.generation));
         self.workspace_close.pending = Some(operation);
         self.workspace_close.evidence = None;
+        self.workspace_close.follow = None;
         self.workspace_close.automatic_landing = None;
         self.workspace_close.show_pending = false;
         self.workspace_close.closed_notice_retired = false;
@@ -862,6 +1008,142 @@ impl WorkbenchClientState {
         }
         true
     }
+    /// Retains the submission lease's published result. An accepted close that is still pending
+    /// is then followed by settlement reads until the operation's original forward cutoff; a
+    /// result recovered after worker loss goes through `finish_workspace_close` and is not.
+    pub(crate) fn accept_workspace_close_event(
+        &mut self,
+        evidence: &WorkspaceCloseEvidence,
+        sampled: Instant,
+    ) -> bool {
+        if !self.finish_workspace_close(evidence) {
+            return false;
+        }
+        if evidence.result.is_pending() && self.workspace_close.evidence.as_ref() == Some(evidence)
+        {
+            self.workspace_close.follow = Some(CloseFollow {
+                due: sampled,
+                until: evidence.operation.deadlines.forward_cutoff(),
+                settled: false,
+            });
+        }
+        true
+    }
+    /// The next settlement read, when one is due at `sampled`. The caller keeps at most one in
+    /// flight.
+    pub(crate) fn workspace_close_read_due(
+        &self,
+        sampled: Instant,
+    ) -> Option<WorkspaceCloseSettlementRead> {
+        self.workspace_close
+            .follow
+            .as_ref()
+            .filter(|follow| !follow.settled && follow.due <= sampled && sampled < follow.until)?;
+        let evidence = self.workspace_close.evidence.as_ref()?;
+        let target = match &evidence.result {
+            WorkspaceCloseResult::WorkspaceAccepted(accepted)
+            | WorkspaceCloseResult::WorkspaceObserved { accepted, .. } => {
+                SettlementTarget::Workspace(accepted.clone())
+            }
+            WorkspaceCloseResult::ProjectObserved(_) => {
+                SettlementTarget::Project(evidence.operation.request_id.clone())
+            }
+            _ => return None,
+        };
+        Some(WorkspaceCloseSettlementRead {
+            generation: evidence.operation.generation,
+            session_id: evidence.operation.baseline.session_id().clone(),
+            target,
+            deadline: sampled.checked_add(super::OPERATION_TOTAL)?,
+        })
+    }
+    /// Ends a follow whose cutoff passed before settlement. The caller asks only while no read is
+    /// in flight, so a read already sent still decides. The close then reads as unknown and its
+    /// rows return; the selection stays where it is.
+    pub(crate) fn expire_workspace_close_follow(&mut self, sampled: Instant) -> bool {
+        if self
+            .workspace_close
+            .follow
+            .as_ref()
+            .is_some_and(|follow| !follow.settled && sampled >= follow.until)
+        {
+            self.workspace_close.follow = None;
+            return true;
+        }
+        false
+    }
+    /// Ends the wait of a close that settled Closed once publication landed the Client off the
+    /// closed Workspace, or at the cutoff, after which Closed shows beside it. Returns whether
+    /// the status can change.
+    pub(crate) fn release_settled_workspace_close_follow(&mut self, sampled: Instant) -> bool {
+        let release = self.workspace_close.follow.as_ref().is_some_and(|follow| {
+            follow.settled && (sampled >= follow.until || !self.current_workspace_leaves())
+        });
+        if release {
+            self.workspace_close.follow = None;
+        }
+        release
+    }
+    /// A lost Client Connection ends the follow without deciding anything: the retained evidence
+    /// stays, and an accepted close that has not settled reads as unknown.
+    pub(crate) fn end_workspace_close_follow(&mut self) {
+        self.workspace_close.follow = None;
+    }
+    /// Applies one settlement read of the close with refresh `generation`. `None` says the Server
+    /// no longer answers for the close, so it can no longer settle here and the follow ends. A
+    /// settled result ends the follow as well, except that Closed keeps it, without reads, while
+    /// the closed Workspace is still current. Returns whether the retained result changed, or
+    /// `None` when the observation contradicts the retained admission.
+    pub(crate) fn observe_workspace_close(
+        &mut self,
+        generation: u64,
+        observation: Option<WorkspaceCloseResult>,
+        sampled: Instant,
+    ) -> Option<bool> {
+        let followed = self.workspace_close.follow.is_some()
+            && self
+                .workspace_close
+                .evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.operation.generation == generation);
+        if !followed {
+            // The follow this read answered already ended; its outcome no longer waits for it.
+            return Some(false);
+        }
+        let Some(result) = observation else {
+            self.workspace_close.follow = None;
+            return Some(true);
+        };
+        let evidence = self.workspace_close.evidence.as_mut()?;
+        if !evidence.operation.admits(&result) || !retains_close_result(&evidence.result, &result) {
+            return None;
+        }
+        let changed = evidence.result != result;
+        let pending = result.is_pending();
+        let closed = result.is_closed();
+        evidence.result = result;
+        // With no other Workspace shown, the closed Workspace stays current until publication
+        // lands the Client elsewhere; Closed is announced with that landing.
+        let landing_awaited = closed && self.current_workspace_leaves();
+        match self.workspace_close.follow.as_mut() {
+            Some(follow) if pending => {
+                // The next read waits one interval. None is admitted at the cutoff, where the
+                // expiry check ends the follow instead.
+                follow.due = sampled
+                    .checked_add(FOLLOW_INTERVAL)
+                    .map_or(follow.until, |next| next.min(follow.until));
+                Some(changed)
+            }
+            Some(follow) if landing_awaited => {
+                follow.settled = true;
+                Some(true)
+            }
+            _ => {
+                self.workspace_close.follow = None;
+                Some(true)
+            }
+        }
+    }
     pub(crate) fn workspace_close_deadlines(&self) -> Option<OperationDeadlines> {
         self.workspace_close
             .evidence
@@ -873,10 +1155,11 @@ impl WorkbenchClientState {
     }
     pub(crate) fn workspace_close_status(&self) -> Option<WorkspaceCloseStatusView<'_>> {
         if let Some(evidence) = &self.workspace_close.evidence {
-            if evidence.result.is_closed() && self.workspace_close.closed_notice_retired {
+            let closed = self.reads_closed(&evidence.result);
+            if closed && self.workspace_close.closed_notice_retired {
                 return None;
             }
-            if evidence.result.is_closed()
+            if closed
                 && self.cache.location() != evidence.operation.baseline.location()
                 && !self
                     .workspace_close
@@ -898,12 +1181,24 @@ impl WorkbenchClientState {
                 WorkspaceCloseResult::ProjectObserved(reply) => &reply.operation_id,
                 _ => &evidence.operation.request_id,
             };
-            // Viewer cleanup keeps the removed Workspace installed and drawn as current until
-            // the validated removal lands; announce Closed with that landing, not before it.
-            let status = if evidence.result.is_closed()
-                && self.refresh_install_awaits_cleanup(evidence.operation.generation)
-            {
+            // The closing Workspace stays installed and drawn as current until its landing, which
+            // viewer cleanup can defer, or which waits for publication when no other Workspace is
+            // shown; announce Closed with that landing, not before it.
+            let landing_awaited = self
+                .refresh_install_awaits_cleanup(evidence.operation.generation)
+                || (self.workspace_close.follow.is_some() && self.current_workspace_leaves());
+            let status = if closed && landing_awaited {
                 WorkspaceCloseStatus::Closing
+            } else if closed {
+                WorkspaceCloseStatus::Closed
+            } else if evidence.result.is_pending() {
+                // Admitted and not settled: its own submission flight still observes it, or no
+                // read follows it any more and its outcome is unknown here.
+                if self.workspace_close.pending.as_ref() == Some(&evidence.operation) {
+                    WorkspaceCloseStatus::Closing
+                } else {
+                    WorkspaceCloseStatus::Unknown
+                }
             } else {
                 evidence.result.status()
             };
@@ -926,17 +1221,15 @@ impl WorkbenchClientState {
     }
 
     /// Workspaces an accepted close has taken out of navigation before publication removes them
-    /// from the canonical snapshot. A Project close names its canonical members. Only the retained
-    /// receipt decides: a refusal, failure or unknown outcome yields no leaving set, so the rows
-    /// return without a restore step. The cache keeps every canonical Workspace.
+    /// from the canonical snapshot. A Project close names its canonical members. The retained
+    /// receipt decides, while settlement reads follow it or once it reads Closed: a refusal,
+    /// failure, unknown outcome or ended follow yields no leaving set, so the rows return without
+    /// a restore step. The cache keeps every canonical Workspace.
     pub(crate) fn leaving_workspace_ids(&self) -> Vec<WorkbenchWorkspaceId> {
         let Some(evidence) = self.workspace_close.evidence.as_ref() else {
             return Vec::new();
         };
-        if !matches!(
-            evidence.result.status(),
-            WorkspaceCloseStatus::Closing | WorkspaceCloseStatus::Closed
-        ) {
+        if !self.reads_closed(&evidence.result) {
             return Vec::new();
         }
         match &evidence.operation.target {
@@ -990,13 +1283,14 @@ impl WorkbenchClientState {
             .filter(|status| status.status() == WorkspaceCloseStatus::Closed)
             .map(|status| status.operation.generation)
     }
-    /// Ends only the Closed notice; the receipt and its fences stay with the operation.
+    /// Ends only the Closed notice; the receipt and its fences stay with the operation. A notice
+    /// retired while the close was still followed stays retired once it settles Closed.
     pub(crate) fn retire_closed_workspace_close_notice(&mut self) {
         if self
             .workspace_close
             .evidence
             .as_ref()
-            .is_some_and(|evidence| evidence.result.is_closed())
+            .is_some_and(|evidence| self.reads_closed(&evidence.result))
         {
             self.workspace_close.closed_notice_retired = true;
         }
@@ -1013,13 +1307,13 @@ impl WorkbenchClientState {
         }
         // Every later cross-context install, including manual navigation, retires the
         // prior display witness and its Closed notice. Returning to that location cannot
-        // revive either; only the validated automatic landing keeps the notice.
+        // revive either; only the validated automatic landing off a Workspace this close takes
+        // out of navigation keeps the notice, whichever refresh flight installs it.
+        let leaving = self.leaving_workspace_ids();
         self.workspace_close.automatic_landing = permit.and_then(|permit| {
-            let evidence = self.workspace_close.evidence.as_ref().filter(|evidence| {
-                evidence.result.is_closed()
-                    && generation == Some(evidence.operation.generation)
-                    && permit.generation() == evidence.operation.generation
-                    && permit.removed() == evidence.operation.baseline.location()
+            let evidence = self.workspace_close.evidence.as_ref().filter(|_| {
+                generation == Some(permit.generation())
+                    && current_leaves(permit.removed(), &leaving)
                     && permit.authorizes(&self.cache, candidate)
             })?;
             Some(ClosedLanding {

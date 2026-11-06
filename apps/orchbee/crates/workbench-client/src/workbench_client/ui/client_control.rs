@@ -503,9 +503,9 @@ impl WorkbenchClientUi {
             if progress.context_attempted {
                 return ControlStep::Failed(Reason::ProjectionUnavailable);
             }
+            // Selection indexes the displayed list, which leaves out a closing Workspace.
             let Some(index) = state
-                .cache()
-                .navigation()
+                .display_navigation()
                 .iter()
                 .position(|context| context.location.terminal_context_id() == Some(context_id))
             else {

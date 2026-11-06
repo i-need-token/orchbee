@@ -5,13 +5,13 @@
 use super::held_intent::HeldIntent;
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::{ClientActionDisposition, ClientKey};
-use crate::workbench_client::mailbox::{CommandMailbox, UiWaitKey};
+use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, UiWaitKey};
 #[cfg(test)]
 pub(crate) use crate::workbench_state::workspace_close::WorkspaceCloseStatus;
 pub use crate::workbench_state::workspace_close::WorkspaceCloseToken;
 use crate::workbench_state::workspace_close::{
     SidebarDeleteReview, StaleCloseReview, WorkspaceCloseEvidence, WorkspaceCloseOperation,
-    WorkspaceDeleteRequest,
+    WorkspaceCloseResult, WorkspaceDeleteRequest,
 };
 pub(crate) use crate::workbench_state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatusView,
@@ -308,13 +308,23 @@ impl WorkbenchClientUi {
         evidence: WorkspaceCloseEvidence,
         outcome: WorkbenchSnapshotOutcome,
     ) -> bool {
+        let sampled = self.clock.now();
         if !self
             .state
             .as_mut()
-            .is_some_and(|state| state.finish_workspace_close(&evidence))
+            .is_some_and(|state| state.accept_workspace_close_event(&evidence, sampled))
         {
             self.retire(CarrierFailure::Protocol);
             return true;
+        }
+        // The refresh below lands on the neighbour, which the user did not choose; a close key
+        // pressed again before it is seen must not close it.
+        if self
+            .state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::current_workspace_leaves)
+        {
+            self.mark_destination_uncertain();
         }
         let changed =
             self.apply_refresh_event(mailbox, wait, evidence.operation.generation, outcome);
@@ -337,6 +347,75 @@ impl WorkbenchClientUi {
             Some(StaleCloseReview::NotApplicable | StaleCloseReview::Changed) | None => {}
         }
         changed
+    }
+
+    /// Admits the next settlement read of a followed close once the previous read was applied,
+    /// each in its own short lease, so Context selection and publication reads run between
+    /// reads. A close still pending at its original forward cutoff ends this Client Connection
+    /// with the deadline failure; its admission then reads as unknown. A close that settled
+    /// Closed beside its still current Workspace waits here for its landing.
+    pub(super) fn schedule_workspace_close_read(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        if let Some(serial) = self.workspace_close_read {
+            match mailbox.workspace_close_read_continues(serial) {
+                Ok(true) => return false,
+                Ok(false) => self.workspace_close_read = None,
+                Err(closed) => {
+                    self.retire(closed.failure());
+                    return true;
+                }
+            }
+        }
+        let sampled = self.clock.now();
+        let Some(state) = self.state.as_mut() else {
+            return false;
+        };
+        let released = state.release_settled_workspace_close_follow(sampled);
+        if state.expire_workspace_close_follow(sampled) {
+            self.retire(CarrierFailure::Deadline);
+            return true;
+        }
+        let Some(read) = state.workspace_close_read_due(sampled) else {
+            return released;
+        };
+        match mailbox.try_enqueue_workspace_close_read(read) {
+            Ok(serial) => self.workspace_close_read = Some(serial),
+            Err(AdmissionError::Closed(closed)) => {
+                self.retire(closed.failure());
+                return true;
+            }
+            // A refused read sends nothing; a later tick asks again before the cutoff.
+            Err(_) => {}
+        }
+        released
+    }
+
+    /// Applies what one settlement read observed. A Failed or unknown result, or a read the
+    /// Server no longer answers, ends the follow and returns the rows; the selection stays.
+    pub(super) fn apply_workspace_close_observation(
+        &mut self,
+        generation: u64,
+        observation: Option<WorkspaceCloseResult>,
+    ) -> bool {
+        self.workspace_close_read = None;
+        let sampled = self.clock.now();
+        let observed = self
+            .state
+            .as_mut()
+            .and_then(|state| state.observe_workspace_close(generation, observation, sampled));
+        match observed {
+            Some(changed)
+                if self
+                    .state
+                    .as_ref()
+                    .is_some_and(WorkbenchClientState::invariant_holds) =>
+            {
+                changed
+            }
+            _ => {
+                self.retire(CarrierFailure::Protocol);
+                true
+            }
+        }
     }
 
     /// Submits a confirmed close once more after a newer projection kept the first request from

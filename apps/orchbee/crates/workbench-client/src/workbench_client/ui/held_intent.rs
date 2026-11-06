@@ -104,6 +104,13 @@ impl WorkbenchClientUi {
         landing
     }
 
+    /// An accepted close replaced the current Workspace with its neighbour, which the user did not
+    /// choose and may not have seen yet. A close of the current Workspace pressed before that is
+    /// refused once, within the same bound, so a repeated key never closes the neighbour.
+    pub(super) fn mark_destination_uncertain(&mut self) {
+        self.held_intents.uncertain_until = Some(self.clock.now() + HOLD);
+    }
+
     fn destination_uncertain(&self) -> bool {
         self.held_intents
             .uncertain_until

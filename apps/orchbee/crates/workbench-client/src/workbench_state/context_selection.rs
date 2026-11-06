@@ -81,6 +81,15 @@ impl WorkbenchClientState {
             .collect()
     }
 
+    /// The displayed position of `location`, or `None` when it is absent or an accepted close took
+    /// it out of navigation. Context selection indexes the displayed list, so a caller that names
+    /// its target by identity converts through this instead of the canonical order.
+    pub(crate) fn display_position(&self, location: &ClientContextLocation) -> Option<usize> {
+        self.display_navigation()
+            .iter()
+            .position(|entry| &entry.location == location)
+    }
+
     /// The location the Context strip marks as current. An accepted close of the current
     /// Workspace has already taken its row out of navigation while the cache keeps it until the
     /// landing installs the neighbour, so the mark goes to that neighbour in the meantime.

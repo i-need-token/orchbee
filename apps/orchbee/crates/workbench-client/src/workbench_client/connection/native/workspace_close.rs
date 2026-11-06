@@ -1,4 +1,5 @@
-//! Submit the confirmed scope once, retain admission, and observe it without replaying effects.
+//! Submit the confirmed scope once and retain admission; the submission lease ends at acceptance.
+//! Each settlement read then runs in its own short lease and never replays an effect.
 use super::{ClientExecutor, Result, closed, event};
 use crate::local_client::workbench::{
     WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseRequest,
@@ -9,17 +10,11 @@ use crate::workbench_client::mailbox::{
 };
 use crate::workbench_state::CarrierFailure;
 use crate::workbench_state::workspace_close::{
-    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult, retains_close_result,
+    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
+    WorkspaceCloseSettlementRead, retains_close_result,
 };
-use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchSnapshotOutcome, WorkbenchWorkspaceCloseRead,
-    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceGroupCloseRequest,
-    WorkspaceGroupCloseAction, WorkspaceGroupCloseOutcome,
-};
-use std::{
-    thread,
-    time::{Duration, Instant},
-};
+use orchbee_workbench_protocol::{WorkbenchSnapshotOutcome, WorkspaceGroupCloseOutcome};
+use std::time::Instant;
 
 impl ClientExecutor {
     pub(super) fn run_workspace_close(
@@ -142,53 +137,8 @@ impl ClientExecutor {
             }
             WorkbenchWorkspaceCloseSubmission::Accepted(accepted) => accepted,
         };
-        self.retain_workspace_close(
-            operation,
-            WorkspaceCloseResult::WorkspaceAccepted(accepted.clone()),
-        )?;
-        loop {
-            self.ensure_before(cutoff)?;
-            let request = WorkbenchWorkspaceCloseRead {
-                protocol_version: ProtocolVersion,
-                request_id: self
-                    .mailbox
-                    .allocate_workbench_request_id()
-                    .map_err(closed)?,
-                session_id: operation.baseline.session_id().clone(),
-                workspace_id: accepted.workspace_id.clone(),
-            };
-            let outcome = self
-                .client
-                .submit_workbench_workspace_close_read(
-                    request,
-                    Some(&accepted.close_request_id),
-                    cutoff,
-                )
-                .map_err(|_| CarrierFailure::Transport)?;
-            // An unavailable read says nothing about the retained admission or earlier observation.
-            if !matches!(
-                outcome,
-                WorkbenchWorkspaceCloseReadOutcome::Available { .. }
-            ) {
-                break;
-            }
-            self.retain_workspace_close(
-                operation,
-                WorkspaceCloseResult::WorkspaceObserved {
-                    accepted: accepted.clone(),
-                    outcome: Box::new(outcome),
-                },
-            )?;
-            if !self
-                .pending_workspace_close
-                .as_ref()
-                .is_some_and(|evidence| evidence.result.is_pending())
-            {
-                break;
-            }
-            self.wait_close_observation(cutoff)?;
-        }
-        Ok(())
+        // Admission ends this lease's part: settlement reads follow in their own leases.
+        self.retain_workspace_close(operation, WorkspaceCloseResult::WorkspaceAccepted(accepted))
     }
 
     fn submit_project_close_all(
@@ -218,53 +168,56 @@ impl ClientExecutor {
         if !matches!(first.outcome, WorkspaceGroupCloseOutcome::Available { .. }) {
             return self.retain_workspace_close(operation, WorkspaceCloseResult::Refused);
         }
+        // The group receipt is admission; settlement reads follow in their own leases.
         self.retain_workspace_close(
             operation,
             WorkspaceCloseResult::ProjectObserved(Box::new(first)),
-        )?;
-        while self
-            .pending_workspace_close
-            .as_ref()
-            .is_some_and(|evidence| evidence.result.is_pending())
-        {
-            self.wait_close_observation(cutoff)?;
-            let request = WorkbenchWorkspaceGroupCloseRequest {
-                protocol_version: ProtocolVersion,
-                request_id: self
-                    .mailbox
-                    .allocate_workbench_request_id()
-                    .map_err(closed)?,
-                session_id: operation.baseline.session_id().clone(),
-                action: WorkspaceGroupCloseAction::Read {
-                    operation_id: operation.request_id.clone(),
-                },
-            };
-            let next = self
-                .client
-                .submit_workspace_group_close(request, cutoff, None)
-                .map_err(|_| CarrierFailure::Transport)?;
-            if !matches!(next.outcome, WorkspaceGroupCloseOutcome::Available { .. }) {
-                break;
-            }
-            self.retain_workspace_close(
-                operation,
-                WorkspaceCloseResult::ProjectObserved(Box::new(next)),
-            )?;
-        }
-        Ok(())
+        )
     }
 
-    fn wait_close_observation(&self, cutoff: Instant) -> Result<()> {
+    /// One settlement read of an accepted close, in its own lease. It sends only a status read
+    /// for the retained admission, so it can never submit the close again, and publishes what it
+    /// saw for the UI to retain. A read the Server no longer answers is published as such; it
+    /// decides nothing about the retained admission.
+    pub(super) fn run_workspace_close_read(
+        &mut self,
+        lease: &CommandLease,
+        read: &WorkspaceCloseSettlementRead,
+    ) -> Result<()> {
+        let cutoff = self.effective_lease_cutoff(lease, read.deadline())?;
         self.ensure_before(cutoff)?;
-        if let Some(failure) = self.mailbox.is_closed() {
-            return Err(failure);
-        }
-        // Physical Close settlement has no complete progress notification in this protocol.
-        // Sample only while this bounded operation remains pending, never as an idle state read.
-        thread::sleep(
-            Duration::from_millis(50).min(cutoff.saturating_duration_since(self.clock.now())),
-        );
-        self.ensure_before(cutoff)
+        let request_id = self
+            .mailbox
+            .allocate_workbench_request_id()
+            .map_err(closed)?;
+        let observation =
+            if let Some((request, close_request_id)) = read.workspace_request(request_id.clone()) {
+                let outcome = self
+                    .client
+                    .submit_workbench_workspace_close_read(request, Some(close_request_id), cutoff)
+                    .map_err(|_| CarrierFailure::Transport)?;
+                read.workspace_observation(outcome)
+            } else {
+                let request = read
+                    .project_request(request_id)
+                    .ok_or(CarrierFailure::Protocol)?;
+                let reply = self
+                    .client
+                    .submit_workspace_group_close(request, cutoff, None)
+                    .map_err(|_| CarrierFailure::Transport)?;
+                WorkspaceCloseSettlementRead::project_observation(reply)
+            };
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::WorkspaceCloseObserved {
+                    generation: read.generation(),
+                    observation,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(event)?;
+        Ok(())
     }
 
     fn retain_workspace_close(

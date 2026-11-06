@@ -1517,12 +1517,10 @@ impl WorkbenchClientUi {
                         Some(Stage::Offered(current.clone(), deadline))
                     }
                     Target::Workspace { location, .. } => {
-                        let index = self.state.as_ref().and_then(|s| {
-                            s.cache()
-                                .navigation()
-                                .iter()
-                                .position(|c| &c.location == location)
-                        });
+                        let index = self
+                            .state
+                            .as_ref()
+                            .and_then(|s| s.display_position(location));
                         index
                             .and_then(|i| self.select_context_at_generation(i))
                             .map(|generation| Stage::Context {

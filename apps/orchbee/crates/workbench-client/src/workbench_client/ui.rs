@@ -1472,6 +1472,9 @@ pub(super) struct WorkbenchClientUi {
     pending_draws: Vec<PendingDraw>,
     poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
+    /// The settlement read of a followed Workspace or Project close that is queued, executing,
+    /// or whose observation the UI has not applied yet. At most one is outstanding.
+    workspace_close_read: Option<u64>,
     next_empty_poll: Option<std::time::Instant>,
     next_fallback_poll: Option<std::time::Instant>,
     publications: Option<crate::local_client::subscription::ChangeSubscription>,
@@ -1616,6 +1619,7 @@ impl WorkbenchClientUi {
             pending_draws: Vec::new(),
             poll_cursor: 0,
             ordinary_poll_serial: None,
+            workspace_close_read: None,
             next_empty_poll: None,
             next_fallback_poll: None,
             publications: None,
@@ -1806,6 +1810,16 @@ impl WorkbenchClientUi {
         self.state
             .as_ref()
             .map(WorkbenchClientState::latest_geometry)
+    }
+
+    /// The installed Context location, which receives input, rather than the drawn mark.
+    #[cfg(test)]
+    pub(super) fn current_location_for_test(
+        &self,
+    ) -> Option<crate::client_context::ClientContextLocation> {
+        self.state
+            .as_ref()
+            .map(|state| state.cache().location().clone())
     }
 
     pub(super) fn close(&mut self, failure: CarrierFailure) {
@@ -2012,6 +2026,7 @@ impl WorkbenchClientUi {
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
+            changed |= self.schedule_workspace_close_read(&mailbox);
             changed |= self.schedule_close_set(&mailbox);
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
@@ -3836,6 +3851,13 @@ impl WorkbenchClientUi {
             if let WorkerEvent::TerminalClearOutcome { key, outcome } = event {
                 return self.apply_terminal_clear_outcome(key, outcome);
             }
+            if let WorkerEvent::WorkspaceCloseObserved {
+                generation,
+                observation,
+            } = event
+            {
+                return self.apply_workspace_close_observation(generation, observation);
+            }
             if let WorkerEvent::SelectionOutcome {
                 key,
                 command,
@@ -4046,7 +4068,10 @@ impl WorkbenchClientUi {
                 | WorkerEvent::SelectionOutcome { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
-                WorkerEvent::TerminalClearOutcome { .. } => return Err(CarrierFailure::Protocol),
+                WorkerEvent::TerminalClearOutcome { .. }
+                | WorkerEvent::WorkspaceCloseObserved { .. } => {
+                    return Err(CarrierFailure::Protocol);
+                }
                 WorkerEvent::SwitchForwardExpired { .. } => return Err(CarrierFailure::Protocol),
                 WorkerEvent::SetupConfigured {
                     key,
@@ -4916,10 +4941,14 @@ impl WorkbenchClientUi {
         self.copy_mode.close();
         self.popup.shutdown();
         self.duplication.interrupt(self.clock.now());
+        self.workspace_close_read = None;
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();
             state.cancel_workspace_close();
+            // Settlement is no longer observed: an unsettled admission reads as unknown, and a
+            // close that settled Closed shows Closed.
+            state.end_workspace_close_follow();
             state.cancel_rename_draft();
             state.cancel_setup_on_retirement();
         }

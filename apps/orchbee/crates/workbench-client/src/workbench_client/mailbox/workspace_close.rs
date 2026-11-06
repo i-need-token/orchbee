@@ -1,11 +1,14 @@
-//! One Close uses the existing Refresh lease, with evidence retained before publication.
+//! One Close submits in the existing Refresh lease, with evidence retained before publication.
+//! Settlement reads of an accepted close then queue as ordinary short leases.
 use super::MailboxClock;
 use super::{
-    COMMAND_CAPACITY, CommandMailbox, PendingRefreshStage, QueuedCommand, QueuedRecord,
-    RefreshFlight, RefreshMarker, workbench_identity_candidate,
+    AdmissionError, COMMAND_CAPACITY, CommandMailbox, EventCell, MailboxClosed,
+    PendingRefreshStage, QueuedCommand, QueuedRecord, RefreshFlight, RefreshMarker, WorkerEvent,
+    workbench_identity_candidate,
 };
 use crate::workbench_state::workspace_close::{
-    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult, WorkspaceCloseToken,
+    WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
+    WorkspaceCloseSettlementRead, WorkspaceCloseToken,
 };
 use crate::workbench_state::{OperationDeadlines, WorkbenchClientState};
 
@@ -160,6 +163,32 @@ impl CommandMailbox {
         }
         flight.evidence.result = result;
         true
+    }
+    /// Queues one settlement read behind whatever the queue holds. It takes no refresh slot; the
+    /// caller keeps at most one in flight and retries a refused admission on a later tick.
+    pub(in crate::workbench_client) fn try_enqueue_workspace_close_read(
+        &self,
+        read: WorkspaceCloseSettlementRead,
+    ) -> Result<u64, AdmissionError<std::convert::Infallible>> {
+        self.try_enqueue_with(|| Ok(QueuedCommand::WorkspaceCloseRead(read)))
+    }
+    /// Whether the settlement read admitted as `serial` is still queued or executing, or its
+    /// observation still waits for the UI. Only one read is outstanding, so an observation in the
+    /// event cell is its own.
+    pub(in crate::workbench_client) fn workspace_close_read_continues(
+        &self,
+        serial: u64,
+    ) -> Result<bool, MailboxClosed> {
+        let state = self.lock();
+        Self::ensure_open(&state)?;
+        Ok(state.queue.iter().any(|record| {
+            record.serial == serial
+                && matches!(record.command, QueuedCommand::WorkspaceCloseRead(_))
+        }) || state
+            .active_lease
+            .is_some_and(|lease| lease.serial == serial)
+            || matches!(&state.event, EventCell::Event(event)
+                if matches!(event.as_ref(), WorkerEvent::WorkspaceCloseObserved { .. })))
     }
     pub(in crate::workbench_client) fn workspace_close_worker_loss(
         &self,

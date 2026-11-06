@@ -1,10 +1,12 @@
-//! Classifies canonical removal of the current context and mints a narrowly scoped permit for
-//! installing its validated fallback location. It does not grant ordinary navigation authority
-//! or bypass outstanding operation and cleanup fences.
+//! Classifies canonical removal of the current context, or an accepted close that takes it out of
+//! navigation, and mints a narrowly scoped permit for installing its validated fallback location.
+//! It does not grant ordinary navigation authority or bypass outstanding operation and cleanup
+//! fences.
 
 use super::recovery_fence::RecoveryFence;
 use super::{
-    ClientContextTabs, ClientPhase, CreateTerminalProvenance, PreparedRefresh, WorkbenchClientState,
+    ClientContextTabs, ClientPhase, CreateTerminalProvenance, PreparedRefresh,
+    WorkbenchClientState, validate_canonical_refresh,
 };
 use crate::workbench_projection::{
     ClientContextLocation, preferred_workspace_location, project_native_context_tabs,
@@ -71,6 +73,59 @@ impl WorkbenchClientState {
             },
             Err(_) => PreparedRefresh::Divergent { generation },
         }
+    }
+
+    /// An accepted close has taken the current Workspace out of navigation while the snapshot
+    /// still holds it. The refresh lands on the neighbour the Context strip already marks, under
+    /// the same bounded permit as a removal landing, so the neighbour is shown and receives input
+    /// before the close settles. `None` leaves the snapshot to the ordinary classifier: it already
+    /// removed the Workspace, no shown neighbour remains, or a structural guard is not quiet.
+    pub(super) fn prepare_accepted_close_landing(
+        &self,
+        generation: u64,
+        snapshot: &Snapshot,
+    ) -> Option<PreparedRefresh> {
+        if !self.current_workspace_leaves() {
+            return None;
+        }
+        let closing = self.cache.terminal_context_id()?;
+        if &snapshot.session_id != self.cache.session_id()
+            || snapshot.revision < self.cache.revision()
+            || !snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .any(|workspace| &workspace.terminal_context_id == closing)
+            || !self.context_removal_guards_hold()
+        {
+            return None;
+        }
+        // The Workspace being left must still project consistently, as for any Context switch;
+        // otherwise the ordinary classifier reports the divergence.
+        self.cache
+            .project_snapshot(snapshot)
+            .ok()
+            .and_then(|baseline| validate_canonical_refresh(&self.cache, baseline).ok())?;
+        let neighbour = self.accepted_close_neighbour(snapshot)?;
+        let candidate = project_native_context_tabs(snapshot, &neighbour).ok()?;
+        let permit = self.mint_context_removal_permit(generation, &candidate);
+        let preferred = self.navigation_memory.tab(candidate.location());
+        Some(
+            match self.prepare_membership_candidate(candidate, preferred, None, None, Some(permit))
+            {
+                Ok(mut prepared) => {
+                    if let Some(tab) = prepared.selected_tab() {
+                        let panel_index = self.navigation_memory.panel_index(&neighbour, tab);
+                        prepared.retarget_selected_panel(panel_index);
+                    }
+                    PreparedRefresh::Membership {
+                        generation,
+                        prepared,
+                    }
+                }
+                Err(_) => PreparedRefresh::Divergent { generation },
+            },
+        )
     }
 
     /// Shared evidence core for both entries: envelope checks, the current
