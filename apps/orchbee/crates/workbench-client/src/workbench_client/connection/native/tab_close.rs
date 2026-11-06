@@ -119,8 +119,8 @@ impl ClientExecutor {
                     }
                 }
             }
-            // A close whose operation is known is read by that identity. The Tab's address can
-            // answer with an earlier close of one of its Panels, which the Server keeps as well.
+            // A close whose operation is known is read by that identity; the Tab's address is read
+            // only for a close whose acceptance never arrived.
             CloseOperationKind::Read {
                 expected_operation: Some(operation_id),
                 ..

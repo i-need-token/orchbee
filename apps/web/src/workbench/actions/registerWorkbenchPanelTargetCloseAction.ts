@@ -104,6 +104,7 @@ export function registerWorkbenchPanelTargetCloseAction({
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
 					confirmLabel: workbenchMessages.panelClose,
+					defaultAnswer: 'confirm',
 					description: {
 						...workbenchMessages.terminalCloseWarning,
 						values: terminalCloseWarningValues(terminalCloseImpact(closedTerminals(input))),

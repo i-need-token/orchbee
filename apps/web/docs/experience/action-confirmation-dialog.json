@@ -19,7 +19,7 @@
 			"id": "applications-web-workbench--project-workspace-navigation",
 			"states": [
 				"Open a Project or Workspace action menu, choose its destructive command, and inspect the centered modal Alert Dialog and page-wide backdrop.",
-				"Cancel with Escape or the visible Cancel action, then reopen and confirm with Enter or the destructive action."
+				"Cancel with Escape or the visible Cancel action, then reopen a close confirmation and close with Enter or the destructive action."
 			]
 		}
 	],
@@ -35,7 +35,7 @@
 	"invariants": [
 		"The Alert Dialog stays centered in the viewport above a page-wide modal backdrop regardless of invocation source.",
 		"Title and description identify the exact consequence before the destructive Action can commit.",
-		"Cancel and confirm expose visible keyboard hints, support Escape and Enter, and settle the pending Action exactly once.",
+		"Cancel shows the Esc hint and Escape cancels. A close confirmation focuses Close and shows the Enter hint, so Enter closes as in the TUI; any other confirmation focuses Cancel. Each settles the pending Action exactly once.",
 		"Dismissal and Action cancellation reject the pending confirmation without committing the destructive transition."
 	],
 	"references": ["apps/web/docs/project-workspace.md"]

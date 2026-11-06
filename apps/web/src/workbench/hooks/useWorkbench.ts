@@ -235,10 +235,12 @@ interface WorkbenchView {
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectCreation: WorkbenchProjectCreationView;
 	readonly projectCreationMessages: WorkbenchProjectCreationMessages;
-	readonly projectWorkspaceConfirmationCancelButtonRef: React.RefObject<HTMLButtonElement | null>;
+	/** The button that holds the initial focus: Close in a close confirmation, Cancel otherwise. */
+	readonly projectWorkspaceConfirmationFocusRef: React.RefObject<HTMLButtonElement | null>;
 	readonly projectWorkspaceConfirmation: {
 		readonly cancelLabel: string;
 		readonly confirmLabel: string;
+		readonly defaultAnswer: 'cancel' | 'confirm';
 		readonly description: string;
 		readonly title: string;
 	} | null;
@@ -358,10 +360,11 @@ export function useWorkbench({
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
 	);
-	const projectWorkspaceConfirmationCancelButtonRef = React.useRef<HTMLButtonElement>(null);
+	const projectWorkspaceConfirmationFocusRef = React.useRef<HTMLButtonElement>(null);
 	const [projectWorkspaceConfirmation, setProjectWorkspaceConfirmation] = React.useState<{
 		readonly cancelLabel: string;
 		readonly confirmLabel: string;
+		readonly defaultAnswer: 'cancel' | 'confirm';
 		readonly description: string;
 		readonly title: string;
 	} | null>(null);
@@ -867,6 +870,7 @@ export function useWorkbench({
 								? intl.formatMessage(workbenchMessages.panelCancel)
 								: formatActionMessage(confirmation.cancelLabel),
 						confirmLabel: formatActionMessage(confirmation.confirmLabel),
+						defaultAnswer: confirmation.defaultAnswer ?? 'cancel',
 						description: formatActionMessage(confirmation.description),
 						title: formatActionMessage(confirmation.title),
 					});
@@ -1118,7 +1122,7 @@ export function useWorkbench({
 			selectFolder: intl.formatMessage(workbenchMessages.projectSelectFolder),
 		},
 		projectCreation,
-		projectWorkspaceConfirmationCancelButtonRef,
+		projectWorkspaceConfirmationFocusRef,
 		projectWorkspaceConfirmation,
 		projectWorkspaceState,
 		removeProject: (projectId) => {

@@ -322,14 +322,11 @@ fn unbound_panel_and_tab_close_use_addressed_publication_with_replay_and_scope_f
             .unwrap()
             .publication_failed(WorkbenchTabClosePublicationReason::PreparationFailed);
         assert!(matches!(
-            status(&authority, &grant, &close),
-            WorkbenchTabCloseReadOutcome::Available {
-                status: WorkbenchTabCloseStatus::DisposedAwaitingPublication {
-                    resumable: true,
-                    ..
-                },
+            authority.terminal_tab_close_status(&close.request_id),
+            Some(WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                resumable: true,
                 ..
-            }
+            })
         ));
         let resume = WorkbenchTabCloseResume {
             protocol_version: ProtocolVersion,
@@ -372,11 +369,8 @@ fn unbound_panel_and_tab_close_use_addressed_publication_with_replay_and_scope_f
             assert_eq!(after.terminal_contexts[0].tabs[0].root, survivor);
         }
         assert!(matches!(
-            status(&authority, &grant, &close),
-            WorkbenchTabCloseReadOutcome::Available {
-                status: WorkbenchTabCloseStatus::Closed { .. },
-                ..
-            }
+            authority.terminal_tab_close_status(&close.request_id),
+            Some(WorkbenchTabCloseStatus::Closed { .. })
         ));
     }
 }

@@ -171,7 +171,9 @@ the runtime's last check.
   wait on network or process work.
 
 The feature decides whether resolved input and target require confirmation and supplies localized
-title, explanation, confirmation label, and risk. The runtime presents the model consistently,
+title, explanation, confirmation label, and risk. A close confirmation also sets
+`defaultAnswer: 'confirm'`, so the presenter focuses its Close action and Enter closes, as in the
+TUI; without it the cancel answer holds the initial focus. The runtime presents the model consistently,
 revalidates after acceptance, and does not invoke the handler before acceptance. Confirmation never
 substitutes for authorization, target validation, or domain guards. When another party can change
 what an open question describes, the feature supplies `watch`, and the runtime withdraws the question

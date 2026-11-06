@@ -78,6 +78,7 @@ export function registerWorkbenchTabCloseConfirmedAction({
 				return {
 					cancelLabel: workbenchMessages.panelCancel,
 					confirmLabel: workbenchMessages.panelClose,
+					defaultAnswer: 'confirm',
 					description: {
 						...workbenchMessages.tabCloseDescription,
 						values: {

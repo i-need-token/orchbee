@@ -112,8 +112,10 @@ under the same owner, or the first modal closes before another opens.
 Prefer direct execution with undo for readily reversible actions. Use an Alert Dialog only when a
 brief important message requires a decision, typically before an irreversible or difficult-to-
 reverse effect. An Alert Dialog contains no ordinary form, progress workflow, or informational
-acknowledgement; its least destructive action receives initial focus when accidental confirmation
-would be costly.
+acknowledgement. A close confirmation, which asks before closing a Panel, Tab, Tab set, Workspace,
+or Project, gives initial focus to its Close action so Enter closes, as in the TUI. Any other
+Alert Dialog gives initial focus to its least destructive action when accidental confirmation would
+be costly.
 
 ## Compact Desktop Dialog shell
 
@@ -219,8 +221,8 @@ clear.
   and current step make submission unambiguous; it never submits from a multiline response.
 - In a compact Desktop Dialog, show `Kbd` hints inside the corresponding footer buttons when
   Escape always cancels the current task and unmodified Enter always invokes the current unambiguous
-  primary action: either the single-line form submission or a deliberately default-focused recovery
-  action such as Retry. The hints are supplemental and hidden from the accessible name because the
+  primary action: the single-line form submission, a deliberately default-focused recovery action
+  such as Retry, or the Close action of a close confirmation. The hints are supplemental and hidden from the accessible name because the
   localized action label already names the outcome.
 - A visible key hint is a claim about the step's default editing context, not an override of native
   control activation. Omit it when composition, multiline input, confirmation safety, or workflow
@@ -265,8 +267,8 @@ close the modal and report progress through the owning nonintrusive activity sur
   naming. Do not hand-roll a focus trap or mark a surface modal when pointer or keyboard interaction
   can still reach the parent.
 - Place initial focus deliberately: the first unresolved required control for a short form, a static
-  heading or introduction when structured content must be read first, or the least destructive
-  action for a costly irreversible decision.
+  heading or introduction when structured content must be read first, the Close action of a close
+  confirmation, or the least destructive action for any other costly irreversible decision.
 - Tab and Shift+Tab remain inside a modal. Escape cancels the innermost cancellable task, either
   returning to its preceding stable step or closing the complete surface according to the declared
   task boundary. Full closure restores focus to the invoker or to the logical result created by the

@@ -2,7 +2,8 @@ use super::super::super::{WorkbenchPanelCreateBegin, WorkbenchPanelCreatePrepara
 use super::*;
 use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
-    PanelNode, WorkbenchPanelSplitDirection, WorkbenchRevision, WorkbenchTabCloseResume,
+    CloseOperationOutcome, CloseOperationRead, CloseOperationTarget, PanelNode,
+    WorkbenchPanelSplitDirection, WorkbenchRevision, WorkbenchTabCloseResume,
     WorkbenchTabCloseStatus,
 };
 
@@ -131,10 +132,11 @@ fn panel_close_accepts_disposes_and_collapses_the_parent_split() {
         authority.fixture_tree_membership().unwrap().members().len(),
         2
     );
-    assert!(matches!(
-        status(&authority, &grant, &close),
-        WorkbenchTabCloseReadOutcome::Available { .. }
-    ));
+    assert!(
+        authority
+            .terminal_tab_close_status(&close.request_id)
+            .is_some()
+    );
     dispose_and_cleanup(&mut authority, &close.request_id, now);
     let prepared = authority
         .prepare_terminal_tab_close_publication(&close.request_id, now)
@@ -152,11 +154,8 @@ fn panel_close_accepts_disposes_and_collapses_the_parent_split() {
     };
     assert_eq!(panel_id, source.panel_id());
     assert!(matches!(
-        status(&authority, &grant, &close),
-        WorkbenchTabCloseReadOutcome::Available {
-            status: WorkbenchTabCloseStatus::Closed { revision },
-            ..
-        } if revision == closed_revision
+        authority.terminal_tab_close_status(&close.request_id),
+        Some(WorkbenchTabCloseStatus::Closed { revision }) if revision == closed_revision
     ));
 }
 
@@ -345,11 +344,15 @@ fn completed_leaf_close_tombstone_does_not_fence_the_same_tab_close() {
         authority.terminal_tab_close_status(&whole.request_id),
         Some(WorkbenchTabCloseStatus::Closed { revision }) if revision == closed_revision
     ));
-    // The address-scoped read may return either retained tombstone for this
-    // Tab; remaining available proves the authority and read surface survived.
+    // The earlier leaf tombstone shares the Tab address and precedes the Tab close in the
+    // ledger; the Tab's address still answers only with the close of the Tab.
     assert!(matches!(
         status(&authority, &grant, &whole),
-        WorkbenchTabCloseReadOutcome::Available { .. }
+        WorkbenchTabCloseReadOutcome::Available {
+            close_request_id,
+            status: WorkbenchTabCloseStatus::Closed { revision },
+            ..
+        } if close_request_id == whole.request_id && revision == closed_revision
     ));
     assert!(!authority.retired);
 }
@@ -388,19 +391,30 @@ fn completed_close_still_covering_a_projected_member_retires_the_authority() {
 }
 
 #[test]
-fn panel_close_read_and_resume_reuse_the_close_control_surface() {
+fn panel_close_is_read_by_operation_and_resumed_through_the_close_control_surface() {
     let (mut authority, grant) = fixture(1);
     let (_source, created) = split_fixture(&mut authority, &grant, 20050);
     let now = Instant::now();
     let close = panel_close_command(&authority, 20051, &created);
     accept(&mut authority, &grant, close.clone(), now);
-    // Reads address the containing Tab and observe the panel-scoped record.
+    // A leaf close does not close its Tab: the Tab's address holds no close, and the leaf close
+    // answers by its operation.
     assert!(matches!(
         status(&authority, &grant, &close),
-        WorkbenchTabCloseReadOutcome::Available {
-            close_request_id,
+        WorkbenchTabCloseReadOutcome::NotClosing {}
+    ));
+    let read = CloseOperationRead {
+        protocol_version: ProtocolVersion,
+        request_id: request_id(99002),
+        session_id: close.session_id.clone(),
+        operation_id: close.request_id.clone(),
+    };
+    assert!(matches!(
+        authority.read_close_operation(Some(&grant), read).outcome,
+        CloseOperationOutcome::Available {
+            target: CloseOperationTarget::Panel { tab_id, .. },
             ..
-        } if close_request_id == close.request_id
+        } if tab_id == *created.tab_id()
     ));
     // A resume while lifecycle work has nothing resumable is rejected without admission.
     let WorkbenchAction::PanelClose {

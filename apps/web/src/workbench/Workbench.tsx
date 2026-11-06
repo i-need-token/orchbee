@@ -239,7 +239,7 @@ export function Workbench({
 			>
 				<AlertDialogContent
 					className={styles['confirmationContent']}
-					initialFocus={view.projectWorkspaceConfirmationCancelButtonRef}
+					initialFocus={view.projectWorkspaceConfirmationFocusRef}
 				>
 					<AlertDialogHeader className={styles['confirmationHeader']}>
 						<AlertDialogTitle className={styles['confirmationTitle']}>
@@ -250,8 +250,13 @@ export function Workbench({
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter className={styles['confirmationFooter']}>
+						{/* A close confirmation focuses Close, so Enter closes as in the TUI. */}
 						<AlertDialogCancel
-							ref={view.projectWorkspaceConfirmationCancelButtonRef}
+							ref={
+								view.projectWorkspaceConfirmation.defaultAnswer === 'cancel'
+									? view.projectWorkspaceConfirmationFocusRef
+									: undefined
+							}
 							onClick={view.cancelProjectWorkspaceConfirmation}
 						>
 							{view.projectWorkspaceConfirmation.cancelLabel}
@@ -259,8 +264,21 @@ export function Workbench({
 								Esc
 							</Kbd>
 						</AlertDialogCancel>
-						<AlertDialogAction variant='destructive' onClick={view.confirmProjectWorkspaceAction}>
+						<AlertDialogAction
+							ref={
+								view.projectWorkspaceConfirmation.defaultAnswer === 'confirm'
+									? view.projectWorkspaceConfirmationFocusRef
+									: undefined
+							}
+							variant='destructive'
+							onClick={view.confirmProjectWorkspaceAction}
+						>
 							{view.projectWorkspaceConfirmation.confirmLabel}
+							{view.projectWorkspaceConfirmation.defaultAnswer === 'confirm' ? (
+								<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
+									Enter
+								</Kbd>
+							) : null}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

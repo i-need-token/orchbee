@@ -355,6 +355,16 @@ impl CloseRecord {
             }
     }
 
+    /// A close of this whole Tab: a Tab close, or a Panel close admitted as the close of the
+    /// Tab's last leaf. A leaf-scoped Panel close shares the Tab address without closing the Tab.
+    fn closes_context_tab(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+        tab_id: &WorkbenchTabId,
+    ) -> bool {
+        self.scope == CloseScope::Tab && self.matches_context_tab(context_id, tab_id)
+    }
+
     /// The `(project, workspace)` pair a `workspace.close` names — only
     /// `CloseScope::Context` carries it; the pair identifies the scope's
     /// Terminal Context uniquely, tombstone reads included.

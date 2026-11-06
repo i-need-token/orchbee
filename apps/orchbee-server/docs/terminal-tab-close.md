@@ -270,8 +270,16 @@ the precise added pre-effect Unavailable reasons are `terminal-busy` and `termin
 effect-free and uses Session read authorization, including after publication retirement. It allocates
 no command-ledger entry. `workbench.tab-close.result` echoes the read identity and returns
 `not-closing`, `denied`, `unavailable {reason:server-busy}`, or
-`available {closeRequestId, terminalContextId, tabId, attemptGeneration, status}`. Lookup includes
-closed tombstones; monotonic Tab IDs cannot alias them. Read authority does not authorize Resume.
+`available {closeRequestId, terminalContextId, tabId, attemptGeneration, status}`. Only a close of
+the whole Tab answers: a Tab close, or a Panel close admitted as the close of the Tab's last leaf.
+A leaf-scoped Panel close shares the Tab address without closing the Tab, so this read never
+answers with one; it is read by its operation through
+[`workbench.close-operation.read`](../../../crates/workbench-protocol/README.md#retained-close-identity-lookup),
+which reads a Tab close by its `closeRequestId` as well. Lookup includes closed tombstones. A Tab
+retains at most one close of its own, because a later close joins an open one and a closed Tab never
+returns under its monotonic ID, while leaf closes of its Panels may retain any number of records
+beside it. Should several Tab closes be retained, the open one answers, else the one admitted at the
+newest revision. Read authority does not authorize Resume.
 
 | Status                                             | Retained meaning and permitted continuation                                                                                                             |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |

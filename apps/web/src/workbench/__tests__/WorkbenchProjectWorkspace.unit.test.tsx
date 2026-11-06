@@ -1457,12 +1457,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
 		expect(document.querySelector('[data-slot="workbench-confirmation-popover"]')).toBeNull();
 		const confirmationCancel = within(confirmationDialog).getByRole('button', { name: 'Cancel' });
-		const confirmationSubmit = within(confirmationDialog).getByRole('button', {
-			name: 'Close',
-		});
 		expect(within(confirmationCancel).getByText('Esc')).toBeDefined();
-		expect(within(confirmationSubmit).queryByText('Enter')).toBeNull();
-		await waitFor(() => expect(document.activeElement).toBe(confirmationCancel));
 		fireEvent.click(confirmationCancel);
 		await waitFor(() =>
 			expect(document.querySelector('[data-slot="alert-dialog-content"]')).toBeNull(),

@@ -166,6 +166,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 	const workspaceCloseConfirmation = (input: WorkbenchWorkspaceInput) => ({
 		cancelLabel: workbenchMessages.panelCancel,
 		confirmLabel: workbenchMessages.panelClose,
+		defaultAnswer: 'confirm' as const,
 		description: {
 			...workbenchMessages.workspaceDeleteDescription,
 			values: { name: workspaceFor(input)?.name ?? '' },
@@ -631,6 +632,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
 					confirmLabel: workbenchMessages.panelClose,
+					defaultAnswer: 'confirm',
 					description: {
 						...workbenchMessages.projectCloseAllDescription,
 						values: { name: projectFor(input.projectId)?.name ?? '' },

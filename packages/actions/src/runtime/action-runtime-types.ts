@@ -101,6 +101,11 @@ interface ActionFailure {
 export interface ActionConfirmation {
 	readonly cancelLabel?: ActionMessageDescriptor | undefined;
 	readonly confirmLabel: ActionMessageDescriptor;
+	/**
+	 * The answer that holds the initial focus, so unmodified Enter gives it. A close confirmation
+	 * answers `confirm`, so Enter closes in every Client; omitted, the cancel answer holds it.
+	 */
+	readonly defaultAnswer?: 'cancel' | 'confirm' | undefined;
 	readonly description: ActionMessageDescriptor;
 	readonly risk: 'destructive' | 'elevated' | 'routine';
 	readonly title: ActionMessageDescriptor;

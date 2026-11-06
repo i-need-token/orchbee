@@ -427,8 +427,10 @@ is staged independently of Server/Worker/native runtime activation. `tab.close` 
 `terminalContextId`, `tabId`, and `acceptedRevision`; `panel-close-accepted` echoes the same fields
 plus `panelId`. Aliases retain the primary operation's
 original admitted revision, which is not a membership-removal revision. The leaf-scoped operation
-shares the same retained Close record, `workbench.tab-close.read` status lookup and
-`workbench.tab-close.resume` control; those wire shapes carry no `panelId`.
+shares the same retained Close record and `workbench.tab-close.resume` control, whose wire shape
+carries no `panelId`. `workbench.tab-close.read` answers only with a close of the whole Tab, so a
+leaf-scoped close is read by its operation through
+[retained close identity lookup](../../crates/workbench-protocol/README.md#retained-close-identity-lookup).
 
 The effect-free `workbench.tab-close.read` and explicit `workbench.tab-close.resume` requests,
 their results, every status and reason, and the required target echoes follow that owning record.

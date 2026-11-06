@@ -136,9 +136,8 @@ next one go at once: the Server publishes a closed Tab as it finishes, and the C
 refresh until a read confirms it, so the Tab leaves without waiting out the interval. A wake admits
 one read; reads stay one at a time. A read names the close by its operation,
 `workbench.close-operation.read`, once the Client knows that operation. Only a close whose
-acceptance never arrived is read by its Tab, `workbench.tab-close.read`: the Server keeps every
-close of a Tab's address, earlier closes of its Panels included, and that read may answer with one
-of them.
+acceptance never arrived is read by its Tab, `workbench.tab-close.read`, which answers only with a
+close of the whole Tab, never with an earlier close of one of its Panels.
 
 Blocked, unknown, unavailable and uncertain closes report at once, and a later validated `Closed`
 clears the report. A refusal keeps the Tab and reports only its notice. `close_status` stays

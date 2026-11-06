@@ -281,6 +281,11 @@ impl PreparedWorkbenchWorkspaceCloseResume<'_> {
 }
 
 impl WorkbenchAuthority {
+    /// The status of the close of the addressed Tab, closed tombstones included. Only a close of
+    /// the whole Tab answers; a leaf-scoped Panel close of the Tab is read by its operation. A Tab
+    /// retains one such close, because a later close joins an open one and a closed Tab never
+    /// returns under its monotonic ID; should several be retained, the open one answers, else the
+    /// one admitted at the newest revision.
     #[must_use]
     pub fn read_terminal_tab_close(
         &self,
@@ -295,15 +300,16 @@ impl WorkbenchAuthority {
         } else {
             self.ledger
                 .values()
-                .find_map(|entry| match entry {
+                .filter_map(|entry| match entry {
                     RetainedRequest::TabClose(record)
                         if record
-                            .matches_context_tab(&request.terminal_context_id, &request.tab_id) =>
+                            .closes_context_tab(&request.terminal_context_id, &request.tab_id) =>
                     {
                         Some(record)
                     }
                     _ => None,
                 })
+                .max_by_key(|record| (!record.is_closed(), record.command.expected_revision))
                 .map_or(WorkbenchTabCloseReadOutcome::NotClosing {}, |record| {
                     WorkbenchTabCloseReadOutcome::Available {
                         close_request_id: record.command.request_id.clone(),

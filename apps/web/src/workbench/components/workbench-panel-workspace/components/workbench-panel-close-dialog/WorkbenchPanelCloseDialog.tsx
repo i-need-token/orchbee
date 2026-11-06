@@ -24,6 +24,7 @@ export function WorkbenchPanelCloseDialog({
 }: WorkbenchPanelCloseDialogProps): React.ReactNode {
 	// The question keeps its words while the dialog fades out after the person answered it.
 	const [close, setClose] = React.useState(view.pendingClose);
+	const closeButton = React.useRef<HTMLButtonElement>(null);
 	if (view.pendingClose !== null && view.pendingClose !== close) {
 		setClose(view.pendingClose);
 	}
@@ -36,7 +37,7 @@ export function WorkbenchPanelCloseDialog({
 			}}
 			open={view.pendingClose !== null}
 		>
-			<AlertDialogContent className={styles['content']}>
+			<AlertDialogContent className={styles['content']} initialFocus={closeButton}>
 				<AlertDialogHeader className={styles['header']}>
 					<AlertDialogTitle className={styles['title']}>
 						{view.messages.closeTitle}
@@ -55,15 +56,18 @@ export function WorkbenchPanelCloseDialog({
 					)}
 				</AlertDialogHeader>
 				<AlertDialogFooter className={styles['footer']}>
-					{/* Escape always cancels; Close carries no Enter hint, as Close Tab? has none. */}
+					{/* Escape cancels; Close holds the focus, so Enter closes as in the TUI. */}
 					<AlertDialogCancel>
 						{view.messages.cancel}
 						<Kbd aria-hidden='true' className={styles['shortcut']}>
 							Esc
 						</Kbd>
 					</AlertDialogCancel>
-					<AlertDialogAction onClick={view.confirmClose} variant='destructive'>
+					<AlertDialogAction onClick={view.confirmClose} ref={closeButton} variant='destructive'>
 						{view.messages.close}
+						<Kbd aria-hidden='true' className={styles['shortcut']}>
+							Enter
+						</Kbd>
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
