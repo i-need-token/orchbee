@@ -112,6 +112,7 @@ fn action_availability(
         && matches!(
             action,
             MenuAction::RenameTab
+                | MenuAction::RenamePanel
                 | MenuAction::NewTabToRight
                 | MenuAction::DuplicateTab
                 | MenuAction::MoveTabPrevious

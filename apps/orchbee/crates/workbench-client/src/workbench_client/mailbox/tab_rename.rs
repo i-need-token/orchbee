@@ -69,6 +69,21 @@ impl CommandMailbox {
         &self,
         canonical: &mut WorkbenchClientState,
     ) -> Option<DraftToken> {
+        self.open_label_draft_for(canonical, false)
+    }
+
+    pub(in crate::workbench_client) fn open_panel_rename_draft_for(
+        &self,
+        canonical: &mut WorkbenchClientState,
+    ) -> Option<DraftToken> {
+        self.open_label_draft_for(canonical, true)
+    }
+
+    fn open_label_draft_for(
+        &self,
+        canonical: &mut WorkbenchClientState,
+        panel_name: bool,
+    ) -> Option<DraftToken> {
         let state = self.lock();
         if Self::ensure_open(&state).is_err()
             || state.desired.awaiting_bootstrap()
@@ -86,7 +101,11 @@ impl CommandMailbox {
         {
             return None;
         }
-        canonical.open_rename_draft()
+        if panel_name {
+            canonical.open_panel_rename_draft()
+        } else {
+            canonical.open_rename_draft()
+        }
     }
     pub(in crate::workbench_client) fn try_enqueue_rename_for(
         &self,

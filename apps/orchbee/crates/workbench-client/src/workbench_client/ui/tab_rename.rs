@@ -19,6 +19,9 @@ pub(crate) struct RenameDraftView<'a>(
     Option<crate::terminal_title::ChromeName<'a>>,
 );
 impl<'a> RenameDraftView<'a> {
+    pub(crate) fn is_panel(&self) -> bool {
+        self.0.panel().is_some()
+    }
     pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.0.tab_id()
     }
@@ -32,7 +35,7 @@ impl<'a> RenameDraftView<'a> {
         &self,
         locale: crate::localization::Locale,
     ) -> std::borrow::Cow<'a, str> {
-        if self.0.automatic_label() {
+        if self.0.automatic_label() && !self.is_panel() {
             super::automatic_label(self.1, self.0.position(), locale)
         } else {
             self.0.target_label()
@@ -120,6 +123,17 @@ impl WorkbenchClientUi {
         self.mailbox
             .as_ref()?
             .open_rename_draft_for(state)
+            .map(RenameDraftToken)
+    }
+    pub(in crate::workbench_client) fn request_panel_rename_draft(
+        &mut self,
+    ) -> Option<RenameDraftToken> {
+        if self.retirement_failure.is_some() {
+            return None;
+        }
+        self.mailbox
+            .as_ref()?
+            .open_panel_rename_draft_for(self.state.as_mut()?)
             .map(RenameDraftToken)
     }
     pub(in crate::workbench_client) fn rename_input_context(

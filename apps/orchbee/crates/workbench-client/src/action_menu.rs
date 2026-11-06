@@ -96,6 +96,7 @@ pub(crate) use crate::localization::{MenuHeading, MenuRowNote, MenuUnavailable};
 /// Client holds the size.
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
     MenuAction::CopySelection,
+    MenuAction::RenamePanel,
     MenuAction::SplitPanel(PanelDirection::Right),
     MenuAction::SplitPanel(PanelDirection::Down),
     MenuAction::Zoom,
@@ -138,6 +139,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::SelectAllTabs,
     MenuAction::ClearTabSelection,
     MenuAction::CloseTrailingTabs,
+    MenuAction::RenamePanel,
     MenuAction::SplitPanel(PanelDirection::Up),
     MenuAction::SplitPanel(PanelDirection::Down),
     MenuAction::SplitPanel(PanelDirection::Left),
@@ -195,6 +197,7 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::Zoom) => PrefixAction::Client(A::ToggleZoom),
         (T::Global, M::MovePanel(direction)) => PrefixAction::Client(A::MovePanel(direction)),
         (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
+        (T::Global, M::RenamePanel) => PrefixAction::Client(A::RequestRenamePanel),
         (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
         (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
         (T::Global, M::Reload) => PrefixAction::Client(A::ReloadConfiguration),
@@ -419,7 +422,8 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::Copy
         | MenuAction::CopySelection
         | MenuAction::ClosePane
-        | MenuAction::MovePanel(_) => GlobalMenuGroup::Panel,
+        | MenuAction::MovePanel(_)
+        | MenuAction::RenamePanel => GlobalMenuGroup::Panel,
         MenuAction::NewWorkspace
         | MenuAction::WorkspaceAtDirectory
         | MenuAction::NewWorktree

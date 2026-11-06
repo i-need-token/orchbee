@@ -410,7 +410,12 @@ fn supplementary_paste_reaches_the_exact_tab_rename_request_at_every_utf8_split(
         let QueuedCommand::Rename(marker) = lease.record() else {
             panic!("one exact rename request");
         };
-        assert_eq!(marker.operation().label().as_str(), label);
+        assert_eq!(
+            marker.operation().update(),
+            &crate::workbench_state::rename_draft::RenameUpdate::Tab(
+                orchbee_workbench_protocol::WorkbenchLabel::parse(label).unwrap()
+            )
+        );
     }
 }
 

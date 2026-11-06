@@ -73,3 +73,43 @@ pub(crate) fn validate_renamed_tab(
         renamed_index,
     })
 }
+
+/// A Panel rename changes only the primary Presentation's override, including when a child is shown.
+pub(crate) fn validate_renamed_panel(
+    baseline: &ClientContextTabs,
+    revision: WorkbenchRevision,
+    tab_id: &WorkbenchTabId,
+    panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
+    label: &orchbee_workbench_protocol::PanelLabelUpdate,
+    candidate: ClientContextTabs,
+) -> Result<ValidatedRenamedProjection, ClientProjectionDivergence> {
+    validate_canonical_candidate(baseline, &candidate)?;
+    super::tab_metadata::validate_receipt(baseline, &candidate, revision)?;
+    if baseline.revision.value().checked_add(1) != Some(revision.value())
+        || candidate.revision < revision
+    {
+        return Err(ClientProjectionDivergence);
+    }
+    let target = baseline
+        .tab_index(tab_id)
+        .ok_or(ClientProjectionDivergence)?;
+    let panel = baseline.tabs[target]
+        .panel_index(panel_id)
+        .ok_or(ClientProjectionDivergence)?;
+    let requested = label.custom_label().cloned();
+    if baseline.tabs[target].panels[panel].primary.custom_label == requested {
+        return Err(ClientProjectionDivergence);
+    }
+    if candidate.revision == revision {
+        let mut expected_tabs = baseline.tabs.clone();
+        expected_tabs[target].panels[panel].primary.custom_label = requested;
+        if candidate.tabs != expected_tabs {
+            return Err(ClientProjectionDivergence);
+        }
+    }
+    let renamed_index = candidate.tab_index(tab_id);
+    Ok(ValidatedRenamedProjection {
+        candidate,
+        renamed_index,
+    })
+}

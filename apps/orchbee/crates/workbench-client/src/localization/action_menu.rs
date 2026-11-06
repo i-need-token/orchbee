@@ -62,6 +62,7 @@ pub(crate) enum MenuLabel {
     RemoveFromGroup,
     Ungroup,
     RenameTab,
+    RenamePanel,
     ResumeTabClose,
     CloseSelectedTabs,
     CloseOtherTabs,
@@ -431,6 +432,8 @@ impl Locale {
             (Self::EnUs, CreateGroup) => "New group…",
             (Self::ZhCn, CreateGroup) => "新建分组…",
             (Self::EnUs, RenameTab) => "Rename Tab",
+            (Self::EnUs, RenamePanel) => "Rename Panel…",
+            (Self::ZhCn, RenamePanel) => "重命名面板…",
             (Self::EnUs, RenameWorkspace) => "Rename Workspace",
             (Self::EnUs, RenameProject) => "Rename Project",
             (Self::EnUs, RenameGroup) => "Rename group",
@@ -542,12 +545,14 @@ impl Locale {
         );
         let verb = match (self, action) {
             _ if !own_object => None,
-            (Self::EnUs, RenameTab | RenameWorkspace | RenameProject | RenameGroup) => {
-                Some("Rename")
-            }
-            (Self::ZhCn, RenameTab | RenameWorkspace | RenameProject | RenameGroup) => {
-                Some("重命名")
-            }
+            (
+                Self::EnUs,
+                RenameTab | RenamePanel | RenameWorkspace | RenameProject | RenameGroup,
+            ) => Some("Rename"),
+            (
+                Self::ZhCn,
+                RenameTab | RenamePanel | RenameWorkspace | RenameProject | RenameGroup,
+            ) => Some("重命名"),
             (
                 Self::EnUs,
                 CloseSelectedTabs | ClosePane | CloseGroup | CloseWorkspace | DeleteWorkspace,

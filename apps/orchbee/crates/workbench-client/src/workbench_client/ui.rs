@@ -3034,6 +3034,13 @@ impl WorkbenchClientUi {
                     ClientActionDisposition::KeepNavigator
                 }
             }
+            ClientAction::RequestRenamePanel => {
+                if self.request_panel_rename_draft().is_some() {
+                    ClientActionDisposition::DismissNavigator
+                } else {
+                    ClientActionDisposition::KeepNavigator
+                }
+            }
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::RequestWorkspaceCloseAt(workspace) => {

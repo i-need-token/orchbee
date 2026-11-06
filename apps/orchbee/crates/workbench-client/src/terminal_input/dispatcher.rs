@@ -2265,6 +2265,7 @@ impl InputDispatcher {
             action,
             Some(
                 ClientAction::RequestRenameTab
+                    | ClientAction::RequestRenamePanel
                     | ClientAction::OpenSettings
                     | ClientAction::ToggleAgentBoard
                     | ClientAction::RequestWorkspaceCreate

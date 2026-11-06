@@ -8,6 +8,16 @@ it. The two flags are exclusive and one is required. Targets keep the existing P
 `@panel:0x<hex>` grammar; labels, implicit selection and current-Panel routing are not targets
 of this operation. Windows is the runtime acceptance platform.
 
+The native Panel context menu and the global action menu offer Rename Panel without a new
+default key. The context row uses Rename because its frame already names the Panel. Both open
+the existing identity-bound name editor, prefilled with the primary Presentation's override.
+An empty field shows the creation name as a placeholder and accepts a clear update; the localized
+help explains that leaving it empty restores the original name. Editing and Escape have no Server
+effect. Submit rechecks the exact captured Panel and snapshot and uses the same canonical
+set/clear request as the CLI. A visible child terminal does not change the primary target.
+The dialog uses the shared rename draw, input-capture, suspension, single-submission and unknown
+outcome recovery owners; only Tab renames use the inline Tab editor.
+
 The Server owns the shared override. `Presentation.label` remains the immutable creation fallback,
 and required `Presentation.customLabel` holds a nonempty, trimmed override or explicit `null`.
 Omission is invalid; null means no override. The action's nullable

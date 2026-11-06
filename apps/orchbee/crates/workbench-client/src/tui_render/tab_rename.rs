@@ -38,7 +38,7 @@ pub(super) fn render(
         },
         match error.filter(|_| draft.touched()) {
             Some(error) => DialogRow::Error(locale.field_error(error).into()),
-            None => DialogRow::Help(None),
+            None => DialogRow::Help(draft.is_panel().then(|| locale.panel_rename_help().into())),
         },
     ];
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
@@ -54,7 +54,11 @@ pub(super) fn render(
         .with_shortcut(&enter),
     ];
     let dialog = Dialog {
-        title: locale.rename_title(),
+        title: if draft.is_panel() {
+            locale.panel_rename_title()
+        } else {
+            locale.rename_title()
+        },
         class: DialogClass::Narrow,
         rows,
         footer: DialogFooter::Actions(&actions),

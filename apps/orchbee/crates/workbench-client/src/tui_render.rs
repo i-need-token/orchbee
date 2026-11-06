@@ -613,16 +613,19 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.rename_draft()
         {
-            let inline_area = hits.tab_area(draft.tab_id()).map(|area| {
-                Rect::new(
-                    area.x,
-                    area.y,
-                    area.width
-                        .max(24)
-                        .min(frame.area().right().saturating_sub(area.x)),
-                    1,
-                )
-            });
+            let inline_area = hits
+                .tab_area(draft.tab_id())
+                .filter(|_| !draft.is_panel())
+                .map(|area| {
+                    Rect::new(
+                        area.x,
+                        area.y,
+                        area.width
+                            .max(24)
+                            .min(frame.area().right().saturating_sub(area.x)),
+                        1,
+                    )
+                });
             let (area, token) = if let Some(area) = inline_area.filter(|area| area.width >= 8) {
                 tab_rename::render_inline(frame, locale, &draft, area, theme, hits)
             } else {

@@ -266,3 +266,47 @@ fn expectation(
         label(requested_label),
     )
 }
+
+#[test]
+fn panel_rename_receipt_changes_only_the_primary_override_and_clear_restores_creation_label() {
+    use super::super::renamed::validate_renamed_panel;
+    use orchbee_workbench_protocol::{PanelCustomLabel, PanelLabelUpdate};
+    let mut baseline = projected(2, 10);
+    for requested in [Some("Renamed"), None] {
+        baseline.tabs[0].panels[0].primary.custom_label =
+            Some(PanelCustomLabel::parse("Original override").unwrap());
+        let tab = baseline.tabs[0].tab_id.clone();
+        let panel = baseline.tabs[0].panels[0].panel_id.clone();
+        let update = PanelLabelUpdate::parse(requested).unwrap();
+        let mut candidate = baseline.clone();
+        candidate.revision = WorkbenchRevision::new(11);
+        candidate.tabs[0].panels[0].primary.custom_label = update.custom_label().cloned();
+        let verified = validate_renamed_panel(
+            &baseline,
+            WorkbenchRevision::new(11),
+            &tab,
+            &panel,
+            &update,
+            candidate.clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            verified.candidate.tabs[0].panels[0]
+                .primary
+                .presentation_label,
+            baseline.tabs[0].panels[0].primary.presentation_label
+        );
+        candidate.tabs[1].tab_label = label("unrelated change");
+        assert!(
+            validate_renamed_panel(
+                &baseline,
+                WorkbenchRevision::new(11),
+                &tab,
+                &panel,
+                &update,
+                candidate
+            )
+            .is_err()
+        );
+    }
+}

@@ -204,6 +204,11 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::RequestRenameTab) => {
             built_in("workbench.tab.title.set", C::Tab, RENAME_TAB)
         }
+        PrefixAction::Client(A::RequestRenamePanel) => built_in(
+            "workbench.panel.rename",
+            C::Pane,
+            &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
+        ),
         PrefixAction::Client(A::RequestCloseTab) => built_in("tabs.tab.close", C::Tab, CLOSE_TAB),
         PrefixAction::Client(A::MovePreviousTab | A::MoveNextTab) => {
             built_in("tabs.tab.move", C::Tab, MOVE_TAB)
@@ -393,6 +398,11 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         }
         A::Ungroup => built_in("tabs.group.ungroup", C::Tab, TAB),
         A::RenameTab => built_in("workbench.tab.title.set", C::Tab, RENAME_TAB),
+        A::RenamePanel => built_in(
+            "workbench.panel.rename",
+            C::Pane,
+            &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
+        ),
         A::ResumeTabClose => built_in("orchbee.native.tab-close.resume", C::Tab, CLOSE_TAB),
         A::CloseSelectedTabs | A::CloseOtherTabs | A::CloseTrailingTabs | A::CloseGroup => {
             built_in("tabs.tab.close", C::Tab, CLOSE_TAB)

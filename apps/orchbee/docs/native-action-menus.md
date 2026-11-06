@@ -15,6 +15,9 @@ pane, Tab, Project or Workspace row; an Agent row has no menu. Opening or cancel
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
+The Panel menu offers Rename after terminal commands, using the primary Presentation's shared override; the global
+Panel group exposes the same operation as Rename Panel. Empty input restores the original name.
+Both entry points use the [Panel label editor](native-panel-labels.md) without a new default key.
 The Workspace sidebar admits right-click only for an exact, still-present row on the
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
@@ -46,7 +49,7 @@ default first and marked Default; with a single profile it opens no menu, becaus
 creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
-Split right and Split down, Zoom only beside another panel and Take control only while another Client
+Rename, Split right and Split down, Zoom only beside another panel and Take control only while another Client
 holds that panel's size, then the red Close; dragging a divider resizes, and keyboard resize and copy
 mode keep their keys and global menu rows. The global menu also exposes the new-Tab submenu for keyboard
 users.

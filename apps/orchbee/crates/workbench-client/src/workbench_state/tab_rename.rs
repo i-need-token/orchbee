@@ -3,17 +3,17 @@
 //! label without a matching Server outcome.
 
 use super::recovery_fence::RecoveryFence;
-use super::rename_draft::{DraftToken, RenameDraftIntent};
+use super::rename_draft::{DraftToken, RenameDraftIntent, RenameUpdate};
 use super::{AttachmentKey, CarrierFailure, ClientContextTabs};
 use crate::exchange_values::workbench::label_rename::{
     WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
 };
 use crate::workbench_projection::renamed::{
-    RenamedTabExpectation, ValidatedRenamedProjection, validate_renamed_tab,
+    RenamedTabExpectation, ValidatedRenamedProjection, validate_renamed_panel, validate_renamed_tab,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchRequestId,
-    WorkbenchRevision, WorkbenchSnapshotOutcome,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchRequestId, WorkbenchRevision,
+    WorkbenchSnapshotOutcome,
 };
 use std::time::Instant;
 
@@ -199,7 +199,7 @@ impl super::WorkbenchClientState {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RenameOperation {
-    request: WorkbenchLabelRenameRequest,
+    request: Box<WorkbenchLabelRenameRequest>,
     intent: RenameDraftIntent,
     deadline: Instant,
 }
@@ -215,19 +215,31 @@ impl RenameOperation {
             request_id,
             session_id: intent.baseline().session_id().clone(),
             expected_revision: intent.baseline().revision(),
-            action: WorkbenchAction::TabRename {
-                terminal_context_id: intent
+            action: {
+                let terminal_context_id = intent
                     .baseline()
                     .terminal_context_id()
                     .ok_or(CarrierFailure::Protocol)?
-                    .clone(),
-                tab_id: intent.target().tab_id().clone(),
-                label: intent.label().clone(),
+                    .clone();
+                let tab_id = intent.target().tab_id().clone();
+                match intent.update() {
+                    RenameUpdate::Tab(label) => WorkbenchAction::TabRename {
+                        terminal_context_id,
+                        tab_id,
+                        label: label.clone(),
+                    },
+                    RenameUpdate::Panel { panel, label } => WorkbenchAction::PanelRename {
+                        terminal_context_id,
+                        tab_id,
+                        panel_id: panel.clone(),
+                        label: label.clone(),
+                    },
+                }
             },
         })
         .map_err(|_| CarrierFailure::Protocol)?;
         Ok(Self {
-            request,
+            request: Box::new(request),
             intent,
             deadline,
         })
@@ -248,22 +260,40 @@ impl RenameOperation {
     pub(crate) const fn target(&self) -> &AttachmentKey {
         self.intent.target()
     }
-    pub(crate) const fn label(&self) -> &WorkbenchLabel {
-        self.intent.label()
+    pub(crate) const fn update(&self) -> &RenameUpdate {
+        self.intent.update()
     }
     pub(crate) const fn deadline(&self) -> Instant {
         self.deadline
     }
 
     pub(crate) fn known_commit(&self, revision: WorkbenchRevision) -> Option<PendingRenameCommit> {
-        let index = self.baseline().tab_index(self.target().tab_id())?;
         (self.baseline().revision().value().checked_add(1) == Some(revision.value())
-            && (self.baseline().tabs()[index].automatic_label()
-                || self.baseline().tabs()[index].tab_label() != self.label()))
+            && !self.unchanged())
         .then(|| PendingRenameCommit {
             operation: self.clone(),
             revision,
         })
+    }
+
+    fn unchanged(&self) -> bool {
+        let Some(tab) = self
+            .baseline()
+            .tab_index(self.target().tab_id())
+            .and_then(|index| self.baseline().tabs().get(index))
+        else {
+            return false;
+        };
+        match self.update() {
+            RenameUpdate::Tab(label) => !tab.automatic_label() && tab.tab_label() == label,
+            RenameUpdate::Panel { panel, label } => tab
+                .panel_index(panel)
+                .and_then(|index| tab.panel(index))
+                .is_some_and(|panel| {
+                    panel.primary().custom_label()
+                        == label.custom_label().map(|label| label.as_str())
+                }),
+        }
     }
 
     pub(crate) fn prepare(&self, result: RenameResult) -> PreparedRename {
@@ -271,15 +301,7 @@ impl RenameOperation {
             RenameResult::NotSubmitted => RenamePreparation::NotSubmitted,
             RenameResult::Precommit(outcome) => RenamePreparation::Precommit(outcome),
             RenameResult::Unchanged(revision) => {
-                if revision == self.baseline().revision()
-                    && self
-                        .baseline()
-                        .tab_index(self.target().tab_id())
-                        .is_some_and(|index| {
-                            !self.baseline().tabs()[index].automatic_label()
-                                && self.baseline().tabs()[index].tab_label() == self.label()
-                        })
-                {
+                if revision == self.baseline().revision() && self.unchanged() {
                     RenamePreparation::Unchanged
                 } else {
                     RenamePreparation::Divergent { known: None }
@@ -346,20 +368,30 @@ impl PendingRenameCommit {
         candidate: ClientContextTabs,
     ) -> Result<ValidatedRenamedProjection, crate::workbench_projection::ClientProjectionDivergence>
     {
-        validate_renamed_tab(
-            self.operation.baseline(),
-            &RenamedTabExpectation::new(
-                self.revision(),
-                self.operation
-                    .baseline()
-                    .terminal_context_id()
-                    .ok_or(crate::workbench_projection::ClientProjectionDivergence)?
-                    .clone(),
-                self.operation.target().tab_id().clone(),
-                self.operation.label().clone(),
+        match self.operation.update() {
+            RenameUpdate::Tab(label) => validate_renamed_tab(
+                self.operation.baseline(),
+                &RenamedTabExpectation::new(
+                    self.revision(),
+                    self.operation
+                        .baseline()
+                        .terminal_context_id()
+                        .ok_or(crate::workbench_projection::ClientProjectionDivergence)?
+                        .clone(),
+                    self.operation.target().tab_id().clone(),
+                    label.clone(),
+                ),
+                candidate,
             ),
-            candidate,
-        )
+            RenameUpdate::Panel { panel, label } => validate_renamed_panel(
+                self.operation.baseline(),
+                self.revision(),
+                self.operation.target().tab_id(),
+                panel,
+                label,
+                candidate,
+            ),
+        }
     }
 }
 

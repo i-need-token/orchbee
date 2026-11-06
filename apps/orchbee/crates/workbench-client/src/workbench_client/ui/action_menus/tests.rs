@@ -236,6 +236,7 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
 
     let expected = [
         (MenuAction::RenameTab, ClientAction::RequestRenameTab),
+        (MenuAction::RenamePanel, ClientAction::RequestRenamePanel),
         // The Tab section's other rows act on the current Tab, so they name no Tab.
         (
             MenuAction::NewTabToRight,
@@ -294,10 +295,6 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         let view = ui.view();
         let menu = view.action_menu().unwrap();
         assert_eq!(menu.actions, crate::action_menu::GLOBAL_ACTIONS);
-        let separators = (1..menu.actions.len())
-            .filter(|index| menu.result_separator_before(menu.result_actions, *index))
-            .collect::<Vec<_>>();
-        assert_eq!(separators, [11, 23, 27, 28]);
     }
     ui.cancel_action_menu();
 

@@ -88,7 +88,12 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
     assert_eq!(copy, operation);
     assert_eq!(operation.request().request_id(), &workbench_request_id(100));
     assert_eq!(operation.request_id(), &workbench_request_id(100));
-    assert_eq!(operation.label().as_str(), " 雪e\u{301}\t ");
+    assert_eq!(
+        operation.update(),
+        &super::super::rename_draft::RenameUpdate::Tab(
+            WorkbenchLabel::parse(" 雪e\u{301}\t ").unwrap()
+        )
+    );
     assert_eq!(operation.baseline(), state.cache());
     assert_eq!(
         Some(operation.target()),
@@ -112,6 +117,52 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
         )
         .unwrap();
     assert_eq!(operation.request(), &expected);
+}
+
+#[test]
+fn panel_rename_uses_the_canonical_primary_override_set_and_clear_request() {
+    use orchbee_workbench_protocol::{PanelLabelUpdate, WorkbenchAction, WorkbenchCommand};
+    for text in ["  Review 雪  ", " \t "] {
+        let mut state = ready(2);
+        let panel = state.desired().unwrap().panel().clone();
+        let token = state.open_panel_rename_draft().unwrap();
+        assert!(
+            state.plan_rename_draft(token).is_none(),
+            "hidden drafts cannot submit"
+        );
+        state.acknowledge_rename_draw(Some(token));
+        state.edit_rename_draft(token, RenameDraftEdit::Clear);
+        state.edit_rename_draft(token, RenameDraftEdit::Append(text));
+        assert!(state.rename_draft().unwrap().field_error().is_none());
+        let intent = state.plan_rename_draft(token).unwrap();
+        let operation =
+            RenameOperation::from_draft(intent, workbench_request_id(100), Instant::now()).unwrap();
+        let label = PanelLabelUpdate::parse(Some(text)).unwrap();
+        let expected =
+            crate::local_client::workbench::label_rename::WorkbenchLabelRenameRequest::try_from(
+                WorkbenchCommand {
+                    protocol_version: ProtocolVersion,
+                    request_id: workbench_request_id(100),
+                    session_id: state.cache().session_id().clone(),
+                    expected_revision: state.cache().revision(),
+                    action: WorkbenchAction::PanelRename {
+                        terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),
+                        tab_id: state.tab(0).unwrap().tab_id().clone(),
+                        panel_id: panel,
+                        label,
+                    },
+                },
+            )
+            .unwrap();
+        assert_eq!(operation.request(), &expected);
+        state.cancel_rename_draft();
+        assert!(state.plan_rename_draft(token).is_none());
+        assert_eq!(
+            state.cache(),
+            operation.baseline(),
+            "drafts never write canonical labels"
+        );
+    }
 }
 
 #[test]

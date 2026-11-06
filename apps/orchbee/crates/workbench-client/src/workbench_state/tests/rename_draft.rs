@@ -1,4 +1,4 @@
-use super::super::rename_draft::RenameDraftEdit;
+use super::super::rename_draft::{RenameDraftEdit, RenameUpdate};
 use super::*;
 use crate::tui_presentation::GeometrySettlement;
 
@@ -45,7 +45,10 @@ fn rename_draft_requires_exact_draw_and_keeps_unchanged_text_authoritative() {
     assert_eq!(state.rename_draft().unwrap().token(), token);
     assert_eq!(intent.baseline(), &baseline);
     assert_eq!(intent.target(), &desired);
-    assert_eq!(intent.label(), baseline.tabs()[0].tab_label());
+    assert_eq!(
+        intent.update(),
+        &RenameUpdate::Tab(baseline.tabs()[0].tab_label().clone())
+    );
     state.acknowledge_rename_draw(None);
     assert!(state.plan_rename_draft(token).is_none());
     state.acknowledge_rename_draw(Some(token));
@@ -68,8 +71,8 @@ fn rename_draft_fault_only_clears_with_explicit_backspace_or_clear() {
     assert!(state.plan_rename_draft(token).is_none());
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Backspace));
     assert_eq!(
-        state.plan_rename_draft(token).unwrap().label().as_str(),
-        "雪"
+        state.plan_rename_draft(token).unwrap().update(),
+        &RenameUpdate::Tab(WorkbenchLabel::parse("雪").unwrap())
     );
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Append(&"x".repeat(512))));
     assert_eq!(state.rename_draft().unwrap().text(), "雪");

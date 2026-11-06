@@ -6,7 +6,9 @@ use super::field_window::{FieldWindow, field_window};
 use super::line_editor::{LengthLimit, LineEditor};
 use super::{AttachmentKey, ClientContextTabs, ClientPhase, PaneKey, WorkbenchClientState};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-use orchbee_workbench_protocol::{MAXIMUM_LABEL_LENGTH, WorkbenchLabel};
+use orchbee_workbench_protocol::{
+    MAXIMUM_LABEL_LENGTH, PanelLabelUpdate, WorkbenchLabel, WorkbenchPanelId,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct DraftToken(u64);
@@ -22,6 +24,7 @@ struct RenameDraft {
     baseline: ClientContextTabs,
     target: AttachmentKey,
     target_index: usize,
+    panel: Option<WorkbenchPanelId>,
     editor: LineEditor,
     presentation: PresentationPhase,
     shown: bool,
@@ -53,6 +56,9 @@ pub(crate) struct RenameDraftView<'a> {
 }
 
 impl<'a> RenameDraftView<'a> {
+    pub(crate) fn panel(&self) -> Option<&'a WorkbenchPanelId> {
+        self.draft.panel.as_ref()
+    }
     pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.draft.target.tab_id()
     }
@@ -69,16 +75,31 @@ impl<'a> RenameDraftView<'a> {
         field_window(&self.draft.editor, field_width)
     }
     pub(crate) fn target_label(&self) -> std::borrow::Cow<'a, str> {
-        self.draft.baseline.tabs()[self.draft.target_index].display_label(self.draft.target_index)
+        let tab = &self.draft.baseline.tabs()[self.draft.target_index];
+        match self.panel() {
+            Some(panel) => tab
+                .panel_index(panel)
+                .and_then(|index| tab.panel(index))
+                .map(|panel| {
+                    std::borrow::Cow::Borrowed(panel.primary().presentation_label().as_str())
+                })
+                .unwrap_or_default(),
+            None => tab.display_label(self.draft.target_index),
+        }
     }
     pub(crate) fn automatic_label(&self) -> bool {
-        self.draft.baseline.tabs()[self.draft.target_index].automatic_label()
+        self.panel().is_some()
+            || self.draft.baseline.tabs()[self.draft.target_index].automatic_label()
     }
     pub(crate) fn position(&self) -> usize {
         self.draft.target_index + 1
     }
     pub(crate) fn label_valid(&self) -> bool {
-        WorkbenchLabel::parse(self.draft.editor.text()).is_ok()
+        if self.panel().is_some() {
+            PanelLabelUpdate::parse(Some(self.draft.editor.text())).is_ok()
+        } else {
+            WorkbenchLabel::parse(self.draft.editor.text()).is_ok()
+        }
     }
     pub(crate) const fn input_fault(&self) -> bool {
         self.draft.input_fault
@@ -112,7 +133,16 @@ pub(crate) struct RenameDraftIntent {
     token: DraftToken,
     baseline: ClientContextTabs,
     target: AttachmentKey,
-    label: WorkbenchLabel,
+    update: RenameUpdate,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum RenameUpdate {
+    Tab(WorkbenchLabel),
+    Panel {
+        panel: WorkbenchPanelId,
+        label: PanelLabelUpdate,
+    },
 }
 
 impl RenameDraftIntent {
@@ -125,8 +155,8 @@ impl RenameDraftIntent {
     pub(crate) const fn target(&self) -> &AttachmentKey {
         &self.target
     }
-    pub(crate) const fn label(&self) -> &WorkbenchLabel {
-        &self.label
+    pub(crate) const fn update(&self) -> &RenameUpdate {
+        &self.update
     }
 }
 
@@ -150,6 +180,11 @@ impl WorkbenchClientState {
         (self.rename_authority_available()
             && self.cache == draft.baseline
             && self.desired.as_ref().map(PaneKey::anchor) == Some(&draft.target)
+            && draft.panel.as_ref().is_none_or(|panel| {
+                self.desired
+                    .as_ref()
+                    .is_some_and(|key| key.panel() == panel)
+            })
             && self
                 .active()
                 .is_some_and(|selected| selected.key().anchor() == &draft.target))
@@ -166,6 +201,14 @@ impl WorkbenchClientState {
     }
 
     pub(crate) fn open_rename_draft(&mut self) -> Option<DraftToken> {
+        self.open_label_draft(false)
+    }
+
+    pub(crate) fn open_panel_rename_draft(&mut self) -> Option<DraftToken> {
+        self.open_label_draft(true)
+    }
+
+    fn open_label_draft(&mut self, panel_name: bool) -> Option<DraftToken> {
         if self.rename.draft.is_some()
             || !self.rename_authority_available()
             || !self.invariant_holds()
@@ -180,22 +223,30 @@ impl WorkbenchClientState {
         }
         let next = self.rename.last_token.checked_add(1)?;
         let token = DraftToken(next);
+        let panel = panel_name
+            .then(|| self.desired.as_ref().map(|key| key.panel().clone()))
+            .flatten();
+        let text = if let Some(panel) = &panel {
+            tab.panel(tab.panel_index(panel)?)?
+                .primary()
+                .custom_label()
+                .unwrap_or_default()
+                .to_owned()
+        } else if tab.automatic_label() {
+            String::new()
+        } else {
+            tab.display_label(target_index).into_owned()
+        };
         self.rename.draft = Some(RenameDraft {
             token,
             baseline: self.cache.clone(),
             target,
             target_index,
+            panel,
             // Automatic positions are presentation-only, so keep the editor
             // empty and let the modal show the localized display name as a
             // placeholder. Fixed labels remain exact and start at the end.
-            editor: LineEditor::new(
-                if tab.automatic_label() {
-                    String::new()
-                } else {
-                    tab.display_label(target_index).into_owned()
-                },
-                LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
-            ),
+            editor: LineEditor::new(text, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
             presentation: PresentationPhase::Pending,
             shown: false,
             input_fault: false,
@@ -340,7 +391,13 @@ impl WorkbenchClientState {
             token,
             baseline: draft.baseline.clone(),
             target: draft.target.clone(),
-            label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
+            update: match &draft.panel {
+                Some(panel) => RenameUpdate::Panel {
+                    panel: panel.clone(),
+                    label: PanelLabelUpdate::parse(Some(draft.editor.text())).ok()?,
+                },
+                None => RenameUpdate::Tab(WorkbenchLabel::parse(draft.editor.text()).ok()?),
+            },
         })
     }
 }
