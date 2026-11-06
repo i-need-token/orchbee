@@ -815,6 +815,7 @@ fn attached_session_without_a_workspace_keeps_its_empty_project_menu_and_creatio
             crate::machine_spaces::navigation_projection::SidebarNavigationProjection {
                 snapshot: Arc::new(snapshot.clone()),
                 pending: None,
+                leaving: Vec::new(),
             },
         ),
     );

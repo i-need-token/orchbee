@@ -36,6 +36,7 @@ impl super::super::WorkbenchClientView<'_> {
         SidebarNavigationProjection {
             snapshot: state.cache.shared_canonical_snapshot(),
             pending,
+            leaving: state.leaving_workspace_ids(),
         }
     }
 }

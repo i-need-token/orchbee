@@ -1398,7 +1398,7 @@ fn render_native_workbench(
         .filter(|_| !last_tab_leaving);
     let pane_frame = PaneFrame::of(
         areas.tier.shows_panel_frame(),
-        active_tab.map_or(0, |tab| tab.panel_count()),
+        active_tab.map_or(0, |tab| tab.drawn_panel_count()),
         native.zoom_active(),
     );
     let mut tabs_area = areas.tabs;

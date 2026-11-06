@@ -317,6 +317,7 @@ impl PreparedMembershipInstall<'_> {
         let overlay_focus = self.state.focus_panel_id().cloned();
         let zoomed_panels = self.state.zoomed_panels();
         self.state.remember_tab_group();
+        self.state.refresh_panel_leaving(&self.prepared.candidate);
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();

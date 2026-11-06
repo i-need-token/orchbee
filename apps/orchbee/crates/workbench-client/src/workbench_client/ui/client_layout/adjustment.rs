@@ -40,17 +40,15 @@ impl WorkbenchClientUi {
             .ok_or(Reason::TargetUnavailable)?;
         let (viewport, sidebar) = viewport.ok_or(Reason::ProjectionUnavailable)?;
         let focused = tab.panel_index(&source);
+        let tree = state.display_panel_tree(tab);
         let (area, panels, splits) = project_geometry(
             viewport,
             sidebar,
             tab,
+            tree,
             focused,
             state.zoom_active(),
-            &|split, first, second| {
-                tab.panel_tree()
-                    .split_ratio(split, first, second)
-                    .unwrap_or_default()
-            },
+            &|split, first, second| tree.split_ratio(split, first, second).unwrap_or_default(),
         )?;
         let layout = ClientPanelLayout {
             terminal_context_id: state
@@ -227,8 +225,8 @@ impl WorkbenchClientUi {
                         .tab_index(tab_id)
                         .and_then(|index| state.cache().tabs().get(index))
                         .ok_or(Reason::TargetUnavailable)?;
-                    let rendered =
-                        native_split_at(tab.panel_tree(), path).ok_or(Reason::TargetUnavailable)?;
+                    let rendered = native_split_at(state.display_panel_tree(tab), path)
+                        .ok_or(Reason::TargetUnavailable)?;
                     if rendered != canonical_split {
                         return Err(Reason::StaleView);
                     }

@@ -38,6 +38,7 @@ impl Picker {
                 crate::machine_spaces::navigation_projection::SidebarNavigationProjection {
                     snapshot: std::sync::Arc::clone(&known.snapshot),
                     pending: None,
+                    leaving: known.leaving.clone(),
                 }
             })
         });

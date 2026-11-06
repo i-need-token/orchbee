@@ -358,6 +358,7 @@ impl SidebarReorder {
         self.dragging.then(|| SidebarNavigationProjection {
             snapshot: self.source.snapshot(),
             pending: self.shown.as_ref().map(|drop| drop.operation.clone()),
+            leaving: self.source.leaving().to_vec(),
         })
     }
 

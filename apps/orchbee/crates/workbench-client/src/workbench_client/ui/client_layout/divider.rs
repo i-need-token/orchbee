@@ -112,15 +112,12 @@ impl WorkbenchClientUi {
             .active()
             .and_then(|active| state.cache().tabs().get(active.index()))
             .ok_or(Reason::TargetUnavailable)?;
+        let tree = state.display_panel_tree(tab);
         let projection = project_panel_tree(
             terminal_area(areas.panel, true),
-            tab.panel_tree(),
+            tree,
             tab.panel_index(&target.source.focus),
-            &|split, first, second| {
-                tab.panel_tree()
-                    .split_ratio(split, first, second)
-                    .unwrap_or_default()
-            },
+            &|split, first, second| tree.split_ratio(split, first, second).unwrap_or_default(),
         );
         if !projection.splits.iter().any(|split| {
             DrawnDivider::new(target.source.clone(), viewport, split).as_ref() == Some(target)

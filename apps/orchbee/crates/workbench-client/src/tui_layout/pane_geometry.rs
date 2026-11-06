@@ -41,8 +41,9 @@ pub(crate) trait PaneArrangement {
 
 /// One Tab's Panels as a Workbench Client arranges them.
 pub(crate) trait TabPanes {
-    /// How many Panels the Tab holds.
-    fn panel_count(&self) -> usize;
+    /// How many Panels the Tab draws: the count frame choice reads, which leaves out a Panel the
+    /// Server accepted closing.
+    fn drawn_panel_count(&self) -> usize;
 
     /// The canonical split tree over the Tab's Panel indexes.
     fn panel_tree(&self) -> &ClientPanelTree;
@@ -104,9 +105,9 @@ pub(crate) fn arranged_pane_area(
     let tab = arrangement.active_tab()?;
     let content = native_terminal_area(
         areas.panel,
-        PaneFrame::of(framed, tab.panel_count(), arrangement.zoom_active()),
+        PaneFrame::of(framed, tab.drawn_panel_count(), arrangement.zoom_active()),
     );
-    let area = if framed && tab.panel_count() > 1 && !arrangement.zoom_active() {
+    let area = if framed && tab.drawn_panel_count() > 1 && !arrangement.zoom_active() {
         project_panel_tree(
             content,
             tab.panel_tree(),
@@ -156,15 +157,19 @@ pub(crate) fn pane_geometries(
     let Some(tab) = arrangement.active_tab() else {
         return Ok(Vec::new());
     };
-    let content =
-        native_terminal_area(areas.panel, PaneFrame::of(framed, tab.panel_count(), false));
-    let zoomed_content =
-        native_terminal_area(areas.panel, PaneFrame::of(framed, tab.panel_count(), true));
+    let content = native_terminal_area(
+        areas.panel,
+        PaneFrame::of(framed, tab.drawn_panel_count(), false),
+    );
+    let zoomed_content = native_terminal_area(
+        areas.panel,
+        PaneFrame::of(framed, tab.drawn_panel_count(), true),
+    );
     let (cell_width, cell_height) = cell_pixels(dimensions);
     let leaf_geometry = |rect: Rect| {
         Geometry::new(rect.width, rect.height, cell_width, cell_height).map_err(io::Error::other)
     };
-    if framed && tab.panel_count() > 1 {
+    if framed && tab.drawn_panel_count() > 1 {
         let projection = project_panel_tree(
             content,
             tab.panel_tree(),

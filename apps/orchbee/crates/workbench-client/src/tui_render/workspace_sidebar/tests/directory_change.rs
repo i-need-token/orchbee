@@ -105,6 +105,7 @@ impl Trace {
         SidebarNavigationProjection {
             snapshot: std::sync::Arc::new(self.snapshot.clone()),
             pending: None,
+            leaving: Vec::new(),
         }
     }
     /// The first terminal of `moved` reached `directory`, and the commit reached the Client.

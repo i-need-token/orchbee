@@ -7,7 +7,9 @@ use super::{
     WorkbenchClientState,
 };
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
-use crate::workbench_projection::ClientTerminalBinding;
+use crate::workbench_projection::{
+    ClientContextTabs, ClientPanelTree, ClientTab, ClientTerminalBinding,
+};
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId,
@@ -417,5 +419,131 @@ impl<'a> super::WorkbenchClientView<'a> {
             self.state
                 .panel_close_impact(&target.tab_id, &target.panel_id, settled),
         )
+    }
+}
+
+/// A Panel whose close the Server accepted and that the Client has stopped drawing. The leaf
+/// leaves at acceptance, as a Tab does. The canonical publication that removes it clears this
+/// record; an install that still carries the leaf keeps the record with a refreshed tree.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PanelLeaving {
+    pub(super) tab_id: WorkbenchTabId,
+    pub(super) panel_id: WorkbenchPanelId,
+    pub(super) tree: ClientPanelTree,
+}
+
+impl WorkbenchClientState {
+    /// The Panel tree a Tab draws. A cached Tab with a leaving Panel draws its tree with that leaf
+    /// collapsed; any other Tab, including a candidate Tab that shares the identifier, draws its own.
+    pub(crate) fn display_panel_tree<'s>(&'s self, tab: &'s ClientTab) -> &'s ClientPanelTree {
+        let Some(leaving) = self.panel_leaving.as_ref() else {
+            return tab.panel_tree();
+        };
+        let cached = self
+            .cache
+            .tabs()
+            .iter()
+            .any(|cached| std::ptr::eq(cached, tab));
+        if cached && leaving.tab_id == *tab.tab_id() {
+            &leaving.tree
+        } else {
+            tab.panel_tree()
+        }
+    }
+
+    /// Starts drawing a Panel as gone once the Server accepted its close. When the focus is on that
+    /// Panel it moves first to the survivor the canonical install would choose, so the publication
+    /// confirms the leaf the user already sees. Without a live survivor the leaf keeps drawing until
+    /// the publication removes it.
+    pub(super) fn begin_panel_leaving(
+        &mut self,
+        tab_id: &WorkbenchTabId,
+        panel_id: &WorkbenchPanelId,
+    ) {
+        let Some(index) = self.cache.tab_index(tab_id) else {
+            return;
+        };
+        let Some(tab) = self.cache.tabs().get(index) else {
+            return;
+        };
+        let Some(panel_index) = tab.panel_index(panel_id) else {
+            return;
+        };
+        let Some(tree) = tab.panel_tree().without_leaf(panel_index) else {
+            return;
+        };
+        let focused_here = self.active().is_some_and(|active| active.index() == index)
+            && self.focus_panel_id() == Some(panel_id);
+        if focused_here {
+            let Some(survivor) = self.leaving_survivor(tab, panel_index, panel_id) else {
+                return;
+            };
+            let Some(pane) = self.plan_panel_focus_local_at(&survivor) else {
+                return;
+            };
+            // Zoom follows the focused Panel, so it is read before the focus leaves that Panel.
+            let zoomed_here = self
+                .zoomed_panels()
+                .iter()
+                .any(|(zoomed_tab, zoomed_panel)| zoomed_tab == tab_id && zoomed_panel == panel_id);
+            if !self.move_panel_focus_local(pane) {
+                return;
+            }
+            if zoomed_here {
+                self.zoomed_tabs.remove(tab_id);
+            }
+        }
+        self.panel_leaving = Some(PanelLeaving {
+            tab_id: tab_id.clone(),
+            panel_id: panel_id.clone(),
+            tree,
+        });
+    }
+
+    /// The leaf that takes the focus when the focused Panel leaves: the overlay return Panel when
+    /// one applies, else the vanished leaf ordinal clamped to the surviving leaves. That is the
+    /// stand-in the canonical install applies to a vanished selection.
+    fn leaving_survivor(
+        &self,
+        tab: &ClientTab,
+        removed_index: usize,
+        removed: &WorkbenchPanelId,
+    ) -> Option<WorkbenchPanelId> {
+        let surviving = tab.panel_count().checked_sub(1)?;
+        let index = match self.overlay_return_index(tab, removed) {
+            Some(index) if index != removed_index => index,
+            _ => {
+                let ordinal = removed_index.min(surviving.saturating_sub(1));
+                if ordinal < removed_index {
+                    ordinal
+                } else {
+                    ordinal + 1
+                }
+            }
+        };
+        tab.panel(index).map(|panel| panel.panel_id().clone())
+    }
+
+    /// Keeps the leaving record only while the candidate still holds that Panel in the same
+    /// Context, and re-derives the drawn tree from the candidate. Once the publication removes the
+    /// leaf, the record ends.
+    pub(crate) fn refresh_panel_leaving(&mut self, candidate: &ClientContextTabs) {
+        let Some(leaving) = self.panel_leaving.take() else {
+            return;
+        };
+        if candidate.location() != self.cache.location() {
+            return;
+        }
+        let Some(tree) = candidate
+            .tab_index(&leaving.tab_id)
+            .and_then(|index| candidate.tabs().get(index))
+            .and_then(|tab| {
+                tab.panel_index(&leaving.panel_id)
+                    .and_then(|panel_index| tab.panel_tree().without_leaf(panel_index))
+            })
+        else {
+            return;
+        };
+        self.panel_leaving = Some(PanelLeaving { tree, ..leaving });
     }
 }

@@ -27,7 +27,8 @@ Explicit Project close-all compatibility addresses an exact Project ID. Its conf
 names the Project, shows its Workspace count, and explains that all member Workspaces and their
 terminals close for every Client. The Server captures Project membership at admission. The Project
 record remains, including when already empty. Dissolving a Project is a separate organization
-operation that preserves Workspaces and terminals.
+operation that preserves Workspaces and terminals. Once the group close is accepted, every member leaves
+navigation as described in [Accepted close leaves navigation](#accepted-close-leaves-navigation).
 
 Explicitly confirmed Close uses `WorkbenchAction::WorkspaceClose`; only explicit Project close-all uses group
 Start. Neither path deletes Git data or automatically resumes a failed attempt. Read retained status
@@ -94,6 +95,37 @@ and within five seconds of the click once more after it landed; the next press c
 shown. A conditional request the
 Client cannot admit shows the localized busy or unavailable notice. No path discards a request
 silently.
+
+## Accepted close leaves navigation
+
+Server acceptance is the point where a Workspace close can no longer be withdrawn, so its rows leave
+navigation then rather than after publication. A Workspace target hides its own Workspace. A Project
+target hides every canonical member while its group close reports `Pending` or `Closed`. The hiding is
+derived from the retained close evidence and is not stored separately: a refusal, a failed or
+unknown status, or a Closed receipt whose removal has landed restores or ends it, and the rows return
+with the existing status notice. The canonical cache is never edited. Publication removes the
+Workspace from the canonical snapshot, which ends its row's derivation.
+
+The derived set is read in four places: the sidebar projection (`SidebarNavigationProjection.leaving`,
+which also filters the drag preview), the Context navigator through `display_navigation`, Context
+steps and pointer targets (which read the same display list, so painted indices agree), and the
+active-Context position used by menus. The drawn Workspace, its terminal input and its attachments do
+not change under this overlay.
+
+The current Workspace is the staged exception. Its row leaves navigation at acceptance, but its content
+stays drawn as current with the `Closing` status until publication installs the surviving Workspace.
+Moving the Client to the neighbour at acceptance, so that publication only confirms it, is not
+implemented. A Context selection is refused while accepted Workspace close evidence is unresolved
+(`context_selection_quiet` through `workspace_close_blocks_structure`). The Closed notice is also keyed to
+the automatic landing from the removed location (`workspace_close_status` and
+`record_workspace_close_landing`), so a switch before publication would hide it unless that lifecycle is
+reworked. That is a navigation-admission change outside this overlay.
+
+Remove Worktree is staged for the same reason as the notice above: its Workspace close is internal to the
+Server removal operation (see [native worktrees](native-worktrees.md#safe-removal)). Pending removal
+progress publishes no canonical change, and a held failure can follow an accepted close, so the Client
+has no acceptance signal that it could hide on. Exposing an accepted-close stage in the removal status
+is a protocol change.
 
 ## Inputs and ownership
 
@@ -201,7 +233,9 @@ drift, admission/read/publication loss, monotone evidence, canonical repair and 
 Background-close witnesses cover cancellation and publication from current and sibling Workspace origins,
 retained pane/terminal binding and attachment identity, and no origin cleanup or reattachment. Missing
 or replaced target Contexts are rejected before submission even at the same revision; origin or stale
-target receipts cannot overwrite valid admission evidence.
+target receipts cannot overwrite valid admission evidence. An accepted close hides its rows from
+navigation, and a failed observation restores them; the regression witness is
+`accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it`.
 The framed peer asserts that ordinary Close never sends group Start and that neither path replays
 mutations. Snapshot fixtures retain Project metadata and shared checkout directories.
 

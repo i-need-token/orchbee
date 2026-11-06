@@ -925,6 +925,34 @@ impl WorkbenchClientState {
         })
     }
 
+    /// Workspaces an accepted close has taken out of navigation before publication removes them
+    /// from the canonical snapshot. A Project close names its canonical members. Only the retained
+    /// receipt decides: a refusal, failure or unknown outcome yields no leaving set, so the rows
+    /// return without a restore step. The cache keeps every canonical Workspace.
+    pub(crate) fn leaving_workspace_ids(&self) -> Vec<WorkbenchWorkspaceId> {
+        let Some(evidence) = self.workspace_close.evidence.as_ref() else {
+            return Vec::new();
+        };
+        if !matches!(
+            evidence.result.status(),
+            WorkspaceCloseStatus::Closing | WorkspaceCloseStatus::Closed
+        ) {
+            return Vec::new();
+        }
+        match &evidence.operation.target {
+            WorkspaceCloseTarget::Workspace { workspace_id, .. } => vec![workspace_id.clone()],
+            WorkspaceCloseTarget::Project { project_id, .. } => self
+                .cache
+                .canonical_snapshot()
+                .navigation
+                .workspaces
+                .iter()
+                .filter(|workspace| workspace.project_id.as_ref() == Some(project_id))
+                .map(|workspace| workspace.workspace_id.clone())
+                .collect(),
+        }
+    }
+
     /// Identifies the visible Closed notice so its one-shot lifetime survives repaint and landing.
     pub(crate) fn closed_workspace_close_notice(&self) -> Option<u64> {
         self.workspace_close_status()

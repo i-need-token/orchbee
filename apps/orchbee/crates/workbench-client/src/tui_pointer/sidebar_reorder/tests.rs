@@ -26,7 +26,7 @@ struct Port {
 }
 impl Port {
     fn source(&self) -> SidebarReorderSource {
-        SidebarReorderSource::from_snapshot(self.snapshot.clone())
+        SidebarReorderSource::from_snapshot(self.snapshot.clone(), Vec::new())
     }
     fn commit_sidebar_reorder(
         &mut self,
@@ -159,6 +159,7 @@ fn fixture_with(lines: u16) -> (PointerState, ClientView, Port, FrameHitMap) {
         Some(SidebarNavigationProjection {
             snapshot: snapshot.clone(),
             pending: None,
+            leaving: Vec::new(),
         }),
     );
     view.machines.current_context = Some(contexts[0].target.clone());
@@ -941,6 +942,7 @@ fn a_drag_moves_the_held_row_live_and_its_release_submits_the_order_shown() {
         Some(SidebarNavigationProjection {
             snapshot: port.snapshot.clone(),
             pending: Some(submitted),
+            leaving: Vec::new(),
         }),
     );
     assert_eq!(shown(&view), across);

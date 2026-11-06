@@ -64,6 +64,23 @@ impl ContextProvenance<'_> {
 }
 
 impl WorkbenchClientState {
+    /// Canonical Context entries without the Workspaces an accepted close has taken out of
+    /// navigation. Navigator positions, pointer targets and step order all read this list, so they
+    /// agree; the cache keeps the full canonical list.
+    pub(crate) fn display_navigation(&self) -> Vec<&ClientContext> {
+        let leaving = self.leaving_workspace_ids();
+        self.cache
+            .navigation()
+            .iter()
+            .filter(|entry| match &entry.location {
+                ClientContextLocation::Workspace { workspace_id, .. } => {
+                    !leaving.contains(workspace_id)
+                }
+                ClientContextLocation::NoWorkspace => true,
+            })
+            .collect()
+    }
+
     pub(crate) fn context_selection_available(&self) -> bool {
         self.pending_refresh.is_none() && self.context_selection_quiet()
     }
@@ -110,7 +127,7 @@ impl WorkbenchClientState {
         if generation == 0 || !self.context_selection_available() {
             return false;
         }
-        let navigation = self.cache.navigation();
+        let navigation = self.display_navigation();
         let position = navigation
             .iter()
             .position(|entry| &entry.location == self.cache.location());
@@ -170,11 +187,11 @@ impl WorkbenchClientState {
         if generation == 0 || !self.context_selection_available() {
             return false;
         }
-        let navigation = self.cache.navigation();
-        let Some(target) = navigation.get(index) else {
+        let navigation = self.display_navigation();
+        let Some(target) = navigation.get(index).map(|entry| entry.location.clone()) else {
             return false;
         };
-        if &target.location == self.cache.location() {
+        if &target == self.cache.location() {
             return false;
         }
         if self.retained_contexts.len() >= MAXIMUM_TERMINAL_CONTEXTS
@@ -185,7 +202,6 @@ impl WorkbenchClientState {
         {
             return false;
         }
-        let target = target.location.clone();
         self.remember_current_navigation();
         self.context_selection = Some(ContextSelection {
             generation,
@@ -421,18 +437,17 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.cache.session_id()
     }
     pub(crate) fn context_count(&self) -> usize {
-        self.state.cache.navigation().len()
+        self.state.display_navigation().len()
     }
     pub(crate) fn active_context_position(&self) -> Option<usize> {
         self.state
-            .cache
-            .navigation()
+            .display_navigation()
             .iter()
             .position(|entry| &entry.location == self.state.cache.location())
             .map(|index| index + 1)
     }
     pub(crate) fn context_at(&self, index: usize) -> Option<ClientContextView<'a>> {
-        let entry = self.state.cache.navigation().get(index)?;
+        let entry = *self.state.display_navigation().get(index)?;
         Some(ClientContextView {
             entry,
             position: index + 1,

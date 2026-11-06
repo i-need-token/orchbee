@@ -346,6 +346,46 @@ struct PanelBounds {
 }
 
 impl ClientPanelTree {
+    /// The drawn tree once the Server accepted the close of one leaf: the leaf's parent Split
+    /// collapses onto its sibling subtree, as the canonical removal does. `None` when the leaf is
+    /// the whole tree, which is a Tab close rather than a Panel close.
+    pub(crate) fn without_leaf(&self, panel_index: usize) -> Option<Self> {
+        match self {
+            Self::Panel { panel_index: index } => (*index != panel_index).then(|| self.clone()),
+            Self::Split {
+                first,
+                second,
+                first_slot_id,
+                second_slot_id,
+                orientation,
+                split_id,
+                ratio,
+            } => match (
+                first.without_leaf(panel_index),
+                second.without_leaf(panel_index),
+            ) {
+                (None, None) => None,
+                (Some(only), None) | (None, Some(only)) => Some(only),
+                (Some(kept_first), Some(kept_second)) => Some(Self::Split {
+                    first: Box::new(kept_first),
+                    second: Box::new(kept_second),
+                    first_slot_id: first_slot_id.clone(),
+                    second_slot_id: second_slot_id.clone(),
+                    orientation: *orientation,
+                    split_id: split_id.clone(),
+                    ratio: *ratio,
+                }),
+            },
+        }
+    }
+
+    pub(crate) fn leaf_count(&self) -> usize {
+        match self {
+            Self::Panel { .. } => 1,
+            Self::Split { first, second, .. } => first.leaf_count() + second.leaf_count(),
+        }
+    }
+
     pub(crate) fn split_ratio(
         &self,
         id: &WorkbenchSplitId,

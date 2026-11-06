@@ -2,15 +2,22 @@
 //! the Tab strip's members. The port reports them; gesture policy stays with `tui_pointer`.
 use crate::{action_menu::DrawnTabCreate, machine_picker::SidebarSource, machines::Choice};
 use orchbee_workbench_protocol::{
-    Navigation, SessionId, Snapshot, WorkbenchTabGroupId, WorkbenchTabId,
+    Navigation, SessionId, Snapshot, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchWorkspaceId,
 };
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SidebarReorderSource(Arc<Snapshot>);
+pub struct SidebarReorderSource(Arc<Snapshot>, Vec<WorkbenchWorkspaceId>);
 impl SidebarReorderSource {
-    pub(crate) fn from_snapshot(snapshot: Arc<Snapshot>) -> Self {
-        Self(snapshot)
+    pub(crate) fn from_snapshot(
+        snapshot: Arc<Snapshot>,
+        leaving: Vec<WorkbenchWorkspaceId>,
+    ) -> Self {
+        Self(snapshot, leaving)
+    }
+    /// Workspaces the sidebar hid when the drag began; a drag shows the same rows.
+    pub(crate) fn leaving(&self) -> &[WorkbenchWorkspaceId] {
+        &self.1
     }
     pub(crate) fn matches_sidebar(&self, source: &SidebarSource, machine: &Choice) -> bool {
         source.matches_navigation(machine, self.session_id(), self.navigation())

@@ -10,6 +10,7 @@ fn source(
     SidebarNavigationProjection {
         snapshot: Arc::new(snapshot),
         pending,
+        leaving: Vec::new(),
     }
 }
 

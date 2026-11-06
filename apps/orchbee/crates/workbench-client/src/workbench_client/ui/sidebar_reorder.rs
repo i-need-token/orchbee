@@ -34,6 +34,7 @@ impl WorkbenchClientUi {
         }
         Some(SidebarReorderSource::from_snapshot(
             state.cache().shared_canonical_snapshot(),
+            state.leaving_workspace_ids(),
         ))
     }
     pub(in crate::workbench_client) fn commit_sidebar_reorder(

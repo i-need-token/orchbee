@@ -1337,6 +1337,9 @@ pub(crate) struct WorkbenchClientState {
     /// Never wired, shared between Clients, or persisted; bounded by the
     /// same navigation retention the context snapshots already obey.
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
+    /// A Panel the Server accepted closing, which the Client has stopped drawing; see
+    /// `panel_close::PanelLeaving`.
+    panel_leaving: Option<panel_close::PanelLeaving>,
     plugin_overlays: Vec<plugin_overlays::Overlay>,
 }
 
@@ -1478,6 +1481,7 @@ impl WorkbenchClientState {
             pending_membership: None,
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
+            panel_leaving: None,
             plugin_overlays: Vec::new(),
         }
     }
@@ -1936,8 +1940,18 @@ impl WorkbenchClientState {
                 }
             }
         }
-        let leaf_ids: std::collections::BTreeSet<&WorkbenchPanelId> =
-            leaves.iter().map(|(panel_id, _, _)| panel_id).collect();
+        // A Panel the Server accepted closing stays a canonical leaf until a publication removes
+        // it: the drawn layout hides it, but its pane record departs only with that publication.
+        let leaving = self
+            .panel_leaving
+            .as_ref()
+            .filter(|leaving| leaving.tab_id == *anchor.tab_id())
+            .map(|leaving| &leaving.panel_id);
+        let leaf_ids: std::collections::BTreeSet<&WorkbenchPanelId> = leaves
+            .iter()
+            .map(|(panel_id, _, _)| panel_id)
+            .chain(leaving)
+            .collect();
         for record in &mut self.panes {
             if record.departing || record.key.anchor != anchor {
                 continue;
@@ -3512,6 +3526,7 @@ impl WorkbenchClientState {
         let zoomed_panels = self.zoomed_panels();
         self.phase = phase;
         self.provenance = provenance;
+        self.refresh_panel_leaving(&candidate);
         self.cache = candidate;
         self.release_zoom_of_removed_panels(&zoomed_panels);
         self.prune_plugin_overlays(overlay_focus.as_ref());
@@ -4356,6 +4371,7 @@ impl<'a> WorkbenchClientView<'a> {
             .map(SelectedTab::panel_index);
         Some(ClientTabView {
             tab,
+            tree: self.state.display_panel_tree(tab),
             position: index + 1,
             active: active_panel.is_some(),
             active_panel,
@@ -4444,6 +4460,8 @@ impl<'a> WorkbenchClientView<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct ClientTabView<'a> {
     tab: &'a ClientTab,
+    /// The Panel tree this Tab draws: the cached tree, minus a Panel leaving on accepted close.
+    tree: &'a crate::workbench_projection::ClientPanelTree,
     position: usize,
     active: bool,
     active_panel: Option<usize>,
@@ -4469,8 +4487,7 @@ impl<'a> ClientTabView<'a> {
         first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
         second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
     ) -> orchbee_workbench_protocol::ClientSplitRatio {
-        self.tab
-            .panel_tree()
+        self.tree
             .split_ratio(split, first, second)
             .unwrap_or_default()
     }
@@ -4496,7 +4513,13 @@ impl<'a> ClientTabView<'a> {
     }
 
     pub(crate) fn panel_tree(&self) -> &'a crate::workbench_projection::ClientPanelTree {
-        self.tab.panel_tree()
+        self.tree
+    }
+
+    /// Panels the Tab draws: the cached count, minus a Panel leaving on accepted close. Frame
+    /// choice reads this; index-addressed reads keep `panel_count`, which spans every cached Panel.
+    pub(crate) fn drawn_panel_count(&self) -> usize {
+        self.tree.leaf_count()
     }
 
     pub(crate) fn active_panel(&self) -> Option<usize> {

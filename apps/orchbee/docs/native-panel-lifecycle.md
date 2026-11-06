@@ -68,15 +68,25 @@ attachment, and total deadline once, at admission; nothing may silently renumber
 | Apply refresh outcome         | A canonical refresh merges, repairs a missing selected leaf, or installs Empty membership; an unavailable read parks, a divergent read retires. Refresh results are fenced while membership is pending.                                                                                   |
 | Retire and close Session      | UI retirement freezes the pending records and preserves the committed fact; Exit closes the Session.                                                                                                                                                                                      |
 
-Close `Accepted` is only a receipt: it never moves selection or attachment by itself. Selection
-changes only when a later canonical publication removes the leaf — through merge, membership
-repair, or Empty install — and the attachment may change only after the old one is released.
+Close `Accepted` removes the leaf from the drawn layout at once, as a Tab close does. The drawn
+tree collapses the leaf onto its sibling, the shape the canonical removal yields; the cached tree
+and revision keep the leaf until a canonical publication removes it. When the focus was on the
+closed Panel, the focus moves to the survivor the canonical install would choose: the overlay
+return Panel when one applies, else the closed Panel's ordinal clamped to the surviving leaves.
+Zoom on the closed Panel drops with it. The focus move attaches nothing new, because the survivor
+must already have a live viewer or be unbound. The accepted record ends when a canonical
+publication removes the leaf; a publication that still carries the leaf keeps it hidden, with the
+tree re-derived from that publication. When the survivor has no live or unbound pane, the focus
+does not move and the leaf keeps drawing until publication removes it. Refused and
+`confirmation-required` results never start this overlay. The canonical install releases the
+closed Panel's attachment, as before.
 
 ## Invariants and temporal rules
 
 The single-operation implementation contract requires one selected attachment per operation; exact request/serial/baseline correlation; structural exclusion while a panel flight freezes its baseline; and retention of every known committed fact. Invalid grafts must not apply. A legal superseding leaf removal repairs membership instead of fabricating divergence.
 
-Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance alone does not change selection before publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
+Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance changes only the drawn layout and, when the closed Panel was focused, the
+selection; the cached canonical tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
 
 These operation-specific traces do not claim exhaustive TLC progress. The retained pane collection core below checks the shared identity and cleanup protocol separately.
 
@@ -90,7 +100,9 @@ records, re-observed current-anchor departing records heal in place, and vanishe
 a departing record clears projection and frame bookkeeping while waiting for a disposal proof that
 only its own `PaneRef` settles (`settle_pane_detached`). Anchor-level teardown
 (`drop_anchor_panes`) replaces a whole epoch atomically through `PreparedDesiredInstall`, while a
-same-Tab focus move is local and never departs or re-mints a record.
+same-Tab focus move is local and never departs or re-mints a record. A Panel the Server accepted
+closing is hidden from the observed set but is not vanished: its record departs only with the
+publication that removes the leaf.
 
 Mailbox admission partitions by command scope: input admits only while its pane is the logical
 focus at enqueue time; resize and polls admit every exact non-departing incarnation of the

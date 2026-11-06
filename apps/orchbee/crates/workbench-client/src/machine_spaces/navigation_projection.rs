@@ -4,7 +4,8 @@
 use super::checkpoint::{Checkpoint, ProjectSummary, Row};
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use orchbee_workbench_protocol::{
-    MetadataTokens, NavigationConfiguration, WorkbenchRevision, configure_navigation,
+    MetadataTokens, NavigationConfiguration, WorkbenchRevision, WorkbenchWorkspaceId,
+    configure_navigation,
 };
 use std::collections::HashMap;
 
@@ -14,9 +15,32 @@ use std::collections::HashMap;
 pub struct SidebarNavigationProjection {
     pub(crate) snapshot: std::sync::Arc<orchbee_workbench_protocol::Snapshot>,
     pub(crate) pending: Option<NavigationConfiguration>,
+    /// Workspaces an accepted close is taking out of the sidebar before publication removes them.
+    pub(crate) leaving: Vec<WorkbenchWorkspaceId>,
 }
 
 impl Checkpoint {
+    /// Drops the Workspace rows that an accepted close is taking out of navigation. A newer
+    /// observed checkpoint may still name them until publication removes them.
+    fn without_leaving(mut self, leaving: &[WorkbenchWorkspaceId]) -> Self {
+        if !leaving.is_empty() {
+            self.rows = self
+                .rows
+                .iter()
+                .filter(|row| {
+                    !matches!(
+                        &row.target.location,
+                        ClientContextLocation::Workspace { workspace_id, .. }
+                            if leaving.contains(workspace_id)
+                    )
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+                .into();
+        }
+        self
+    }
+
     /// Newer observed topology supersedes speculation. Older observations contribute metadata
     /// only by exact identity; Git additionally requires the same source, or the directory's last
     /// answer, and a row that moved to an unknown directory holds what it settled on.
@@ -30,7 +54,7 @@ impl Checkpoint {
             && (known.revision > snapshot.revision
                 || (known.revision == snapshot.revision && source.pending.is_none()))
         {
-            return Some(known.clone());
+            return Some(known.clone().without_leaving(&source.leaving));
         }
         let pending = source
             .pending
@@ -52,6 +76,9 @@ impl Checkpoint {
             .collect();
         let mut rows = Vec::new();
         for (_, workspace) in navigation.ordered_workspaces().ok()? {
+            if source.leaving.contains(&workspace.workspace_id) {
+                continue;
+            }
             let target = ClientContextTarget {
                 session_id: snapshot.session_id.clone(),
                 location: ClientContextLocation::Workspace {

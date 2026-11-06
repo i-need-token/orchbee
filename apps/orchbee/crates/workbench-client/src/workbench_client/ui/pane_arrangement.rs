@@ -49,8 +49,8 @@ impl<'a> PaneArrangement for WorkbenchClientView<'a> {
 }
 
 impl TabPanes for ClientTabView<'_> {
-    fn panel_count(&self) -> usize {
-        Self::panel_count(self)
+    fn drawn_panel_count(&self) -> usize {
+        Self::drawn_panel_count(self)
     }
 
     fn panel_tree(&self) -> &ClientPanelTree {

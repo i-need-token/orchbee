@@ -10,10 +10,11 @@ use crate::workbench_state::workspace_close::{
 };
 use orchbee_workbench_protocol::{
     Project, WorkbenchAction, WorkbenchProjectId, WorkbenchTabCloseAttemptGeneration,
-    WorkbenchTabClosePhase, WorkbenchTabCloseStatus, WorkbenchWorkspaceCloseCounts,
-    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceGroupCloseResult, WorkbenchWorkspaceId,
-    Workspace, WorkspaceGroupCloseAction, WorkspaceGroupCloseChild, WorkspaceGroupCloseMember,
-    WorkspaceGroupCloseObservation, WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
+    WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase, WorkbenchTabCloseStatus,
+    WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseReadOutcome,
+    WorkbenchWorkspaceGroupCloseResult, WorkbenchWorkspaceId, Workspace, WorkspaceGroupCloseAction,
+    WorkspaceGroupCloseChild, WorkspaceGroupCloseMember, WorkspaceGroupCloseObservation,
+    WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
 };
 
 fn close_snapshot() -> Snapshot {
@@ -1145,4 +1146,54 @@ fn close_pending_indicator_uses_injected_time_and_localized_recovery_matches_typ
             assert_eq!(text, locale.workspace_close_status_shorter(view)[0]);
         }
     }
+}
+
+#[test]
+fn accepted_workspace_close_leaves_navigation_and_a_failed_close_restores_it() {
+    let mut state = background_state(true);
+    let token = state.open_workspace_close_at(&workspace_id(1)).unwrap();
+    state.acknowledge_workspace_close_draw(Some(token));
+    let operation = plan(&state, token).unwrap();
+    assert!(state.begin_workspace_close(operation.clone()));
+    assert!(state.leaving_workspace_ids().is_empty());
+    assert_eq!(state.display_navigation().len(), 3);
+
+    let admitted = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: WorkspaceCloseResult::WorkspaceAccepted(accepted(&operation)),
+    };
+    assert!(state.finish_workspace_close(&admitted));
+    // Hidden but present: the canonical cache still names the Workspace until publication.
+    assert_eq!(state.leaving_workspace_ids(), vec![workspace_id(1)]);
+    assert_eq!(state.display_navigation().len(), 2);
+    assert!(
+        state
+            .cache()
+            .canonical_snapshot()
+            .navigation
+            .workspace(&workspace_id(1))
+            .is_some()
+    );
+
+    let failed = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: WorkspaceCloseResult::WorkspaceObserved {
+            accepted: accepted(&operation),
+            outcome: Box::new(WorkbenchWorkspaceCloseReadOutcome::Available {
+                close_request_id: operation.request_id.clone(),
+                workspace_id: workspace_id(1),
+                terminal_context_id: context_id(373),
+                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                status: WorkbenchTabCloseStatus::CleanupBlocked {
+                    reason: WorkbenchTabCloseBlockedReason::HostRefused,
+                    resumable: true,
+                },
+                counts: WorkbenchWorkspaceCloseCounts::default(),
+                members: Vec::new(),
+            }),
+        },
+    };
+    assert!(state.finish_workspace_close(&failed));
+    assert!(state.leaving_workspace_ids().is_empty());
+    assert_eq!(state.display_navigation().len(), 3);
 }

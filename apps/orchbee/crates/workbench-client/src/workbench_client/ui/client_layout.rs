@@ -139,17 +139,15 @@ impl WorkbenchClientUi {
         };
         let active_panel = focused.as_ref().and_then(|id| tab.panel_index(id));
         let zoomed = state.layout_zoomed(tab);
+        let tree = state.display_panel_tree(tab);
         let (area, panels, splits) = project_geometry(
             viewport,
             sidebar,
             tab,
+            tree,
             active_panel,
             zoomed,
-            &|split, first, second| {
-                tab.panel_tree()
-                    .split_ratio(split, first, second)
-                    .unwrap_or_default()
-            },
+            &|split, first, second| tree.split_ratio(split, first, second).unwrap_or_default(),
         )?;
         let neighbors = ClientPanelNeighbors::from_panels(panel_id, &panels);
         let source_available = panels
@@ -181,6 +179,7 @@ fn project_geometry(
     viewport: Rect,
     sidebar: SidebarSurface,
     tab: &ClientTab,
+    tree: &crate::workbench_projection::ClientPanelTree,
     active_panel: Option<usize>,
     zoomed: bool,
     ratios: &impl Fn(
@@ -194,16 +193,16 @@ fn project_geometry(
         return Err(Reason::Busy);
     }
     let framed = areas.tier.shows_panel_frame();
-    let pane_frame = |zoomed| tui_layout::PaneFrame::of(framed, tab.panel_count(), zoomed);
+    let pane_frame = |zoomed| tui_layout::PaneFrame::of(framed, tree.leaf_count(), zoomed);
     let content = tui_layout::native_terminal_area(areas.panel, pane_frame(false));
     let displayed_content = tui_layout::native_terminal_area(areas.panel, pane_frame(zoomed));
     if content.is_empty() {
         return Err(Reason::ProjectionUnavailable);
     }
-    let paned = framed && tab.panel_count() > 1;
+    let paned = framed && tree.leaf_count() > 1;
     let projection = tui_layout::project_panel_tree(
         if paned { content } else { Rect::default() },
-        tab.panel_tree(),
+        tree,
         active_panel,
         ratios,
     );

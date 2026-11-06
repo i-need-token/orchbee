@@ -262,6 +262,10 @@ impl<'a> ClientTabView<'a> {
         self.inner.panel_count()
     }
 
+    pub(crate) fn drawn_panel_count(&self) -> usize {
+        self.inner.drawn_panel_count()
+    }
+
     pub(crate) fn panel_tree(&self) -> &'a super::ClientPanelTree {
         self.inner.panel_tree()
     }

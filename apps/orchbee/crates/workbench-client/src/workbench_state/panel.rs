@@ -708,6 +708,13 @@ impl WorkbenchClientState {
         {
             self.cancel_panel_close_confirmation();
         }
+        let accepted_close =
+            matches!(prepared.result, PreparedPanelResult::CloseAccepted).then(|| {
+                (
+                    prepared.operation.target.tab_id().clone(),
+                    prepared.operation.panel_id.clone(),
+                )
+            });
         match prepared.result {
             PreparedPanelResult::NotApplied => self.notice = Some(ClientNotice::PanelNotApplied),
             PreparedPanelResult::LaunchRequestTooLarge => {
@@ -756,6 +763,9 @@ impl WorkbenchClientState {
             }
         }
         self.pending_mutation = None;
+        if let Some((tab_id, panel_id)) = accepted_close {
+            self.begin_panel_leaving(&tab_id, &panel_id);
+        }
         PanelDecision::Continue
     }
 

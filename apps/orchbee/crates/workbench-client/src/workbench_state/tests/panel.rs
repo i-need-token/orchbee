@@ -1549,47 +1549,6 @@ fn tab_unavailable_with_a_surviving_leaf_truth_merges_the_superseding_projection
 }
 
 #[test]
-fn panel_close_acceptance_is_a_receipt_not_synchronous_leaf_deletion() {
-    let mut state = ready(1);
-    let operation = plan(&state, 70_006, PanelRequestKind::Close);
-    let cache = state.cache().clone();
-    let viewer = state.ready().cloned();
-    let accepted = WorkbenchPanelCloseAccepted {
-        close_request_id: WorkbenchRequestId::parse(&id(70_007)).unwrap(),
-        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
-        tab_id: operation.target().tab_id().clone(),
-        panel_id: operation.panel_id().clone(),
-        accepted_revision: operation.baseline().revision(),
-    };
-    assert!(state.begin_panel(operation.clone()));
-    let prepared = state.prepare_panel(&operation, PanelResult::CloseAccepted(accepted));
-    assert_eq!(
-        state.apply_prepared_panel(prepared),
-        PanelDecision::Continue
-    );
-    assert_eq!(
-        state.cache(),
-        &cache,
-        "receipt does not delete the leaf or Tab"
-    );
-    assert_eq!(
-        state.ready(),
-        viewer.as_ref(),
-        "receipt does not detach the viewer"
-    );
-    assert!(state.pending_panel().is_none());
-    assert!(
-        state.retained_panel_for_test().is_none(),
-        "a close receipt is not a split/move commit"
-    );
-    assert!(
-        state.publication_debt_pending(),
-        "an accepted close receipt owes a refresh drain to observe the removal"
-    );
-    assert!(state.invariant_holds());
-}
-
-#[test]
 fn close_acceptance_with_mismatched_identity_or_revision_diverges() {
     for (panel, revision) in [
         (panel_id(9_999), 1), // wrong leaf identity

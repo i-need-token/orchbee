@@ -109,6 +109,11 @@ uses the same domain operation as the CLI, and so does the Web and Desktop windo
 Worktree…, under the same offer proof but without the Windows check for a Client standing in the
 checkout.
 
+The TUI does not hide the removed Workspace's rows when the removal's internal Workspace close is accepted.
+Pending removal progress publishes no canonical change, and a held failure can follow that acceptance, so
+the optimistic overlay in [Accepted close leaves navigation](native-workspace-close.md#accepted-close-leaves-navigation)
+is staged for Remove Worktree until the removal status exposes an accepted-close stage.
+
 The surface shows readable failure reasons and retained Workspace/shell-restoration facts.
 Each reason names its cause, such as a checkout Git no longer lists, a directory still in use or a
 failed Git step, instead of presenting every Git-stage failure as a refusal. A nonresumable failure
