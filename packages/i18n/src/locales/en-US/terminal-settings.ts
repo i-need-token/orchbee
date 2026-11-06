@@ -2,7 +2,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shared.scope':
 		'Shared with the TUI on this device and configuration. Display and interaction changes apply now; launch profiles and scrollback apply to new terminals.',
 	'terminal.settings.shared.unreadable':
-		"Settings file can't be read · using defaults · Reset all to replace it",
+		"Settings file can't be read · using defaults · Reset all in Settings",
 	'terminal.settings.shared.pending': 'Saving settings…',
 	'terminal.settings.shared.unavailable':
 		'Shared settings could not be read. The last confirmed values remain in use.',

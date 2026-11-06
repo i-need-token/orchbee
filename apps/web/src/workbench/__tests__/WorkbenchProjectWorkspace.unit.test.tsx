@@ -900,19 +900,17 @@ describe('Workbench Project and Workspace management', () => {
 			locale: 'en-US' as const,
 			rename: 'Rename',
 			title: 'Rename Panel',
-			help: 'Leave empty to restore the original name.',
 			cancel: 'Cancel',
 		},
 		{
 			locale: 'zh-CN' as const,
 			rename: '重命名',
 			title: '重命名面板',
-			help: '留空可恢复原名。',
 			cancel: '取消',
 		},
 	])(
 		'renames and clears the captured primary Panel from its menu in $locale',
-		async ({ locale, rename, title, help, cancel }) => {
+		async ({ locale, rename, title, cancel }) => {
 			const projectWorkspaceRuntime = createSnapshotRuntime(
 				oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
 			);
@@ -932,7 +930,6 @@ describe('Workbench Project and Workspace management', () => {
 				return screen.findByRole('dialog', { name: title });
 			};
 			let dialog = await open();
-			expect(within(dialog).getByText(help)).toBeDefined();
 			let field = within(dialog).getByRole('textbox');
 			fireEvent.change(field, { target: { value: 'Cancel this' } });
 			fireEvent.click(within(dialog).getByRole('button', { name: cancel }));

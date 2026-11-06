@@ -91,6 +91,11 @@ export function WebApplication({
 }: WebApplicationProps): React.ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
 	const intl = useOrchbeeIntl();
+	const preferences = React.useSyncExternalStore(
+		terminalSettingsController.userPreferences.subscribe,
+		terminalSettingsController.userPreferences.getSnapshot,
+		terminalSettingsController.userPreferences.getSnapshot,
+	);
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
 	const shortcutClaims: readonly WorkbenchShortcutClaim[] = React.useMemo(
 		() => keyboardShortcutClaims(keyboardShortcuts, intl),
@@ -148,6 +153,9 @@ export function WebApplication({
 					onSettings={view.onSettings}
 					onShortcuts={view.onShortcuts}
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
+					preferencesUnreadable={
+						!view.settingsOpen && preferences.snapshot?.source === 'unreadable'
+					}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
 					shortcutBindings={keyboardShortcuts.bindings}

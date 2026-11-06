@@ -22,6 +22,7 @@
 	inset-inline-end: var(--ob-ref-space-2);
 	z-index: var(--ob-ref-layer-toast);
 	pointer-events: none;
+	max-inline-size: calc(100% - var(--ob-ref-space-4));
 }
 
 .statusNoticeText {
@@ -34,6 +35,12 @@
 	background: var(--ob-sys-color-surface-overlay);
 	box-shadow: var(--ob-sys-shadow-overlay);
 	font: var(--ob-sys-typography-body-sm);
+}
+
+button.statusNoticeText {
+	pointer-events: auto;
+	cursor: pointer;
+	text-align: start;
 }
 
 .statusNoticeText[data-persistent] {

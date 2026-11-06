@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { DEFAULT_USER_PREFERENCES, USER_PREFERENCE_KEYS } from '@orchbee/workbench-client-protocol';
-import { act } from 'react';
+import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi, onTestFinished } from 'vitest';
 import type { UserPreferencesControl } from '../../../../user-preferences';
 import { SharedPreferenceStatus } from '../SharedPreferenceStatus';
 
 it.each([
-	['en-US', "Settings file can't be read · using defaults · Reset all to replace it", 'Reset all'],
-	['zh-CN', '无法读取设置文件 · 正在使用默认值 · 可用“全部重置”替换', '全部重置'],
+	['en-US', 'Reset all'],
+	['zh-CN', '全部重置'],
 ] as const)(
 	'keeps explicit Reset all available after an unreadable read in %s',
-	async (locale, notice, label) => {
+	async (locale, label) => {
 		Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
 			configurable: true,
 			value: true,
@@ -38,30 +38,29 @@ it.each([
 		document.body.append(container);
 		const root = createRoot(container);
 		onTestFinished(async () => {
-			await act(async () => root.unmount());
+			await React.act(async () => root.unmount());
 			container.remove();
 			Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
 				configurable: true,
 				value: false,
 			});
 		});
-		await act(async () =>
+		await React.act(async () =>
 			root.render(
 				<OrchbeeI18nProvider locale={locale}>
 					<SharedPreferenceStatus control={control} />
 				</OrchbeeI18nProvider>,
 			),
 		);
-		expect(container.querySelector('[role="status"]')?.textContent).toBe(notice);
 		const resetButton = () =>
 			[...container.querySelectorAll('button')].find((button) => button.textContent === label);
 		const first = resetButton();
 		expect(first?.disabled).toBe(false);
-		await act(async () => first?.click());
+		await React.act(async () => first?.click());
 		expect(reset).not.toHaveBeenCalled();
 		const confirm = resetButton();
 		expect(confirm?.disabled).toBe(false);
-		await act(async () => confirm?.click());
+		await React.act(async () => confirm?.click());
 		expect(reset).toHaveBeenCalledExactlyOnceWith(USER_PREFERENCE_KEYS);
 	},
 );

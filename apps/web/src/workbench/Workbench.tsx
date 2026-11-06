@@ -12,6 +12,7 @@ import {
 	ResizablePanel,
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
+import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ActionRuntime } from '@orchbee/actions';
 import * as React from 'react';
 import type { CSSProperties } from 'react';
@@ -86,6 +87,7 @@ interface WorkbenchProps {
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly onShortcuts?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
+	readonly preferencesUnreadable?: boolean | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
@@ -110,6 +112,7 @@ export function Workbench({
 	onSettings,
 	onShortcuts,
 	onTerminalFontSizeChange,
+	preferencesUnreadable = false,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
@@ -119,6 +122,7 @@ export function Workbench({
 	terminalSurface,
 	workspaceLocationSource,
 }: WorkbenchProps): React.ReactNode {
+	const intl = useOrchbeeIntl();
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
 		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
@@ -291,6 +295,16 @@ export function Workbench({
 				)}
 			</div>
 			<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
+				{preferencesUnreadable ? (
+					<button
+						className={styles['statusNoticeText']}
+						data-persistent
+						onClick={view.settings}
+						type='button'
+					>
+						{intl.formatMessage(terminalSettingsMessages.sharedUnreadable)}
+					</button>
+				) : null}
 				{view.authorityNotice === null ? null : (
 					<span
 						className={styles['statusNoticeText']}
