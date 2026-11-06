@@ -29,6 +29,10 @@ import {
 	registerWorkbenchTabTitleAction,
 	type WorkbenchTabTitleEditorRequest,
 } from '../actions/registerWorkbenchTabTitleAction';
+import {
+	registerWorkbenchPanelNameAction,
+	type WorkbenchPanelNameEditorRequest,
+} from '../actions/registerWorkbenchPanelNameAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
 import { registerWorkbenchWorktreeActions } from '../actions/registerWorkbenchWorktreeActions';
@@ -78,6 +82,7 @@ interface UseWorkbenchActionsOptions {
 	readonly openAgentBoard: () => void;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly openTabTitleEditor: (request: WorkbenchTabTitleEditorRequest) => void;
+	readonly openPanelNameEditor: (request: WorkbenchPanelNameEditorRequest) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onShortcuts?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
@@ -119,6 +124,7 @@ export function useWorkbenchActions({
 	openAgentBoard,
 	openSearch,
 	openTabTitleEditor,
+	openPanelNameEditor,
 	onSettings,
 	onShortcuts,
 	onTerminalFontSizeChange,
@@ -194,6 +200,13 @@ export function useWorkbenchActions({
 			}),
 			...registerWorkbenchFocusActions({
 				focusRouter: focusRouting,
+				scope,
+				typedRuntime,
+			}),
+			registerWorkbenchPanelNameAction({
+				authority,
+				openEditor: openPanelNameEditor,
+				projectWorkspaceRuntime,
 				scope,
 				typedRuntime,
 			}),
@@ -497,6 +510,7 @@ export function useWorkbenchActions({
 		openAgentBoard,
 		openSearch,
 		openTabTitleEditor,
+		openPanelNameEditor,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,

@@ -183,6 +183,7 @@ export function useWorkbenchPanelWorkspace({
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),
 			childPresentationsLabel: intl.formatMessage(workbenchMessages.panelChildTerminalsLabel),
 			close: intl.formatMessage(workbenchMessages.panelClose),
+			rename: intl.formatMessage(workbenchMessages.panelRenameMenu),
 			closeLastPanel: intl.formatMessage(workbenchMessages.panelCloseLastPanel),
 			closeTab: (tab) => intl.formatMessage(workbenchMessages.panelCloseTab, { tab }),
 			closeTitle: intl.formatMessage(workbenchMessages.panelCloseTitle),
@@ -839,6 +840,15 @@ export function useWorkbenchPanelWorkspace({
 			);
 		},
 		cancelClose: () => pendingConfirmationRef.current?.(false),
+		renamePanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			const tabId = store.getActiveTabId();
+			if (tabId === null) return;
+			actionRuntime.execute(
+				WORKBENCH_ACTION_IDS.renamePanel,
+				{ kind: 'open', panelId, tabId, terminalContextId },
+				{ scope: panelActions.scope, source },
+			);
+		},
 		closeActiveTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			actionRuntime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
 				scope: panelActions.scope,

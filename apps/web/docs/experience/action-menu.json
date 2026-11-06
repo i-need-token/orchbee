@@ -38,7 +38,7 @@
 			"file": "apps/web/stories/workbench.stories.tsx",
 			"id": "applications-web-workbench--panel-workspace",
 			"states": [
-				"Right-click a terminal viewport and inspect the curated terminal commands above the panel menu: Split right and Split below, Maximize once another Panel exists, then the red Close; the Panel header's ellipsis and right-click show the same panel menu.",
+				"Right-click a terminal viewport and inspect the curated terminal commands above the panel menu: Rename, Split right and Split below, Maximize once another Panel exists, then the red Close; the Panel header's ellipsis and right-click show the same panel menu.",
 				"Confirm that only commands with an effective binding render a trailing shortcut and that custom labels match Action search."
 			]
 		}

@@ -134,7 +134,11 @@ export function useWorkbenchAuthorityNotice(
 					});
 				} else if (change.type === 'tab-renamed' || change.type === 'tabs-changed') {
 					setNotice(workbenchTabsFailureNotice(result));
-				} else if (change.type === 'panel-moved' || change.type === 'panels-swapped') {
+				} else if (
+					change.type === 'panel-moved' ||
+					change.type === 'panels-swapped' ||
+					change.type === 'panel-renamed'
+				) {
 					setNotice(workbenchPanelsFailureNotice(result));
 				} else if (
 					change.type === 'panel-size-adjusted' ||

@@ -70,6 +70,14 @@ function changeAction(
 	snapshot: WorkbenchSnapshot,
 ): ServerWorkbenchAction | null {
 	switch (change.type) {
+		case 'panel-renamed':
+			return readServerWorkbenchAction({
+				kind: 'panel.rename',
+				panelId: change.panelId,
+				label: change.label,
+				tabId: change.tabId,
+				terminalContextId: change.terminalContextId,
+			});
 		case 'panel-moved':
 			return readServerWorkbenchAction({
 				direction: change.direction,

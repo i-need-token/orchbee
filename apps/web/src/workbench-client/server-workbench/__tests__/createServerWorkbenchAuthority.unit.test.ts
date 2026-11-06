@@ -335,6 +335,40 @@ describe('createServerWorkbenchAuthority', () => {
 			{ kind: 'tab.rename', label: 'Named', tabId: TAB, terminalContextId: TABS_CONTEXT },
 		],
 		[
+			'renames a primary Panel Presentation with normalized text',
+			{
+				type: 'panel-renamed',
+				panelId: PANEL,
+				label: '  Review  ',
+				tabId: TAB,
+				terminalContextId: TABS_CONTEXT,
+			},
+			{
+				kind: 'panel.rename',
+				panelId: PANEL,
+				label: 'Review',
+				tabId: TAB,
+				terminalContextId: TABS_CONTEXT,
+			},
+		],
+		[
+			'clears a primary Panel name without renaming its Tab',
+			{
+				type: 'panel-renamed',
+				panelId: PANEL,
+				label: '',
+				tabId: TAB,
+				terminalContextId: TABS_CONTEXT,
+			},
+			{
+				kind: 'panel.rename',
+				panelId: PANEL,
+				label: null,
+				tabId: TAB,
+				terminalContextId: TABS_CONTEXT,
+			},
+		],
+		[
 			'makes a named group of Tabs in its color',
 			tabsChanged({ color: 'blue', kind: 'tabs-grouped', tabIds: [TAB], title: 'Build' }),
 			tabsConfigured({

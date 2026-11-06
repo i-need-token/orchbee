@@ -85,6 +85,8 @@ import {
 	type WorkbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
 import type { WorkbenchTabTitleEditorRequest } from '../actions/registerWorkbenchTabTitleAction';
+import type { WorkbenchPanelNameEditorRequest } from '../actions/registerWorkbenchPanelNameAction';
+import { findPanel } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { NameDialogBlankRule } from '../components/name-dialog/NameDialog';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
@@ -272,11 +274,13 @@ interface WorkbenchView {
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
 	readonly setTabTitle: (tabId: string) => void;
-	readonly tabTitleEditor:
-		| (WorkbenchTabTitleEditorRequest & { readonly draftTitle: string })
+	readonly nameEditor:
+		| ((WorkbenchTabTitleEditorRequest | WorkbenchPanelNameEditorRequest) & {
+				readonly draftTitle: string;
+		  })
 		| null;
-	readonly tabTitleEditorFinalFocus: () => HTMLElement | null;
-	readonly tabTitleEditorMessages: {
+	readonly nameEditorFinalFocus: () => HTMLElement | null;
+	readonly nameEditorMessages: {
 		readonly blank: NameDialogBlankRule;
 		readonly cancel: string;
 		readonly close: string;
@@ -286,9 +290,9 @@ interface WorkbenchView {
 		readonly submit: string;
 		readonly title: string;
 	};
-	readonly cancelTabTitleEditor: () => void;
-	readonly submitTabTitleEditor: () => void;
-	readonly updateTabTitleEditor: (title: string) => void;
+	readonly cancelNameEditor: () => void;
+	readonly submitNameEditor: () => void;
+	readonly updateNameEditor: (title: string) => void;
 	/** The active Workspace's context; null while no Workspace is open. */
 	readonly terminalContext: WorkbenchTerminalContext | null;
 	readonly terminalAutoFocusAllowed: boolean;
@@ -433,10 +437,14 @@ export function useWorkbench({
 	);
 	const searchHasOpened = React.useRef(false);
 	const searchReturnFocus = React.useRef<HTMLElement | null>(null);
-	const tabTitleReturnFocus = React.useRef<HTMLElement | null>(null);
-	const [tabTitleEditor, setTabTitleEditor] = React.useState<
-		(WorkbenchTabTitleEditorRequest & { readonly draftTitle: string }) | null
+	const nameReturnFocus = React.useRef<HTMLElement | null>(null);
+	const [nameEditor, setNameEditor] = React.useState<
+		| ((WorkbenchTabTitleEditorRequest | WorkbenchPanelNameEditorRequest) & {
+				readonly draftTitle: string;
+		  })
+		| null
 	>(null);
+	const automaticNamePlaceholder = nameEditor?.unnamed === true ? nameEditor.title : undefined;
 	const openSearch = useMemoizedFn((input: { readonly filter: WorkbenchSearchFilter }) => {
 		searchHasOpened.current = true;
 		if (
@@ -468,16 +476,36 @@ export function useWorkbench({
 		searchReturnFocus.current = null;
 		returnFocus?.focus();
 	}, [searchState.kind]);
-	const openTabTitleEditor = useMemoizedFn((request: WorkbenchTabTitleEditorRequest) => {
-		tabTitleReturnFocus.current = findActiveTerminalFocusTarget(projectWorkspaceRuntime);
-		setTabTitleEditor({ ...request, draftTitle: request.unnamed ? '' : request.title });
-	});
-	const tabTitleEditorFinalFocus = useMemoizedFn(() => {
-		const capturedTarget = tabTitleReturnFocus.current;
+	const openNameEditor = useMemoizedFn(
+		(request: WorkbenchTabTitleEditorRequest | WorkbenchPanelNameEditorRequest) => {
+			nameReturnFocus.current = findActiveTerminalFocusTarget(projectWorkspaceRuntime);
+			setNameEditor({ ...request, draftTitle: request.unnamed ? '' : request.title });
+		},
+	);
+	const nameEditorFinalFocus = useMemoizedFn(() => {
+		const capturedTarget = nameReturnFocus.current;
 		return capturedTarget?.isConnected === true
 			? capturedTarget
 			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
 	});
+	React.useEffect(() => {
+		if (nameEditor === null) return;
+		const captured = nameEditor;
+		const reconcile = (): void => {
+			const context = projectWorkspaceRuntime.getTerminalContext(captured.terminalContextId);
+			const tab = context?.panelWorkspaceStore
+				.getSnapshot()
+				.tabs.find((candidate) => candidate.tabId === captured.tabId);
+			const valid =
+				tab !== undefined &&
+				(!('panelId' in captured) ||
+					findPanel(tab.root, captured.panelId)?.primaryPresentation.presentationId ===
+						captured.presentationId);
+			if (!valid) setNameEditor((current) => (current === captured ? null : current));
+		};
+		reconcile();
+		return projectWorkspaceRuntime.subscribeTerminalTopology(reconcile);
+	}, [nameEditor, projectWorkspaceRuntime]);
 	const agentBoardReturnFocus = React.useRef<HTMLElement | null>(null);
 	const agentBoardLanded = React.useRef(false);
 	const [agentBoardOpen, setAgentBoardOpen] = React.useState(false);
@@ -640,7 +668,8 @@ export function useWorkbench({
 		onTerminalFontSizeChange,
 		openAgentBoard,
 		openSearch,
-		openTabTitleEditor,
+		openTabTitleEditor: openNameEditor,
+		openPanelNameEditor: openNameEditor,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime: actionRuntime,
@@ -1138,35 +1167,61 @@ export function useWorkbench({
 				'context-menu',
 			);
 		},
-		tabTitleEditor,
-		tabTitleEditorFinalFocus,
-		tabTitleEditorMessages: {
-			// A shared name has no way back to following the terminal, so a blank one is refused.
-			blank: { kind: 'refuse', reason: intl.formatMessage(workbenchMessages.nameRequired) },
+		nameEditor,
+		nameEditorFinalFocus,
+		nameEditorMessages: {
+			// Tab names remain fixed; a blank Panel name restores its creation fallback.
+			blank:
+				nameEditor !== null && 'panelId' in nameEditor
+					? { kind: 'accept', help: intl.formatMessage(workbenchMessages.panelRenameHelp) }
+					: { kind: 'refuse', reason: intl.formatMessage(workbenchMessages.nameRequired) },
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
 			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
-			placeholder: tabTitleEditor?.unnamed === true ? tabTitleEditor.title : undefined,
+			placeholder:
+				nameEditor !== null && 'panelId' in nameEditor
+					? nameEditor.fallbackTitle
+					: automaticNamePlaceholder,
 			submit: intl.formatMessage(workbenchMessages.renameSubmit),
-			title: intl.formatMessage(workbenchTabMessages.renameTab),
+			title: intl.formatMessage(
+				nameEditor !== null && 'panelId' in nameEditor
+					? workbenchMessages.panelRenameTitle
+					: workbenchTabMessages.renameTab,
+			),
 		},
-		cancelTabTitleEditor: () => setTabTitleEditor(null),
-		submitTabTitleEditor: () => {
-			if (tabTitleEditor === null) return;
+		cancelNameEditor: () => setNameEditor(null),
+		submitNameEditor: () => {
+			if (nameEditor === null) return;
+			if ('panelId' in nameEditor) {
+				actions.invoke(
+					WORKBENCH_ACTION_IDS.renamePanel,
+					{
+						kind: 'commit',
+						panelId: nameEditor.panelId,
+						presentationId: nameEditor.presentationId,
+						tabId: nameEditor.tabId,
+						terminalContextId: nameEditor.terminalContextId,
+						title: nameEditor.draftTitle,
+					},
+					'button',
+				);
+				setNameEditor(null);
+				return;
+			}
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.setTabTitle,
 				{
 					kind: 'commit',
-					tabId: tabTitleEditor.tabId,
-					terminalContextId: tabTitleEditor.terminalContextId,
-					title: tabTitleEditor.draftTitle,
+					tabId: nameEditor.tabId,
+					terminalContextId: nameEditor.terminalContextId,
+					title: nameEditor.draftTitle,
 				},
 				'button',
 			);
-			setTabTitleEditor(null);
+			setNameEditor(null);
 		},
-		updateTabTitleEditor: (title) => {
-			setTabTitleEditor((current) => (current === null ? null : { ...current, draftTitle: title }));
+		updateNameEditor: (title) => {
+			setNameEditor((current) => (current === null ? null : { ...current, draftTitle: title }));
 		},
 		terminalContext,
 		terminalAutoFocusAllowed: focusRouting.terminalAutoFocusAllowed,

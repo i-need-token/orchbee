@@ -33,6 +33,13 @@ export function buildWorkbenchPanelMenuEntries({
 	const isMaximized = view.maximizedPanelId === panelId;
 	return [
 		{
+			icon: 'edit',
+			id: 'rename-panel',
+			kind: 'command',
+			label: view.messages.rename,
+			onSelect: () => view.renamePanel(panelId, source),
+		},
+		{
 			icon: 'panels',
 			id: 'split-panel-right',
 			kind: 'command',

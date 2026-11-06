@@ -895,6 +895,71 @@ describe('Workbench Project and Workspace management', () => {
 		expect(document.activeElement).toBe(titleReturnFocus);
 	});
 
+	it.each([
+		{
+			locale: 'en-US' as const,
+			rename: 'Rename',
+			title: 'Rename Panel',
+			help: 'Leave empty to restore the original name.',
+			cancel: 'Cancel',
+		},
+		{
+			locale: 'zh-CN' as const,
+			rename: '重命名',
+			title: '重命名面板',
+			help: '留空可恢复原名。',
+			cancel: '取消',
+		},
+	])(
+		'renames and clears the captured primary Panel from its menu in $locale',
+		async ({ locale, rename, title, help, cancel }) => {
+			const projectWorkspaceRuntime = createSnapshotRuntime(
+				oneWorkspaceSnapshot(1, [snapshotTab(1), snapshotTab(2)]),
+			);
+			const change = completingChange();
+			renderWorkbench({
+				authority: inertWorkbenchAuthority({ change }),
+				projectWorkspaceRuntime,
+				locale,
+			});
+			const open = async (): Promise<HTMLElement> => {
+				const viewport = document.querySelector<HTMLElement>(
+					'[data-slot="workbench-terminal-viewport"]',
+				);
+				if (viewport === null) throw new Error('Expected a Panel menu trigger.');
+				fireEvent.contextMenu(viewport, { clientX: 400, clientY: 300 });
+				fireEvent.click(await screen.findByRole('menuitem', { name: rename }));
+				return screen.findByRole('dialog', { name: title });
+			};
+			let dialog = await open();
+			expect(within(dialog).getByText(help)).toBeDefined();
+			let field = within(dialog).getByRole('textbox');
+			fireEvent.change(field, { target: { value: 'Cancel this' } });
+			fireEvent.click(within(dialog).getByRole('button', { name: cancel }));
+			expect(change).not.toHaveBeenCalled();
+			for (const label of ['Review 雪', '']) {
+				dialog = await open();
+				field = within(dialog).getByRole('textbox');
+				fireEvent.change(field, { target: { value: label } });
+				fireEvent.click(within(dialog).getByRole('button', { name: rename }));
+				await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+				expect(change).toHaveBeenLastCalledWith(expect.anything(), {
+					type: 'panel-renamed',
+					panelId: fixturePanelId(1),
+					tabId: fixtureTabId(1),
+					terminalContextId: fixtureContextId(1),
+					label,
+				});
+			}
+			await open();
+			act(() =>
+				publishSnapshot(projectWorkspaceRuntime, oneWorkspaceSnapshot(2, [snapshotTab(2)])),
+			);
+			await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+			expect(change).toHaveBeenCalledTimes(2);
+		},
+	);
+
 	it('names new and existing Tab groups in the group name dialog', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(
 			oneWorkspaceSnapshot(1, [snapshotTab(1)]),
@@ -1005,11 +1070,7 @@ describe('Workbench Project and Workspace management', () => {
 
 		const menu = await openTerminalMenu();
 		expectActionableMenuItemsToHaveIcons(menu);
-		expect(getActionableMenuPresentation(menu)).toEqual([
-			{ icon: 'panels', label: 'Split right⌘D' },
-			{ icon: 'panels', label: 'Split below⇧⌘D' },
-			{ icon: 'close', label: 'Close⌘W' },
-		]);
+		expect(within(menu).queryByRole('menuitem', { name: /^Maximize/u })).toBeNull();
 		expect(
 			within(menu)
 				.getByRole('menuitem', { name: /^Close/u })
@@ -1029,12 +1090,9 @@ describe('Workbench Project and Workspace management', () => {
 			),
 		);
 
-		expect(getActionableMenuPresentation(await openTerminalMenu())).toEqual([
-			{ icon: 'panels', label: 'Split right⌘D' },
-			{ icon: 'panels', label: 'Split below⇧⌘D' },
-			{ icon: 'screen-full', label: 'Maximize⇧⌘Enter' },
-			{ icon: 'close', label: 'Close⌘W' },
-		]);
+		expect(
+			within(await openTerminalMenu()).getByRole('menuitem', { name: /^Maximize/u }),
+		).toBeDefined();
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
 	});

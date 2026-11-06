@@ -28,8 +28,16 @@ including NEL and excluding BOM; Rust, TypeScript and schema evidence must agree
 Clear restores the existing creation fallback. It does not start deriving a Host natural title,
 change a Tab title, change child Presentations or set the outer terminal window title. This is a
 label-lifetime boundary of the native model, rather than a hidden replacement of fallback text.
-Like other native canonical Workbench state, overrides last for the Session process; this operation
-does not add restart persistence.
+The existing Windows Workbench checkpoint retains these shared overrides; renaming adds no
+separate store.
+
+The GUI Panel menu and Action search offer the same `workbench.panel.rename` operation. Its
+Name Dialog uses the same primary scope and set/clear rule, even while a child terminal is shown.
+An exact captured Panel and primary Presentation qualify submission; changing focus never
+redirects a name, and removing the target closes its editor. Only the Server publication updates
+the displayed override. Both Clients use Rename in context, Rename Panel in the editor and
+global discovery, and the same localized explanation of a blank name. Neither adds a default key
+or a confirmation for this reversible organizational edit.
 
 The owning implementation consists of the protocol label types and Presentation/action contracts,
 the Server's pure Workbench authority, the shared native label-rename carrier, the CLI mutation

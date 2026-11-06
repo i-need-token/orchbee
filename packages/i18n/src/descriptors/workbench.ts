@@ -70,6 +70,21 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.names.renameSubmit',
 		defaultMessage: enUSWorkbenchMessages['workbench.names.renameSubmit'],
 	},
+	panelRenameTitle: {
+		description: 'Title and Action name for renaming the primary Presentation of a Panel.',
+		id: 'workbench.panels.rename.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.rename.title'],
+	},
+	panelRenameMenu: {
+		description: 'Rename verb in the menu of a Panel.',
+		id: 'workbench.panels.rename.menu',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.rename.menu'],
+	},
+	panelRenameHelp: {
+		description: 'Explains that blank clears the primary Presentation name override.',
+		id: 'workbench.panels.rename.help',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.rename.help'],
+	},
 	projectCloseAll: {
 		description: 'Explicitly close every Workspace currently in this Project.',
 		id: 'workbench.projects.closeAll',

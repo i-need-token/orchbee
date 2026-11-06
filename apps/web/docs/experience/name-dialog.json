@@ -4,16 +4,18 @@
 	"kind": "experience",
 	"status": "canonical",
 	"name": "Name Dialog",
-	"description": "Asks for one name to rename a Project, Workspace, Tab, or Tab group, or to create a named Project or Tab group, under a title that also labels the field and a caller-declared rule for a blank name.",
+	"description": "Asks for one name to rename a Project, Workspace, Tab, Panel, or Tab group, or to create a named Project or Tab group, under a title that also labels the field and a caller-declared rule for a blank name.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"create-project-and-move-workspace",
 		"create-tab-group",
+		"rename-panel",
 		"rename-project",
 		"rename-tab",
 		"rename-tab-group",
 		"rename-workspace",
+		"restore-panel-name",
 		"restore-tab-title"
 	],
 	"implementation": ["apps/web/src/workbench/components/name-dialog/NameDialog.tsx"],
@@ -37,11 +39,27 @@
 				"Submit a name, then reopen from the Tab's Rename row, clear, and submit to restore the terminal title.",
 				"Choose Add to group, then New group… from a Tab's menu to see the Tab's name suggested for the group with the help that blank leaves it unnamed; rename the group from its own menu."
 			]
+		},
+		{
+			"exportName": "PanelWorkspace",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-workspace",
+			"states": [
+				"Choose Rename from the Panel menu; inspect its primary override even when a child terminal is displayed, then clear the field to see the original-name help and cancel without a write."
+			]
+		},
+		{
+			"exportName": "PanelWorkspaceChinese",
+			"file": "apps/web/stories/workbench.stories.tsx",
+			"id": "applications-web-workbench--panel-workspace-chinese",
+			"states": [
+				"Inspect the same Panel rename menu, single-field editor, blank-name help and cancellation in Chinese."
+			]
 		}
 	],
 	"uses": ["workbench.resource-dialog-form"],
 	"useWhen": [
-		"A person renames a Project, a Workspace, a terminal Tab, or a Tab group.",
+		"A person renames a Project, a Workspace, a terminal Tab, a Panel, or a Tab group.",
 		"A person creates a Project while moving an existing Workspace into it, or creates a Tab group from Tabs."
 	],
 	"avoidWhen": [

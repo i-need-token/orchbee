@@ -260,19 +260,19 @@ export function Workbench({
 				</AlertDialogContent>
 			</AlertDialog>
 		);
-	const tabTitleEditorSurface =
-		view.tabTitleEditor === null ? null : (
+	const nameEditorSurface =
+		view.nameEditor === null ? null : (
 			<NameDialog
-				blank={view.tabTitleEditorMessages.blank}
-				finalFocus={view.tabTitleEditorFinalFocus}
-				messages={view.tabTitleEditorMessages}
-				name={view.tabTitleEditor.draftTitle}
-				onClose={view.cancelTabTitleEditor}
-				onNameChange={view.updateTabTitleEditor}
-				onSubmit={view.submitTabTitleEditor}
-				placeholder={view.tabTitleEditorMessages.placeholder}
-				submitLabel={view.tabTitleEditorMessages.submit}
-				title={view.tabTitleEditorMessages.title}
+				blank={view.nameEditorMessages.blank}
+				finalFocus={view.nameEditorFinalFocus}
+				messages={view.nameEditorMessages}
+				name={view.nameEditor.draftTitle}
+				onClose={view.cancelNameEditor}
+				onNameChange={view.updateNameEditor}
+				onSubmit={view.submitNameEditor}
+				placeholder={view.nameEditorMessages.placeholder}
+				submitLabel={view.nameEditorMessages.submit}
+				title={view.nameEditorMessages.title}
 			/>
 		);
 
@@ -450,7 +450,7 @@ export function Workbench({
 				/>
 			)}
 			{projectWorkspaceConfirmationSurface}
-			{tabTitleEditorSurface}
+			{nameEditorSurface}
 			<WorkbenchProjectCreation
 				messages={view.projectCreationMessages}
 				view={view.projectCreation}

@@ -448,6 +448,21 @@ export const PanelWorkspace: Story = {
 	),
 };
 
+/** Inspect Rename and its blank-name help through the same Panel menu in Chinese. */
+export const PanelWorkspaceChinese: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Review', 'Build', 'Shell']),
+		shortcutPlatform: 'standard',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
 export const PanelVisualSelection: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),

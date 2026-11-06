@@ -67,6 +67,7 @@ export const WORKBENCH_ACTION_IDS = {
 	moveActivePanelUp: 'workbench.panel.active.move-up',
 	resumeTabClose: 'workbench.tab.close.resume',
 	setTabTitle: 'workbench.tab.title.set',
+	renamePanel: 'workbench.panel.rename',
 	selectNextTab: 'workbench.tab.select-next',
 	selectPreviousTab: 'workbench.tab.select-previous',
 	selectTabByPosition: 'workbench.tab.select-by-position',
@@ -222,6 +223,23 @@ export type WorkbenchTabTitleInput =
 			readonly title: string | null;
 	  };
 
+export type WorkbenchPanelNameInput =
+	| undefined
+	| {
+			readonly kind: 'open';
+			readonly panelId: string;
+			readonly tabId: string;
+			readonly terminalContextId: string;
+	  }
+	| {
+			readonly kind: 'commit';
+			readonly panelId: string;
+			readonly tabId: string;
+			readonly terminalContextId: string;
+			readonly presentationId: string;
+			readonly title: string;
+	  };
+
 export interface WorkbenchTerminalCreateInput {
 	readonly directoryId?: string | undefined;
 	readonly groupId: string | null;
@@ -289,6 +307,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resumeTabClose]: ActionSignature<WorkbenchTabTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.setTabTitle]: ActionSignature<WorkbenchTabTitleInput>;
+	readonly [WORKBENCH_ACTION_IDS.renamePanel]: ActionSignature<WorkbenchPanelNameInput>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectPreviousTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;
@@ -496,6 +515,41 @@ export const workbenchTabTitleInput: ActionInputValidation<WorkbenchTabTitleInpu
 			},
 			success: true,
 		};
+	},
+};
+
+export const workbenchPanelNameInput: ActionInputValidation<WorkbenchPanelNameInput> = {
+	name: 'WorkbenchPanelNameInput',
+	parse: (input) => {
+		if (input === undefined) return { success: true, data: undefined };
+		if (
+			!isRecord(input) ||
+			typeof input['panelId'] !== 'string' ||
+			typeof input['tabId'] !== 'string' ||
+			typeof input['terminalContextId'] !== 'string'
+		)
+			return { success: false, code: 'expected-panel-name-input' };
+		const target = {
+			panelId: input['panelId'],
+			tabId: input['tabId'],
+			terminalContextId: input['terminalContextId'],
+		};
+		if (input['kind'] === 'open') return { success: true, data: { ...target, kind: 'open' } };
+		if (
+			input['kind'] === 'commit' &&
+			typeof input['presentationId'] === 'string' &&
+			typeof input['title'] === 'string'
+		)
+			return {
+				success: true,
+				data: {
+					...target,
+					kind: 'commit',
+					presentationId: input['presentationId'],
+					title: input['title'],
+				},
+			};
+		return { success: false, code: 'expected-panel-name-input' };
 	},
 };
 

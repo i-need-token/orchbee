@@ -36,6 +36,7 @@ export interface PanelDragGhost {
 
 export interface PanelWorkspaceMessages {
 	readonly cancel: string;
+	readonly rename: string;
 	readonly childPresentationsLabel: string;
 	readonly close: string;
 	readonly closeLastPanel: string;
@@ -107,6 +108,7 @@ export interface WorkbenchPanelWorkspaceView {
 	) => boolean;
 	readonly cancelClose: () => void;
 	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly renamePanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
 	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
 	readonly displayedRoot: PanelLayoutNode | null;

@@ -75,6 +75,11 @@ export type WorkbenchAuthoritySplitRatioChange = WorkbenchAuthorityTabTarget &
 export type WorkbenchAuthorityChange =
 	| WorkbenchAuthorityNavigationChange
 	| WorkbenchAuthoritySplitRatioChange
+	| (WorkbenchAuthorityTabTarget & {
+			readonly type: 'panel-renamed';
+			readonly panelId: string;
+			readonly label: string | null;
+	  })
 	| {
 			readonly type: 'tab-renamed';
 			readonly label: string;
