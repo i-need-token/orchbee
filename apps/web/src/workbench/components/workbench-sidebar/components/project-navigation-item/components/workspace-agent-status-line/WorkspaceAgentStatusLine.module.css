@@ -1,6 +1,15 @@
+/* Fills the second line, so the fit measures the room the glyphs and the remainder may take. */
 .line {
+	position: relative;
 	display: flex;
+	flex: 1 1 0;
 	min-width: 0;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.glyphs {
+	display: flex;
 	align-items: center;
 	gap: var(--ob-ref-space-0-5);
 }
@@ -14,26 +23,58 @@
 	translate: 0 var(--ob-ref-text-icon-center-shift);
 }
 
-.legend {
+/* Off the line's flow and hidden: one glyph slot and one `+N`, measured for the fit. */
+.measure {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	display: flex;
+	visibility: hidden;
+	pointer-events: none;
+	white-space: nowrap;
+}
+
+.measureGlyph {
+	flex: none;
+	width: var(--ob-ref-size-icon-xs);
+}
+
+.legend,
+.roster {
 	display: grid;
 	gap: var(--ob-ref-space-0-5);
 }
 
-.legendRow {
+.roster {
+	max-inline-size: var(--ob-ref-size-menu);
+}
+
+.legendRow,
+.rosterRow {
 	display: flex;
 	align-items: center;
 	gap: var(--ob-ref-space-1-5);
 	white-space: nowrap;
 }
 
+.rosterName {
+	min-inline-size: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 /* The tooltip's inverse surface draws the neutral states in its own text color. */
 .legendRow [data-tone='working'],
 .legendRow [data-tone='idle'],
-.legendRow [data-tone='neutral'] {
+.legendRow [data-tone='neutral'],
+.rosterRow [data-tone='working'],
+.rosterRow [data-tone='idle'],
+.rosterRow [data-tone='neutral'] {
 	color: currentColor;
 }
 
-.legendRow [data-agent-state-glyph] {
+.legendRow [data-agent-state-glyph],
+.rosterRow [data-agent-state-glyph] {
 	animation: none;
 }
 

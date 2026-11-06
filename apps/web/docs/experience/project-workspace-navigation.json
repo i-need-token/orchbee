@@ -98,7 +98,7 @@
 				"Compare Workspaces with Agents, which show a fold chevron after the name, and one without, which shows none.",
 				"Verify attention, failure, working, done, and idle states use both a hexagon glyph and semantic color, and that the Agent row in the current terminal takes the current fill.",
 				"Inspect the unfolded Workspaces as flat one-line Agent rows: state glyph, terminal title, muted provider, and an unread dot; hover a cut title for its full text and a glyph for its state in words.",
-				"Inspect the folded Batch Tasks line of three state glyphs, most urgent first, and the folded Nightly Agents line of four glyphs and +3; hover each line for its legend, then unfold and refold them independently.",
+				"Inspect the folded Batch Tasks line of three state glyphs, most urgent first, and the folded Nightly Agents line of as many glyphs as fit and a +N for the rest; hover the glyphs for their legend and the +N for the Agents it hides, then unfold and refold them independently.",
 				"Activate an Agent row and verify exact Workspace, Tab, Panel, and terminal navigation."
 			]
 		},
@@ -162,7 +162,7 @@
 		"A Workspace with no live Agent shows no fold chevron; retained ended Sessions never leave an Agent count, status, or detail row.",
 		"A Workspace Agent summary counts deduplicated live Sessions and exposes its resolved status through text or an accessible label as well as color.",
 		"Every Workspace lists its Agent rows until this Client folds them, each Workspace independently; a fold is client-local, lasts while its Workspace exists through regrouping, a collapsed Project, a hidden sidebar, and Agents ending, and only the held Workspace hides its rows during a drag.",
-		"A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first, at most five or four and a muted +N; the line's tooltip legend and the row's accessible name say each distinct state in words, and only a folded Workspace row repeats its Agents' unread marker.",
+		"A folded Workspace replaces its location line with its Agents' state glyphs, most urgent first, as many as fit and a muted +N for the rest, whose hover lists the Agents it hides; the line's tooltip legend and the row's accessible name say each distinct state in words, and only a folded Workspace row repeats its Agents' unread marker.",
 		"Expanded Agent detail is a flat list only: it never repeats Tabs, terminal-only rows, panel thumbnails, prompts, commands, provider errors, or internal identifiers.",
 		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",
 		"New Workspace immediately commits an ungrouped Workspace and its first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",

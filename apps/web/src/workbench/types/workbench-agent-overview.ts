@@ -17,16 +17,19 @@ interface WorkbenchWorkspaceAgentRowView {
 
 /** A folded Workspace's second line: its Agents' states, most urgent first. */
 interface WorkbenchWorkspaceAgentFoldedStatusView {
-	/** Each shown Agent's state, keyed by its terminal Presentation. */
+	/**
+	 * Every Agent's state, keyed by its terminal Presentation. The line shows as many leading glyphs
+	 * as it has room for and counts the rest as `+N`.
+	 */
 	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'shape' | 'tone'> & {
+		/** The Agent's name as its expanded row shows it; the `+N` list names the Agents it hides. */
+		readonly label: string;
 		readonly presentationId: TerminalPresentationId;
 	})[];
-	/** Each distinct state in words, in the order shown. */
+	/** Each distinct state in words, most urgent first. */
 	readonly label: string;
 	/** Each distinct state once, most urgent first, as the line's tooltip lists them. */
 	readonly legend: readonly WorkbenchAgentStatusView[];
-	/** States past the shown glyphs, counted as `+N`; zero shows none. */
-	readonly remainder: number;
 }
 
 export interface WorkbenchWorkspaceAgentOverviewView {

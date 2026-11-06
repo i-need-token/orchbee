@@ -260,7 +260,10 @@ const createSidebarFocusRevealRuntime = (collapsed: boolean) =>
 		],
 	}).runtime;
 
-/** The crowded Workspace's seven Agents, so its folded line shows four states and `+3`. */
+/**
+ * The crowded Workspace's Agents, more than a folded status line holds at the default width,
+ * so it shows the states that fit and a `+N` for the rest.
+ */
 const CROWDED_AGENT_STATES = [
 	'working',
 	'idle',
@@ -269,6 +272,19 @@ const CROWDED_AGENT_STATES = [
 	'unknown',
 	'done',
 	'error',
+	'idle',
+	'working',
+	'done',
+	'idle',
+	'blocked',
+	'working',
+	'unknown',
+	'done',
+	'error',
+	'idle',
+	'blocked',
+	'working',
+	'done',
 ] as const;
 
 /** `crowded` adds a Workspace holding more Agents than a folded status line shows. */
@@ -672,7 +688,10 @@ export const WorkspaceAgentOverview: Story = {
 		terminalSurface: FocusStoryTerminalSurface,
 	},
 	play: ({ canvasElement }) => {
-		const folds = new Set(['Hide 3 Agents in Batch Tasks', 'Hide 7 Agents in Nightly Agents']);
+		const folds = new Set([
+			'Hide 3 Agents in Batch Tasks',
+			`Hide ${CROWDED_AGENT_STATES.length} Agents in Nightly Agents`,
+		]);
 		for (const button of canvasElement.querySelectorAll('button')) {
 			if (folds.has(button.getAttribute('aria-label') ?? '')) button.click();
 		}

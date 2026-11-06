@@ -59,9 +59,6 @@ interface WorkbenchAgentPresentationView {
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 }
 
-/** The TUI's `STATUS_GLYPHS`: a folded Workspace shows this many states, or one fewer and `+N`. */
-const FOLDED_STATUS_GLYPHS = 5;
-
 const NO_PANEL_TABS: readonly [] = [];
 const NO_AGENT_NAMES: ReadonlyMap<string, WorkbenchAgentNames> = new Map();
 
@@ -202,8 +199,20 @@ export function useWorkbenchAgentPresentation({
 		return projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime).map(
 			(workspace): WorkbenchWorkspaceAgentOverviewView => {
 				const count = workspace.rows.length;
-				const shown = count > FOLDED_STATUS_GLYPHS ? FOLDED_STATUS_GLYPHS - 1 : count;
 				const states = workspace.rowsByUrgency.map(({ observation }) => observation.state);
+				// A row's name as its expanded row shows it: its title, then its provider.
+				const rowNames = ({ destination, observation }: (typeof workspace.rows)[number]) => {
+					const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
+					const names = agentNames.get(destination.presentationId);
+					const titleLabel =
+						resolveWorkbenchAgentTitle(
+							destination.terminalNames,
+							// What the Server read for another incarnation names nothing in this one.
+							names?.binding === observation.binding ? names : undefined,
+							listWorkbenchAgentProviderNames(intl, observation.agent),
+						) ?? '';
+					return { agentLabel, titleLabel };
+				};
 				return {
 					agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
 					collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
@@ -217,9 +226,11 @@ export function useWorkbenchAgentPresentation({
 					}),
 					expanded: !foldedWorkspaceIds.has(workspace.workspaceId),
 					foldedStatus: {
-						glyphs: workspace.rowsByUrgency.slice(0, shown).map(({ destination, observation }) => {
+						glyphs: workspace.rowsByUrgency.map(({ destination, observation }) => {
+							const { agentLabel, titleLabel } = rowNames({ destination, observation });
 							const status = formatWorkbenchAgentStatus(intl, observation.state);
 							return {
+								label: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
 								presentationId: destination.presentationId,
 								shape: status.shape,
 								tone: status.tone,
@@ -230,12 +241,10 @@ export function useWorkbenchAgentPresentation({
 							{ style: 'narrow', type: 'conjunction' },
 						),
 						legend: [...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state)),
-						remainder: count - shown,
 					},
 					projectId: workspace.projectId,
 					rows: workspace.rows.map(({ destination, observation }) => {
-						const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
-						const names = agentNames.get(destination.presentationId);
+						const { agentLabel, titleLabel } = rowNames({ destination, observation });
 						const locationLabel = formatWorkbenchAgentLocation(intl, destination);
 						const status = formatWorkbenchAgentStatus(intl, observation.state);
 						return {
@@ -248,13 +257,7 @@ export function useWorkbenchAgentPresentation({
 							current: destination.presentationId === currentPresentationId,
 							presentationId: destination.presentationId,
 							status,
-							titleLabel:
-								resolveWorkbenchAgentTitle(
-									destination.terminalNames,
-									// What the Server read for another incarnation names nothing in this one.
-									names?.binding === observation.binding ? names : undefined,
-									listWorkbenchAgentProviderNames(intl, observation.agent),
-								) ?? '',
+							titleLabel,
 							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
 						};
 					}),
