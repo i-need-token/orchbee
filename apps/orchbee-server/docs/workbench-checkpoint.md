@@ -125,6 +125,12 @@ errors still abort. Uncommitted pending-file cleanup remains unchanged.
 configuration value: private graph-validation identities never become a runnable authority. Only
 reconstruction with the fresh Session and admitted Worker creates the new authority.
 
+Restoration deliberately launches the current default program from the Session's shared preferences,
+not the program or Launch Profile previously used by each Panel. Checkpoints retain Launch Profile
+definitions but no per-Presentation launch selection. An unreadable preference record therefore
+restores terminals with the built-in system shell default; retained custom profiles do not select
+themselves. This policy never replays a prior command.
+
 Before launch IPC, the coordinator prepares all fresh shell reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; missing saved/configured directories fall back to Worker home. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
