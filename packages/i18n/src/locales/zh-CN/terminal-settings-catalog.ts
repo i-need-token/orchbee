@@ -121,7 +121,7 @@ export const zhCNTerminalSettingsCatalogMessages = {
 		'选择应用控件、指引和消息使用的语言。',
 	'terminal.settings.catalog.items.general.language.label': '显示语言',
 	'terminal.settings.catalog.items.general.quitConfirmation.description':
-		'关闭包含运行中命令或 Agent 会话的窗口前进行确认。',
+		'关闭包含运行中命令或智能体会话的窗口前进行确认。',
 	'terminal.settings.catalog.items.general.quitConfirmation.label': '退出前确认',
 	'terminal.settings.catalog.items.general.restoreSessions.description':
 		'重新打开上次会话中的窗口、标签页、面板和工作目录。',

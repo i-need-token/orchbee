@@ -2,7 +2,7 @@ import type { AgentObservationMessageId } from '../en-US';
 
 export const zhCNAgentObservationMessages = {
 	'agent.observation.status.unread': '未读动态',
-	'agent.observation.provider.agents': '多个 Agent',
+	'agent.observation.provider.agents': '多个智能体',
 	'agent.observation.provider.claudeCode': 'Claude Code',
 	'agent.observation.provider.codex': 'Codex',
 	'agent.observation.provider.grok': 'Grok',

@@ -16,7 +16,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.names.renameSubmit': 'Rename',
 	'workbench.panels.rename.title': 'Rename Panel',
 	'workbench.panels.rename.menu': 'Rename',
-	'workbench.panels.rename.help': 'Empty restores the original name.',
+	'workbench.panels.rename.help': 'Leave empty for the original name.',
 	'workbench.projects.closeAll': 'Close All Workspaces',
 	'workbench.projects.close.closed': 'Project Workspaces closed · {label}',
 	'workbench.projects.close.closing': 'Closing Project Workspaces · {label}',
