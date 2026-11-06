@@ -152,6 +152,7 @@ interface WorkbenchWorkspaceActivationInput extends WorkbenchWorkspaceInput {
 type WorkbenchWorkspaceCreateInput =
 	| void
 	| { readonly projectId: string }
+	| { readonly projectId: string; readonly path: string }
 	| {
 			readonly projectId: string | null;
 			readonly directoryId: string;
@@ -767,6 +768,7 @@ export const workbenchWorkspaceReorderInput: ActionInputValidation<WorkbenchWork
 	};
 
 const workspaceCreateSchema = z.union([
+	z.strictObject({ projectId: z.string().min(1), path: z.string().trim().min(1) }),
 	z.strictObject({
 		projectId: z.string().min(1).nullable(),
 		directoryId: z.string().min(1),

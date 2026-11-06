@@ -652,6 +652,15 @@ describe('createServerWorkbenchAuthority', () => {
 
 	it.each<[string, WorkbenchAuthorityCreation, string | null, Record<string, unknown>]>([
 		[
+			'opens a chosen directory in the addressed existing Project without creating another Project',
+			{ path: 'D:\\chosen', projectId: PROJECT, type: 'workspace-created-at-path' },
+			null,
+			{
+				options: expect.objectContaining({ cwd: 'D:\\chosen' }),
+				placement: { kind: 'project', projectId: PROJECT },
+			},
+		],
+		[
 			'opens New Workspace in the directory the focused Workspace last reported when the Server cannot read it',
 			{ focusedPanel: null, projectId: null, type: 'workspace-created-default' },
 			SECOND_WORKSPACE,

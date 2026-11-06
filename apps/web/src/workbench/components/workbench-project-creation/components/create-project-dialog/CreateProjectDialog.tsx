@@ -19,6 +19,7 @@ interface CreateProjectDialogProps {
 	readonly onPathChange: (path: string) => void;
 	readonly onSubmit: (path: string) => void;
 	readonly path: string;
+	readonly title?: string | undefined;
 }
 
 export function CreateProjectDialog({
@@ -27,6 +28,7 @@ export function CreateProjectDialog({
 	onPathChange,
 	onSubmit,
 	path,
+	title,
 }: CreateProjectDialogProps): React.ReactNode {
 	const formId = 'workbench-project-create-form';
 	const normalizedPath = path.trim();
@@ -39,8 +41,8 @@ export function CreateProjectDialog({
 		>
 			<DialogContent closeLabel={messages.close} data-slot='workbench-project-create'>
 				<ResourceDialogHeader
-					description={messages.projectCreateDescription}
-					title={messages.projectCreateTitle}
+					description={title === undefined ? messages.projectCreateDescription : undefined}
+					title={title ?? messages.projectCreateTitle}
 				/>
 				<ResourceDialogForm
 					id={formId}

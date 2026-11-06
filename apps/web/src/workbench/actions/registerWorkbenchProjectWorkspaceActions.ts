@@ -376,23 +376,31 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
 				},
 				handler: {
-					execute: (context, input) =>
-						createAndEnter(
-							context,
-							input === undefined || !('directoryId' in input)
-								? {
-										// Only a command that names no row reads where the focused Panel stands.
-										focusedPanel:
-											input === undefined ? resolveFocusedPanel(projectWorkspaceRuntime) : null,
-										projectId: input?.projectId ?? null,
-										type: 'workspace-created-default',
-									}
-								: {
-										directoryId: input.directoryId,
-										projectId: input.projectId,
-										type: 'workspace-created',
-									},
-						).then(withoutReceipt),
+					execute: (context, input) => {
+						let creation: WorkbenchAuthorityCreation;
+						if (input !== undefined && 'path' in input) {
+							creation = {
+								type: 'workspace-created-at-path',
+								projectId: input.projectId,
+								path: input.path,
+							};
+						} else if (input !== undefined && 'directoryId' in input) {
+							creation = {
+								type: 'workspace-created',
+								projectId: input.projectId,
+								directoryId: input.directoryId,
+							};
+						} else {
+							creation = {
+								// Only a command that names no row reads where the focused Panel stands.
+								focusedPanel:
+									input === undefined ? resolveFocusedPanel(projectWorkspaceRuntime) : null,
+								projectId: input?.projectId ?? null,
+								type: 'workspace-created-default',
+							};
+						}
+						return createAndEnter(context, creation).then(withoutReceipt);
+					},
 				},
 				id: WORKBENCH_ACTION_IDS.createWorkspace,
 				input: workbenchWorkspaceCreateInput,

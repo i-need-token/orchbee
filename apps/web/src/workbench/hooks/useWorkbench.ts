@@ -46,6 +46,7 @@ import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchSearchProviderArgumentPicker } from '../types/workbench-search-provider';
 import type {
 	WorkbenchProjectNavigationMessages,
+	WorkbenchSidebarWorkspaceCreation,
 	WorkbenchWorktreeCommands,
 } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import type {
@@ -182,14 +183,7 @@ interface WorkbenchView {
 	readonly confirmProjectWorkspaceAction: () => void;
 	/** Present when an authority decides the Panels, whose new terminals then show as it answers. */
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
-	readonly createWorkspace: (
-		input?:
-			| { readonly projectId: string }
-			| {
-					readonly projectId: string | null;
-					readonly directoryId: string;
-			  },
-	) => void;
+	readonly createWorkspace: (input?: WorkbenchSidebarWorkspaceCreation) => void;
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
@@ -701,6 +695,9 @@ export function useWorkbench({
 		acquisition: projectFolderAcquisition,
 		activateCreatedProject,
 		createProject,
+		createWorkspaceAtDirectory: (projectId, path) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { projectId, path }, 'menu');
+		},
 		isCreatedProjectActive,
 		runtime: actionRuntime,
 		scope: actions.scope,
@@ -942,7 +939,12 @@ export function useWorkbench({
 		},
 		createWorkspace: (input) => {
 			closeSidebarOverlay();
-			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
+			if (input !== undefined && 'selectDirectory' in input) {
+				projectCreation.requestWorkspaceDirectory(
+					input.projectId,
+					intl.formatMessage(workbenchMessages.projectCreateWorkspaceAtDirectory),
+				);
+			} else actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
 		},
 		deleteWorkspace: (workspaceId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
@@ -1032,6 +1034,9 @@ export function useWorkbench({
 			collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
 			create: intl.formatMessage(workbenchMessages.resourceCreate),
 			createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
+			createWorkspaceAtDirectory: intl.formatMessage(
+				workbenchMessages.projectCreateWorkspaceAtDirectory,
+			),
 			dropEndOfProjects: intl.formatMessage(workbenchMessages.sidebarDropEndOfProjects),
 			dropNoProject: intl.formatMessage(workbenchMessages.sidebarDropNoProject),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),

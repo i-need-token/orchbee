@@ -81,6 +81,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.sidebar.drop.endOfProjects': '项目列表末尾',
 	'workbench.projects.actions.collapse': '折叠项目',
 	'workbench.projects.actions.create': '创建项目',
+	'workbench.projects.actions.createWorkspaceAtDirectory': '在目录中新建工作区…',
 	'workbench.projects.actions.createWorkspace': '新建工作区',
 	'workbench.projects.actions.expand': '展开项目',
 	'workbench.projects.actions.manage': '管理项目…',

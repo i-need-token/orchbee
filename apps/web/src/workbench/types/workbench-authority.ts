@@ -117,6 +117,11 @@ export type WorkbenchAuthorityCreation =
 			readonly type: 'workspace-created-default';
 	  }
 	| {
+			readonly type: 'workspace-created-at-path';
+			readonly path: string;
+			readonly projectId: string;
+	  }
+	| {
 			readonly type: 'workspace-created';
 			readonly directoryId: string;
 			readonly projectId: string | null;

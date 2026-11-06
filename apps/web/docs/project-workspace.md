@@ -140,6 +140,14 @@ so the name, folder, and facts change together; the row menu keeps naming the Wo
 
 ## Project navigation action menus
 
+A Project's New Workspace submenu and its right-side `+` button share one menu model. Both always
+start with New Workspace and New Workspace in directory, followed by the recorded Folder and
+available Worktree choices. Directory creation uses the host's existing Folder picker, or the
+existing path form when no picker is available, and launches directly in the addressed Project.
+It never creates another Project. Cancellation creates nothing. Successful creation from a button,
+context submenu or keyboard uses the same activation owner: reveal the destination group, select the
+new Workspace and hand the keyboard to its terminal, unless a newer navigation intent superseded it.
+
 Each Project row and Workspace row owns one ordered action-menu model. The row's ellipsis button
 opens that model as an anchored Dropdown Menu; right-click or long press on the row opens the same
 model as a pointer-positioned Context Menu. Both projections preserve item order, grouping, icons,

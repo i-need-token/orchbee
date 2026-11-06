@@ -29,6 +29,7 @@ interface UseWorkbenchProjectCreationOptions {
 	readonly activateCreatedProject: (
 		receipt: WorkbenchProjectCreationReceipt,
 	) => ActionExecution<void>;
+	readonly createWorkspaceAtDirectory: (projectId: string, path: string) => void;
 	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
 	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
 	readonly runtime: ActionRuntime;
@@ -36,14 +37,16 @@ interface UseWorkbenchProjectCreationOptions {
 }
 
 interface WorkbenchProjectPathForm {
+	readonly title?: string | undefined;
 	readonly close: () => void;
 	readonly path: string;
 	readonly setPath: (path: string) => void;
 	readonly submit: (path: string) => void;
 }
 
-/** What the Project creation dialogs show, and the semantic actions they invoke. */
+/** Shared Folder acquisition for new Projects and Workspaces in an existing Project. */
 export interface WorkbenchProjectCreationView {
+	readonly requestWorkspaceDirectory: (projectId: string, title: string) => void;
 	readonly dismissFailure: () => void;
 	readonly failure: WorkbenchProjectFolderAcquisitionFailureCode | null;
 	readonly newFolder: NewProjectFolderView;
@@ -60,13 +63,24 @@ export function useWorkbenchProjectCreation({
 	acquisition,
 	activateCreatedProject,
 	createProject,
+	createWorkspaceAtDirectory,
 	isCreatedProjectActive,
 	runtime,
 	scope,
 }: UseWorkbenchProjectCreationOptions): WorkbenchProjectCreationView {
 	const [pathFormOpen, setPathFormOpen] = React.useState(false);
 	const [path, setPath] = React.useState('');
-	const folderAcquisition = useProjectFolderAcquisition({ acquisition, createProject });
+	const [pathTitle, setPathTitle] = React.useState<string>();
+	const workspaceTarget = React.useRef<{ projectId: string } | null>(null);
+	const createFromPath = useMemoizedFn((selectedPath: string) => {
+		const target = workspaceTarget.current;
+		if (target === null) createProject(selectedPath);
+		else createWorkspaceAtDirectory(target.projectId, selectedPath);
+	});
+	const folderAcquisition = useProjectFolderAcquisition({
+		acquisition,
+		createProject: createFromPath,
+	});
 	const newFolder = useNewProjectFolder({
 		activateCreatedProject,
 		capability: acquisition?.newFolder,
@@ -75,6 +89,9 @@ export function useWorkbenchProjectCreation({
 		selectExisting: folderAcquisition.requestCreateProject,
 	});
 	const open = useMemoizedFn(({ folder }: WorkbenchProjectNewInput) => {
+		if (pending) return;
+		workspaceTarget.current = null;
+		setPathTitle(undefined);
 		if (folder === 'new') {
 			newFolder.open();
 		} else if (acquisition === undefined) {
@@ -84,7 +101,7 @@ export function useWorkbenchProjectCreation({
 			folderAcquisition.requestCreateProject();
 		}
 	});
-	const pending = folderAcquisition.selecting || newFolder.busy;
+	const pending = folderAcquisition.selecting || newFolder.busy || pathFormOpen;
 	const newFolderAvailable = acquisition?.newFolder !== undefined;
 
 	React.useEffect(() => {
@@ -120,10 +137,19 @@ export function useWorkbenchProjectCreation({
 
 	const closePathForm = useMemoizedFn(() => setPathFormOpen(false));
 	const submitPath = useMemoizedFn((submitted: string) => {
-		createProject(submitted);
+		createFromPath(submitted);
 		setPathFormOpen(false);
 	});
 	return {
+		requestWorkspaceDirectory: useMemoizedFn((projectId, title) => {
+			if (pending) return;
+			workspaceTarget.current = { projectId };
+			setPathTitle(title);
+			if (acquisition === undefined) {
+				setPath('');
+				setPathFormOpen(true);
+			} else folderAcquisition.requestCreateProject();
+		}),
 		dismissFailure: useMemoizedFn(() => {
 			folderAcquisition.dismissFailure();
 			newFolder.close();
@@ -132,6 +158,8 @@ export function useWorkbenchProjectCreation({
 			folderAcquisition.failure ??
 			(newFolder.state.kind === 'failed' ? newFolder.state.code : null),
 		newFolder,
-		pathForm: pathFormOpen ? { close: closePathForm, path, setPath, submit: submitPath } : null,
+		pathForm: pathFormOpen
+			? { close: closePathForm, path, setPath, submit: submitPath, title: pathTitle }
+			: null,
 	};
 }

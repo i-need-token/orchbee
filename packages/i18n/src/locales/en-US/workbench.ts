@@ -85,6 +85,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.drop.endOfProjects': 'End of Projects',
 	'workbench.projects.actions.collapse': 'Collapse project',
 	'workbench.projects.actions.create': 'Create Project',
+	'workbench.projects.actions.createWorkspaceAtDirectory': 'New Workspace in directory…',
 	'workbench.projects.actions.createWorkspace': 'New Workspace',
 	'workbench.projects.actions.expand': 'Expand project',
 	'workbench.projects.actions.manage': 'Manage Project…',

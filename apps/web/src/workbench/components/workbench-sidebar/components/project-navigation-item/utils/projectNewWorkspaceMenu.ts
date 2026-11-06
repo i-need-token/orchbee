@@ -75,16 +75,22 @@ export function projectNewWorkspaceMenu({
 			onSelect: () => createWorkspace({ directoryId: folder.id, projectId: project.id }),
 		}),
 	);
-	const leadingRows: WorkbenchActionMenuCommand[] = [];
-	if (folders.length === 0) {
-		leadingRows.push({
+	const leadingRows: WorkbenchActionMenuCommand[] = [
+		{
 			icon: 'add',
 			id: 'project-workspace',
 			kind: 'command',
 			label: messages.createWorkspace,
 			onSelect: () => createWorkspace({ projectId: project.id }),
-		});
-	}
+		},
+		{
+			icon: 'folder',
+			id: 'project-workspace-directory',
+			kind: 'command',
+			label: messages.createWorkspaceAtDirectory,
+			onSelect: () => createWorkspace({ projectId: project.id, selectDirectory: true }),
+		},
+	];
 	if (worktrees.create !== null) leadingRows.push(worktrees.create);
 	return {
 		groups: [

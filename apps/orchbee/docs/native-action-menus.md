@@ -274,7 +274,7 @@ unchanged source, and until that answer arrives the rows follow the first-openin
 query still in flight is awaited until its 10 s deadline. Git refusing the directory with exit status 128, as not in a repository
 or not trusted, is kept the same way for that exact directory only, since a folder outside Git may
 hold a repository below it: a later menu there omits New Worktree…, Open Worktree ▸ and their
-separator, and a Project's New Workspace ▸ omits New Worktree…. Any other probe failure, including one that ends without an exit status, is transient: it is not kept, and the next opening asks Git again. The current addressed answer also updates an already-open menu: a refusal or failed discovery removes both
+separator, and a Project's creation entries omit checkout choices. Any other probe failure, including one that ends without an exit status, is transient: it is not kept, and the next opening asks Git again. The current addressed answer also updates an already-open menu: a refusal or failed discovery removes both
 Git-only actions and their separator immediately, including on the first opening. A directory that
 becomes a repository regains them when discovery succeeds. Every membership change invalidates
 old pointer and keyboard draw proofs before the rebuilt menu accepts input. A sidebar row that shows a branch there outweighs a kept refusal. Otherwise a Workspace menu opened from a sidebar row that already shows a
@@ -290,7 +290,7 @@ they change only if the answer differs. Any other move, or a failed answer, remo
 move, because it holds its old facts until its own read arrives. A row chosen meanwhile waits for the
 new answer, bounded by discovery's 10 s deadline, and runs only against it; an answer that no longer offers
 the row, or a move out of the checkout, closes the menu with the localized unavailable notice.
-Success enables them, appends the Git Worktrees group to New Workspace ▸ and, when the
+Success enables them, appends the discovered paths to both Project creation entries and, when the
 Workspace directory is a linked non-bare checkout, appends a destructive Remove Worktree… after
 Close Workspace…. Git-only rows follow the current discovery result; unrelated actions preserve their identities. Completion changes availability
 under a fresh menu token and requires repaint; it never changes the candidate or the selected
@@ -404,8 +404,9 @@ The user wants to discover and execute existing actions without memorizing chord
 `MenuTarget::Project` carries a `WorkbenchProjectId`, never a label or row index.
 Admission freezes the complete canonical Project and, only when its ID matches the
 current Workspace's Project, that Workspace/Directory source. Empty Projects and
-Projects outside the current Workspace remain valid menu targets: their folder rows create a
-Workspace when the setup owner admits it, as do Project rename and organization-only Dissolve.
+Projects outside the current Workspace remain valid menu targets: default and directory creation
+use the exact Project when the setup owner admits them. Rename and organization-only Dissolve
+likewise target that Project without entering a child.
 Worktree actions separately freeze the derived addressed member and its complete source proof.
 The same Project and optional context proof must survive confirmation and handoff;
 an origin change or a replaced record cancels the episode rather than retargeting it.
@@ -422,12 +423,12 @@ The [native navigator](native-context-selection.md#capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 
-| Project context at opening                                   | Availability and effect                                                                                                                                        |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                                             |
-| An ungrouped Workspace, a different Project, or no Workspace | New Workspace ▸, rename and organization-only Dissolve target the exact Project; New Worktree… and Git Worktrees need its admitted derived first-member source |
-| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                                          |
-| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                                      |
+| Project context at opening                                   | Availability and effect                                                                                                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                                         |
+| An ungrouped Workspace, a different Project, or no Workspace | New Workspace ▸, rename and organization-only Dissolve target the exact Project; discovered checkout choices need its admitted derived first-member source |
+| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                                      |
+| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                                  |
 
 ## Transitions and cancellation
 

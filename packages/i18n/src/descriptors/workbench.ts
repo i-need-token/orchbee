@@ -794,6 +794,11 @@ export const workbenchMessages = defineMessages({
 			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.validationFailed'],
 		description: 'Failure shown when a selected Folder cannot be validated safely.',
 	},
+	projectCreateWorkspaceAtDirectory: {
+		id: 'workbench.projects.actions.createWorkspaceAtDirectory',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.createWorkspaceAtDirectory'],
+		description: 'Creates a Workspace in a selected directory within the addressed Project.',
+	},
 	projectCreateWorkspace: {
 		id: 'workbench.projects.actions.createWorkspace',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.createWorkspace'],

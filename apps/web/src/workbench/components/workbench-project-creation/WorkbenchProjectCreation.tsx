@@ -34,6 +34,7 @@ export function WorkbenchProjectCreation({
 					onPathChange={pathForm.setPath}
 					onSubmit={pathForm.submit}
 					path={pathForm.path}
+					title={pathForm.title}
 				/>
 			)}
 			{'parent' in newFolder.state ? (

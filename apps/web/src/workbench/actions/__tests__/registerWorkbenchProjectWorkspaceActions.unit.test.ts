@@ -261,29 +261,41 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		expect(projectWorkspaceRuntime.getSnapshot()).toBe(before);
 	});
 
-	it('enters a Workspace it created and gives its terminal the keyboard', async () => {
-		const complete = vi.fn<() => void>();
-		const { execute, projectWorkspaceRuntime } = createHarness(
-			{
-				create: () =>
-					Promise.resolve({ kind: 'completed', value: receiptFor(PRIMARY_WORKSPACE_ID) }),
-			},
-			{ complete, held: () => true },
-			undefined,
-			TWO_WORKSPACES,
-		);
-		enterFeatureWorkspace(projectWorkspaceRuntime);
+	it.each([
+		undefined,
+		{ projectId: FIRST_PROJECT_ID },
+		{ projectId: FIRST_PROJECT_ID, path: '/chosen' },
+	])(
+		'reveals a created Workspace in a folded Project and gives its terminal the keyboard: %j',
+		async (input) => {
+			const complete = vi.fn<() => void>();
+			const { execute, projectWorkspaceRuntime } = createHarness(
+				{
+					create: () =>
+						Promise.resolve({ kind: 'completed', value: receiptFor(PRIMARY_WORKSPACE_ID) }),
+				},
+				{ complete, held: () => true },
+				undefined,
+				TWO_WORKSPACES,
+			);
+			enterFeatureWorkspace(projectWorkspaceRuntime);
+			projectWorkspaceRuntime.transition({
+				type: 'project-expansion-toggled',
+				projectId: FIRST_PROJECT_ID,
+			});
 
-		await expect(execute(WORKBENCH_ACTION_IDS.createWorkspace, undefined)).resolves.toEqual({
-			kind: 'completed',
-		});
+			await expect(execute(WORKBENCH_ACTION_IDS.createWorkspace, input)).resolves.toEqual({
+				kind: 'completed',
+			});
 
-		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
-			kind: 'workspace',
-			workspaceId: PRIMARY_WORKSPACE_ID,
-		});
-		expect(complete).toHaveBeenCalledOnce();
-	});
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				workspaceId: PRIMARY_WORKSPACE_ID,
+			});
+			expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toContain(FIRST_PROJECT_ID);
+			expect(complete).toHaveBeenCalledOnce();
+		},
+	);
 
 	it('gives the keyboard to a first Workspace the read model already entered', async () => {
 		const complete = vi.fn<() => void>();

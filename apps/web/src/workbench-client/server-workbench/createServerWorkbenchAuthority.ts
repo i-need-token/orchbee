@@ -213,6 +213,11 @@ function launchPlan(
 				directory: creation.path,
 				placement: { kind: 'new-project', label: creation.projectName },
 			};
+		case 'workspace-created-at-path':
+			return {
+				directory: creation.path,
+				placement: { kind: 'project', projectId: creation.projectId },
+			};
 		case 'workspace-created': {
 			const directory = snapshot.navigation.directories.find(
 				(candidate) => candidate.directoryId === creation.directoryId,

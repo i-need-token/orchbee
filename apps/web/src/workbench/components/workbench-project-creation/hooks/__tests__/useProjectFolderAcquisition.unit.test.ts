@@ -19,8 +19,54 @@ import type {
 } from '../../../../types/workbench-project-folder-acquisition';
 import { useProjectFolderAcquisition } from '../useProjectFolderAcquisition';
 import { useNewProjectFolder } from '../useNewProjectFolder';
+import { useWorkbenchProjectCreation } from '../useWorkbenchProjectCreation';
 
 afterEach(cleanup);
+
+it.each([true, false])(
+	'creates a Workspace in its captured Project through folder selection or path entry: %s',
+	async (native) => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('workspace-directory');
+		const createWorkspaceAtDirectory = vi.fn<(projectId: string, path: string) => void>();
+		const project = testAction<WorkbenchProjectCreationReceipt>({
+			kind: 'blocked',
+			code: 'unexpected-project',
+		});
+		const createProject = vi.fn<typeof project.execute>(() => project.execute());
+		const rendered = renderHook(() =>
+			useWorkbenchProjectCreation({
+				acquisition: native
+					? { selectExistingFolder: () => Promise.resolve({ kind: 'selected', path: '/chosen' }) }
+					: undefined,
+				activateCreatedProject: () => testAction<void>({ kind: 'completed' }).execute(),
+				createProject,
+				createWorkspaceAtDirectory,
+				isCreatedProjectActive: () => false,
+				runtime,
+				scope,
+			}),
+		);
+		await act(async () =>
+			rendered.result.current.requestWorkspaceDirectory(
+				'addressed-project',
+				'New Workspace in directory',
+			),
+		);
+		expect(rendered.result.current.pathForm?.title).toBe(
+			native ? undefined : 'New Workspace in directory',
+		);
+		if (!native) {
+			act(() => rendered.result.current.pathForm?.submit('/chosen'));
+		}
+		expect(createWorkspaceAtDirectory).toHaveBeenCalledExactlyOnceWith(
+			'addressed-project',
+			'/chosen',
+		);
+		expect(createProject).not.toHaveBeenCalled();
+		expect(rendered.result.current.pathForm).toBeNull();
+	},
+);
 
 describe('New Folder Action ownership', () => {
 	it.each([true, false])(

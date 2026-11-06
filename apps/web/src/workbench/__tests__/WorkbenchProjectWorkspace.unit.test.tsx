@@ -1337,6 +1337,54 @@ describe('Workbench Project and Workspace management', () => {
 		expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]);
 	});
 
+	it.each(['button', 'context'])(
+		'reveals a Workspace created in a directory from a folded Project %s menu',
+		async (entry) => {
+			const projectWorkspaceRuntime = createSnapshotRuntime(orchbeeSnapshot(1));
+			projectWorkspaceRuntime.transition({
+				type: 'project-expansion-toggled',
+				projectId: fixtureProjectId(1),
+			});
+			const create = publishingCreate(
+				projectWorkspaceRuntime,
+				orchbeeSnapshot(2, ['Primary', 'chosen']),
+				2,
+			);
+			renderWorkbench({
+				authority: inertWorkbenchAuthority({ create }),
+				projectFolderAcquisition: {
+					selectExistingFolder: async () => ({ kind: 'selected', path: '/chosen' }),
+				},
+				projectWorkspaceRuntime,
+			});
+			if (entry === 'button') {
+				fireEvent.click(screen.getByRole('button', { name: 'New Workspace: orchbee' }));
+			} else {
+				const row = screen
+					.getByRole('button', { name: 'Project options: orchbee' })
+					.closest<HTMLElement>('[data-slot="context-menu-trigger"]');
+				if (row === null) throw new Error('Expected the Project row.');
+				fireEvent.contextMenu(row, { clientX: 120, clientY: 160 });
+				fireEvent.click(await screen.findByRole('menuitem', { name: /^New Workspace$/u }));
+			}
+			fireEvent.click(await screen.findByRole('menuitem', { name: 'New Workspace in directory…' }));
+			await waitFor(() =>
+				expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+					kind: 'workspace',
+					workspaceId: fixtureWorkspaceId(2),
+				}),
+			);
+			expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toContain(
+				fixtureProjectId(1),
+			);
+			expect(create).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+				path: '/chosen',
+				projectId: fixtureProjectId(1),
+				type: 'workspace-created-at-path',
+			});
+		},
+	);
+
 	it('selects the Workspace created from a current Project Folder', async () => {
 		const projectWorkspaceRuntime = createSnapshotRuntime(orchbeeSnapshot(1));
 		const create = publishingCreate(
