@@ -10,6 +10,7 @@ use crate::{
     client_view::Modifiers,
     terminal_events::{MouseAction, MouseButton, MouseEvent},
 };
+use std::time::Instant;
 
 /// Whether the settled outer transport can report button-free movement.
 ///
@@ -29,6 +30,7 @@ struct Arm {
     column: u16,
     row: u16,
     cancelled: bool,
+    second_click: bool,
 }
 
 impl Arm {
@@ -117,6 +119,7 @@ pub(super) struct State {
     position: Option<(u16, u16)>,
     hovered: Option<Fingerprint>,
     arm: Option<Arm>,
+    last_click: Option<(Fingerprint, u16, u16, Instant)>,
     revision: u64,
     redraw_after_publish: bool,
 }
@@ -209,6 +212,7 @@ impl State {
         &mut self,
         map: Option<&FrameHitMap>,
         event: MouseEvent,
+        now: Instant,
         admit_new: bool,
         accepts: fn(&InteractionTarget) -> bool,
     ) -> Event {
@@ -230,10 +234,14 @@ impl State {
                 if !was_active {
                     return Event::Captured;
                 }
+                let moved = (arm.column, arm.row) != (event.column, event.row);
                 arm.column = event.column;
                 arm.row = event.row;
                 let current = map.is_some_and(|map| arm.matches_map(map, event.column, event.row));
-                if !current {
+                if !current
+                    || (arm.fingerprint.spec.primary == PrimaryContract::ActivateOnDoubleClick
+                        && moved)
+                {
                     arm.cancel();
                 }
                 if was_active && !arm.active() {
@@ -247,18 +255,33 @@ impl State {
                 let arm = self.arm.take().expect("checked above");
                 let current = map.is_some_and(|map| arm.matches_map(map, event.column, event.row));
                 let admitted = arm.active()
+                    && (arm.fingerprint.spec.primary != PrimaryContract::ActivateOnDoubleClick
+                        || (arm.column, arm.row) == (event.column, event.row))
                     && current
                     && (arm.backdrop
                         || super::contains(arm.fingerprint.paint_rect, event.column, event.row));
                 if was_active {
                     self.changed();
                 }
+                if admitted
+                    && arm.fingerprint.spec.primary == PrimaryContract::ActivateOnDoubleClick
+                {
+                    if arm.second_click {
+                        return Event::Intent {
+                            target: Box::new(arm.fingerprint.target),
+                            contract: PrimaryContract::ActivateOnRelease,
+                        };
+                    }
+                    self.last_click = Some((arm.fingerprint, event.column, event.row, now));
+                    return Event::Ended;
+                }
+                self.last_click = None;
                 return if admitted
                     && arm.fingerprint.spec.primary == PrimaryContract::ActivateOnRelease
                 {
                     Event::Intent {
                         target: Box::new(arm.fingerprint.target),
-                        contract: arm.fingerprint.spec.primary,
+                        contract: PrimaryContract::ActivateOnRelease,
                     }
                 } else {
                     Event::Ended
@@ -296,6 +319,11 @@ impl State {
             }
         }
 
+        let previous_click = if event.action == MouseAction::Press {
+            self.last_click.take()
+        } else {
+            None
+        };
         if event.action != MouseAction::Press
             || event.button != MouseButton::Left
             || event.mods != Modifiers::NONE
@@ -328,6 +356,7 @@ impl State {
                 column: event.column,
                 row: event.row,
                 cancelled: true,
+                second_click: false,
             });
             return Event::Captured;
         }
@@ -335,6 +364,11 @@ impl State {
             return Event::Ignored;
         }
 
+        let second_click = previous_click.is_some_and(|(previous, column, row, at)| {
+            previous == fingerprint
+                && (column, row) == (event.column, event.row)
+                && now.saturating_duration_since(at) <= super::DOUBLE_CLICK_INTERVAL
+        });
         let contract = fingerprint.spec.primary;
         let target = fingerprint.target.clone();
         self.arm = Some(Arm {
@@ -343,6 +377,7 @@ impl State {
             column: event.column,
             row: event.row,
             cancelled: false,
+            second_click,
         });
         self.changed();
         if contract == PrimaryContract::SelectOnPress {
@@ -392,6 +427,15 @@ impl State {
     /// bounded repaint.
     pub(super) fn publish(&mut self, map: &FrameHitMap) -> bool {
         if self
+            .last_click
+            .as_ref()
+            .is_some_and(|(fingerprint, column, row, _)| {
+                map.interaction_at(*column, *row).as_ref() != Some(fingerprint)
+            })
+        {
+            self.last_click = None;
+        }
+        if self
             .arm
             .as_mut()
             .is_some_and(|arm| arm.active() && arm.follow_reveal(map))
@@ -421,6 +465,7 @@ impl State {
     /// Structural invalidation clears presented authority but retains an
     /// observed position for resolution against the next successful frame.
     pub(super) fn invalidate_map(&mut self) {
+        self.last_click = None;
         self.replace_hover(None);
         self.cancel_arm();
         self.redraw_after_publish = false;
@@ -430,6 +475,7 @@ impl State {
     /// restoration cannot synthesize hover.
     pub(super) fn clear_transport(&mut self) {
         self.position = None;
+        self.last_click = None;
         self.replace_hover(None);
         self.cancel_arm();
         self.redraw_after_publish = false;

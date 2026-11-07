@@ -713,7 +713,7 @@ impl PointerState {
         let admit_new = self.can_admit_interaction();
         match self
             .interactions
-            .event(self.map.as_ref(), event, admit_new, accepts)
+            .event(self.map.as_ref(), event, Instant::now(), admit_new, accepts)
         {
             interaction::Event::Captured if idle_motion => PointerOutcome::IdleMotion {
                 changed: interaction_revision != self.interactions.revision(),
@@ -1703,6 +1703,7 @@ impl PointerState {
         match self.interactions.event(
             self.map.as_ref(),
             event,
+            now,
             admit_new,
             InteractionTarget::is_global_chrome,
         ) {

@@ -230,3 +230,93 @@ fn project_create_entry_uses_the_existing_exact_machine_and_session_menu_admissi
         assert!(port.actions.is_empty() && port.forwarded.is_empty());
     }
 }
+
+/// The two blank surfaces must share the create owner without turning a lone click,
+/// a drag, a slow pair or clicks across changed drawing authority into creation.
+#[test]
+fn blank_tab_creation_requires_two_current_unmodified_clicks() {
+    for change in 0..12 {
+        let area = Rect::new(10, 0, 50, 10);
+        let blank_map = |source| {
+            let mut hits = HitMapBuilder::new();
+            hits.record_interaction(
+                HitLayer::Foreground,
+                area,
+                area,
+                InteractionTarget::TabCreate(source),
+                InteractionSpec::enabled(PrimaryContract::ActivateOnDoubleClick),
+            );
+            hits.finish()
+        };
+        let mut pointer = PointerState::default();
+        let mut view = ClientView::new(120);
+        let mut port = RecordingPort::default();
+        pointer.set_capture(true);
+        pointer.publish(blank_map(target()));
+        let now = Instant::now();
+        let press = event(MouseAction::Press, MouseButton::Left, 20, 2);
+        let release = event(MouseAction::Release, MouseButton::Left, 20, 2);
+        pointer.event(&mut view, &mut port, now, press);
+        assert!(!requested(
+            &pointer.event(&mut view, &mut port, now, release),
+            &target()
+        ));
+        let mut second_press = press;
+        let mut second_release = release;
+        let mut later = now + Duration::from_millis(100);
+        match change {
+            0 => {}
+            1 => later = now + Duration::from_millis(351),
+            2 => {
+                second_press.column += 1;
+                second_release.column += 1;
+            }
+            3 => {
+                second_press.mods = Modifiers::CTRL;
+                second_release.mods = Modifiers::CTRL;
+            }
+            4 => {
+                pointer.invalidate_map();
+                pointer.publish(blank_map(target()));
+            }
+            5 => {
+                pointer.set_capture(false);
+                pointer.set_capture(true);
+            }
+            6 => {
+                let mut changed = target();
+                changed.source.revision = WorkbenchRevision::new(2);
+                pointer.publish(blank_map(changed));
+            }
+            7 => {
+                pointer.event(
+                    &mut view,
+                    &mut port,
+                    now,
+                    event(MouseAction::Press, MouseButton::Right, 20, 2),
+                );
+            }
+            8 => port.probe.input_captured = true,
+            9 => pointer.publish(blank_map(target())), // an unchanged repaint preserves the pair
+            10 => second_release.column += 1,
+            11 => {
+                let mut hits = HitMapBuilder::new();
+                hits.mark_overlay_active();
+                pointer.publish(hits.finish());
+            }
+            _ => unreachable!(),
+        }
+        pointer.event(&mut view, &mut port, later, second_press);
+        let outcome = pointer.event(&mut view, &mut port, later, second_release);
+        assert_eq!(
+            requested(&outcome, &target()),
+            matches!(change, 0 | 9),
+            "case {change}"
+        );
+        assert!(!requested(
+            &pointer.event(&mut view, &mut port, later, release),
+            &target()
+        ));
+        assert!(port.actions.is_empty() && port.forwarded.is_empty());
+    }
+}

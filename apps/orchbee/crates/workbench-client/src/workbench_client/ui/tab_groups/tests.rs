@@ -656,7 +656,12 @@ fn tab_group_strip_reserves_quick_add_paint_and_hits_after_expanded_or_collapsed
                             match hits.hit_target_at(x, y) {
                                 Some(HitTarget::TabCreate(target)) => {
                                     assert_eq!(target, &expected);
-                                    create_cells.push((x, y));
+                                    if hits.interaction_at(x, y).is_some_and(|fingerprint| {
+                                        fingerprint.spec.primary
+                                            == crate::tui_hit_map::PrimaryContract::ActivateOnRelease
+                                    }) {
+                                        create_cells.push((x, y));
+                                    }
                                 }
                                 Some(HitTarget::TabGroup { .. }) => {
                                     saw_header = true;

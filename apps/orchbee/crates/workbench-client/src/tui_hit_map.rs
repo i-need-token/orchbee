@@ -41,6 +41,8 @@ pub enum InteractionAvailability {
 pub enum PrimaryContract {
     /// Arm on press and emit the semantic intent on a matching release.
     ActivateOnRelease,
+    /// Two complete clicks on the same cell; emits an ActivateOnRelease intent.
+    ActivateOnDoubleClick,
     /// Emit one provisional navigation intent on press; release only ends ownership.
     SelectOnPress,
     /// Hover may project here, but a dedicated gesture state machine owns presses.

@@ -20,6 +20,13 @@ owns untracked-pane selection and its copy lifecycle.
 
 Native [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
 
+Double-clicking the blank trailing Tab strip or the content area with no current Tab invokes the
+same default Tab creation owner as `[+]`. A single click is inert. Two complete plain-left clicks
+must address the same cell and painted source, with at most 350 ms from the first release to the
+second press. Dragging, another press, changed source/geometry/occlusion, focus loss or capture
+release cancels the pair. Pane content with a current Tab keeps its program/selection owner.
+This is a native pointer shortcut; the GUI retains its existing New Tab control and keyboard action.
+
 Native [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navigation) owns
 press/drag/release, selected membership, group boundaries and static feedback. InputDispatcher
 captures the release packet's keys, paste and pending fragments for both commit and cancellation.

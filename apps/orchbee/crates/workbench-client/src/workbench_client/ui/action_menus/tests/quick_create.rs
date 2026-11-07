@@ -66,8 +66,10 @@ fn tab_strip_create_is_disjoint_from_tabs_breadcrumb_and_hidden_tiers() {
                 let cells: Vec<_> = (0..width)
                     .filter(|x| {
                         matches!(
-                            hits.hit_target_at(*x, 0),
-                            Some(crate::tui_hit_map::HitTarget::TabCreate(_))
+                            hits.interaction_at(*x, 0),
+                            Some(fingerprint)
+                                if matches!(fingerprint.target, crate::tui_hit_map::InteractionTarget::TabCreate(_))
+                                    && fingerprint.spec.primary == crate::tui_hit_map::PrimaryContract::ActivateOnRelease
                         )
                     })
                     .collect();
@@ -89,6 +91,81 @@ fn tab_strip_create_is_disjoint_from_tabs_breadcrumb_and_hidden_tiers() {
                     )));
                 } else {
                     assert!(cells.is_empty());
+                }
+            }
+        }
+    }
+}
+
+/// Register both native shortcuts only where there is no competing pane or chrome owner.
+#[test]
+fn blank_creation_regions_preserve_live_panes_and_exact_context() {
+    use crate::tui_hit_map::{HitTarget, InteractionTarget, PrimaryContract};
+    for empty in [false, true] {
+        for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+                    let mut snapshot = tests::context_selection::snapshot(false);
+                    if empty {
+                        for context in &mut snapshot.terminal_contexts {
+                            context.tabs.clear();
+                        }
+                    }
+                    let ui = if empty {
+                        crate::workbench_client::ui::tests::quick_workspace::empty_ui(snapshot).0
+                    } else {
+                        tests::move_membership::ready_ui_with_snapshot(snapshot).0
+                    };
+                    let view = ClientView::new(width);
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    terminal
+                        .draw(|frame| {
+                            crate::tui_render::render_terminal_shell(
+                                frame,
+                                &view,
+                                locale,
+                                Some(ui.view()),
+                                &theme,
+                                &mut hits,
+                            );
+                        })
+                        .unwrap();
+                    let hits = hits.finish();
+                    let mut strip = 0;
+                    let mut content = 0;
+                    for row in 0..height {
+                        for column in 0..width {
+                            let Some(fingerprint) = hits.interaction_at(column, row) else {
+                                continue;
+                            };
+                            if fingerprint.spec.primary != PrimaryContract::ActivateOnDoubleClick {
+                                continue;
+                            }
+                            assert_eq!(
+                                fingerprint.target,
+                                InteractionTarget::TabCreate(
+                                    ui.view().tab_create_target().unwrap()
+                                )
+                            );
+                            assert!(!matches!(
+                                hits.hit_target_at(column, row),
+                                Some(HitTarget::Pane { .. })
+                            ));
+                            if row == 0 {
+                                strip += 1;
+                            } else {
+                                content += 1;
+                            }
+                        }
+                    }
+                    if width >= 80 && height >= 24 {
+                        assert!(strip > 0);
+                        assert_eq!(content > 0, empty);
+                    }
+                    if !empty {
+                        assert_eq!(content, 0);
+                    }
                 }
             }
         }

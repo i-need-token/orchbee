@@ -1505,6 +1505,17 @@ fn render_native_workbench(
     }
 
     let content_area = native_terminal_area(panel_area, pane_frame);
+    if active_tab.is_none()
+        && let Some(target) = native.tab_create_target()
+    {
+        hits.record_interaction(
+            HitLayer::Foreground,
+            content_area,
+            content_area,
+            InteractionTarget::TabCreate(target),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnDoubleClick),
+        );
+    }
     if last_tab_leaving {
         let empty = locale.native_phase_status_values(
             DisplayPhase::Empty,
@@ -2113,6 +2124,17 @@ fn render_tab_strip(
             ),
         )
     };
+    if let Some(target) = tab_source {
+        let start = (create_offset + create_width).min(strip.width);
+        let blank = Rect::new(strip.x + start, strip.y, strip.width - start, strip.height);
+        hits.record_interaction(
+            HitLayer::Foreground,
+            blank,
+            blank,
+            InteractionTarget::TabCreate(target),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnDoubleClick),
+        );
+    }
     if let Some(target) = create_target {
         let offset = create_offset.min(strip.width - 3);
         let offered = Rect::new(strip.x + offset, strip.y, 3, 1);
