@@ -1,8 +1,10 @@
 # Native Tab groups and capability coverage
 
 The native TUI projects canonical group identities, names, colors, membership and pinned
-state. The compact strip renders a separate group header whose reserved disclosure cell shows its
-arrow on hover or while collapsed.
+state. The compact strip and the Mobile tier's Tab list render each group header with its disclosure
+arrow in both states: `▾` while expanded, `▸` while collapsed, and `v` or `>` in ASCII. An expanded
+group's members carry a rule in the group's color, the tree guide `│` (`|` in ASCII), in their
+leading cell.
 The Tab menu holds only actions on its Tab: rename, pinning, group membership and close.
 Group headers and the new-Tab button own separate menus; selection and movement use Ctrl+click,
 dragging and the global menu.
@@ -124,9 +126,9 @@ Escape, outside release, modified pointer input, focus loss, capture release, co
 source or changed painted rectangles cancels without a write. Cancelled gestures consume their
 remaining release. Ordinary clicks activate or disclose on release. As with native marking,
 dragging preserves the current terminal; the GUI may activate a dragged member on press.
-Headers carry no member count or brackets: the tint and adjacency mark membership. A collapsed header
-retains name, color and disclosure, takes the current surface while it hides the active Tab, and
-carries its members' most urgent Agent state and unread dot.
+Headers carry no member count or brackets: the tint, adjacency and each expanded member's rule mark
+membership. A collapsed header retains name, color and disclosure, takes the current surface while
+it hides the active Tab, and carries its members' most urgent Agent state and unread dot.
 
 The pure configuration corpus compares ten drag outcomes with GUI `TabModel.moveTabsByDrag`.
 The Rust selection/boundary matrix checks pinned prefix, contiguous groups and preserved terminal

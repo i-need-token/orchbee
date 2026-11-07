@@ -1307,7 +1307,37 @@ fn history_indicators_clear_and_show_without_position() {
 // `Entering` keeps the last verified live frame beneath the loading badge.
 #[test]
 fn history_entering_keeps_the_live_frame() {
-    let live = TerminalTextFrame {
+    let live = entering_live_frame(vec![TerminalTextRow {
+        prompt_class: 0,
+        index: 0,
+        flags: 0,
+        cells: "live-tail"
+            .chars()
+            .map(|c| TerminalTextCell {
+                text: c.to_string().into(),
+                style: TerminalTextStyle {
+                    foreground: 0,
+                    background: 0,
+                    underline_color: 0,
+                    flags: 0,
+                    underline: 0,
+                },
+                width: 0,
+            })
+            .collect(),
+    }]);
+    let rows = render_viewport(40, 8, ViewportSurface::Entering, Some(&live), Locale::EnUs);
+    let joined = rows.concat();
+    assert!(
+        joined.contains("live-tail"),
+        "live frame preserved: {rows:?}"
+    );
+    assert!(joined.contains("Loading history…"), "{rows:?}");
+}
+
+/// A live frame of forty-column rows that `Entering` paints beneath its loading badge.
+fn entering_live_frame(rows: Vec<TerminalTextRow>) -> TerminalTextFrame {
+    TerminalTextFrame {
         route: TerminalFrameRoute {
             attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
             host_epoch: HostEpoch::from_bytes([9; 16]).expect("epoch"),
@@ -1341,33 +1371,67 @@ fn history_entering_keeps_the_live_frame() {
         command_observation: None,
         title: None,
         current_directory: None,
-        rows: vec![TerminalTextRow {
-            prompt_class: 0,
-            index: 0,
-            flags: 0,
-            cells: "live-tail"
-                .chars()
-                .map(|c| TerminalTextCell {
-                    text: c.to_string().into(),
-                    style: TerminalTextStyle {
-                        foreground: 0,
-                        background: 0,
-                        underline_color: 0,
-                        flags: 0,
-                        underline: 0,
-                    },
-                    width: 0,
-                })
-                .collect(),
-        }],
+        rows,
+    }
+}
+
+/// The loading badge paints the leaf's first row over the live frame that `Entering` keeps. It
+/// blanks the wide glyph it crosses and clears the child styles under its own columns only.
+#[test]
+fn loading_badge_clears_child_styles_text_and_crossing_wide_cells() {
+    use ratatui::style::Modifier;
+    let styled = |text: &str, width: u8| TerminalTextCell {
+        text: text.into(),
+        style: TerminalTextStyle {
+            foreground: 0,
+            background: 0x123456,
+            underline_color: 0,
+            flags: 1 | 2 | 16 | 32 | 64,
+            underline: 1,
+        },
+        width,
     };
-    let rows = render_viewport(40, 8, ViewportSurface::Entering, Some(&live), Locale::EnUs);
-    let joined = rows.concat();
-    assert!(
-        joined.contains("live-tail"),
-        "live frame preserved: {rows:?}"
-    );
-    assert!(joined.contains("Loading history…"), "{rows:?}");
+    let mut live_rows: Vec<TerminalTextRow> = (0..3)
+        .map(|index| TerminalTextRow {
+            prompt_class: 0,
+            index,
+            flags: 0,
+            cells: (0..40).map(|_| styled("X", 0)).collect(),
+        })
+        .collect();
+    // The loading badge spans 18 columns of this 40-column leaf, so it begins at column 22, inside
+    // the wide glyph whose head sits at column 21.
+    live_rows[0].cells[21] = styled("界", 1);
+    live_rows[0].cells[22] = styled("", 2);
+    let live = entering_live_frame(live_rows);
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 3)));
+    infallible(terminal.draw(|frame| {
+        super::viewport::render(
+            frame,
+            Rect::new(0, 0, 40, 3),
+            ViewportSurface::Entering,
+            Some(&live),
+            false,
+            Locale::EnUs,
+            &theme,
+        );
+    }));
+    let buffer = terminal.backend().buffer();
+    assert!(buffer[(0, 0)].modifier.contains(Modifier::HIDDEN));
+    assert!(buffer[(0, 1)].modifier.contains(Modifier::HIDDEN));
+    assert_eq!(buffer[(21, 0)].symbol(), " ");
+    let leaked = Modifier::BOLD
+        | Modifier::ITALIC
+        | Modifier::REVERSED
+        | Modifier::HIDDEN
+        | Modifier::CROSSED_OUT
+        | Modifier::UNDERLINED;
+    for x in 22..40 {
+        assert!(!buffer[(x, 0)].modifier.intersects(leaked));
+    }
+    let rows = buffer_rows(&terminal, 40, 3);
+    assert!(rows[0].contains("Loading history…"), "{rows:?}");
 }
 
 #[test]

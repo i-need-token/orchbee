@@ -60,9 +60,9 @@ bytes. A GUI on a native Session names Tabs and terminals by this rule too, and
 Automatic rename drafts start empty with the same current display name as an informational
 placeholder; only typed text can submit. Fixed names prefill the editor. The native TUI shows the
 rename draft in its modal Rename Tab dialog, whose target line names the Tab's current label. Enter
-submits and Esc cancels, under the same exact shown token and input fences. Padding alone never
-renames a fixed Tab: a padded copy of its current name is unchanged, and a whitespace-only name is
-refused.
+submits the name with leading and trailing whitespace trimmed, as the GUI does, and Esc cancels,
+under the same exact shown token and input fences. A trimmed copy of a fixed Tab's current name is
+unchanged, and a whitespace-only name is refused.
 
 [Panel display names](native-panel-labels.md#automatic-display-names) reuse this terminal naming
 rule for the Panel's primary Presentation, even when the displayed terminal is a child. They

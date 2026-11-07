@@ -197,7 +197,8 @@ pub struct GlyphSet {
     /// Project disclosure, with one-cell ASCII fallbacks.
     pub(crate) disclosure_open: &'static str,
     pub(crate) disclosure_closed: &'static str,
-    /// One-cell vertical guide connecting sibling Agents to their Workspace.
+    /// One-cell vertical guide connecting sibling Agents to their Workspace, and an expanded Tab
+    /// Group's members to its header.
     pub(crate) tree_guide: &'static str,
     /// The sidebar toggle's glyph while it hides the visible sidebar and while it shows the hidden
     /// one. The ASCII forms appear only inside that bracketed toggle, never in a marker track.

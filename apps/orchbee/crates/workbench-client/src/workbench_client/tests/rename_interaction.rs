@@ -367,7 +367,7 @@ fn clipped_draw_suspends_draft_and_cancelled_paste_keeps_its_frame_until_the_bou
 }
 
 #[test]
-fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars() -> TestResult {
+fn maximum_atomic_paste_draws_sanitized_cells_but_submits_trimmed_original_scalars() -> TestResult {
     let geometry = fixture_geometry()?;
     let server = RenameServer::start(geometry)?;
     let (mut workbench_client, _) =
@@ -428,7 +428,7 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars
             .collect();
         // The field draws only the cursor's window over the projection — a
         // contiguous run of whole graphemes bounded by the inner width —
-        // while the raw draft and its exact submission keep the full text.
+        // while the raw draft keeps the full text and a submit sends it trimmed.
         let projected = crate::terminal_text::sanitize_terminal_text(&label);
         let tail: String = projected
             .chars()
@@ -454,7 +454,7 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars
     });
     let commands = server.commands.lock().unwrap();
     assert!(
-        matches!(&commands[0].action, WorkbenchAction::TabRename {label: submitted, ..} if submitted.as_str() == label)
+        matches!(&commands[0].action, WorkbenchAction::TabRename {label: submitted, ..} if submitted.as_str() == label.trim())
     );
     drop(commands);
     server.finish(workbench_client)?;

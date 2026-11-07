@@ -83,7 +83,7 @@ fn rename_operation(state: &mut WorkbenchClientState, text: &str) -> RenameOpera
 }
 
 #[test]
-fn rename_operation_captures_exact_request_intent_and_original_deadline() {
+fn rename_operation_captures_trimmed_request_intent_and_original_deadline() {
     let mut state = ready(2);
     let operation = rename_operation(&mut state, " 雪e\u{301}\t ");
     let copy = operation.clone();
@@ -94,7 +94,7 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
     assert_eq!(
         operation.update(),
         &super::super::rename_draft::RenameUpdate::Tab(
-            WorkbenchLabel::parse(" 雪e\u{301}\t ").unwrap()
+            WorkbenchLabel::parse("雪e\u{301}").unwrap()
         )
     );
     assert_eq!(operation.baseline(), state.cache());
@@ -114,7 +114,7 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
                 action: orchbee_workbench_protocol::WorkbenchAction::TabRename {
                     terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),
                     tab_id: state.tab(0).unwrap().tab_id().clone(),
-                    label: WorkbenchLabel::parse(" 雪e\u{301}\t ").unwrap(),
+                    label: WorkbenchLabel::parse("雪e\u{301}").unwrap(),
                 },
             },
         )
@@ -245,7 +245,7 @@ fn rename_preparation_keeps_known_commit_when_exact_projection_is_invalid() {
     let mut state = ready(2);
     let operation = rename_operation(&mut state, " 雪 ");
     let mut candidate = snapshot(2, 2, None);
-    candidate.terminal_contexts[0].tabs[0].label = " 雪 ".into();
+    candidate.terminal_contexts[0].tabs[0].label = "雪".into();
     let prepared = operation.prepare(RenameResult::Committed {
         revision: WorkbenchRevision::new(2),
         outcome: WorkbenchSnapshotOutcome::Available {

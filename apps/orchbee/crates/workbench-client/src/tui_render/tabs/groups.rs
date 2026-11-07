@@ -100,6 +100,8 @@ pub(super) struct Token {
     pub(super) index: usize,
     /// The header of the group this token belongs to.
     pub(super) header: Option<usize>,
+    /// The expanded group this Tab belongs to, whose rule paints the Tab's leading cell.
+    pub(super) rule: Option<TabGroupColor>,
     pub(super) agent: Option<TabAgent>,
     /// Each distinct state behind `agent`, most urgent first.
     pub(super) states: Vec<MetadataState>,
@@ -109,6 +111,8 @@ pub(super) struct Token {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Piece {
     Pad,
+    /// An expanded group's rule, painted in its member's leading cell.
+    Rule,
     Glyph,
     Label,
     Unread,
@@ -199,7 +203,11 @@ impl Token {
             let Some(room) = budget.checked_sub(fixed).filter(|room| *room >= least) else {
                 continue;
             };
-            let mut pieces = vec![(" ".to_owned(), Piece::Pad)];
+            // A member's leading cell carries its group's rule, the same single cell as a pad.
+            let mut pieces = vec![match self.rule {
+                Some(_) => (theme.glyphs.tree_guide.to_owned(), Piece::Rule),
+                None => (" ".to_owned(), Piece::Pad),
+            }];
             if let Some(glyph) = &glyph {
                 pieces.push((glyph.clone(), Piece::Glyph));
                 pieces.push((" ".to_owned(), Piece::Pad));
@@ -258,6 +266,7 @@ pub(super) fn tokens(
                 tokens.push(Token {
                     index: index + active.unwrap_or(0),
                     header: None,
+                    rule: None,
                     agent: summarize(hidden.into_iter()),
                     states,
                     kind: Kind::Header {
@@ -286,6 +295,8 @@ pub(super) fn tokens(
         tokens.push(Token {
             index,
             header: current_header,
+            // Only members of an expanded group reach this point; a collapsed group skips them.
+            rule: item.group.map(|group| group.color),
             agent: item.agent,
             states: item.agent.map(|agent| agent.state).into_iter().collect(),
             kind: Kind::Tab {
@@ -300,6 +311,7 @@ pub(super) fn tokens(
             tokens.push(Token {
                 index,
                 header: None,
+                rule: None,
                 agent: None,
                 states: Vec::new(),
                 kind: Kind::Divider,
@@ -701,9 +713,7 @@ fn paint_token<C, P, R>(
                 Kind::Header {
                     collapsed: true, ..
                 } => theme.glyphs.disclosure_closed,
-                Kind::Header { .. } if pointer != ProjectedPointer::Rest => {
-                    theme.glyphs.disclosure_open
-                }
+                Kind::Header { .. } => theme.glyphs.disclosure_open,
                 _ => text,
             },
             _ => text,
@@ -828,6 +838,12 @@ fn piece_style(
                             ),
                     };
                 }
+                Piece::Rule => (
+                    None,
+                    token.rule.map_or_else(Style::new, |color| {
+                        Style::new().fg(theme.tab_groups.accent(color))
+                    }),
+                ),
                 Piece::Pad | Piece::Arrow | Piece::Close => (None, Style::new()),
             };
             theme.content_on_surface(Role::SurfaceStrip, surface, role, content)
@@ -853,7 +869,7 @@ fn piece_style(
                     )
                 }),
                 Piece::Unread => (Some(Role::StatusUnread), theme.style(Role::StatusUnread)),
-                Piece::Pad | Piece::Close => (None, Style::new()),
+                Piece::Pad | Piece::Rule | Piece::Close => (None, Style::new()),
             };
             theme.tab_group_header_style(*color, surface, role, content)
         }

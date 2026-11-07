@@ -1,8 +1,9 @@
 //! The Mobile tier's Tab list: today's Tab strip turned vertical over the whole window, with the
 //! strip's own tokens as its rows in the strip's order. Pinned Tabs lead with the strip's rule
-//! under them, a Tab Group shows as its name in its color with `▸` after a collapsed name and its
-//! members indented beneath, and every row keeps the strip's targets, so a press selects, a drag
-//! reorders and the secondary button opens the Tab menu as on the strip.
+//! under them, a Tab Group shows as its name in its color with `▾` while expanded or `▸` while
+//! collapsed, its members sit indented beneath a rule of its color, and every row keeps the strip's
+//! targets, so a press selects, a drag reorders and the secondary button opens the Tab menu as on
+//! the strip.
 //!
 //! From the touch-spacing height it is spaced like the sidebar list: blank, `[ New Tab ]` and
 //! `[ « ]`, blank, blank, the Workspace's name, blank, then a row and its blank line per Tab. A
@@ -505,16 +506,27 @@ fn paint_row(
                 on(None, accent.add_modifier(Modifier::BOLD)),
                 inner.right(),
             );
-            let mut x = painted.right();
+            // The arrow names the state in both states, and rises to primary text under the
+            // pointer as on the strip.
+            let arrow = if *collapsed {
+                theme.glyphs.disclosure_closed
+            } else {
+                theme.glyphs.disclosure_open
+            };
+            let arrow_style = if pointer == ProjectedPointer::Rest {
+                accent
+            } else {
+                theme.style(Role::TextPrimary)
+            };
+            let mut x = write(
+                frame,
+                painted.right(),
+                &format!(" {arrow}"),
+                on(None, arrow_style),
+                inner.right(),
+            )
+            .right();
             if *collapsed {
-                x = write(
-                    frame,
-                    x,
-                    &format!(" {}", theme.glyphs.disclosure_closed),
-                    on(None, accent),
-                    inner.right(),
-                )
-                .right();
                 // A collapsed group carries its hidden members' cue, as on the strip.
                 if let Some((glyph, agent)) = glyph {
                     let glyph_x = x + 1;
@@ -546,6 +558,16 @@ fn paint_row(
         Kind::Tab { full, .. } => {
             let member = token.header.is_some();
             let gx = inner.x + 1 + if member { 2 } else { 0 };
+            if let Some(color) = token.rule {
+                // The group's rule runs down its members, under the header's first cell.
+                write(
+                    frame,
+                    inner.x + 1,
+                    theme.glyphs.tree_guide,
+                    on(None, Style::new().fg(theme.tab_groups.accent(color))),
+                    inner.right(),
+                );
+            }
             if let Some((glyph, agent)) = glyph {
                 let rect = write(
                     frame,

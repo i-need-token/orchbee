@@ -61,7 +61,7 @@ impl<'a> RenameDraftView<'a> {
     pub(crate) const fn token(&self) -> DraftToken {
         self.draft.token
     }
-    /// The draft's exact raw text: a submit sends it, but padding alone never renames a fixed Tab.
+    /// The draft's exact raw text; a Tab submit sends its trimmed form.
     pub(crate) fn text(&self) -> &'a str {
         self.draft.editor.text()
     }
@@ -94,7 +94,7 @@ impl<'a> RenameDraftView<'a> {
         if self.panel().is_some() {
             PanelLabelUpdate::parse(Some(self.draft.editor.text())).is_ok()
         } else {
-            WorkbenchLabel::parse(self.draft.editor.text()).is_ok()
+            WorkbenchLabel::parse(self.draft.editor.text().trim()).is_ok()
         }
     }
     pub(crate) const fn input_fault(&self) -> bool {
@@ -390,21 +390,10 @@ impl WorkbenchClientState {
                     panel: panel.clone(),
                     label: PanelLabelUpdate::parse(Some(draft.editor.text())).ok()?,
                 },
-                None => {
-                    let tab = &draft.baseline.tabs()[draft.target_index];
-                    let raw = draft.editor.text();
-                    let trimmed = raw.trim();
-                    // Padding alone never renames a fixed Tab: a padded copy of its name submits
-                    // that name, which the Server answers as unchanged, as the GUI commit does.
-                    let text = if !tab.automatic_label()
-                        && trimmed == tab.display_label(draft.target_index)
-                    {
-                        trimmed
-                    } else {
-                        raw
-                    };
-                    RenameUpdate::Tab(WorkbenchLabel::parse(text).ok()?)
-                }
+                // The name is trimmed of leading and trailing whitespace on submit, as the GUI
+                // commit does. A trimmed copy of a fixed Tab's current name still reaches the
+                // Server, which answers it as unchanged.
+                None => RenameUpdate::Tab(WorkbenchLabel::parse(draft.editor.text().trim()).ok()?),
             },
         })
     }

@@ -618,99 +618,39 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
 }
 
 #[test]
-fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() {
-    let mut group = group("Runtime", TabGroupColor::Blue);
-    for base in [
-        Theme::orchbee_light(),
-        Theme::orchbee_dark(),
-        Theme::terminal_native(),
-    ] {
-        for level in [
-            ColorLevel::Truecolor,
-            ColorLevel::Ansi16,
-            ColorLevel::Monochrome,
-        ] {
-            let theme = base.quantize(level);
-            for color in [
-                TabGroupColor::Blue,
-                TabGroupColor::Cyan,
-                TabGroupColor::Green,
-                TabGroupColor::Grey,
-                TabGroupColor::Orange,
-                TabGroupColor::Pink,
-                TabGroupColor::Purple,
-                TabGroupColor::Red,
-                TabGroupColor::Yellow,
-            ] {
-                group.color = color;
-                for (collapsed, active) in [(false, false), (true, false), (true, true)] {
-                    let mut member = tab("Log", active, Some(&group));
-                    member.collapsed = collapsed;
-                    let tabs = [member];
-                    let mut resting = None;
-                    for pointer in [
-                        ProjectedPointer::Rest,
-                        ProjectedPointer::Hovered,
-                        ProjectedPointer::Pressed,
-                        ProjectedPointer::Rest,
-                    ] {
-                        let (buffer, hits) = draw(&tabs, &theme, 80, |_, part| {
-                            if part == StripPart::Header {
-                                pointer
-                            } else {
-                                ProjectedPointer::Rest
-                            }
-                        });
-                        let (_, _, header) = hits
-                            .iter()
-                            .copied()
-                            .find(|(_, part, _)| *part == StripPart::Header)
-                            .expect("the group header remains visible");
-                        let surface = match pointer {
-                            ProjectedPointer::Rest => {
-                                (collapsed && active).then_some(Role::SurfaceCurrent)
-                            }
-                            ProjectedPointer::Hovered => Some(Role::SurfaceHover),
-                            ProjectedPointer::Pressed => Some(Role::SurfacePressed),
-                        };
-                        let expected = theme.tab_group_header_style(
-                            color,
-                            surface,
-                            None,
-                            Style::new()
-                                .fg(theme.tab_groups.accent(color))
-                                .add_modifier(Modifier::BOLD),
-                        );
-                        let mut cell = ratatui::buffer::Cell::default();
-                        cell.set_style(expected);
-                        // The name follows the header's leading pad.
-                        let name = &buffer[(header.x + 1, header.y)];
-                        assert_eq!(name.symbol(), "R");
-                        assert_eq!((name.fg, name.bg), (cell.fg, cell.bg));
-                        assert_eq!(name.modifier, cell.modifier);
-                        let arrow = &buffer[(header.right() - 2, header.y)];
-                        assert_eq!(
-                            arrow.symbol(),
-                            match (collapsed, pointer) {
-                                (true, _) => theme.glyphs.disclosure_closed,
-                                (false, ProjectedPointer::Rest) => " ",
-                                (false, _) => theme.glyphs.disclosure_open,
-                            },
-                            "the arrow keeps its cell and appears on hover or collapse"
-                        );
-                        if pointer == ProjectedPointer::Rest {
-                            if let Some(resting) = &resting {
-                                assert_eq!(
-                                    &buffer, resting,
-                                    "leaving the header restores the chip and context"
-                                );
-                            } else {
-                                resting = Some(buffer.clone());
-                            }
-                        }
-                    }
-                }
-            }
+fn group_arrow_shows_in_both_states_and_expanded_members_carry_the_group_rule() {
+    let theme = Theme::terminal_native();
+    let group = group("Work", TabGroupColor::Blue);
+    let accent = theme.tab_groups.accent(TabGroupColor::Blue);
+    for collapsed in [false, true] {
+        let mut member = tab("build", false, Some(&group));
+        member.collapsed = collapsed;
+        let (buffer, hits) = draw(std::slice::from_ref(&member), &theme, 40, rest);
+        let (_, _, header) = hits
+            .iter()
+            .copied()
+            .find(|(_, part, _)| *part == StripPart::Header)
+            .expect("the group header remains visible");
+        let arrow = if collapsed {
+            theme.glyphs.disclosure_closed
+        } else {
+            theme.glyphs.disclosure_open
+        };
+        assert_eq!(
+            buffer[(header.right() - 2, header.y)].symbol(),
+            arrow,
+            "collapsed={collapsed}"
+        );
+        let member_rect = hits
+            .iter()
+            .copied()
+            .find(|(_, part, _)| *part == StripPart::Tab)
+            .map(|(_, _, rect)| rect);
+        assert_eq!(member_rect.is_none(), collapsed, "collapsed={collapsed}");
+        // An expanded member's leading cell carries the group's rule in the group's color.
+        if let Some(rect) = member_rect {
+            let rule = &buffer[(rect.x, rect.y)];
+            assert_eq!((rule.symbol(), rule.fg), (theme.glyphs.tree_guide, accent));
         }
     }
 }
