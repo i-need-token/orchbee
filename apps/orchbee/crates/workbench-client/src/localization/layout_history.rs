@@ -67,14 +67,14 @@ impl Locale {
             (Self::EnUs, 0, 0) => "Everything here is open now".to_owned(),
             (Self::ZhCn, 0, 0) => "其中内容都已打开".to_owned(),
             (Self::EnUs, 0, _) => format!("{} not open now", tab_count(self, tabs)),
-            (Self::ZhCn, 0, _) => format!("{} 当前未打开", tab_count(self, tabs)),
+            (Self::ZhCn, 0, _) => format!("{}当前未打开", tab_count(self, tabs)),
             (Self::EnUs, _, _) => format!(
                 "{}, {} not open now",
                 workspace_count(self, workspaces),
                 tab_count(self, tabs)
             ),
             (Self::ZhCn, _, _) => format!(
-                "{}、{} 当前未打开",
+                "{}、{}当前未打开",
                 workspace_count(self, workspaces),
                 tab_count(self, tabs)
             ),

@@ -472,9 +472,9 @@ export const zhCNWorkbenchMessages = {
 	'workbench.earlierLayouts.when.days': '{count} 天前',
 	'workbench.earlierLayouts.when.clock': '{relative} · {clock}',
 	'workbench.earlierLayouts.summary.allOpen': '其中内容都已打开',
-	'workbench.earlierLayouts.summary.tabs': '{tabs} 个标签页 当前未打开',
+	'workbench.earlierLayouts.summary.tabs': '{tabs} 个标签页当前未打开',
 	'workbench.earlierLayouts.summary.workspacesTabs':
-		'{workspaces} 个工作区、{tabs} 个标签页 当前未打开',
+		'{workspaces} 个工作区、{tabs} 个标签页当前未打开',
 	'workbench.earlierLayouts.reopened.tabs': '已重新打开 {tabs} 个标签页',
 	'workbench.earlierLayouts.reopened.workspaces': '已重新打开 {workspaces} 个工作区',
 	'workbench.earlierLayouts.reopened.workspacesTabs':
