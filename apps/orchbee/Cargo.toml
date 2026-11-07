@@ -161,6 +161,12 @@ path = "tests/cli_windows_idle_close.rs"
 name = "cli_windows_zoom_close"
 path = "tests/cli_windows_zoom_close.rs"
 
+# Keep these real Sessions, their repeated restarts, stub Agents and pinned-ConPTY prerequisite away
+# from aggregate suite deadlines.
+[[test]]
+name = "cli_windows_agent_resume"
+path = "tests/cli_windows_agent_resume.rs"
+
 # Keep short-deadline PROCESS_WITNESS_LOCK scheduling isolated.
 [[test]]
 name = "local_startup_process"

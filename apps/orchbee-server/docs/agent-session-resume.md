@@ -228,5 +228,11 @@ ambiguity and invalid ids) and the delivery readiness table (a running command, 
 unsupported roots, every undecidable sample, each shell at its prompt, silence for marked and
 unmarked shells, and directory equality). Candidate joining, lock order, the gate, ordering,
 spacing, the observer lane and saver wiring are not claimed by unit tests;
-`apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them on Windows with stub providers
-reporting through the managed hook path across a real stop and restart.
+`apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts,
+with stub providers reporting through the managed hook path: capture, the bare cmd line in the
+retained directory, a second resume, a missing directory, Client input during the settle, and the
+preference off at startup. It runs only on request, with the pinned ConPTY that carries the hook's
+correlation. Its shell is cmd: a restored terminal's `PATH` comes from the registry, where the
+user's real provider may sit, and only cmd resolves a command from its current directory first,
+where the stubs sit. The managed PowerShell line therefore has no end-to-end witness that keeps a
+real provider out of reach.

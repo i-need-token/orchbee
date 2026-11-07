@@ -610,6 +610,17 @@ pub struct Control {
 impl Control {
     /// Takes control of `terminal` at `columns` by `rows` and waits until the attachment opens.
     pub fn hold(fixture: &Fixture, terminal: &str, columns: u16, rows: u16) -> Self {
+        Self::hold_in(fixture, "host", terminal, columns, rows)
+    }
+
+    /// Takes control of a terminal of `session`, as `hold` does in the `host` Session.
+    pub fn hold_in(
+        fixture: &Fixture,
+        session: &str,
+        terminal: &str,
+        columns: u16,
+        rows: u16,
+    ) -> Self {
         let columns = columns.to_string();
         let rows = rows.to_string();
         let mut child = fixture
@@ -619,7 +630,7 @@ impl Control {
                 "control",
                 terminal,
                 "--session",
-                "host",
+                session,
                 "--takeover",
                 "--cols",
                 &columns,
