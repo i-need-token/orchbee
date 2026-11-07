@@ -502,6 +502,33 @@ export const enUSWorkbenchMessages = {
 	'workbench.heldRestore.directoryUnavailable': 'Directory still unavailable',
 	'workbench.heldRestore.agentNotResumed': 'Agent conversation not resumed',
 	'workbench.heldRestore.notStarted': 'Terminal not started',
+	'workbench.earlierLayouts.action': 'Earlier layouts…',
+	'workbench.earlierLayouts.reading': 'Reading earlier layouts…',
+	'workbench.earlierLayouts.empty': 'No earlier layouts yet',
+	'workbench.earlierLayouts.when.justNow': 'just now',
+	'workbench.earlierLayouts.when.minutes': '{count} min ago',
+	'workbench.earlierLayouts.when.hours': '{count} h ago',
+	'workbench.earlierLayouts.when.days': '{count} days ago',
+	'workbench.earlierLayouts.when.clock': '{relative} · {clock}',
+	'workbench.earlierLayouts.summary.allOpen': 'Everything here is open now',
+	'workbench.earlierLayouts.summary.tabs':
+		'{tabs, plural, one {# Tab} other {# Tabs}} not open now',
+	'workbench.earlierLayouts.summary.workspacesTabs':
+		'{workspaces, plural, one {# Workspace} other {# Workspaces}}, {tabs, plural, one {# Tab} other {# Tabs}} not open now',
+	'workbench.earlierLayouts.reopened.tabs': 'Reopened {tabs, plural, one {# Tab} other {# Tabs}}',
+	'workbench.earlierLayouts.reopened.workspaces':
+		'Reopened {workspaces, plural, one {# Workspace} other {# Workspaces}}',
+	'workbench.earlierLayouts.reopened.workspacesTabs':
+		'Reopened {workspaces, plural, one {# Workspace} other {# Workspaces}}, {tabs, plural, one {# Tab} other {# Tabs}}',
+	'workbench.earlierLayouts.nothingToReopen':
+		'Nothing to reopen: everything in that layout is open now',
+	'workbench.earlierLayouts.notFound': 'That earlier layout is no longer kept',
+	'workbench.earlierLayouts.resourceLimit':
+		'Not reopened: it would exceed the Workspace or Tab limit',
+	'workbench.earlierLayouts.busy': 'Not reopened: a Workspace is closing; try again',
+	'workbench.earlierLayouts.denied': 'Not reopened: this Client may not open Tabs',
+	'workbench.earlierLayouts.unknown': 'Reopen outcome unknown · not retried',
+	'workbench.earlierLayouts.unavailable': 'Earlier layouts are unavailable right now',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

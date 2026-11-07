@@ -5,6 +5,7 @@ import { collectPanelLeaves } from '../components/workbench-panel-workspace/mode
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
+	WorkbenchEarlierLayoutOutcome,
 	WorkbenchTabCloseStop,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
@@ -519,4 +520,29 @@ export function workbenchWorktreeOutcomeNotice(
 				lifetime: 'until-press',
 			};
 	}
+}
+
+const EARLIER_LAYOUT_REFUSALS = {
+	busy: workbenchMessages.earlierLayoutBusy,
+	denied: workbenchMessages.earlierLayoutDenied,
+	'not-found': workbenchMessages.earlierLayoutNotFound,
+	'nothing-to-reopen': workbenchMessages.earlierLayoutNothingToReopen,
+	'resource-limit': workbenchMessages.earlierLayoutResourceLimit,
+	unavailable: workbenchMessages.earlierLayoutsUnavailable,
+	unknown: workbenchMessages.earlierLayoutUnknown,
+} as const;
+
+/** What a reopen of an earlier layout did, in the TUI's words, including what it reopened. */
+export function workbenchEarlierLayoutNotice(
+	outcome: WorkbenchEarlierLayoutOutcome,
+): WorkbenchAuthorityNotice {
+	if (outcome.kind !== 'reopened') {
+		return { descriptor: EARLIER_LAYOUT_REFUSALS[outcome.kind], lifetime: 'timed' };
+	}
+	const { tabs, workspaces } = outcome;
+	let descriptor: WorkbenchAuthorityNotice['descriptor'] =
+		workbenchMessages.earlierLayoutReopenedWorkspacesTabs;
+	if (workspaces === 0) descriptor = workbenchMessages.earlierLayoutReopenedTabs;
+	else if (tabs === 0) descriptor = workbenchMessages.earlierLayoutReopenedWorkspaces;
+	return { descriptor, lifetime: 'timed', values: { tabs, workspaces } };
 }

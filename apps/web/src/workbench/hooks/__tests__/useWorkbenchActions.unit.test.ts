@@ -312,6 +312,8 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.resumeTabClose &&
 						// Only an authority that reads the Server's Agent sessions has a board.
 						actionId !== WORKBENCH_ACTION_IDS.openAgentBoard &&
+						// Only an authority that keeps earlier layouts reopens one.
+						actionId !== WORKBENCH_ACTION_IDS.reopenEarlierLayout &&
 						// Worktree Actions exist only where an authority reaches Git.
 						!actionId.startsWith('workbench.worktree.'),
 				),

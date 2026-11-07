@@ -8,6 +8,7 @@ import {
 	workbenchCloseResultNotice,
 	workbenchCloseWithdrawnNotice,
 	workbenchConfiguredCommandNotice,
+	workbenchEarlierLayoutNotice,
 	workbenchFailureNotice,
 	workbenchPanelsFailureNotice,
 	workbenchSplitRatioFailureNotice,
@@ -24,6 +25,7 @@ import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProject
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
+	WorkbenchEarlierLayouts,
 	WorkbenchHeldRestores,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
@@ -129,6 +131,22 @@ function reportingHeldRestores(
 				descriptor = workbenchMessages.heldRestoreAgentNotResumed;
 			}
 			if (descriptor !== null) setNotice({ descriptor, lifetime: 'timed' });
+			return outcome;
+		},
+	};
+}
+
+/** Reopening an earlier layout says what it reopened or why nothing came back, as the TUI does. */
+function reportingEarlierLayouts(
+	layouts: WorkbenchEarlierLayouts,
+	setNotice: React.Dispatch<React.SetStateAction<WorkbenchAuthorityNotice | null>>,
+): WorkbenchEarlierLayouts {
+	return {
+		list: () => layouts.list(),
+		reopen: async (savedAt) => {
+			setNotice(null);
+			const outcome = await layouts.reopen(savedAt);
+			setNotice(workbenchEarlierLayoutNotice(outcome));
 			return outcome;
 		},
 	};
@@ -296,6 +314,10 @@ export function useWorkbenchAuthorityNotice(
 				setNotice(workbenchTabCreationFailureNotice(result));
 				return result;
 			},
+			earlierLayouts:
+				authority.earlierLayouts === undefined
+					? undefined
+					: reportingEarlierLayouts(authority.earlierLayouts, setNotice),
 			focusNewPanel: authority.focusNewPanel,
 			heldRestores:
 				authority.heldRestores === undefined

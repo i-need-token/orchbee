@@ -9,7 +9,7 @@ import {
 } from './workbench-semantic-contract';
 
 /** The Server keeps at most this many earlier layouts. */
-export const WORKBENCH_MAXIMUM_LAYOUT_HISTORY_ENTRIES = 48;
+const WORKBENCH_MAXIMUM_LAYOUT_HISTORY_ENTRIES = 48;
 /** Save times are Unix milliseconds that every JSON reader holds exactly. */
 const SavedAtSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const CountSchema = z.number().int().min(0).max(4_294_967_295);

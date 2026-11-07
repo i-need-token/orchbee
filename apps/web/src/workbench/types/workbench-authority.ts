@@ -299,6 +299,46 @@ export interface WorkbenchHeldRestores {
 	): Promise<WorkbenchHeldRestoreOutcome>;
 }
 
+/** One earlier layout the Server kept, as the TUI's picker lists it. */
+export interface WorkbenchEarlierLayout {
+	/** Save time in Unix milliseconds; it names the layout to reopen. */
+	readonly savedAt: number;
+	readonly tabsNotOpen: number;
+	readonly workspacesNotOpen: number;
+}
+
+/** The earlier layouts, newest first, or that they cannot be read now. */
+export type WorkbenchEarlierLayoutListing =
+	| { readonly kind: 'listed'; readonly layouts: readonly WorkbenchEarlierLayout[] }
+	| { readonly kind: 'unavailable' };
+
+/** How reopening one earlier layout ended; the Server reopens only what is not open now. */
+export type WorkbenchEarlierLayoutOutcome =
+	| {
+			/** The first reopened Tab, which this Client selects; null when only empty Workspaces came back. */
+			readonly focus: { readonly tabId: string; readonly terminalContextId: string } | null;
+			readonly kind: 'reopened';
+			readonly tabs: number;
+			readonly workspaces: number;
+	  }
+	| {
+			readonly kind:
+				| 'busy'
+				| 'denied'
+				| 'not-found'
+				| 'nothing-to-reopen'
+				| 'resource-limit'
+				| 'unavailable'
+				/** The request may have taken effect; it is never repeated. */
+				| 'unknown';
+	  };
+
+/** Lists the earlier layouts the Server kept and reopens one, once. */
+export interface WorkbenchEarlierLayouts {
+	list(): Promise<WorkbenchEarlierLayoutListing>;
+	reopen(savedAt: number): Promise<WorkbenchEarlierLayoutOutcome>;
+}
+
 /**
  * Whoever decides the shared Workbench when this Client does not. A result settles only once this
  * Client's read model holds what it reports, so the caller can act on what it reads next. A caller
@@ -348,6 +388,8 @@ export interface WorkbenchAuthority {
 		context: WorkbenchAuthorityContext,
 		duplication: WorkbenchAuthorityTabDuplication,
 	): Promise<ActionResult<WorkbenchAuthorityTabDuplicationReport>>;
+	/** Absent where no Server keeps earlier layouts. */
+	readonly earlierLayouts?: WorkbenchEarlierLayouts | undefined;
 	/** Absent where no restore holds a Presentation for an unavailable directory. */
 	readonly heldRestores?: WorkbenchHeldRestores | undefined;
 	/** Absent where every new Tab starts with the default launch profile. */
