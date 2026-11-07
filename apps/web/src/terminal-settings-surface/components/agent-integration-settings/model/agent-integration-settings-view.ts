@@ -10,7 +10,7 @@ import type {
 	AgentIntegrationSnapshotItem,
 } from '../../../../agent-integration-management';
 
-export type AgentIntegrationStatusTone = 'danger' | 'neutral' | 'positive' | 'warning';
+type AgentIntegrationStatusTone = 'danger' | 'neutral' | 'positive' | 'warning';
 
 export interface AgentIntegrationSettingsRowView {
 	readonly agentName: string;
@@ -131,7 +131,7 @@ type FormatList = (items: readonly string[]) => string;
  * What an explain report establishes. Manual setup is a definite fact of the platform; an
  * inspection that could not finish is an unknown result, never a missing integration.
  */
-export type AgentIntegrationFinding =
+type AgentIntegrationFinding =
 	| 'agent-missing'
 	| 'conflict'
 	| 'disabled'
@@ -143,7 +143,7 @@ export type AgentIntegrationFinding =
 	| 'unknown-undetermined'
 	| 'update-required';
 
-export interface AgentIntegrationDiagnosisFact {
+interface AgentIntegrationDiagnosisFact {
 	readonly label: string;
 	readonly value: string;
 }
@@ -157,7 +157,7 @@ export interface AgentIntegrationDiagnosisView {
 	readonly tone: AgentIntegrationStatusTone;
 }
 
-export function resolveAgentIntegrationFinding(
+function resolveAgentIntegrationFinding(
 	explanation: AgentIntegrationExplanation,
 ): AgentIntegrationFinding {
 	const { item } = explanation;

@@ -90,7 +90,7 @@ export type AgentIntegrationEntryState =
 	| 'update-required';
 
 /** The provider-specific facts an explain report establishes, without paths. */
-export type AgentIntegrationInspectionDetail =
+type AgentIntegrationInspectionDetail =
 	| {
 			readonly kind: 'cli';
 			readonly marketplace: AgentIntegrationMarketplace | null;
@@ -109,7 +109,7 @@ export type AgentIntegrationInspectionDetail =
 	| { readonly kind: 'plain' };
 
 /** One step turning the integration on would take; a command is named by its file name only. */
-export type AgentIntegrationPlanStep =
+type AgentIntegrationPlanStep =
 	| { readonly command: string; readonly kind: 'command' }
 	| { readonly kind: 'publish-adapter' | 'remove-entry' | 'write-entry' };
 
