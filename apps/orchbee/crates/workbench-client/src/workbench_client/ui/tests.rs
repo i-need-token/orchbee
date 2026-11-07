@@ -20,6 +20,7 @@ pub(in crate::workbench_client::ui) mod rename_membership;
 pub(in crate::workbench_client::ui) mod retired_membership;
 pub(in crate::workbench_client::ui) mod selection;
 pub(in crate::workbench_client::ui) mod startup_queue;
+pub(in crate::workbench_client::ui) mod tab_close_focus;
 pub(in crate::workbench_client::ui) mod viewer_hints;
 pub(in crate::workbench_client::ui) mod viewport;
 pub(in crate::workbench_client::ui) mod window_title;

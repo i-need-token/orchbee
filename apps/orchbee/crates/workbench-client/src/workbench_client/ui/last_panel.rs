@@ -2,7 +2,8 @@
 //! focus across the Session Workbench, whatever moved it, and steps back to the most recent
 //! previous Panel that still exists, switching Tab or Workspace through the ordinary selection
 //! owners. A transient plugin overlay never enters the history; a step with no target does
-//! nothing.
+//! nothing. The same history also picks where focus returns when a Tab closes that holds the
+//! focused Panel.
 use super::held_intent::StructureAction;
 use super::{ClientActionDisposition, ClientPhaseKind, WorkbenchClientUi};
 use crate::client_view::ClientAction;
@@ -35,6 +36,28 @@ impl PanelFocusHistory {
         self.entries.push_front(focus);
         self.entries.truncate(CAPACITY);
     }
+}
+
+/// Where focus goes when the Tabs in `closed` close: if the focused Panel is in one of them, the
+/// most recent `history` entry outside them that `is_open` accepts. `history` is most recent first.
+/// None means focus stays where it is, or no entry qualifies, so the post-close landing applies.
+pub(super) fn panel_focus_after_tab_close<'a, Entry>(
+    closed: &[WorkbenchTabId],
+    focused: Option<&Entry>,
+    history: impl IntoIterator<Item = &'a Entry>,
+    tab_of: impl Fn(&Entry) -> &WorkbenchTabId,
+    is_open: impl Fn(&Entry) -> bool,
+) -> Option<&'a Entry>
+where
+    Entry: 'a,
+{
+    let focused = focused?;
+    if !closed.contains(tab_of(focused)) {
+        return None;
+    }
+    history
+        .into_iter()
+        .find(|&entry| !closed.contains(tab_of(entry)) && is_open(entry))
 }
 
 /// How the Client reaches a history entry from the current focus.
@@ -129,6 +152,40 @@ impl WorkbenchClientUi {
                 self.select_context_at(index)
             }
         }
+    }
+
+    /// The Tab index focus returns to when the selected Tab's own close is accepted, with its
+    /// Panel preferred for the switch that follows. Context selection is refused while a Tab close
+    /// is pending, so a pick in another Workspace leaves the post-close landing in place.
+    pub(super) fn focus_return_after_tab_close(&mut self) -> Option<usize> {
+        let state = self.state.as_ref()?;
+        if !state.selected_tab_close_accepted() {
+            return None;
+        }
+        let current = self.current_panel_focus()?;
+        let closed: Vec<WorkbenchTabId> = state
+            .cache()
+            .tabs()
+            .iter()
+            .filter(|tab| state.tab_leaving(tab.tab_id()))
+            .map(|tab| tab.tab_id().clone())
+            .collect();
+        let entry = panel_focus_after_tab_close(
+            &closed,
+            Some(&current),
+            &self.panel_focus_history.entries,
+            |entry| &entry.tab,
+            |entry| self.last_panel_step(&current, entry).is_some(),
+        )?
+        .clone();
+        if &entry.location != state.cache().location() {
+            return None;
+        }
+        let index = state.cache().tab_index(&entry.tab)?;
+        self.state
+            .as_mut()?
+            .prefer_panel(&entry.location, &entry.tab, &entry.panel);
+        Some(index)
     }
 
     /// How to reach `entry`, or `None` when its Panel, Tab or Workspace is gone or leaving.

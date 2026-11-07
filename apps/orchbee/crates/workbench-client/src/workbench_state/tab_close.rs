@@ -1107,6 +1107,14 @@ impl super::WorkbenchClientState {
             .or_else(|| (0..selected).rev().find(|index| self.tab_shown(*index)))
     }
 
+    /// Whether the Server accepted the close of the selected Tab itself. Closing its last Panel
+    /// alone does not count, so that close keeps the post-close landing.
+    pub(crate) fn selected_tab_close_accepted(&self) -> bool {
+        self.active()
+            .and_then(|active| self.cache.tabs().get(active.index()))
+            .is_some_and(|tab| self.close.tab_close_accepted(tab.tab_id()))
+    }
+
     fn close_confirmation_scope_available(&self) -> bool {
         matches!(self.close.carrier, CloseCarrier::Client)
             && self.pending_refresh.is_none()

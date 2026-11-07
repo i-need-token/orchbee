@@ -686,17 +686,18 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Moves the selection off a Tab whose close the Server accepted, onto the survivor its
-    /// removal would select, in the tick that applies the acceptance. The draw that leaves the Tab
-    /// out of the strip already shows the new selection, while the Panel keeps the closing Tab's
-    /// last frame until the next Tab's first one. The move is the Client's own: a refused
-    /// admission reports nothing and a later tick tries again while the close is on its way.
+    /// Moves the selection off a Tab whose close the Server accepted, onto the Tab that
+    /// `focus_return_after_tab_close` picks in this Workspace, else onto the survivor the removal
+    /// would select, in the tick that applies the acceptance. The draw that leaves the Tab out of
+    /// the strip already shows the new selection, while the Panel keeps the closing Tab's last
+    /// frame until the next Tab's first one. The move is the Client's own: a refused admission
+    /// reports nothing and a later tick tries again while the close is on its way.
     pub(super) fn follow_leaving_selection(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
-        let Some(index) = self
-            .state
-            .as_ref()
-            .and_then(WorkbenchClientState::leaving_selection_successor)
-        else {
+        let Some(index) = self.focus_return_after_tab_close().or_else(|| {
+            self.state
+                .as_ref()
+                .and_then(WorkbenchClientState::leaving_selection_successor)
+        }) else {
             return false;
         };
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
