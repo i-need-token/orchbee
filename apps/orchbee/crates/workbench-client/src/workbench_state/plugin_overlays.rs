@@ -121,6 +121,14 @@ impl WorkbenchClientState {
         Ok(())
     }
 
+    /// Whether `id` is a transient plugin overlay Panel, which never counts as a focus the user
+    /// returns to.
+    pub(crate) fn plugin_overlay_panel(&self, id: &WorkbenchPanelId) -> bool {
+        self.plugin_overlays
+            .iter()
+            .any(|o| &o.member.panel_id == id)
+    }
+
     pub(crate) fn arm_overlay_zoom(&mut self, id: &WorkbenchPanelId) {
         if let Some(overlay) = self
             .plugin_overlays

@@ -53,6 +53,8 @@ pub(super) enum HeldIntent {
     Structure(StructureAction),
     /// The drawn Tab or Panel close confirmation was confirmed.
     Close(ConfirmedClose),
+    /// Last Panel, whose target is chosen from the focus history once the projection settled.
+    LastPanel,
 }
 
 /// The close confirmation whose `Enter` a held close replays.
@@ -309,6 +311,7 @@ impl WorkbenchClientUi {
             matches!(
                 held.intent,
                 HeldIntent::Context { .. }
+                    | HeldIntent::LastPanel
                     | HeldIntent::Structure(
                         StructureAction::Focus(_)
                             | StructureAction::FocusPanel(_)
@@ -336,6 +339,16 @@ impl WorkbenchClientUi {
         };
         self.hold_intent(HeldIntent::Structure(action));
         disposition
+    }
+
+    /// Steps back to the last focused Panel, or holds the step while a background read or the
+    /// user's own landing switch takes the refresh slot, so the target is chosen where it lands.
+    pub(super) fn request_last_panel(&mut self) -> ClientActionDisposition {
+        if !self.settling_for_user_action() {
+            return self.focus_last_panel();
+        }
+        self.hold_intent(HeldIntent::LastPanel);
+        ClientActionDisposition::KeepNavigator
     }
 
     fn apply_structure_action(&mut self, action: StructureAction) -> ClientActionDisposition {
@@ -433,6 +446,10 @@ impl WorkbenchClientUi {
                     });
                     return false;
                 }
+            }
+            HeldIntent::LastPanel => {
+                let disposition = self.focus_last_panel();
+                self.held_intents.layout_replayed |= disposition.changes_layout();
             }
         }
         true

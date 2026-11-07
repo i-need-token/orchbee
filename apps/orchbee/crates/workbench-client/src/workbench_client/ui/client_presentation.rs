@@ -78,10 +78,18 @@ impl WorkbenchClientUi {
             return Err(Reason::Unsupported);
         };
         command.validate().map_err(|_| Reason::TargetUnavailable)?;
+        self.client_presentation(panel_id, command.minimum_workbench_revision, snapshot)
+    }
+    /// The member `panel_id` displays for this Client, read against `snapshot` at `minimum` or
+    /// later.
+    pub(super) fn client_presentation(
+        &self,
+        panel_id: &WorkbenchPanelId,
+        minimum: WorkbenchRevision,
+        snapshot: &Snapshot,
+    ) -> Result<ClientPresentationSnapshot, Reason> {
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        if snapshot.session_id != *state.cache().session_id()
-            || snapshot.revision < command.minimum_workbench_revision
-        {
+        if snapshot.session_id != *state.cache().session_id() || snapshot.revision < minimum {
             return Err(Reason::ProjectionUnavailable);
         }
         let Some((
@@ -178,7 +186,7 @@ impl WorkbenchClientUi {
         let (_, view) = self
             .control_observation(false)
             .ok_or(Reason::ProjectionUnavailable)?;
-        if !result.answers(panel_id, &view, command.minimum_workbench_revision) {
+        if !result.answers(panel_id, &view, minimum) {
             return Err(Reason::ProjectionUnavailable);
         }
         Ok(result)

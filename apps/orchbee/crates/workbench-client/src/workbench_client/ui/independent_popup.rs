@@ -4,8 +4,9 @@
 
 use super::WorkbenchClientUi;
 use orchbee_workbench_protocol::{
-    ClientViewCompletionOutcome, ClientViewControl, ClientViewControlReason as Reason,
-    ClientViewIntent, ClientViewPhase, Snapshot, WorkbenchRequestId,
+    ClientPopupSource, ClientViewCompletionOutcome, ClientViewControl,
+    ClientViewControlReason as Reason, ClientViewIntent, ClientViewPhase, SessionId, Snapshot,
+    WorkbenchRequestId, WorkbenchRevision,
 };
 use ratatui::layout::Rect;
 
@@ -67,41 +68,8 @@ impl WorkbenchClientUi {
             | ClientViewIntent::PopupOpen { .. }
             | ClientViewIntent::EditorOpen { .. } => {
                 let source = command.intent.popup_source().ok_or(Reason::Unsupported)?;
-                if self.popup_modal_open() {
-                    return Err(Reason::ModalOpen);
-                }
-                let (session, view) = self
-                    .control_observation(false)
-                    .ok_or(Reason::ProjectionUnavailable)?;
-                if view.phase != ClientViewPhase::Ready
-                    || view.workbench_revision < command.minimum_workbench_revision
-                {
-                    return Err(Reason::Busy);
-                }
-                let selected = view.selection.ok_or(Reason::ProjectionUnavailable)?;
-                if selected.terminal_context_id != source.terminal_context_id
-                    || selected.tab_id.as_ref() != Some(&source.tab_id)
-                    || selected.panel_id.as_ref() != Some(&source.panel_id)
-                {
-                    return Err(Reason::StaleView);
-                }
-                let read = ClientViewControl {
-                    intent: ClientViewIntent::Presentation {
-                        panel_id: source.panel_id.clone(),
-                    },
-                    ..command.clone()
-                };
-                let member = self.read_client_presentation(
-                    &read,
-                    snapshot.ok_or(Reason::ProjectionUnavailable)?,
-                )?;
-                let matches = member
-                    .presentation
-                    .as_ref()
-                    .is_some_and(|current| current.same_member(&source.member));
-                if !matches {
-                    return Err(Reason::StaleView);
-                }
+                let session =
+                    self.admit_popup_source(source, command.minimum_workbench_revision, snapshot)?;
                 match &command.intent {
                     ClientViewIntent::CommandPopupOpen { spec } => self.popup.begin_configured(
                         session,
@@ -125,6 +93,45 @@ impl WorkbenchClientUi {
             // This handler implements its own ClientView intent subset; other intents belong to their feature handlers.
             _ => Err(Reason::Unsupported),
         }
+    }
+    /// Admits a popup aimed at `source`: no other surface owns the input it would take, the view
+    /// is Ready at `minimum` or later, and `source` still names the selected Panel and its
+    /// displayed member. Every popup opening, requested remotely or by a local action, passes here.
+    pub(in crate::workbench_client) fn admit_popup_source(
+        &self,
+        source: &ClientPopupSource,
+        minimum: WorkbenchRevision,
+        snapshot: Option<&Snapshot>,
+    ) -> Result<SessionId, Reason> {
+        if self.popup_modal_open() {
+            return Err(Reason::ModalOpen);
+        }
+        let (session, view) = self
+            .control_observation(false)
+            .ok_or(Reason::ProjectionUnavailable)?;
+        if view.phase != ClientViewPhase::Ready || view.workbench_revision < minimum {
+            return Err(Reason::Busy);
+        }
+        let selected = view.selection.ok_or(Reason::ProjectionUnavailable)?;
+        if selected.terminal_context_id != source.terminal_context_id
+            || selected.tab_id.as_ref() != Some(&source.tab_id)
+            || selected.panel_id.as_ref() != Some(&source.panel_id)
+        {
+            return Err(Reason::StaleView);
+        }
+        let member = self.client_presentation(
+            &source.panel_id,
+            minimum,
+            snapshot.ok_or(Reason::ProjectionUnavailable)?,
+        )?;
+        if !member
+            .presentation
+            .as_ref()
+            .is_some_and(|current| current.same_member(&source.member))
+        {
+            return Err(Reason::StaleView);
+        }
+        Ok(session)
     }
     /// Whether another popup, a dialog, a history view, or a native surface that captures input,
     /// such as the action menu or copy mode, owns the input a new popup would take; Client

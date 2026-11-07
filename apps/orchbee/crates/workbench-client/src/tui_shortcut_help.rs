@@ -503,6 +503,10 @@ fn requires_session(action: &PrefixAction) -> bool {
                 | A::SplitPanel(_)
                 | A::ClosePanel
                 | A::MovePanel(_)
+                | A::FocusLastPanel
+                | A::RequestRenamePanel
+                | A::ClearTerminal
+                | A::EditScrollback
         ) | PrefixAction::SelectTabDigit
     )
 }

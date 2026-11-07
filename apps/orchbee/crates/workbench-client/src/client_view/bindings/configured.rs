@@ -54,11 +54,15 @@ impl Default for Bindings {
             .collect::<Vec<_>>();
         let entries = {
             let mut entries = entries;
+            // Configured-only actions keep a disabled default, so overrides find their position.
             for name in [
                 "resize_pane_left",
                 "resize_pane_right",
                 "resize_pane_up",
                 "resize_pane_down",
+                "rename_pane",
+                "clear_terminal",
+                "edit_scrollback",
             ] {
                 let (action, desc, shell) = action(name);
                 entries.push(Entry {
@@ -494,6 +498,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         ),
         "reload_config" => (A::ReloadConfiguration, D::ReloadConfiguration),
         "help" => return (PrefixAction::ShowHelp, D::ShowHelp, ShellCommand::None),
+        "settings" => (A::OpenSettings, D::Settings),
         "workspace_picker" => {
             return (
                 PrefixAction::NavigatorToggle,
@@ -520,6 +525,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "new_worktree" => (A::RequestWorktreeCreate, D::WorktreeCreate),
         "open_worktree" => (A::RequestWorktreeOpen, D::WorktreeOpen),
         "rename_workspace" => (A::RequestWorkspaceRename, D::WorkspaceRename),
+        "close_workspace" => (A::RequestWorkspaceClose, D::WorkspaceClose),
         "previous_workspace" => (A::SelectPreviousContext, D::SelectContext),
         "next_workspace" => (A::SelectNextContext, D::SelectContext),
         "previous_agent" => (A::PreviousAgent, D::AgentCycle),
@@ -545,6 +551,10 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "split_vertical" => (A::SplitPanel(PanelDirection::Right), D::SplitPanel),
         "split_horizontal" => (A::SplitPanel(PanelDirection::Down), D::SplitPanel),
         "close_pane" => (A::ClosePanel, D::ClosePanel),
+        "rename_pane" => (A::RequestRenamePanel, D::RenamePanel),
+        "last_pane" => (A::FocusLastPanel, D::LastPanel),
+        "clear_terminal" => (A::ClearTerminal, D::ClearTerminal),
+        "edit_scrollback" => (A::EditScrollback, D::EditScrollback),
         "zoom" => (A::ToggleZoom, D::PanelZoom),
         _ => unreachable!("shared settings admit only implemented actions"),
     };

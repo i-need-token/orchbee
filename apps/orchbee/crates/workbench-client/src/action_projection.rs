@@ -210,6 +210,10 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
         ),
         PrefixAction::Client(A::ClearTerminal) => built_in("terminal.clear", C::Pane, PANE),
+        PrefixAction::Client(A::EditScrollback) => {
+            built_in("terminal.scrollback.edit", C::Pane, PANE)
+        }
+        PrefixAction::Client(A::FocusLastPanel) => last_panel(),
         PrefixAction::Client(A::RequestCloseTab) => built_in("tabs.tab.close", C::Tab, CLOSE_TAB),
         PrefixAction::Client(A::MovePreviousTab | A::MoveNextTab) => {
             built_in("tabs.tab.move", C::Tab, MOVE_TAB)
@@ -311,6 +315,15 @@ const fn panel_focus(direction: PanelDirection) -> ActionMetadata<'static> {
     )
 }
 
+/// Shares the GUI Workbench identity: the same Session-wide focus history step.
+const fn last_panel() -> ActionMetadata<'static> {
+    built_in(
+        "workbench.panel.focus-last",
+        ActionCategory::Navigation,
+        &[ActionSearchAlias::Pane, ActionSearchAlias::Select],
+    )
+}
+
 const fn split_panel(direction: PanelDirection) -> ActionMetadata<'static> {
     let id = match direction {
         PanelDirection::Down => "workbench.panel.active.split-below",
@@ -405,6 +418,8 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             &[ActionSearchAlias::Pane, ActionSearchAlias::Rename],
         ),
         A::ClearTerminal => built_in("terminal.clear", C::Pane, PANE),
+        A::EditScrollback => built_in("terminal.scrollback.edit", C::Pane, PANE),
+        A::LastPanel => last_panel(),
         A::ResumeTabClose => built_in("orchbee.native.tab-close.resume", C::Tab, CLOSE_TAB),
         A::CloseSelectedTabs | A::CloseOtherTabs | A::CloseTrailingTabs | A::CloseGroup => {
             built_in("tabs.tab.close", C::Tab, CLOSE_TAB)

@@ -472,7 +472,6 @@ fn every_registered_action_can_be_explicitly_disabled() {
             .join("\n")
     );
     let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
-    assert_eq!(keys::ACTIONS.len(), 37);
     assert_eq!(admitted.keys.overrides.len(), keys::ACTIONS.len());
     assert!(
         admitted

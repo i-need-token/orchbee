@@ -125,6 +125,22 @@ explicit override, superseded/refused switches, stale retained membership, indep
 known nonattachable Create provenance. Windows process evidence exercises two live ConPTY Clients
 through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground. These are named implementation traces, not exhaustive context-selection model checks.
 
+## Last Panel
+
+`ui/last_panel.rs` owns a second volatile, Client-private history: the Panels this Client focused
+across the whole Session Workbench, most recent first, each Panel at most once and at most sixteen.
+After each presented draw it records the settled focus, the current Tab's selected Panel once no
+navigation is pending and no switch is landing, so pointer, keyboard, CLI and Agent focus changes
+all count; a plugin overlay Panel never enters. Last Panel (`Ctrl+B ;`, `[keys].last_pane`, the
+global menu's Panel group) records the current focus, drops entries whose Panel, Tab or Workspace is
+gone or leaving with an accepted close, and steps to the most recent other Panel that remains. A
+Panel of the current Tab takes the ordinary Panel focus move. For a Panel of another Tab or location
+it names that Panel and Tab as the location's remembered selection above, then the ordinary Tab
+switch or context selection lands there; a Panel that disappears in between falls back as that
+selection does. Without a target the step does nothing and reports nothing. A step requested while a
+background read or the user's own switch is landing is held, then chooses its target where the
+switch landed. Restart discards the history, and the GUI keeps its own with the same model.
+
 ## Windows startup preference
 
 Bare local Windows startup remembers the last successfully displayed location, Tab, Panel and

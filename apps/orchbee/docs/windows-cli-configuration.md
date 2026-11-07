@@ -177,6 +177,13 @@ where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 `new_worktree` and `open_worktree` enter [Worktree launch](native-worktrees.md), default
 `prefix+W` and `prefix+O`. Safe direct chords and disabling use the same registry.
 
+`settings` opens [Settings](native-settings.md), default `prefix+f4`. `close_workspace` asks to close
+the current Workspace with its existing [confirmation](native-workspace-close.md), default `prefix+D`
+(capital D). `rename_pane`, `clear_terminal` and `edit_scrollback` are unbound by default and run the
+Panel menu's Rename, Clear terminal and Edit scrollback on the focused Panel, with their menu
+outcomes. `last_pane` steps back to the last focused Panel in any Tab or Workspace
+([Last Panel](native-context-selection.md#last-panel)), default `prefix+;`.
+
 `menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
 The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.
 
@@ -203,11 +210,11 @@ Apple hosts, Apple modifier symbols. Simplified glyph mode spells `Up`, `Down`, 
 `Ctrl`, `Alt`, `Shift`, `Super`, including on Apple hosts. A prefix and its member are separated by
 one space. These display rules do not change TOML spelling, normalization, matching or dispatch.
 
-Supported action fields are `help`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `workspace_picker`,
+Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_pane`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
+`close_pane`, `rename_pane`, `last_pane`, `clear_terminal`, `edit_scrollback`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
 [machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical

@@ -42,6 +42,7 @@ export const WORKBENCH_ACTION_IDS = {
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
 	focusActivePanelUp: 'workbench.panel.active.focus-up',
 	focusActivePanelVisible: 'workbench.panel.active.focus-visible',
+	focusLastPanel: 'workbench.panel.focus-last',
 	focusNextRegion: 'workbench.focus.next-region',
 	focusPreviousRegion: 'workbench.focus.previous-region',
 	focusSidebar: 'workbench.focus.sidebar',
@@ -292,6 +293,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelVisible]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusLastPanel]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusNextRegion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusPreviousRegion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusSidebar]: ActionSignature<void>;

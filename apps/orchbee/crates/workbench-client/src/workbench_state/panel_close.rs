@@ -468,6 +468,12 @@ impl WorkbenchClientState {
             .map_or(tab.panel_tree(), |leaving| &leaving.tree)
     }
 
+    /// Whether this Panel of the cached Tab is still in the Client's view, not leaving with its
+    /// accepted close.
+    pub(crate) fn panel_shown(&self, tab_id: &WorkbenchTabId, panel_id: &WorkbenchPanelId) -> bool {
+        !self.panel_leaves(tab_id, panel_id)
+    }
+
     /// Whether this Panel of the cached Tab is leaving with its accepted close.
     fn panel_leaves(&self, tab_id: &WorkbenchTabId, panel_id: &WorkbenchPanelId) -> bool {
         self.panel_leaving

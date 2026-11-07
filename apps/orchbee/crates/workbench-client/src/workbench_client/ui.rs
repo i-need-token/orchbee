@@ -6,8 +6,10 @@
 mod action_menus;
 mod agent_attention;
 mod captured_actions;
+mod last_panel;
 mod launch_profiles;
 mod pane_graphics;
+mod scrollback_editor;
 pub(in crate::workbench_client) mod settings;
 mod sidebar_reorder;
 mod status_text;
@@ -1479,6 +1481,10 @@ pub(super) struct WorkbenchClientUi {
     next_fallback_poll: Option<std::time::Instant>,
     publications: Option<crate::local_client::subscription::ChangeSubscription>,
     held_intents: held_intent::HeldIntents,
+    /// The Panel focus history Last Panel steps back through.
+    panel_focus_history: last_panel::PanelFocusHistory,
+    /// The scrollback editor this Client's own action opened, until its popup settles.
+    scrollback_editor: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     viewer_recovery: viewer_recovery::ViewerRecovery,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
@@ -1625,6 +1631,8 @@ impl WorkbenchClientUi {
             next_fallback_poll: None,
             publications: None,
             held_intents: held_intent::HeldIntents::default(),
+            panel_focus_history: last_panel::PanelFocusHistory::default(),
+            scrollback_editor: None,
             viewer_recovery: viewer_recovery::ViewerRecovery::default(),
             retirement_failure: None,
             retirement_finalized: false,
@@ -2051,6 +2059,7 @@ impl WorkbenchClientUi {
                 changed |= self.drive_action_menu();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
+                changed |= self.settle_scrollback_editor();
                 changed |= self.graphics.tick(self.state.as_ref());
                 changed |= self.reports.tick(
                     self.state
@@ -2088,6 +2097,7 @@ impl WorkbenchClientUi {
         // The shell calls this only after Backend::flush closed the frame.
         self.remember_navigation_draw();
         self.remember_history_positions();
+        self.remember_panel_focus();
         if let Some(state) = &self.state {
             self.retained_frames
                 .after_draw(state, self.projections.iter().map(KeyedProjection::drawn));
@@ -3149,6 +3159,8 @@ impl WorkbenchClientUi {
                 }
             }
             ClientAction::ClearTerminal => self.request_terminal_clear(),
+            ClientAction::EditScrollback => self.request_scrollback_editor(),
+            ClientAction::FocusLastPanel => self.request_last_panel(),
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::RequestWorkspaceCloseAt(workspace) => {

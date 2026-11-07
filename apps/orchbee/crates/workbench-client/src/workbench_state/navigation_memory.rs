@@ -56,6 +56,36 @@ impl NavigationMemory {
             .insert(tab.tab_id().clone(), selected.key().panel().clone());
     }
 
+    /// Names `panel` as the Panel a later switch to `tab` lands on, and `tab` as the Tab a later
+    /// landing in `location` selects, for a step back to a Panel focused before.
+    fn prefer(
+        &mut self,
+        location: &ClientContextLocation,
+        tab: &WorkbenchTabId,
+        panel: &WorkbenchPanelId,
+    ) {
+        let index = self
+            .contexts
+            .iter()
+            .position(|entry| &entry.location == location)
+            .unwrap_or_else(|| {
+                // A preference is no visit, so it does not make the location recent.
+                self.contexts.insert(
+                    0,
+                    ContextMemory {
+                        location: location.clone(),
+                        last_tab: None,
+                        panels: BTreeMap::new(),
+                        presentations: BTreeMap::new(),
+                    },
+                );
+                0
+            });
+        let entry = &mut self.contexts[index];
+        entry.last_tab = Some(tab.clone());
+        entry.panels.insert(tab.clone(), panel.clone());
+    }
+
     pub(super) fn recent_locations(&self) -> impl Iterator<Item = &ClientContextLocation> {
         self.contexts.iter().rev().map(|entry| &entry.location)
     }
@@ -260,6 +290,17 @@ impl WorkbenchClientState {
                 }
             }
         }
+    }
+
+    /// Last Panel's target: the next switch to `tab`, or landing in `location`, selects `panel`.
+    /// Pruning still drops it once the Panel is gone.
+    pub(crate) fn prefer_panel(
+        &mut self,
+        location: &ClientContextLocation,
+        tab: &WorkbenchTabId,
+        panel: &WorkbenchPanelId,
+    ) {
+        self.navigation_memory.prefer(location, tab, panel);
     }
 
     pub(super) fn prune_navigation_memory(&mut self) {
