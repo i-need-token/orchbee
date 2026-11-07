@@ -7,7 +7,7 @@
 	border: none;
 	place-items: center;
 	background: var(--ob-sys-color-surface-inactive);
-	cursor: pointer;
+	cursor: default;
 }
 
 .badge {

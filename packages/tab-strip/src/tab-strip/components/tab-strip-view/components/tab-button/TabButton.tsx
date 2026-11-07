@@ -101,6 +101,8 @@ export function TabButton({
 		identityIcon !== undefined ||
 		statusAdornment !== undefined ||
 		tab.shouldDisplayFavicon !== false;
+	const hasStatusSymbol =
+		statusAdornment?.glyph !== undefined || statusAdornment?.mark !== undefined;
 	const horizontalContentsWidth = Math.max(0, renderedWidth - TAB_CONTENT_HORIZONTAL_INSET * 2);
 	const childVisibility =
 		orientation === TabStripOrientation.Horizontal
@@ -171,7 +173,7 @@ export function TabButton({
 	const nextTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex + 1]?.id;
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
-			{childVisibility.showFavicon || statusAdornment?.glyph !== undefined ? (
+			{childVisibility.showFavicon || hasStatusSymbol ? (
 				<TabIcon
 					tab={tab}
 					availableWidth={Math.max(0, renderedWidth - 18)}

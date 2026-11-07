@@ -29,7 +29,7 @@
 
 button.statusNoticeText {
 	pointer-events: auto;
-	cursor: pointer;
+	cursor: default;
 	text-align: start;
 }
 

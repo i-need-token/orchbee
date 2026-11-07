@@ -146,6 +146,13 @@ export type TabStatusAdornmentKind =
 export interface TabStatusAdornment {
 	/** Host-owned semantic symbol; when present it occupies the leading identity slot. */
 	readonly glyph?: string | undefined;
+	/**
+	 * Host-owned status mark drawn in the leading identity slot in place of `glyph`. A mark is a
+	 * complete drawing: the strip adds no kind color or animation to it and draws no status dot beside
+	 * it, so its own tone stands. A text symbol belongs in `glyph`, which the strip colors by `kind`.
+	 * When both are set, `mark` wins.
+	 */
+	readonly mark?: ReactNode | undefined;
 	/** Independent trailing unread indicator; copy is supplied by the host. */
 	readonly unreadLabel?: string | undefined;
 	readonly accessibleLabel: string;

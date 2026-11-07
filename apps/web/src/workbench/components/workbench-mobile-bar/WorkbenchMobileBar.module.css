@@ -14,7 +14,7 @@
 		var(--ob-sys-color-surface-subtle),
 		var(--ob-sys-color-surface-subtle)
 	);
-	cursor: pointer;
+	cursor: default;
 	user-select: none;
 }
 
@@ -86,7 +86,7 @@
 	border: none;
 	background: none;
 	color: inherit;
-	cursor: pointer;
+	cursor: default;
 }
 
 .middle:focus-visible {

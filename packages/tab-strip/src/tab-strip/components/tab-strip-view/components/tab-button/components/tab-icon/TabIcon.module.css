@@ -29,3 +29,7 @@
 .ct-tab-icon__status-symbol {
 	composes: ct-tab-icon__status-symbol from '../../../../TabStripView.module.css';
 }
+
+.ct-tab-icon__status-mark {
+	composes: ct-tab-icon__status-mark from '../../../../TabStripView.module.css';
+}

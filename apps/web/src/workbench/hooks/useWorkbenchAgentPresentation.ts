@@ -4,6 +4,7 @@ import type { TabStatusAdornment, TabStatusAdornmentKind } from '@orchbee/tab-st
 import * as React from 'react';
 
 import { WorkbenchAgentProviderIcon } from '../components/workbench-agent-provider-icon/WorkbenchAgentProviderIcon';
+import { WorkbenchAgentStateGlyph } from '../components/workbench-agent-state-glyph/WorkbenchAgentStateGlyph';
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
@@ -176,7 +177,7 @@ export function useWorkbenchAgentPresentation({
 			const hasUnread = presentationIds.some((id) => unread.has(id));
 			statusAdornments.set(tab.tabId, {
 				accessibleLabel: `${formatWorkbenchAgentGroupName(intl, agents)}: ${status.status}${hasUnread ? ` · ${unreadLabel}` : ''}`,
-				glyph: status.glyph,
+				mark: React.createElement(WorkbenchAgentStateGlyph, { size: 'small', status }),
 				icon: identityIcon,
 				kind: TAB_ADORNMENT_KINDS[state],
 				unreadLabel: hasUnread ? unreadLabel : undefined,

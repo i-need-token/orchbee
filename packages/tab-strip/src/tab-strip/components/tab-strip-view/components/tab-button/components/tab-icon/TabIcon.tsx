@@ -36,6 +36,25 @@ export function TabIcon(props: TabIconProps): ReactNode {
 	} else {
 		favicon = <TabStripIcon name='default-favicon' variantClass='ct-tab-icon__favicon' />;
 	}
+	const statusMark = props.statusAdornment?.mark;
+	// A mark or glyph takes the favicon's place; the status dot stands in only when neither draws.
+	const statusSymbolDrawn = statusMark !== undefined || props.statusAdornment?.glyph !== undefined;
+	let identitySymbol: ReactNode;
+	if (statusMark !== undefined) {
+		identitySymbol = (
+			<span className={styles['ct-tab-icon__status-mark']} data-tab-status-mark=''>
+				{statusMark}
+			</span>
+		);
+	} else if (props.statusAdornment?.glyph === undefined) {
+		identitySymbol = favicon;
+	} else {
+		identitySymbol = (
+			<span className={styles['ct-tab-icon__status-symbol']} data-tab-status-glyph=''>
+				{props.statusAdornment.glyph}
+			</span>
+		);
+	}
 
 	return (
 		<span
@@ -54,15 +73,7 @@ export function TabIcon(props: TabIconProps): ReactNode {
 			data-identity-icon={props.identityIcon !== undefined || undefined}
 			data-status-adornment={props.statusAdornment?.kind}
 		>
-			<span className={styles['ct-tab-icon__normal']}>
-				{props.statusAdornment?.glyph === undefined ? (
-					favicon
-				) : (
-					<span className={styles['ct-tab-icon__status-symbol']} data-tab-status-glyph=''>
-						{props.statusAdornment.glyph}
-					</span>
-				)}
-			</span>
+			<span className={styles['ct-tab-icon__normal']}>{identitySymbol}</span>
 			<TabStripIcon name='sad-tab' variantClass='ct-tab-icon__crashed' />
 			{view.visual.showingLoadingAnimation ? (
 				<TabStripIcon name='spinner' variantClass='ct-tab-icon__spinner' />
@@ -73,7 +84,7 @@ export function TabIcon(props: TabIconProps): ReactNode {
 			{view.visual.showingAttentionIndicator ? (
 				<span className={styles['ct-tab-icon__attention']} />
 			) : null}
-			{props.statusAdornment && props.statusAdornment.glyph === undefined ? (
+			{props.statusAdornment && !statusSymbolDrawn ? (
 				<span className={styles['ct-tab-icon__status']} data-tab-icon-status='' />
 			) : null}
 		</span>

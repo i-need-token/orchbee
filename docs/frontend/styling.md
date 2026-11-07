@@ -41,6 +41,10 @@ Outside the generated shadcn boundary, do not use:
 
 Inline style objects may contain only registered `--ob-comp-*` keys for measured or user-controlled runtime geometry. Product-semantic composition and application layout never use Tailwind utilities.
 
+## Pointer cursors
+
+At rest every Orchbee control shows the default arrow, including rows, headings, panel titles, tabs, and buttons. `grab` and `grabbing` appear only while a drag is in progress: a draggable keeps its own `grab` under its surface's drag attribute, and `grabbing` comes from the drag's document cursor or its surface's drag rule. Text inputs and terminal text keep the text cursor, resize splitters keep their resize cursors, and `pointer` belongs only to links.
+
 ## Product icons
 
 - Product controls consume `ProductIcon` from `@orchbee/ui/components` through the Orchbee icon-name allowlist.

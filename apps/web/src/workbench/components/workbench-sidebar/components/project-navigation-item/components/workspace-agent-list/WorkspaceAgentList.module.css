@@ -19,7 +19,7 @@
 	padding: 0 var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-secondary);
-	cursor: pointer;
+	cursor: default;
 }
 
 .row::before {
@@ -71,7 +71,7 @@
 	border: none;
 	border-radius: inherit;
 	background: none;
-	cursor: pointer;
+	cursor: default;
 }
 
 .rowMain:focus-visible {

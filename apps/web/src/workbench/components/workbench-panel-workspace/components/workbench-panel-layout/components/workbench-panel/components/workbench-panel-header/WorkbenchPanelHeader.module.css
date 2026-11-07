@@ -10,10 +10,11 @@
 	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 	align-items: center;
 	color: var(--ob-sys-color-text-primary);
+	cursor: default;
 }
 
+/* A Panel drag's grabbing cursor comes from its workspace, which covers the header. */
 .root[data-drag-enabled='true'] {
-	cursor: grab;
 	touch-action: none;
 	user-select: none;
 }

@@ -19,6 +19,11 @@
 		var(--ob-ref-space-1) var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-secondary);
+	cursor: default;
+}
+
+/* Only a drag holds the list: its rows keep the grab hand while the drag lasts. */
+:global([data-sidebar-dragging]) .row {
 	cursor: grab;
 }
 

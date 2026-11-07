@@ -24,11 +24,13 @@
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-sm);
-	cursor: grab;
+	cursor: default;
 }
 
-.heading[data-recents-row] {
-	cursor: default;
+/* Only a drag holds the list: a Project heading keeps the grab hand while the drag lasts. Recents is
+   never held, so it stays the default arrow. */
+:global([data-sidebar-dragging]) .heading:not([data-recents-row]) {
+	cursor: grab;
 }
 
 .heading:has(.chevron:focus-visible) {

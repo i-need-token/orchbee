@@ -65,6 +65,13 @@ describe('useWorkbenchAgentPresentation', () => {
 			createElement('div', null, rendered.result.current.tabIdentityIcons.get(tabId)),
 		);
 		expect(activeIcon.container.querySelector('[data-agent-provider-icon="claude"]')).toBeTruthy();
+		const activeMark = render(
+			createElement('div', null, rendered.result.current.tabStatusAdornments.get(tabId)?.mark),
+		);
+		const glyph = activeMark.container.querySelector('[data-agent-state-glyph]');
+		expect(glyph?.getAttribute('data-shape')).toBe('hex');
+		expect(glyph?.getAttribute('data-size')).toBe('small');
+		expect(glyph?.getAttribute('data-tone')).toBe('working');
 
 		// The Agent exited, so the Server reports none in the terminal.
 		act(() => {

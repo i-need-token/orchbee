@@ -31,6 +31,33 @@ describe('TabIcon', () => {
 		expect(container.querySelector('[data-agent-icon]')).toBeTruthy();
 	});
 
+	it('draws a host status mark in the status slot, outranking a glyph and drawing no status dot', () => {
+		const status = {
+			accessibleLabel: 'Agent working',
+			icon: <span data-agent-icon='' />,
+			kind: 'active' as const,
+		};
+		const markOnly = render(
+			<TabIcon
+				tab={{ ...tab, shouldDisplayFavicon: false }}
+				statusAdornment={{ ...status, mark: <span data-agent-mark='' /> }}
+			/>,
+		);
+		expect(
+			markOnly.container.querySelector('[data-tab-status-mark] [data-agent-mark]'),
+		).toBeTruthy();
+		expect(markOnly.container.querySelector('[data-tab-icon-status]')).toBeNull();
+
+		const markAndGlyph = render(
+			<TabIcon
+				tab={{ ...tab, shouldDisplayFavicon: false }}
+				statusAdornment={{ ...status, glyph: '*', mark: <span data-agent-mark='' /> }}
+			/>,
+		);
+		expect(markAndGlyph.container.querySelector('[data-tab-status-glyph]')).toBeNull();
+		expect(markAndGlyph.container.querySelector('[data-agent-mark]')).toBeTruthy();
+	});
+
 	it('renders a stable host identity independently from its semantic status', () => {
 		const { container } = render(
 			<TabIcon
