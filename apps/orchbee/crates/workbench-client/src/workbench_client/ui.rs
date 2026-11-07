@@ -1526,6 +1526,12 @@ pub(super) struct WorkbenchClientUi {
     held_intents: held_intent::HeldIntents,
     /// The Panel focus history Last Panel steps back through.
     panel_focus_history: last_panel::PanelFocusHistory,
+    /// The Panel in another Workspace that focus returns to once the accepted Tab close settles.
+    pending_focus_return: Option<last_panel::PendingFocusReturn>,
+    /// Counts the key presses, pastes and mouse button presses this Client accepted.
+    input_epoch: u64,
+    /// The input epoch the latest Tab close request recorded; input after it ends a pending return.
+    tab_close_epoch: u64,
     /// The scrollback editor this Client's own action opened, until its popup settles.
     scrollback_editor: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     viewer_recovery: viewer_recovery::ViewerRecovery,
@@ -1679,6 +1685,9 @@ impl WorkbenchClientUi {
             publications: None,
             held_intents: held_intent::HeldIntents::default(),
             panel_focus_history: last_panel::PanelFocusHistory::default(),
+            pending_focus_return: None,
+            input_epoch: 0,
+            tab_close_epoch: 0,
             scrollback_editor: None,
             viewer_recovery: viewer_recovery::ViewerRecovery::default(),
             retirement_failure: None,
@@ -2067,6 +2076,8 @@ impl WorkbenchClientUi {
             changed |= self.drive_viewer_recovery(&mailbox);
             // So does the selection leaving a Tab whose close the Server accepted.
             changed |= self.follow_leaving_selection(&mailbox);
+            // A Panel in another Workspace that such a close returns focus to waits for the close.
+            changed |= self.follow_pending_focus_return();
             if crate::tui_composition::project_capture(client_capture, self.capture_claims())
                 .is_none()
             {
@@ -2208,6 +2219,11 @@ impl WorkbenchClientUi {
 
     pub(super) fn observe_focus(&mut self, focused: bool) {
         self.inherit_host_focus(Some(focused));
+    }
+    /// Advances the input epoch. A pending focus return ends once it moves past the close request
+    /// that picked the return.
+    pub(super) fn observe_input_accepted(&mut self) {
+        self.input_epoch += 1;
     }
     pub(super) fn observe_keyboard(&mut self) {
         // Windows Terminal can route keys before its FocusIn bytes. A later identical report

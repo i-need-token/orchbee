@@ -822,6 +822,29 @@ pub fn expectInputQueuesCleared(runtime: *TerminalRuntime) !void {
     try std.testing.expectEqual(@as(usize, 0), snapshot.terminal_reply_charge.entries);
 }
 
+pub fn expectNoQueuedTerminalBytes(runtime: *TerminalRuntime) !void {
+    const runtime_state = runtimeState(runtime);
+    runtime_state.input_mutex.lock();
+    defer runtime_state.input_mutex.unlock();
+    try std.testing.expect(!runtime_state.input_queue.hasWritableEntry());
+}
+
+/// Returns the next queued terminal entry's identifier after checking that its bytes are `expected`.
+pub fn expectNextQueuedTerminalBytes(
+    runtime: *TerminalRuntime,
+    expected: []const u8,
+) !u64 {
+    var buffer: [256]u8 = undefined;
+    const runtime_state = runtimeState(runtime);
+    runtime_state.input_mutex.lock();
+    defer runtime_state.input_mutex.unlock();
+    if (!runtime_state.input_queue.hasWritableEntry()) return error.ExpectedQueuedInput;
+    const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
+    try std.testing.expectEqual(InputSource.terminal, slice.source);
+    try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
+    return slice.identifier;
+}
+
 pub const ContainmentProbe = struct {
     abort_calls: usize = 0,
     contain_calls: usize = 0,

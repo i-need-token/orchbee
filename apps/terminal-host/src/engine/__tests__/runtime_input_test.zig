@@ -18,6 +18,7 @@ const commitReaderBatch = harness.commitReaderBatch;
 const completionClassificationLoad = harness.completionClassificationLoad;
 const createWithOptionsUsingSpawner = harness.createWithOptionsUsingSpawner;
 const deinitOwnedProfile = harness.deinitOwnedProfile;
+const expectNextQueuedTerminalBytes = harness.expectNextQueuedTerminalBytes;
 const FirstContainmentAttempt = harness.FirstContainmentAttempt;
 const InputReservation = harness.InputReservation;
 const InputSource = harness.InputSource;
@@ -2553,21 +2554,6 @@ fn expectNextQueuedClientBytes(
     // input_mutex is released before the gate is re-armed for the next
     // round's first slice; the next commit therefore cannot precede the arm.
     probe.rearm();
-}
-
-fn expectNextQueuedTerminalBytes(
-    runtime: *TerminalRuntime,
-    expected: []const u8,
-) !u64 {
-    var buffer: [256]u8 = undefined;
-    const runtime_state = runtimeState(runtime);
-    runtime_state.input_mutex.lock();
-    defer runtime_state.input_mutex.unlock();
-    if (!runtime_state.input_queue.hasWritableEntry()) return error.ExpectedQueuedInput;
-    const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
-    try std.testing.expectEqual(InputSource.terminal, slice.source);
-    try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
-    return slice.identifier;
 }
 
 fn inBandSizeReport(buffer: []u8, geometry: anytype) ![]const u8 {

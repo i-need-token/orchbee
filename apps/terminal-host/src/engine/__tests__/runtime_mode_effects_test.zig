@@ -4,6 +4,8 @@ const subject = harness.subject;
 const cancelInput = harness.cancelInput;
 const commitReaderBatch = harness.commitReaderBatch;
 const createRuntimeWithHooks = harness.createRuntimeWithHooks;
+const expectNextQueuedTerminalBytes = harness.expectNextQueuedTerminalBytes;
+const expectNoQueuedTerminalBytes = harness.expectNoQueuedTerminalBytes;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
 const reserveInput = harness.reserveInput;
 const runtimeState = harness.runtimeState;
@@ -329,25 +331,6 @@ test "pixel size queries have no reply while cell queries still answer under unk
         runtime,
         try inBandSizeReport(&expected, runtime.geometry()),
     ));
-}
-
-fn expectNoQueuedTerminalBytes(runtime: *TerminalRuntime) !void {
-    const runtime_state = runtimeState(runtime);
-    runtime_state.input_mutex.lock();
-    defer runtime_state.input_mutex.unlock();
-    try std.testing.expect(!runtime_state.input_queue.hasWritableEntry());
-}
-
-fn expectNextQueuedTerminalBytes(runtime: *TerminalRuntime, expected: []const u8) !u64 {
-    var buffer: [256]u8 = undefined;
-    const runtime_state = runtimeState(runtime);
-    runtime_state.input_mutex.lock();
-    defer runtime_state.input_mutex.unlock();
-    if (!runtime_state.input_queue.hasWritableEntry()) return error.ExpectedQueuedInput;
-    const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
-    try std.testing.expectEqual(harness.InputSource.terminal, slice.source);
-    try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
-    return slice.identifier;
 }
 
 fn inBandSizeReport(buffer: []u8, geometry: anytype) ![]const u8 {

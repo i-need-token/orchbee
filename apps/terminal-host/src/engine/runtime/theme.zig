@@ -5,6 +5,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
+const mode_effects = @import("mode_effects.zig");
 
 pub fn themeDefaults(self: *state.State) contracts.TerminalTheme {
     self.terminal_mutex.lock();
@@ -43,6 +44,10 @@ pub fn applyTheme(
         return error.RevisionOverflow;
     }
 
+    // The notice is queued before the theme installs, because its check compares against the
+    // installed scheme. A notice that cannot be queued is dropped instead of failing the terminal:
+    // the theme still installs, and a program that queries CSI ? 996 n reads the new scheme.
+    mode_effects.colorSchemeChangingLocked(self, next_theme.color_scheme) catch {};
     self.profile.applyTheme(&self.terminal, next_theme);
     const revision = current_revision + 1;
     self.revision.store(revision, .release);

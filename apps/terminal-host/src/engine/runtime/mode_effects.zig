@@ -1,6 +1,8 @@
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const terminal_input_encoding = @import("../input_encoding.zig");
+const engine_profile = @import("../profile.zig");
+const terminal_theme = @import("terminal-host-model").theme;
 const clock = @import("clock.zig");
 const process_io_ops = @import("process_io.zig");
 const state = @import("state.zig");
@@ -75,6 +77,23 @@ pub fn geometryCommittedLocked(self: *state.State) !void {
     if (self.terminal.modes.get(.in_band_size_reports)) {
         try reportSizeLocked(self);
     }
+}
+
+/// Queues the scheme report that a program which enabled mode 2031 needs when the effective
+/// appearance changes. A palette-only edit, or a program that has not enabled 2031, queues nothing.
+/// The caller holds terminal_mutex and has not installed `scheme` yet, because the check compares
+/// against the installed scheme. A notice that cannot be queued is dropped by the caller, and the
+/// theme installs anyway.
+pub fn colorSchemeChangingLocked(self: *state.State, scheme: terminal_theme.ColorScheme) !void {
+    if (self.profile.color_scheme == scheme) return;
+    if (!self.terminal.modes.get(.report_color_scheme)) return;
+    var buffer: [ghostty_vt.device_status.max_color_scheme_report_encode_size]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buffer);
+    try ghostty_vt.device_status.encodeColorSchemeReport(
+        &writer,
+        engine_profile.reportedColorSchemeFor(scheme),
+    );
+    try terminal_reply.enqueueLocked(self, writer.buffered());
 }
 
 /// Follows one reader batch. Only the visible-to-hidden edge opens the wait: a program that keeps

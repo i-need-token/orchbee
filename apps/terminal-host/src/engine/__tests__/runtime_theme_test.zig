@@ -6,7 +6,15 @@ const AttachmentId = harness.AttachmentId;
 const HostEpoch = harness.HostEpoch;
 const ReaderBatchOutcome = harness.ReaderBatchOutcome;
 const commitReaderBatch = harness.commitReaderBatch;
+const cancelInput = harness.cancelInput;
 const createIdleRuntime = harness.createIdleRuntime;
+const createIdleRuntimeWithGeometryAndHooks = harness.createIdleRuntimeWithGeometryAndHooks;
+const expectNextQueuedTerminalBytes = harness.expectNextQueuedTerminalBytes;
+const expectNoQueuedTerminalBytes = harness.expectNoQueuedTerminalBytes;
+const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
+const reserveInput = harness.reserveInput;
+const GatedPtyProbe = harness.GatedPtyProbe;
+const WriterProbe = harness.WriterProbe;
 const requireProjectionFrame = harness.requireProjectionFrame;
 const runtimeState = harness.runtimeState;
 
@@ -151,6 +159,89 @@ test "one theme mutation is projected at the same revision to two attachments" {
     try std.testing.expectEqual(replacement.default_background_rgb, readU32(first.bytes, 108));
     try std.testing.expectEqual(replacement.default_cursor_rgb.?, readU32(first.bytes, 112));
     try std.testing.expectEqualSlices(u8, first.bytes[104..116], second.bytes[104..116]);
+}
+
+test "color-scheme change queues its report only for a program that enabled mode 2031" {
+    var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        probe.probe.copied.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
+
+    var dark = replacement;
+    dark.color_scheme = .dark;
+    try std.testing.expectEqual(terminal_theme.ColorScheme.dark, runtime.themeDefaults().color_scheme);
+
+    // Without mode 2031 the program is not told about the appearance change.
+    _ = try runtime.applyTheme(replacement);
+    try expectNoQueuedTerminalBytes(runtime);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?2031h"),
+    );
+    _ = try runtime.applyTheme(dark);
+    cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[?997;1n"));
+    try expectNoQueuedTerminalBytes(runtime);
+}
+
+test "mode 2031 reports only effective appearance changes, not palette-only edits" {
+    var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        probe.probe.copied.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
+
+    _ = try runtime.applyTheme(replacement);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?2031h"),
+    );
+
+    // The appearance stays light, so only the palette changes and nothing is reported.
+    var palette_only = replacement;
+    palette_only.palette[42] = 0x01_02_03;
+    _ = try runtime.applyTheme(palette_only);
+    try expectNoQueuedTerminalBytes(runtime);
+
+    var dark = palette_only;
+    dark.color_scheme = .dark;
+    _ = try runtime.applyTheme(dark);
+    cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[?997;1n"));
+
+    _ = try runtime.applyTheme(replacement);
+    cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[?997;2n"));
+}
+
+test "an unqueued color-scheme notice is dropped and the theme still applies" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    try std.testing.expectEqual(terminal_theme.ColorScheme.dark, runtime.themeDefaults().color_scheme);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?2031h"),
+    );
+
+    // An unpublished reservation takes the whole reply budget, so the notice cannot be queued.
+    const budget = try reserveInput(runtime, max_pending_terminal_reply_bytes, false, .terminal);
+    defer cancelInput(runtime, budget.identifier);
+
+    const before = runtime.geometry();
+    const update = try runtime.applyTheme(replacement);
+    try std.testing.expectEqual(before.revision + 1, update.revision);
+    try std.testing.expect(terminal_theme.eql(replacement, runtime.themeDefaults()));
+
+    // The terminal still accepts runtime work: the same theme is a no-op at the new revision.
+    const unchanged = try runtime.applyTheme(replacement);
+    try std.testing.expectEqual(update.revision, unchanged.revision);
 }
 
 fn expectRuntimeColors(

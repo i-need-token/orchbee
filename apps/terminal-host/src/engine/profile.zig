@@ -75,10 +75,7 @@ pub const Owned = struct {
     }
 
     pub fn reportedColorScheme(self: *const Owned) ghostty_vt.device_status.ColorScheme {
-        return switch (self.color_scheme) {
-            .dark => .dark,
-            .light => .light,
-        };
+        return reportedColorSchemeFor(self.color_scheme);
     }
 
     pub fn cursorStyle(self: *const Owned) ghostty_vt.Screen.CursorStyle {
@@ -187,6 +184,14 @@ const default_profile: Profile = .{
     .palette = &.{},
     .version_response = "Orchbee",
 };
+
+/// The scheme that CSI ? 996 n answers and mode 2031 notifications carry.
+pub fn reportedColorSchemeFor(scheme: ColorScheme) ghostty_vt.device_status.ColorScheme {
+    return switch (scheme) {
+        .dark => .dark,
+        .light => .light,
+    };
+}
 
 fn rgb(value: u32) ghostty_vt.color.RGB {
     return .{

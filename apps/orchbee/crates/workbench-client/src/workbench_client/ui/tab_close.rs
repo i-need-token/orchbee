@@ -349,6 +349,7 @@ impl WorkbenchClientUi {
         &mut self,
         ids: &[orchbee_workbench_protocol::WorkbenchTabId],
     ) -> Option<()> {
+        self.note_tab_close_request();
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return None;
         };
@@ -553,6 +554,7 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn request_close_confirmation(&mut self) -> ClientActionDisposition {
+        self.note_tab_close_request();
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return ClientActionDisposition::KeepNavigator;
         };
@@ -577,6 +579,7 @@ impl WorkbenchClientUi {
         &mut self,
         tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
     ) -> ClientActionDisposition {
+        self.note_tab_close_request();
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return ClientActionDisposition::KeepNavigator;
         };
@@ -595,6 +598,7 @@ impl WorkbenchClientUi {
         tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
         permit: &TabCloseResumePermit,
     ) -> ClientActionDisposition {
+        self.note_tab_close_request();
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return ClientActionDisposition::KeepNavigator;
         };
@@ -629,6 +633,8 @@ impl WorkbenchClientUi {
         else {
             return ClientActionDisposition::KeepNavigator;
         };
+        // The confirming input belongs to this close, so the epoch is recorded after it.
+        self.note_tab_close_request();
         self.confirm_close_decision(ConfirmedClose::Tab(token))
     }
 
