@@ -88,6 +88,15 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		targetId: 'terminal.resumeAgentsOnRestore',
 	},
 	{
+		category: 'terminal',
+		description: terminalSettingsMessages.restoreTerminalOutputDescription,
+		id: 'terminal.restoreTerminalOutput',
+		keywords: ['history', 'output', 'restart', 'restore', 'scrollback', 'replay'],
+		label: terminalSettingsMessages.restoreTerminalOutputLabel,
+		section: terminalSettingsMessages.terminalHistorySection,
+		targetId: 'terminal.restoreTerminalOutput',
+	},
+	{
 		category: 'appearance',
 		description: terminalSettingsMessages.applicationThemeDescription,
 		id: 'appearance.application-theme',

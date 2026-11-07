@@ -88,6 +88,7 @@ pub enum PreferenceKey {
     CopyOnSelect,
     TrimTrailingBlankRowsForAgents,
     ResumeAgentsOnRestore,
+    RestoreTerminalOutput,
     AgentNotificationMode,
     CompletionReminderMode,
     CompletionReminderMinimumSeconds,
@@ -97,7 +98,7 @@ pub enum PreferenceKey {
 }
 impl PreferenceKey {
     /// Complete closed inventory; adapters cannot silently omit an admitted common value.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -109,6 +110,7 @@ impl PreferenceKey {
         Self::CopyOnSelect,
         Self::TrimTrailingBlankRowsForAgents,
         Self::ResumeAgentsOnRestore,
+        Self::RestoreTerminalOutput,
         Self::AgentNotificationMode,
         Self::CompletionReminderMode,
         Self::CompletionReminderMinimumSeconds,
@@ -130,6 +132,7 @@ impl PreferenceKey {
             Self::CopyOnSelect => "copyOnSelect",
             Self::TrimTrailingBlankRowsForAgents => "trimTrailingBlankRowsForAgents",
             Self::ResumeAgentsOnRestore => "resumeAgentsOnRestore",
+            Self::RestoreTerminalOutput => "restoreTerminalOutput",
             Self::AgentNotificationMode => "agentNotificationMode",
             Self::CompletionReminderMode => "completionReminderMode",
             Self::CompletionReminderMinimumSeconds => "completionReminderMinimumSeconds",
@@ -169,6 +172,10 @@ pub struct UserPreferencesValues {
     /// their Panels after a restart. A record that omits it reads as `true`.
     #[serde(default = "default_resume_agents_on_restore")]
     pub resume_agents_on_restore: bool,
+    /// Whether the Server keeps each terminal's recent output beside its checkpoint and shows it
+    /// again after a restart. A record that omits it reads as `false`.
+    #[serde(default)]
+    pub restore_terminal_output: bool,
     pub agent_notification_mode: AgentReminderMode,
     pub completion_reminder_mode: CompletionReminderMode,
     #[serde(deserialize_with = "minimum_seconds")]
@@ -192,6 +199,7 @@ impl Default for UserPreferencesValues {
             copy_on_select: false,
             trim_trailing_blank_rows_for_agents: true,
             resume_agents_on_restore: true,
+            restore_terminal_output: false,
             agent_notification_mode: AgentReminderMode::Never,
             completion_reminder_mode: CompletionReminderMode::Never,
             completion_reminder_minimum_seconds: 5,

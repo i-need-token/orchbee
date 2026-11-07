@@ -64,24 +64,25 @@ publishes interaction configuration when a confirmed snapshot changes either val
 
 The complete product default is:
 
-| Field                  | Default                                                            |
-| ---------------------- | ------------------------------------------------------------------ |
-| Application theme      | `system`                                                           |
-| Light theme            | `orchbee-light`                                                    |
-| Dark theme             | `orchbee-dark`                                                     |
-| Font family            | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
-| Font size              | `13`                                                               |
-| Regular font weight    | `400`                                                              |
-| Bold font weight       | `700`                                                              |
-| Font ligatures         | `true`                                                             |
-| Terminal padding       | `0`                                                                |
-| Terminal display theme | `theme`                                                            |
-| Custom foreground      | `#141414`                                                          |
-| Custom background      | `#fcfcfc`                                                          |
-| Background opacity     | `100`                                                              |
-| Copy on select         | `false`                                                            |
-| Trim Agent tail blanks | `true`                                                             |
-| Resume Agents          | `true`                                                             |
+| Field                   | Default                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| Application theme       | `system`                                                           |
+| Light theme             | `orchbee-light`                                                    |
+| Dark theme              | `orchbee-dark`                                                     |
+| Font family             | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
+| Font size               | `13`                                                               |
+| Regular font weight     | `400`                                                              |
+| Bold font weight        | `700`                                                              |
+| Font ligatures          | `true`                                                             |
+| Terminal padding        | `0`                                                                |
+| Terminal display theme  | `theme`                                                            |
+| Custom foreground       | `#141414`                                                          |
+| Custom background       | `#fcfcfc`                                                          |
+| Background opacity      | `100`                                                              |
+| Copy on select          | `false`                                                            |
+| Trim Agent tail blanks  | `true`                                                             |
+| Resume Agents           | `true`                                                             |
+| Restore terminal output | `false`                                                            |
 
 ### CLI Agent trailing-blank-row preference
 
@@ -112,6 +113,15 @@ client, not the interaction controller, because no installed presentation consum
 reads it at its next restart and before each checkpoint capture; the row has no capability gate.
 The [Server contract](../../orchbee-server/docs/agent-session-resume.md) owns what it records and
 resumes.
+
+### Terminal output replay preference
+
+The same section exposes “Restore terminal output after restart”, the shared
+`restoreTerminalOutput` preference, off by default. Its description warns that output can contain
+secrets and is stored on this computer. Like Agent resume, the row writes through the shared
+user-preference client and has no capability gate; the Server reads it at each checkpoint capture
+and at startup. The [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) owns
+what is kept, when it is deleted and how it is replayed.
 
 Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
 Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the
@@ -271,7 +281,8 @@ failure retains every mounted terminal and the application surface at their prev
 complete presentation without rolling back the preference.
 
 Reset restores the host leaves through this algorithm and sends null for the six common
-appearance keys, the two interaction keys and `resumeAgentsOnRestore` in one shared reset:
+appearance keys, the two interaction keys, `resumeAgentsOnRestore` and `restoreTerminalOutput` in
+one shared reset:
 
 - Different host leaves become the product default, write once, and publish at most one terminal
   presentation snapshot when terminal-derived values changed.

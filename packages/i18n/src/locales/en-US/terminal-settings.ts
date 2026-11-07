@@ -223,6 +223,9 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.terminal.resumeAgentsOnRestore.description':
 		'Resume Claude Code and Codex Agent sessions in their Panels after a restart.',
 	'terminal.settings.terminal.resumeAgentsOnRestore.label': 'Resume Agents after restart',
+	'terminal.settings.terminal.restoreTerminalOutput.description':
+		'Keeps recent output on this computer and shows it after a restart; may hold secrets.',
+	'terminal.settings.terminal.restoreTerminalOutput.label': 'Restore terminal output after restart',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Scrollback settings are unavailable until the Desktop control connection is restored.',
 	'terminal.settings.terminal.scrollbackBytes.description':

@@ -108,6 +108,10 @@ export function buildTerminalSettingsSurfaceMessages(
 			terminalSettingsMessages.resumeAgentsOnRestoreDescription,
 		),
 		resumeAgentsOnRestoreLabel: formatMessage(terminalSettingsMessages.resumeAgentsOnRestoreLabel),
+		restoreTerminalOutputDescription: formatMessage(
+			terminalSettingsMessages.restoreTerminalOutputDescription,
+		),
+		restoreTerminalOutputLabel: formatMessage(terminalSettingsMessages.restoreTerminalOutputLabel),
 		searchPlaceholder: formatMessage(terminalSettingsMessages.searchPlaceholder),
 		scrollbackBytesControlUnavailableWarning: formatMessage(
 			terminalSettingsMessages.scrollbackBytesControlUnavailableWarning,

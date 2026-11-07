@@ -106,6 +106,7 @@
 													"copyOnSelect",
 													"trimTrailingBlankRowsForAgents",
 													"resumeAgentsOnRestore",
+													"restoreTerminalOutput",
 													"agentNotificationMode",
 													"completionReminderMode",
 													"completionReminderMinimumSeconds",
@@ -145,6 +146,9 @@
 														"type": "null"
 													},
 													"resumeAgentsOnRestore": {
+														"type": "null"
+													},
+													"restoreTerminalOutput": {
 														"type": "null"
 													},
 													"agentNotificationMode": {

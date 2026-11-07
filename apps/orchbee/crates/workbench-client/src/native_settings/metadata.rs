@@ -79,7 +79,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 17] = [
+pub(crate) static SETTINGS: [SettingMetadata; 18] = [
     SettingMetadata {
         key: PreferenceKey::Locale,
         row: Row::Language,
@@ -163,6 +163,14 @@ pub(crate) static SETTINGS: [SettingMetadata; 17] = [
     SettingMetadata {
         key: PreferenceKey::ResumeAgentsOnRestore,
         row: Row::ResumeAgents,
+        category: SettingCategory::Terminal,
+        control: SettingControl::Boolean,
+        availability: SettingAvailability::Always,
+        effect: SettingEffect::NextRestart,
+    },
+    SettingMetadata {
+        key: PreferenceKey::RestoreTerminalOutput,
+        row: Row::RestoreOutput,
         category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,

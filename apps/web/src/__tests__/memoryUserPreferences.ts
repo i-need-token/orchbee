@@ -112,6 +112,11 @@ function applyPatch(
 			current.resumeAgentsOnRestore,
 			DEFAULT_USER_PREFERENCES.resumeAgentsOnRestore,
 		),
+		restoreTerminalOutput: choose(
+			changes.restoreTerminalOutput,
+			current.restoreTerminalOutput,
+			DEFAULT_USER_PREFERENCES.restoreTerminalOutput,
+		),
 		agentNotificationMode: choose(
 			changes.agentNotificationMode,
 			current.agentNotificationMode,

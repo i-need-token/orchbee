@@ -66,6 +66,9 @@
 				"resumeAgentsOnRestore": {
 					"type": "boolean"
 				},
+				"restoreTerminalOutput": {
+					"type": "boolean"
+				},
 				"agentNotificationMode": {
 					"type": "string",
 					"enum": ["never", "hidden"]
@@ -103,6 +106,7 @@
 				"copyOnSelect",
 				"trimTrailingBlankRowsForAgents",
 				"resumeAgentsOnRestore",
+				"restoreTerminalOutput",
 				"agentNotificationMode",
 				"completionReminderMode",
 				"completionReminderMinimumSeconds",
@@ -122,6 +126,7 @@
 				"copyOnSelect": false,
 				"trimTrailingBlankRowsForAgents": true,
 				"resumeAgentsOnRestore": true,
+				"restoreTerminalOutput": false,
 				"agentNotificationMode": "never",
 				"completionReminderMode": "never",
 				"completionReminderMinimumSeconds": 5,
@@ -257,6 +262,16 @@
 						}
 					]
 				},
+				"restoreTerminalOutput": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/values/properties/restoreTerminalOutput"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
 				"agentNotificationMode": {
 					"anyOf": [
 						{
@@ -347,6 +362,7 @@
 							"copyOnSelect",
 							"trimTrailingBlankRowsForAgents",
 							"resumeAgentsOnRestore",
+							"restoreTerminalOutput",
 							"agentNotificationMode",
 							"completionReminderMode",
 							"completionReminderMinimumSeconds",
@@ -420,6 +436,7 @@
 											"copyOnSelect",
 											"trimTrailingBlankRowsForAgents",
 											"resumeAgentsOnRestore",
+											"restoreTerminalOutput",
 											"agentNotificationMode",
 											"completionReminderMode",
 											"completionReminderMinimumSeconds",
@@ -459,6 +476,9 @@
 												"type": "null"
 											},
 											"resumeAgentsOnRestore": {
+												"type": "null"
+											},
+											"restoreTerminalOutput": {
 												"type": "null"
 											},
 											"agentNotificationMode": {

@@ -94,6 +94,10 @@ impl Locale {
                 "收起智能体输出底部空白",
             ),
             Row::ResumeAgents => ("Resume Agents after restart", "重启后恢复智能体"),
+            Row::RestoreOutput => (
+                "Restore terminal output after restart",
+                "重启后恢复终端输出",
+            ),
             Row::Reminders => ("Agent status notifications", "智能体状态通知"),
             Row::CompletionReminders => ("Completion reminders", "命令完成提醒"),
             Row::CompletionThreshold => {
@@ -220,6 +224,10 @@ impl Locale {
             Row::ResumeAgents => self.setting(
                 "Resume Claude Code and Codex Agent sessions in their Panels after a restart.",
                 "重启后在原面板中恢复 Claude Code 和 Codex 智能体会话。",
+            ),
+            Row::RestoreOutput => self.setting(
+                "Keeps recent output on this computer and shows it after a restart; may hold secrets.",
+                "在本机保存最近的终端输出并在重启后显示；其中可能含有密钥等敏感信息。",
             ),
             Row::Scrollback => self.setting(
                 "History capacity for new terminals: 0–1000 MB; 1 MB = 1,000,000 bytes.",
@@ -543,6 +551,10 @@ impl Locale {
             SettingsDetailKind::ResumeAgentsAfterSave => self.setting(
                 "After Save: applies at the next restart; Off also stops saving Agent session IDs.",
                 "保存后于下次重启生效；关闭后也不再保存智能体会话 ID。",
+            ),
+            SettingsDetailKind::RestoreOutputAfterSave => self.setting(
+                "After Save: kept from the next save; Off deletes every kept copy.",
+                "保存后从下次保存起生效；关闭会删除所有已保存的输出。",
             ),
             SettingsDetailKind::AgentNotificationsAfterSave => self.setting(
                 "After Save: future hidden-agent events; host delivery and per-agent mute apply.",

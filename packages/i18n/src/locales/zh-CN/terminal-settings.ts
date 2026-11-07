@@ -205,6 +205,9 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.terminal.resumeAgentsOnRestore.description':
 		'重启后在原面板中恢复 Claude Code 和 Codex 智能体会话。',
 	'terminal.settings.terminal.resumeAgentsOnRestore.label': '重启后恢复智能体',
+	'terminal.settings.terminal.restoreTerminalOutput.description':
+		'在本机保存最近的终端输出并在重启后显示；其中可能含有密钥等敏感信息。',
+	'terminal.settings.terminal.restoreTerminalOutput.label': '重启后恢复终端输出',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Desktop 控制连接恢复前，无法更改回滚缓冲区设置。',
 	'terminal.settings.terminal.scrollbackBytes.description':

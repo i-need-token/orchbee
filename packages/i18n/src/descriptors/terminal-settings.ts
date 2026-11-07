@@ -251,6 +251,10 @@ export const terminalSettingsMessages = defineMessages({
 		'terminal.settings.terminal.resumeAgentsOnRestore.description',
 	),
 	resumeAgentsOnRestoreLabel: message('terminal.settings.terminal.resumeAgentsOnRestore.label'),
+	restoreTerminalOutputDescription: message(
+		'terminal.settings.terminal.restoreTerminalOutput.description',
+	),
+	restoreTerminalOutputLabel: message('terminal.settings.terminal.restoreTerminalOutput.label'),
 	scrollbackBytesControlUnavailableWarning: message(
 		'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning',
 	),

@@ -30,7 +30,8 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					view.category === 'terminal' &&
 					(view.scrollbackBytesVisible ||
 						view.trimTrailingBlankRowsForAgentsVisible ||
-						view.resumeAgentsOnRestoreVisible)
+						view.resumeAgentsOnRestoreVisible ||
+						view.restoreTerminalOutputVisible)
 				}
 			>
 				<TerminalSettingsRow
@@ -88,6 +89,18 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 						aria-label={view.messages.resumeAgentsOnRestoreLabel}
 						checked={view.resumeAgentsOnRestore}
 						onCheckedChange={view.onResumeAgentsOnRestoreChange}
+					/>
+				</TerminalSettingsRow>
+				<TerminalSettingsRow
+					description={view.messages.restoreTerminalOutputDescription}
+					label={view.messages.restoreTerminalOutputLabel}
+					settingId='terminal.restoreTerminalOutput'
+					visible={view.restoreTerminalOutputVisible}
+				>
+					<Switch
+						aria-label={view.messages.restoreTerminalOutputLabel}
+						checked={view.restoreTerminalOutput}
+						onCheckedChange={view.onRestoreTerminalOutputChange}
 					/>
 				</TerminalSettingsRow>
 			</SettingsSection>

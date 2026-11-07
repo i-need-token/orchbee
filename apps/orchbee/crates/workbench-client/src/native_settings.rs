@@ -359,6 +359,7 @@ impl DraftView<'_> {
             Row::CopyOnSelect => Some(self.values.copy_on_select),
             Row::TrimAgents => Some(self.values.trim_trailing_blank_rows_for_agents),
             Row::ResumeAgents => Some(self.values.resume_agents_on_restore),
+            Row::RestoreOutput => Some(self.values.restore_terminal_output),
             Row::Sound => Some(self.values.sound_enabled),
             Row::Login => match &self.values.launch_profiles.profiles[self.profile].command {
                 orchbee_workbench_protocol::UserLaunchCommand::SystemShell { login } => {
@@ -425,6 +426,9 @@ impl DraftView<'_> {
             }
             PreferenceKey::ResumeAgentsOnRestore => {
                 self.values.resume_agents_on_restore != self.basis_values.resume_agents_on_restore
+            }
+            PreferenceKey::RestoreTerminalOutput => {
+                self.values.restore_terminal_output != self.basis_values.restore_terminal_output
             }
             PreferenceKey::AgentNotificationMode => {
                 self.values.agent_notification_mode != self.basis_values.agent_notification_mode

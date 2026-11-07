@@ -206,6 +206,7 @@ export function useTerminalSettingsSurface({
 	const trimTrailingBlankRowsForAgentsVisible = terminalInteractionSettingsController !== undefined;
 	const scrollbackBytesVisible = terminalDefaultSettingsControl !== undefined;
 	const resumeAgentsOnRestoreVisible = true;
+	const restoreTerminalOutputVisible = true;
 	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
 		id: group.id,
 		items: group.categories
@@ -488,10 +489,14 @@ export function useTerminalSettingsSurface({
 				'copyOnSelect',
 				'trimTrailingBlankRowsForAgents',
 				'resumeAgentsOnRestore',
+				'restoreTerminalOutput',
 			]);
 		},
 		onResumeAgentsOnRestoreChange: (checked): void => {
 			void controller.userPreferences.update({ resumeAgentsOnRestore: checked });
+		},
+		onRestoreTerminalOutputChange: (checked): void => {
+			void controller.userPreferences.update({ restoreTerminalOutput: checked });
 		},
 		onSearchChange: (event): void => {
 			setQuery(event.currentTarget.value);
@@ -568,6 +573,10 @@ export function useTerminalSettingsSurface({
 			userPreferencesState.snapshot?.values.resumeAgentsOnRestore ??
 			DEFAULT_USER_PREFERENCES.resumeAgentsOnRestore,
 		resumeAgentsOnRestoreVisible,
+		restoreTerminalOutput:
+			userPreferencesState.snapshot?.values.restoreTerminalOutput ??
+			DEFAULT_USER_PREFERENCES.restoreTerminalOutput,
+		restoreTerminalOutputVisible,
 		searchActive,
 		searchResults,
 		searchResultsId: TERMINAL_SETTINGS_SEARCH_RESULTS_ID,
