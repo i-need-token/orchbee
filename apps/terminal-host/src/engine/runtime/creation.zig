@@ -14,6 +14,7 @@ const state = @import("state.zig");
 const output_ops = @import("output.zig");
 const feedback_ops = @import("feedback.zig");
 const png_decoder = @import("../png_decoder.zig");
+const output_seed = @import("../output_seed.zig");
 const writer_ops = @import("writer.zig");
 const wait_thread_ops = @import("wait_thread.zig");
 const animation_ops = @import("animation.zig");
@@ -148,6 +149,7 @@ pub fn createWithOptionsUsingSpawner(
         feedback_ops.max_private_application_signal_apc_bytes;
     self.stream.handler.terminal_handler.unknown_sequence =
         feedback_ops.privateApplicationSignalEffect;
+    if (resolved_options.output_seed) |seed| output_seed.apply(&self.stream, seed);
 
     self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
     self.reader_thread = try spawner.spawn(output_ops.readerThread, self);

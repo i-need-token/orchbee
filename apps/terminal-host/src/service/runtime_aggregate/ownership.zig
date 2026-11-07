@@ -34,6 +34,7 @@ pub fn deinitChecked(
         self.maintenance.retainUnconfirmedCleanup(self);
         return err;
     };
+    self.staged_output.deinit(self.allocator);
     self.core_state.deinit();
     self.* = undefined;
 }
@@ -56,6 +57,7 @@ pub fn runRetainedCleanupWindow(self: anytype) RetainedCleanupResult {
 
 pub fn finishRetainedCleanup(self: anytype) !void {
     try shutdownAndReleaseTerminalEngines(self);
+    self.staged_output.deinit(self.allocator);
     self.core_state.deinit();
     self.* = undefined;
 }

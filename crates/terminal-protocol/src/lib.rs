@@ -25,6 +25,11 @@ mod inventory;
 mod lifecycle;
 mod limits;
 mod message;
+mod output_staging;
+pub use output_staging::{
+    MAXIMUM_STAGED_OUTPUT_BYTES, OUTPUT_STAGING_HEADER_BYTES, OutputStaged,
+    decode_terminal_output_staged, encode_stage_terminal_output, encode_terminal_output_staged,
+};
 mod process_info;
 mod projection_buffer;
 mod projection_demand;

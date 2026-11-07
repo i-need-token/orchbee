@@ -128,6 +128,7 @@ pub const PayloadEncoding = enum(u8) {
 /// field; it makes Host request coverage exhaustive when the registry grows.
 pub const RequestOperation = enum {
     decode_graphics_png,
+    stage_terminal_output,
     read_process_info,
     apply_terminal_theme,
     attach_terminal,
@@ -227,6 +228,8 @@ pub fn messageContract(kind: u16) ?MessageContract {
     return switch (kind) {
         M.decode_graphics_png => requestOnly("DecodeGraphicsPng", .decode_graphics_png, .graphics_image, M.graphics_png_decoded),
         M.graphics_png_decoded => responseOnly("GraphicsPngDecoded", .graphics_image),
+        M.stage_terminal_output => requestOnly("StageTerminalOutput", .stage_terminal_output, .raw_bytes, M.terminal_output_staged),
+        M.terminal_output_staged => responseOnly("TerminalOutputStaged", .raw_bytes),
         M.hello => requestOnly("Hello", .hello, .control_json, M.hello_accepted),
         M.hello_accepted => responseOnly("HelloAccepted", .control_json),
         M.protocol_rejected => responseOnly("ProtocolRejected", .control_json),

@@ -56,7 +56,9 @@ output/context byte budgets remain explicit at those boundaries.
 
 The transport registry has unique, strictly increasing numeric kinds, checked at compile time
 before binary-search lookup. Kind 79 admits the existing correlated `ReadProcessInfo` request and
-response as control JSON; kinds 80/81 retain their graphics-image contracts. Process-info payload
+response as control JSON; kinds 80/81 retain their graphics-image contracts. Kinds 82/83 carry
+`StageTerminalOutput` and its `TerminalOutputStaged` receipt as raw bytes; `output_staging` encodes
+the request and decodes the receipt for the Worker, and the Host owns the output grammar. Process-info payload
 round trips also pass through transport encoding and decoding with correlation and Host epoch,
 so a registered payload cannot silently become an unknown required transport message. Event roles
 remain rejected and the existing payload bounds remain unchanged.

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { messagePayloadEncoding } from '../envelope';
 import {
 	isControlRequestKind,
-	isInputRequestKind,
 	isKnownMessageKind,
 	MESSAGE_CONTRACTS,
 	MessageKind,
@@ -34,9 +33,6 @@ describe('message contract registry', () => {
 			expect(messagePayloadEncoding(contract.request.successKind, 'response')).not.toBeNull();
 			expect(isControlRequestKind(kind)).toBe(
 				contract.request.payloadEncoding === PayloadEncoding.controlJson,
-			);
-			expect(isInputRequestKind(kind)).toBe(
-				contract.request.payloadEncoding === PayloadEncoding.rawBytes,
 			);
 		}
 		expect(messagePayloadEncoding(MessageKind.writeInput, 'request')).toBe(

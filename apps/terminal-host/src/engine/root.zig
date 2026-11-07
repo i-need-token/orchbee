@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 pub const decodeGraphicsPng = @import("png_decoder.zig").decodeGraphicsPng;
 pub const history = @import("history/root.zig");
 pub const launch = @import("launch.zig");
+pub const output_seed = @import("output_seed.zig");
 pub const profile = @import("profile.zig");
 pub const runtime = @import("runtime/root.zig");
 

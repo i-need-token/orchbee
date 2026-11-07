@@ -36,6 +36,9 @@ pub fn prepareCreateTerminalWithScrollback(
     if (source != null and (validated_launch.launch.geometry != null or source.?.generation == 0)) {
         return error.InvalidEditorLaunch;
     }
+    // The next creation on this connection always empties the staged-output slot.
+    var seed = self.staged_output.take(self.allocator, connection_id, creation_id);
+    errdefer if (seed) |bytes| self.allocator.free(bytes);
     const digest = if (source) |value|
         terminal_launch.editorLaunchDigest(validated_launch.launch_digest, value)
     else
@@ -50,6 +53,7 @@ pub fn prepareCreateTerminalWithScrollback(
             validated_launch.environment_overlay.digest,
     )) |terminal_id| {
         const terminal = self.core_state.findTerminal(terminal_id) orelse unreachable;
+        if (seed) |bytes| self.allocator.free(bytes);
         return .{ .replayed = .{
             .creation_id = terminal.creation_id,
             .terminal_id = terminal_id,
@@ -65,6 +69,8 @@ pub fn prepareCreateTerminalWithScrollback(
             self.core_state.terminalDefaults(),
         ) catch return error.LaunchPreparationOutOfMemory;
     errdefer prepared_launch.deinit(self.allocator);
+    prepared_launch.output_seed = seed;
+    seed = null;
 
     try self.core_state.reserveTerminal();
 

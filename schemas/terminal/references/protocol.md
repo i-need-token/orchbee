@@ -369,6 +369,7 @@ Opaque paste content is bounded at 256 KiB, below the general semantic-input bod
 | `41-58` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
 | `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
 | `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
+| `79-83` | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`                                                                                                                                                                                                                                                                                                        |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment
@@ -378,6 +379,18 @@ admission; later ownership transfers use the attachment-scoped claim and complet
 TypeScript compare their actual implementations, including the private TypeScript
 `MESSAGE_CONTRACTS`, against it. Adding or changing a kind requires one atomic protocol change
 to the registry, bindings, codecs, fixtures and consumers.
+
+`StageTerminalOutput` (kind 82, raw-bytes request) stages earlier output for the next
+`CreateTerminal` on the same connection. Its payload is the four bytes `OBSO` and the bytes `00 01 00 00`, the
+16-byte creation id, a big-endian u32 output length, four zero bytes, then exactly that many output
+bytes, at most 1 MiB. The output admits only UTF-8 text, CR, LF and SGR sequences (`ESC [` then
+digits, `;` or `:`, ending in `m`); any other control, escape, DEL, C1 or invalid UTF-8 is an
+`invalid-field` typed failure. The Host keeps one staged output per connection, replacing any earlier
+one, and answers `TerminalOutputStaged` (kind 83, raw bytes): `OBSS` and the bytes `00 01 00 00`, the creation id,
+the staged length and four zero bytes. The next `CreateTerminal` takes the slot whether or not it
+matches; only a creation with the same creation id draws the output into the new screen before the
+child starts, then resets style, moves it into history and homes the cursor, so the console host
+starts from a blank screen. A replayed creation never draws it again.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
 terminal bell `sequence`. The Host baselines a new read-capable attachment at the terminal's current

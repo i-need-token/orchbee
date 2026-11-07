@@ -597,6 +597,20 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         Some(PayloadEncoding::GraphicsImage)
     ),
+    contract!(
+        82,
+        "StageTerminalOutput",
+        None,
+        Some(request(PayloadEncoding::RawBytes, 83)),
+        None
+    ),
+    contract!(
+        83,
+        "TerminalOutputStaged",
+        None,
+        None,
+        Some(PayloadEncoding::RawBytes)
+    ),
 ];
 
 const _: () = {

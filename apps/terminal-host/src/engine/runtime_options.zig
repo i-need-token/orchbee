@@ -12,4 +12,7 @@ pub const Options = struct {
     // The caller retains this owner on every fallible startup path. Runtime
     // takes it only after process spawn succeeds and before workers are opened.
     editor_document: ?*@import("terminal-host-platform").editor_document.Document = null,
+    // Earlier output admitted by `output_seed.zig`. The runtime applies it to the canonical
+    // screen before any worker or child exists and does not retain the slice.
+    output_seed: ?[]const u8 = null,
 };

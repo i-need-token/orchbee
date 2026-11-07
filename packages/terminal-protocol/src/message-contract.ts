@@ -1,6 +1,8 @@
 export const MessageKind = {
 	decodeGraphicsPng: 80,
 	graphicsPngDecoded: 81,
+	stageTerminalOutput: 82,
+	terminalOutputStaged: 83,
 	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
@@ -119,6 +121,21 @@ export const MESSAGE_CONTRACTS = {
 		name: 'GraphicsPngDecoded',
 		request: null,
 		responseEncoding: PayloadEncoding.graphicsImage,
+	},
+	[MessageKind.stageTerminalOutput]: {
+		eventEncoding: null,
+		name: 'StageTerminalOutput',
+		request: {
+			payloadEncoding: raw,
+			successKind: MessageKind.terminalOutputStaged,
+		},
+		responseEncoding: null,
+	},
+	[MessageKind.terminalOutputStaged]: {
+		eventEncoding: null,
+		name: 'TerminalOutputStaged',
+		request: null,
+		responseEncoding: raw,
 	},
 	[MessageKind.readProcessInfo]: {
 		eventEncoding: null,
@@ -548,7 +565,11 @@ type RequestKindForEncoding<Encoding extends PayloadEncoding> = {
 }[MessageKind];
 
 type ControlRequestKind = RequestKindForEncoding<typeof PayloadEncoding.controlJson>;
-type InputRequestKind = RequestKindForEncoding<typeof PayloadEncoding.rawBytes>;
+// Staged output is raw bytes too, but only the Worker sends it before a creation; it is never input.
+type InputRequestKind = Exclude<
+	RequestKindForEncoding<typeof PayloadEncoding.rawBytes>,
+	typeof MessageKind.stageTerminalOutput
+>;
 
 export function isKnownMessageKind(value: number): value is MessageKind {
 	return Number.isInteger(value) && Object.hasOwn(MESSAGE_CONTRACTS, value);
@@ -559,5 +580,8 @@ export function isControlRequestKind(kind: MessageKind): kind is ControlRequestK
 }
 
 export function isInputRequestKind(kind: MessageKind): kind is InputRequestKind {
-	return MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.rawBytes;
+	return (
+		kind !== MessageKind.stageTerminalOutput &&
+		MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.rawBytes
+	);
 }

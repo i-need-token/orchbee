@@ -674,6 +674,23 @@
 			"name": "GraphicsPngDecoded",
 			"request": null,
 			"response_encoding": "graphics-image"
+		},
+		{
+			"event_encoding": null,
+			"kind": 82,
+			"name": "StageTerminalOutput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 83
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 83,
+			"name": "TerminalOutputStaged",
+			"request": null,
+			"response_encoding": "raw-bytes"
 		}
 	],
 	"protocol_limits": {

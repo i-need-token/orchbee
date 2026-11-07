@@ -71,4 +71,6 @@ pub const MessageKind = struct {
     pub const apply_terminal_theme: u16 = 77;
     pub const terminal_theme_result: u16 = 78;
     pub const read_process_info: u16 = 79;
+    pub const stage_terminal_output: u16 = 82;
+    pub const terminal_output_staged: u16 = 83;
 };

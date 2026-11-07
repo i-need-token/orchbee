@@ -36,8 +36,11 @@ pub const RuntimePreparation = struct {
     profile: terminal_profile.Profile,
     editor_capture: ?runtime_contracts.ScrollbackTextCapture = null,
     editor_document: ?editor_document.Document = null,
+    /// Admitted earlier output owned by this preparation and freed with it.
+    output_seed: ?[]u8 = null,
 
-    pub fn deinit(self: *RuntimePreparation, _: std.mem.Allocator) void {
+    pub fn deinit(self: *RuntimePreparation, allocator: std.mem.Allocator) void {
+        if (self.output_seed) |seed| allocator.free(seed);
         if (self.editor_document) |*document| {
             // Deferred or runtime cleanup must release any materialized file
             // before this infallible memory teardown can discard its owner.
@@ -80,6 +83,7 @@ pub const RuntimePreparation = struct {
             .profile = self.profile,
             .scrollback_bytes = self.configuration.scrollback_bytes,
             .editor_document = if (self.editor_document) |*document| document else null,
+            .output_seed = self.output_seed,
         };
     }
 

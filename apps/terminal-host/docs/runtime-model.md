@@ -8,6 +8,18 @@ A Windows launch's `currentDirectory` reaches the child through the same convers
 
 The required Boolean `preservePrompt` on `ClearTerminal` selects the operation. `preservePrompt: true` preserves the complete soft-wrapped cursor line on the primary screen, erases earlier history and other output, clears selection/images and restores the active viewport. Alternate screens fail with `terminal-clear-alternate-screen` before mutation. Explicit false selects erase/home semantics; ResetTerminal never accepts this field. The same runtime lock owns mutation and one generation/revision advance, preserving modes and metadata. Input-capable attachment authorization is required; no resize lease or synthetic child bytes are used.
 
+## Earlier output before a restored child
+
+`StageTerminalOutput` stores at most 1 MiB of earlier output in one slot on the requesting
+connection's Host aggregate, admitted by `engine/output_seed.zig` (UTF-8 text, CR, LF and SGR
+only). The next `CreateTerminal` on that connection takes the slot under the same aggregate lock
+whether or not its creation id matches, so staged bytes never outlive one creation attempt; a
+replayed creation frees them unused. A matching creation applies them to the canonical stream
+before the child or its worker exists, then resets style, scrolls the drawn rows into history with
+`ESC [ 22 J` and homes the cursor. The console host assumes a blank screen at the origin, so its
+first repaint lands below the history and never overwrites it. Nothing reaches the PTY. The slot is
+freed with the aggregate.
+
 ## Scrollback editor capture
 
 The staged Windows scrollback editor workflow starts with `captureScrollbackText`.

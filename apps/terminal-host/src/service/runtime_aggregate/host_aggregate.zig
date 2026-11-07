@@ -38,6 +38,7 @@ pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
     maintenance: host_runtime_maintenance.Maintenance = .{},
+    staged_output: @import("../output_staging.zig").StagedOutput = .{},
     testing_state: HostRuntimeAggregateTestingState = .{},
 
     pub fn init(allocator: std.mem.Allocator) HostRuntimeAggregate {

@@ -103,6 +103,7 @@ pub fn prepare(
             .profile = options.profile,
             .scrollback_bytes = options.scrollback_bytes,
             .editor_document = options.editor_document,
+            .output_seed = options.output_seed,
         },
     };
 }
