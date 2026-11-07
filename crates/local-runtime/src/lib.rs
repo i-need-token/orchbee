@@ -23,6 +23,8 @@ pub use plugins::{
 mod host_appearance;
 #[cfg(windows)]
 pub use host_appearance::read_windows_apps_use_light_theme;
+mod local_clock;
+pub use local_clock::{LocalClock, local_clock};
 mod private_cache;
 pub use private_cache::PrivateCache;
 mod user_path;
