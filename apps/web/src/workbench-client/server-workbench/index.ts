@@ -12,6 +12,7 @@ export type {
 	ServerConfiguredCommandReply,
 	ServerConfiguredCommandSource,
 } from './ServerConfiguredCommands';
+export { ServerFocusNewPanelSource } from './ServerFocusNewPanelSource';
 export { ServerAgentNameSource } from './ServerAgentNameSource';
 export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';

@@ -269,6 +269,7 @@ export function useWorkbenchAuthorityNotice(
 				setNotice(workbenchTabCreationFailureNotice(result));
 				return result;
 			},
+			focusNewPanel: authority.focusNewPanel,
 			launchProfiles: authority.launchProfiles,
 			stoppedTabClose: (terminalContextId, tabId) =>
 				authority.stoppedTabClose(terminalContextId, tabId),

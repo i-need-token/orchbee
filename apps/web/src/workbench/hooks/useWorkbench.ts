@@ -632,6 +632,7 @@ export function useWorkbench({
 			context,
 			closure,
 			focusRouting.beginTerminalHandover(),
+			actions.focusAfterTabClose,
 		);
 		if (result.kind !== 'blocked' || result.code !== 'confirmation-required') return result;
 		// The question is its own Action, because this one has already asked the authority.

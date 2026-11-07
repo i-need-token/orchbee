@@ -15,6 +15,7 @@ import type {
 	WorkbenchNavigationPort,
 } from '../types/workbench-host-actions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from './workbench-action-ids';
+import { focusWorkbenchPanelTarget } from './workbench-tab-close-focus';
 
 interface RegisterWorkbenchLastPanelActionOptions {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
@@ -75,41 +76,5 @@ function executeWorkbenchLastPanel(
 	if (target === null) return { code: 'last-panel-target-unavailable', kind: 'blocked' };
 
 	actionContext.markCommitted();
-	target.context.tabModel.selectTab(target.tabId);
-	const store = target.context.panelWorkspaceStore;
-	const maximizedPanelId =
-		store.getSnapshot().tabs.find((tab) => tab.tabId === target.tabId)?.maximizedPanelId ?? null;
-	if (maximizedPanelId !== null && maximizedPanelId !== target.panelId) {
-		store.transition({
-			panelId: maximizedPanelId,
-			tabId: target.tabId,
-			type: 'panel-maximization-toggled',
-		});
-	}
-	const focusTransition = store.transition({
-		panelId: target.panelId,
-		tabId: target.tabId,
-		type: 'panel-focused',
-	});
-	if (focusTransition.outcome === 'rejected') {
-		return { code: 'last-panel-target-unavailable', kind: 'blocked' };
-	}
-
-	if (options.navigation !== undefined) {
-		return options.navigation.navigate(actionContext, {
-			kind: 'workspace',
-			workspaceId: target.workspaceId,
-		});
-	}
-	const transition = options.projectWorkspaceRuntime.transition({
-		type: 'workspace-activated',
-		workspaceId: target.workspaceId,
-	});
-	if (transition.outcome === 'rejected') {
-		return {
-			code: transition.rejection ?? 'last-panel-target-unavailable',
-			kind: 'blocked',
-		};
-	}
-	return { kind: 'completed' };
+	return focusWorkbenchPanelTarget(actionContext, target, options);
 }

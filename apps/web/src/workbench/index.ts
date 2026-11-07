@@ -64,6 +64,7 @@ export type {
 	WorkbenchAuthorityTabDuplication,
 	WorkbenchAuthorityTabDuplicationReport,
 	WorkbenchAuthorityTabReceipt,
+	WorkbenchFocusNewPanelSource,
 	WorkbenchTabCloseStop,
 	WorkbenchTabDuplicationStop,
 } from './types/workbench-authority';

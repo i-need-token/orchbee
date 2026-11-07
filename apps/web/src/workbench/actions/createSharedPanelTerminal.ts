@@ -1,5 +1,6 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 
+import { takesCreatedPanelFocus } from '../model/takesCreatedPanelFocus';
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
@@ -31,6 +32,8 @@ export async function createSharedPanelTerminal(
 	{ authority, beginTerminalHandover, runtime }: SharedPanelTerminalOptions,
 ): Promise<ActionResult<string>> {
 	const origin = runtime.getSnapshot().activeLocation;
+	// As the TUI does, the preference in force when the Panel is asked for decides whether it takes focus.
+	const focusNewPanel = authority.focusNewPanel?.current() ?? true;
 	const handover = beginTerminalHandover();
 	const created = await authority.createPanelTerminal(context, creation);
 	if (created.kind === 'unchanged') return { kind: 'unchanged' };
@@ -41,10 +44,13 @@ export async function createSharedPanelTerminal(
 	const store = runtime.getTerminalContext(terminalContextId)?.panelWorkspaceStore;
 	if (
 		store !== undefined &&
-		store.getActiveTabId() === tabId &&
-		!context.signal.aborted &&
-		handover.held() &&
-		workbenchActiveLocationsEqual(origin, runtime.getSnapshot().activeLocation)
+		takesCreatedPanelFocus({
+			focusNewPanel,
+			handoverHeld: handover.held(),
+			sameActiveTab: store.getActiveTabId() === tabId,
+			sameLocation: workbenchActiveLocationsEqual(origin, runtime.getSnapshot().activeLocation),
+			signalAborted: context.signal.aborted,
+		})
 	) {
 		store.transition({ panelId, tabId, type: 'panel-revealed' });
 		handover.complete();

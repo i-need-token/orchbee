@@ -17,10 +17,12 @@ import {
 	type WorkbenchTabSetTargetInput,
 	workbenchTabSetTargetInput,
 } from './workbench-action-ids';
+import type { WorkbenchFocusAfterTabClose } from './workbench-tab-close-focus';
 
 interface RegisterWorkbenchTabCloseConfirmedActionOptions {
 	readonly authority: WorkbenchAuthority;
 	readonly beginTerminalHandover: WorkbenchFocusRouting['beginTerminalHandover'];
+	readonly focusAfterTabClose: WorkbenchFocusAfterTabClose;
 	/** The localized sentence naming what a close ends; keep it stable across renders. */
 	readonly formatCloseWarning: (impact: TerminalCloseImpact) => string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -49,6 +51,7 @@ function closureFor({ tabIds, terminalContextId }: ShownTabs) {
 export function registerWorkbenchTabCloseConfirmedAction({
 	authority,
 	beginTerminalHandover,
+	focusAfterTabClose,
 	formatCloseWarning,
 	projectWorkspaceRuntime,
 	scope,
@@ -113,6 +116,7 @@ export function registerWorkbenchTabCloseConfirmedAction({
 						context,
 						closureFor(tabs),
 						beginTerminalHandover(),
+						focusAfterTabClose,
 					);
 				},
 			},

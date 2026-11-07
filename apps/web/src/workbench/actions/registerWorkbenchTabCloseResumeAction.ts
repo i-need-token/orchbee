@@ -17,10 +17,12 @@ import {
 	type WorkbenchTabTargetInput,
 	workbenchTabTargetInput,
 } from './workbench-action-ids';
+import type { WorkbenchFocusAfterTabClose } from './workbench-tab-close-focus';
 
 interface RegisterWorkbenchTabCloseResumeActionOptions {
 	readonly authority: WorkbenchAuthority;
 	readonly beginTerminalHandover: WorkbenchFocusRouting['beginTerminalHandover'];
+	readonly focusAfterTabClose: WorkbenchFocusAfterTabClose;
 	/** The localized sentence naming what a close ends; keep it stable across renders. */
 	readonly formatCloseWarning: (impact: TerminalCloseImpact) => string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -42,6 +44,7 @@ interface StoppedTab {
 export function registerWorkbenchTabCloseResumeAction({
 	authority,
 	beginTerminalHandover,
+	focusAfterTabClose,
 	formatCloseWarning,
 	projectWorkspaceRuntime,
 	scope,
@@ -120,6 +123,7 @@ export function registerWorkbenchTabCloseResumeAction({
 							type: 'tab-close-resume',
 						},
 						beginTerminalHandover(),
+						focusAfterTabClose,
 					);
 				},
 			},

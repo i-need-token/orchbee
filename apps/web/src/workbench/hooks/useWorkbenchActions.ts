@@ -47,6 +47,10 @@ import {
 	type WorkbenchTerminalCreateInput,
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
+import {
+	createWorkbenchFocusAfterTabClose,
+	type WorkbenchFocusAfterTabClose,
+} from '../actions/workbench-tab-close-focus';
 import type { TerminalCloseImpact } from '../model/terminal-close-impact';
 import { WorkbenchPanelFocusTrail } from '../model/WorkbenchPanelFocusTrail';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
@@ -100,6 +104,8 @@ interface UseWorkbenchActionsOptions {
 }
 
 interface WorkbenchActions {
+	/** Where focus goes after a Tab close, read from the same Panel focus trail Last Panel uses. */
+	readonly focusAfterTabClose: WorkbenchFocusAfterTabClose;
 	readonly invoke: <Id extends ActionCatalogId<WorkbenchActionCatalog>>(
 		actionId: Id,
 		input: ActionInputFor<WorkbenchActionCatalog, Id>,
@@ -150,6 +156,15 @@ export function useWorkbenchActions({
 		[projectWorkspaceRuntime],
 	);
 	React.useEffect(() => panelFocusTrail.observe(), [panelFocusTrail]);
+	const focusAfterTabClose = React.useMemo(
+		() =>
+			createWorkbenchFocusAfterTabClose({
+				navigation,
+				projectWorkspaceRuntime,
+				trail: panelFocusTrail,
+			}),
+		[navigation, panelFocusTrail, projectWorkspaceRuntime],
+	);
 
 	React.useEffect(() => {
 		const captureCurrentDirectoryTarget = (context: Pick<ActionInvocation, 'target'>) => {
@@ -256,6 +271,7 @@ export function useWorkbenchActions({
 			registerWorkbenchTabCloseConfirmedAction({
 				authority,
 				beginTerminalHandover: focusRouting.beginTerminalHandover,
+				focusAfterTabClose,
 				formatCloseWarning,
 				projectWorkspaceRuntime,
 				scope,
@@ -264,6 +280,7 @@ export function useWorkbenchActions({
 			registerWorkbenchTabCloseResumeAction({
 				authority,
 				beginTerminalHandover: focusRouting.beginTerminalHandover,
+				focusAfterTabClose,
 				formatCloseWarning,
 				projectWorkspaceRuntime,
 				scope,
@@ -520,6 +537,7 @@ export function useWorkbenchActions({
 	}, [
 		agentObservationSource,
 		authority,
+		focusAfterTabClose,
 		focusRouting,
 		formatCloseWarning,
 		isSidebarVisible,
@@ -672,5 +690,5 @@ export function useWorkbenchActions({
 		},
 	);
 
-	return { invoke, invokeShortcut, scope };
+	return { focusAfterTabClose, invoke, invokeShortcut, scope };
 }

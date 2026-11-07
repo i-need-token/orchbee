@@ -4,6 +4,7 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
 } from './WorkbenchProjectWorkspaceRuntime';
+import { resolvePanelFocusAfterTabClose } from './resolvePanelFocusAfterTabClose';
 
 /** Enough to step back through recent work; the oldest focus leaves first, as in the TUI. */
 const CAPACITY = 16;
@@ -48,6 +49,27 @@ export class WorkbenchPanelFocusTrail {
 			if (target !== null) return target;
 		}
 		return null;
+	}
+
+	/**
+	 * The Panel focus returns to when a close of these Tabs ends, read before the close runs; null where
+	 * focus stays or no Panel outside them is open. See `resolvePanelFocusAfterTabClose`.
+	 */
+	public returnTargetAfterTabClose(
+		closedTabIds: ReadonlySet<string>,
+	): WorkbenchLastPanelTarget | null {
+		const entry = resolvePanelFocusAfterTabClose({
+			closedTabIds,
+			focused: this.currentFocus(),
+			history: this.entries,
+			isOpen: (candidate) => this.resolve(candidate) !== null,
+		});
+		return entry === null ? null : this.resolve(entry);
+	}
+
+	/** The target's Panel as it stands now, or null once it is gone. */
+	public reopen(target: WorkbenchLastPanelTarget): WorkbenchLastPanelTarget | null {
+		return this.resolve(target);
 	}
 
 	private readonly record = (): void => {
