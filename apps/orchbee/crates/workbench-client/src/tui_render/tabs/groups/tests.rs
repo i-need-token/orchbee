@@ -618,6 +618,94 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
 }
 
 #[test]
+fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() {
+    let mut group = group("Runtime", TabGroupColor::Blue);
+    for base in [
+        Theme::orchbee_light(),
+        Theme::orchbee_dark(),
+        Theme::terminal_native(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = base.quantize(level);
+            for color in [
+                TabGroupColor::Blue,
+                TabGroupColor::Cyan,
+                TabGroupColor::Green,
+                TabGroupColor::Grey,
+                TabGroupColor::Orange,
+                TabGroupColor::Pink,
+                TabGroupColor::Purple,
+                TabGroupColor::Red,
+                TabGroupColor::Yellow,
+            ] {
+                group.color = color;
+                for (collapsed, active) in [(false, false), (true, false), (true, true)] {
+                    let mut member = tab("Log", active, Some(&group));
+                    member.collapsed = collapsed;
+                    let tabs = [member];
+                    let mut resting = None;
+                    for pointer in [
+                        ProjectedPointer::Rest,
+                        ProjectedPointer::Hovered,
+                        ProjectedPointer::Pressed,
+                        ProjectedPointer::Rest,
+                    ] {
+                        let (buffer, hits) = draw(&tabs, &theme, 80, |_, part| {
+                            if part == StripPart::Header {
+                                pointer
+                            } else {
+                                ProjectedPointer::Rest
+                            }
+                        });
+                        let (_, _, header) = hits
+                            .iter()
+                            .copied()
+                            .find(|(_, part, _)| *part == StripPart::Header)
+                            .expect("the group header remains visible");
+                        let surface = match pointer {
+                            ProjectedPointer::Rest => {
+                                (collapsed && active).then_some(Role::SurfaceCurrent)
+                            }
+                            ProjectedPointer::Hovered => Some(Role::SurfaceHover),
+                            ProjectedPointer::Pressed => Some(Role::SurfacePressed),
+                        };
+                        let expected = theme.tab_group_header_style(
+                            color,
+                            surface,
+                            None,
+                            Style::new()
+                                .fg(theme.tab_groups.accent(color))
+                                .add_modifier(Modifier::BOLD),
+                        );
+                        let mut cell = ratatui::buffer::Cell::default();
+                        cell.set_style(expected);
+                        // The name follows the header's leading pad.
+                        let name = &buffer[(header.x + 1, header.y)];
+                        assert_eq!(name.symbol(), "R");
+                        assert_eq!((name.fg, name.bg), (cell.fg, cell.bg));
+                        assert_eq!(name.modifier, cell.modifier);
+                        if pointer == ProjectedPointer::Rest {
+                            if let Some(resting) = &resting {
+                                assert_eq!(
+                                    &buffer, resting,
+                                    "leaving the header restores the chip and context"
+                                );
+                            } else {
+                                resting = Some(buffer.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn group_arrow_shows_in_both_states_and_expanded_members_carry_the_group_rule() {
     let theme = Theme::terminal_native();
     let group = group("Work", TabGroupColor::Blue);
