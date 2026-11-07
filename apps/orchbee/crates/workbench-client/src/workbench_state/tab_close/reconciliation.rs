@@ -160,6 +160,10 @@ impl CloseState {
             return Ok(());
         };
         let target = exchange.key().target();
+        // A Panel close removes no Tab, so no membership reconciliation follows it.
+        if target.panel_id().is_some() {
+            return Ok(());
+        }
         let index = self
             .record_index(target)
             .ok_or(CloseStateError::UnknownTarget)?;

@@ -12,10 +12,12 @@ the [native panel lifecycle](native-panel-lifecycle.md). Maintain it with
 
 A panel close is not a Tab close. The confirmed effect is exactly the existing
 `PanelRequestKind::Close` operation planned against the frozen leaf; the confirmation layer
-never re-shapes it into a `CloseOperation` or any Tab-level intent. Only its acceptance differs for
-a Tab's last leaf: the Server admits that close as the close of the whole Tab, so from the
-acceptance the Client follows it as an accepted Tab close, without sending anything again (see
-[close status](native-tab-close-sets.md#close-status)).
+never re-shapes it into a `CloseOperation` or any Tab-level intent. From its acceptance the Client
+follows the close by its operation without sending anything again. A Tab's last leaf is followed as
+an accepted Tab close, because the Server admits that close as the close of the whole Tab (see
+[close status](native-tab-close-sets.md#close-status)); any other leaf is followed as the close of
+its Panel, which shows again with its report if the close stops (see
+[native panel lifecycle](native-panel-lifecycle.md)).
 
 The frozen target includes its one-based terminal position within the Tab and the Tab's
 one-based position in the current location. The prompt presents both positions with their

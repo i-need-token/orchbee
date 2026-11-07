@@ -82,7 +82,8 @@ impl CloseOperation {
         self.deadline
     }
     /// Whether this exchange closes `tab_id`: its own Tab, or any member a set Start names. A
-    /// set's Read names its first member, as every member has left the Client's view by then.
+    /// set's Read names its first member, as every member has left the Client's view by then. A
+    /// Panel close's read closes no Tab, so the surviving Panels' input never waits on it.
     pub(crate) fn closes_tab(&self, tab_id: &WorkbenchTabId) -> bool {
         match &self.kind {
             CloseOperationKind::TabSet(TabSetCloseAction::Start { tab_ids, .. }) => {
@@ -93,7 +94,8 @@ impl CloseOperation {
             | CloseOperationKind::Read { .. }
             | CloseOperationKind::Resume { .. }
             | CloseOperationKind::TabSet(TabSetCloseAction::Read { .. }) => {
-                self.selection.target().tab_id() == tab_id
+                self.selection.target().panel_id().is_none()
+                    && self.selection.target().tab_id() == tab_id
             }
         }
     }
@@ -249,7 +251,14 @@ impl CloseState {
                         status.clone(),
                     )?;
                     self.records[index].initial_read_pending = false;
-                    if super::set::closed(status) {
+                    if target.panel_id().is_some() {
+                        // A completed Panel close ends its follow; the leaf stays hidden until the
+                        // publication removes it.
+                        if super::set::closed(status) {
+                            self.records.remove(index);
+                            self.manual_pass.retain(|queued| queued != target);
+                        }
+                    } else if super::set::closed(status) {
                         self.set_member_closed(target);
                     }
                 }
@@ -263,6 +272,12 @@ impl CloseState {
                         self.records.remove(index);
                         self.manual_pass.retain(|queued| queued != target);
                     }
+                }
+                // The Server holding no such Panel close is a lost observation, as in the GUI:
+                // the Panel shows again with its report.
+                WorkbenchTabCloseReadOutcome::NotClosing {} if target.panel_id().is_some() => {
+                    self.records[index].initial_read_pending = false;
+                    self.observation_failed(target);
                 }
                 WorkbenchTabCloseReadOutcome::NotClosing {} => {
                     return Err(CloseStateError::FactRegression);
@@ -453,6 +468,7 @@ impl WorkbenchClientState {
             record.announced = true;
             record.initial_read_pending = false;
         }
+        self.settle_panel_close_follow();
     }
 
     pub(crate) fn finalize_close_worker(
@@ -714,6 +730,7 @@ impl WorkbenchClientState {
         self.close.apply_result(operation, result)?;
         self.close.retain_reconciliation_origin(operation, result)?;
         self.close.pending = None;
+        self.settle_panel_close_follow();
         // The single worker cannot execute a successor before consuming this exact UI reply.
         self.close.completed_handoff =
             Some(PendingCloseResult::new(operation.clone(), result.clone()));
@@ -763,6 +780,7 @@ impl WorkbenchClientState {
         if self.close.pending.as_ref() == Some(pending.operation()) {
             self.close.pending = None;
         }
+        self.settle_panel_close_follow();
         result
     }
 
@@ -798,10 +816,13 @@ impl WorkbenchClientState {
         }
     }
 
+    /// Whether a close of this attachment's whole Tab holds its effects. A Panel close leaves the
+    /// Tab's other Panels working.
     pub(crate) fn close_suppresses_attachment(&self, key: &AttachmentKey) -> bool {
         self.close.set_leaving(key.tab_id())
             || self.close.records.iter().any(|record| {
-                record.selection.target.tab_id() == key.tab_id()
+                record.selection.target.panel_id().is_none()
+                    && record.selection.target.tab_id() == key.tab_id()
                     && (record.operation.is_some() || record.uncertain)
             })
     }

@@ -7,12 +7,12 @@ use crate::local_client::workbench::panel_close::WorkbenchPanelCloseAccepted;
 use crate::local_client::workbench::panel_placement::WorkbenchPanelPlacementCommit;
 use crate::local_client::workbench::panel_split::WorkbenchPanelSplitCommit;
 use crate::tui_presentation::GeometrySettlement;
-use crate::workbench_state::CloseResult;
 use crate::workbench_state::panel::{
     PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelPrecommit, PanelRequestKind,
     PanelResult, PendingPanelCommit,
 };
 use crate::workbench_state::panel_close::PanelCloseStateError;
+use crate::workbench_state::{CloseOperationKind, CloseReadMode, CloseResult, CloseStatusKind};
 use orchbee_workbench_protocol::{
     WorkbenchCommandUnavailableReason, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
     WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
@@ -1666,6 +1666,98 @@ fn accepted_last_panel_close_leaves_with_its_tab_at_acceptance() {
         .unwrap();
     assert!(state.tab_shown(closing));
     assert!(state.view().announced_close_status().is_some());
+}
+
+/// Regression: an accepted close of one Panel of several hid the leaf until a publication removed
+/// it, with nothing following the close, so a close that stopped after its acceptance hid the
+/// Panel for good. The close is now read by its operation, never sent again: a close that stops
+/// shows the Panel again with its report, and one that completes ends the follow silently.
+#[test]
+fn accepted_panel_close_that_stops_shows_the_panel_again_with_its_report() {
+    let blocked = WorkbenchTabCloseStatus::CleanupBlocked {
+        reason: WorkbenchTabCloseBlockedReason::HostRefused,
+        resumable: true,
+    };
+    let closed = WorkbenchTabCloseStatus::Closed {
+        revision: WorkbenchRevision::new(2),
+    };
+    for status in [blocked, closed] {
+        let now = Instant::now();
+        let mut state = split_ready();
+        super::attach_nonfirst_leaf(&mut state);
+        let operation = plan(&state, 70_160, PanelRequestKind::Close);
+        let closing = operation.panel_id().clone();
+        assert!(state.begin_panel(operation.clone()));
+        let close_request_id = WorkbenchRequestId::parse(&id(70_160)).unwrap();
+        let terminal_context_id = operation.baseline().terminal_context_id().unwrap().clone();
+        let tab_id = operation.target().tab_id().clone();
+        let accepted = WorkbenchPanelCloseAccepted {
+            close_request_id: close_request_id.clone(),
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: closing.clone(),
+            accepted_revision: WorkbenchRevision::new(1),
+        };
+        let prepared = state.prepare_panel(&operation, PanelResult::CloseAccepted(accepted));
+        assert_eq!(
+            state.apply_prepared_panel(prepared),
+            PanelDecision::Continue
+        );
+        assert_eq!(
+            state
+                .display_panel_tree(&state.cache().tabs()[0])
+                .leaf_count(),
+            1
+        );
+
+        let read = state
+            .plan_close_read(
+                WorkbenchRequestId::parse(&id(70_161)).unwrap(),
+                now + OPERATION_TOTAL,
+                now,
+            )
+            .unwrap();
+        assert_eq!(
+            read.kind(),
+            &CloseOperationKind::Read {
+                expected_operation: Some(close_request_id.clone()),
+                mode: CloseReadMode::Initial,
+            }
+        );
+        state.begin_close_exchange(&read, now).unwrap();
+        let stops = !matches!(status, WorkbenchTabCloseStatus::Closed { .. });
+        state
+            .settle_close_exchange(
+                &read,
+                &CloseResult::Read(
+                    orchbee_workbench_protocol::WorkbenchTabCloseReadOutcome::Available {
+                        close_request_id,
+                        terminal_context_id,
+                        tab_id,
+                        attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                        status,
+                    },
+                ),
+            )
+            .unwrap();
+
+        let drawn = state
+            .display_panel_tree(&state.cache().tabs()[0])
+            .leaf_count();
+        let report = state.view().announced_close_status();
+        if stops {
+            assert_eq!(drawn, 2);
+            let report = report.unwrap();
+            assert_eq!(report.status(), CloseStatusKind::CleanupBlocked);
+            assert!(report.panel() && !report.resumable());
+        } else {
+            // The leaf stays hidden until the publication removes it.
+            assert_eq!(drawn, 1);
+            assert!(report.is_none());
+            assert!(!state.has_retained_close_records());
+        }
+        assert_ne!(state.focus_panel_id(), Some(&closing));
+    }
 }
 
 #[test]

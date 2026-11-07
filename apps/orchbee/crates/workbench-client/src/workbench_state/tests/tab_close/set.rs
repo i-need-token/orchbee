@@ -916,6 +916,7 @@ fn a_set_of_one_tab_closes_and_reports_as_its_own_close() {
                 resumable: status.resumable(),
                 observation_paused: status.observation_paused(),
                 unavailable: status.unavailable(),
+                panel: status.panel(),
             });
             let shown = screen(&state, locale);
             assert!(shown.contains(&told), "{shown}");

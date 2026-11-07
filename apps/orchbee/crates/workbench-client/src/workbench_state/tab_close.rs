@@ -1,14 +1,16 @@
 //! Owns Client close confirmation presentation, retained status records, and exact-generation
-//! resume permits across Tab and Workspace closure. It observes Server close authority without
-//! deciding physical disposal or implicitly replaying an unknown close.
+//! resume permits across Tab, Panel and Workspace closure. It observes Server close authority
+//! without deciding physical disposal or implicitly replaying an unknown close.
 
 use super::{AttachmentKey, ClientNotice, PaneKey};
-use crate::exchange_values::workbench::WorkbenchTabCloseAccepted;
+use crate::exchange_values::workbench::{
+    WorkbenchTabCloseAccepted, panel_close::WorkbenchPanelCloseAccepted,
+};
 use crate::localization::CloseImpact;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use crate::workbench_projection::ClientTerminalBinding;
 use orchbee_workbench_protocol::{
-    SessionId, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
+    SessionId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -56,11 +58,13 @@ pub(crate) use crate::localization::CloseConfirmationKind;
 
 pub(crate) use crate::localization::CloseStatusKind;
 
+/// What one retained close ends: a whole Tab, or one Panel of several in a Tab's split.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct CloseTarget {
     session_id: SessionId,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
+    panel_id: Option<WorkbenchPanelId>,
 }
 
 impl CloseTarget {
@@ -73,6 +77,22 @@ impl CloseTarget {
             session_id,
             terminal_context_id,
             tab_id,
+            panel_id: None,
+        }
+    }
+
+    /// The close of one Panel that leaves its Tab's split, not the Tab.
+    pub(crate) const fn panel(
+        session_id: SessionId,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+    ) -> Self {
+        Self {
+            session_id,
+            terminal_context_id,
+            tab_id,
+            panel_id: Some(panel_id),
         }
     }
 
@@ -84,6 +104,9 @@ impl CloseTarget {
     }
     pub(crate) const fn tab_id(&self) -> &WorkbenchTabId {
         &self.tab_id
+    }
+    pub(crate) const fn panel_id(&self) -> Option<&WorkbenchPanelId> {
+        self.panel_id.as_ref()
     }
 }
 
@@ -263,15 +286,23 @@ impl CloseRecord {
         }
     }
 
-    fn leaving(&self, tab_id: &WorkbenchTabId) -> bool {
-        self.selection.target.tab_id() == tab_id
-            && !self.unavailable
-            && !self.uncertain
-            && self.progressing()
+    /// Whether the close stopped on its way: it failed, its outcome is unknown, or its observation
+    /// was lost. What it removes shows again with its report.
+    fn stopped(&self) -> bool {
+        self.unavailable || self.uncertain || !self.progressing()
     }
 
+    fn leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.selection.target.panel_id.is_none()
+            && self.selection.target.tab_id() == tab_id
+            && !self.stopped()
+    }
+
+    /// A Panel close offers no Resume: as in the GUI, a stop is reported and leaves the Panel in
+    /// place.
     fn resumable(&self) -> bool {
-        !self.unavailable
+        self.selection.target.panel_id.is_none()
+            && !self.unavailable
             && matches!(
                 self.status,
                 Some(
@@ -339,6 +370,10 @@ impl<'a> CloseStatusView<'a> {
     }
     pub(crate) const fn unavailable(self) -> bool {
         self.record.unavailable
+    }
+    /// Whether this close ends one Panel of a split, which the status names instead of a Tab.
+    pub(crate) const fn panel(self) -> bool {
+        self.record.selection.target.panel_id.is_some()
     }
 }
 
@@ -429,8 +464,13 @@ pub(crate) struct CloseState {
 }
 
 impl CloseState {
+    /// No close work is open. A retained Panel close between its reads is none: it follows one
+    /// leaf, which a membership that no longer draws that leaf ends, so it never holds navigation
+    /// or structure.
     pub(super) fn permits_retired_membership(&self) -> bool {
-        self.records.is_empty()
+        self.records
+            .iter()
+            .all(|record| record.selection.target.panel_id.is_some())
             && self.confirmation.is_none()
             && self.pending.is_none()
             && self.completed_handoff.is_none()
@@ -692,9 +732,10 @@ impl CloseState {
         Ok(())
     }
 
-    /// Retains a Tab close the Server accepted from a request this Client sent as another action,
-    /// the close of the Tab's last Panel, and follows it from its first status read as a submitted
-    /// Tab close is followed. A Tab that already holds a retained close keeps that record.
+    /// Retains a close the Server accepted from a request this Client sent as a Panel action, and
+    /// follows it from its first status read as a submitted Tab close is followed: the close of a
+    /// Tab's last Panel as the close of that Tab, any other as the close of its Panel. A target that
+    /// already holds a retained close keeps that record.
     fn retain_accepted(
         &mut self,
         selection: CloseSelection,
@@ -831,6 +872,26 @@ impl CloseState {
         Ok(())
     }
 
+    /// Whether the retained close of this Panel stopped; `None` when none is retained.
+    pub(super) fn panel_close_stopped(&self, target: &CloseTarget) -> Option<bool> {
+        Some(self.records[self.record_index(target)?].stopped())
+    }
+
+    /// Ends the follow of every Panel close whose Panel `drawn` no longer holds: the publication
+    /// that removed it settled the close. A read in flight keeps its record until it settles.
+    pub(super) fn prune_departed_panel_closes(&mut self, drawn: impl Fn(&CloseTarget) -> bool) {
+        let pending = self
+            .pending
+            .as_ref()
+            .map(|operation| operation.key().target().clone());
+        let departed = |target: &CloseTarget| {
+            target.panel_id.is_some() && !drawn(target) && pending.as_ref() != Some(target)
+        };
+        self.records
+            .retain(|record| !departed(&record.selection.target));
+        self.manual_pass.retain(|target| !departed(target));
+    }
+
     pub(crate) fn charge_disposed_auto_admission(
         &mut self,
         target: &CloseTarget,
@@ -956,6 +1017,62 @@ impl super::WorkbenchClientState {
         let selection = self.close_set_selection(&accepted.tab_id)?;
         self.close
             .retain_accepted(selection, accepted, submitted_at)
+    }
+
+    /// Follows the accepted close of one Panel of several as the close of that Panel, by its
+    /// operation: a read that sees it stop shows the Panel again with its report, and a completed
+    /// close or the publication removing the Panel ends the follow. Refused while the Panel already
+    /// holds a retained close, which keeps its own record and report.
+    pub(super) fn retain_panel_close(
+        &mut self,
+        accepted: &WorkbenchPanelCloseAccepted,
+        submitted_at: Instant,
+    ) -> Result<(), CloseStateError> {
+        if !matches!(self.close.carrier, CloseCarrier::Client) {
+            return Err(CloseStateError::Busy);
+        }
+        let tab = self
+            .cache
+            .tab_index(&accepted.tab_id)
+            .and_then(|index| self.cache.tabs().get(index))
+            .ok_or(CloseStateError::UnknownTarget)?;
+        let panel = tab
+            .panel_index(&accepted.panel_id)
+            .and_then(|index| tab.panel(index))
+            .ok_or(CloseStateError::UnknownTarget)?;
+        let presentation = self.selected_presentation(panel);
+        let selection = CloseSelection::new(
+            CloseTarget::panel(
+                self.cache.session_id().clone(),
+                accepted.terminal_context_id.clone(),
+                accepted.tab_id.clone(),
+                accepted.panel_id.clone(),
+            ),
+            WorkbenchLabel::parse(presentation.display_label())
+                .map_err(|_| CloseStateError::UnknownTarget)?,
+            presentation.binding().cloned(),
+            None,
+            self.cache.revision(),
+        );
+        self.close.retain_accepted(
+            selection,
+            &WorkbenchTabCloseAccepted {
+                close_request_id: accepted.close_request_id.clone(),
+                terminal_context_id: accepted.terminal_context_id.clone(),
+                tab_id: accepted.tab_id.clone(),
+                accepted_revision: accepted.accepted_revision,
+            },
+            submitted_at,
+        )
+    }
+
+    /// Ends the follow of each Panel close whose Panel the drawn membership no longer holds, and
+    /// shows the leaving Panel again once its close stopped. Runs after every settled close step.
+    pub(super) fn settle_panel_close_follow(&mut self) {
+        let cache = &self.cache;
+        self.close
+            .prune_departed_panel_closes(|target| panel_drawn(cache, target));
+        self.reveal_stopped_panel_close();
     }
 
     /// Whether the Tab at `index` is still in the Client's view, not leaving with its close.
@@ -1245,13 +1362,20 @@ impl<'a> super::WorkbenchClientView<'a> {
     pub(crate) fn announced_close_status(&self) -> Option<CloseStatusView<'a>> {
         self.select_close_status(CloseRecord::announced)
     }
-    /// Whether the selected Tab is closing unreported, so its terminal ending is no news.
+    /// Whether the selected Tab, or its focused Panel, is closing unreported, so its terminal
+    /// ending is no news.
     pub(crate) fn close_quiet_on_selected(&self) -> bool {
         let Some(selected) = self.state.active() else {
             return false;
         };
+        let focus = self.state.focus_panel_id();
         self.state.close.records.iter().any(|record| {
-            record.selection.target.tab_id() == selected.key().anchor().tab_id()
+            let target = &record.selection.target;
+            target.tab_id() == selected.key().anchor().tab_id()
+                && target
+                    .panel_id
+                    .as_ref()
+                    .is_none_or(|panel| Some(panel) == focus)
                 && !record.announced()
         })
     }
@@ -1294,4 +1418,18 @@ impl<'a> super::WorkbenchClientView<'a> {
         }
         self.state.close.latest_status(admit)
     }
+}
+
+/// Whether `tabs` draws the Panel that the Panel close `target` names, in its Session and Context.
+pub(super) fn panel_drawn(
+    tabs: &crate::workbench_projection::ClientContextTabs,
+    target: &CloseTarget,
+) -> bool {
+    tabs.session_id() == target.session_id()
+        && tabs.terminal_context_id() == Some(target.terminal_context_id())
+        && target.panel_id().is_some_and(|panel| {
+            tabs.tab_index(target.tab_id())
+                .and_then(|index| tabs.tabs().get(index))
+                .is_some_and(|tab| tab.panel_index(panel).is_some())
+        })
 }

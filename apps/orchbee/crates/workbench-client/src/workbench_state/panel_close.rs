@@ -2,6 +2,7 @@
 //! and the captured submission plan. It does not paint the prompt or execute a close before
 //! the runtime consumes that plan.
 
+use super::tab_close::CloseTarget;
 use super::{
     AttachmentKey, ClientPhase, PaneKey, PanelIntent, PanelOperation, PanelRequestKind,
     WorkbenchClientState,
@@ -457,7 +458,8 @@ impl WorkbenchClientState {
     /// Starts drawing what an accepted Panel close removes as gone. A Tab's last Panel takes its
     /// Tab, which is what the Server closes, so that close is retained and followed as the close of
     /// the Tab: the Tab leaves the strip at once and the selection follows it as it follows any
-    /// accepted Tab close. Any other Panel leaves its Tab's split.
+    /// accepted Tab close. Any other Panel leaves its Tab's split, and its close is retained and
+    /// followed by its operation, so a close that stops shows the Panel again.
     pub(super) fn leave_accepted_panel_close(
         &mut self,
         operation: &PanelOperation,
@@ -483,7 +485,34 @@ impl WorkbenchClientState {
             );
             return;
         }
-        self.begin_panel_leaving(tab_id, operation.panel_id());
+        // A Panel that already holds a retained close keeps that close and its report; a close that
+        // cannot be retained leaves the Panel drawn until publication removes it.
+        if self
+            .retain_panel_close(accepted, operation.admitted_at())
+            .is_ok()
+        {
+            self.begin_panel_leaving(tab_id, operation.panel_id());
+        }
+    }
+
+    /// Shows the leaving Panel again once its retained close stopped, with the close's report. The
+    /// focus stays where the acceptance moved it.
+    pub(super) fn reveal_stopped_panel_close(&mut self) {
+        let Some(leaving) = &self.panel_leaving else {
+            return;
+        };
+        let Some(terminal_context_id) = self.cache.terminal_context_id() else {
+            return;
+        };
+        let target = CloseTarget::panel(
+            self.cache.session_id().clone(),
+            terminal_context_id.clone(),
+            leaving.tab_id.clone(),
+            leaving.panel_id.clone(),
+        );
+        if self.close.panel_close_stopped(&target) == Some(true) {
+            self.panel_leaving = None;
+        }
     }
 
     /// Starts drawing a Panel as gone once the Server accepted its close. When the focus is on that
@@ -557,8 +586,10 @@ impl WorkbenchClientState {
 
     /// Keeps the leaving record only while the candidate still holds that Panel in the same
     /// Context, and re-derives the drawn tree from the candidate. Once the publication removes the
-    /// leaf, the record ends.
+    /// leaf, the record ends, and so does the follow of every Panel close whose Panel it removed.
     pub(crate) fn refresh_panel_leaving(&mut self, candidate: &ClientContextTabs) {
+        self.close
+            .prune_departed_panel_closes(|target| super::tab_close::panel_drawn(candidate, target));
         let Some(leaving) = self.panel_leaving.take() else {
             return;
         };

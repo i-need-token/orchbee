@@ -139,6 +139,12 @@ one read; reads stay one at a time. A read names the close by its operation,
 acceptance never arrived is read by its Tab, `workbench.tab-close.read`, which answers only with a
 close of the whole Tab, never with an earlier close of one of its Panels.
 
+The accepted close of one Panel of several is retained and read the same way, by its operation,
+but it is no Tab close: it hides only its leaf, names the Panel in its report, offers no Resume,
+holds no navigation or structure between its reads, and never refuses the other Panels of its Tab.
+It ends when a read sees it `Closed` or a publication removes the Panel; a stop shows the Panel
+again with its report ([native panel lifecycle](native-panel-lifecycle.md)).
+
 Blocked, unknown, unavailable and uncertain closes report at once, and a later validated `Closed`
 clears the report. A refusal keeps the Tab and reports only its notice. `close_status` stays
 unfiltered because Client control uses it as a busy gate; rendering reads `announced_close_status`.

@@ -81,6 +81,21 @@ does not move and the leaf keeps drawing until publication removes it. Refused a
 `confirmation-required` results never start this overlay. The canonical install releases the
 closed Panel's attachment, as before.
 
+From its acceptance the close is retained and followed by its operation,
+`workbench.close-operation.read`, under the read pacing of a retained Tab close
+([close status](native-tab-close-sets.md#close-status)); nothing is sent again. A read that sees
+the close `Closed` ends the follow silently, and the leaf stays hidden until the publication
+removes it. A close that stops (blocked, outcome unknown, its observation lost, or the Server
+holding no such close) shows the Panel again with its report on the status line, and the focus
+stays on the survivor. The report names the Panel, a disposed close reads `Execution ended;
+awaiting Panel removal`, and it offers no Resume, as in the GUI. A later read that finds the close
+progressing again leaves the Panel drawn. The publication that removes the Panel ends its follow,
+whatever the last read said. Between its reads the follow holds no navigation or structure, and
+its reads never refuse the Tab's other Panels: their input, attachment and effects carry on. A
+Panel that already holds a retained close keeps that record and its report and keeps drawing; a
+close that cannot be retained starts no overlay, and the leaf keeps drawing until publication
+removes it.
+
 A Tab's last Panel has no sibling to collapse onto. The Server admits its close as the close of the
 whole Tab, so its `Accepted` is retained as an accepted Tab close of that Tab instead of this
 overlay: the Tab leaves the strip and sidebar at once, the selection moves to the next Tab still
@@ -95,8 +110,8 @@ drawing until publication removes it.
 The single-operation implementation contract requires one selected attachment per operation; exact request/serial/baseline correlation; structural exclusion while a panel flight freezes its baseline; and retention of every known committed fact. Invalid grafts must not apply. A legal superseding leaf removal repairs membership instead of fabricating divergence.
 
 Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance changes only the drawn layout and, when the closed Panel was focused, the
-selection, or for a Tab's last Panel starts the retained close of its Tab; the cached canonical
-tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
+selection, and starts the retained follow of the close: of its Panel, or for a Tab's last Panel of
+its Tab; the cached canonical tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
 
 These operation-specific traces do not claim exhaustive TLC progress. The retained pane collection core below checks the shared identity and cleanup protocol separately.
 

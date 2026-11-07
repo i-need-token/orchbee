@@ -249,10 +249,13 @@ impl<'a> CloseStatusView<'a> {
     pub(crate) const fn unavailable(&self) -> bool {
         self.inner.unavailable()
     }
+    pub(crate) const fn panel(&self) -> bool {
+        self.inner.panel()
+    }
 }
 
 impl<'a> CloseStatusView<'a> {
-    /// The status as text under an already resolved Tab name.
+    /// The status as text under an already resolved target name.
     pub(crate) fn text<'b>(&self, label: &'b str) -> crate::localization::CloseStatusText<'b> {
         crate::localization::CloseStatusText {
             label,
@@ -260,6 +263,7 @@ impl<'a> CloseStatusView<'a> {
             resumable: self.resumable(),
             observation_paused: self.observation_paused(),
             unavailable: self.unavailable(),
+            panel: self.panel(),
         }
     }
 }
@@ -273,6 +277,7 @@ impl<'a> From<&CloseStatusView<'a>> for crate::localization::CloseStatusText<'a>
             resumable: status.resumable(),
             observation_paused: status.observation_paused(),
             unavailable: status.unavailable(),
+            panel: status.panel(),
         }
     }
 }
@@ -326,8 +331,13 @@ impl<'a> WorkbenchClientView<'a> {
         &self,
         inner: workbench_state::CloseStatusView<'a>,
     ) -> CloseStatusView<'a> {
+        // A Panel close names its Panel as captured; a Tab close follows the Tab's live name.
         CloseStatusView {
-            tab: self.tab_by_id(inner.target_tab_id()),
+            tab: if inner.panel() {
+                None
+            } else {
+                self.tab_by_id(inner.target_tab_id())
+            },
             inner,
         }
     }

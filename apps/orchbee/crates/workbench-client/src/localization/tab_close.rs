@@ -46,6 +46,8 @@ pub(crate) struct CloseStatusText<'a> {
     pub(crate) resumable: bool,
     pub(crate) observation_paused: bool,
     pub(crate) unavailable: bool,
+    /// The close ends one Panel of a split, which leaves with its publication instead of a Tab.
+    pub(crate) panel: bool,
 }
 
 impl Locale {
@@ -157,6 +159,12 @@ impl Locale {
     pub(crate) fn native_close_status<'a>(self, status: impl Into<CloseStatusText<'a>>) -> String {
         let status = status.into();
         let phase = match (self, status.kind) {
+            (Self::EnUs, CloseStatusKind::DisposedAwaitingPublication) if status.panel => {
+                "Execution ended; awaiting Panel removal"
+            }
+            (Self::ZhCn, CloseStatusKind::DisposedAwaitingPublication) if status.panel => {
+                "执行已终止；等待移除面板"
+            }
             (Self::EnUs, CloseStatusKind::AwaitingStatus) => "Awaiting Close status",
             (Self::ZhCn, CloseStatusKind::AwaitingStatus) => "等待关闭状态",
             (Self::EnUs, CloseStatusKind::Closing) => "Closing",
