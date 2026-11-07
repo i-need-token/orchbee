@@ -125,6 +125,7 @@ fn search_fixture(
         ui.projections[0].viewport.as_mut().unwrap().window(
             ViewportWindow {
                 graphics_present: false,
+                graphics: None,
                 route: TerminalRowWindowRoute {
                     attachment_id: frame.route.attachment_id,
                     host_epoch: frame.route.host_epoch,

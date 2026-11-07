@@ -109,6 +109,7 @@ fn serve_tail_window(ui: &mut WorkbenchClientUi, key: &PaneRef, mailbox: &Arc<Co
         foreground: frame.foreground,
         background: frame.background,
         graphics_present: false,
+        graphics: None,
         rows,
     };
     core.window(window, ui.clock.now());

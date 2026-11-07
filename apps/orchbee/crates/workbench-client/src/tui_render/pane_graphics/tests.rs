@@ -14,6 +14,9 @@ fn layer(z_index: i32, placement: PaneGraphicsPlacement) -> PaneGraphicsLayer {
     }
 }
 const RED_BLUE: &[u8] = &[255, 0, 0, 255, 0, 0, 255, 255];
+fn rgba(metadata: &PaneGraphicsLayer, pixels: &[u8]) -> Layer {
+    Layer::new(metadata.clone(), pixels.to_vec()).expect("valid RGBA fixture")
+}
 
 #[test]
 fn cropped_raster_uses_the_same_source_offsets_and_keeps_the_indicator_clear() {
@@ -35,8 +38,7 @@ fn cropped_raster_uses_the_same_source_offsets_and_keeps_the_indicator_clear() {
             source_size: (104, 36),
             origin: (10, 20),
         },
-        &metadata,
-        RED_BLUE,
+        &rgba(&metadata, RED_BLUE),
         None,
         &mut [false; 12],
     );
@@ -86,17 +88,25 @@ fn negative_images_composite_in_z_order_without_stealing_a_terminal_half_block()
             ..Default::default()
         },
     );
-    paint_layers(&mut buffer, area, &metadata, RED_BLUE, None, &mut painted);
+    paint_layers(
+        &mut buffer,
+        area,
+        &rgba(&metadata, RED_BLUE),
+        None,
+        &mut painted,
+    );
     assert_eq!(buffer[(0, 0)].fg, Color::White);
     assert_eq!(buffer[(1, 0)].fg, Color::Rgb(255, 0, 0));
     paint_layers(
         &mut buffer,
         area,
-        &PaneGraphicsLayer {
-            z_index: -1,
-            ..metadata
-        },
-        &[0, 255, 0, 255, 0, 255, 0, 255],
+        &rgba(
+            &PaneGraphicsLayer {
+                z_index: -1,
+                ..metadata
+            },
+            &[0, 255, 0, 255, 0, 255, 0, 255],
+        ),
         None,
         &mut painted,
     );
@@ -408,14 +418,13 @@ fn measured_physical_aspect_controls_natural_fit_and_each_omitted_axis() {
         )
     );
     let mut buffer = Buffer::empty(area);
-    let rgba = [
+    let pixels = [
         255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255,
     ];
     paint_layers(
         &mut buffer,
         area,
-        &square,
-        &rgba,
+        &rgba(&square, &pixels),
         Some(&wide_cell),
         &mut vec![false; 800],
     );

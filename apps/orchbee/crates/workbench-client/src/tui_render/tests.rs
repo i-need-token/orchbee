@@ -1174,6 +1174,7 @@ fn history_window(texts: &[&str], columns: u16) -> crate::terminal_viewport::Vie
     use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
     crate::terminal_viewport::ViewportWindow {
         graphics_present: false,
+        graphics: None,
         route: TerminalRowWindowRoute {
             attachment_id: AttachmentId::from_bytes([7; 16]).unwrap(),
             host_epoch: HostEpoch::from_bytes([9; 16]).unwrap(),
@@ -1339,6 +1340,7 @@ fn history_entering_keeps_the_live_frame() {
         progress: None,
         program_status: None,
         graphics_present: None,
+        graphics: None,
         command_completion: None,
         command_observation: None,
         title: None,

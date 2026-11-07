@@ -5,12 +5,9 @@ const surface_fixture = @import("terminal-host-surface-fixture");
 pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const arguments = try init.minimal.args.toSlice(init.arena.allocator());
-    if (arguments.len != 4 or
-        !std.fs.path.isAbsolute(arguments[1]) or
-        !std.fs.path.isAbsolute(arguments[2]) or
-        !std.fs.path.isAbsolute(arguments[3]))
-    {
-        return error.InvalidArguments;
+    if (arguments.len != 7) return error.InvalidArguments;
+    for (arguments[1..]) |argument| {
+        if (!std.fs.path.isAbsolute(argument)) return error.InvalidArguments;
     }
 
     const fixtures = try surface_fixture.create(init.io, allocator);
@@ -18,6 +15,9 @@ pub fn main(init: std.process.Init) !void {
     try writeFixture(init.io, arguments[1], fixtures.primary);
     try writeFixture(init.io, arguments[2], fixtures.alternate);
     try writeFixture(init.io, arguments[3], fixtures.render_row_window);
+    try writeFixture(init.io, arguments[4], fixtures.graphics.placed);
+    try writeFixture(init.io, arguments[5], fixtures.graphics.scrolled);
+    try writeFixture(init.io, arguments[6], fixtures.graphics.deleted);
 }
 
 fn writeFixture(io: std.Io, path: []const u8, fixture: []const u8) !void {

@@ -1939,6 +1939,27 @@ fn render_panel_graphics(
         .filter(|crop| crop.clipped);
     // Host graphics placements have no local camera transform. The raster
     // fallback can share the exact text crop without covering its indicator.
+    let raster_crop = crop.zip(
+        native
+            .pane_projection(panel.panel_id())
+            .and_then(|projection| projection.frame())
+            .map(|source| (source.geometry.columns, source.geometry.rows)),
+    );
+    let cell_pixels = native.graphics_cell_pixels();
+    // Program-printed images sit below the Session's image layers, through the same renderers.
+    let terminal = native.terminal_graphics(panel);
+    for canvas in &terminal {
+        let physical = crop
+            .is_none()
+            .then(|| native.physical_terminal_graphics(canvas, area))
+            .flatten();
+        if physical.is_none() {
+            render_raster(frame, area, canvas, cell_pixels.as_ref(), raster_crop);
+        }
+    }
+    if !terminal.is_empty() {
+        draws.push(native.terminal_graphics_draw(panel));
+    }
     let physical = crop
         .is_none()
         .then(|| native.physical_graphics(panel, area))
@@ -1946,28 +1967,29 @@ fn render_panel_graphics(
     if physical.is_none()
         && let Some(canvas) = native.panel_graphics(panel)
     {
-        if let Some(crop) = crop
-            && let Some(source) = native
-                .pane_projection(panel.panel_id())
-                .and_then(|projection| projection.frame())
-        {
-            pane_graphics::render_cropped(
-                frame,
-                area,
-                canvas,
-                native.graphics_cell_pixels().as_ref(),
-                crop,
-                (source.geometry.columns, source.geometry.rows),
-            );
-        } else {
-            pane_graphics::render(frame, area, canvas, native.graphics_cell_pixels().as_ref());
-        }
+        render_raster(frame, area, canvas, cell_pixels.as_ref(), raster_crop);
     }
     if let Some(draw) = native.graphics_draw(panel) {
         draws.push(match physical {
             Some(choice) => draw.physical(choice.revision),
             None => draw,
         });
+    }
+}
+
+/// Cell raster output, sharing a clipped live text crop when there is one.
+fn render_raster(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    canvas: &crate::workbench_client::PaneGraphicsCanvas,
+    cell_pixels: Option<&orchbee_workbench_protocol::PaneGraphicsCellPixels>,
+    crop: Option<(crate::terminal_live_view::LiveView, (u16, u16))>,
+) {
+    match crop {
+        Some((crop, source_size)) => {
+            pane_graphics::render_cropped(frame, area, canvas, cell_pixels, crop, source_size);
+        }
+        None => pane_graphics::render(frame, area, canvas, cell_pixels),
     }
 }
 

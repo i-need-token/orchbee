@@ -1,14 +1,16 @@
 //! Connects current graphics sources and surface observations to UI views and exact post-draw
 //! receipts. It does not decode image bytes, own Host resources, or acknowledge graphics that
-//! were merely prepared for drawing.
+//! were merely prepared for drawing. Images a program printed in a Panel share the renderers but
+//! never enter the Session receipt scope.
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
 #[cfg(any(test, feature = "test-support"))]
 pub(super) mod test_support;
 #[cfg(test)]
 mod tests;
+use crate::pane_canvas::{Lane, terminal};
 use crate::workbench_client::pane_graphics::{Scope, Source};
-use crate::workbench_client::{PaneGraphicsCanvas, PaneGraphicsDraw};
+use crate::workbench_client::{PaneGraphicsCanvas, PaneGraphicsDraw, ViewportSurface};
 use crate::workbench_projection::ClientPanel;
 
 impl WorkbenchClientView<'_> {
@@ -48,6 +50,68 @@ impl WorkbenchClientView<'_> {
             self.panel_graphics(panel).map(PaneGraphicsCanvas::revision),
         ))
     }
+
+    /// The Kitty images the program in this Panel printed, one canvas per Host placement, for
+    /// the surface the Panel paints: the live screen's current set, or a history window's own
+    /// set. A loading or recovering history surface, a reading stand-in and a revealed tail show
+    /// none, so a live placement never lands on rows it does not belong to.
+    pub(crate) fn terminal_graphics(&self, panel: &ClientPanel) -> Vec<PaneGraphicsCanvas> {
+        let panel_id = panel.panel_id();
+        if self.pane_history_stand_in(panel_id).is_some()
+            || self.pane_tail_window(panel_id).is_some()
+        {
+            return Vec::new();
+        }
+        let source = self.terminal_graphics_source(panel);
+        match self.pane_viewport(panel_id) {
+            Some(ViewportSurface::Window { window }) => {
+                return window.graphics.as_ref().map_or_else(Vec::new, |graphics| {
+                    terminal::canvases(&source, &graphics.resources, graphics.cell_pixels)
+                });
+            }
+            Some(ViewportSurface::Entering) | None => {}
+            Some(ViewportSurface::AwaitingWindow | ViewportSurface::Recovering) => {
+                return Vec::new();
+            }
+        }
+        let Some(projection) = self.pane_projection(panel_id) else {
+            return Vec::new();
+        };
+        let (Some(frame), Some(graphics)) = (projection.frame(), projection.graphics()) else {
+            return Vec::new();
+        };
+        terminal::canvases(
+            &source,
+            graphics,
+            (
+                frame.geometry.cell_pixel_width,
+                frame.geometry.cell_pixel_height,
+            ),
+        )
+    }
+
+    /// Keeps this Panel's staged physical terminal images through the frame; never a receipt.
+    pub(crate) fn terminal_graphics_draw(&self, panel: &ClientPanel) -> PaneGraphicsDraw {
+        PaneGraphicsDraw::new(self.terminal_graphics_source(panel), None)
+    }
+
+    /// Physical output for one terminal image canvas when the host admits it.
+    pub(crate) fn physical_terminal_graphics(
+        &self,
+        canvas: &PaneGraphicsCanvas,
+        body: ratatui::layout::Rect,
+    ) -> Option<crate::tui_graphics::Choice> {
+        self.graphics_surface
+            .as_ref()?
+            .select(self.navigation_session()?, canvas, body)
+    }
+
+    fn terminal_graphics_source(&self, panel: &ClientPanel) -> Source {
+        Source {
+            lane: Lane::Terminal,
+            ..Source::capture(panel, self.selected_presentation(panel))
+        }
+    }
 }
 
 impl WorkbenchClientUi {
@@ -68,11 +132,13 @@ impl WorkbenchClientUi {
     }
     pub(in crate::workbench_client) fn after_graphics_draw(
         &mut self,
-        draws: Vec<PaneGraphicsDraw>,
+        mut draws: Vec<PaneGraphicsDraw>,
     ) {
         let Some(state) = self.state.as_ref().filter(|_| self.retirement.is_none()) else {
             return;
         };
+        // Program-printed images are not Session layers and have no Workbench receipt.
+        draws.retain(|draw| draw.source.lane == Lane::Session);
         self.graphics.observe(
             Scope {
                 session: state.cache().session_id().clone(),

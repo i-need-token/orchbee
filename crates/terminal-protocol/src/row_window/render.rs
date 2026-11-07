@@ -1,14 +1,13 @@
 //! Admits styled OBRW rows only after validating their nested projection and complete graphics
-//! snapshot, exposing borrowed data. It does not decode image pixels, retain resources, or
-//! paint the window.
+//! snapshot, exposing borrowed data. Image pixels are decoded only on request; it retains no
+//! resources and does not paint the window.
 
 use super::{Detail, TERMINAL_ROW_WINDOW_HEADER_BYTES, decode_header};
 use crate::{
-    ProtocolError, ProtocolErrorCode, TerminalProjectionBuffer, TerminalRowWindowRoute,
-    decode_terminal_projection_buffer,
+    ProtocolError, ProtocolErrorCode, TerminalGraphics, TerminalGraphicsUpdateKind,
+    TerminalProjectionBuffer, TerminalRowWindowRoute, decode_terminal_graphics,
+    decode_terminal_projection_buffer, terminal_graphics::validate_terminal_graphics,
 };
-
-mod graphics;
 
 /// Borrowed styles with completely validated, unmaterialized graphics resources.
 #[derive(Debug)]
@@ -16,6 +15,7 @@ pub struct TerminalRenderRowWindow<'a> {
     route: TerminalRowWindowRoute,
     projection: TerminalProjectionBuffer<'a>,
     ignored_optional_flags: u8,
+    graphics: &'a [u8],
     graphics_images: u16,
     graphics_placements: u16,
 }
@@ -41,6 +41,15 @@ impl<'a> TerminalRenderRowWindow<'a> {
     pub const fn graphics_placement_count(&self) -> u16 {
         self.graphics_placements
     }
+    /// Copies the window's complete graphics snapshot, whose placement rows count from the
+    /// window's first row.
+    ///
+    /// # Errors
+    ///
+    /// Never for a decoded window, whose graphics were validated in full.
+    pub fn graphics(&self) -> Result<TerminalGraphics, ProtocolError> {
+        decode_terminal_graphics(self.graphics)
+    }
 }
 
 pub fn decode_terminal_render_row_window(
@@ -57,7 +66,15 @@ pub fn decode_terminal_render_row_window(
     let split = TERMINAL_ROW_WINDOW_HEADER_BYTES + header.projection_length as usize;
     let projection =
         decode_terminal_projection_buffer(&bytes[TERMINAL_ROW_WINDOW_HEADER_BYTES..split])?;
-    let (graphics_images, graphics_placements) = graphics::validate_snapshot(&bytes[split..])?;
+    // A row window always carries its complete resources, never a placement-only update.
+    let (TerminalGraphicsUpdateKind::Snapshot, graphics_images, graphics_placements) =
+        validate_terminal_graphics(&bytes[split..])?
+    else {
+        return Err(ProtocolError::new(
+            ProtocolErrorCode::InvalidField,
+            "OBRW render graphics is not a resource snapshot",
+        ));
+    };
     let route = header.route()?;
     let nested = projection.route();
     let geometry = projection.geometry();
@@ -81,6 +98,7 @@ pub fn decode_terminal_render_row_window(
         route,
         projection,
         ignored_optional_flags: header.ignored_optional_flags,
+        graphics: &bytes[split..],
         graphics_images,
         graphics_placements,
     })

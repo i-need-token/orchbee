@@ -4,8 +4,9 @@ use crate::workbench_client::ui::tests::viewport::{controlling_ui, install_proje
 use crate::{
     client_view::ClientView,
     localization::Locale,
+    tui_graphics::Surface,
     tui_theme::Theme,
-    workbench_client::{Geometry, pane_graphics::Layer},
+    workbench_client::{DrawReceipt, Geometry, pane_graphics::Layer},
 };
 use orchbee_workbench_protocol::{PaneGraphicsLayer, PaneGraphicsPlacement, WorkbenchRevision};
 use ratatui::style::Color;
@@ -112,5 +113,216 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
                 assert!(view.panel_graphics(tab.panel(0).unwrap()).is_none());
             }
         }
+    }
+}
+
+const KITTY_PLACED: &[u8] = include_bytes!(
+    "../../../../../../../../schemas/terminal/v1/fixtures/ghostty-kitty-graphics-placed.bin"
+);
+const KITTY_SCROLLED: &[u8] = include_bytes!(
+    "../../../../../../../../schemas/terminal/v1/fixtures/ghostty-kitty-graphics-scrolled.bin"
+);
+const KITTY_DELETED: &[u8] = include_bytes!(
+    "../../../../../../../../schemas/terminal/v1/fixtures/ghostty-kitty-graphics-deleted.bin"
+);
+
+/// The Host's own frames for a program that places a red-over-blue image on the second row,
+/// scrolls it to the first, then deletes it, through the actual decode, retention and shell
+/// renderers: Kitty commands for a capable host, cell raster and no bytes for an incapable one.
+#[test]
+fn host_kitty_frames_reach_the_shell_as_physical_images_or_cell_raster() {
+    use crate::terminal_graphics::{Probe, Reply};
+    use crate::terminal_lifecycle::SynchronizedUpdateLease;
+    use crate::terminal_projection::TerminalProjection;
+    use orchbee_client_server_protocol::TerminalViewerAction;
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding,
+        TerminalGraphicsImageFormat, encode_transport_envelope, inspect_terminal_frame_route,
+    };
+    use ratatui::{Terminal, backend::TestBackend, layout::Position};
+    use std::{sync::Arc, time::Instant};
+
+    let receive = |ui: &mut WorkbenchClientUi, bytes: &[u8]| {
+        let record = encode_transport_envelope(&Envelope {
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role: MessageRole::Event,
+            kind: if bytes[6] == 1 { 41 } else { 42 },
+            payload_encoding: PayloadEncoding::TerminalFrame,
+            host_epoch: Some(inspect_terminal_frame_route(bytes).unwrap().host_epoch),
+            correlation_id: None,
+            optional_message: false,
+            payload: bytes,
+        })
+        .unwrap();
+        let outcome = ui.projections.last_mut().unwrap().value.receive(&record);
+        assert!(matches!(
+            outcome,
+            Ok(Some(TerminalViewerAction::FrameApplied { .. }))
+        ));
+    };
+    let surface = |kitty: bool| {
+        let now = Instant::now();
+        let mut probe = Probe::default();
+        probe.activate(99);
+        probe.query((80, 24), now).unwrap();
+        probe.reply(Reply::Cell(Some((8, 16))), now);
+        if kitty {
+            probe.reply(
+                Reply::Kitty {
+                    image_id: 99,
+                    placement_id: None,
+                    success: true,
+                },
+                now,
+            );
+        }
+        let facts = probe.facts();
+        let surface = Surface::new(99, Arc::new(SynchronizedUpdateLease::new()));
+        surface.update(facts, now, Vec::new(), false);
+        (surface, facts, now)
+    };
+    let theme = Theme::rgb_test_dark();
+    let paint = |ui: &mut WorkbenchClientUi, graphics: &Surface| {
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        let mut receipt = DrawReceipt::default();
+        graphics.begin_frame(false);
+        let buffer = terminal
+            .draw(|frame| {
+                let mut native = ui.view();
+                native.set_graphics_surface(Some(graphics.clone()));
+                receipt = crate::tui_render::render_terminal_shell(
+                    frame,
+                    &ClientView::new(80),
+                    Locale::EnUs,
+                    Some(native),
+                    &theme,
+                    &mut crate::tui_hit_map::HitMapBuilder::new(),
+                );
+                graphics.finish_frame(receipt.graphics_draws(), false);
+            })
+            .unwrap()
+            .buffer
+            .clone();
+        let mut output = Vec::new();
+        let deleted = graphics
+            .write_frame(&mut output, Position { x: 0, y: 0 })
+            .unwrap();
+        graphics.flushed(&deleted);
+        ui.after_close_draw(receipt);
+        (buffer, String::from_utf8(output).unwrap())
+    };
+    let raster_at = |buffer: &ratatui::buffer::Buffer, x: u16, y: u16| {
+        let cell = &buffer[(x, y)];
+        cell.symbol() == "▀" && cell.fg == Color::Rgb(255, 0, 0) && cell.bg == Color::Rgb(0, 0, 255)
+    };
+
+    for kitty in [false, true] {
+        let (mut ui, _, _, _) = controlling_ui();
+        let areas = crate::tui_layout::project_shell_areas(
+            ratatui::layout::Rect::new(0, 0, 80, 24),
+            ClientView::new(80).sidebar_surface(),
+        );
+        let body = crate::tui_layout::arranged_pane_area(&areas, &ui.view()).unwrap();
+        ui.observe_geometry(Geometry::new(body.width, body.height, 8, 16).unwrap());
+        install_projection(&mut ui, None, 0);
+        let route = inspect_terminal_frame_route(KITTY_PLACED).unwrap();
+        ui.projections.last_mut().unwrap().value =
+            TerminalProjection::new(route.attachment_id, route.host_epoch);
+        let (graphics, facts, now) = surface(kitty);
+
+        receive(&mut ui, KITTY_PLACED);
+        let retained = ui.projections.last().unwrap().value.graphics().unwrap();
+        assert_eq!(retained.images.len(), 1);
+        assert_eq!(retained.images[0].format, TerminalGraphicsImageFormat::Rgb);
+        assert_eq!(
+            retained.images[0].pixels.as_slice(),
+            &[255, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0, 255]
+        );
+        let placement = retained.placements[0];
+        assert_eq!((placement.column, placement.row), (0, 1));
+        assert_eq!(
+            (placement.destination_width, placement.destination_height),
+            (16, 16)
+        );
+        // Retained text frames never hold the pixels.
+        assert!(
+            ui.projections
+                .last()
+                .unwrap()
+                .value
+                .frame()
+                .unwrap()
+                .graphics
+                .is_none()
+        );
+
+        let (cells, output) = paint(&mut ui, &graphics);
+        assert!(raster_at(&cells, body.x, body.y + 1) && raster_at(&cells, body.x + 1, body.y + 1));
+        assert!(!raster_at(&cells, body.x + 2, body.y + 1));
+        let observation = ui
+            .graphics_observation(&ui.control_observation(false).unwrap().1)
+            .unwrap();
+        assert!(
+            observation
+                .panes
+                .iter()
+                .all(|pane| pane.drawn_revision.is_none()),
+            "program images are not Session layer receipts"
+        );
+        if !kitty {
+            assert_eq!(output, "", "an incapable host receives no graphics bytes");
+            receive(&mut ui, KITTY_SCROLLED);
+            let (cells, output) = paint(&mut ui, &graphics);
+            assert!(raster_at(&cells, body.x, body.y) && !raster_at(&cells, body.x, body.y + 1));
+            assert_eq!(output, "");
+            receive(&mut ui, KITTY_DELETED);
+            let (cells, output) = paint(&mut ui, &graphics);
+            assert!(!cells.content.iter().any(|cell| cell.symbol() == "▀"));
+            assert_eq!(output, "");
+            continue;
+        }
+        // The whole 2x1-cell image is uploaded at the measured 8x16 cell size.
+        assert!(output.contains("a=t,t=d,f=32,s=16,v=16,i=1,"), "{output:?}");
+        let upload = Reply::Kitty {
+            image_id: 1,
+            placement_id: None,
+            success: true,
+        };
+        graphics.update(facts, now, vec![upload], false);
+        let (cells, output) = paint(&mut ui, &graphics);
+        assert!(
+            !raster_at(&cells, body.x, body.y + 1),
+            "physical output owns the cells"
+        );
+        assert!(
+            output.contains(&format!(
+                "\x1b[{};{}H\x1b_Ga=p,i=1,p=1,c=2,r=1,z=0,",
+                body.y + 2,
+                body.x + 1
+            )),
+            "{output:?}"
+        );
+
+        // The scrolled image retires its old copy and shows as cells until the new one lands.
+        receive(&mut ui, KITTY_SCROLLED);
+        let (cells, output) = paint(&mut ui, &graphics);
+        assert!(raster_at(&cells, body.x, body.y) && !raster_at(&cells, body.x, body.y + 1));
+        assert!(output.contains("a=d,d=I,i=1,q=2"), "{output:?}");
+        assert!(output.contains("a=t,t=d,f=32,s=16,v=16,i=2,"), "{output:?}");
+
+        // Deletion by the program releases every physical image.
+        receive(&mut ui, KITTY_DELETED);
+        assert!(
+            ui.projections
+                .last()
+                .unwrap()
+                .value
+                .graphics()
+                .unwrap()
+                .is_empty()
+        );
+        let (cells, output) = paint(&mut ui, &graphics);
+        assert!(!cells.content.iter().any(|cell| cell.symbol() == "▀"));
+        assert!(output.contains("a=d,d=I,i=2,q=2"), "{output:?}");
     }
 }

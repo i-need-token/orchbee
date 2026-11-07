@@ -580,7 +580,10 @@ and `z >= 0` above text. Snapshot crop rectangles are bounded by their image.
 The client retains at most 32 MiB across 256 visible decoded images and 1,024 visible placements.
 A placement-only update carries no image bytes and must name the exact retained resource revision;
 the consumer additionally validates every reference and crop against its retained image map before
-committing any text row. A terminal snapshot with placement-only extension data is invalid. Resource-set
+committing any text row. A terminal snapshot with placement-only extension data is invalid. The
+packaged TypeScript store and the native Rust projection apply the same consumer rules: either
+rejects the whole frame for a malformed record, and each replaces its retained set atomically, so
+an image that leaves the Host's set is released with the frame that omits it. Resource-set
 or displayed-animation-generation change, retransmission, deletion, reset, screen change, or an
 unconfirmed base promotes the Host's whole OBTF record to a snapshot. Direct, file, temporary-file,
 and supported POSIX shared-memory inputs, raw/PNG/zlib/chunk transport, animation, virtual and
@@ -623,12 +626,18 @@ consumer additionally validates the complete candidate's wrap and spacer-head/wi
 each replaced row's retained predecessor and successor.
 
 The native surface evidence set contains exported `ghostty-surface.bin`,
-`ghostty-alternate-surface.bin`, and `ghostty-render-row-window.bin`. Terminal Host
+`ghostty-alternate-surface.bin`, `ghostty-render-row-window.bin`, and the Kitty graphics sequence
+`ghostty-kitty-graphics-placed.bin`, `ghostty-kitty-graphics-scrolled.bin`, and
+`ghostty-kitty-graphics-deleted.bin`. Terminal Host
 generates the OBTF pair in sequence from one pinned native Ghostty VT and the real OBTF encoder. A
 separate pinned terminal replays the primary corpus, adds DECSCA protected and unprotected cells,
 and generates the render-detail OBRW only through `row_encoding.encode` and
-`projection_buffer.encodeRenderSnapshot`; no TypeScript encoder constructs those bytes. Producer
-conformance regenerates and byte-compares all three. The TypeScript OBRW consumer checks strict and
+`projection_buffer.encodeRenderSnapshot`; no TypeScript encoder constructs those bytes. A third
+pinned 8x4 terminal at 8x16-pixel cells generates the graphics sequence from a direct Kitty
+transmission: a resource snapshot, the placement-only delta after the image scrolls one row, and
+the empty resource snapshot after deletion. The native Rust client consumes that sequence end to
+end through its projection and TUI renderers. Producer conformance regenerates and byte-compares
+all six. The TypeScript OBRW consumer checks strict and
 trusted views against one contract-authored complete 6x8 matrix, commits the trusted frame through
 `replaceProjectionBufferSnapshot`, and verifies wire-valid mutations for color section order, style,
 semantic, protection, hyperlink, row-wrap, and width topology. This evidence detects native column

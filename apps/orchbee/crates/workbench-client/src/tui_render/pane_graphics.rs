@@ -1,6 +1,8 @@
 //! Cell raster images are retained content, clipped to one real Panel body.
-use crate::workbench_client::PaneGraphicsCanvas;
-use orchbee_workbench_protocol::{PaneGraphicsCellPixels, PaneGraphicsLayer};
+use crate::{pane_canvas::Layer, workbench_client::PaneGraphicsCanvas};
+use orchbee_workbench_protocol::PaneGraphicsCellPixels;
+#[cfg(test)]
+use orchbee_workbench_protocol::PaneGraphicsLayer;
 use ratatui::{
     Frame,
     buffer::{Buffer, CellDiffOption, CellWidth},
@@ -16,14 +18,7 @@ pub(super) fn render(
 ) {
     let mut painted = vec![false; usize::from(area.width) * usize::from(area.height)];
     for layer in canvas.layers() {
-        paint_layers(
-            frame.buffer_mut(),
-            area,
-            layer.metadata(),
-            layer.pixels(),
-            cell_pixels,
-            &mut painted,
-        );
+        paint_layers(frame.buffer_mut(), area, layer, cell_pixels, &mut painted);
     }
 }
 
@@ -44,14 +39,7 @@ pub(super) fn render_cropped(
         origin: (crop.column, crop.row),
     };
     for layer in canvas.layers() {
-        paint_layers_at(
-            frame.buffer_mut(),
-            view,
-            layer.metadata(),
-            layer.pixels(),
-            cell_pixels,
-            &mut painted,
-        );
+        paint_layers_at(frame.buffer_mut(), view, layer, cell_pixels, &mut painted);
     }
 }
 
@@ -76,8 +64,7 @@ fn paint(buffer: &mut Buffer, area: Rect, layer: &PaneGraphicsLayer, rgba: &[u8]
     paint_layers(
         buffer,
         area,
-        layer,
-        rgba,
+        &Layer::new(layer.clone(), rgba.to_vec()).expect("valid RGBA fixture"),
         None,
         &mut vec![false; usize::from(area.width) * usize::from(area.height)],
     );
@@ -86,8 +73,7 @@ fn paint(buffer: &mut Buffer, area: Rect, layer: &PaneGraphicsLayer, rgba: &[u8]
 fn paint_layers(
     buffer: &mut Buffer,
     area: Rect,
-    layer: &PaneGraphicsLayer,
-    rgba: &[u8],
+    layer: &Layer,
     cell_pixels: Option<&PaneGraphicsCellPixels>,
     painted: &mut [bool],
 ) {
@@ -99,7 +85,6 @@ fn paint_layers(
             origin: (0, 0),
         },
         layer,
-        rgba,
         cell_pixels,
         painted,
     );
@@ -108,8 +93,7 @@ fn paint_layers(
 fn paint_layers_at(
     buffer: &mut Buffer,
     view: RasterView,
-    layer: &PaneGraphicsLayer,
-    rgba: &[u8],
+    source: &Layer,
     cell_pixels: Option<&PaneGraphicsCellPixels>,
     painted: &mut [bool],
 ) {
@@ -117,6 +101,7 @@ fn paint_layers_at(
     if area.is_empty() {
         return;
     }
+    let layer = source.metadata();
     let (columns, rows) =
         crate::terminal_graphics::placement::grid(view.source_size, layer, cell_pixels);
     let left =
@@ -129,16 +114,16 @@ fn paint_layers_at(
     let y1 = (top + rows).min(i64::from(area.bottom()));
     for y in y0..y1 {
         for x in x0..x1 {
-            let sx = (x - left) * i64::from(layer.width) / columns;
+            // A sample outside a windowed destination is transparent, like a zero-alpha pixel.
             let sample = |half: i64| {
-                let sy = (2 * (y - top) + half) * i64::from(layer.height) / (2 * rows);
-                let index = ((sy * i64::from(layer.width) + sx) * 4) as usize;
-                rgba.get(index..index + 4)
-                    .and_then(|slice| <[u8; 4]>::try_from(slice).ok())
+                source
+                    .sample(
+                        (i128::from(x - left), i128::from(columns)),
+                        (i128::from(2 * (y - top) + half), i128::from(2 * rows)),
+                    )
+                    .unwrap_or([0; 4])
             };
-            let (Some(upper), Some(lower)) = (sample(0), sample(1)) else {
-                continue;
-            };
+            let (upper, lower) = (sample(0), sample(1));
             if upper[3] == 0 && lower[3] == 0 {
                 continue;
             }

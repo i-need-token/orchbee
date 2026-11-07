@@ -25,11 +25,20 @@ ordinary success/failure codes retain their values. Wire and JSON numeric fields
 The text-frame decoder exposes each row's existing prompt class and the existing extension-4
 completion fact: exactly 25 bytes, with positive sequence and completion timestamp, duration in
 milliseconds, and one-byte exit code. Duplicate completion or graphics extensions reject the frame.
-Extension-2 graphics remains opaque: only the exact valid empty OBKG header proves absence;
-other payloads conservatively mark graphics present. An omitted graphics extension means unchanged
-on a delta, not empty. Projection owners carry that state forward. Tail presentation uses these
-facts without inventing a terminal-output heuristic. Completion eligibility, deduplication and
-notification delivery belong to clients. Frame-extension tests own malformed and boundary cases.
+Extension-2 carries one OBKG `0.1.0` Kitty graphics record, decoded strictly into
+`TerminalGraphics`: owned images (gray, gray-alpha, RGB or RGBA, shared behind an `Arc`) and absolute
+placements. A malformed record, an unknown image reference, an out-of-bounds crop, or a
+placement-only update inside a terminal snapshot rejects the whole frame, as the packaged
+TypeScript store does. `graphics_present` summarizes the decoded record and survives a consumer
+taking `graphics` out of the frame. An omitted graphics extension means unchanged on a delta, not
+empty. Projection owners carry that state forward and resolve a placement-only update against
+their retained resource revision. Tail presentation uses these facts without inventing a
+terminal-output heuristic. Completion eligibility, deduplication and notification delivery belong
+to clients. Frame-extension tests own malformed and boundary cases.
+
+A render-detail OBRW window validates its complete graphics snapshot at decode and copies its
+pixels only when a consumer asks through `TerminalRenderRowWindow::graphics`; its placement rows
+count from the window's first row.
 
 ## Revision-admitted text selection
 

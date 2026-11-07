@@ -397,6 +397,7 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
         foreground: live.foreground,
         background: live.background,
         graphics_present: false,
+        graphics: None,
         rows,
     };
     let mut terminal = Terminal::new(TestBackend::new(10, 5)).unwrap();
@@ -537,6 +538,7 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
     }];
     let window = ViewportWindow {
         graphics_present: false,
+        graphics: None,
         route: TerminalRowWindowRoute {
             attachment_id: frame.route.attachment_id,
             host_epoch: frame.route.host_epoch,

@@ -220,7 +220,10 @@ active cursor; Terminal Host owns applying these profile defaults again on RIS o
 Host produces the OBTF pair from one pinned native Ghostty VT and its real projection encoder; a
 separate native terminal replays the primary corpus, adds real DECSCA protected/unprotected cells,
 and produces the OBRW fixture through `row_encoding.encode` and
-`projection_buffer.encodeRenderSnapshot`. Host conformance regenerates and byte-compares all three.
+`projection_buffer.encodeRenderSnapshot`. A third native terminal produces the Kitty graphics
+sequence `ghostty-kitty-graphics-placed.bin`, `ghostty-kitty-graphics-scrolled.bin`, and
+`ghostty-kitty-graphics-deleted.bin` from one direct transmission, a scroll, and a deletion; the
+native Rust client consumes it end to end. Host conformance regenerates and byte-compares all six.
 `@orchbee/terminal` consumes the OBTF pair through both renderer backends and the packed store, and
 consumes the OBRW bytes through the strict decoder, trusted structural view, and packed store. Its
 contract-authored 6x8 oracle checks every row and cell column, raw string range, decoded string,

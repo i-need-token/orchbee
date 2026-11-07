@@ -139,6 +139,17 @@ fn geometry() -> Result<Geometry, Box<dyn std::error::Error>> {
     )?)
 }
 
+/// A Host delta never carries a resource snapshot, so the fixture's empty graphics snapshot becomes
+/// the equivalent placement-only update naming the same resource revision.
+fn as_delta(snapshot: &[u8]) -> Vec<u8> {
+    let mut delta = snapshot.to_vec();
+    delta[6] = 2;
+    if let Some(graphics) = delta.windows(4).position(|bytes| bytes == b"OBKG") {
+        delta[graphics + 7] = 2;
+    }
+    delta
+}
+
 fn snapshot_at(sequence: u64, revision: u64) -> Vec<u8> {
     let mut snapshot = SNAPSHOT.to_vec();
     snapshot[48..56].copy_from_slice(&sequence.to_le_bytes());
@@ -320,8 +331,7 @@ fn snapshot_delta_gap_and_decoder_failure_have_atomic_feedback() -> TestResult {
         Ok(Some(Feedback::FrameApplied { .. }))
     ));
     assert!(projection.frame().is_some());
-    let mut delta = SNAPSHOT.to_vec();
-    delta[6] = 2;
+    let mut delta = as_delta(SNAPSHOT);
     delta[48..56].copy_from_slice(&(route.sequence.get() + 1).to_le_bytes());
     delta[56..64].copy_from_slice(&route.revision.to_le_bytes());
     delta[64..72].copy_from_slice(&(route.revision + 1).to_le_bytes());
@@ -374,8 +384,7 @@ fn frame_metadata_delta_clears_previously_observed_values() -> TestResult {
         .receive(&record(&snapshot)?)
         .map_err(|_| "snapshot")?;
     assert!(projection.frame().ok_or("frame")?.title.is_some());
-    let mut delta = snapshot;
-    delta[6] = 2;
+    let mut delta = as_delta(&snapshot);
     delta[48..56].copy_from_slice(&(route.sequence.get() + 1).to_le_bytes());
     delta[56..64].copy_from_slice(&route.revision.to_le_bytes());
     delta[64..72].copy_from_slice(&(route.revision + 1).to_le_bytes());

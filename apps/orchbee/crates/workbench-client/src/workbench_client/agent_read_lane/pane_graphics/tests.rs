@@ -82,6 +82,7 @@ fn fixture() -> (Snapshot, Source, PaneGraphicsLayer) {
         Source {
             target,
             binding: None,
+            lane: crate::pane_canvas::Lane::Session,
         },
         metadata,
     )

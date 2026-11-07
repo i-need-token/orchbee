@@ -357,13 +357,16 @@ output in the final revision and a successful exit event, disposes the retained 
 requires the Host process to stop cleanly. The trace also validates identity-scoped metadata
 events that may arrive between lifecycle records without treating them as exit evidence; unknown
 events and malformed metadata remain failures. `test:protocol` runs protocol conformance alone;
-`test:surface-fixtures` regenerates and byte-compares three Host-owned native fixtures in a
+`test:surface-fixtures` regenerates and byte-compares six Host-owned native fixtures in a
 temporary directory. The primary/alternate OBTF pair comes from one Ghostty terminal and Projection
 across a real alternate-screen transition. A separate Ghostty terminal replays the rich primary
 corpus, adds DECSCA protected and unprotected sentinels, and reaches the render-detail OBRW fixture
-only through `row_encoding.encode` and `projection_buffer.encodeRenderSnapshot`. `schemas/terminal`
-owns the tracked bytes; `@orchbee/terminal` owns the exact strict-view,
-trusted-view, and packed-store semantic oracle. This evidence covers the deterministic native
+only through `row_encoding.encode` and `projection_buffer.encodeRenderSnapshot`. A third terminal
+at 8x16-pixel cells produces three sequential OBTF frames from a direct Kitty transmission and
+placement, a scroll by one row, and a delete-all: a resource snapshot, a placement-only delta, and
+an empty resource snapshot. `schemas/terminal` owns the tracked bytes; `@orchbee/terminal` owns
+the exact strict-view, trusted-view, and packed-store semantic oracle, and the native Workbench
+Client consumes the Kitty sequence through its projection and TUI renderers. This evidence covers the deterministic native
 projection mapping, not PTY delivery, history anchoring, or authorization of another trust path.
 After an intentional reviewed corpus or encoder change, run
 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate` and review all producer and

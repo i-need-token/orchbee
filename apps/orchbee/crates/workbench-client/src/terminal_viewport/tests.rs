@@ -214,6 +214,7 @@ fn window(
     let (attachment_id, host_epoch) = ids();
     crate::terminal_viewport::ViewportWindow {
         graphics_present: false,
+        graphics: None,
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id,
             host_epoch,

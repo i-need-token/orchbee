@@ -15,7 +15,8 @@ The protocol contract is owned by `crates/terminal-protocol` (`row_window.rs`, `
 
 History preserves captured cell colors, attributes and wide-cell geometry. Selection and clipboard
 integration follow [native terminal selection and effects](native-terminal-selection-effects.md).
-Search and copy mode, graphics display, and persistence remain separate obligations.
+Search and copy mode and persistence remain separate obligations. A history window shows its own
+program-printed Kitty images as described in [Native Panel graphics rendering](native-panel-graphics.md#program-printed-kitty-images).
 
 The same app-local core also serves the Windows CLI control stream through
 `cli/terminal_stream/history.rs`. Each attached control invocation owns one core, read watermark
@@ -294,8 +295,8 @@ produce localized feedback and ordinary recovery to Live. Pending restoration co
 navigation; Esc and typing keep their recover-before-input behavior. No old attachment, sequence,
 pending command, grant or selection is replayed.
 
-A bookmark also keeps an image of the committed window last painted at it, counted against the
-same 16 MiB budget. From a return until restoration installs a window or recovery begins, the pane
+A bookmark also keeps a text image of the committed window last painted at it, counted against
+the same 16 MiB budget; it keeps no program image pixels. From a return until restoration installs a window or recovery begins, the pane
 paints that image under the history badge instead of the live tail, retained live pixels or the
 loading indicator, so a return shows the last reading screen first. Before the returning viewer's
 first live frame, the image needs only the saved reading choice and, once attached, the same Host

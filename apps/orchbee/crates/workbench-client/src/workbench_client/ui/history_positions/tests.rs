@@ -166,6 +166,7 @@ fn complete_clipped_history_entry(
                 foreground: frame.foreground,
                 background: frame.background,
                 graphics_present: false,
+                graphics: None,
                 rows,
             }),
         }

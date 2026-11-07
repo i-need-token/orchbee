@@ -71,6 +71,7 @@ pub(in crate::workbench_client) fn frame(
         progress: None,
         program_status: None,
         graphics_present: None,
+        graphics: None,
         command_completion: None,
         command_observation: None,
         title: None,

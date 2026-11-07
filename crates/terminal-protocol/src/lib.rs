@@ -40,6 +40,7 @@ mod semantic_input;
 mod terminal_configuration;
 mod terminal_effect;
 mod terminal_fact;
+mod terminal_graphics;
 mod theme_control;
 mod version;
 mod wire_constants;
@@ -191,6 +192,10 @@ pub use terminal_effect::{
 pub use terminal_fact::{
     ExitResult, ProcessObservation, RuntimeCleanupFailure, RuntimeFailure, TerminalIdentity,
     format_exit_code,
+};
+pub use terminal_graphics::{
+    TerminalGraphics, TerminalGraphicsImage, TerminalGraphicsImageFormat,
+    TerminalGraphicsPlacement, TerminalGraphicsUpdateKind, decode_terminal_graphics,
 };
 pub use theme_control::{
     ApplyTerminalTheme, EncodedThemeControl, TerminalThemeResult, TerminalThemeTransition,

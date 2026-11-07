@@ -1,5 +1,19 @@
 # Native Windows Panel graphics rendering
 
+## Image lanes
+
+A Panel shows images from two lanes that share one renderer:
+
+- **Session image layers** are written through the Panel graphics API and CLI. The sections from
+  "Outcome and owners" through "Facts and acceptance" describe them.
+- **Program images** are Kitty graphics that the program in the Panel prints to its terminal, such
+  as `kitten icat`, yazi previews or `chafa -f kitty`. [Program-printed Kitty images](#program-printed-kitty-images)
+  describes them.
+
+The remote clipboard image bridge is neither lane: it moves clipboard images between machines,
+never paints a Panel, and is outside this document. Each lane keeps its own bounds, evidence and
+receipts.
+
 ## Outcome and owners
 
 The native TUI consumes the existing Session-owned Panel/Presentation image layers. An independent instance of the existing cancellable logical read lane owns graphics queries on the shared Client carrier; it sends no PTY input and changes no focus. The main UI owns visible target selection, cache publication, clipping and successful draw receipts. The existing Client control publisher owns capability/draw observation on its already authenticated connection.
@@ -45,3 +59,66 @@ Acceptance includes protocol reconstruction across chunk boundaries, current-sou
 An additive bounded graphics observation is submitted by the existing Client control connection after its normal synchronized view. The Server checks authenticated generation-derived Client ID, heartbeat, Workbench revision, canonical target/binding and installed revision bounds. Foreign connections cannot replace another Client's facts. Info uses fresh matching observations, reports cell-raster or admitted physical Kitty capability from the actual draw path and pixelMouse false, and publishes cell pixels only from the current bounded host measurement. Partial surface lists cannot claim an absent Pane is hidden. Stale, disconnected or mismatched observations do not claim visibility or successful drawing.
 
 The fallback does not claim negotiated Kitty/Sixel or pixel mouse support. Managed private producer file leases and complete file-frame CLI inputs are implemented by the [Session graphics owner](../../orchbee-server/docs/windows-graphics.md). The physical Kitty path is integrated with bounded probing, uploads, placements and restoration; pixel mouse is not advertised. Focused evidence covers actual native renderer output, alpha/z/clipping, complete chunk/resource fences and Client ownership. Real Windows composed graphics workflows and final full regression remain required before alignment or main integration. No TLA, WSL, new macOS/Linux runtime or manual focus-stealing Desktop test is run.
+
+## Program-printed Kitty images
+
+Terminal Host owns Kitty parsing, media loading, animation and placement resolution. Each OBTF frame
+carries one OBKG record of owned decoded pixels and resolved cell placements on the existing viewer
+transport; Server and Worker relay frames unchanged, so no wire message, capability or schema is
+added. The Client decodes OBKG strictly, matching the packaged TypeScript store: a malformed record,
+unknown image, crop outside its image, or placement-only update inside a snapshot rejects the frame
+and requests a snapshot.
+
+`TerminalProjection` takes the graphics out of each applied frame, so retained frames and CLI frames
+never hold pixels. A placement-only delta must name the retained resource revision and reference
+retained images, and its animation tick never moves backwards; otherwise the frame is refused with a
+base mismatch. The retained set is always the Host's complete current set, replaced atomically, so
+an image the program deleted, or the Host evicted under its storage limit, is released with the
+frame that omits it. Each attached Panel therefore retains at most the protocol bound of 32 MiB,
+256 images and 1,024 placements; the Host's oldest-first storage eviction is the only eviction
+authority, and the Client keeps no second copy or cache. An unchanged Host resource keeps its
+shared pixels across snapshots, so physical output does not upload it again.
+
+Each placement becomes one immutable single-layer canvas over the whole cells its destination
+touches, computed from the Host cell size in the frame. The destination offset, destination size
+and source crop map into that cell rectangle; the rest of it stays transparent rather than
+stretched. Gray, gray-alpha and RGB pixels expand lazily in the sampler both renderers share; no
+RGBA copy is made. Program images use the cell raster and physical Kitty surface described above
+without a second renderer, and paint below Session layers. Signed z reaches physical placements
+unchanged; in the raster, negative z keeps glyphs and their foreground. Every geometric input,
+including the cell size, names the layer, so an image that moves with output scrolling or resize
+retires its physical copy in the same frame and shows as cells until the new upload is confirmed.
+When the Host has no cell pixel size, it resolves no placements and the Panel shows no image.
+
+The live screen shows the current set. A history window shows its own render-detail graphics
+snapshot, whose placement rows count from the window's first row; the history entry state shows the
+live frame with its images. Loading and recovering history surfaces, reading stand-ins (which keep
+text only, inside their witness budget), a revealed tail, and retained frames during reconnection
+show none, so a live placement never lands on rows it does not belong to. A clipped live view uses
+the raster crop; physical output is used only for unclipped views. Covering surfaces hide both lanes
+in the same frame, and Panel bounds clip every image. Closing the Panel releases its projection,
+and the next frame deletes its physical images.
+
+Program images never enter the Session read scope or the Workbench draw observation. Their draw
+facts only keep staged physical scenes through the frame and are dropped before receipts are
+built.
+
+An outer terminal that answers the Kitty query and reports cell pixels, such as WezTerm or Kitty,
+shows physical images. Windows Terminal supports Sixel but not Kitty, so the TUI paints the
+upper-half-block cell raster there; it emits no Sixel and writes no graphics bytes to a host
+without Kitty support. When the TUI sizes a Panel from an outer terminal that does not report cell
+pixels, the Host gets zero pixel metrics, so no client shows program images in that Panel.
+
+The packaged GUI terminal renders the same OBKG records in both renderer backends, live and in
+history windows. The TUI differs only where the host or the cell grid limits it: hosts without
+Kitty get the cell raster; clipped views, which have no local camera transform for host
+placements, get the raster crop; covering surfaces hide images instead of compositing over them,
+because an outer terminal cannot clip a Kitty placement to a TUI overlay; and reading stand-ins
+show text only.
+
+Terminal Host generates the Kitty fixture sequence (a resource snapshot, the placement-only delta
+after a scroll, and the empty snapshot after deletion) from a real direct transmission.
+The Client's acceptance test feeds that sequence through the projection and the actual shell
+renderer: a capable simulated host receives upload, placement and delete commands, and an incapable
+host receives cell raster and no graphics bytes. Real-window confirmation in a Kitty-capable outer
+terminal and in Windows Terminal remains required.

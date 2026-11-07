@@ -1,5 +1,6 @@
 use orchbee_terminal_protocol::{
-    TerminalProgramState, TerminalProgress, decode_terminal_text_frame,
+    TerminalGraphicsImageFormat, TerminalGraphicsUpdateKind, TerminalProgramState,
+    TerminalProgress, decode_terminal_text_frame,
 };
 const FRAME: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
 fn u16_at(bytes: &[u8], n: usize) -> usize {
@@ -30,44 +31,98 @@ fn frame(extensions: &[(u16, u16, &[u8])]) -> Vec<u8> {
     bytes[8..12].copy_from_slice(&len.to_le_bytes());
     bytes
 }
+fn graphics_record(kind: u8, image: bool, placement_image: u32) -> Vec<u8> {
+    // Authored from the OBKG wire contract: one 2x1 RGB image and one placement.
+    let mut bytes = vec![0_u8; 40];
+    bytes[..8].copy_from_slice(&[b'O', b'B', b'K', b'G', 0, 1, 0, kind]);
+    bytes[12..20].copy_from_slice(&7_u64.to_le_bytes());
+    bytes[28..30].copy_from_slice(&u16::from(image).to_le_bytes());
+    bytes[30..32].copy_from_slice(&1_u16.to_le_bytes());
+    if image {
+        bytes[32..36].copy_from_slice(&6_u32.to_le_bytes());
+        bytes.extend(9_u32.to_le_bytes());
+        bytes.extend([3, 0, 0, 0]);
+        bytes.extend(1_u64.to_le_bytes());
+        for field in [2_u32, 1, 6, 0] {
+            bytes.extend(field.to_le_bytes());
+        }
+        bytes.extend([1, 2, 3, 4, 5, 6]);
+    }
+    for field in [
+        placement_image,
+        0,
+        3,
+        u32::MAX,
+        0,
+        0,
+        0,
+        0,
+        2,
+        1,
+        20,
+        10,
+        0,
+        0,
+    ] {
+        bytes.extend(field.to_le_bytes());
+    }
+    let total = u32::try_from(bytes.len()).unwrap();
+    bytes[8..12].copy_from_slice(&total.to_le_bytes());
+    bytes
+}
 #[test]
-fn opaque_graphics_and_prompt_rows_cannot_be_mistaken_for_unstyled_blank_space() {
+fn graphics_are_decoded_strictly_and_prompt_rows_cannot_be_mistaken_for_unstyled_blank_space() {
     let mut empty = vec![0_u8; 40];
     empty[..7].copy_from_slice(b"OBKG\0\x01\0");
     empty[7] = 1;
     empty[8..12].copy_from_slice(&40_u32.to_le_bytes());
-    assert_eq!(
-        decode_terminal_text_frame(&frame(&[(2, 0, &empty)]))
-            .unwrap()
-            .graphics_present,
-        Some(false)
-    );
+    let decoded = decode_terminal_text_frame(&frame(&[(2, 0, &empty)])).unwrap();
+    assert_eq!(decoded.graphics_present, Some(false));
+    assert!(decoded.graphics.is_some_and(|graphics| graphics.is_empty()));
+    // The fixture is a delta: its placement-only update names resources the projection retains.
     empty[7] = 2;
+    let placements = graphics_record(2, false, 9);
+    for (record, present) in [(&empty, false), (&placements, true)] {
+        let decoded = decode_terminal_text_frame(&frame(&[(2, 0, record)])).unwrap();
+        assert_eq!(decoded.graphics_present, Some(present));
+        assert_eq!(
+            decoded.graphics.unwrap().kind,
+            TerminalGraphicsUpdateKind::Placements
+        );
+        // A terminal snapshot retains nothing such an update could name.
+        let snapshot = |extensions: &[(u16, u16, &[u8])]| {
+            let mut bytes = frame(extensions);
+            bytes[6] = 1;
+            bytes[56..64].copy_from_slice(&u64::MAX.to_le_bytes());
+            decode_terminal_text_frame(&bytes)
+        };
+        assert!(snapshot(&[]).is_ok());
+        assert!(snapshot(&[(2, 0, record)]).is_err());
+    }
+    let decoded =
+        decode_terminal_text_frame(&frame(&[(2, 0, &graphics_record(1, true, 9))])).unwrap();
+    assert_eq!(decoded.graphics_present, Some(true));
+    let graphics = decoded.graphics.unwrap();
     assert_eq!(
-        decode_terminal_text_frame(&frame(&[(2, 0, &empty)]))
-            .unwrap()
-            .graphics_present,
-        Some(false)
+        (graphics.kind, graphics.resource_revision),
+        (TerminalGraphicsUpdateKind::Snapshot, 7)
     );
-    empty[30] = 1;
+    let image = graphics.image(9).unwrap();
+    assert_eq!(image.format, TerminalGraphicsImageFormat::Rgb);
+    assert_eq!(image.pixels.as_slice(), &[1, 2, 3, 4, 5, 6]);
+    let placement = graphics.placements[0];
     assert_eq!(
-        decode_terminal_text_frame(&frame(&[(2, 0, &empty)]))
-            .unwrap()
-            .graphics_present,
-        Some(true)
+        (placement.column, placement.row, placement.destination_width),
+        (3, -1, 20)
     );
-    assert_eq!(
-        decode_terminal_text_frame(&frame(&[(2, 0, &[1, 2, 3])]))
-            .unwrap()
-            .graphics_present,
-        Some(true)
-    );
-    assert_eq!(
-        decode_terminal_text_frame(&frame(&[]))
-            .unwrap()
-            .graphics_present,
-        None
-    );
+    // An unknown image, malformed bytes, or a repeated record reject the whole frame.
+    for record in [graphics_record(1, true, 8), vec![1, 2, 3]] {
+        assert!(decode_terminal_text_frame(&frame(&[(2, 0, &record)])).is_err());
+    }
+    assert!(decode_terminal_text_frame(&frame(&[(2, 0, &empty), (2, 0, &empty)])).is_err());
+    let absent = decode_terminal_text_frame(&frame(&[])).unwrap();
+    assert_eq!(absent.graphics_present, None);
+    assert!(absent.graphics.is_none());
     let mut bytes = frame(&[]);
     let mut row_start = 160;
     for _ in 0..u32_at(&bytes, 124) {

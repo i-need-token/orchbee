@@ -130,6 +130,7 @@ fn window(
 ) -> crate::terminal_viewport::ViewportWindow {
     crate::terminal_viewport::ViewportWindow {
         graphics_present: false,
+        graphics: None,
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id: *projection.attachment(),
             host_epoch: *projection.epoch(),

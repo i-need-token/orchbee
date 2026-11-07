@@ -160,6 +160,8 @@ fn copy_window(window: &ViewportWindow) -> ViewportWindow {
         foreground: window.foreground,
         background: window.background,
         graphics_present: window.graphics_present,
+        // A reading stand-in keeps text only, inside the bank's witness budget.
+        graphics: None,
         rows: window.rows.clone(),
     }
 }

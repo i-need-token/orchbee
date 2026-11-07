@@ -5,7 +5,7 @@ use super::{
     Arc, AtomicBool, Instant, LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock,
     Ordering, mint_request_id,
 };
-use crate::pane_canvas::{Canvas, Layer, Source};
+use crate::pane_canvas::{Canvas, Lane, Layer, Source};
 use crate::workbench_projection::{ClientPanel, ClientPresentation};
 use crate::workbench_state::WorkbenchClientState;
 use base64::Engine;
@@ -247,6 +247,7 @@ impl Source {
                 worker_id: b.worker_id().clone(),
                 terminal_id: b.terminal_id().clone(),
             }),
+            lane: Lane::Session,
         }
     }
 }

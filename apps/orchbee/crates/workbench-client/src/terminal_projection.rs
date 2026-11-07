@@ -1,18 +1,19 @@
-//! Owns one attachment's validated text projection, lifecycle observations, and exact
-//! generation or revision feedback decisions. It does not read transport bytes, paint the
-//! frame, or treat projection state as Server authority.
+//! Owns one attachment's validated text projection, its retained Kitty graphics, lifecycle
+//! observations, and exact generation or revision feedback decisions. It does not read transport
+//! bytes, paint the frame, or treat projection state as Server authority.
 
 use orchbee_client_server_protocol::{
     Geometry, TerminalViewerAction as Feedback, ViewerId, ViewerSnapshotReason as Reason,
 };
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
-    PayloadEncoding, ProjectionDemandControl, TerminalTextFrame, TerminalTextRow,
+    PayloadEncoding, ProjectionDemandControl, TerminalGraphics, TerminalTextFrame, TerminalTextRow,
     decode_history_control, decode_projection_demand_control, decode_terminal_text_frame,
     decode_transport_envelope, inspect_terminal_frame_route,
 };
 use std::{collections::HashSet, sync::Arc};
 
+mod graphics;
 mod rejection;
 pub use rejection::ProjectionRejection;
 use rejection::{ProjectionOperation as Operation, ProjectionStage as Stage};
@@ -27,6 +28,8 @@ pub struct TerminalProjection {
     last_revision: u64,
     blocked_revision: Option<u64>,
     frame: Option<Arc<TerminalTextFrame>>,
+    /// Taken out of each applied frame, so retained frame images never hold pixels.
+    graphics: Option<Arc<TerminalGraphics>>,
 }
 
 pub(crate) use crate::localization::TerminalEnd;
@@ -42,6 +45,7 @@ impl TerminalProjection {
             last_revision: 0,
             blocked_revision: None,
             frame: None,
+            graphics: None,
         }
     }
     pub(crate) const fn end(&self) -> Option<TerminalEnd> {
@@ -100,6 +104,10 @@ impl TerminalProjection {
     pub fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_deref()
     }
+    /// The Host's complete current Kitty resource set and placements for the applied frame.
+    pub(crate) fn graphics(&self) -> Option<&TerminalGraphics> {
+        self.frame.as_ref().and(self.graphics.as_deref())
+    }
     /// Share immutable pixels with a bounded presentation cache. This grants
     /// neither the attachment's feedback route nor permission to apply deltas.
     pub(crate) fn share_frame(&self) -> Option<Arc<TerminalTextFrame>> {
@@ -132,6 +140,7 @@ impl TerminalProjection {
 
     pub(crate) fn clear_frame(&mut self) {
         self.frame = None;
+        self.graphics = None;
     }
     #[cfg(test)]
     pub(crate) fn receive(
@@ -145,7 +154,8 @@ impl TerminalProjection {
     /// frame-dependent gates (history entry availability) without needing
     /// an OBRW encoder for the receive path.
     #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn install_frame_for_test(&mut self, frame: TerminalTextFrame) {
+    pub(crate) fn install_frame_for_test(&mut self, mut frame: TerminalTextFrame) {
+        self.graphics = frame.graphics.take().map(Arc::new);
         self.frame = Some(Arc::new(frame));
     }
     /// Applies one terminal record and mints its exact feedback.
@@ -315,7 +325,15 @@ impl TerminalProjection {
             next.graphics_present = next.graphics_present.or(previous.graphics_present);
         }
         validate_rows(&next.rows)?;
+        let resolved = graphics::resolve(
+            self.graphics.as_deref(),
+            next.graphics.take(),
+            next.route.base_revision.is_some(),
+        )?;
         self.last_revision = next.route.revision;
+        if let graphics::Resolved::Replaced(graphics) = resolved {
+            self.graphics = graphics;
+        }
         self.frame = Some(Arc::new(next));
         Ok(())
     }

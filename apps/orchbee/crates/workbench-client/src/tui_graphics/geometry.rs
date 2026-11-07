@@ -104,7 +104,6 @@ pub(super) struct ImagePlan {
 impl ImagePlan {
     pub(super) fn fill(&self, canvas: &PaneGraphicsCanvas, offset: usize, bytes: &mut [u8]) {
         let layer = &canvas.layers()[self.index];
-        let metadata = layer.metadata();
         let virtual_width = i128::from(self.grid.0) * i128::from(self.cells.width);
         let virtual_height = i128::from(self.grid.1) * i128::from(self.cells.height);
         let dx =
@@ -115,10 +114,12 @@ impl ImagePlan {
             let position = (offset / 4 + index) as u64;
             let x = dx + i128::from(position % u64::from(self.width));
             let y = dy + i128::from(position / u64::from(self.width));
-            let sx = (x * i128::from(metadata.width) / virtual_width) as usize;
-            let sy = (y * i128::from(metadata.height) / virtual_height) as usize;
-            let source = (sy * metadata.width as usize + sx) * 4;
-            pixel.copy_from_slice(&layer.pixels()[source..source + 4]);
+            // Outside a windowed destination the uploaded pixel stays transparent.
+            pixel.copy_from_slice(
+                &layer
+                    .sample((x, virtual_width), (y, virtual_height))
+                    .unwrap_or([0; 4]),
+            );
         }
     }
 }

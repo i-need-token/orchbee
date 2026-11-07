@@ -50,15 +50,39 @@ const alternate_corpus = "\x1b[?1049h\x1b[?1007l" ++
 // unprotected pen before u; both cells still pass through Ghostty VT state.
 const render_protection_corpus = "\x1b[1\"qZ\x1b[0\"qu";
 
+// The Kitty graphics frames use a third terminal at 8x16 pixel cells. A program
+// transmits and places a direct 2x2 RGB image, red over blue, across two cells
+// of the second row; a line feed on the last row then scrolls it to the first
+// row; finally the program deletes every image. Each step is one Host frame.
+const graphics_columns: u16 = 8;
+const graphics_rows: u16 = 4;
+const graphics_place_corpus = "\r\n\x1b_Ga=T,t=d,f=24,i=7,p=1,s=2,v=2,c=2,r=1;/wAA/wAAAAD/AAD/\x1b\\";
+const graphics_scroll_corpus = "\x1b[4;1H\n";
+const graphics_delete_corpus = "\x1b_Ga=d,d=A;\x1b\\";
+
 pub const FixtureSet = struct {
     alternate: []u8,
     primary: []u8,
     render_row_window: []u8,
+    graphics: GraphicsFrames,
 
     pub fn deinit(self: FixtureSet, allocator: std.mem.Allocator) void {
         allocator.free(self.primary);
         allocator.free(self.alternate);
         allocator.free(self.render_row_window);
+        self.graphics.deinit(allocator);
+    }
+};
+
+pub const GraphicsFrames = struct {
+    placed: []u8,
+    scrolled: []u8,
+    deleted: []u8,
+
+    fn deinit(self: GraphicsFrames, allocator: std.mem.Allocator) void {
+        allocator.free(self.placed);
+        allocator.free(self.scrolled);
+        allocator.free(self.deleted);
     }
 };
 
@@ -105,11 +129,62 @@ pub fn create(io: std.Io, allocator: std.mem.Allocator) !FixtureSet {
     std.debug.assert(alternate_frame.bytes.ptr == alternate_frame.allocation.ptr);
     std.debug.assert(alternate_frame.bytes.len == alternate_frame.allocation.len);
     const render_row_window = try createRenderRowWindow(io, allocator);
+    errdefer allocator.free(render_row_window);
+    const graphics = try createGraphicsFrames(io, allocator);
     return .{
         .alternate = alternate_frame.allocation,
         .primary = primary_frame.allocation,
         .render_row_window = render_row_window,
+        .graphics = graphics,
     };
+}
+
+fn createGraphicsFrames(io: std.Io, allocator: std.mem.Allocator) !GraphicsFrames {
+    var terminal: ghostty_vt.Terminal = try .init(io, allocator, .{
+        .cols = graphics_columns,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = graphics_rows,
+    });
+    defer terminal.deinit(allocator);
+    terminal.width_px = @as(u32, graphics_columns) * 8;
+    terminal.height_px = @as(u32, graphics_rows) * 16;
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    var capture = projection.Projection.init(allocator);
+    defer capture.deinit();
+
+    stream.nextSlice(graphics_place_corpus);
+    const placed = try encodeGraphicsFrame(&capture, &terminal, 1);
+    errdefer allocator.free(placed);
+    stream.nextSlice(graphics_scroll_corpus);
+    const scrolled = try encodeGraphicsFrame(&capture, &terminal, 2);
+    errdefer allocator.free(scrolled);
+    stream.nextSlice(graphics_delete_corpus);
+    const deleted = try encodeGraphicsFrame(&capture, &terminal, 3);
+    return .{ .placed = placed, .scrolled = scrolled, .deleted = deleted };
+}
+
+/// The Host promotes a frame to a snapshot when its graphics resources change.
+fn encodeGraphicsFrame(
+    capture: *projection.Projection,
+    terminal: *ghostty_vt.Terminal,
+    revision: u64,
+) ![]u8 {
+    try capture.beginCapture(terminal, revision, 1, 8, 16);
+    capture.endCapture();
+    const frame = try capture.encode(.{
+        .attachment_id = projection.AttachmentId.fromBytes([_]u8{0x66} ** 16),
+        .base_generation = if (revision == 1) null else 1,
+        .base_revision = if (revision == 1) null else revision - 1,
+        .force_snapshot = revision == 1,
+        .host_epoch = projection.HostEpoch.fromBytes([_]u8{0x55} ** 16),
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = revision,
+    });
+    std.debug.assert(frame.bytes.ptr == frame.allocation.ptr);
+    std.debug.assert(frame.bytes.len == frame.allocation.len);
+    return frame.allocation;
 }
 
 fn createRenderRowWindow(io: std.Io, allocator: std.mem.Allocator) ![]u8 {

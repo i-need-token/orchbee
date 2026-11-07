@@ -67,6 +67,7 @@ fn complete_cross_attach_fence_includes_host_terminal_and_screen() {
         progress: None,
         program_status: None,
         graphics_present: None,
+        graphics: None,
         command_completion: None,
         command_observation: None,
         rows: Vec::new(),

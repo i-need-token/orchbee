@@ -1,10 +1,11 @@
-//! Decodes bounded OBTF text projections, interaction modes, and recognized command, progress,
-//! and program status extensions while skipping unrecognized optional extension contents. It does
-//! not apply frame history, render cells, or interpret Agent state.
+//! Decodes bounded OBTF text projections, interaction modes, and recognized graphics, command,
+//! progress, and program status extensions while skipping unrecognized optional extension
+//! contents. It does not apply frame history, render cells, or interpret Agent state.
 
 use crate::{
     MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode, TerminalFrameRoute,
-    TerminalPixelGeometry, inspect_terminal_frame_route,
+    TerminalGraphics, TerminalGraphicsUpdateKind, TerminalPixelGeometry, decode_terminal_graphics,
+    inspect_terminal_frame_route,
 };
 use std::sync::Arc;
 
@@ -74,9 +75,12 @@ pub struct TerminalTextFrame {
     pub command_completion: Option<TerminalCommandCompletion>,
     /// Correlated shell command and retained-row origin; absence means unsupported.
     pub command_observation: Option<TerminalCommandObservation>,
-    /// None leaves delta graphics unchanged. False identifies an exact empty OBKG update;
-    /// other optional graphics payloads remain opaque and conservatively protect presentation.
+    /// None leaves delta graphics unchanged. False identifies an OBKG update with no image and
+    /// no placement. It summarizes `graphics` and survives a consumer taking that payload.
     pub graphics_present: Option<bool>,
+    /// The strictly decoded OBKG update. A snapshot frame carries only a resource snapshot; a
+    /// projection owner resolves a delta's placement-only update against its retained resources.
+    pub graphics: Option<TerminalGraphics>,
     pub rows: Vec<TerminalTextRow>,
 }
 
@@ -164,7 +168,7 @@ pub enum MouseFormat {
 }
 
 /// Decode text tables, validating their complete structure before returning any row.
-/// Optional extensions are size-checked and skipped; this is not a graphics decoder.
+/// Unrecognized optional extensions are size-checked and skipped.
 pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, ProtocolError> {
     let route = inspect_terminal_frame_route(bytes)?;
     let scrollback_rows = u64::from_le_bytes(
@@ -289,7 +293,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     let mut command_completion = None;
     let mut command_observation = None;
     let mut command_started_at = None;
-    let mut graphics_present = None;
+    let mut graphics = None;
     for _ in 0..extensions_count {
         let kind = header.u16()?;
         if header.u16()? & 0x8000 != 0 {
@@ -302,17 +306,17 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         }
         let bytes = header.take(length as usize)?;
         if kind == 2 {
-            if graphics_present.is_some() {
+            if graphics.is_some() {
                 return Err(error(ProtocolErrorCode::InvalidField));
             }
-            graphics_present = Some(
-                !(bytes.len() == 40
-                    && &bytes[..4] == crate::wire_constants::GRAPHICS.magic
-                    && bytes[4..7] == crate::wire_constants::GRAPHICS.version
-                    && matches!(bytes[7], 1 | 2)
-                    && bytes[8..12] == 40_u32.to_le_bytes()
-                    && bytes[28..].iter().all(|byte| *byte == 0)),
-            );
+            let update = decode_terminal_graphics(bytes)?;
+            // A terminal snapshot has no retained resources a placement-only update could name.
+            if route.base_revision.is_none()
+                && update.kind == TerminalGraphicsUpdateKind::Placements
+            {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            graphics = Some(update);
         }
         if kind == 3 {
             if progress.is_some() {
@@ -375,7 +379,8 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         program_status,
         command_completion,
         command_observation,
-        graphics_present,
+        graphics_present: graphics.as_ref().map(|graphics| !graphics.is_empty()),
+        graphics,
         rows,
     })
 }
