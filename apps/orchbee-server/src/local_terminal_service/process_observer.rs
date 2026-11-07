@@ -21,6 +21,8 @@ pub(super) struct Schedule {
     agents: Option<Cursor>,
     discovery: Option<Cursor>,
 }
+#[cfg(windows)]
+mod agent_resume;
 mod close;
 mod directory;
 mod explanation;
@@ -36,12 +38,26 @@ struct Wake {
     closes: close::Requests,
     directories: directory::Requests,
     explanations: explanation::Requests,
+    #[cfg(windows)]
+    resumes: agent_resume::Requests,
     manifests: manifests::Registry,
 }
 impl Wake {
     /// A read queued while the sampler was busy, whose wake-up therefore found no waiter.
     fn reads_waiting(&self) -> bool {
+        #[cfg(windows)]
+        if self.resumes.waiting() {
+            return true;
+        }
         self.closes.waiting() || self.directories.waiting() || self.explanations.waiting()
+    }
+    /// A stopping observer serves no read, so none may keep its wait from sleeping.
+    fn cancel_reads(&self) {
+        self.closes.cancel();
+        self.directories.cancel();
+        self.explanations.cancel();
+        #[cfg(windows)]
+        self.resumes.cancel();
     }
 }
 #[derive(Default)]
@@ -58,9 +74,7 @@ impl ProcessObserver {
     }
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
-        self.wake.closes.cancel();
-        self.wake.directories.cancel();
-        self.wake.explanations.cancel();
+        self.wake.cancel_reads();
         self.wake.manifests.cancel();
         if let Ok(_guard) = self.wake.wait.lock() {
             self.wake.changed.notify_all();
@@ -371,10 +385,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
         }
         if wake.stop.load(Ordering::Acquire) {
             wake.manifests.cancel();
-            // A stopping observer serves no read, so none may keep its wait from sleeping.
-            wake.closes.cancel();
-            wake.directories.cancel();
-            wake.explanations.cancel();
+            wake.cancel_reads();
         }
         wake.manifests.schedule(Instant::now());
         updates.serve(service.as_deref(), &wake, &mut detector);
@@ -386,6 +397,8 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
             // A person waits on a close, so its read goes first.
             close::serve(service, &wake);
             directory::serve(service, &wake);
+            #[cfg(windows)]
+            agent_resume::serve(service, &wake);
             explanation::serve(service, &wake, &detector);
             service.sample_configuration(&mut configuration, Instant::now());
             interval = turn(service, &wake, &mut schedule, &detector);

@@ -38,6 +38,8 @@ mod agent_drain_read;
 mod agent_integration;
 mod agent_names;
 #[cfg(windows)]
+mod agent_resume;
+#[cfg(windows)]
 mod checkpoint;
 #[cfg(windows)]
 pub(crate) use checkpoint::CheckpointRestore;
@@ -92,6 +94,8 @@ pub(crate) struct LocalTerminalService {
     popups: independent_popup::Popups,
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
+    #[cfg(windows)]
+    agent_resume: agent_resume::AgentResume,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
@@ -137,6 +141,8 @@ impl LocalTerminalService {
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             process_observer: process_observer::ProcessObserver::default(),
+            #[cfg(windows)]
+            agent_resume: agent_resume::AgentResume::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(
                 "orchbee-worktree-operations",
                 Self::worktree_turn,

@@ -61,7 +61,7 @@ fn failure(phase: StopPhase, error: io::Error) -> Failure {
 pub(super) fn run(
     mut owners: Owners,
     cohort: &str,
-    restored: crate::local_terminal_service::CheckpointRestore,
+    mut restored: crate::local_terminal_service::CheckpointRestore,
     startup_deadline: Instant,
     configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<()> {
@@ -69,12 +69,15 @@ pub(super) fn run(
     let started = (|| {
         owners.terminals.bind_agent_names(&owners.agents)?;
         owners.terminals.start_close_maintenance()?;
+        let resumes = restored.take_agent_resume();
         owners
             .terminals
             .launch_checkpoint_terminals(restored, startup_deadline)?;
         owners
             .terminals
             .start_process_observer(move || Ok(configuration), true)?;
+        // Resumes read through the observer and wait for a Client, so no listener may open first.
+        owners.terminals.start_agent_resume(resumes)?;
         let worker = checkpoint_worker(&owners.handle)?;
         owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
             Arc::clone(&owners.checkpoint_store),
@@ -168,6 +171,12 @@ fn settle(
             io::ErrorKind::TimedOut.into(),
         ));
     }
+    // A resume types through the Worker and reads through the observer, so it stops first; one
+    // not yet attempted stays pending for the final capture.
+    owners
+        .terminals
+        .stop_agent_resume_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if let Some(saver) = &mut owners.checkpoint_saver {
         saver
             .stop_before(deadline)
@@ -408,6 +417,7 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
 fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
+        owners.terminals.stop_agent_resume_before(deadline)?;
         if let Some(saver) = &mut owners.checkpoint_saver {
             saver.stop_before(deadline)?;
         }

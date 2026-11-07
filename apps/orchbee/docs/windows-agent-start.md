@@ -76,7 +76,11 @@ The terminal must contain an observed idle cmd, PowerShell or pwsh process. Runn
 missing process details and additional processes other than known console infrastructure
 refuse startup. The runtime's exact PowerShell initialization is admitted only with `-NoExit`
 and the ordinary interactive switches. Arbitrary command bodies, appended arguments and
-noninteractive launches remain refused. Provider hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
+noninteractive launches remain refused. This strict idle-shell rule is
+`idle_shell_only` in `orchbee-agent-observation-protocol`; the Server's
+[Agent session resume](../../orchbee-server/docs/agent-session-resume.md#delivery) applies the same
+rule, run prefix and records before it types a resume command into a restored shell. Provider
+hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
 defines managed setup and each provider's identity/state limits. Recognizing an executable does not
 establish hook coverage or verify a provider's own interactive UI.
 

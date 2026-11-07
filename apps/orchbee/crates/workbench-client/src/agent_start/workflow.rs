@@ -14,7 +14,7 @@ use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
     AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
     AgentPresentationId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
-    ShellRoot, classify_shell_root, is_console_host,
+    ShellRoot, classify_shell_root, idle_shell_only,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
@@ -611,20 +611,15 @@ fn root_shell(
 
 fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
     let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
-    if sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS {
-        return Err(refuse());
-    }
     let interpreted = agent_start_runtime::interpret(sample);
-    if !matches!(root_shell(sample, &interpreted), ShellRoot::Interactive) {
-        return Err(refuse());
-    }
-    if interpreted.iter().any(|p| {
-        p.facts.pid != sample.root_pid
-            && p.facts
-                .image
-                .as_deref()
-                .is_none_or(|image| !is_console_host(image))
-    }) {
+    if !idle_shell_only(
+        root_shell(sample, &interpreted),
+        sample.processes.len() < orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS,
+        interpreted
+            .iter()
+            .filter(|p| p.facts.pid != sample.root_pid)
+            .map(|p| p.facts.image.as_deref()),
+    ) {
         return Err(refuse());
     }
     sample

@@ -80,3 +80,19 @@ pub fn is_console_host(image: &str) -> bool {
         "conhost" | "openconsole"
     )
 }
+
+/// The strict idle-shell rule that admits typing a command into a terminal: the sample is
+/// complete, its root is an interactive shell, and every other row is a console host. A row whose
+/// image cannot be read may be any program, so it refuses.
+#[must_use]
+pub fn idle_shell_only<'a>(
+    root: ShellRoot,
+    complete: bool,
+    others: impl IntoIterator<Item = Option<&'a str>>,
+) -> bool {
+    complete
+        && root == ShellRoot::Interactive
+        && others
+            .into_iter()
+            .all(|image| image.is_some_and(is_console_host))
+}

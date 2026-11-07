@@ -49,6 +49,8 @@ mod agent_names;
 mod agent_registration;
 #[cfg(any(windows, test))]
 mod agent_resume;
+#[cfg(windows)]
+pub(crate) use agent_resume::ResumeTarget;
 mod directory_label;
 mod pane_graphics;
 mod process_observation;

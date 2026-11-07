@@ -29,6 +29,27 @@ impl LocalTerminalService {
     /// the Worker verdict with the independent cleanup axis and the delivery
     /// frontier preserved.
     pub(crate) fn execute_send(&self, request: &TerminalSendRequest) -> ServerMessage {
+        self.deliver_send(request, |_, target| {
+            // A Client's send refutes a pending resume of the terminal it reaches.
+            #[cfg(windows)]
+            self.note_client_input(*target);
+            #[cfg(not(windows))]
+            let _ = target;
+            true
+        })
+    }
+
+    /// Admits and dispatches one send. `admit` runs last under both admission locks, with the
+    /// frozen target, and a false answer refuses the send before any record leaves; the Server's
+    /// own deliveries check and consume their intent there.
+    pub(super) fn deliver_send(
+        &self,
+        request: &TerminalSendRequest,
+        admit: impl FnOnce(
+            &mut crate::session_coordinator::SessionCoordinator,
+            &BindingViewerTarget,
+        ) -> bool,
+    ) -> ServerMessage {
         let request_id = request.request_id().clone();
         let prepared = {
             let Ok(workers) = self.workers.lock() else {
@@ -66,16 +87,21 @@ impl LocalTerminalService {
                     unavailable(Unavailable::TerminalRuntimeUnavailable, Cleanup::NotNeeded),
                 );
             };
-            match send_request(request, &prepared) {
-                Some((worker_request, target)) => (prepared, handle, worker_request, target),
-                None => {
-                    return send_result(
-                        &request_id,
-                        None,
-                        unavailable(Unavailable::ServerBusy, Cleanup::NotNeeded),
-                    );
-                }
+            let Some((worker_request, target)) = send_request(request, &prepared) else {
+                return send_result(
+                    &request_id,
+                    None,
+                    unavailable(Unavailable::ServerBusy, Cleanup::NotNeeded),
+                );
+            };
+            if !admit(&mut coordinator, &prepared.target) {
+                return send_result(
+                    &request_id,
+                    None,
+                    rejected(Rejected::TerminalUnavailable, Cleanup::NotNeeded),
+                );
             }
+            (prepared, handle, worker_request, target)
         };
         let (prepared, handle, worker_request, target) = prepared;
         let outcome = match handle.request(WorkerOperationRequest::Send(worker_request)) {

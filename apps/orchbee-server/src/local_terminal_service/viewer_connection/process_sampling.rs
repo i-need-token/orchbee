@@ -88,6 +88,23 @@ impl LocalTerminalService {
         })
     }
 
+    /// One restored terminal's resume evidence on a temporary viewer.
+    #[cfg(windows)]
+    pub(in crate::local_terminal_service) fn sample_resume_facts(
+        &self,
+        target: &ProcessObservationTarget,
+        stop: &AtomicBool,
+    ) -> (
+        Option<crate::local_terminal_service::agent_resume::ResumeFacts>,
+        Option<PendingCleanup>,
+    ) {
+        let mut facts = None;
+        let pending = self.with_observation_viewer(target, stop, |viewer, template| {
+            facts = Some(screen::resume_facts(viewer, template, stop));
+        });
+        (facts, pending)
+    }
+
     #[cfg(windows)]
     pub(in crate::local_terminal_service) fn sample_checkpoint_directory(
         &self,

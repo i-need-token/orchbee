@@ -266,6 +266,9 @@ impl<'service> LocalTerminalConnection<'service> {
         )) else {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         };
+        // The first Client view opens the resume gate; observation viewers never come here.
+        #[cfg(windows)]
+        service.note_client_view(viewer.target);
         *slot = candidate.take();
         Outcome::Attached {
             attachment_id,

@@ -22,7 +22,7 @@ pub use sample::{
     AgentAnchor, AgentAnchorEvidence, AgentProcessRow, AgentSampleVerdict, descends_from,
     evaluate_agent_sample,
 };
-pub use shell::{ShellRoot, classify_shell_root, is_console_host};
+pub use shell::{ShellRoot, classify_shell_root, idle_shell_only, is_console_host};
 
 /// Extracts the native executable basename and one recognized suffix.
 pub fn native_agent_basename(path: &str) -> String {

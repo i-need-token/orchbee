@@ -162,8 +162,11 @@ Before launch IPC, the coordinator prepares all fresh shell reservations and Wor
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; preceding valid snapshots remain,
-and any displaced invalid original remains in its raw archive. Clean stop first drains the single
-background saver, then performs fresh directory capture
+and any displaced invalid original remains in its raw archive. Clean stop first joins the Agent
+resume driver, which starts after restoration settles and the process observer starts, so a
+reference not yet attempted stays pending for the final capture
+([Agent session resume](agent-session-resume.md#delivery)). It then drains the single
+background saver and performs fresh directory capture
 and final publication before Worker disposal. A late background write cannot replace this final snapshot.
 A stop after the Worker exited has nothing to sample. Its final capture keeps each terminal's last
 cached directory, fenced to its exact physical generation as a background save fences it, else its

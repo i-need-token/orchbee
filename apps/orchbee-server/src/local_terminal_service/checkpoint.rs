@@ -17,6 +17,15 @@ use std::{
 
 pub(crate) struct CheckpointRestore {
     pending: Vec<PendingOperation>,
+    agent_resume: super::agent_resume::AgentResumeCandidates,
+}
+
+impl CheckpointRestore {
+    /// The Presentations whose retained Agent session reference survived startup, in restoration
+    /// order. Taking them leaves none behind.
+    pub(crate) fn take_agent_resume(&mut self) -> super::agent_resume::AgentResumeCandidates {
+        std::mem::take(&mut self.agent_resume)
+    }
 }
 
 #[cfg(test)]
@@ -95,6 +104,8 @@ impl LocalTerminalService {
             .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
         service.initialize_preferences(preferences)?;
+        // The setting decides resuming once, from the store the scope just froze.
+        let resume = service.agent_resume_enabled();
         // One read serves every restored launch, after the scope it reads is frozen.
         let capture = service.launch_capture();
         let coordinator = service
@@ -103,7 +114,23 @@ impl LocalTerminalService {
             .map_err(|_| io::Error::other("coordinator failed"))?;
         let expiry = lease_expiry().ok_or_else(|| io::Error::other("restore lease unavailable"))?;
         let mut pending = Vec::with_capacity(targets.len());
+        let mut agent_resume = super::agent_resume::AgentResumeCandidates::default();
         for target in targets {
+            if coordinator.has_pending_agent_session(target.presentation_id()) {
+                // A reference resumes only where it was recorded: a missing retained directory
+                // starts the shell elsewhere, so the reference is dropped without a notice.
+                match target
+                    .restored_directory()
+                    .filter(|p| std::path::Path::new(p.as_str()).is_dir())
+                {
+                    Some(directory) if resume => {
+                        agent_resume.push(target.presentation_id().clone(), directory.clone());
+                    }
+                    _ => {
+                        coordinator.take_pending_agent_session(target.presentation_id());
+                    }
+                }
+            }
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             let cwd = target
@@ -120,7 +147,13 @@ impl LocalTerminalService {
             );
             pending.push(*coordinator.prepare_checkpoint_terminal(&target, inputs, cwd)?);
         }
-        Ok((service, CheckpointRestore { pending }))
+        Ok((
+            service,
+            CheckpointRestore {
+                pending,
+                agent_resume,
+            },
+        ))
     }
 
     pub(crate) fn launch_checkpoint_terminals(

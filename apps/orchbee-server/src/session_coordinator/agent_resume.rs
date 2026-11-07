@@ -143,3 +143,114 @@ impl super::SessionCoordinator {
             .collect()
     }
 }
+
+/// Where a pending restart reference's Presentation stands when its delivery is attempted.
+#[cfg(windows)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ResumeTarget {
+    /// The Presentation is no longer a bound member of the Workbench.
+    Gone,
+    /// Bound as this, but no started, unfenced physical terminal of the current Worker answers.
+    Unavailable(orchbee_workbench_protocol::PresentationBinding),
+    /// The started physical terminal its current binding names.
+    Started(super::ProcessObservationTarget),
+}
+
+#[cfg(windows)]
+impl super::SessionCoordinator {
+    /// Whether a restart reference still waits for delivery in this Presentation.
+    pub(crate) fn has_pending_agent_session(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+    ) -> bool {
+        self.pending_agent_session(presentation).is_some()
+    }
+
+    /// The restart reference still pending for this Presentation, if any.
+    pub(crate) fn pending_agent_session(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+    ) -> Option<RetainedAgentSession> {
+        self.workbench
+            .as_ref()?
+            .pending_agent_session(presentation)
+            .cloned()
+    }
+
+    /// Consumes the pending restart reference, so no later attempt or capture carries it.
+    pub(crate) fn take_pending_agent_session(
+        &mut self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+    ) -> Option<RetainedAgentSession> {
+        self.workbench
+            .as_mut()?
+            .take_pending_agent_session(presentation)
+    }
+
+    /// The Presentation's current binding and, when the current Worker has started it and no
+    /// lifecycle fence covers it, the exact physical terminal a delivery may reach.
+    pub(crate) fn agent_resume_target(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        current_worker: Option<crate::terminal_coordinator::WorkerPlacement>,
+    ) -> ResumeTarget {
+        let Some(workbench) = self.workbench.as_ref() else {
+            return ResumeTarget::Gone;
+        };
+        let binding = workbench
+            .snapshot()
+            .terminal_contexts
+            .iter()
+            .filter_map(|context| {
+                workbench
+                    .presentation_membership(&context.terminal_context_id)
+                    .ok()
+            })
+            .find_map(|membership| {
+                membership
+                    .members()
+                    .iter()
+                    .find(|member| member.presentation_id() == presentation)
+                    .map(|member| member.binding().clone())
+            });
+        let Some(binding) = binding else {
+            return ResumeTarget::Gone;
+        };
+        let parse = |text: &str| u128::from_str_radix(text, 16).ok().map(u128::to_be_bytes);
+        let target = parse(binding.terminal_id.as_str())
+            .zip(parse(binding.worker_id.as_str()))
+            .and_then(|(terminal, worker)| {
+                Some((
+                    orchbee_capability_node_protocol::TerminalId::from_bytes(terminal).ok()?,
+                    orchbee_capability_node_protocol::WorkerId::from_bytes(worker).ok()?,
+                ))
+            })
+            .and_then(|(terminal, worker)| {
+                self.terminals
+                    .binding_send_target(terminal, worker, current_worker)
+                    .ok()
+            })
+            .filter(|target| self.target_lifecycle(*target) == super::TargetLifecycle::Unfenced);
+        match target {
+            Some(target) => ResumeTarget::Started(super::ProcessObservationTarget {
+                session_id: workbench.session_id().clone(),
+                binding,
+                target,
+            }),
+            None => ResumeTarget::Unavailable(binding),
+        }
+    }
+
+    /// Whether the shell of this exact Terminal generation has echoed any command.
+    pub(crate) fn agent_resume_command_observed(
+        &self,
+        target: &super::ProcessObservationTarget,
+    ) -> bool {
+        self.latest_command(&orchbee_server::TerminalAgentBinding {
+            binding: target.binding.clone(),
+            worker_generation: target.target.worker.generation,
+            identity: target.target.identity,
+        })
+        .is_some()
+    }
+}
