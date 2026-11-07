@@ -156,8 +156,8 @@ pub use command::{
     WorkbenchLabel, WorkbenchLaunchProfileCatalogRead, WorkbenchLaunchProfileCatalogResult,
     WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection, WorkbenchPanelTerminalTarget,
     WorkbenchPanelTransfer, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
-    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
+    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchRestoreDirectory,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
@@ -204,8 +204,9 @@ pub use identity::{
 pub use model::{
     Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation, PanelNode, PanelOrientation,
     PanelRightClickTarget, PanelSlot, Presentation, PresentationBinding, PresentationLaunchFailure,
-    Project, Snapshot, SnapshotReadIntent, Tab, TabGroup, TabGroupColor, TerminalContext,
-    WorkbenchProtocolDocument, WorkbenchPublicationDocument, Workspace, tab_display_label,
+    PresentationLaunchFailureReason, Project, Snapshot, SnapshotReadIntent, Tab, TabGroup,
+    TabGroupColor, TerminalContext, WorkbenchProtocolDocument, WorkbenchPublicationDocument,
+    Workspace, tab_display_label,
 };
 pub use validation::{
     ContractError, MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL, MAXIMUM_DELTA_CHANGES,

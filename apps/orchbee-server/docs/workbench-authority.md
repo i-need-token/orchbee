@@ -608,6 +608,10 @@ terminal-owning Panel, including a retained Panel receiving a child.
 
 Session freezes cwd/environment/program/provenance and prepares canonical/runtime plans before joint commit and dispatch. Prebuilt bounded results and opaque settlement seals apply to primary and child creation. Receipts carry actual Context/Tab/Panel/Presentation identities. Unknown results stay unknown, replay never launches again, and known failure retains the committed member. Evidence covers allocation budgets, bounds/refusals, dropped preparation, foreign settlement, exact literal dispatch and Close fences; layout/member consumers share this owner.
 
+Binding a member a restore held for an unavailable directory drops that hold with the new binding.
+`panel.restore-terminal` is a separate Windows path that needs the same navigation and
+terminal-creation grants; the [checkpoint owner](workbench-checkpoint.md#held-restore) defines it.
+
 ## Unbound layout creation
 
 `tab.create-layout` creates a complete Tab structure in one canonical transaction. Its identity-free

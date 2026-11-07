@@ -51,13 +51,17 @@ fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Er
             worker_id: worker.clone(),
         })
         .map_err(|_result| "fixture Tab was not created")?;
-    let checkpoint = WorkbenchCheckpoint::parse(&authority.checkpoint(&worker)?)?;
-
     let root = PrivateRoot(std::env::temp_dir().join(format!(
         "orchbee-restore-preferences-{}",
         std::process::id()
     )));
     std::fs::create_dir(&root.0)?;
+    // Restore launches only in a directory that exists, so the Workspace names this one.
+    let checkpoint = String::from_utf8(authority.checkpoint(&worker)?)?.replace(
+        "\"/workspace\"",
+        &serde_json::to_string(&root.0.to_string_lossy())?,
+    );
+    let checkpoint = WorkbenchCheckpoint::parse(checkpoint.as_bytes())?;
     let scope = UserPreferencesScope::for_configuration(&root.0.join("config.toml"))
         .map_err(|_failure| "preference scope")?;
     let (service, restore) =

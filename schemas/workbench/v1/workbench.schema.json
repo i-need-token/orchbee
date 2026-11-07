@@ -175,11 +175,17 @@
 			"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f/\\\\\\uD800-\\uDFFF]*$"
 		},
 		"presentationLaunchFailure": {
-			"$comment": "Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that and the 30 KiB worst-case escaped-content budget.",
+			"$comment": "terminal-create-failed requires a non-null binding on the same Presentation and no directory or agentResume; directory-unavailable requires a null binding, a null executable and a directory. Rust and TypeScript enforce those pairings and the 30 KiB worst-case escaped-content budget.",
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["executable", "reason"],
 			"properties": {
+				"agentResume": {
+					"type": "boolean"
+				},
+				"directory": {
+					"$ref": "#/$defs/directoryPath"
+				},
 				"executable": {
 					"oneOf": [
 						{
@@ -194,7 +200,7 @@
 					]
 				},
 				"reason": {
-					"enum": ["terminal-create-failed"]
+					"enum": ["terminal-create-failed", "directory-unavailable"]
 				}
 			}
 		},

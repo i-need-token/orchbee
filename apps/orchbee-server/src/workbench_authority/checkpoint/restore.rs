@@ -1,14 +1,15 @@
 //! Prepares exact restored presentation bindings against checkpoint topology and commits a
-//! validated projection advance. It neither reads checkpoint storage nor launches or adopts a
-//! physical terminal.
+//! validated projection advance, or holds a Presentation unbound when its directory is
+//! unavailable. It neither reads checkpoint storage nor probes, launches or adopts a physical
+//! terminal.
 
 use std::{collections::BTreeMap, fmt};
 
 use orchbee_workbench_protocol::{
-    ContractError, PanelNode, Presentation, PresentationBinding, PresentationLaunchProgram,
-    SessionId, Snapshot, TerminalPresentationId, WorkbenchDirectoryPath, WorkbenchPanelId,
-    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkerId, serialize_document,
+    ContractError, PanelNode, Presentation, PresentationBinding, PresentationLaunchFailure,
+    PresentationLaunchProgram, SessionId, Snapshot, TerminalPresentationId, WorkbenchDirectoryPath,
+    WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkerId, serialize_document,
 };
 
 use super::WorkbenchAuthority;
@@ -148,8 +149,21 @@ impl WorkbenchAuthority {
         Ok(targets)
     }
 
+    /// The one restore target naming `presentation_id`, if that Presentation is still unbound.
+    pub fn restoration_target(
+        &self,
+        local_worker: &WorkerId,
+        presentation_id: &TerminalPresentationId,
+    ) -> Result<Option<WorkbenchRestoreTarget>, WorkbenchRestoreError> {
+        Ok(self
+            .restoration_targets(local_worker)?
+            .into_iter()
+            .find(|target| &target.presentation_id == presentation_id))
+    }
+
     /// The runtime composes this effect-free projection preparation with a fresh terminal
-    /// reservation; dispatch happens only after both owners have committed under one lock.
+    /// reservation; dispatch happens only after both owners have committed under one lock. A held
+    /// restore's unavailable-directory fact leaves with the new binding.
     pub fn prepare_restored_terminal(
         &mut self,
         target: &WorkbenchRestoreTarget,
@@ -164,6 +178,59 @@ impl WorkbenchAuthority {
         }
         if binding.worker_id != target.local_worker {
             return Err(WorkbenchRestoreError::ForeignWorker);
+        }
+        let (advance, revision) = self.prepare_target_change(target, |presentation| {
+            presentation.binding = Some(binding);
+            presentation.launch_program = launch_program;
+            presentation.launch_failure = None;
+        })?;
+        Ok(PreparedWorkbenchRestoreBinding {
+            authority: self,
+            advance,
+            revision,
+        })
+    }
+
+    /// Keeps `target` unbound in its place, naming the unavailable `directory` it would have
+    /// started in. Its restart directory and Agent reference stay as retained, so later captures
+    /// keep them; nothing retries the launch.
+    pub fn hold_restored_terminal(
+        &mut self,
+        target: &WorkbenchRestoreTarget,
+        directory: WorkbenchDirectoryPath,
+        agent_resume: bool,
+    ) -> Result<WorkbenchRevision, WorkbenchRestoreError> {
+        let (advance, revision) = self.prepare_target_change(target, |presentation| {
+            presentation.launch_failure = Some(PresentationLaunchFailure::directory_unavailable(
+                directory,
+                agent_resume,
+            ));
+        })?;
+        self.projection.commit_prepared(advance);
+        Ok(revision)
+    }
+
+    /// Drops the restart directory and Agent reference a Presentation retained, once its terminal
+    /// started somewhere else. Reports whether an Agent reference was dropped.
+    pub fn forget_restart_intent(&mut self, presentation_id: &TerminalPresentationId) -> bool {
+        self.restart_directories.remove(presentation_id);
+        self.restart_agent_sessions
+            .remove(presentation_id)
+            .is_some()
+    }
+
+    /// Rechecks the target against current topology and retained directories, then validates the
+    /// complete projection with `change` applied to the still unbound Presentation.
+    fn prepare_target_change(
+        &self,
+        target: &WorkbenchRestoreTarget,
+        change: impl FnOnce(&mut Presentation),
+    ) -> Result<(PreparedProjectionAdvance, WorkbenchRevision), WorkbenchRestoreError> {
+        if self.retired {
+            return Err(WorkbenchRestoreError::Unavailable);
+        }
+        if self.session_id() != &target.session_id {
+            return Err(WorkbenchRestoreError::TargetChanged);
         }
         if self.restart_directories.get(&target.presentation_id)
             != target.restored_directory.as_ref()
@@ -192,8 +259,7 @@ impl WorkbenchAuthority {
         if presentation.binding.is_some() {
             return Err(WorkbenchRestoreError::AlreadyBound);
         }
-        presentation.binding = Some(binding);
-        presentation.launch_program = launch_program;
+        change(presentation);
         let revision = WorkbenchRevision::new(
             current
                 .revision
@@ -212,11 +278,7 @@ impl WorkbenchAuthority {
                 | ProjectionAdvanceError::PublicationInvariant => ContractError::InvalidDocument,
             })
         })?;
-        Ok(PreparedWorkbenchRestoreBinding {
-            authority: self,
-            advance,
-            revision,
-        })
+        Ok((advance, revision))
     }
 }
 

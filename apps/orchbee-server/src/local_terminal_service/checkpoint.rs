@@ -116,9 +116,24 @@ impl LocalTerminalService {
         let mut pending = Vec::with_capacity(targets.len());
         let mut agent_resume = super::agent_resume::AgentResumeCandidates::default();
         for target in targets {
+            // A Presentation whose directory is unavailable stays unbound in its place, keeping
+            // its retained directory and, when resuming is on, its Agent reference until the
+            // person retries there or starts elsewhere. Nothing retries on its own.
+            if let Some(directory) = target
+                .working_directory()
+                .filter(|p| !std::path::Path::new(p.as_str()).is_dir())
+                .cloned()
+            {
+                let agent_resume =
+                    resume && coordinator.has_pending_agent_session(target.presentation_id());
+                if !agent_resume {
+                    coordinator.take_pending_agent_session(target.presentation_id());
+                }
+                coordinator.hold_checkpoint_terminal(&target, directory, agent_resume)?;
+                continue;
+            }
             if coordinator.has_pending_agent_session(target.presentation_id()) {
-                // A reference resumes only where it was recorded: a missing retained directory
-                // starts the shell elsewhere, so the reference is dropped without a notice.
+                // A reference resumes only where it was recorded.
                 match target
                     .restored_directory()
                     .filter(|p| std::path::Path::new(p.as_str()).is_dir())
@@ -135,7 +150,6 @@ impl LocalTerminalService {
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             let cwd = target
                 .working_directory()
-                .filter(|p| std::path::Path::new(p.as_str()).is_dir())
                 .map(|p| orchbee_client_server_protocol::WorkingDirectory::parse(p.as_str()))
                 .transpose()
                 .map_err(io::Error::other)?;

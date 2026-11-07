@@ -86,6 +86,23 @@ impl SessionCoordinator {
             .map_err(io::Error::other)
     }
 
+    /// Keeps `target` unbound in its place because the directory it would start in is
+    /// unavailable. Only used while this entire coordinator is unpublished.
+    #[cfg(windows)]
+    pub(crate) fn hold_checkpoint_terminal(
+        &mut self,
+        target: &WorkbenchRestoreTarget,
+        directory: orchbee_workbench_protocol::WorkbenchDirectoryPath,
+        agent_resume: bool,
+    ) -> io::Result<()> {
+        self.workbench
+            .as_mut()
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?
+            .hold_restored_terminal(target, directory, agent_resume)
+            .map(drop)
+            .map_err(io::Error::other)
+    }
+
     /// Only used while this entire coordinator is unpublished; no launch IPC is performed here.
     pub(crate) fn prepare_checkpoint_terminal(
         &mut self,
@@ -93,6 +110,22 @@ impl SessionCoordinator {
         inputs: CreateInputs,
         cwd: Option<WorkingDirectory>,
     ) -> io::Result<Box<PendingOperation>> {
+        self.prepare_restore_binding(target, inputs, cwd)
+            .map(|(pending, _binding, _revision)| pending)
+    }
+
+    /// Reserves one restored terminal and binds `target` to it, committing both owners under this
+    /// one gate. Startup restore and a held restore share it, so both launch the same request.
+    pub(crate) fn prepare_restore_binding(
+        &mut self,
+        target: &WorkbenchRestoreTarget,
+        inputs: CreateInputs,
+        cwd: Option<WorkingDirectory>,
+    ) -> io::Result<(
+        Box<PendingOperation>,
+        orchbee_workbench_protocol::PresentationBinding,
+        orchbee_workbench_protocol::WorkbenchRevision,
+    )> {
         let (Some(reference), Some(expiry), Some(worker), capture) = inputs.into_parts() else {
             return Err(io::Error::other("restore admission inputs unavailable"));
         };
@@ -127,10 +160,10 @@ impl SessionCoordinator {
         let binding = presentation_binding(terminal.authorization())
             .ok_or_else(|| io::Error::other("restored terminal binding unavailable"))?;
         let rebind = workbench
-            .prepare_restored_terminal(target, binding, terminal.launch_program().cloned())
+            .prepare_restored_terminal(target, binding.clone(), terminal.launch_program().cloned())
             .map_err(io::Error::other)?;
         let pending = terminal.commit();
-        let _revision = rebind.commit();
-        Ok(pending)
+        let revision = rebind.commit();
+        Ok((pending, binding, revision))
     }
 }

@@ -1544,6 +1544,7 @@ impl PureWorkbenchAction {
             | WorkbenchAction::TabCreate { .. }
             | WorkbenchAction::PanelSplit { .. }
             | WorkbenchAction::PanelCreateTerminal { .. }
+            | WorkbenchAction::PanelRestoreTerminal { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabMoveIndex { .. }

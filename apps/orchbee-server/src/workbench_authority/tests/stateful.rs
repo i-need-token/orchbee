@@ -407,7 +407,8 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     return Err("pure trace generated tab.create".to_owned());
                 }
                 WorkbenchAction::PanelSplit { .. }
-                | WorkbenchAction::PanelCreateTerminal { .. } => {
+                | WorkbenchAction::PanelCreateTerminal { .. }
+                | WorkbenchAction::PanelRestoreTerminal { .. } => {
                     return Err("pure trace generated terminal creation".to_owned());
                 }
                 WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {

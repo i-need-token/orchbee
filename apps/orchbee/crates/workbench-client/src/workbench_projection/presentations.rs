@@ -47,9 +47,26 @@ impl ClientPresentation {
     pub(crate) fn binding(&self) -> Option<&ClientTerminalBinding> {
         self.binding.as_ref()
     }
-    /// The Server's committed failure for the current binding, visible to every Client.
+    /// The Server's committed failure for the current binding, or the held restore of an unbound
+    /// member, visible to every Client.
     pub(crate) fn launch_failure(&self) -> Option<&PresentationLaunchFailure> {
         self.launch_failure.as_ref()
+    }
+    /// The Server's committed failure for the current binding alone.
+    pub(crate) fn creation_failure(&self) -> Option<&PresentationLaunchFailure> {
+        self.launch_failure
+            .as_ref()
+            .filter(|failure| failure.unavailable_directory().is_none())
+    }
+    /// The saved directory a held restore waits for, and whether a retained Agent conversation
+    /// resumes there.
+    pub(crate) fn held_directory(
+        &self,
+    ) -> Option<(&orchbee_workbench_protocol::WorkbenchDirectoryPath, bool)> {
+        let failure = self.launch_failure.as_ref()?;
+        failure
+            .unavailable_directory()
+            .map(|directory| (directory, failure.agent_resume))
     }
     /// The file name of the program the Server committed with the current binding.
     pub(crate) fn launch_program(&self) -> Option<&str> {

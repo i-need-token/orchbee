@@ -21,6 +21,8 @@ use orchbee_workbench_protocol::{
 mod checkpoint_restore;
 mod configured_command;
 mod editor_popup;
+#[cfg(windows)]
+mod held_restore;
 mod independent_popup;
 mod plugin_popup;
 pub(crate) use editor_popup::EditorPopupLaunch;

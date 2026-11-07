@@ -611,14 +611,20 @@ impl CreateTerminalProvenance {
     }
 
     /// A committed Server launch failure supersedes retained or observer provenance, so no
-    /// Client attaches to a terminal that never started.
+    /// Client attaches to a terminal that never started. A held restore has no terminal at all.
     pub(crate) fn observed_for(
         self,
         member: &crate::workbench_projection::ClientPresentation,
     ) -> Self {
-        member
-            .launch_failure()
-            .map_or(self, |failure| Self::Failed(failure.reason))
+        match member.launch_failure().map(|failure| failure.reason) {
+            Some(
+                orchbee_workbench_protocol::PresentationLaunchFailureReason::TerminalCreateFailed,
+            ) => Self::Failed(WorkbenchTerminalFailureReason::TerminalCreateFailed),
+            Some(
+                orchbee_workbench_protocol::PresentationLaunchFailureReason::DirectoryUnavailable,
+            )
+            | None => self,
+        }
     }
 
     fn from_terminal_outcome(outcome: WorkbenchTerminalOutcome) -> Self {
@@ -4421,7 +4427,7 @@ impl<'a> WorkbenchClientView<'a> {
             .tabs()
             .get(active.index())?
             .panel(active.panel_index())?;
-        self.state.selected_presentation(panel).launch_failure()
+        self.state.selected_presentation(panel).creation_failure()
     }
 
     pub(crate) fn selected_provenance(&self) -> Option<&CreateTerminalProvenance> {

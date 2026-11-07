@@ -537,6 +537,17 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			insertIndex: z.number().int().min(0).max(256),
 		})
 		.readonly(),
+	/** Starts a Presentation a restore held for an unavailable directory: there again, or at home. */
+	z
+		.strictObject({
+			kind: z.literal('panel.restore-terminal'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			directory: z.enum(['saved', 'home']),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('panel.close'),

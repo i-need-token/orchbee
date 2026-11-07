@@ -2,8 +2,7 @@
 use super::WorkbenchAuthority;
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, PresentationBinding, PresentationLaunchFailure,
-    TerminalPresentationId, WorkbenchProtocolDocument, WorkbenchRevision,
-    WorkbenchTerminalFailureReason, serialize_document,
+    TerminalPresentationId, WorkbenchProtocolDocument, WorkbenchRevision, serialize_document,
 };
 
 impl WorkbenchAuthority {
@@ -32,10 +31,9 @@ impl WorkbenchAuthority {
         if presentation.binding.as_ref() != Some(binding) || presentation.launch_failure.is_some() {
             return false;
         }
-        presentation.launch_failure = Some(PresentationLaunchFailure {
-            executable: executable.map(str::to_owned),
-            reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
-        });
+        presentation.launch_failure = Some(PresentationLaunchFailure::terminal_create(
+            executable.map(str::to_owned),
+        ));
         let Some(revision) = candidate.revision.value().checked_add(1) else {
             return false;
         };

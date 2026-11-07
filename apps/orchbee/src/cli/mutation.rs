@@ -2165,6 +2165,7 @@ mod workflow {
             | WorkbenchAction::TabsConfigure { .. }
             | WorkbenchAction::NavigationConfigure { .. }
             | WorkbenchAction::PanelCreateTerminal { .. }
+            | WorkbenchAction::PanelRestoreTerminal { .. }
             | WorkbenchAction::TabCreateLayout { .. }
             | WorkbenchAction::TabCloseIfIdle { .. }
             | WorkbenchAction::PanelCloseIfIdle { .. }

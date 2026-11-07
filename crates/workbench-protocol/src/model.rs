@@ -43,15 +43,66 @@ pub struct Presentation {
     pub presentation_id: TerminalPresentationId,
 }
 
-/// The Server's committed fact that the terminal bound to a Presentation never started. It names
-/// the launched executable only; arguments and environment never enter the projection.
+/// The Server's committed fact that a Presentation's terminal never started. A creation failure
+/// describes the current binding and names the launched executable only; arguments and environment
+/// never enter the projection. A restore that found the saved directory unavailable holds an
+/// unbound Presentation and names that directory instead.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PresentationLaunchFailure {
-    /// Null when the Worker resolved its default shell rather than an explicit executable.
+    /// Null when the Worker resolved its default shell rather than an explicit executable, and
+    /// always null for an unavailable directory.
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub executable: Option<String>,
-    pub reason: crate::command::WorkbenchTerminalFailureReason,
+    pub reason: PresentationLaunchFailureReason,
+    /// The saved directory a restore could not reach; present exactly with `DirectoryUnavailable`.
+    /// Boxed so a Panel's inline primary Presentation stays small.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub directory: Option<Box<WorkbenchDirectoryPath>>,
+    /// With `DirectoryUnavailable` only: a retained Agent conversation waits to resume in that
+    /// directory. Starting elsewhere drops it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub agent_resume: bool,
+}
+
+impl PresentationLaunchFailure {
+    /// A terminal creation under the current binding failed.
+    #[must_use]
+    pub const fn terminal_create(executable: Option<String>) -> Self {
+        Self {
+            executable,
+            reason: PresentationLaunchFailureReason::TerminalCreateFailed,
+            directory: None,
+            agent_resume: false,
+        }
+    }
+
+    /// A restore found `directory` unavailable and held the Presentation unbound.
+    #[must_use]
+    pub fn directory_unavailable(directory: WorkbenchDirectoryPath, agent_resume: bool) -> Self {
+        Self {
+            executable: None,
+            reason: PresentationLaunchFailureReason::DirectoryUnavailable,
+            directory: Some(Box::new(directory)),
+            agent_resume,
+        }
+    }
+
+    /// The saved directory a held restore waits for.
+    #[must_use]
+    pub fn unavailable_directory(&self) -> Option<&WorkbenchDirectoryPath> {
+        match self.reason {
+            PresentationLaunchFailureReason::DirectoryUnavailable => self.directory.as_deref(),
+            PresentationLaunchFailureReason::TerminalCreateFailed => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PresentationLaunchFailureReason {
+    TerminalCreateFailed,
+    DirectoryUnavailable,
 }
 
 impl Presentation {

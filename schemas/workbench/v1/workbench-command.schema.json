@@ -518,6 +518,39 @@
 				},
 				{
 					"type": "object",
+					"$comment": "Starts the terminal of a Presentation a restore held because its saved directory was unavailable. saved rechecks that directory; home starts in the Worker home and drops the saved directory and Agent conversation.",
+					"properties": {
+						"kind": {
+							"const": "panel.restore-terminal"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"presentationId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						},
+						"directory": {
+							"enum": ["saved", "home"]
+						}
+					},
+					"required": [
+						"kind",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId",
+						"directory"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
 					"properties": {
 						"kind": {
 							"const": "panel.close"

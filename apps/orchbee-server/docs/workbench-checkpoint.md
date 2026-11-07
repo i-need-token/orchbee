@@ -79,7 +79,7 @@ After request/background quiescence, clean stop takes a fresh bounded observatio
 
 During normal operation the existing process sampler caches only its already observed validated directory, with the exact Worker generation, Host terminal identity and sample start time. Cached capture rechecks current physical membership under the Session gate. Stale, removed or replaced bindings contribute no directory. An unavailable observation does not fabricate a directory or erase retained restart intent. Saving never opens a viewer, samples processes or reads screen contents.
 
-Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore uses the Worker's home default. This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
+Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore holds the Presentation instead of launching (see [Held restore](#held-restore)). This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
 Evidence must cover exact identity/revision fences, primary/child separation, incompatible-format rejection, malformed rows, capture/reconstruct without live authority, unresolved viewer cleanup, actual Windows directory changes and a deleted saved directory. A process launch witness alone does not prove this directory lifecycle.
 
@@ -123,6 +123,31 @@ Startup restoration must establish new physical bindings and account for interru
 returning an unbound authority from this codec is not proof that a usable session has resumed.
 Format changes follow the repository data-boundary rule; there is no permissive fallback.
 
+## Held restore
+
+When the directory a target would start in (its retained directory, else the Workspace default)
+does not name an accessible directory, Windows restore does not launch it. `hold_restored_terminal`
+commits the Presentation unbound in its place with a `directory-unavailable` launch failure that
+names that directory and whether a retained Agent reference still waits (only while resume is
+enabled; otherwise the reference is consumed as before). The restart directory and Agent reference
+stay pending on `WorkbenchAuthority`, so every capture while the Panel is held writes the same
+directory row and Agent row, and launch facts stay unchanged.
+
+Nothing retries automatically. `panel.restore-terminal` names the exact Context, Tab, Panel and
+Presentation and is decided against the current hold, not the expected revision; it is not
+journaled. `directory: saved` probes the held directory outside every gate. A directory that is
+still unavailable answers `unavailable/directory-unavailable` and keeps the hold. An available one
+binds and launches through the same reservation and 80x24 geometry as restore, then hands a still
+pending Agent reference to the resume driver once the shell started. `directory: home` drops the
+restart directory and Agent reference in the same critical section and launches with no cwd, so the
+Worker home applies and the next capture records what the new shell reports. A request that no
+longer names a held Presentation is rejected with `panel-unavailable`. Closing a held Panel is an
+ordinary Panel close.
+
+The resume driver runs once per Server lifetime: a Retry after it already ran leaves the reference
+pending, and the next checkpoint and restart resume it. See
+[Agent session resume](agent-session-resume.md).
+
 ## Terminal rebind preparation
 
 `checkpoint/restore.rs` enumerates every unbound primary and child Presentation in Workspace Context, Tab and depth-first tree order. Each target carries the fresh Session/local Worker, exact member identities and separate retained/Workspace directory intent. Read-only registration visits every primary and child; destructive operations retain their own guards. An unconfigured Workspace without retained cwd uses Worker home.
@@ -161,7 +186,7 @@ definitions but no per-Presentation launch selection. An unreadable preference r
 restores terminals with the built-in system shell default; retained custom profiles do not select
 themselves. This policy never replays a prior command.
 
-Before launch IPC, the coordinator prepares all fresh shell reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; missing saved/configured directories fall back to Worker home. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
+Before launch IPC, the coordinator prepares all fresh shell reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; a target whose selected directory is missing or inaccessible is held, not launched. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; preceding valid snapshots remain,

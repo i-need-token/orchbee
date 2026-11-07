@@ -110,6 +110,14 @@ automatic resubmission. Ordinary confirmed actions remain unchanged. The
 owns pending reservations, exact never-created evidence, the Server's terminal evidence, fences
 and organization preservation.
 
+`panel.restore-terminal {terminalContextId, tabId, panelId, presentationId, directory}` with
+`WorkbenchRestoreDirectory` `saved` or `home` starts a Presentation whose `PresentationLaunchFailure`
+carries `DirectoryUnavailable`. That reason pairs only with an unbound Presentation, a `null`
+executable and the held `directory`, plus an optional `agentResume` flag; `TerminalCreateFailed`
+keeps requiring a binding and carries neither. The
+[checkpoint owner](../../apps/orchbee-server/docs/workbench-checkpoint.md#held-restore) defines
+admission against the current hold.
+
 `navigation.configure` carries one closed `NavigationConfiguration`: `move-project` requires a
 Project ID and nullable `beforeProjectId`; `move-workspace` requires a Workspace ID, nullable
 `projectId` and nullable `beforeWorkspaceId`. A null anchor appends within that destination group.

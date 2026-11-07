@@ -137,6 +137,8 @@ impl TerminalPlacement {
                     return false;
                 };
                 member.binding = Some(binding);
+                // A restore hold describes only the unbound member; the new binding replaces it.
+                member.launch_failure = None;
                 member.launch_program = launch_program;
                 true
             }

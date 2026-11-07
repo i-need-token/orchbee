@@ -154,14 +154,27 @@ export const WorkbenchLaunchExecutableSchema = WorkbenchLaunchTextSchema.refine(
 
 export const WorkbenchTerminalFailureReasonSchema = z.enum(['terminal-create-failed']);
 
-/** The Server's fact that the bound terminal never started; it never carries arguments. */
+/** Why a Presentation shows no running terminal: its bound creation failed, or a restore held it. */
+const WorkbenchPresentationLaunchFailureReasonSchema = z.enum([
+	'terminal-create-failed',
+	'directory-unavailable',
+]);
+
+/**
+ * The Server's fact that the bound terminal never started, or that a restore held the unbound
+ * Presentation because its saved directory was unavailable. It never carries arguments.
+ */
 const WorkbenchPresentationLaunchFailureSchema = z
 	.strictObject({
+		/** With `directory-unavailable` only: a retained Agent conversation waits for that directory. */
+		agentResume: z.boolean().optional(),
+		/** The saved directory a restore could not reach; present exactly with `directory-unavailable`. */
+		directory: WorkbenchDirectoryPathSchema.optional(),
 		executable: WorkbenchLaunchExecutableSchema.refine(
 			(value) => fitsWorkbenchLaunchSelectionBudget([value]),
 			'Launch executable exceeds its byte budget',
 		).nullable(),
-		reason: WorkbenchTerminalFailureReasonSchema,
+		reason: WorkbenchPresentationLaunchFailureReasonSchema,
 	})
 	.readonly();
 
@@ -670,6 +683,19 @@ function validatePresentation(
 		'Terminal Presentation',
 		context,
 	);
+	const failure = presentation.launchFailure;
+	const held = failure?.reason === 'directory-unavailable';
+	if (
+		failure !== undefined &&
+		(held
+			? failure.directory === undefined || failure.executable !== null
+			: failure.directory !== undefined || failure.agentResume === true)
+	) {
+		context.addIssue({
+			code: 'custom',
+			message: 'Only an unavailable directory names a directory or a waiting Agent conversation',
+		});
+	}
 	if (presentation.binding !== null) {
 		requireUnique(
 			identities.boundTerminalIds,
@@ -677,8 +703,14 @@ function validatePresentation(
 			'bound Terminal',
 			context,
 		);
+		if (held) {
+			context.addIssue({
+				code: 'custom',
+				message: 'An unavailable directory holds only an unbound Terminal Presentation',
+			});
+		}
 	} else {
-		if (presentation.launchFailure !== undefined) {
+		if (failure !== undefined && !held) {
 			context.addIssue({
 				code: 'custom',
 				message: 'A launch failure describes only a bound Terminal Presentation',

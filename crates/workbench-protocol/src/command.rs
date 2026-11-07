@@ -809,6 +809,17 @@ pub enum WorkbenchAction {
         #[serde(default, skip_serializing_if = "crate::LaunchOptions::is_empty")]
         options: Box<crate::LaunchOptions>,
     },
+    /// Start the terminal of a Presentation a restore held because its saved directory was
+    /// unavailable. Decided against the current hold rather than a revision fence; nothing is
+    /// journaled, so a repeat after success finds no hold.
+    #[serde(rename = "panel.restore-terminal")]
+    PanelRestoreTerminal {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        directory: WorkbenchRestoreDirectory,
+    },
     #[serde(rename = "panel.close")]
     PanelClose {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -1023,6 +1034,16 @@ pub enum WorkbenchPanelTerminalTarget {
     Unbound {
         presentation_id: TerminalPresentationId,
     },
+}
+
+/// Where a held restore starts its terminal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkbenchRestoreDirectory {
+    /// The saved directory, rechecked first; the retained Agent conversation stays deliverable.
+    Saved,
+    /// The Worker home, replacing the saved directory and dropping the Agent conversation.
+    Home,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -725,6 +725,136 @@
 				}
 			]
 		},
+		"snapshot-held-restore-r2": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [
+					{
+						"label": "Orchbee",
+						"projectId": "44444444444444444444444444444444"
+					}
+				],
+				"directories": [
+					{
+						"directoryId": "22222222222222222222222222222222",
+						"path": "/work/orchbee",
+						"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+					}
+				],
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
+					{
+						"label": "Main",
+						"primaryDirectoryId": "22222222222222222222222222222222",
+						"terminalContextId": "66666666666666666666666666666666",
+						"workspaceId": "55555555555555555555555555555555",
+						"projectId": "44444444444444444444444444444444"
+					}
+				]
+			},
+			"protocolVersion": 1,
+			"revision": "2",
+			"sessionId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [
+						{
+							"groupId": null,
+							"label": "Shell",
+							"pinned": true,
+							"root": {
+								"childPresentations": [],
+								"kind": "panel",
+								"panelId": "99999999999999999999999999999999",
+								"primaryPresentation": {
+									"binding": {
+										"terminalId": "cccccccccccccccccccccccccccccccc",
+										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+									},
+									"label": "Shell",
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"customLabel": null
+								},
+								"rightClick": "panel"
+							},
+							"tabId": "88888888888888888888888888888888"
+						}
+					],
+					"terminalContextId": "33333333333333333333333333333333"
+				},
+				{
+					"groups": [
+						{
+							"color": "blue",
+							"groupId": "77777777777777777777777777777777",
+							"label": "Development"
+						}
+					],
+					"tabs": [
+						{
+							"groupId": "77777777777777777777777777777777",
+							"label": "Split",
+							"pinned": false,
+							"root": {
+								"children": [
+									{
+										"node": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "13131313131313131313131313131313",
+											"primaryPresentation": {
+												"binding": null,
+												"label": "Left",
+												"presentationId": "15151515151515151515151515151515",
+												"customLabel": null,
+												"launchFailure": {
+													"executable": null,
+													"reason": "directory-unavailable",
+													"directory": "/work/orchbee",
+													"agentResume": true
+												}
+											}
+										},
+										"slotId": "ffffffffffffffffffffffffffffffff"
+									},
+									{
+										"node": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "14141414141414141414141414141414",
+											"primaryPresentation": {
+												"binding": null,
+												"label": "Right",
+												"presentationId": "16161616161616161616161616161616",
+												"customLabel": null,
+												"launchFailure": {
+													"executable": null,
+													"reason": "directory-unavailable",
+													"directory": "/work/missing"
+												}
+											}
+										},
+										"slotId": "12121212121212121212121212121212"
+									}
+								],
+								"kind": "split",
+								"orientation": "horizontal",
+								"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+							},
+							"tabId": "dddddddddddddddddddddddddddddddd"
+						}
+					],
+					"terminalContextId": "66666666666666666666666666666666"
+				}
+			]
+		},
 		"snapshot-first-terminal-directory-r2": {
 			"kind": "workbench.snapshot",
 			"navigation": {
@@ -1565,6 +1695,7 @@
 		"delta-invalid-result",
 		"snapshot-panel-input-r2",
 		"snapshot-launch-failure-r2",
+		"snapshot-held-restore-r2",
 		"snapshot-launch-program-boundary-r2",
 		"snapshot-first-terminal-directory-r2",
 		"snapshot-workspace-order-legacy",
@@ -2889,6 +3020,645 @@
 		},
 		{
 			"boundary": "semantic",
+			"name": "directory-unavailable-with-binding",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"launchFailure": {
+											"executable": null,
+											"reason": "directory-unavailable",
+											"directory": "/work/orchbee"
+										},
+										"customLabel": null
+									},
+									"rightClick": "panel"
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "directory-unavailable-without-directory",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
+									},
+									"rightClick": "panel"
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515",
+													"launchFailure": {
+														"executable": null,
+														"reason": "directory-unavailable"
+													},
+													"customLabel": null
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "directory-unavailable-with-executable",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
+									},
+									"rightClick": "panel"
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515",
+													"launchFailure": {
+														"executable": "/bin/sh",
+														"reason": "directory-unavailable",
+														"directory": "/work/orchbee"
+													},
+													"customLabel": null
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "launch-failure-with-directory",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"launchFailure": {
+											"executable": null,
+											"reason": "terminal-create-failed",
+											"directory": "/work/orchbee"
+										},
+										"customLabel": null
+									},
+									"rightClick": "panel"
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "launch-failure-with-agent-resume",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"sessionId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"launchFailure": {
+											"executable": null,
+											"reason": "terminal-create-failed",
+											"agentResume": true
+										},
+										"customLabel": null
+									},
+									"rightClick": "panel"
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
 			"name": "launch-program-without-binding",
 			"value": {
 				"kind": "workbench.snapshot",
@@ -3334,7 +4104,7 @@
 											"executable": "/missing/program",
 											"reason": "terminal-create-failed"
 										},
-										"launchProgram": "program\u0085",
+										"launchProgram": "program",
 										"customLabel": null
 									},
 									"rightClick": "panel"

@@ -541,15 +541,33 @@ fn validate_presentation_structure(presentation: &Presentation) -> Result<(), Va
     if presentation.launch_program.is_some() && presentation.binding.is_none() {
         return Err(ValidationError);
     }
-    match &presentation.launch_failure {
-        None => Ok(()),
-        // A failure describes the current binding, and its executable meets the launch contract.
-        Some(_) if presentation.binding.is_none() => Err(ValidationError),
-        Some(failure) => failure.executable.as_ref().map_or(Ok(()), |executable| {
-            crate::LaunchSelection::new(executable.clone(), Vec::new())
-                .map(drop)
-                .map_err(|_| ValidationError)
-        }),
+    let Some(failure) = &presentation.launch_failure else {
+        return Ok(());
+    };
+    match failure.reason {
+        // A creation failure describes the current binding, and its executable meets the launch
+        // contract.
+        crate::PresentationLaunchFailureReason::TerminalCreateFailed => {
+            if presentation.binding.is_none() || failure.directory.is_some() || failure.agent_resume
+            {
+                return Err(ValidationError);
+            }
+            failure.executable.as_ref().map_or(Ok(()), |executable| {
+                crate::LaunchSelection::new(executable.clone(), Vec::new())
+                    .map(drop)
+                    .map_err(|_| ValidationError)
+            })
+        }
+        // A held restore has no terminal yet: it names only the directory it waits for.
+        crate::PresentationLaunchFailureReason::DirectoryUnavailable => {
+            if presentation.binding.is_some()
+                || failure.executable.is_some()
+                || failure.directory.is_none()
+            {
+                return Err(ValidationError);
+            }
+            Ok(())
+        }
     }
 }
 

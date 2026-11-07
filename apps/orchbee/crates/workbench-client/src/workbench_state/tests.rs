@@ -1215,11 +1215,11 @@ fn observed_launch_failure_selects_without_attachment_and_names_the_executable()
     else {
         unreachable!()
     };
-    primary_presentation.launch_failure =
-        Some(orchbee_workbench_protocol::PresentationLaunchFailure {
-            executable: Some("/missing/program".into()),
-            reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
-        });
+    primary_presentation.launch_failure = Some(
+        orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(Some(
+            "/missing/program".into(),
+        )),
+    );
     let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());

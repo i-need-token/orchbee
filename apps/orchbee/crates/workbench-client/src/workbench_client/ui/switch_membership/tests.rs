@@ -970,11 +970,7 @@ fn launch_failed_focus_beside_a_live_sibling() -> (
         unreachable!("the split fixture")
     };
     primary_presentation.launch_failure =
-        Some(orchbee_workbench_protocol::PresentationLaunchFailure {
-            executable: None,
-            reason:
-                orchbee_workbench_protocol::WorkbenchTerminalFailureReason::TerminalCreateFailed,
-        });
+        Some(orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(None));
     let (mut ui, mailbox, clock, _elapsed) =
         super::super::tests::move_membership::ready_ui_with_snapshot(snapshot.clone());
     assert_eq!(

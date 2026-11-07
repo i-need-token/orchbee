@@ -214,7 +214,6 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
 fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launched_program() {
     use orchbee_workbench_protocol::{
         PanelCustomLabel, PanelNode, PresentationLaunchFailure, PresentationLaunchProgram,
-        WorkbenchTerminalFailureReason,
     };
     let names = |ui: &WorkbenchClientUi, index| {
         [Locale::EnUs, Locale::ZhCn].map(|locale| {
@@ -266,11 +265,9 @@ fn automatic_names_prefer_the_panel_name_then_the_program_title_then_the_launche
                         presentation.custom_label =
                             custom.map(|label| PanelCustomLabel::parse(label).unwrap());
                     } else {
-                        presentation.launch_failure =
-                            launched.map(|executable| PresentationLaunchFailure {
-                                executable: executable.map(Into::into),
-                                reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
-                            });
+                        presentation.launch_failure = launched.map(|executable| {
+                            PresentationLaunchFailure::terminal_create(executable.map(Into::into))
+                        });
                     }
                 }
                 let mut ui = super::super::tests::move_membership::ready_ui_with_snapshot(source).0;

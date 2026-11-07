@@ -925,10 +925,11 @@ fn completion_maps_every_terminal_reason_and_worker_generation_fence() {
         };
         assert_eq!(
             primary_presentation.launch_failure,
-            failed.then(|| orchbee_workbench_protocol::PresentationLaunchFailure {
-                executable: Some(executable.to_owned()),
-                reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
-            }),
+            failed.then(
+                || orchbee_workbench_protocol::PresentationLaunchFailure::terminal_create(Some(
+                    executable.to_owned()
+                ))
+            ),
             "case {case:?}"
         );
     }

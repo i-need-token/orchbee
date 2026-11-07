@@ -50,6 +50,8 @@ mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
 mod panel_metadata;
+#[cfg(windows)]
+mod panel_restore;
 mod process_observer;
 mod projection;
 mod send;

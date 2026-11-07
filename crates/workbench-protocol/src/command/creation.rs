@@ -38,6 +38,7 @@ impl WorkbenchCommand {
             | WorkbenchAction::TabCloseIfIdle { .. }
             | WorkbenchAction::TabCreate { .. }
             | WorkbenchAction::PanelSplit { .. }
+            | WorkbenchAction::PanelRestoreTerminal { .. }
             | WorkbenchAction::PanelClose { .. }
             | WorkbenchAction::PanelCloseIfIdle { .. }
             | WorkbenchAction::PanelMove { .. }

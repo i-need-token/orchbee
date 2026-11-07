@@ -221,7 +221,7 @@ impl WorkbenchService {
             WorkbenchRequest::Command(command)
                 if matches!(
                     &command.action,
-                    WorkbenchAction::TabCreate { .. } | WorkbenchAction::PanelSplit { .. } | WorkbenchAction::PanelCreateTerminal { .. }
+                    WorkbenchAction::TabCreate { .. } | WorkbenchAction::PanelSplit { .. } | WorkbenchAction::PanelCreateTerminal { .. } | WorkbenchAction::PanelRestoreTerminal { .. }
                 ) =>
             {
                 self.policy.manage_navigation && self.policy.create_terminal
@@ -503,6 +503,18 @@ impl WorkbenchService {
                 ) =>
             {
                 match self.terminals.execute_terminal_panel_create(command) {
+                    Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
+                    Err(_postcommit) => WorkbenchExecution::OutcomeUnknown,
+                }
+            }
+            #[cfg(windows)]
+            Err(WorkbenchRequest::Command(command))
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::PanelRestoreTerminal { .. }
+                ) =>
+            {
+                match self.terminals.execute_panel_restore(command) {
                     Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
                     Err(_postcommit) => WorkbenchExecution::OutcomeUnknown,
                 }

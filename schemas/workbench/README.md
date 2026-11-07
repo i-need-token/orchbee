@@ -123,7 +123,12 @@ no attachable Terminal identity; a Client must not infer a lifecycle reason. An 
 started. It requires a binding, names the launched absolute executable or `null` for a
 Worker-resolved default shell, and carries the closed `terminal-create-failed` reason; arguments,
 environment and OS error text never enter it. It is runtime-only: rebinding or checkpoint capture
-removes it, and Clients show the failure instead of attaching. An optional `launchProgram` names the
+removes it, and Clients show the failure instead of attaching. A restore that found a Presentation's
+saved directory unavailable instead commits the `directory-unavailable` reason on the unbound
+Presentation, with a `null` executable, the required absolute `directory` it waits for and an
+optional `agentResume` flag that is true while a retained Agent conversation waits to resume
+there; `terminal-create-failed` carries neither field. Clients show that directory with Retry,
+Start in home folder and Close instead of a terminal. An optional `launchProgram` names the
 program the current binding launches by the raw last component of its executable path, split at
 either separator: at most 128 UTF-8 bytes without a path separator or C0 or C1 control character.
 No directory, argument list or environment enters it, but the component is not parsed further: a
@@ -210,6 +215,14 @@ includes every kind and rejects caller idle assertions or omitted identities; le
 cases remain unchanged. The [Server conditional owner](../../apps/orchbee-server/docs/terminal-tab-close.md#conditional-idle-admission)
 defines complete-scope proof and the atomic effect fence. Schema acceptance alone cannot prove
 runtime absence, authorize an unconditional follow-up or establish real interaction behavior.
+
+`panel.restore-terminal {terminalContextId, tabId, panelId, presentationId, directory}` starts a
+Presentation held with `directory-unavailable`, in the `saved` directory again or at `home`. The
+Server decides it against the current hold rather than the expected revision: it answers
+`panel-terminal-created` with the launch outcome, `unavailable/directory-unavailable` while the
+saved directory is still missing, or `rejected/panel-unavailable` once the Presentation is no
+longer held there. The [checkpoint owner](../../apps/orchbee-server/docs/workbench-checkpoint.md#held-restore)
+defines what the hold retains and what each choice drops.
 
 `tabs.configure` requires an exact context and a closed group/pin operation. A `tabs-configured`
 result contains the committed revision and a required-null `groupId`, except that creation returns
