@@ -190,6 +190,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.focusByPosition': '按位置聚焦面板',
 	'workbench.panels.actions.focusNext': '聚焦下一个面板',
 	'workbench.panels.actions.focusPrevious': '聚焦上一个面板',
+	'workbench.panels.actions.focusLast': '回到上次聚焦的面板',
 	'workbench.panels.actions.focusRight': '聚焦右侧面板',
 	'workbench.panels.actions.focusUp': '聚焦上方面板',
 	'workbench.panels.actions.focusVisible': '可视聚焦面板',

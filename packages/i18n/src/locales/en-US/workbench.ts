@@ -210,6 +210,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.focusByPosition': 'Focus Panel by Position',
 	'workbench.panels.actions.focusNext': 'Focus Next Panel',
 	'workbench.panels.actions.focusPrevious': 'Focus Previous Panel',
+	'workbench.panels.actions.focusLast': 'Back to Last Focused Panel',
 	'workbench.panels.actions.focusRight': 'Focus Panel Right',
 	'workbench.panels.actions.focusUp': 'Focus Panel Above',
 	'workbench.panels.actions.focusVisible': 'Visually Focus Panel',

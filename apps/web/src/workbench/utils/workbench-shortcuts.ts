@@ -29,6 +29,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelVisible
+		| typeof WORKBENCH_ACTION_IDS.focusLastPanel
 		| typeof WORKBENCH_ACTION_IDS.focusNextRegion
 		| typeof WORKBENCH_ACTION_IDS.focusPreviousRegion
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
@@ -148,6 +149,17 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.focusActivePanelPrevious,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelPrevious,
+	},
+	// Last Panel carries the TUI's Ctrl+B ; with the Panel-focus family's Ctrl+Shift on both
+	// platforms, as cyclic focus does.
+	focusLastPanel: {
+		defaults: {
+			apple: chord('Semicolon', ['control', 'shift']),
+			standard: chord('Semicolon', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusLastPanel,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusLastPanel,
 	},
 	focusActivePanelRight: {
 		defaults: {
@@ -447,6 +459,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'focusPanel10',
 	'focusActivePanelNext',
 	'focusActivePanelPrevious',
+	'focusLastPanel',
 	'focusActivePanelRight',
 	'focusActivePanelUp',
 	'focusActivePanelVisible',
@@ -559,6 +572,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelNext', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelPrevious:
 			return formatWorkbenchShortcut('focusActivePanelPrevious', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusLastPanel:
+			return formatWorkbenchShortcut('focusLastPanel', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelRight:
 			return formatWorkbenchShortcut('focusActivePanelRight', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelUp:
@@ -676,6 +691,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.focusActivePanelNext.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelPrevious.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelPrevious.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusLastPanel.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusLastPanel.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelRight.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]:

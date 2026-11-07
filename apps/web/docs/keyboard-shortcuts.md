@@ -30,6 +30,7 @@ those surfaces owns another binding copy.
 | `workbench.panel.active.focus-left`           | Active panel                      | `Cmd+Option+Left`        | `Ctrl+Alt+Left`        |
 | `workbench.panel.active.focus-next`           | Active panel                      | `Ctrl+Shift+]`           | `Ctrl+Shift+]`         |
 | `workbench.panel.active.focus-previous`       | Active panel                      | `Ctrl+Shift+[`           | `Ctrl+Shift+[`         |
+| `workbench.panel.focus-last`                  | Workbench                         | `Ctrl+Shift+;`           | `Ctrl+Shift+;`         |
 | `workbench.panel.active.focus-right`          | Active panel                      | `Cmd+Option+Right`       | `Ctrl+Alt+Right`       |
 | `workbench.panel.active.focus-up`             | Active panel                      | `Cmd+Option+Up`          | `Ctrl+Alt+Up`          |
 | `workbench.panel.active.move-down`            | Active panel                      | `Cmd+Option+Shift+Down`  | `Ctrl+Alt+Shift+Down`  |
@@ -78,7 +79,7 @@ Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; 
 
 Show Last Command Output and Show Scrollback use physical `Ctrl+Shift+G` and `Ctrl+Shift+H` on both platforms and open immutable text viewers. [Command-output viewer](../../../packages/terminal/docs/command-output-viewer.md) and [Scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md) own extraction, search, copying, cancellation and focus restoration.
 
-Active-Tab movement uses `Ctrl+Shift+,` and `Ctrl+Shift+.`. Cyclic Panel focus uses `Ctrl+Shift+]` and `Ctrl+Shift+[` in canonical depth-first leaf order within the current Tab, wrapping with at least two Panels. Positional focus uses `Ctrl+Shift+1` through `Ctrl+Shift+0`, where `0` means ten; missing positions never clamp. Apple `Command+digit` remains Tab selection.
+Last Panel uses `Ctrl+Shift+;` on both platforms, the TUI's `Ctrl+B ;` with the Panel-focus family's `Ctrl+Shift`. It returns to the most recent other Panel this window focused that still exists, in any Tab or Workspace, and falls through when there is none. Active-Tab movement uses `Ctrl+Shift+,` and `Ctrl+Shift+.`. Cyclic Panel focus uses `Ctrl+Shift+]` and `Ctrl+Shift+[` in canonical depth-first leaf order within the current Tab, wrapping with at least two Panels. Positional focus uses `Ctrl+Shift+1` through `Ctrl+Shift+0`, where `0` means ten; missing positions never clamp. Apple `Command+digit` remains Tab selection.
 
 Visible Panel focus and swap use `Ctrl+Shift+F7` and `Ctrl+Shift+F8`. Two Panels select the other Panel immediately; larger layouts use a source-excluding alphanumeric selector. Workbench owns order, multi-character labels, stale cancellation and Action delegation. Rename Tab uses Apple `Shift+Cmd+I` and Standard `Ctrl+Shift+Alt+T`, sharing one semantic Action with the Tab menu's Rename row and Action search.
 

@@ -36,6 +36,7 @@ import {
 import { registerWorkbenchPanelTargetCloseAction } from '../actions/registerWorkbenchPanelTargetCloseAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
+import { registerWorkbenchLastPanelAction } from '../actions/registerWorkbenchLastPanelAction';
 import { registerWorkbenchWorktreeActions } from '../actions/registerWorkbenchWorktreeActions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -47,6 +48,7 @@ import {
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
 import type { TerminalCloseImpact } from '../model/terminal-close-impact';
+import { WorkbenchPanelFocusTrail } from '../model/WorkbenchPanelFocusTrail';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAgentSource } from '../types/workbench-agent-observation';
 import type {
@@ -142,6 +144,12 @@ export function useWorkbenchActions({
 		() => createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
 		[runtime],
 	);
+	// Outlives the registrations below, which re-run as the Workbench changes.
+	const panelFocusTrail = React.useMemo(
+		() => new WorkbenchPanelFocusTrail(projectWorkspaceRuntime),
+		[projectWorkspaceRuntime],
+	);
+	React.useEffect(() => panelFocusTrail.observe(), [panelFocusTrail]);
 
 	React.useEffect(() => {
 		const captureCurrentDirectoryTarget = (context: Pick<ActionInvocation, 'target'>) => {
@@ -202,6 +210,13 @@ export function useWorkbenchActions({
 			...registerWorkbenchFocusActions({
 				focusRouter: focusRouting,
 				scope,
+				typedRuntime,
+			}),
+			registerWorkbenchLastPanelAction({
+				navigation,
+				projectWorkspaceRuntime,
+				scope,
+				trail: panelFocusTrail,
 				typedRuntime,
 			}),
 			registerWorkbenchPanelNameAction({
@@ -518,6 +533,7 @@ export function useWorkbenchActions({
 		openSearch,
 		openTabTitleEditor,
 		openPanelNameEditor,
+		panelFocusTrail,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,
@@ -622,6 +638,7 @@ export function useWorkbenchActions({
 				case 'focusActivePanelRight':
 				case 'focusActivePanelUp':
 				case 'focusActivePanelVisible':
+				case 'focusLastPanel':
 				case 'focusNextRegion':
 				case 'focusPreviousRegion':
 				case 'increaseTerminalFontSize':

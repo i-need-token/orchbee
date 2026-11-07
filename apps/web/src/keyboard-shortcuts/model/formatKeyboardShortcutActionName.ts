@@ -92,6 +92,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.focusPanelNext);
 		case 'focus-panel-previous':
 			return intl.formatMessage(keyboardShortcutMessages.focusPanelPrevious);
+		case 'focus-panel-last':
+			return intl.formatMessage(keyboardShortcutMessages.focusPanelLast);
 		case 'focus-panel-right':
 			return intl.formatMessage(keyboardShortcutMessages.focusPanelRight);
 		case 'focus-panel-up':

@@ -115,6 +115,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityDirectionalPanel);
 			case 'multiple-panels':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultiplePanels);
+			case 'last-panel':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityLastPanel);
 			case 'multiple-tabs':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultipleTabs);
 			case 'movable-tab':

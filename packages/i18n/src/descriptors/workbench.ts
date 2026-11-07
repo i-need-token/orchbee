@@ -521,6 +521,12 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusPrevious'],
 		description: 'Action that focuses the previous Workbench panel in canonical layout order.',
 	},
+	panelFocusLast: {
+		id: 'workbench.panels.actions.focusLast',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusLast'],
+		description:
+			'Action that returns to the most recently focused other panel, in any tab or workspace.',
+	},
 	panelFocusRight: {
 		id: 'workbench.panels.actions.focusRight',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusRight'],

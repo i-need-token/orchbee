@@ -13,6 +13,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.focusPanelPosition': 'Focus panel {position}',
 	'keyboard.shortcuts.actions.focusPanelNext': 'Focus next panel',
 	'keyboard.shortcuts.actions.focusPanelPrevious': 'Focus previous panel',
+	'keyboard.shortcuts.actions.focusPanelLast': 'Back to last focused panel',
 	'keyboard.shortcuts.actions.focusPanelRight': 'Focus panel right',
 	'keyboard.shortcuts.actions.focusPanelUp': 'Focus panel above',
 	'keyboard.shortcuts.actions.focusPanelVisible': 'Visually focus panel',
@@ -63,6 +64,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.focusedTerminalWithSelection':
 		'When a focused terminal has a selection',
 	'keyboard.shortcuts.availability.multiplePanels': 'When the active tab has multiple panels',
+	'keyboard.shortcuts.availability.lastPanel': 'When a previously focused panel still exists',
 	'keyboard.shortcuts.availability.multipleTabs':
 		'When the active terminal context has multiple tabs',
 	'keyboard.shortcuts.availability.movableTab':

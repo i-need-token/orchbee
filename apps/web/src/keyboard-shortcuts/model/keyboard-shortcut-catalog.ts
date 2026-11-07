@@ -40,6 +40,7 @@ export type KeyboardShortcutAvailability =
 	| 'multiple-tabs'
 	| 'panel-position'
 	| 'directional-panel'
+	| 'last-panel'
 	| 'tab-position';
 
 interface KeyboardShortcutDeclarationBase {
@@ -62,6 +63,7 @@ type KeyboardShortcutName =
 	| 'find'
 	| 'focus-next-region'
 	| 'focus-panel-down'
+	| 'focus-panel-last'
 	| 'focus-panel-left'
 	| 'focus-panel-next'
 	| 'focus-panel-previous'
@@ -394,6 +396,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'focus-panel-previous',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelPrevious.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusLastPanel.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusLastPanel.input,
+		availability: 'last-panel',
+		defaults: WORKBENCH_SHORTCUTS.focusLastPanel.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-last',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.focusLastPanel.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.focusActivePanelRight.id,
