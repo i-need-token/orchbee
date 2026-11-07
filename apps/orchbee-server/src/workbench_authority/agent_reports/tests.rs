@@ -454,3 +454,139 @@ fn input_during_work_preserves_done_until_input_after_completion() {
         assert_eq!(current.view().display_state(), Status::Done);
     }
 }
+
+#[test]
+fn error_episode_keeps_errored_turn_red_until_a_new_turn() {
+    use Status::{Blocked, Done, Error, Idle, Unknown, Working};
+    use orchbee_workbench_protocol::AgentCompletion as Completion;
+    let report = |status, n| state("custom", "codex", status, seq(n));
+    let observed = |status| process(Some(Provider::Codex), status, false);
+    let cases = vec![
+        (
+            "working, error, idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+            ],
+        ),
+        (
+            "working, error, done",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Done, 3), Error, Completion::None),
+            ],
+        ),
+        (
+            "working, error, working, idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Working, 3), Working, Completion::None),
+                (report(Idle, 4), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "working, idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Idle, 2), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "error, idle without working",
+            vec![
+                (report(Error, 1), Error, Completion::None),
+                (report(Idle, 2), Error, Completion::None),
+            ],
+        ),
+        (
+            "working, error, blocked",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Blocked, 3), Blocked, Completion::None),
+            ],
+        ),
+        (
+            "working, error, idle, process exit, next agent idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (
+                    process(Some(Provider::Codex), Unknown, true),
+                    Unknown,
+                    Completion::None,
+                ),
+                (
+                    process(Some(Provider::Pi), Idle, false),
+                    Idle,
+                    Completion::None,
+                ),
+            ],
+        ),
+        (
+            "working, error and idle via fallback",
+            vec![
+                (observed(Working), Working, Completion::None),
+                (observed(Error), Error, Completion::None),
+                (observed(Idle), Error, Completion::None),
+            ],
+        ),
+        (
+            "fallback working hidden by an explicit error ends the episode",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (observed(Working), Error, Completion::None),
+                (observed(Idle), Error, Completion::None),
+                (
+                    Event::Clear {
+                        source: None,
+                        sequence: seq(3),
+                    },
+                    Idle,
+                    Completion::AwaitingInput,
+                ),
+            ],
+        ),
+        (
+            "error cleared while a later idle was hidden",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (observed(Idle), Error, Completion::None),
+                (
+                    Event::Clear {
+                        source: None,
+                        sequence: seq(3),
+                    },
+                    Idle,
+                    Completion::None,
+                ),
+            ],
+        ),
+        (
+            "error then another agent idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (state("custom", "pi", Idle, seq(3)), Idle, Completion::None),
+            ],
+        ),
+    ];
+    for (name, steps) in cases {
+        let mut current = Reports::default();
+        for (at, (event, status, completion)) in (1_u64..).zip(steps) {
+            step(&mut current, event, at);
+            let view = current.view();
+            assert_eq!(
+                (view.state, view.completion),
+                (status, completion),
+                "{name}, tick {at}"
+            );
+        }
+    }
+}

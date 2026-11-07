@@ -103,6 +103,7 @@ pub(super) struct Reports {
     recent_exit: Option<(String, u64)>,
     worked: bool,
     completion: orchbee_workbench_protocol::AgentCompletion,
+    error_episode: bool,
 }
 impl Reports {
     pub(super) fn transition(&self, event: Event, at: u64) -> Transition {
@@ -137,10 +138,14 @@ impl Reports {
             }
         };
         let before = self.effective();
+        let resumed = next.advance_error_episode(self, released);
         let after = next.effective();
         if before.agent != after.agent || after.agent.is_none() {
             next.worked = false;
             next.completion = orchbee_workbench_protocol::AgentCompletion::None;
+        }
+        if resumed {
+            next.worked = true;
         }
         match after.status {
             Status::Working if after.agent.is_some() => {
@@ -167,6 +172,41 @@ impl Reports {
             released,
             metadata_exit,
         }
+    }
+    /// Starts, keeps, or ends the error episode for one transition. Returns whether a new turn
+    /// ended it, so that turn resumes even while an explicit authority still hides it.
+    fn advance_error_episode(&mut self, previous: &Self, released: bool) -> bool {
+        let authority_changed = self.authority != previous.authority;
+        let fallback_changed = self.fallback != previous.fallback;
+        let new_turn = (authority_changed
+            && self
+                .authority
+                .as_ref()
+                .is_some_and(|a| a.status == Status::Working))
+            || (fallback_changed && self.fallback == Status::Working);
+        let fresh_error = (authority_changed
+            && self
+                .authority
+                .as_ref()
+                .is_some_and(|a| a.status == Status::Error))
+            || (fallback_changed && self.fallback == Status::Error);
+        let (before, after) = (previous.reported(), self.reported());
+        let ended = previous.error_episode
+            && (new_turn
+                || before.agent != after.agent
+                || released
+                || (previous.authority.is_some() && self.authority.is_none()));
+        let continuing = previous.error_episode && !ended;
+        let entered = !continuing
+            && after.agent.is_some()
+            && after.status == Status::Error
+            && (before.status != Status::Error || before.agent != after.agent || fresh_error);
+        self.error_episode = continuing || entered;
+        if entered {
+            self.worked = false;
+            self.completion = orchbee_workbench_protocol::AgentCompletion::None;
+        }
+        ended && new_turn && after.agent.is_some()
     }
     fn report_state(
         &mut self,
@@ -284,7 +324,8 @@ impl Reports {
         }
         (Disposition::Applied, released)
     }
-    pub(super) fn effective(&self) -> Effective {
+    /// The effective view before the error-episode mask.
+    fn reported(&self) -> Effective {
         let authority = self.authority.as_ref();
         let blocker = self.visible_blocker
             && authority.is_some_and(|a| {
@@ -308,6 +349,13 @@ impl Reports {
             authority_source: authority.map(|a| a.author.source.clone()),
             message: authority.and_then(|a| a.message.clone()),
         }
+    }
+    pub(super) fn effective(&self) -> Effective {
+        let mut effective = self.reported();
+        if self.error_episode && matches!(effective.status, Status::Idle | Status::Done) {
+            effective.status = Status::Error;
+        }
+        effective
     }
     pub(super) fn explanation_owner(&self) -> Option<Provider> {
         self.effective()

@@ -44,6 +44,13 @@ Input accepted during Working cannot consume the future completion, including ty
 Idle observation. A transient Unknown does not lose that turn. The next Working observation starts
 a new turn and clears the previous completion.
 
+An error episode keeps an errored turn red. It starts when an Agent's effective status becomes Error
+and ends when a new turn starts from any source (a Working observation, including a detection
+fallback hidden by an explicit authority), the Agent changes, the process exits, or the authority is
+cleared. During the episode, raw Idle and Done are presented as Error and never set
+`awaiting-input`; Blocked is not overridden. After the episode ends, a Working turn that reaches Idle
+publishes `awaiting-input` again.
+
 Only accepted keys, text or paste **after** `awaiting-input` acknowledge it. Focus, read/unread
 acknowledgements, viewport visibility and mouse reports never do. Semantic Focus/Mouse records are
 excluded explicitly. Raw controller input skips complete focus and mouse reports, including
