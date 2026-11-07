@@ -838,7 +838,9 @@ export const MobileLayout: Story = {
 	globals: { viewport: { isRotated: false, value: 'mobile2' } },
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>
-			<Workbench {...arguments_} />
+			<div style={{ height: '100dvh' }}>
+				<Workbench {...arguments_} />
+			</div>
 		</OrchbeeI18nProvider>
 	),
 };
