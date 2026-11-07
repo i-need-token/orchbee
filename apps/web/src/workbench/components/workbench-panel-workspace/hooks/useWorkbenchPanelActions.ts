@@ -128,10 +128,14 @@ export function useWorkbenchPanelActions({
 			terminalContextId,
 			type,
 		});
-		// Both closes of a Panel wait for each other, so the question follows the answer it raised.
+		/**
+		 * As in the TUI, several Panels close side by side: a close waits only for an earlier close of
+		 * its own Panel, so another Panel asks or closes at once while an earlier close is followed.
+		 */
 		const closeExecution = {
 			concurrency: 'serialize' as const,
-			concurrencyKey: () => 'panel-close-confirmation',
+			concurrencyKey: (input: PanelCloseInput) =>
+				`${terminalContextId}:${input.tabId}:${input.panelId}`,
 			mode: 'foreground' as const,
 		};
 		// The Server closes a Tab's last Panel together with its Tab.

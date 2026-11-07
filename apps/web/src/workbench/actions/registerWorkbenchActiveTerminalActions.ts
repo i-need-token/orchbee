@@ -124,8 +124,10 @@ export function registerWorkbenchActiveTerminalActions({
 			scope,
 			defineAction({
 				category: terminalCategory,
+				// The lower close serializes on its own Panel or Tab, so the Close key closes another
+				// Panel at once while an earlier close is followed, as in the TUI.
 				execution: {
-					concurrency: 'serialize',
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-terminal-close',
 					mode: 'foreground',
 				},

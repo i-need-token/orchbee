@@ -51,8 +51,9 @@ export function registerWorkbenchPanelTargetCloseAction({
 	const category = { id: 'panels', title: workbenchMessages.actionCategoryPanels };
 	const execution = {
 		concurrency: 'serialize' as const,
-		// Shares the Panel's own close question, so the two closes of one Panel wait for each other.
-		concurrencyKey: () => 'panel-close-confirmation',
+		// As the Panel's own Close, a close waits only for an earlier close of its own Panel.
+		concurrencyKey: (input: WorkbenchPanelTargetInput) =>
+			`${input.terminalContextId}:${input.tabId}:${input.panelId}`,
 		mode: 'foreground' as const,
 	};
 	const resolvePanel = (input: WorkbenchPanelTargetInput) => {

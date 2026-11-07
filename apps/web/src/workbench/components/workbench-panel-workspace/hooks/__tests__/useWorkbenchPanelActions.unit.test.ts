@@ -178,6 +178,51 @@ describe('useWorkbenchPanelActions', () => {
 		},
 	);
 
+	it('closes another Panel at once while an earlier close is followed, each until its own close settles', async () => {
+		// As the Server authority follows the close of a Panel of several, holding it out of view.
+		const following = new Map<string, (result: ActionResult<void>) => void>();
+		const close = vi.fn<AuthorityClose>((_context, closure) =>
+			closure.type === 'panel-close-if-idle'
+				? new Promise((resolve) => {
+						following.set(closure.panelId, (result) => {
+							following.delete(closure.panelId);
+							resolve(result);
+						});
+					})
+				: unexpected(),
+		);
+		const runtime = new ActionRuntime();
+		const scope = renderHarness({
+			activeTab: splitTab,
+			authority: inertWorkbenchAuthority({ close }),
+			panelCount: 2,
+			parentScope: runtime.createScope('workbench'),
+			runtime,
+		});
+		const closePanel = (panelId: string) =>
+			runtime.execute(
+				PANEL_ACTION_IDS.close,
+				{ panelId, tabId: 'tab-1' },
+				{ scope, source: 'button' },
+			);
+
+		const first = closePanel('panel-1');
+		await vi.waitFor(() => expect([...following.keys()]).toEqual(['panel-1']));
+		const second = closePanel('panel-2');
+		await vi.waitFor(() => expect([...following.keys()]).toEqual(['panel-1', 'panel-2']));
+
+		following.get('panel-2')?.({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
+		await expect(second.completion).resolves.toEqual({
+			failure: { code: 'cleanup-blocked' },
+			kind: 'failed',
+		});
+		expect(first.getSnapshot()).toMatchObject({ state: 'running' });
+		expect([...following.keys()]).toEqual(['panel-1']);
+
+		following.get('panel-1')?.({ kind: 'completed' });
+		await expect(first.completion).resolves.toEqual({ kind: 'completed' });
+	});
+
 	it('swaps two exact live Panels through the authority and focuses the moved Panel', async () => {
 		const runtime = new ActionRuntime();
 		const change = vi.fn<AuthorityChange>(() => Promise.resolve({ kind: 'completed' }));
