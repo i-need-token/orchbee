@@ -1,0 +1,230 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-layout-history:v1",
+	"$comment": "Bindings additionally enforce the 16 KiB request and result caps, listings in strictly decreasing save time, not-open counts no greater than their totals, a reopen that opened at least one Workspace or Tab, a focus whenever Tabs were reopened, and results whose outcome the request's action admits.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"requestId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+		},
+		"sessionId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/sessionId"
+		},
+		"revision": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+		},
+		"terminalContextId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+		},
+		"tabId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+		},
+		"savedAt": {
+			"description": "Save time in Unix milliseconds.",
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"count": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 4294967295
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "list"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "reopen"
+						},
+						"savedAt": {
+							"$ref": "#/$defs/savedAt"
+						}
+					},
+					"required": ["kind", "savedAt"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.layout-history"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
+			"additionalProperties": false
+		},
+		"entry": {
+			"type": "object",
+			"properties": {
+				"savedAt": {
+					"$ref": "#/$defs/savedAt"
+				},
+				"workspaces": {
+					"$ref": "#/$defs/count"
+				},
+				"tabs": {
+					"$ref": "#/$defs/count"
+				},
+				"workspacesNotOpen": {
+					"$ref": "#/$defs/count"
+				},
+				"tabsNotOpen": {
+					"$ref": "#/$defs/count"
+				}
+			},
+			"required": ["savedAt", "workspaces", "tabs", "workspacesNotOpen", "tabsNotOpen"],
+			"additionalProperties": false
+		},
+		"focus": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				}
+			},
+			"required": ["terminalContextId", "tabId"],
+			"additionalProperties": false
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "listed"
+						},
+						"entries": {
+							"type": "array",
+							"maxItems": 48,
+							"items": {
+								"$ref": "#/$defs/entry"
+							}
+						}
+					},
+					"required": ["kind", "entries"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "reopened"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						},
+						"workspaces": {
+							"$ref": "#/$defs/count"
+						},
+						"tabs": {
+							"$ref": "#/$defs/count"
+						},
+						"focus": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/focus"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "revision", "workspaces", "tabs", "focus"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["nothing-to-reopen", "not-found", "denied"]
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"enum": ["session-mismatch", "resource-limit"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["service-unavailable", "busy"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.layout-history.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

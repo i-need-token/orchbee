@@ -1,0 +1,1231 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "list",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "list"
+				}
+			}
+		},
+		{
+			"name": "reopen",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reopen",
+					"savedAt": 1800000000000
+				}
+			}
+		},
+		{
+			"name": "reopen-maximum-saved-at",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reopen",
+					"savedAt": 9007199254740991
+				}
+			}
+		},
+		{
+			"name": "listed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000900000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 1,
+							"tabs": 1,
+							"workspacesNotOpen": 0,
+							"tabsNotOpen": 0
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "listed-empty",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": []
+				}
+			}
+		},
+		{
+			"name": "listed-maximum",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999999,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999998,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999997,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999996,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999995,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999994,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999993,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999992,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999991,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999990,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999989,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999988,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999987,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999986,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999985,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999984,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999983,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999982,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999981,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999980,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999979,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999978,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999977,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999976,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999975,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999974,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999973,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999972,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999971,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999970,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999969,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999968,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999967,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999966,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999965,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999964,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999963,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999962,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999961,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999960,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999959,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999958,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999957,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999956,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999955,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999954,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999953,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "reopened",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "reopened",
+					"revision": "8",
+					"workspaces": 1,
+					"tabs": 3,
+					"focus": {
+						"terminalContextId": "00000000000000000000000000000004",
+						"tabId": "00000000000000000000000000000011"
+					}
+				}
+			}
+		},
+		{
+			"name": "reopened-empty-workspace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "reopened",
+					"revision": "8",
+					"workspaces": 1,
+					"tabs": 0,
+					"focus": null
+				}
+			}
+		},
+		{
+			"name": "nothing-to-reopen",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "nothing-to-reopen"
+				}
+			}
+		},
+		{
+			"name": "not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "not-found"
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "rejected-session",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "session-mismatch"
+				}
+			}
+		},
+		{
+			"name": "rejected-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "resource-limit"
+				}
+			}
+		},
+		{
+			"name": "unavailable-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "busy"
+				}
+			}
+		},
+		{
+			"name": "unavailable-service",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "list-extra-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "list",
+					"savedAt": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reopen-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reopen",
+					"savedAt": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reopen-beyond-safe-integer",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reopen",
+					"savedAt": 9007199254740992
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reopen-string-time",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reopen",
+					"savedAt": "1800000000000"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reopen-missing-time",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reopen"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "clear"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-session",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"action": {
+					"kind": "list"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "listed-too-many",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999999,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999998,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999997,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999996,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999995,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999994,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999993,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999992,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999991,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999990,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999989,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999988,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999987,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999986,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999985,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999984,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999983,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999982,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999981,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999980,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999979,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999978,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999977,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999976,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999975,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999974,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999973,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999972,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999971,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999970,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999969,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999968,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999967,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999966,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999965,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999964,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999963,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999962,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999961,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999960,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999959,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999958,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999957,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999956,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999955,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999954,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999953,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1799999999952,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "listed-oldest-first",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1800000900000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "listed-repeated-time",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						},
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 2,
+							"tabs": 5,
+							"workspacesNotOpen": 1,
+							"tabsNotOpen": 3
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "listed-more-tabs-not-open",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 1,
+							"tabs": 1,
+							"workspacesNotOpen": 0,
+							"tabsNotOpen": 2
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "listed-more-workspaces-not-open",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "listed",
+					"entries": [
+						{
+							"savedAt": 1800000000000,
+							"workspaces": 1,
+							"tabs": 1,
+							"workspacesNotOpen": 2,
+							"tabsNotOpen": 1
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "reopened-nothing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "reopened",
+					"revision": "8",
+					"workspaces": 0,
+					"tabs": 0,
+					"focus": null
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "reopened-tabs-without-focus",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "reopened",
+					"revision": "8",
+					"workspaces": 0,
+					"tabs": 2,
+					"focus": null
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "reopened-missing-focus",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "reopened",
+					"revision": "8",
+					"workspaces": 1,
+					"tabs": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "rejected-unknown-reason",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "conflict"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unavailable-unknown-reason",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "capacity"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "result-session-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.layout-history.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "not-found"
+				},
+				"sessionId": "00000000000000000000000000000002"
+			},
+			"boundary": "schema"
+		}
+	],
+	"validJson": [
+		{
+			"name": "decimal-protocol-version",
+			"direction": "request",
+			"json": "{\"kind\": \"workbench.layout-history\", \"protocolVersion\": 1e0, \"requestId\": \"00000000000000000000000000000001\", \"sessionId\": \"00000000000000000000000000000002\", \"action\": {\"kind\": \"list\"}}",
+			"canonical": {
+				"kind": "workbench.layout-history",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "list"
+				}
+			}
+		}
+	]
+}

@@ -93,6 +93,10 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES,
 } from './workbench-tab-duplicate-contract';
 import {
+	WorkbenchLayoutHistoryRequestSchema,
+	WorkbenchLayoutHistoryResultSchema,
+} from './workbench-layout-history-contract';
+import {
 	WorkbenchTabSetCloseRequestSchema,
 	WorkbenchTabSetCloseResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_TAB_SET_CLOSE_RESULT_BYTES,
@@ -680,6 +684,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorkspaceGroupCloseRequestSchema,
 		WorkbenchTabSetCloseRequestSchema,
 		WorkbenchTabDuplicateRequestSchema,
+		WorkbenchLayoutHistoryRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
 	.refine((value) => {
@@ -817,6 +822,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorkspaceGroupCloseResultSchema,
 		WorkbenchTabSetCloseResultSchema,
 		WorkbenchTabDuplicateResultSchema,
+		WorkbenchLayoutHistoryResultSchema,
 		WorkbenchClientViewResultSchema,
 	])
 	.superRefine((value, context) => {

@@ -219,10 +219,13 @@ pub use validation::{
 };
 
 pub use command::{
-    MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES, MAXIMUM_TAB_DUPLICATE_MEMBERS, TabDuplicateAction,
-    TabDuplicateCopy, TabDuplicateFailure, TabDuplicateMember, TabDuplicateOutcome,
-    TabDuplicateRejection, TabDuplicateStatus, TabDuplicateUnavailable,
-    WorkbenchTabDuplicateRequest, WorkbenchTabDuplicateResult,
+    LayoutHistoryAction, LayoutHistoryEntry, LayoutHistoryFocus, LayoutHistoryOutcome,
+    LayoutHistoryRejection, LayoutHistoryUnavailable, MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES,
+    MAXIMUM_LAYOUT_HISTORY_ENTRIES, MAXIMUM_LAYOUT_HISTORY_SAVED_AT, MAXIMUM_TAB_DUPLICATE_MEMBERS,
+    TabDuplicateAction, TabDuplicateCopy, TabDuplicateFailure, TabDuplicateMember,
+    TabDuplicateOutcome, TabDuplicateRejection, TabDuplicateStatus, TabDuplicateUnavailable,
+    WorkbenchLayoutHistoryRequest, WorkbenchLayoutHistoryResult, WorkbenchTabDuplicateRequest,
+    WorkbenchTabDuplicateResult,
 };
 
 pub use command::{

@@ -185,6 +185,22 @@ pre-allocation cap so 256 maximum escaped labels fit.
 
 ## Tab duplication
 
+## Earlier layouts
+
+`workbench.layout-history` (OBWP 71/72) reads and reopens the earlier layouts the Server keeps.
+`list` answers `listed` with at most 48 entries in strictly decreasing `savedAt` (Unix
+milliseconds, at most 2^53 − 1), each with Workspace and Tab totals and how many are not open now.
+`reopen` names one `savedAt` and answers `reopened` with the revision, the counts it opened and a
+required-nullable `focus` (the first reopened Tab, present whenever Tabs were reopened),
+`nothing-to-reopen`, `not-found`, `rejected` (`session-mismatch`, `resource-limit`), `denied` or
+`unavailable` (`service-unavailable`, `busy`). `WorkbenchLayoutHistoryResult::answers` admits only
+a listing for `list` and never one for `reopen`. Both frames keep the 16 KiB intent cap. The
+[schema](../../schemas/workbench/v1/workbench-layout-history.schema.json) and
+[shared corpus](../../schemas/workbench/v1/workbench-layout-history-conformance-v1.json) drive this
+binding and TypeScript; the
+[Server checkpoint contract](../../apps/orchbee-server/docs/workbench-checkpoint.md#earlier-layouts)
+owns what is kept and reopened.
+
 `workbench.tab-duplicate` (OBWP 69/70) duplicates several Tabs of one terminal context as one
 retained Server operation. Start carries `operationId`, `terminalContextId`, 1–256 distinct
 `tabIds` in the context's current order, `expectedRevision` and the terminal `geometry` every copy
