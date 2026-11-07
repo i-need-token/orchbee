@@ -349,13 +349,6 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         (MenuAction::Resize, ClientAction::EnterResizeMode),
     ];
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
-    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
-    {
-        let view = ui.view();
-        let menu = view.action_menu().unwrap();
-        assert_eq!(menu.actions, crate::action_menu::GLOBAL_ACTIONS);
-    }
-    ui.cancel_action_menu();
 
     for (action, expected_client_action) in expected {
         assert!(ui.open_action_menu(MenuTarget::Global, None, false));

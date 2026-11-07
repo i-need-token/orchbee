@@ -42,6 +42,8 @@ pub enum BackendAction {
 pub enum Notice {
     OnboardingSaveFailed,
     WorkspaceNavigationUnavailable,
+    /// Open notification target found no current Agent card; nothing moved.
+    NoNotificationTarget,
     NavigatorChanged,
     NavigatorTooSmall,
     ResizeBusy,

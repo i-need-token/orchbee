@@ -107,8 +107,9 @@ its shield and opens nothing.
 
 A primary click on an Agent card, released on the card, opens its target. So does the configurable
 `open_notification_target` action, default `prefix+o`, whose global action menu row "Open
-notification target" ("打开通知目标") is offered only while an Agent card is current. The key with
-no current Agent card does nothing. All three run through the revalidating navigation of sidebar
+notification target" ("打开通知目标") is offered only while an Agent card is current. With no
+current Agent card, the key or a menu row whose card expired says "No Agent notification"
+("没有智能体通知") and nothing moves. All three run through the revalidating navigation of sidebar
 Agent rows ([Main Agent sidebar](machines.md#main-agent-sidebar)): the Session, Tab, Panel,
 Presentation, canonical binding and expected physical host must still match, Workspace and Tab
 switch as needed, and the Panel takes focus. Navigation stays inside the notification's source

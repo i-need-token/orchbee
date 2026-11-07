@@ -585,10 +585,12 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
     });
     let pass = json!({"name":"user-config","status":"pass","details":details});
     assert!(validator.is_valid(&pass));
+    // The bound admits an override of every registered action and nothing beyond.
+    let actions = orchbee_local_runtime::KeySettings::registered_actions().len();
     let mut all_action_overrides = pass.clone();
-    all_action_overrides["details"]["keyOverrides"] = json!(37);
+    all_action_overrides["details"]["keyOverrides"] = json!(actions);
     assert!(validator.is_valid(&all_action_overrides));
-    all_action_overrides["details"]["keyOverrides"] = json!(38);
+    all_action_overrides["details"]["keyOverrides"] = json!(actions + 1);
     assert!(!validator.is_valid(&all_action_overrides));
     let mut warning = pass.clone();
     warning["status"] = json!("warning");

@@ -1357,6 +1357,11 @@ impl ClientView {
                 self.dismiss_focus_modes();
                 (action, ShellCommand::None)
             }
+            // A card that expired after its menu row was drawn, or none at all, opens nothing.
+            ClientAction::OpenNotificationTarget => {
+                self.notice = Some(Notice::NoNotificationTarget);
+                (action, ShellCommand::None)
+            }
             ClientAction::OpenShortcutHelp => {
                 if self.overlay == Some(Overlay::ShortcutHelp) {
                     self.dismiss_overlay();

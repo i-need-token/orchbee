@@ -11,9 +11,16 @@ pub struct Effect {
     pub delivery: Delivery,
     pub message: Notification,
 }
-/// Names one installed card, so a pointer gesture opens only the card it pressed.
+/// Names one installed card, so a pointer gesture opens only the card it pressed. Tokens are
+/// unique in the process, so an expired card leaves no trace in the notification state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CardToken(u64);
+impl CardToken {
+    fn next() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        Self(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
 /// How the Workbench answered a request to open an Agent notification's target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TargetOpening {
@@ -44,7 +51,6 @@ pub struct State {
     visible: Option<Visible>,
     policy: NotificationSettings,
     pending: Option<Effect>,
-    serial: u64,
 }
 impl State {
     pub fn configure(&mut self, policy: NotificationSettings) {
@@ -124,12 +130,11 @@ impl State {
             "bottom-left" => Position::BottomLeft,
             _ => Position::BottomRight,
         }));
-        self.serial = self.serial.wrapping_add(1);
         self.visible = Some(Visible {
             message,
             until: now + Duration::from_secs(5),
             sound_pending: true,
-            token: CardToken(self.serial),
+            token: CardToken::next(),
             target: target.map(Box::new),
         });
         true

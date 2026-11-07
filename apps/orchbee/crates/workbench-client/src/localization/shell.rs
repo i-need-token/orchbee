@@ -407,6 +407,8 @@ impl Locale {
             (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => {
                 "无法切换 · 请再次选择目标以重试"
             }
+            (Self::EnUs, Some(Notice::NoNotificationTarget)) => "No Agent notification",
+            (Self::ZhCn, Some(Notice::NoNotificationTarget)) => "没有智能体通知",
             (Self::EnUs, Some(Notice::PointerInputDropped)) => {
                 "Pointer input dropped · focus switch did not settle in time"
             }
