@@ -583,6 +583,12 @@ an operation and consume the same Host deadline.
 | Uncertainty      | Any write/read/timeout/invalid-response failure after handoff records the kernel's exact unknown result and shuts down Host. Observed Server loss closes both links; no command is resent.                                                                                                                                                  |
 | Result ownership | Success and every classified failure remain in the kernel slot. The caller must deliver or abandon that result and honor `HostClosed`/`ServerClosed`; this adapter never drains the slot or claims OBCN delivery.                                                                                                                           |
 
+A Launch that carried earlier output stages it first, in the same exchange and before handoff:
+the request loop takes the output from the OBCN launch before kernel admission, so the kernel never
+retains it, and `StageTerminalOutput` names the Create's exact `CreationId`. A typed refusal writes a
+`terminal-launch` diagnostic and the Create proceeds without the output; any other staging failure is
+a pre-handoff Host failure. The staged receipt and refusal are bounded at 64 KiB.
+
 The module depends only on `host_connection`, `terminal_authorization`,
 `terminal_host_launch_adapter`, and their protocol values. Its private `transport` child owns
 nonblocking byte I/O and polls the Server alongside every Host wait; it imports no product policy.

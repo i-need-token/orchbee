@@ -30,6 +30,7 @@ mod cwd_validation;
 mod graphics_decode;
 mod lifecycle;
 mod plugin_job;
+mod seeded_launch;
 mod send;
 mod shutdown;
 mod terminal_editor;
@@ -102,6 +103,11 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
     if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = message {
         return graphics_decode::encode(request);
     }
+    if let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = message
+        && launch.output_seed().is_some()
+    {
+        return seeded_launch::encode(launch);
+    }
     if matches!(
         message,
         CapabilityNodeMessage::PluginJobRequest(_) | CapabilityNodeMessage::PluginJobResult(_)
@@ -153,6 +159,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
     if frame.starts_with(b"OBNG") {
         return graphics_decode::decode(frame);
     }
+    if frame.starts_with(b"OBNL") {
+        return seeded_launch::decode(frame);
+    }
     if frame.starts_with(b"OBNT") {
         return terminal_titles::decode_result(frame);
     }
@@ -188,6 +197,9 @@ pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, Rea
     reader.read_exact(&mut header)?;
     if header.starts_with(b"OBNG") {
         return graphics_decode::read(reader, header);
+    }
+    if header.starts_with(b"OBNL") {
+        return seeded_launch::read(reader, header);
     }
     if header.starts_with(b"OBNT") {
         return terminal_titles::read_result(reader, header);

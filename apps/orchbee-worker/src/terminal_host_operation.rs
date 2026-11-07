@@ -10,8 +10,8 @@ use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, CreationId, Envelope, HostEpoch,
     LifecycleControl, MessageRole, PayloadEncoding, ProtocolError, TerminalCreationControl,
     decode_connection_control, decode_lifecycle_control, decode_terminal_creation_control,
-    decode_transport_envelope, encode_lifecycle_control, encode_terminal_creation_control,
-    encode_transport_envelope,
+    decode_terminal_output_staged, decode_transport_envelope, encode_lifecycle_control,
+    encode_stage_terminal_output, encode_terminal_creation_control, encode_transport_envelope,
 };
 
 use crate::{
@@ -86,9 +86,18 @@ impl From<AuthorizationKernelError> for HostOperationError {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ExpectedResponse {
     Created(CreationId),
     Started,
+}
+
+/// Why earlier output was not staged before a creation.
+enum StageFailure {
+    /// The Host answered and refused it; the creation proceeds without it.
+    Refused,
+    /// The Host connection failed before the creation was written.
+    Peer(PeerFailure),
 }
 
 pub(crate) struct PreparedHostOperation {
@@ -100,6 +109,8 @@ pub(crate) struct PreparedHostOperation {
     editor_source: Option<orchbee_capability_node_protocol::TerminalEditorSource>,
     /// Every launch follows its controlling Client's query palette once created.
     host_theme: Option<orchbee_terminal_protocol::TerminalTheme>,
+    /// Earlier output the Host stages for this creation before it is written.
+    output_seed: Option<Vec<u8>>,
 }
 
 impl PreparedHostOperation {
@@ -133,7 +144,17 @@ impl PreparedHostOperation {
             expected,
             editor_source,
             host_theme,
+            output_seed: None,
         })
+    }
+
+    /// Attaches the earlier output admission removed from the launch, so the authorization
+    /// kernel never retains it. A start carries none.
+    pub(crate) fn with_output_seed(mut self, seed: Option<Vec<u8>>) -> Self {
+        if matches!(self.expected, ExpectedResponse::Created(_)) {
+            self.output_seed = seed;
+        }
+        self
     }
 
     pub(crate) fn start(
@@ -151,6 +172,7 @@ impl PreparedHostOperation {
             expected: ExpectedResponse::Started,
             editor_source: None,
             host_theme: None,
+            output_seed: None,
         })
     }
 
@@ -190,6 +212,25 @@ impl PreparedHostOperation {
             }
             kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
             return Ok(HostOperationDisposition::HostClosed);
+        }
+        if let (Some(seed), ExpectedResponse::Created(creation)) =
+            (self.output_seed.as_deref(), self.expected)
+        {
+            match stage_output(&mut exchange, epoch, creation, seed) {
+                Ok(()) => {}
+                // Earlier output is optional: the terminal still starts, only without it.
+                Err(StageFailure::Refused) => eprintln!(
+                    "orchbee-worker diagnostic component=terminal-launch operation=stage-output stage=host cause=refused"
+                ),
+                Err(StageFailure::Peer(failure)) => {
+                    exchange.close(failure);
+                    if failure == PeerFailure::Server {
+                        return Ok(HostOperationDisposition::ServerClosed);
+                    }
+                    kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
+                    return Ok(HostOperationDisposition::HostClosed);
+                }
+            }
         }
         let capability_epoch = CapabilityHostEpoch::from_bytes(*epoch.as_bytes())
             .map_err(AuthorizationKernelError::from)?;
@@ -286,6 +327,64 @@ impl PreparedHostOperation {
         Ok(created)
     }
 }
+
+/// Stages `seed` for `creation` in one exchange before the creation itself is written, so no
+/// terminal effect can precede it.
+fn stage_output(
+    exchange: &mut HostExchange<'_>,
+    epoch: HostEpoch,
+    creation: CreationId,
+    seed: &[u8],
+) -> Result<(), StageFailure> {
+    let payload =
+        encode_stage_terminal_output(creation, seed).map_err(|_| StageFailure::Refused)?;
+    let correlation = crate::worker_identity::fresh_identity()
+        .ok()
+        .and_then(|bytes| CorrelationId::from_bytes(bytes).ok())
+        .ok_or(StageFailure::Refused)?;
+    let record = encode_transport_envelope(&Envelope {
+        correlation_id: Some(correlation),
+        host_epoch: Some(epoch),
+        kind: STAGE_TERMINAL_OUTPUT_KIND,
+        optional_message: false,
+        payload: &payload,
+        payload_encoding: PayloadEncoding::RawBytes,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Request,
+    })
+    .map_err(|_| StageFailure::Refused)?;
+    let response = exchange
+        .round_trip_bounded(&record, STAGE_RESPONSE_BYTES)
+        .map_err(StageFailure::Peer)?;
+    let envelope = decode_transport_envelope(&response)
+        .map_err(|_| StageFailure::Peer(PeerFailure::Protocol))?;
+    if envelope.role != MessageRole::Response
+        || envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(epoch)
+    {
+        return Err(StageFailure::Peer(PeerFailure::Protocol));
+    }
+    if envelope.kind == TERMINAL_OUTPUT_STAGED_KIND
+        && envelope.payload_encoding == PayloadEncoding::RawBytes
+        && decode_terminal_output_staged(envelope.payload).is_ok_and(|staged| {
+            staged.creation_id == creation && staged.bytes as usize == seed.len()
+        })
+    {
+        return Ok(());
+    }
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        return Err(StageFailure::Refused);
+    }
+    Err(StageFailure::Peer(PeerFailure::Protocol))
+}
+
+const STAGE_TERMINAL_OUTPUT_KIND: u16 = 82;
+const TERMINAL_OUTPUT_STAGED_KIND: u16 = 83;
+/// A receipt or a typed refusal; both are far below this bound.
+const STAGE_RESPONSE_BYTES: usize = 64 * 1024;
 
 #[cfg(test)]
 mod tests;

@@ -426,8 +426,11 @@ fn run_admitted_with_handoff(
             continue;
         }
         let now = unix_milliseconds();
+        let mut output_seed = None;
         let admission = match request {
-            CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) => {
+                // The kernel retains its launch for replay; the earlier output travels apart.
+                output_seed = launch.take_output_seed();
                 kernel.admit_launch(launch, now)?
             }
             CapabilityNodeMessage::AuthorizedTerminalStart(start) => {
@@ -484,7 +487,9 @@ fn run_admitted_with_handoff(
                     aux.session_runtime,
                     observed_colors,
                     aux.system_shell,
-                )? {
+                )?
+                .map(|prepared| prepared.with_output_seed(output_seed))
+                {
                     Some(prepared) => prepared.execute(
                         &mut kernel,
                         host,

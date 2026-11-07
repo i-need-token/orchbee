@@ -331,7 +331,15 @@ pub struct AuthorizedTerminalLaunch {
     plugin_environment: Option<crate::PluginTerminalEnvironment>,
     editor_source: Option<crate::TerminalEditorSource>,
     preferences: crate::LaunchPreferences,
+    // Boxed so a launch without earlier output stays as small as before.
+    output_seed: Option<Box<OutputSeed>>,
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct OutputSeed(Vec<u8>);
+
+/// The largest earlier output one launch may carry, including its divider line.
+pub const MAXIMUM_OUTPUT_SEED_BYTES: usize = 1024 * 1024;
 
 impl AuthorizedTerminalLaunch {
     #[must_use]
@@ -350,6 +358,7 @@ impl AuthorizedTerminalLaunch {
             plugin_environment: None,
             editor_source: None,
             preferences: crate::LaunchPreferences::Absent,
+            output_seed: None,
         }
     }
 
@@ -408,7 +417,8 @@ impl AuthorizedTerminalLaunch {
         if source.is_some()
             && (self.mode != TerminalLaunchMode::Deferred
                 || self.launch.is_none()
-                || self.plugin_environment.is_some())
+                || self.plugin_environment.is_some()
+                || self.output_seed.is_some())
         {
             return Err(ProtocolError::InvalidPayload);
         }
@@ -442,6 +452,33 @@ impl AuthorizedTerminalLaunch {
     #[must_use]
     pub const fn preferences(&self) -> &crate::LaunchPreferences {
         &self.preferences
+    }
+
+    /// Attaches earlier output the new terminal shows before its program starts. The Host
+    /// admits it separately; an editor launch never carries one.
+    ///
+    /// # Errors
+    /// Refuses empty or oversized output and an editor launch.
+    pub fn with_output_seed(mut self, seed: Option<Vec<u8>>) -> Result<Self, ProtocolError> {
+        if let Some(seed) = &seed
+            && (seed.is_empty()
+                || seed.len() > MAXIMUM_OUTPUT_SEED_BYTES
+                || self.editor_source.is_some())
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        self.output_seed = seed.map(|seed| Box::new(OutputSeed(seed)));
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn output_seed(&self) -> Option<&[u8]> {
+        self.output_seed.as_ref().map(|seed| seed.0.as_slice())
+    }
+
+    /// Removes and returns the earlier output, so a receiver can retain the launch without it.
+    pub fn take_output_seed(&mut self) -> Option<Vec<u8>> {
+        self.output_seed.take().map(|seed| seed.0)
     }
 }
 

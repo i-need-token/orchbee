@@ -101,6 +101,17 @@ Pre-Host lazy launch refuses before startup. Existing unknown-receipt rules and
 Host document lifecycle remain authoritative; current-Client/focus admission,
 independent overlay and public CLI remain upstream obligations.
 
+## Earlier output for a restored launch
+
+A launch may carry earlier output the new terminal shows before its program starts: at most 1 MiB,
+never empty and never with an editor source. Such a launch travels in its own `OBNL` record instead
+of an `OBCN` frame: the four bytes `OBNL` and the bytes `00 01 00 00`, an unsigned big-endian body length, then the
+launch's ordinary `OBCN` frame followed by the output bytes. The launch frame keeps the 40 KiB bound
+and exact decoding; only this record admits the larger body, and the streaming reader validates its
+length before allocating. The output is not part of authorization replay identity: the Worker takes
+it from the launch before admission, so the authorization kernel never retains it, and stages it in
+the Host for that exact creation. The Host checks its grammar.
+
 ## Transient terminal clear and reset
 
 Control action tag 9 is `Reset`, framed and admitted exactly like `Clear` below; the Worker sends the Host's full reset instead of a prompt-preserving clear. Result tag 10 is `ResetAccepted` with `Cleared`'s fields, and tag 11 is `ResetOutcomeUnknown`, valid only for Reset.

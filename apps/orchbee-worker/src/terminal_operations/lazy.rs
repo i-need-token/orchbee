@@ -244,7 +244,7 @@ pub(crate) fn run(
                 )?;
                 continue;
             }
-            let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = request else {
+            let CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) = request else {
                 // No binding exists before the first Launch. Other non-Launch traffic retires this
                 // connection and cannot acquire Host-start authority.
                 return Err(io::Error::new(
@@ -253,6 +253,8 @@ pub(crate) fn run(
                 )
                 .into());
             };
+            // The kernel retains its launch for replay; the earlier output travels apart.
+            let output_seed = launch.take_output_seed();
             let dispatch = match kernel.admit_launch(launch, unix_milliseconds())? {
                 HostOperationAdmission::Dispatch(dispatch) => dispatch,
                 HostOperationAdmission::ResultReady => {
@@ -275,7 +277,8 @@ pub(crate) fn run(
                 continue;
             }
             let prepared =
-                super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None, system_shell)?;
+                super::prepare_or_fail(&mut kernel, &dispatch, Some(runtime), None, system_shell)?
+                    .map(|prepared| prepared.with_output_seed(output_seed));
             let Some(prepared) = prepared else {
                 let result = super::take_result(&mut kernel)?;
                 let _no_host = server_transport::send(&server, None, &result)?;
