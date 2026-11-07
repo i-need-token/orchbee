@@ -1976,6 +1976,18 @@ impl InputDispatcher {
                                         after_layout(view, port)?;
                                     }
                                 }
+                                InteractionTarget::HeldRestore(target)
+                                    if Self::projected_capture(view, port).is_none() =>
+                                {
+                                    let disposition = port
+                                        .surface_action(SurfaceAction::HeldRestore(&target))
+                                        .unwrap_or(ClientActionDisposition::KeepNavigator);
+                                    view.commit_pointer(disposition);
+                                    self.reconcile(view, port, now);
+                                    if disposition.changes_layout() {
+                                        after_layout(view, port)?;
+                                    }
+                                }
                                 InteractionTarget::GlobalChrome(action) => {
                                     if Self::projected_capture(view, port).is_none() {
                                         let action = match action {

@@ -2065,7 +2065,8 @@ impl PointerState {
                 | HitTarget::Resize(_)
                 | HitTarget::CopyControl { .. }
                 | HitTarget::CopySurface { .. }
-                | HitTarget::Presentation(_),
+                | HitTarget::Presentation(_)
+                | HitTarget::HeldRestore(_),
             ) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::SettingsRow { .. }) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::Divider(target)) => {

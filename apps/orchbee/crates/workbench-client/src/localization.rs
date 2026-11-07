@@ -36,7 +36,7 @@ mod status;
 mod terminal_feedback;
 pub(crate) use status::PersistentStatus;
 use std::ffi::OsString;
-pub(crate) use terminal_feedback::{CompletionReminder, TerminalEnd};
+pub(crate) use terminal_feedback::{CompletionReminder, HeldRestoreAction, TerminalEnd};
 
 mod copy_mode;
 pub(crate) use copy_mode::{CopyHintLabel, CopyModeStatus};

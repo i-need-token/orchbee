@@ -239,6 +239,7 @@ impl WorkbenchClientUi {
                 LayoutAction::ResizeControl { .. } | LayoutAction::Divider { .. },
             ) => None,
             SurfaceAction::Presentation(target) => Some(self.activate_drawn_presentation(target)),
+            SurfaceAction::HeldRestore(target) => Some(self.activate_held_restore(target)),
             SurfaceAction::PopupClose(target) => accepted(self.activate_drawn_popup_close(target)),
         }
     }

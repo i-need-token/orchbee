@@ -14,7 +14,31 @@ pub(crate) enum TerminalEnd {
     Failed,
 }
 
+/// One action of a Panel a restore held because its saved directory was unavailable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum HeldRestoreAction {
+    Retry,
+    StartInHome,
+    Close,
+}
+
 impl Locale {
+    pub(crate) const fn held_restore_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Directory unavailable",
+            Self::ZhCn => "目录不可用",
+        }
+    }
+    pub(crate) const fn held_restore_action(self, action: HeldRestoreAction) -> &'static str {
+        match (self, action) {
+            (Self::EnUs, HeldRestoreAction::Retry) => "Retry",
+            (Self::ZhCn, HeldRestoreAction::Retry) => "重试",
+            (Self::EnUs, HeldRestoreAction::StartInHome) => "Start in home folder",
+            (Self::ZhCn, HeldRestoreAction::StartInHome) => "改在主目录启动",
+            (Self::EnUs, HeldRestoreAction::Close) => "Close",
+            (Self::ZhCn, HeldRestoreAction::Close) => "关闭",
+        }
+    }
     pub(crate) fn launch_failure_actions(self, settings: &str, copy: &str) -> String {
         match self {
             Self::EnUs => format!("Settings: {settings}\nCopy diagnostics: {copy}"),

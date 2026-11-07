@@ -101,6 +101,12 @@ pub(crate) enum WorkbenchClientNotice {
     CommandRefused(orchbee_workbench_protocol::ConfiguredCommandFailure),
     LaunchProfileSelected,
     LaunchProfileUnavailable,
+    /// A held restore's Retry found the saved directory still unavailable.
+    RestoreDirectoryUnavailable,
+    /// A held restore started in the home folder, so its Agent conversation was not resumed.
+    RestoreAgentNotResumed,
+    /// A held restore's terminal did not start for another reason.
+    RestoreNotStarted,
     LinkOpened,
     LinkHandled,
     LinkNoLink,

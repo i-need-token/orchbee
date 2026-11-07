@@ -6,6 +6,7 @@
 mod action_menus;
 mod agent_attention;
 mod captured_actions;
+mod held_restore;
 mod last_panel;
 mod launch_profiles;
 mod pane_graphics;
@@ -314,6 +315,7 @@ pub struct WorkbenchClientView<'a> {
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
     settings: Option<&'a settings::Coordinator>,
     duplication: Option<crate::localization::DuplicateProgress>,
+    held_restore: Option<&'a held_restore::HeldRestore>,
     completion_reminder: Option<&'a super::completion_reminders::Reminder>,
     menu: Option<&'a action_menus::MenuEpisode>,
     state: Option<ClientStateView<'a>>,
@@ -341,6 +343,17 @@ pub struct WorkbenchClientView<'a> {
 
 pub(crate) use crate::localization::LaunchFailure;
 
+/// What a held restore's placeholder paints: the Panel and Presentation its actions address, the
+/// saved directory it waits for, its keyboard focus while the Panel holds focus, and whether a
+/// restore is in flight.
+pub(crate) struct HeldRestoreView<'a> {
+    pub(crate) panel: &'a WorkbenchPanelId,
+    pub(crate) presentation: &'a orchbee_workbench_protocol::TerminalPresentationId,
+    pub(crate) directory: &'a orchbee_workbench_protocol::WorkbenchDirectoryPath,
+    pub(crate) focused: Option<crate::localization::HeldRestoreAction>,
+    pub(crate) pending: bool,
+}
+
 pub(crate) use crate::localization::LaunchProfile;
 
 impl<'a> WorkbenchClientView<'a> {
@@ -349,7 +362,7 @@ impl<'a> WorkbenchClientView<'a> {
         panel: &'a super::ClientPanel,
     ) -> Option<LaunchFailure<'a>> {
         let state = self.state.as_ref()?;
-        let observed = state.selected_presentation(panel).launch_failure();
+        let observed = state.selected_presentation(panel).creation_failure();
         let failed = observed.is_some()
             || state.pane_by_panel(panel.panel_id()).is_some_and(|record| {
                 matches!(record.provenance(), CreateTerminalProvenance::Failed(_))
@@ -377,6 +390,26 @@ impl<'a> WorkbenchClientView<'a> {
                 profile: LaunchProfile::Unknown,
                 executable: None,
             },
+        })
+    }
+    /// The placeholder a held restore shows in `panel`, while this Client may act on it.
+    pub(crate) fn held_restore(
+        &self,
+        panel: &'a super::ClientPanel,
+    ) -> Option<HeldRestoreView<'a>> {
+        if self.retirement.is_some() {
+            return None;
+        }
+        let member = self.state.as_ref()?.selected_presentation(panel);
+        let (directory, _) = member.held_directory()?;
+        let owner = self.held_restore?;
+        let presentation = member.presentation_id();
+        Some(HeldRestoreView {
+            panel: panel.panel_id(),
+            presentation,
+            directory,
+            focused: (self.focus == Some(panel.panel_id())).then(|| owner.focused(presentation)),
+            pending: owner.pending(presentation),
         })
     }
     /// A shell-local projection never changes the cache or canonical layout inspection.
@@ -1269,6 +1302,7 @@ impl<'a> WorkbenchClientView<'a> {
             menu: None,
             settings: None,
             duplication: None,
+            held_restore: None,
             completion_reminder: None,
             state: None,
             resize: None,
@@ -1311,6 +1345,7 @@ impl<'a> WorkbenchClientView<'a> {
             menu: None,
             settings: None,
             duplication: None,
+            held_restore: None,
             completion_reminder: None,
             state: Some(state.view()),
             resize: None,
@@ -1431,6 +1466,7 @@ pub(super) struct WorkbenchClientUi {
     focus_new_panel: bool,
     settings: settings::Coordinator,
     duplication: tab_duplication::Duplication,
+    held_restore: held_restore::HeldRestore,
     launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
@@ -1546,6 +1582,7 @@ impl WorkbenchClientUi {
             .chain(summary)
             .chain(pending)
             .chain(self.duplication.wake())
+            .chain(self.held_restore.wake())
             .chain(self.held_intent_wake())
             .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
@@ -1594,6 +1631,7 @@ impl WorkbenchClientUi {
             menus: action_menus::MenuEpisode::default(),
             settings: settings::Coordinator::new(capabilities.login_shell),
             duplication: tab_duplication::Duplication::default(),
+            held_restore: held_restore::HeldRestore::default(),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             workspace_closed_timer: Default::default(),
@@ -1707,6 +1745,7 @@ impl WorkbenchClientUi {
             menu: Some(&self.menus),
             settings: Some(&self.settings),
             duplication: self.duplication.progress(),
+            held_restore: Some(&self.held_restore),
             completion_reminder: self
                 .retirement
                 .is_none()
@@ -2076,6 +2115,7 @@ impl WorkbenchClientUi {
             // same fair tick as the ordinary schedulers.
             changed |= self.drive_settings();
             changed |= self.drive_duplication();
+            changed |= self.drive_held_restore();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
             {
@@ -2403,6 +2443,10 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn forward(&mut self, input: &[u8]) -> bool {
+        // A held restore has no terminal; its focused placeholder owns its own keys.
+        if let Some(consumed) = self.held_restore_key(input) {
+            return consumed;
+        }
         if let Some(admitted) = self.hold_focus_input(input) {
             return admitted;
         }

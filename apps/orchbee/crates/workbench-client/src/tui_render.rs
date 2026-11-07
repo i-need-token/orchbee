@@ -88,6 +88,7 @@ mod contexts;
 pub(crate) mod controls;
 mod copy_mode;
 mod divider_resize;
+mod held_restore;
 mod help;
 mod machine_picker;
 mod modal;
@@ -1841,6 +1842,11 @@ fn render_native_workbench(
                     hits.record_link_source(painted, source);
                 }
             }
+        } else if let Some(held) = active_tab
+            .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
+            .and_then(|panel| native.held_restore(panel))
+        {
+            held_restore::render(frame, content_area, &held, locale, theme, hits);
         } else if let Some(failure) = active_tab
             .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
             .and_then(|panel| native.launch_failure(panel))
@@ -2313,6 +2319,8 @@ fn render_leaf(
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             theme.style(Role::SurfaceSelection),
         );
+    } else if let Some(held) = panel.and_then(|panel| native.held_restore(panel)) {
+        held_restore::render(frame, content, &held, locale, theme, hits);
     } else if let Some(failure) = panel.and_then(|panel| native.launch_failure(panel)) {
         terminal_failure::render(frame, content, failure, client_view, locale, theme);
     } else if let Some(retained) = panel.and_then(|panel| {

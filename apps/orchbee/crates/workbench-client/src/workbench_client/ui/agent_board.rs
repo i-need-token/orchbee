@@ -59,6 +59,7 @@ impl WorkbenchClientUi {
         self.worktrees.set_origin(origin.clone());
         self.settings.set_origin(origin.clone());
         self.duplication.set_origin(origin.clone());
+        self.held_restore.set_origin(origin.clone());
         self.start_jobs.set_origin(origin.clone());
         self.board.set_origin_locality(origin.is_local());
         self.board_reads.set_origin(origin);

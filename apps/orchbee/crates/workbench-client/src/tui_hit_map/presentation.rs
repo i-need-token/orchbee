@@ -40,3 +40,12 @@ pub struct PointerUnboundPane {
     pub(crate) key: crate::workbench_state::PaneKey,
     pub(crate) presentation: orchbee_workbench_protocol::TerminalPresentationId,
 }
+
+/// One painted action of a Panel a restore held for an unavailable directory, by stable Panel and
+/// Presentation identity. The owner refuses it once that Presentation is no longer held there.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HeldRestoreTarget {
+    pub(crate) panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    pub(crate) presentation: orchbee_workbench_protocol::TerminalPresentationId,
+    pub(crate) action: crate::localization::HeldRestoreAction,
+}

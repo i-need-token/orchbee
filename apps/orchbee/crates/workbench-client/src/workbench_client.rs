@@ -79,8 +79,8 @@ pub use ui::{
     WorkbenchClientView, notification_available,
 };
 pub(crate) use ui::{
-    CaptureReadiness, ClientTabView, CloseConfirmationView, PanelCloseConfirmationView,
-    RenameDraftView, RenameEdit, ViewportSurface,
+    CaptureReadiness, ClientTabView, CloseConfirmationView, HeldRestoreView,
+    PanelCloseConfirmationView, RenameDraftView, RenameEdit, ViewportSurface,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use ui::{CloseConfirmationToken, WorkspaceCloseToken};

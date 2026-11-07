@@ -38,6 +38,7 @@ pub enum InteractionTarget {
     AgentBoardRow(crate::agent_board::AgentBoardRowTarget),
     AgentBoardControl(crate::agent_board::AgentBoardControlTarget),
     Presentation(crate::tui_hit_map::DrawnPresentationTarget),
+    HeldRestore(crate::tui_hit_map::HeldRestoreTarget),
 
     Sidebar(crate::machine_picker::DrawnSidebarTarget),
     SidebarFixed(crate::machine_picker::DrawnSidebarFixedTarget),
@@ -96,7 +97,7 @@ impl InteractionTarget {
     }
 
     pub(crate) const fn is_global_chrome(&self) -> bool {
-        if matches!(self, Self::Presentation(_)) {
+        if matches!(self, Self::Presentation(_) | Self::HeldRestore(_)) {
             return true;
         }
 
@@ -144,6 +145,7 @@ impl InteractionTarget {
             Self::AgentBoardRow(target) => HitTarget::AgentBoardRow(target.clone()),
             Self::AgentBoardControl(target) => HitTarget::AgentBoardControl(target.clone()),
             Self::Presentation(target) => HitTarget::Presentation(target.clone()),
+            Self::HeldRestore(target) => HitTarget::HeldRestore(target.clone()),
             Self::NotificationCard(token) => HitTarget::NotificationCard(*token),
 
             Self::ActionMenuRow { token, row, .. } => HitTarget::ActionMenuRow {

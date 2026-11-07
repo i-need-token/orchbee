@@ -128,6 +128,8 @@ pub enum SurfaceAction<'a> {
     Layout(LayoutAction<'a>),
     /// Activates one painted presentation target.
     Presentation(&'a DrawnPresentationTarget),
+    /// Activates one painted action of a held restore's placeholder.
+    HeldRestore(&'a crate::tui_hit_map::HeldRestoreTarget),
     /// Closes an independent popup through its painted close control.
     PopupClose(&'a crate::independent_popup::DrawnPopupClose),
 }

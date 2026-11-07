@@ -24,7 +24,7 @@ pub(crate) mod tooltip;
 pub use interaction::InteractionTarget;
 pub(crate) use interaction::PointerProjection;
 pub(crate) use list_scroll::Target as ListScrollTarget;
-pub use presentation::{DrawnPresentationTarget, PointerUnboundPane};
+pub use presentation::{DrawnPresentationTarget, HeldRestoreTarget, PointerUnboundPane};
 pub(crate) use sidebar_reorder::{SidebarReorderDraw, SidebarReorderPaint};
 pub(crate) use tabs::TabDragPreview;
 pub(crate) use tooltip::{LegendItem, OpenTooltip, RosterItem, TooltipContent, TooltipText};
@@ -233,6 +233,8 @@ pub enum HitTarget {
     },
     /// Exact painted incarnation and stable destination within that Panel.
     Presentation(crate::tui_hit_map::DrawnPresentationTarget),
+    /// One action of a held restore's placeholder.
+    HeldRestore(crate::tui_hit_map::HeldRestoreTarget),
     /// Empty members carry exact structural identity and no runtime incarnation.
     Unbound {
         selected: crate::tui_hit_map::PointerUnboundPane,

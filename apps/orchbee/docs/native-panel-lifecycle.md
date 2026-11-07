@@ -7,7 +7,7 @@ binding. Server runtime membership contains only bound members and records which
 a bound child never substitutes for an unbound primary. Registration and structural operations
 preserve the unbound members. Legacy single-member readers keep their stricter contract.
 
-Attachment uses exact existing Workspace membership and never launches implicitly. An unbound layout remains occupied. Explicit Tab Create, Split or member creation can establish a binding after the Workspace directory and Worker pass admission.
+Attachment uses exact existing Workspace membership and never launches implicitly. An unbound layout remains occupied. Explicit Tab Create, Split or member creation can establish a binding after the Workspace directory and Worker pass admission. A member a restore held for an unavailable directory keeps that hold until [Retry or Start in home folder](native-terminal-creation.md#tui-held-restores), Close, or an explicit member creation binds it; the new binding drops the hold.
 
 Close determines its scope from canonical topology, never from the number of bound terminals.
 Unbound siblings survive Panel Close. An entirely unbound Panel or Tab uses the retained Close

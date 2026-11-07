@@ -356,6 +356,18 @@ impl Locale {
                 Self::EnUs => "Terminal not created · check profile in Settings".into(),
                 Self::ZhCn => "终端未创建 · 请在设置中检查启动配置".into(),
             },
+            WorkbenchClientNotice::RestoreDirectoryUnavailable => match self {
+                Self::EnUs => "Directory still unavailable".into(),
+                Self::ZhCn => "目录仍不可用".into(),
+            },
+            WorkbenchClientNotice::RestoreAgentNotResumed => match self {
+                Self::EnUs => "Agent conversation not resumed".into(),
+                Self::ZhCn => "未续接智能体对话".into(),
+            },
+            WorkbenchClientNotice::RestoreNotStarted => match self {
+                Self::EnUs => "Terminal not started".into(),
+                Self::ZhCn => "终端未启动".into(),
+            },
             WorkbenchClientNotice::LinkOpened => match self {
                 Self::EnUs => "Link opened".into(),
                 Self::ZhCn => "链接已打开".into(),
