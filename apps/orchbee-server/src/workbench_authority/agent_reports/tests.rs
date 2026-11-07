@@ -682,6 +682,30 @@ fn error_episode_keeps_errored_turn_red_until_a_new_turn() {
                 ),
             ],
         ),
+        (
+            "a stale idle is completed by a fallback that turns done",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (observed(Done), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a done from another agent completes a turn that started under a stale idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (
+                    state("other", "Custom Agent", Done, seq(1)),
+                    Done,
+                    Completion::AwaitingInput,
+                ),
+            ],
+        ),
     ];
     for (name, steps) in cases {
         let mut current = Reports::default();

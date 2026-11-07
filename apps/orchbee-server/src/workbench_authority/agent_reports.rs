@@ -162,22 +162,27 @@ impl Reports {
                 _ => HiddenTurn::Visible,
             };
         }
-        let after = next.effective();
+        let mut after = next.effective();
         if before.agent != after.agent || after.agent.is_none() {
             next.worked = false;
             next.completion = orchbee_workbench_protocol::AgentCompletion::None;
+            if !resumed {
+                // A hidden turn belongs to the Agent it began under.
+                next.hidden_turn = HiddenTurn::Visible;
+                after = next.effective();
+            }
         }
         if resumed {
             next.worked = true;
         }
-        // A completion needs its own signal: an Idle or Done report, a fallback that just turned Idle,
-        // or an effective status that just became Idle. The end of an episode is none of these.
+        // A completion needs its own signal: an Idle or Done report that just arrived, or a
+        // fallback that just turned Idle or Done. The end of an episode is not one of them.
         let signaled = (authority_changed
             && next
                 .authority
                 .as_ref()
                 .is_some_and(|a| matches!(a.status, Status::Idle | Status::Done)))
-            || (fallback_changed && next.fallback == Status::Idle);
+            || (fallback_changed && matches!(next.fallback, Status::Idle | Status::Done));
         if signaled && next.hidden_turn == HiddenTurn::Stale {
             next.hidden_turn = HiddenTurn::Signaled;
         }

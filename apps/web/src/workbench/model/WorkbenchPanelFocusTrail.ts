@@ -53,7 +53,8 @@ export class WorkbenchPanelFocusTrail {
 
 	/**
 	 * The Panel focus returns to when a close of these Tabs ends, read before the close runs; null where
-	 * focus stays or no Panel outside them is open. See `resolvePanelFocusAfterTabClose`.
+	 * focus stays or no Panel outside them, in the same Workspace, is open. See
+	 * `resolvePanelFocusAfterTabClose`.
 	 */
 	public returnTargetAfterTabClose(
 		closedTabIds: ReadonlySet<string>,

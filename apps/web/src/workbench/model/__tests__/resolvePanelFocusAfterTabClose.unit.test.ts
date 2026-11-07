@@ -2,10 +2,28 @@ import { describe, expect, it } from 'vitest';
 
 import { resolvePanelFocusAfterTabClose } from '../resolvePanelFocusAfterTabClose';
 
-const panel = (panelId: string, tabId: string) => ({ panelId, tabId });
+const panel = (panelId: string, tabId: string, workspaceId = 'w1') => ({
+	panelId,
+	tabId,
+	workspaceId,
+});
 const everyOpen = () => true;
 
 describe('resolvePanelFocusAfterTabClose', () => {
+	it('never moves focus into another Workspace, even when that Panel is the most recent one', () => {
+		const focused = panel('B', 't2');
+		const history = [focused, panel('X', 't9', 'w2'), panel('A', 't1')];
+
+		expect(
+			resolvePanelFocusAfterTabClose({
+				closedTabIds: new Set(['t2']),
+				focused,
+				history,
+				isOpen: everyOpen,
+			}),
+		).toEqual(panel('A', 't1'));
+	});
+
 	it('returns the most recent open Panel outside the closed Tab when the closed Tab holds the focused Panel', () => {
 		const focused = panel('B', 't2');
 		const history = [focused, panel('B2', 't2'), panel('A', 't1'), panel('C', 't3')];
