@@ -92,13 +92,8 @@ fn entries_follow_layout_changes_spaced_by_the_interval_and_stay_bounded() {
 
     // A reload indexes what storage kept, so the next decision continues from the newest.
     let reloaded = LayoutHistory::load(Arc::clone(&store) as _).unwrap();
-    let summaries = reloaded
-        .summaries(
-            WorkbenchAuthority::new(SessionId::parse(&"11".repeat(16)).unwrap())
-                .unwrap()
-                .snapshot(),
-        )
-        .unwrap();
+    let empty = WorkbenchAuthority::new(SessionId::parse(&"11".repeat(16)).unwrap()).unwrap();
+    let summaries = reloaded.summaries(&empty.open_layout()).unwrap();
     assert_eq!(summaries.len(), MAXIMUM_LAYOUT_HISTORY_ENTRIES);
     assert!(summaries.iter().all(|entry| entry.workspaces_not_open == 1));
     assert!(!reloaded.after_save(&layouts[0], at(newest + 14)).unwrap());

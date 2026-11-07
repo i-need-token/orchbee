@@ -4,8 +4,8 @@
 //! and an in-memory index of kept layouts, so a save never reads storage back; storage effects
 //! go through the narrow store port, and the checkpoint save path itself is unchanged.
 
-use orchbee_server::{RetainedLayout, WorkbenchCheckpoint};
-use orchbee_workbench_protocol::{LayoutHistoryEntry, MAXIMUM_LAYOUT_HISTORY_ENTRIES, Snapshot};
+use orchbee_server::{OpenLayout, RetainedLayout, WorkbenchCheckpoint};
+use orchbee_workbench_protocol::{LayoutHistoryEntry, MAXIMUM_LAYOUT_HISTORY_ENTRIES};
 use std::{
     io,
     sync::{Arc, Mutex},
@@ -112,15 +112,15 @@ impl LayoutHistory {
         Ok(true)
     }
 
-    /// Every kept entry, newest first, compared with `current` by identity.
-    pub(crate) fn summaries(&self, current: &Snapshot) -> io::Result<Vec<LayoutHistoryEntry>> {
+    /// Every kept entry, newest first, compared with what is open now.
+    pub(crate) fn summaries(&self, open: &OpenLayout<'_>) -> io::Result<Vec<LayoutHistoryEntry>> {
         Ok(self
             .kept
             .lock()
             .map_err(|_| io::Error::other("layout history failed"))?
             .iter()
             .map(|kept| {
-                let summary = kept.layout.summary(current);
+                let summary = kept.layout.summary(open);
                 LayoutHistoryEntry {
                     saved_at: kept.saved_at,
                     workspaces: summary.workspaces,

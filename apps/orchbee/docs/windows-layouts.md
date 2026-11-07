@@ -98,7 +98,8 @@ and emits `orchbee.layout.reopen` v1. It needs no `--yes`: it never closes, move
 anything. The CLI does not move focus; interactive Clients select the first reopened Tab. A save
 time no longer kept exits 3 (`not-found`), as do `rejected` and `denied`; `unavailable` exits 4.
 The request is submitted once: an outcome lost after handoff is an `unknown` observation with exit
-8, never replayed, because a repeat would open another copy. Both commands are Windows-only and
+8, never replayed; `layout history` then shows what is open. A reopen that did land counts as
+open, so reopening that entry again answers nothing to reopen. Both commands are Windows-only and
 use the Layout capability. The
 [Server checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md#earlier-layouts)
 owns what is kept, when, and what reopening restores.

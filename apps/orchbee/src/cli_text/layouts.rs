@@ -129,11 +129,11 @@ pub(super) const HISTORY_ZH: crate::cli_text::HelpDetails = crate::cli_text::Hel
 );
 pub(super) const REOPEN_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee layout reopen <saved-at> [--format text|json]",
-    "Reopen the Workspaces and Tabs of one earlier layout that are not open now. <saved-at> is\nthe save time layout history shows. Nothing open is closed, moved or renamed; reopened items\nget new identities and keep their split layout and labels. Shells start in their saved\ndirectories; a Panel whose directory is gone waits with Retry and Start in home folder. No\nprocess or Agent comes back, and focus does not move. Reopening the same layout again opens\nanother copy. An unknown outcome exits 8; check the open Tabs before repeating.",
+    "Reopen the Workspaces and Tabs of one earlier layout that are not open now. <saved-at> is\nthe save time layout history shows. Nothing open is closed, moved or renamed; reopened items\nget new identities and keep their split layout and labels. Shells start in their saved\ndirectories; a Panel whose directory is gone waits with Retry and Start in home folder. No\nprocess or Agent comes back, and focus does not move. A reopened item counts as open, so\nreopening the same layout again reopens nothing. An unknown outcome exits 8; check the open\nTabs before repeating.",
 );
 pub(super) const REOPEN_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee layout reopen <saved-at> [--format text|json]",
-    "重新打开某个早先布局中当前未打开的工作区和标签页。<saved-at> 是 layout history 显示的保存时间。不会关闭、移动或重命名已打开的内容；重新打开的项获得新标识，保留分屏布局和标签。Shell 在保存的目录中启动；目录已不存在的面板会等待，可选择重试或在主文件夹启动。不会恢复进程或 Agent，也不移动焦点。再次重新打开同一布局会再打开一份。结果未知时退出码为 8，重复前请先查看已打开的标签页。",
+    "重新打开某个早先布局中当前未打开的工作区和标签页。<saved-at> 是 layout history 显示的保存时间。不会关闭、移动或重命名已打开的内容；重新打开的项获得新标识，保留分屏布局和标签。Shell 在保存的目录中启动；目录已不存在的面板会等待，可选择重试或在主文件夹启动。不会恢复进程或 Agent，也不移动焦点。重新打开的项算作已打开，因此再次重新打开同一布局不会重复打开。结果未知时退出码为 8，重复前请先查看已打开的标签页。",
 );
 
 impl super::CliText {

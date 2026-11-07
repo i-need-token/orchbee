@@ -19,7 +19,7 @@ pub use workbench_authority::{
     AgentResumeProvider, CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure,
     CloseStepToken, CloseStepTokenMismatch, CommittedWorkbenchPanelCreateMetadata,
     CommittedWorkbenchTabCreate, CommittedWorkbenchTabCreateMetadata, LaunchProfileUse,
-    LayoutHistorySummary, LayoutReopenError, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES,
+    LayoutHistorySummary, LayoutReopenError, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, OpenLayout,
     PendingWorkbenchPanelCreate, PendingWorkbenchTabCreate, PluginPaneLaunch,
     PreparedWorkbenchPanelCreate, PreparedWorkbenchPanelCreateSettlement,
     PreparedWorkbenchPanelPlacement, PreparedWorkbenchPanelRelocate,

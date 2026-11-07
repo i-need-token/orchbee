@@ -51,7 +51,15 @@ fn reopen_adds_only_missing_items_and_holds_a_missing_directory() {
         (&context, &tab),
         (&new.terminal_context_id, &new.tabs[1].tab_id)
     );
-    assert!(entry.layout().unwrap().summary(&after).tabs_not_open <= 1);
+    let workbench = coordinator.workbench.as_ref().unwrap();
+    assert_eq!(
+        entry
+            .layout()
+            .unwrap()
+            .summary(&workbench.open_layout())
+            .tabs_not_open,
+        0
+    );
 
     // The saved directory does not exist here, so the reopened terminal is held.
     let target = &targets[0];
@@ -76,4 +84,27 @@ fn reopen_adds_only_missing_items_and_holds_a_missing_directory() {
     assert_eq!(after.navigation.workspaces.len(), 1);
     assert_eq!(after.navigation.directories.len(), 1);
     assert_eq!(tabs(&after), 2);
+
+    // The reopened items stand in for the saved ones under fresh identities, so a second reopen
+    // finds nothing missing, and so does a later entry that names the reopened identities.
+    let (again, targets) = coordinator.reopen_layout(&entry, &worker()).unwrap();
+    assert_eq!(
+        (again.revision, again.workspaces, again.tabs, targets.len()),
+        (None, 0, 0, 0)
+    );
+    let later = coordinator
+        .workbench
+        .as_ref()
+        .unwrap()
+        .checkpoint(&worker())
+        .unwrap();
+    let later = WorkbenchCheckpoint::parse(&later).unwrap();
+    let (again, _) = coordinator.reopen_layout(&later, &worker()).unwrap();
+    assert_eq!(again.revision, None);
+    let workbench = coordinator.workbench.as_ref().unwrap();
+    let open = workbench.open_layout();
+    for kept in [&entry, &later] {
+        let summary = kept.layout().unwrap().summary(&open);
+        assert_eq!((summary.workspaces_not_open, summary.tabs_not_open), (0, 0));
+    }
 }

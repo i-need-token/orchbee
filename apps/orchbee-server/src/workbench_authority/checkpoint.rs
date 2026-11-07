@@ -26,7 +26,10 @@ mod agent_sessions;
 pub use agent_sessions::{AgentResumeProvider, RetainedAgentSession};
 mod directories;
 mod layout_history;
-pub use layout_history::{LayoutHistorySummary, LayoutReopenError, ReopenedLayout, RetainedLayout};
+pub(super) use layout_history::LayoutLineage;
+pub use layout_history::{
+    LayoutHistorySummary, LayoutReopenError, OpenLayout, ReopenedLayout, RetainedLayout,
+};
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
 

@@ -22,7 +22,7 @@ impl SessionCoordinator {
             .ok_or_else(|| io::Error::other("Workbench unavailable"))?;
         Ok((
             workbench.session_id().clone(),
-            history.summaries(workbench.snapshot())?,
+            history.summaries(&workbench.open_layout())?,
         ))
     }
 

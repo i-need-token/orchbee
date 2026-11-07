@@ -29,9 +29,9 @@ use crate::workbench_projection::{
 mod checkpoint;
 pub use checkpoint::{
     AgentResumeProvider, LayoutHistorySummary, LayoutReopenError,
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, ReopenedLayout,
-    RetainedAgentSession, RetainedLayout, WorkbenchCheckpoint, WorkbenchCheckpointError,
-    WorkbenchRestoreError, WorkbenchRestoreTarget,
+    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, OpenLayout, PreparedWorkbenchRestoreBinding,
+    ReopenedLayout, RetainedAgentSession, RetainedLayout, WorkbenchCheckpoint,
+    WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
 mod agent_reports;
 mod panel_agent;
@@ -326,6 +326,8 @@ pub struct WorkbenchAuthority {
     // carries an entry nobody has taken. Taking one never changes the Workbench revision.
     restart_agent_sessions:
         BTreeMap<orchbee_workbench_protocol::TerminalPresentationId, RetainedAgentSession>,
+    // The saved identity each reopened Workspace and Tab stands in for.
+    layout_lineage: checkpoint::LayoutLineage,
 }
 
 impl WorkbenchAuthority {
@@ -362,6 +364,7 @@ impl WorkbenchAuthority {
             plugin_panes: plugin_panes::Membership::default(),
             restart_directories: BTreeMap::new(),
             restart_agent_sessions: BTreeMap::new(),
+            layout_lineage: checkpoint::LayoutLineage::default(),
         })
     }
 

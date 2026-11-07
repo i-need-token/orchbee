@@ -237,10 +237,17 @@ entries are kept; the interval is a constant, not a setting. The
 defines files and atomicity.
 
 `workbench.layout-history` lists entries newest first, each with its save time, Workspace and Tab
-counts and how many of them are not open now by identity (`read` permission). `reopen` names an
-entry by save time (navigation and terminal-create permission). In one commit it adds only the
-Workspaces and Tabs whose identity is not open now, with fresh identities and their saved split
-layout and labels; nothing open is closed, moved or relabeled:
+counts and how many of them are not open now (`read` permission). `reopen` names an entry by save
+time (navigation and terminal-create permission). In one commit it adds only the Workspaces and
+Tabs that are not open now, with their saved split layout and labels; nothing open is closed, moved
+or relabeled. Product identities are never reused, because Close keeps tombstones that fence a
+closed identity, so reopened structure takes fresh identities. The Server records the lineage of
+each reopened Workspace and Tab, the saved identity it stands in for, and both the listing and
+`reopen` count an item as open when it or a reopened item of the same lineage is open. Reopening
+the same entry again, or any entry that names the same Workspaces or Tabs, therefore answers
+`nothing-to-reopen`. The lineage lives with the running Server and keeps the newest 4096 reopened
+identities; after a Server restart an entry saved before a reopen counts those items as not open
+again.
 
 - a missing Workspace comes back whole at the end of the Workspace order, reusing an existing
   Directory with the same path, inside its Project when that Project still admits it, otherwise
@@ -255,8 +262,7 @@ Each reopened Presentation keeps its saved directory as restart intent. After th
 probes those directories outside every gate; a missing one gets the [held restore](#held-restore)
 state, and the rest bind and launch through restore's reservation path. No process, Agent or
 screen comes back. The result names the first reopened Tab; interactive Clients select it, and the
-CLI does not move focus. Because identities are fresh, reopening the same entry again opens
-another copy.
+CLI does not move focus.
 
 ## Evidence
 

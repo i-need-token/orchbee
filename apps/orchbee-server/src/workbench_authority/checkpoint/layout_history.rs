@@ -1,9 +1,14 @@
 //! Earlier layouts: what part of a kept checkpoint counts as its layout, how it compares with the
-//! current Workbench, and grafting back only the Workspaces and Tabs whose identity is not open
-//! now. It neither stores history nor launches a terminal; reopened Presentations stay unbound
-//! with their retained directory as restart intent, exactly as a restored one does.
+//! current Workbench, and grafting back only the Workspaces and Tabs that are not open now. It
+//! neither stores history nor launches a terminal; reopened Presentations stay unbound with their
+//! retained directory as restart intent, exactly as a restored one does.
+//!
+//! Product identities are never reused: Close keeps tombstones that fence a closed identity, so a
+//! reopened Workspace or Tab comes back under a fresh identity. Its lineage records the saved
+//! identity it stands in for, so every kept layout that names either counts it as open and a second
+//! reopen finds nothing missing.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use orchbee_workbench_protocol::{
     ContractError, Directory, MAXIMUM_DIRECTORIES, MAXIMUM_PANEL_NODES_PER_CONTEXT,
@@ -106,6 +111,64 @@ impl From<PlanFailure> for LayoutReopenError {
     }
 }
 
+/// How many reopened identities the lineage remembers; the oldest are forgotten first.
+const MAXIMUM_LINEAGE: usize = 4096;
+
+/// Each reopened Workspace's and Tab's fresh identity, with the earliest saved identity it stands
+/// in for. It lives with this Server; a restart forgets it.
+#[derive(Debug, Default)]
+pub(in crate::workbench_authority) struct LayoutLineage {
+    origins: BTreeMap<String, String>,
+    order: VecDeque<String>,
+}
+
+impl LayoutLineage {
+    fn origin<'a>(&'a self, identity: &'a str) -> &'a str {
+        self.origins.get(identity).map_or(identity, String::as_str)
+    }
+
+    fn record(&mut self, fresh: String, saved: &str) {
+        let origin = self.origin(saved).to_owned();
+        if self.order.len() >= MAXIMUM_LINEAGE
+            && let Some(oldest) = self.order.pop_front()
+        {
+            self.origins.remove(&oldest);
+        }
+        self.order.push_back(fresh.clone());
+        self.origins.insert(fresh, origin);
+    }
+}
+
+/// The Workspaces and Tabs open now, by the origin of their identity, for comparing kept layouts.
+pub struct OpenLayout<'a> {
+    lineage: &'a LayoutLineage,
+    /// Each open Workspace's origin with its current identity, first in display order.
+    workspaces: BTreeMap<String, WorkbenchWorkspaceId>,
+    tabs: BTreeSet<String>,
+}
+
+impl OpenLayout<'_> {
+    /// The open Workspace that `saved` names, or that stands in for it.
+    fn workspace(&self, saved: &WorkbenchWorkspaceId) -> Option<&WorkbenchWorkspaceId> {
+        self.workspaces.get(self.lineage.origin(saved.as_str()))
+    }
+
+    fn tab_open(&self, saved: &WorkbenchTabId) -> bool {
+        self.tabs.contains(self.lineage.origin(saved.as_str()))
+    }
+
+    /// Counts a Workspace grafted in this reopen as open, so its origin is not grafted twice.
+    fn open_workspace(&mut self, saved: &WorkbenchWorkspaceId, current: WorkbenchWorkspaceId) {
+        let origin = self.lineage.origin(saved.as_str()).to_owned();
+        self.workspaces.entry(origin).or_insert(current);
+    }
+
+    fn open_tab(&mut self, saved: &WorkbenchTabId) {
+        let origin = self.lineage.origin(saved.as_str()).to_owned();
+        self.tabs.insert(origin);
+    }
+}
+
 impl WorkbenchCheckpoint {
     /// This checkpoint's layout, for comparing saves and summarizing history.
     pub fn layout(&self) -> Result<RetainedLayout, super::WorkbenchCheckpointError> {
@@ -127,19 +190,18 @@ impl WorkbenchCheckpoint {
 }
 
 impl RetainedLayout {
-    /// Counts this layout's Workspaces and Tabs, and those whose identity `current` lacks.
+    /// Counts this layout's Workspaces and Tabs, and those not open now.
     #[must_use]
-    pub fn summary(&self, current: &Snapshot) -> LayoutHistorySummary {
-        let (open_workspaces, open_tabs) = open_identities(current);
+    pub fn summary(&self, open: &OpenLayout<'_>) -> LayoutHistorySummary {
         let mut summary = LayoutHistorySummary::default();
         for workspace in &self.workspaces {
             summary.workspaces += 1;
-            if !open_workspaces.contains(&workspace.workspace_id) {
+            if open.workspace(&workspace.workspace_id).is_none() {
                 summary.workspaces_not_open += 1;
             }
             for tab in &workspace.tabs {
                 summary.tabs += 1;
-                if !open_tabs.contains(&tab.tab_id) {
+                if !open.tab_open(&tab.tab_id) {
                     summary.tabs_not_open += 1;
                 }
             }
@@ -149,8 +211,37 @@ impl RetainedLayout {
 }
 
 impl WorkbenchAuthority {
-    /// Reopens from `entry` only the Workspaces and Tabs whose identity is not open now, with
-    /// fresh identities and their split layout and labels, in one commit. A missing Workspace
+    /// The Workspaces and Tabs open now, counting each reopened one as the saved one it stands in
+    /// for.
+    #[must_use]
+    pub fn open_layout(&self) -> OpenLayout<'_> {
+        let current = self.snapshot();
+        let mut workspaces = BTreeMap::new();
+        for workspace in display_order(current) {
+            workspaces
+                .entry(
+                    self.layout_lineage
+                        .origin(workspace.workspace_id.as_str())
+                        .to_owned(),
+                )
+                .or_insert_with(|| workspace.workspace_id.clone());
+        }
+        let tabs = current
+            .terminal_contexts
+            .iter()
+            .flat_map(|context| &context.tabs)
+            .map(|tab| self.layout_lineage.origin(tab.tab_id.as_str()).to_owned())
+            .collect();
+        OpenLayout {
+            lineage: &self.layout_lineage,
+            workspaces,
+            tabs,
+        }
+    }
+
+    /// Reopens from `entry` only the Workspaces and Tabs not open now, with fresh identities and
+    /// their split layout and labels, in one commit. A reopened Workspace or Tab counts as the
+    /// saved one it stands in for, so reopening the same entry again finds nothing missing. A missing Workspace
     /// comes back whole; a missing Tab of an open Workspace returns at its saved index, clamped
     /// to the current strip and kept out of its pinned prefix and groups. Nothing open now
     /// changes. Each reopened Presentation keeps its retained directory as restart intent.
@@ -166,13 +257,14 @@ impl WorkbenchAuthority {
             .retained_graph(local_worker)
             .map_err(|_| LayoutReopenError::InvalidProjection(ContractError::InvalidDocument))?;
         let current = self.snapshot();
-        let (open_workspaces, open_tabs) = open_identities(current);
+        let mut open = self.open_layout();
         let mut candidate = current.clone();
         let mut graft = Graft {
             cursor: self.last_identity,
             directories: &directories,
             restart: Vec::new(),
             presentations: Vec::new(),
+            lineage: Vec::new(),
         };
         let mut reopened = ReopenedLayout {
             revision: None,
@@ -189,18 +281,21 @@ impl WorkbenchAuthority {
                 .tabs
                 .iter()
                 .enumerate()
-                .filter(|(_, tab)| !open_tabs.contains(&tab.tab_id))
+                .filter(|(_, tab)| !open.tab_open(&tab.tab_id))
                 .collect();
-            if open_workspaces.contains(&workspace.workspace_id) {
+            for (_, tab) in &missing {
+                open.open_tab(&tab.tab_id);
+            }
+            if let Some(open_workspace) = open.workspace(&workspace.workspace_id).cloned() {
                 if missing.is_empty() {
                     continue;
                 }
-                if self.workspace_organization_busy(&workspace.workspace_id) {
+                if self.workspace_organization_busy(&open_workspace) {
                     return Err(LayoutReopenError::Busy);
                 }
                 let context_id = current
                     .navigation
-                    .workspace(&workspace.workspace_id)
+                    .workspace(&open_workspace)
                     .map(|open| open.terminal_context_id.clone())
                     .ok_or(LayoutReopenError::Unavailable)?;
                 let context = candidate
@@ -225,6 +320,8 @@ impl WorkbenchAuthority {
                 }
                 let workspace_id = WorkbenchWorkspaceId::parse(&graft.take()?)
                     .map_err(|_| LayoutReopenError::from(PlanFailure::Internal))?;
+                graft.descends(workspace_id.as_str(), workspace.workspace_id.as_str());
+                open.open_workspace(&workspace.workspace_id, workspace_id.clone());
                 let context_id = WorkbenchTerminalContextId::parse(&graft.take()?)
                     .map_err(|_| LayoutReopenError::from(PlanFailure::Internal))?;
                 let primary_directory_id = match workspace
@@ -313,21 +410,30 @@ impl WorkbenchAuthority {
         self.projection.commit_prepared(advance);
         self.last_identity = graft.cursor;
         self.restart_directories.extend(graft.restart);
+        for (fresh, saved) in graft.lineage {
+            self.layout_lineage.record(fresh, &saved);
+        }
         reopened.revision = Some(revision);
         reopened.presentations = graft.presentations;
         Ok(reopened)
     }
 }
 
-/// Fresh identities for grafted structure, and the restart intent its Presentations carry.
+/// Fresh identities for grafted structure, the restart intent its Presentations carry, and the
+/// saved identity each reopened Workspace and Tab stands in for.
 struct Graft<'a> {
     cursor: u128,
     directories: &'a BTreeMap<TerminalPresentationId, WorkbenchDirectoryPath>,
     restart: Vec<(TerminalPresentationId, WorkbenchDirectoryPath)>,
     presentations: Vec<TerminalPresentationId>,
+    lineage: Vec<(String, String)>,
 }
 
 impl Graft<'_> {
+    fn descends(&mut self, fresh: &str, saved: &str) {
+        self.lineage.push((fresh.to_owned(), saved.to_owned()));
+    }
+
     fn take(&mut self) -> Result<String, LayoutReopenError> {
         self.cursor = allocate(self.cursor, 1)?;
         Ok(identity(self.cursor))
@@ -366,6 +472,7 @@ impl Graft<'_> {
     ) -> Result<Tab, LayoutReopenError> {
         let tab_id = WorkbenchTabId::parse(&self.take()?)
             .map_err(|_| LayoutReopenError::from(PlanFailure::Internal))?;
+        self.descends(tab_id.as_str(), tab.tab_id.as_str());
         Ok(Tab {
             automatic_label: tab.automatic_label,
             group_id: tab.group_id.as_ref().and_then(|id| groups.get(id).cloned()),
@@ -497,24 +604,6 @@ fn context<'a>(
         .terminal_contexts
         .iter()
         .find(|context| &context.terminal_context_id == context_id)
-}
-
-fn open_identities(
-    current: &Snapshot,
-) -> (BTreeSet<WorkbenchWorkspaceId>, BTreeSet<WorkbenchTabId>) {
-    (
-        current
-            .navigation
-            .workspaces
-            .iter()
-            .map(|workspace| workspace.workspace_id.clone())
-            .collect(),
-        current
-            .terminal_contexts
-            .iter()
-            .flat_map(|context| context.tabs.iter().map(|tab| tab.tab_id.clone()))
-            .collect(),
-    )
 }
 
 /// `saved` clamped to the strip, after its pinned prefix and never inside a Tab group.
