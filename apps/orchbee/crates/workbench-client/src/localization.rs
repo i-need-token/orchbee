@@ -26,9 +26,11 @@ pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel
 mod capabilities;
 mod settings;
 pub(crate) use settings::{
-    SettingUnit, SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail,
-    SettingsDetailKind, SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel,
-    SettingsNotice, SettingsProfileLabel, SettingsRow, SettingsValue,
+    IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,
+    IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown, SettingUnit,
+    SettingsAcceptLabel, SettingsCategory, SettingsChoice, SettingsDetail, SettingsDetailKind,
+    SettingsDraftState, SettingsFieldRequirement, SettingsHintLabel, SettingsNotice,
+    SettingsProfileLabel, SettingsRow, SettingsValue,
 };
 mod status;
 mod terminal_feedback;

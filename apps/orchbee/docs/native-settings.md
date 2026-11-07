@@ -17,7 +17,8 @@ those effects. Source comparison, atomic commit and reset behavior stay with the
 existing state and protocol owners. Workbench Protocol remains the value, default
 and validation owner.
 
-The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles.
+The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles,
+and on a local origin adds an [Agent integrations](#agent-integrations) entry.
 Each section has a quiet heading and divider; every setting has one stable label track and one
 value track. The current setting uses a neutral current-context band and bold label, which
 terminal-native also underlines across the row, while the modal frame identifies keyboard
@@ -176,6 +177,48 @@ lane has a two-second exchange deadline and a state subscription on the shared c
 A save remains a one-shot request; after settlement, a fresh subscription fences out an older
 queued source token. Closing cancels its requests and subscription without a forwarding thread.
 A replacement Session/editor episode cannot inherit an old completion.
+
+## Agent integrations
+
+The General list ends with an Agent integrations entry on a Session reached through a local origin.
+A saved-machine origin omits the entry, as the GUI offers the page only in Desktop: remote hosts
+stay manual. Search matches the entry's title, its description and every Agent name. Activating
+the entry opens a child page, like Launch profiles, that never joins the preference draft; Back or
+Esc returns to the entry, and the draft, filter and saved basis are unchanged.
+
+The page lists the same twenty Agents as the GUI in the Agent integration contract's canonical
+order, under a "Local Agent status adapters" heading, then a disabled "Remote hosts stay manual"
+row with the GUI's manual-only description. Each Agent row carries a checkbox for the enabled
+state and the GUI's status word, with the same precedence: Working, Manual setup, Status
+unavailable, Agent not found, then the reported state. Rows start Unknown and change only from a
+Worker report; opening, navigating, searching and closing read and write nothing. The footer
+offers Refresh status and Back, and the state line shows the last failure, a running job, the
+not-yet-checked hint or the GUI's disclosure.
+
+Refresh status, Enter/Space or a click on an Agent row, and Explain each start one Server-authorized
+Worker job over the shared carrier, through the same `workbench.agent-integration` start, poll and
+cancel exchanges as the GUI. One job runs at a time; while it runs the Agent rows, Refresh and
+Explain are disabled and the affected rows show Working with a pending status glyph. A row takes
+the GUI's switch rule: manual-only, conflicting, unknown and missing Agents cannot change, and
+the detail line names the reason. Polls start after 20 ms and back off to 250 ms on the UI tick;
+each exchange has five seconds, and a job still running after 50 seconds receives a cancellation
+the Client does not wait for. Settlement is the GUI's: a definite refusal before start keeps the
+rows, a change whose effect may have begun reads as unknown with the verification message, an
+unlisted Agent reads as Status unavailable, and nothing is resubmitted automatically. Closing
+Settings does not cancel a job; it settles while Settings is closed and shows on reopen. A new
+Session drops the old job's result and starts uninspected.
+
+Each Agent row ends in a quiet Explain action, `e` on the page, which runs the read-only
+`explain` operation and opens that Agent's diagnosis child page. Its headline names a definite
+finding (Ready, Manual setup, "Definitely missing: the Agent", "Definitely missing: the
+integration", Turned off, Update needed, Blocked by a conflict) or "Result unknown" for a timed-out,
+unreadable or undetermined inspection, whose sentence says the state is unknown, not missing. The
+facts below follow `orchbee agent integration explain`: Agent presence, integration status, any
+issue, the Orchbee adapter, the provider's marketplace and plugin or guarded entry and adapter
+source, and what turning it on would do, naming a command only by its executable file name. Paths
+and command lines are never shown. `e` on the diagnosis page reruns it, and a report also updates
+that Agent's row. Rows narrower than 40 columns beside the action drop it and keep `e`; a short
+diagnosis clips its facts after the headline and sentence.
 
 ## Domain and ownership
 
@@ -340,6 +383,10 @@ covering Client capture. These deterministic witnesses do not establish clipboar
 notification, sound or physical emulator delivery. The configuration watcher cases
 also retain confirmed shared appearance and pointer-release state while updating
 live bindings, their hints and both sidebar profiles together.
+
+The [integration settlement cases](../crates/workbench-client/src/native_settings/integrations/tests.rs)
+cover unknown results of a change that may have begun, definite refusals before start, unlisted
+Agents after Refresh and the diagnosis split between definite findings and unknown results.
 
 `SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process writers, explicit edit/reset values and one noncooperating external edit. `Acquire` obtains the shared lock; `Write` rechecks the source and preserves other keys. Publication carries an immutable committed snapshot; apply failure and lost replies do not roll back or authorize another write. No-op receipts, absent-record defaults, filesystem primitives, capability discovery and UI geometry remain implementation-test obligations.
 

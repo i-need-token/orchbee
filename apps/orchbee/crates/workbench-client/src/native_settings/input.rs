@@ -12,6 +12,7 @@ struct BindingSpec {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LocalBinding {
     Search,
+    Explain,
     Save,
     PageUp,
     PageDown,
@@ -39,6 +40,7 @@ impl LocalBinding {
     const fn spec(self) -> BindingSpec {
         let (code, mods, edit, list_only) = match self {
             Self::Search => (KeyCode::Char('/'), Modifiers::NONE, Edit::Search, true),
+            Self::Explain => (KeyCode::Char('e'), Modifiers::NONE, Edit::Explain, true),
             Self::Save => (
                 KeyCode::Char('s'),
                 Modifiers::NONE.with_ctrl(),
@@ -109,8 +111,9 @@ impl LocalBinding {
     }
 }
 
-const DISPATCH_ORDER: [LocalBinding; 22] = [
+const DISPATCH_ORDER: [LocalBinding; 23] = [
     LocalBinding::Search,
+    LocalBinding::Explain,
     LocalBinding::Save,
     LocalBinding::PageUp,
     LocalBinding::PageDown,
@@ -163,6 +166,7 @@ const SELECT: &[LocalBinding] = &[LocalBinding::NextTab];
 const CHANGE: &[LocalBinding] = &[LocalBinding::AdjustBackward, LocalBinding::AdjustForward];
 const SEARCH: &[LocalBinding] = &[LocalBinding::Search];
 const SAVE: &[LocalBinding] = &[LocalBinding::Save];
+const EXPLAIN: &[LocalBinding] = &[LocalBinding::Explain];
 
 const LOADING_HINTS: &[SettingsFooterBinding] =
     &[SettingsFooterBinding::new(EXIT, SettingsHintLabel::Close)];
@@ -185,6 +189,16 @@ const PROFILE_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::ActivateEdit),
     SettingsFooterBinding::new(SELECT, SettingsHintLabel::Select),
     SettingsFooterBinding::new(CHANGE, SettingsHintLabel::Change),
+];
+const INTEGRATION_HINTS: &[SettingsFooterBinding] = &[
+    SettingsFooterBinding::new(EXIT, SettingsHintLabel::Back),
+    SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Toggle),
+    SettingsFooterBinding::new(EXPLAIN, SettingsHintLabel::Explain),
+    SettingsFooterBinding::new(SELECT, SettingsHintLabel::Select),
+];
+const DIAGNOSIS_HINTS: &[SettingsFooterBinding] = &[
+    SettingsFooterBinding::new(EXIT, SettingsHintLabel::Back),
+    SettingsFooterBinding::new(EXPLAIN, SettingsHintLabel::Explain),
 ];
 const CONFIRMATION_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),
@@ -211,6 +225,8 @@ pub(crate) fn footer_bindings(view: View<'_>) -> &'static [SettingsFooterBinding
         View::Draft(draft) if draft.searching => TEXT_HINTS,
         View::Draft(draft) if draft.picker.is_some() => PICKER_HINTS,
         View::Draft(draft) if draft.page == Page::Profiles => PROFILE_HINTS,
+        View::Draft(draft) if draft.page == Page::Integrations => INTEGRATION_HINTS,
+        View::Draft(draft) if matches!(draft.page, Page::Diagnosis(_)) => DIAGNOSIS_HINTS,
         View::Draft(draft) if !draft.query.is_empty() => FILTERED_HINTS,
         View::Draft(_) => GENERAL_HINTS,
     }
@@ -222,6 +238,11 @@ pub(crate) fn key_edit_for_view(event: KeyEvent, view: View<'_>) -> Option<Edit>
         event,
         matches!(view, View::Draft(draft) if draft.text.is_some() || draft.searching),
     )?;
+    if matches!(edit, Edit::Explain)
+        && !matches!(view, View::Draft(draft) if draft.page.is_integrations())
+    {
+        return None;
+    }
     if matches!(view, View::Draft(draft) if draft.confirmation.is_some()) {
         match edit {
             Edit::Cancel => Some(edit),

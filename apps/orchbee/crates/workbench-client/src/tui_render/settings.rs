@@ -1,10 +1,10 @@
 //! Scrollable common settings; only controls from the last successful frame authorize input.
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    localization::{Locale, SettingsAcceptLabel},
+    localization::{IntegrationFactLabel, IntegrationFinding, Locale, SettingsAcceptLabel},
     native_settings::{
-        Adjustment, Choice, Control, DraftView, Entry, Page, Row, SettingControl, SettingsDraw,
-        SettingsHintLabel, View, footer_bindings, setting_for_row,
+        Adjustment, Choice, Control, Diagnosis, DraftView, Entry, Page, Row, SettingControl,
+        SettingsDraw, SettingsHintLabel, View, footer_bindings, setting_for_row,
     },
     terminal_text::{
         display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
@@ -16,6 +16,7 @@ use crate::{
     tui_presentation::ModalPresentation,
     tui_theme::{GlyphMode, Role, Theme},
 };
+use orchbee_agent_integration::{InspectionDetail, IntegrationId};
 use ratatui::{
     Frame,
     layout::{Alignment, Rect},
@@ -39,6 +40,9 @@ const FRAME_PADDING: Padding = Padding::new(1, 1, 1, 0);
 const COMPACT_FRAME_PADDING: Padding = Padding::horizontal(1);
 /// The shortest frame that keeps its top blank row together with the detail row.
 const PADDED_FRAME_HEIGHT: u16 = 15;
+/// An Agent row keeps at least this width beside its Explain action; narrower rows drop the
+/// action and keep its key.
+const EXPLAIN_ROW_MINIMUM: u16 = 40;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -55,6 +59,13 @@ pub(super) fn render(
     };
     hits.start_settings();
     let title = match view {
+        View::Draft(draft) if draft.page.is_integrations() => {
+            format!(
+                "{} > {}",
+                locale.settings_title(),
+                locale.integrations_title()
+            )
+        }
         View::Draft(draft)
             if draft.text.is_some() || draft.picker.is_some() || draft.page == Page::Profiles =>
         {
@@ -187,12 +198,14 @@ impl SettingsLayout {
             return None;
         }
         let close = super::controls::frame_close_rect(bounds, area)?;
-        let mut action_height =
-            if matches!(view, View::Draft(draft) if !is_child(draft)) && inner.width < 70 {
-                2
-            } else {
-                1
-            };
+        let mut action_height = if matches!(view, View::Draft(draft)
+            if !is_child(draft) && !matches!(draft.page, Page::Diagnosis(_)))
+            && inner.width < 70
+        {
+            2
+        } else {
+            1
+        };
         if matches!(view, View::Draft(draft) if is_child(draft))
             && FooterActionGeometry::resolve(
                 bounds,
@@ -488,8 +501,9 @@ enum FooterActionGeometry {
         close: Rect,
         save: Rect,
     },
-    Profiles {
-        reset: Rect,
+    /// A child page: its own action, if any, then Back.
+    Page {
+        action: Option<(Row, Rect)>,
         back: Rect,
     },
     Pair {
@@ -526,18 +540,24 @@ impl FooterActionGeometry {
                 super::controls::action_rect(bounds, area, spec, theme)
             };
             let exit = exit_shortcut(view, theme);
-            if draft.page == Page::Profiles {
-                let reset = rect_for(
-                    row.x,
-                    row.y,
-                    locale.settings_row(Row::ResetProfiles),
-                    ActionKind::Secondary,
-                    None,
-                )?;
-                let (x, y) = if row.height > 1 {
-                    (row.x, row.y + 1)
-                } else {
-                    (reset.right() + 2, row.y)
+            if draft.page.is_child() {
+                let action = match page_action(draft.page) {
+                    Some(setting) => Some((
+                        setting,
+                        rect_for(
+                            row.x,
+                            row.y,
+                            locale.settings_row(setting),
+                            ActionKind::Secondary,
+                            None,
+                        )?,
+                    )),
+                    None => None,
+                };
+                let (x, y) = match action {
+                    Some(_) if row.height > 1 => (row.x, row.y + 1),
+                    Some((_, rect)) => (rect.right() + 2, row.y),
+                    None => (row.x, row.y),
                 };
                 let back = rect_for(
                     x,
@@ -546,7 +566,7 @@ impl FooterActionGeometry {
                     ActionKind::Secondary,
                     Some(&exit),
                 )?;
-                return Some(Self::Profiles { reset, back });
+                return Some(Self::Page { action, back });
             }
             let reset = rect_for(
                 row.x,
@@ -740,22 +760,25 @@ fn render_footer_actions(
                     Control::Close,
                 ),
             ],
-            FooterActionGeometry::Profiles { reset, back } => vec![
-                (
-                    reset,
-                    Some(Row::ResetProfiles),
-                    locale.settings_row(Row::ResetProfiles),
-                    None,
-                    Control::Back,
-                ),
-                (
+            FooterActionGeometry::Page { action, back } => action
+                .map(|(setting, rect)| {
+                    (
+                        rect,
+                        Some(setting),
+                        locale.settings_row(setting),
+                        None,
+                        Control::Back,
+                    )
+                })
+                .into_iter()
+                .chain([(
                     back,
                     Some(Row::Back),
                     locale.settings_back_button(),
                     Some(exit.as_str()),
                     Control::Back,
-                ),
-            ],
+                )])
+                .collect(),
             _ => Vec::new(),
         };
         if !buttons.is_empty() {
@@ -887,6 +910,25 @@ fn render_footer_actions(
     debug_assert_eq!(painted, Some(rect));
 }
 
+/// The footer action a child page offers beside Back.
+const fn page_action(page: Page) -> Option<Row> {
+    match page {
+        Page::Profiles => Some(Row::ResetProfiles),
+        Page::Integrations => Some(Row::RefreshIntegrations),
+        Page::General | Page::Diagnosis(_) => None,
+    }
+}
+
+fn page_title(page: Page, locale: Locale) -> String {
+    match page {
+        Page::Integrations => locale.integrations_title().into(),
+        Page::Diagnosis(id) => {
+            locale.integration_diagnosis_title(locale.agent_integration_name(id))
+        }
+        Page::General | Page::Profiles => locale.settings_category_name(Row::LaunchProfiles).into(),
+    }
+}
+
 fn save_shortcut(view: View<'_>, width: u16, theme: &Theme) -> Option<String> {
     (width >= 40)
         .then(|| {
@@ -941,7 +983,7 @@ fn render_draft(
     } else {
         frame.render_widget(
             Paragraph::new(super::modal::title_line(
-                locale.settings_category_name(draft.selected),
+                page_title(draft.page, locale),
                 theme,
             )),
             Rect::new(inner.x, inner.y, inner.width, 1),
@@ -966,7 +1008,14 @@ fn render_draft(
             1,
         );
         match entry {
-            Entry::Setting(row) => render_setting_row(frame, row_area, context, row, hits),
+            Entry::Setting(row) => {
+                let explain = match row {
+                    Row::Agent(id) => explain_rect(frame.area(), row_area, locale, theme)
+                        .map(|rect| Explain { rect, id }),
+                    _ => None,
+                };
+                render_setting_row(frame, row_area, explain, context, row, hits);
+            }
             Entry::Heading(category) => render_section(
                 frame,
                 row_area,
@@ -975,7 +1024,9 @@ fn render_draft(
             ),
         }
     }
-    if entries.is_empty() {
+    if let Page::Diagnosis(id) = draft.page {
+        render_diagnosis(frame, regions.list, draft, id, locale, theme);
+    } else if entries.is_empty() {
         frame.render_widget(
             Paragraph::new(crate::terminal_text::wrap_text(
                 &Text::from(locale.settings_no_results()),
@@ -1137,6 +1188,9 @@ fn render_search(
 }
 
 fn draft_description(draft: DraftView<'_>, locale: Locale, theme: &Theme) -> String {
+    if draft.page.is_integrations() {
+        return integration_description(draft, locale);
+    }
     let explained = draft.confirmation.is_some()
         || draft.invalid
         || draft.page == Page::Profiles
@@ -1172,6 +1226,245 @@ fn draft_description(draft: DraftView<'_>, locale: Locale, theme: &Theme) -> Str
         }
         _ => description.into(),
     }
+}
+
+fn integration_description(draft: DraftView<'_>, locale: Locale) -> String {
+    match draft.selected {
+        Row::Agent(id) => match draft.integrations.block(id) {
+            Some(block) => locale.integration_block(block).into(),
+            None => locale.integration_provider_description(locale.agent_integration_name(id)),
+        },
+        Row::RemoteHosts => locale.integrations_remote_description().into(),
+        Row::RefreshIntegrations if draft.integrations.pending() => locale
+            .integration_block(crate::localization::IntegrationBlock::Pending)
+            .into(),
+        Row::RefreshIntegrations => locale.integrations_refresh_description().into(),
+        _ => match draft.page {
+            Page::Diagnosis(_) => locale.integration_diagnosis_back().into(),
+            _ => locale.integrations_back_description().into(),
+        },
+    }
+}
+
+/// The Explain action's extent at the row's trailing edge, when the row keeps its own minimum.
+fn explain_rect(bounds: Rect, row: Rect, locale: Locale, theme: &Theme) -> Option<Rect> {
+    let spec = action_spec(
+        locale.integrations_explain(),
+        ActionKind::Auxiliary,
+        true,
+        PointerPresentation::Rest,
+    );
+    let mut rect = super::controls::action_rect(bounds, row, spec, theme)?;
+    if row.width < rect.width + 1 + EXPLAIN_ROW_MINIMUM {
+        return None;
+    }
+    rect.x = row.right().checked_sub(rect.width)?;
+    (row.intersection(rect) == rect).then_some(rect)
+}
+
+/// One Agent row's auxiliary action at its reserved trailing extent.
+#[derive(Clone, Copy)]
+struct Explain {
+    rect: Rect,
+    id: IntegrationId,
+}
+
+/// Paints one Agent row's Explain action over the row's surface and records it before the row, so
+/// it wins hit testing inside its extent. It strengthens with the row's focus or hover and waits
+/// while any job runs.
+fn render_explain(
+    frame: &mut Frame<'_>,
+    Explain { rect, id }: Explain,
+    context: RowContext<'_>,
+    row_pointer: PointerPresentation,
+    hits: &mut HitMapBuilder,
+) {
+    let RowContext {
+        draft,
+        locale,
+        theme,
+        ..
+    } = context;
+    let enabled = !draft.integrations.pending();
+    let selected = !draft.searching && draft.selected == Row::Agent(id);
+    let row_surface = match row_pointer {
+        PointerPresentation::Pressed => Some(Role::SurfacePressed),
+        PointerPresentation::Hovered => Some(Role::SurfaceHover),
+        PointerPresentation::Rest => selected.then_some(Role::SurfaceCurrent),
+    };
+    let target = InteractionTarget::SettingsControl {
+        token: draft.token,
+        control: Control::Explain(id),
+    };
+    let spec = interaction_spec(enabled);
+    let pointer =
+        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
+    let kind = if row_surface.is_some() {
+        ActionKind::Secondary
+    } else {
+        ActionKind::Auxiliary
+    };
+    let Some(painted) = super::controls::render_action(
+        frame,
+        rect,
+        action_spec(locale.integrations_explain(), kind, enabled, pointer),
+        theme,
+    ) else {
+        return;
+    };
+    if pointer == PointerPresentation::Rest && row_surface.is_some() {
+        let role = if enabled {
+            kind.content_role()
+        } else {
+            Role::TextDisabled
+        };
+        for x in painted.x..painted.right() {
+            let cell = &mut frame.buffer_mut()[(x, painted.y)];
+            cell.set_style(theme.content_on_surface(
+                Role::SurfaceOverlay,
+                row_surface,
+                Some(role),
+                cell.style(),
+            ));
+        }
+    }
+    hits.record_interaction(HitLayer::Overlay, painted, painted, target, spec);
+}
+
+/// One Agent's explain result: a definite finding is named as such, an unknown result says it
+/// is unknown, and no path or command line is shown.
+fn render_diagnosis(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    draft: DraftView<'_>,
+    id: IntegrationId,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let wrap = |text: &str, lines: &mut Vec<Line<'static>>| {
+        lines.extend(
+            crate::terminal_text::wrap_text(&Text::from(text.to_owned()), area.width)
+                .lines
+                .into_iter()
+                .map(|line| line.style(theme.style(Role::TextSecondary))),
+        );
+    };
+    let fact = |label, value: &str| {
+        Line::from(truncate_display(
+            &locale.integration_fact(label, value),
+            usize::from(area.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::TextPrimary))
+    };
+    match draft.integrations.diagnosis(id) {
+        Some(Diagnosis::Pending) => lines.push(super::modal::status_line(
+            locale.integration_diagnosis_pending(),
+            Role::StatusPending,
+            theme,
+        )),
+        Some(Diagnosis::Failed(failure)) => {
+            lines.push(super::modal::status_line(
+                locale.integration_finding(IntegrationFinding::Unknown(
+                    crate::localization::IntegrationUnknown::Undetermined,
+                )),
+                Role::StatusWarning,
+                theme,
+            ));
+            wrap(locale.integration_failure(*failure), &mut lines);
+        }
+        Some(Diagnosis::Explained(explanation)) => {
+            let finding = explanation.finding();
+            let role = match finding {
+                IntegrationFinding::Ready => Role::StatusSuccess,
+                IntegrationFinding::ManualSetup | IntegrationFinding::Disabled => Role::StatusInfo,
+                IntegrationFinding::Conflict => Role::StatusError,
+                IntegrationFinding::AgentMissing
+                | IntegrationFinding::NotInstalled
+                | IntegrationFinding::UpdateRequired
+                | IntegrationFinding::Unknown(_) => Role::StatusWarning,
+            };
+            lines.push(super::modal::status_line(
+                locale.integration_finding(finding),
+                role,
+                theme,
+            ));
+            wrap(locale.integration_finding_detail(finding), &mut lines);
+            lines.push(Line::default());
+            let item = &explanation.item;
+            lines.push(fact(
+                IntegrationFactLabel::Agent,
+                locale.integration_presence(item.availability),
+            ));
+            lines.push(fact(
+                IntegrationFactLabel::Integration,
+                locale.integration_status(draft.integrations.status(id)),
+            ));
+            if let Some(issue) = item.issue {
+                lines.push(fact(
+                    IntegrationFactLabel::Issue,
+                    locale.integration_issue(issue),
+                ));
+            }
+            lines.push(fact(
+                IntegrationFactLabel::Adapter,
+                locale.integration_adapter(explanation.adapter),
+            ));
+            match explanation.detail {
+                InspectionDetail::Cli {
+                    marketplace,
+                    plugin_present,
+                } => lines.extend([
+                    fact(
+                        IntegrationFactLabel::Marketplace,
+                        locale.integration_marketplace(marketplace),
+                    ),
+                    fact(
+                        IntegrationFactLabel::Plugin,
+                        locale.integration_presence_flag(plugin_present),
+                    ),
+                ]),
+                InspectionDetail::Codex {
+                    marketplace,
+                    plugin_present,
+                } => lines.extend([
+                    fact(
+                        IntegrationFactLabel::Marketplace,
+                        locale.integration_marketplace(Some(marketplace)),
+                    ),
+                    fact(
+                        IntegrationFactLabel::Plugin,
+                        locale.integration_presence_flag(Some(plugin_present)),
+                    ),
+                ]),
+                InspectionDetail::Guarded {
+                    target_state,
+                    source_ready,
+                    ..
+                } => lines.extend([
+                    fact(
+                        IntegrationFactLabel::Entry,
+                        locale.integration_entry(target_state),
+                    ),
+                    fact(
+                        IntegrationFactLabel::AdapterSource,
+                        locale.integration_source(source_ready),
+                    ),
+                ]),
+                InspectionDetail::Plain {} => {}
+            }
+            lines.push(fact(
+                IntegrationFactLabel::Plan,
+                &locale.integration_plan(&explanation.plan),
+            ));
+        }
+        None => lines.push(fact(
+            IntegrationFactLabel::Integration,
+            locale.integration_status(draft.integrations.status(id)),
+        )),
+    }
+    frame.render_widget(Paragraph::new(Text::from(lines)), area);
 }
 
 fn render_child(
@@ -1519,9 +1812,11 @@ fn editor_geometry_admitted(area: Rect, row: Row, locale: Locale, theme: &Theme)
     area.intersection(value_area) == value_area
 }
 
+/// Paints one setting row; an auxiliary action keeps its trailing extent on the row's surface.
 fn render_setting_row(
     frame: &mut Frame<'_>,
     row_area: Rect,
+    explain: Option<Explain>,
     context: RowContext<'_>,
     row: Row,
     hits: &mut HitMapBuilder,
@@ -1532,7 +1827,12 @@ fn render_setting_row(
         locale,
         theme,
     } = context;
-    let Some(geometry) = RowGeometry::new(row_area) else {
+    let reserve = explain.map_or(0, |explain| explain.rect.width + 1);
+    let Some(geometry) = row_area
+        .width
+        .checked_sub(reserve)
+        .and_then(|width| RowGeometry::new(Rect { width, ..row_area }))
+    else {
         return;
     };
     let enabled = draft.enabled(row);
@@ -1561,7 +1861,11 @@ fn render_setting_row(
         } else {
             Availability::Disabled
         },
-        OperationState::Idle,
+        if matches!(row, Row::Agent(id) if draft.integrations.pending_for(id)) {
+            OperationState::Pending
+        } else {
+            OperationState::Idle
+        },
     );
 
     frame.render_widget(
@@ -1660,6 +1964,9 @@ fn render_setting_row(
                     .expect("validated adjustment geometry remains paintable");
                 debug_assert_eq!(painted, projected.target.rect);
             }
+        }
+        if let Some(explain) = explain {
+            render_explain(frame, explain, context, pointer, hits);
         }
         hits.record_interaction(HitLayer::Overlay, row_area, painted_row, target, spec);
     }
@@ -1795,7 +2102,7 @@ fn row_uses_choice_trigger(row: Row) -> bool {
             metadata.control,
             SettingControl::FiniteChoice | SettingControl::Catalog
         )
-    }) || row == Row::CommandType
+    }) || matches!(row, Row::CommandType | Row::AgentIntegrations)
 }
 
 fn row_uses_editor(row: Row) -> bool {
@@ -1996,6 +2303,10 @@ fn render_state_facts(
     locale: Locale,
     theme: &Theme,
 ) {
+    if draft.page.is_integrations() {
+        render_integration_facts(frame, area, draft, locale, theme);
+        return;
+    }
     let mut facts = locale.settings_state_facts(draft);
     if display_width(&facts).saturating_add(2) > usize::from(area.width) {
         facts = locale.settings_compact_state(draft).into();
@@ -2022,6 +2333,58 @@ fn render_state_facts(
     } else {
         (" ", Role::TextSecondary, facts)
     };
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(glyph, theme.style(glyph_role)),
+            Span::raw(" "),
+            Span::styled(text, theme.style(Role::TextSecondary)),
+        ])),
+        area,
+    );
+}
+
+/// The integration pages' state line: the last failure, a running job, or what the page does.
+fn render_integration_facts(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    draft: DraftView<'_>,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let integrations = draft.integrations;
+    let pending = theme.glyphs.status_bullet;
+    let (glyph, glyph_role, text) = match (draft.page, integrations.failure()) {
+        (Page::Diagnosis(id), _) => match integrations.diagnosis(id) {
+            Some(Diagnosis::Pending) => (
+                pending,
+                Role::StatusPending,
+                locale.integration_status(crate::localization::IntegrationStatus::Working),
+            ),
+            Some(Diagnosis::Failed(failure)) => {
+                ("!", Role::StatusError, locale.integration_failure(*failure))
+            }
+            _ => (
+                " ",
+                Role::TextSecondary,
+                locale.integration_diagnosis_read_only(),
+            ),
+        },
+        (_, Some(failure)) => ("!", Role::StatusError, locale.integration_failure(failure)),
+        _ if integrations.pending() => (
+            pending,
+            Role::StatusPending,
+            locale.integration_status(crate::localization::IntegrationStatus::Working),
+        ),
+        _ if !integrations.reported() => {
+            (" ", Role::TextSecondary, locale.integrations_unchecked())
+        }
+        _ => (" ", Role::TextSecondary, locale.integrations_disclosure()),
+    };
+    let text = truncate_display(
+        text,
+        usize::from(area.width).saturating_sub(2),
+        theme.glyphs.ellipsis,
+    );
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(glyph, theme.style(glyph_role)),

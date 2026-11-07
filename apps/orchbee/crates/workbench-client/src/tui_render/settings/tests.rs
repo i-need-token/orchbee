@@ -601,7 +601,9 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
                     | SettingsHintLabel::Cancel => matches!(edit, Some(Edit::Cancel)),
                     SettingsHintLabel::Confirm
                     | SettingsHintLabel::Accept
-                    | SettingsHintLabel::ActivateEdit => matches!(edit, Some(Edit::Activate)),
+                    | SettingsHintLabel::ActivateEdit
+                    | SettingsHintLabel::Toggle => matches!(edit, Some(Edit::Activate)),
+                    SettingsHintLabel::Explain => matches!(edit, Some(Edit::Explain)),
                     SettingsHintLabel::Select => matches!(edit, Some(Edit::Next)),
                     SettingsHintLabel::Change => matches!(
                         (index, edit),
@@ -926,6 +928,12 @@ fn setting_category_copy_projects_the_closed_metadata_inventory() {
                 (Locale::ZhCn, SettingCategory::Notifications) => "通知",
                 (Locale::EnUs, SettingCategory::LaunchProfiles) => "Launch profiles",
                 (Locale::ZhCn, SettingCategory::LaunchProfiles) => "启动配置",
+                (
+                    _,
+                    SettingCategory::AgentIntegrations
+                    | SettingCategory::LocalAgentAdapters
+                    | SettingCategory::RemoteAgentHosts,
+                ) => unreachable!("integration categories hold no preference metadata"),
             };
             assert_eq!(locale.settings_category_name(metadata.row), expected);
         }

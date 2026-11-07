@@ -1,6 +1,6 @@
 //! Pure scalar and catalog draft edits; executable paths and arguments remain literal data.
 use super::{
-    AdjustmentStep, ChoicePicker, Confirmation, Draft, Edit, Row, SettingControl, setting,
+    AdjustmentStep, ChoicePicker, Confirmation, Draft, Edit, Page, Row, SettingControl, setting,
 };
 use orchbee_workbench_protocol::{PreferenceKey, UserLaunchCommand, UserLaunchProfile};
 
@@ -156,7 +156,11 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
 pub(super) fn activate(draft: &mut Draft) {
     match draft.row {
         Row::LaunchProfiles => draft.enter_profiles(),
-        Row::Back => draft.return_from_profiles(),
+        Row::AgentIntegrations => draft.enter_page(
+            Page::Integrations,
+            Row::Agent(orchbee_agent_integration::IntegrationId::ALL[0]),
+        ),
+        Row::Back => draft.return_to_parent(),
         Row::ResetAll => draft.confirmation = Some(Confirmation::ResetAll),
         Row::ResetProfiles => draft.confirmation = Some(Confirmation::ResetProfiles),
         Row::Reload => draft.confirmation = Some(Confirmation::Reload),

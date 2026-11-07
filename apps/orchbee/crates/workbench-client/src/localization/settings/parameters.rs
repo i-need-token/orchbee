@@ -1,4 +1,6 @@
 //! Copy inputs selected by the Settings feature. No draft, token, picker, profile or persistence authority.
+use super::IntegrationStatus;
+use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
     TerminalDisplayAppearance, TuiColorSource,
@@ -41,6 +43,10 @@ pub(crate) enum SettingsRow {
     DeleteProfile,
     ResetProfiles,
     Back,
+    AgentIntegrations,
+    Agent(IntegrationId),
+    RemoteHosts,
+    RefreshIntegrations,
 }
 
 /// The selected category label, including the general action footer.
@@ -51,6 +57,9 @@ pub(crate) enum SettingsCategory {
     Terminal,
     Notifications,
     LaunchProfiles,
+    AgentIntegrations,
+    LocalAgentAdapters,
+    RemoteAgentHosts,
 }
 
 /// One already-selected canonical finite value, without its mutable choice picker.
@@ -91,6 +100,7 @@ pub(crate) enum SettingsValue<'a> {
     ArgumentPosition { position: usize, total: usize },
     Default,
     Empty,
+    Integration(IntegrationStatus),
 }
 
 /// Selected profile name/fallback only; no launch configuration or profile identity is retained.
@@ -181,4 +191,6 @@ pub(crate) enum SettingsHintLabel {
     ActivateEdit,
     Select,
     Change,
+    Toggle,
+    Explain,
 }

@@ -12,14 +12,21 @@ pub(crate) enum SettingCategory {
     Terminal,
     Notifications,
     LaunchProfiles,
+    /// Holds the entry into Agent integrations; no preference belongs to it.
+    AgentIntegrations,
+    /// Section headings on the Agent integrations page.
+    LocalAgentAdapters,
+    RemoteAgentHosts,
 }
 
 impl SettingCategory {
+    /// The General page's categories in order.
     pub(crate) const ALL: &'static [Self] = &[
         Self::Appearance,
         Self::Terminal,
         Self::Notifications,
         Self::LaunchProfiles,
+        Self::AgentIntegrations,
     ];
 }
 

@@ -47,6 +47,10 @@ impl From<Row> for SettingsRow {
             Row::DeleteProfile => Self::DeleteProfile,
             Row::ResetProfiles => Self::ResetProfiles,
             Row::Back => Self::Back,
+            Row::AgentIntegrations => Self::AgentIntegrations,
+            Row::Agent(id) => Self::Agent(id),
+            Row::RemoteHosts => Self::RemoteHosts,
+            Row::RefreshIntegrations => Self::RefreshIntegrations,
         }
     }
 }
@@ -58,6 +62,9 @@ impl From<SettingCategory> for SettingsCategory {
             SettingCategory::Terminal => Self::Terminal,
             SettingCategory::Notifications => Self::Notifications,
             SettingCategory::LaunchProfiles => Self::LaunchProfiles,
+            SettingCategory::AgentIntegrations => Self::AgentIntegrations,
+            SettingCategory::LocalAgentAdapters => Self::LocalAgentAdapters,
+            SettingCategory::RemoteAgentHosts => Self::RemoteAgentHosts,
         }
     }
 }
@@ -97,6 +104,10 @@ impl From<Row> for SettingsCategory {
             | Row::DeleteProfile
             | Row::ResetProfiles
             | Row::Back => Self::LaunchProfiles,
+            Row::AgentIntegrations
+            | Row::Agent(_)
+            | Row::RemoteHosts
+            | Row::RefreshIntegrations => Self::AgentIntegrations,
             _ => unreachable!("metadata-backed setting row resolved above"),
         }
     }
@@ -296,6 +307,10 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
             },
             Row::SetDefault if profile.id == values.launch_profiles.default_profile_id => {
                 Self::Default
+            }
+            Row::Agent(id) => Self::Integration(draft.integrations.status(id)),
+            Row::RemoteHosts => {
+                Self::Integration(crate::localization::IntegrationStatus::ManualOnly)
             }
             _ => Self::Empty,
         }

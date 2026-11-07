@@ -1,6 +1,7 @@
 //! A bounded settings draft. Storage, transport and live application remain separate owners.
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
+use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
     PreferenceKey, SettingsOperation, SettingsSource, UserLaunchField, UserPreferencesPatch,
     UserPreferencesSnapshot, UserPreferencesValues,
@@ -12,6 +13,8 @@ pub(crate) use browse::Entry;
 mod choices;
 pub(crate) use choices::{Choice, ChoicePicker};
 mod input;
+mod integrations;
+pub(crate) use integrations::{Diagnosis, IntegrationJob, Integrations, JobEnd};
 mod metadata;
 mod rows;
 #[cfg(any(test, feature = "test-support"))]
@@ -112,12 +115,17 @@ pub(crate) enum AdjustmentStep {
 /// Painted settings controls retain the same draft authority as keyboard edits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Control {
-    Adjust { row: Row, forward: bool },
+    Adjust {
+        row: Row,
+        forward: bool,
+    },
     Accept,
     Back,
     Close,
     Search,
     Choose(Choice),
+    /// One Agent row's auxiliary action: open its read-only diagnosis.
+    Explain(IntegrationId),
 }
 pub(crate) type Basis = UserPreferencesSnapshot;
 #[derive(Clone, Copy, Debug)]
@@ -140,6 +148,8 @@ pub(crate) enum Edit {
     Search,
     Save,
     Page(bool),
+    /// Opens or reruns the selected Agent's diagnosis.
+    Explain,
 }
 pub(crate) struct Submission {
     pub(crate) token: Token,
@@ -199,12 +209,15 @@ pub(crate) struct DraftView<'a> {
     pub(crate) search_cursor: usize,
     pub(crate) searching: bool,
     pub(crate) picker: Option<ChoicePicker>,
+    /// Agent integrations outlive any one draft; a local origin alone offers them.
+    pub(crate) integrations: &'a Integrations,
+    pub(crate) integrations_available: bool,
     reset_all: bool,
     reset_profiles: bool,
 }
 impl DraftView<'_> {
     pub(crate) fn entries(self) -> Vec<Entry> {
-        browse::entries(self.page, self.query)
+        browse::entries(self.page, self.query, self.integrations_available)
     }
 
     pub(crate) fn content_rows(self) -> Vec<Row> {
@@ -340,6 +353,9 @@ impl DraftView<'_> {
 
     pub(crate) fn checked(self, row: Row) -> Option<bool> {
         match row {
+            Row::Agent(id) => {
+                Some(self.integrations.row(id).state == orchbee_agent_integration::State::Enabled)
+            }
             Row::CopyOnSelect => Some(self.values.copy_on_select),
             Row::TrimAgents => Some(self.values.trim_trailing_blank_rows_for_agents),
             Row::ResumeAgents => Some(self.values.resume_agents_on_restore),
@@ -434,6 +450,14 @@ impl DraftView<'_> {
 
     pub(crate) fn enabled(self, row: Row) -> bool {
         use orchbee_workbench_protocol::UserLaunchCommand;
+        // Integration rows act through the Worker, independently of the preference file.
+        match row {
+            Row::Agent(id) => return self.integrations.block(id).is_none(),
+            Row::RefreshIntegrations => return !self.integrations.pending(),
+            Row::RemoteHosts => return false,
+            Row::AgentIntegrations | Row::Back => return true,
+            _ => {}
+        }
         if self.basis_source == "unreadable" {
             return match row {
                 Row::ResetAll | Row::Reload => true,
@@ -511,7 +535,9 @@ struct Draft {
     visible_rows: usize,
     follow_selection: bool,
     activation_ready: bool,
-    parent: Option<Navigation>,
+    /// Where each open child page returns, innermost last.
+    parents: Vec<Navigation>,
+    integrations_available: bool,
     profile: usize,
     argument: usize,
     text: Option<LineEditor>,
@@ -535,13 +561,24 @@ enum BrowseMode {
 }
 #[derive(Clone, Copy)]
 struct Navigation {
+    page: Page,
     row: Row,
     viewport: usize,
     follow_selection: bool,
 }
 impl Draft {
+    fn content_rows(&self) -> Vec<Row> {
+        browse::entries(self.page, self.filter.text(), self.integrations_available)
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Entry::Setting(row) => Some(row),
+                Entry::Heading(_) => None,
+            })
+            .collect()
+    }
+
     fn reconcile_search(&mut self) {
-        let rows = self.project().content_rows();
+        let rows = self.content_rows();
         if !rows.contains(&self.row) {
             self.row = rows.first().copied().unwrap_or(Row::Save);
         }
@@ -563,27 +600,36 @@ impl Draft {
             || !self.filter.text().is_empty()
     }
 
-    fn enter_profiles(&mut self) {
-        self.parent = Some(Navigation {
+    fn enter_page(&mut self, page: Page, row: Row) {
+        self.parents.push(Navigation {
+            page: self.page,
             row: self.row,
             viewport: self.viewport,
             follow_selection: self.follow_selection,
         });
-        self.page = Page::Profiles;
-        self.row = Row::Profile;
+        self.page = page;
+        self.row = row;
         self.viewport = 0;
         self.visible_rows = 0;
         self.follow_selection = true;
         self.activation_ready = false;
     }
 
-    fn return_from_profiles(&mut self) {
-        let navigation = self.parent.take().unwrap_or(Navigation {
-            row: Row::LaunchProfiles,
+    fn enter_profiles(&mut self) {
+        self.enter_page(Page::Profiles, Row::Profile);
+    }
+
+    fn return_to_parent(&mut self) {
+        let navigation = self.parents.pop().unwrap_or(Navigation {
+            page: Page::General,
+            row: match self.page {
+                Page::Integrations | Page::Diagnosis(_) => Row::AgentIntegrations,
+                Page::General | Page::Profiles => Row::LaunchProfiles,
+            },
             viewport: 0,
             follow_selection: true,
         });
-        self.page = Page::General;
+        self.page = navigation.page;
         self.row = navigation.row;
         self.viewport = navigation.viewport;
         self.visible_rows = 0;
@@ -605,7 +651,7 @@ impl Draft {
             UserPreferencesPatch::between(&self.basis.values, &self.values)
         }
     }
-    fn project(&self) -> DraftView<'_> {
+    fn project<'a>(&'a self, integrations: &'a Integrations) -> DraftView<'a> {
         DraftView {
             login_shell_supported: self.login_shell_supported,
             reduced_color: self.reduced_color,
@@ -619,7 +665,7 @@ impl Draft {
             effective_source: &self.effective.source,
             selected: self.row,
             dirty: self.dirty(),
-            active_task: self.has_active_task(),
+            active_task: self.has_active_task() || self.page.is_child(),
             conflict: self.basis.source != self.effective.source
                 || self.basis.values != self.effective.values,
             reconciliation: self.reconciliation,
@@ -639,6 +685,8 @@ impl Draft {
                 BrowseMode::Picker(picker) => Some(picker),
                 _ => None,
             },
+            integrations,
+            integrations_available: self.integrations_available,
             reset_all: self.reset_all,
             reset_profiles: self.reset_profiles,
         }
@@ -662,6 +710,9 @@ enum State {
 pub(crate) struct Editor {
     login_shell_supported: bool,
     reduced_color: bool,
+    integrations_available: bool,
+    /// Survives closing Settings: an accepted job keeps running and settles here.
+    integrations: Integrations,
     next: u64,
     state: State,
     presentation: PresentationPhase,
@@ -744,7 +795,8 @@ impl Editor {
             visible_rows: 0,
             follow_selection: true,
             activation_ready: false,
-            parent: None,
+            parents: Vec::new(),
+            integrations_available: self.integrations_available,
             profile: 0,
             argument: 0,
             text: None,
@@ -896,7 +948,7 @@ impl Editor {
                 draft,
                 visible: true,
             } => Some(View::Saving { token: draft.token }),
-            State::Draft(draft) => Some(View::Draft(draft.project())),
+            State::Draft(draft) => Some(View::Draft(draft.project(&self.integrations))),
             _ => None,
         }
     }
@@ -1038,8 +1090,8 @@ impl Editor {
                     draft.reconcile_search();
                     self.redraw();
                 }
-                State::Draft(draft) if draft.page == Page::Profiles => {
-                    draft.return_from_profiles();
+                State::Draft(draft) if draft.page.is_child() => {
+                    draft.return_to_parent();
                     self.redraw();
                 }
                 State::Draft(draft) if !draft.filter.text().is_empty() => {
@@ -1101,7 +1153,7 @@ impl Editor {
             }
             if matches!(draft.browse, BrowseMode::Search) {
                 match edit {
-                    Edit::Activate if draft.project().content_rows().is_empty() => return None,
+                    Edit::Activate if draft.content_rows().is_empty() => return None,
                     Edit::Activate | Edit::Next | Edit::Previous => {
                         draft.browse = BrowseMode::Browse;
                         draft.reconcile_search();
@@ -1149,8 +1201,23 @@ impl Editor {
                 self.redraw();
                 return None;
             }
+            if matches!(edit, Edit::Explain) {
+                let id = match (draft.page, draft.row) {
+                    (Page::Integrations, Row::Agent(id)) if draft.activation_ready => id,
+                    (Page::Diagnosis(id), _) if draft.drawn => id,
+                    _ => return None,
+                };
+                if !self.integrations.begin(IntegrationJob::Explain(id)) {
+                    return None;
+                }
+                if draft.page == Page::Integrations {
+                    draft.enter_page(Page::Diagnosis(id), Row::Back);
+                }
+                self.redraw();
+                return None;
+            }
             if matches!(edit, Edit::Save) && draft.page == Page::General && draft.drawn {
-                if !draft.project().enabled(Row::Save) {
+                if !draft.project(&self.integrations).enabled(Row::Save) {
                     return None;
                 }
                 draft.row = Row::Save;
@@ -1205,7 +1272,7 @@ impl Editor {
         if matches!(
             edit,
             Edit::Activate | Edit::Adjust(_) | Edit::AdjustLarge(_)
-        ) && !draft.project().enabled(draft.row)
+        ) && !draft.project(&self.integrations).enabled(draft.row)
         {
             return None;
         }
@@ -1214,7 +1281,7 @@ impl Editor {
             _ => None,
         };
         if let Some(forward) = direction
-            && let Some(adjustment) = draft.project().adjustment(draft.row)
+            && let Some(adjustment) = draft.project(&self.integrations).adjustment(draft.row)
             && !(if forward {
                 adjustment.forward
             } else {
@@ -1263,7 +1330,7 @@ impl Editor {
                 operation: SettingsOperation::Save { source, changes },
             });
         }
-        let rows = draft.project().navigation_rows();
+        let rows = draft.project(&self.integrations).navigation_rows();
         let index = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
         draft.invalid = false;
         draft.invalid_field = None;
@@ -1302,7 +1369,14 @@ impl Editor {
             Edit::Adjust(forward) => values::adjust(draft, forward, AdjustmentStep::Small),
             Edit::AdjustLarge(forward) => values::adjust(draft, forward, AdjustmentStep::Large),
             Edit::Activate => {
-                if let Some(picker) = ChoicePicker::open(draft.row, &draft.values) {
+                let job = match draft.row {
+                    Row::Agent(id) => self.integrations.change(id),
+                    Row::RefreshIntegrations => Some(IntegrationJob::Refresh),
+                    _ => None,
+                };
+                if let Some(job) = job {
+                    self.integrations.begin(job);
+                } else if let Some(picker) = ChoicePicker::open(draft.row, &draft.values) {
                     draft.browse = BrowseMode::Picker(picker);
                 } else if let Some(limit) = draft.row.text_limit() {
                     if let Some(value) = values::text(draft) {
@@ -1353,7 +1427,7 @@ impl Editor {
         } else {
             draft.viewport.saturating_add(lines).min(
                 draft
-                    .project()
+                    .project(&self.integrations)
                     .entries()
                     .len()
                     .saturating_sub(draft.visible_rows.max(1)),
@@ -1375,7 +1449,7 @@ impl Editor {
             && draft.text.is_none()
             && draft.confirmation.is_none()
             && !matches!(draft.browse, BrowseMode::Picker(_))
-            && draft.project().navigation_rows().contains(&row))
+            && draft.project(&self.integrations).navigation_rows().contains(&row))
         {
             return None;
         }
@@ -1435,14 +1509,17 @@ impl Editor {
                     && draft.confirmation.is_none()
                     && matches!(draft.browse, BrowseMode::Browse)
                     && draft.page.rows().contains(&row)
-                    && draft.project().enabled(row)
-                    && draft.project().adjustment(row).is_some_and(|adjustment| {
-                        if forward {
-                            adjustment.forward
-                        } else {
-                            adjustment.backward
-                        }
-                    }) =>
+                    && draft.project(&self.integrations).enabled(row)
+                    && draft
+                        .project(&self.integrations)
+                        .adjustment(row)
+                        .is_some_and(|adjustment| {
+                            if forward {
+                                adjustment.forward
+                            } else {
+                                adjustment.backward
+                            }
+                        }) =>
             {
                 draft.row = row;
                 draft.follow_selection = false;
@@ -1456,8 +1533,61 @@ impl Editor {
             {
                 self.edit(Edit::Activate)
             }
+            Control::Explain(id)
+                if draft.page == Page::Integrations
+                    && draft.text.is_none()
+                    && draft.confirmation.is_none()
+                    && matches!(draft.browse, BrowseMode::Browse) =>
+            {
+                draft.row = Row::Agent(id);
+                draft.follow_selection = false;
+                draft.activation_ready = true;
+                self.edit(Edit::Explain)
+            }
             Control::Back => self.edit(Edit::Cancel),
             _ => None,
         }
+    }
+
+    /// A remote origin offers no integration management: remote hosts stay manual.
+    pub(crate) fn configure_integrations(&mut self, available: bool) -> bool {
+        if self.integrations_available == available {
+            return false;
+        }
+        self.integrations_available = available;
+        if let State::Draft(draft) | State::Saving { draft, .. } = &mut self.state {
+            draft.integrations_available = available;
+            if !available {
+                while draft.page.is_integrations() {
+                    draft.return_to_parent();
+                }
+                if draft.row == Row::AgentIntegrations {
+                    draft.row = Row::LaunchProfiles;
+                }
+                draft.reconcile_search();
+            }
+        }
+        self.redraw();
+        self.visible()
+    }
+
+    /// The job the page admitted and the transport has not yet taken.
+    pub(crate) fn take_integration_job(&mut self) -> Option<IntegrationJob> {
+        self.integrations.take_submission()
+    }
+
+    /// Applies a job end even while Settings is closed; returns whether a visible page changed.
+    pub(crate) fn settle_integration(&mut self, end: JobEnd) -> bool {
+        if !self.integrations.settle(end) {
+            return false;
+        }
+        self.redraw();
+        self.visible()
+    }
+
+    /// A new Session starts uninspected; a job of the old one is no longer followed.
+    pub(crate) fn reset_integrations(&mut self) {
+        self.integrations = Integrations::default();
+        self.redraw();
     }
 }

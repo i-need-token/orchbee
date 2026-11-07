@@ -17,6 +17,11 @@ pub(crate) enum SettingsNotice {
 }
 
 use crate::terminal_text::{sanitize_terminal_text, truncate_display};
+mod integrations;
+pub(crate) use integrations::{
+    IntegrationAdapter, IntegrationBlock, IntegrationFactLabel, IntegrationFailure,
+    IntegrationFinding, IntegrationStatus, IntegrationStep, IntegrationUnknown,
+};
 mod parameters;
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
@@ -114,6 +119,10 @@ impl Locale {
             Row::DeleteProfile => ("Delete profile", "删除启动配置"),
             Row::ResetProfiles => ("Reset launch profiles", "重置启动配置"),
             Row::Back => ("Back to settings", "返回设置"),
+            Row::AgentIntegrations => return self.integrations_title(),
+            Row::Agent(id) => return self.agent_integration_name(id),
+            Row::RemoteHosts => return self.integrations_remote_title(),
+            Row::RefreshIntegrations => return self.integrations_refresh(),
         };
         self.setting(en, zh)
     }
@@ -127,6 +136,9 @@ impl Locale {
             SettingCategory::Terminal => self.setting("Terminal", "终端"),
             SettingCategory::Notifications => self.setting("Notifications", "通知"),
             SettingCategory::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
+            SettingCategory::AgentIntegrations => self.integrations_title(),
+            SettingCategory::LocalAgentAdapters => self.integrations_local_section(),
+            SettingCategory::RemoteAgentHosts => self.integrations_remote_section(),
         }
     }
     pub(crate) fn settings_search_label(self) -> &'static str {
@@ -233,6 +245,7 @@ impl Locale {
                 "Shell and literal arguments for new default launches after Save.",
                 "保存后用于新的默认启动的 Shell 和字面参数。",
             ),
+            Row::AgentIntegrations => self.integrations_description(),
             _ => self.setting(
                 "Edits stay in this draft until Save.",
                 "编辑保留在此草稿中，保存后生效。",
@@ -322,6 +335,7 @@ impl Locale {
             SettingsValue::ArgumentPosition { position, total } => format!("{position} / {total}"),
             SettingsValue::Default => self.setting("Default", "默认").into(),
             SettingsValue::Empty => String::new(),
+            SettingsValue::Integration(status) => self.integration_status(status).into(),
         }
     }
 
@@ -337,6 +351,8 @@ impl Locale {
             SettingsHintLabel::ActivateEdit => self.setting("activate/edit", "操作／编辑"),
             SettingsHintLabel::Select => self.setting("select", "选择"),
             SettingsHintLabel::Change => self.setting("change", "切换"),
+            SettingsHintLabel::Toggle => self.setting("turn on/off", "开启／关闭"),
+            SettingsHintLabel::Explain => self.setting("explain", "诊断"),
         }
     }
     pub(crate) fn settings_cancel(self) -> &'static str {

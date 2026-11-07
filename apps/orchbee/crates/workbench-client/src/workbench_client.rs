@@ -10,6 +10,7 @@ mod copy_episode;
 pub(crate) mod input;
 pub use input::InputAction;
 mod configuration;
+mod integration_lane;
 mod settings_lane;
 mod settings_notice;
 mod window_title;
