@@ -61,7 +61,7 @@ fn checkpoint_requires_strict_agent_session_rows() {
                     copy["sessionId"] = json!(OTHER);
                     v["agentSessions"].as_array_mut().unwrap().push(copy);
                 }
-                3 => row["provider"] = json!("gemini"),
+                3 => row["provider"] = json!("claude"),
                 4 => row["sessionId"] = json!("-f8fad5b-d9cb-469f-a165-70867728950e"),
                 5 => row["sessionId"] = json!("0f8fad5bd9cb-469f-a165-70867728950e-"),
                 6 => row["sessionId"] = json!(format!("{CLAUDE} ")),
@@ -78,6 +78,163 @@ fn checkpoint_requires_strict_agent_session_rows() {
             }
         });
         assert!(WorkbenchCheckpoint::parse(&bad).is_err(), "fault {fault}");
+    }
+}
+
+/// Each provider admits only its own id grammar, and every admitted id is inert in cmd and
+/// PowerShell: ASCII letters, digits, `_` and `-` (plus Letta's stored `default:`), never a leading
+/// `-`.
+#[test]
+fn each_provider_admits_only_its_own_inert_id_grammar() {
+    use AgentResumeProvider as P;
+    let hex64 = "0123456789abcdef".repeat(4);
+    let uuid_rows = [CLAUDE.to_owned(), CODEX.to_owned(), OTHER.to_owned()];
+    let uuid_faults = vec![
+        format!("{CLAUDE}0"),
+        CLAUDE.replace('-', ""),
+        format!("session_{CLAUDE}"),
+        "0f8fad5bd9cb-469f-a165-70867728950e-".to_owned(),
+        "0f8fad5b-d9cb-469f-a165-70867728950g".to_owned(),
+    ];
+    let mut table: Vec<(P, Vec<String>, Vec<String>)> = [
+        P::ClaudeCode,
+        P::Codex,
+        P::Grok,
+        P::Cursor,
+        P::QoderCli,
+        P::Antigravity,
+        P::Droid,
+        P::Pi,
+        P::Omp,
+        P::Gemini,
+        P::GitHubCopilot,
+        P::QwenCode,
+    ]
+    .into_iter()
+    .map(|provider| (provider, uuid_rows.to_vec(), uuid_faults.clone()))
+    .collect();
+    let opencode = "ses_0123456789abCdEfGhIjKlMnOp";
+    for provider in [P::OpenCode, P::Kilo] {
+        table.push((
+            provider,
+            vec![opencode.to_owned()],
+            vec![
+                opencode.replace("ses_", "SES_"),
+                opencode.replace("ses_", "sess_"),
+                opencode.replace("0123456789ab", "0123456789AB"),
+                format!("{opencode}x"),
+                opencode[..29].to_owned(),
+                CLAUDE.to_owned(),
+            ],
+        ));
+    }
+    table.push((
+        P::Kimi,
+        vec![format!("session_{CLAUDE}"), format!("session_{CODEX}")],
+        vec![
+            CLAUDE.to_owned(),
+            format!("Session_{CLAUDE}"),
+            format!("session-{CLAUDE}"),
+            format!("session_{OTHER}"),
+            format!("session_{CLAUDE}0"),
+        ],
+    ));
+    table.push((
+        P::Letta,
+        vec![
+            format!("conv-{CLAUDE}"),
+            format!("local-conv-{CLAUDE}"),
+            format!("default:agent-{CLAUDE}"),
+            format!("default:agent-local-{CLAUDE}"),
+        ],
+        vec![
+            CLAUDE.to_owned(),
+            format!("Conv-{CLAUDE}"),
+            format!("conversation-{CLAUDE}"),
+            format!("agent-{CLAUDE}"),
+            format!("default:{CLAUDE}"),
+            format!("default:conv-{CLAUDE}"),
+            format!("local-default:agent-{CLAUDE}"),
+            format!("local-local-conv-{CLAUDE}"),
+            format!("default:agent-local-local-{CLAUDE}"),
+            format!("conv-{CLAUDE}0"),
+        ],
+    ));
+    table.push((
+        P::Devin,
+        vec![
+            "abc".to_owned(),
+            "A1-b2-C3".to_owned(),
+            "a-b-c-d-e-f-g-h".to_owned(),
+            "a".repeat(64),
+            CLAUDE.to_owned(),
+        ],
+        vec![
+            String::new(),
+            "a-b-c-d-e-f-g-h-i".to_owned(),
+            "a".repeat(65),
+            "a--b".to_owned(),
+            "a-".to_owned(),
+            "a_b".to_owned(),
+            "a.b".to_owned(),
+            "a:b".to_owned(),
+        ],
+    ));
+    table.push((
+        P::Hermes,
+        vec![
+            "20250101_120000_abcdef".to_owned(),
+            "20250101_120000_0123456789ab".to_owned(),
+            format!("local-{hex64}"),
+        ],
+        vec![
+            "20250101_120000_abcde".to_owned(),
+            "20250101_120000_0123456789abc".to_owned(),
+            "20250101_120000_ABCDEF".to_owned(),
+            "2025010_120000_abcdef".to_owned(),
+            "20250101-120000-abcdef".to_owned(),
+            "20250101_120000_abcdef_0".to_owned(),
+            format!("local-{}", &hex64[..63]),
+            format!("local-{}", hex64.to_uppercase()),
+            format!("local-{hex64}0"),
+            format!("Local-{hex64}"),
+        ],
+    ));
+    assert_eq!(table.len(), P::ALL.len());
+    for (provider, accepted, rejected) in table {
+        for id in &accepted {
+            assert!(
+                RetainedAgentSession::new(provider, id).is_some(),
+                "{provider:?} rejects {id}"
+            );
+            assert!(
+                !id.starts_with('-')
+                    && id
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+                    || provider == P::Letta && id.starts_with("default:agent-"),
+                "{provider:?} admits a token that is not inert: {id}"
+            );
+            let middle = id.len() / 2;
+            for fault in [
+                format!("-{id}"),
+                format!(" {id}"),
+                format!("{id} "),
+                format!("{}'{}", &id[..middle], &id[middle..]),
+                format!("{}\u{e9}{}", &id[..middle], &id[middle..]),
+            ] {
+                assert!(
+                    RetainedAgentSession::new(provider, &fault).is_none(),
+                    "{provider:?} admits {fault:?}"
+                );
+            }
+        }
+        for id in &rejected {
+            assert!(
+                RetainedAgentSession::new(provider, id).is_none(),
+                "{provider:?} admits {id}"
+            );
+        }
     }
 }
 

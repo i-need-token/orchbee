@@ -387,6 +387,7 @@ fn entrypoint(host: Host, argv: &[String]) -> Option<Entry> {
             | "--no-deprecation"
             | "--trace-warnings"
             | "--enable-source-maps"
+            | "--expose-gc"
             | "--inspect"
             | "--inspect-brk"
             | "-u"

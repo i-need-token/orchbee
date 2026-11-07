@@ -9,24 +9,79 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A provider whose native session a restart may resume. The table is closed: a provider joins it
-/// only with a witness that its hook session key is the id its CLI resumes.
+/// only when its resume form is source-verified or documented, the id is bound to a value-taking
+/// option or a resume subcommand, a strict validator below admits only inert ids, and a wrong or
+/// stale id can only fail or open an empty or new session. Each spelling is both the provider's
+/// native process id and its hook-contract provider id.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum AgentResumeProvider {
     #[serde(rename = "claude-code")]
     ClaudeCode,
     #[serde(rename = "codex")]
     Codex,
+    #[serde(rename = "grok")]
+    Grok,
+    #[serde(rename = "opencode")]
+    OpenCode,
+    #[serde(rename = "kilo")]
+    Kilo,
+    #[serde(rename = "cursor")]
+    Cursor,
+    #[serde(rename = "qodercli")]
+    QoderCli,
+    #[serde(rename = "antigravity")]
+    Antigravity,
+    #[serde(rename = "droid")]
+    Droid,
+    #[serde(rename = "kimi")]
+    Kimi,
+    #[serde(rename = "letta")]
+    Letta,
+    #[serde(rename = "devin")]
+    Devin,
+    #[serde(rename = "hermes")]
+    Hermes,
+    #[serde(rename = "pi")]
+    Pi,
+    #[serde(rename = "omp")]
+    Omp,
+    #[serde(rename = "gemini")]
+    Gemini,
+    #[serde(rename = "github-copilot")]
+    GitHubCopilot,
+    #[serde(rename = "qwen-code")]
+    QwenCode,
 }
 
 impl AgentResumeProvider {
+    /// Every resumable provider.
+    pub const ALL: [Self; 18] = [
+        Self::ClaudeCode,
+        Self::Codex,
+        Self::Grok,
+        Self::OpenCode,
+        Self::Kilo,
+        Self::Cursor,
+        Self::QoderCli,
+        Self::Antigravity,
+        Self::Droid,
+        Self::Kimi,
+        Self::Letta,
+        Self::Devin,
+        Self::Hermes,
+        Self::Pi,
+        Self::Omp,
+        Self::Gemini,
+        Self::GitHubCopilot,
+        Self::QwenCode,
+    ];
+
     /// Maps a canonical Agent provider id onto the table; any other provider has no row.
     #[must_use]
     pub fn from_provider_id(provider_id: &str) -> Option<Self> {
-        match provider_id {
-            "claude-code" => Some(Self::ClaudeCode),
-            "codex" => Some(Self::Codex),
-            _ => None,
-        }
+        Self::ALL
+            .into_iter()
+            .find(|provider| provider.provider_id() == provider_id)
     }
 
     /// The canonical Agent provider id, identical to the checkpoint spelling.
@@ -35,12 +90,28 @@ impl AgentResumeProvider {
         match self {
             Self::ClaudeCode => "claude-code",
             Self::Codex => "codex",
+            Self::Grok => "grok",
+            Self::OpenCode => "opencode",
+            Self::Kilo => "kilo",
+            Self::Cursor => "cursor",
+            Self::QoderCli => "qodercli",
+            Self::Antigravity => "antigravity",
+            Self::Droid => "droid",
+            Self::Kimi => "kimi",
+            Self::Letta => "letta",
+            Self::Devin => "devin",
+            Self::Hermes => "hermes",
+            Self::Pi => "pi",
+            Self::Omp => "omp",
+            Self::Gemini => "gemini",
+            Self::GitHubCopilot => "github-copilot",
+            Self::QwenCode => "qwen-code",
         }
     }
 }
 
-/// One admitted native session reference. The id is a hyphenated UUID kept verbatim: its charset
-/// is inert in PowerShell argument mode and in cmd, and it cannot begin with `-`.
+/// One admitted native session reference. The id is kept verbatim and is valid for its provider:
+/// every accepted id is inert in PowerShell argument mode and in cmd, and none begins with `-`.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RetainedAgentSession {
     provider: AgentResumeProvider,
@@ -48,10 +119,10 @@ pub struct RetainedAgentSession {
 }
 
 impl RetainedAgentSession {
-    /// Admits `session_id` only when it is a hyphenated UUID; any other text has no reference.
+    /// Admits `session_id` only when it is valid for `provider`; any other text has no reference.
     #[must_use]
     pub fn new(provider: AgentResumeProvider, session_id: &str) -> Option<Self> {
-        hyphenated_uuid(session_id).then(|| Self {
+        valid_id(provider, session_id).then(|| Self {
             provider,
             session_id: session_id.to_owned(),
         })
@@ -69,12 +140,102 @@ impl RetainedAgentSession {
     }
 }
 
+/// Whether `id` is a native session id in `provider`'s own grammar. Every grammar admits only ASCII
+/// letters, digits, `_` and `-`, plus the `:` of Letta's stored default-conversation key, which is
+/// split before it is typed; none admits a leading `-`. Case is kept verbatim, never folded.
+fn valid_id(provider: AgentResumeProvider, id: &str) -> bool {
+    use AgentResumeProvider as P;
+    match provider {
+        P::ClaudeCode
+        | P::Codex
+        | P::Grok
+        | P::Cursor
+        | P::QoderCli
+        | P::Antigravity
+        | P::Droid
+        | P::Pi
+        | P::Omp
+        | P::Gemini
+        | P::GitHubCopilot
+        | P::QwenCode => hyphenated_uuid(id),
+        P::OpenCode | P::Kilo => opencode_session(id),
+        P::Kimi => id.strip_prefix("session_").is_some_and(uuid_v4),
+        P::Letta => letta_conversation(id),
+        P::Devin => devin_session(id),
+        P::Hermes => hermes_session(id),
+    }
+}
+
+/// 8-4-4-4-12 hex digits in either case.
 fn hyphenated_uuid(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(index, byte)| match index {
             8 | 13 | 18 | 23 => byte == b'-',
             _ => byte.is_ascii_hexdigit(),
         })
+}
+
+/// A hyphenated UUID of version 4 and the RFC variant.
+fn uuid_v4(value: &str) -> bool {
+    hyphenated_uuid(value)
+        && value.as_bytes()[14] == b'4'
+        && matches!(
+            value.as_bytes()[19],
+            b'8' | b'9' | b'a' | b'b' | b'A' | b'B'
+        )
+}
+
+fn lower_hex(value: &str) -> bool {
+    value
+        .bytes()
+        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// `ses_`, 12 lowercase hex digits, then 14 ASCII letters or digits.
+fn opencode_session(value: &str) -> bool {
+    value.strip_prefix("ses_").is_some_and(|rest| {
+        rest.len() == 26
+            && rest.is_ascii()
+            && lower_hex(&rest[..12])
+            && rest[12..].bytes().all(|byte| byte.is_ascii_alphanumeric())
+    })
+}
+
+/// A conversation, `conv-U` or `local-conv-U`, or an agent's default conversation,
+/// `default:agent-U` or `default:agent-local-U`.
+fn letta_conversation(value: &str) -> bool {
+    let conversation = value
+        .strip_prefix("local-")
+        .unwrap_or(value)
+        .strip_prefix("conv-");
+    let agent = value
+        .strip_prefix("default:agent-")
+        .map(|rest| rest.strip_prefix("local-").unwrap_or(rest));
+    conversation.or(agent).is_some_and(hyphenated_uuid)
+}
+
+/// One to eight ASCII alphanumeric runs joined by single hyphens, at most 64 characters.
+fn devin_session(value: &str) -> bool {
+    value.len() <= 64
+        && value.split('-').count() <= 8
+        && value
+            .split('-')
+            .all(|run| !run.is_empty() && run.bytes().all(|byte| byte.is_ascii_alphanumeric()))
+}
+
+/// `YYYYMMDD_HHMMSS_` and 6 to 12 lowercase hex digits, or `local-` and 64 lowercase hex digits.
+fn hermes_session(value: &str) -> bool {
+    if let Some(digest) = value.strip_prefix("local-") {
+        return digest.len() == 64 && lower_hex(digest);
+    }
+    let digits =
+        |text: &str, len: usize| text.len() == len && text.bytes().all(|b| b.is_ascii_digit());
+    let mut parts = value.split('_');
+    matches!(
+        (parts.next(), parts.next(), parts.next(), parts.next()),
+        (Some(date), Some(time), Some(suffix), None)
+            if digits(date, 8) && digits(time, 6) && (6..=12).contains(&suffix.len()) && lower_hex(suffix)
+    )
 }
 
 #[derive(Serialize, Deserialize)]

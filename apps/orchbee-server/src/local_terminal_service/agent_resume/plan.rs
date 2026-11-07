@@ -23,32 +23,85 @@ impl ResumeShell {
     }
 }
 
-/// The provider's own program and the arguments before the id. The table is closed: a provider
-/// joins it only with a witness that its hook session key is the id this command resumes.
-const fn command(provider: AgentResumeProvider) -> (&'static str, &'static str) {
+/// The provider's own program. Each resolves both in cmd and as a PowerShell application or
+/// external script, and none is a cmd internal command or a generic name such as `agent`.
+const fn resume_program(provider: AgentResumeProvider) -> &'static str {
+    use AgentResumeProvider as P;
     match provider {
-        AgentResumeProvider::ClaudeCode => ("claude", "--resume"),
-        AgentResumeProvider::Codex => ("codex", "resume"),
+        P::ClaudeCode => "claude",
+        P::Codex => "codex",
+        P::Grok => "grok",
+        P::OpenCode => "opencode",
+        P::Kilo => "kilo",
+        P::Cursor => "cursor-agent",
+        P::QoderCli => "qodercli",
+        P::Antigravity => "agy",
+        P::Droid => "droid",
+        P::Kimi => "kimi",
+        P::Letta => "letta",
+        P::Devin => "devin",
+        P::Hermes => "hermes",
+        P::Pi => "pi",
+        P::Omp => "omp",
+        P::Gemini => "gemini",
+        P::GitHubCopilot => "copilot",
+        P::QwenCode => "qwen",
+    }
+}
+
+/// The argument tokens that resume `session`, the only builder of them. The id is bound to a
+/// value-taking option or a resume subcommand, so no grammar reads it as a prompt. An option whose
+/// value is optional takes `--name=<id>`; a required-value option or a subcommand takes a separate
+/// token. Every token uses only `[A-Za-z0-9_=-]`; Letta's stored `default:<agent>` key is split
+/// into its own options first.
+pub(super) fn resume_arguments(session: &RetainedAgentSession) -> Vec<String> {
+    use AgentResumeProvider as P;
+    let id = session.session_id();
+    let separate = |option: &str| vec![option.to_owned(), id.to_owned()];
+    match session.provider() {
+        P::ClaudeCode => separate("--resume"),
+        P::Codex => separate("resume"),
+        P::Grok
+        | P::Cursor
+        | P::QoderCli
+        | P::Droid
+        | P::Gemini
+        | P::GitHubCopilot
+        | P::QwenCode => {
+            vec![format!("--resume={id}")]
+        }
+        P::OpenCode | P::Kilo | P::Kimi => vec![format!("--session={id}")],
+        P::Antigravity => separate("--conversation"),
+        P::Letta => match id.strip_prefix("default:") {
+            Some(agent) => ["--conversation", "default", "--agent", agent]
+                .map(str::to_owned)
+                .to_vec(),
+            None => separate("--conversation"),
+        },
+        P::Devin | P::Hermes | P::Omp => separate("--resume"),
+        P::Pi => separate("--session"),
     }
 }
 
 /// The line typed for `session`. PowerShell resolves the program as an application or script, so
-/// no alias, function or cmdlet of that name runs. `token` is the run prefix's token and is given
-/// only for managed PowerShell. The id is a hyphenated UUID, inert in both shells and never an
-/// option, so it is typed bare.
+/// no alias, function or cmdlet of that name runs, and single-quotes every argument token, so each
+/// reaches the program verbatim and none is read as a parameter. cmd takes the tokens bare: each
+/// is inert there. `token` is the run prefix's token and is given only for managed PowerShell.
 pub(super) fn text(
     session: &RetainedAgentSession,
     shell: ResumeShell,
     token: Option<&str>,
 ) -> String {
-    let (program, verb) = command(session.provider());
-    let id = session.session_id();
+    let program = resume_program(session.provider());
+    let arguments = resume_arguments(session);
     let line = if shell.powershell() {
+        let quoted: Vec<String> = arguments.iter().map(|a| format!("'{a}'")).collect();
         format!(
-            "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1) {verb} {id}"
+            "& (Get-Command '{program}' -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1) {}",
+            quoted.join(" ")
         )
     } else {
-        format!("{program} {verb} {id}")
+        format!("{program} {}", arguments.join(" "))
     };
     match token {
         Some(token) => format!("<#orchbee-run:{token}#> {line}"),

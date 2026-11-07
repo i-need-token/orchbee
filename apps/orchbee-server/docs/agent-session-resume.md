@@ -12,16 +12,86 @@ the only platform with checkpoint restore; POSIX restore will reuse this format 
 Non-goals: replaying a command, relaunching an arbitrary program, restoring managed Agent names,
 and restoring a terminal screen or history. A resumed Agent appears without its former name.
 
-The provider table is closed and lives in Server code:
+Agent-reported resume commands are never accepted: persisting command text from a report would let
+any process in a Panel schedule execution at the next restart.
 
-| Provider id   | Program  | Arguments       |
-| ------------- | -------- | --------------- |
-| `claude-code` | `claude` | `--resume <id>` |
-| `codex`       | `codex`  | `resume <id>`   |
+## Provider table
 
-A provider joins the table only with a witness that its hook session key is the id its CLI
-resumes. Agent-reported resume commands are never accepted: persisting command text from a report
-would let any process in a Panel schedule execution at the next restart.
+The table is closed and lives in Server code: `AgentResumeProvider` with its id validator, and the
+program and argument builder of delivery.
+
+### Admission
+
+A provider joins when all four hold:
+
+1. Its resume form is source-verified or documented.
+2. The typed id is bound to a value-taking option or a resume subcommand, so the documented grammar
+   cannot read it as a positional prompt.
+3. A strict per-provider validator accepts the id, and every accepted id is inert in cmd and
+   PowerShell and cannot start with `-`.
+4. A wrong or stale id can only cause an error, or an empty or new session.
+
+Same-id evidence from source is preferred. Documentation or Herdr precedent is enough under rules
+2–4, because a wrong id then costs one failed resume and never sends a prompt. Each provider id is
+both its native process provider id and its hook-contract provider id; a test asserts both, since a
+mismatch would silently drop all of that provider's candidates.
+
+### Rows
+
+U is a hyphenated UUID: 8-4-4-4-12 hex digits in either case, 36 characters. Evidence: S is source,
+D is documentation, H is Herdr precedent. "Directory" says whether resuming outside the session's
+own directory changes the outcome; the retained-directory gate applies to every row regardless.
+
+| Provider id      | Program        | Typed arguments (cmd)                                                       | Valid id, max length                                             | Directory          | Wrong or stale id                           | Evidence   |
+| ---------------- | -------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ | ------------------------------------------- | ---------- |
+| `claude-code`    | `claude`       | `--resume <id>`                                                             | U, 36                                                            | yes                | error, exits                                | S, witness |
+| `codex`          | `codex`        | `resume <id>`                                                               | U, 36                                                            | gate               | error, exits                                | S, witness |
+| `grok`           | `grok`         | `--resume=<id>`                                                             | U, 36                                                            | no                 | error; UUIDs never match titles             | S          |
+| `opencode`       | `opencode`     | `--session=<id>`                                                            | `^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`, 30                          | yes on 1.1.25      | 1.x exits 1; 2.x empty session with that id | S          |
+| `kilo`           | `kilo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | no                 | error, exits                                | S          |
+| `cursor`         | `cursor-agent` | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new chat                           | D, H       |
+| `qodercli`       | `qodercli`     | `--resume=<id>`                                                             | U, 36                                                            | yes                | error or new session                        | D, bundle  |
+| `antigravity`    | `agy`          | `--conversation <id>`                                                       | U, 36                                                            | undocumented       | error or new conversation                   | D          |
+| `droid`          | `droid`        | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new session                        | D, H       |
+| `kimi`           | `kimi`         | `--session=<id>`                                                            | `session_` and a version 4 U, 44                                 | strict spelling    | error, exits                                | S          |
+| `letta`          | `letta`        | `--conversation <id>`; `default:<a>` → `--conversation default --agent <a>` | `^(?:local-)?conv-U$`, `^default:agent-(?:local-)?U$`, 56        | no                 | error or new conversation                   | S          |
+| `devin`          | `devin`        | `--resume <id>`                                                             | `^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){0,7}$`, 64 (provisional)         | yes (else prompts) | error or new session                        | D, H       |
+| `hermes`         | `hermes`       | `--resume <id>`                                                             | `^[0-9]{8}_[0-9]{6}_[0-9a-f]{6,12}$`, `^local-[0-9a-f]{64}$`, 70 | no                 | error, exits                                | S          |
+| `pi`             | `pi`           | `--session <id>`                                                            | U, 36                                                            | yes (else forks)   | error, exits                                | S          |
+| `omp`            | `omp`          | `--resume <id>`                                                             | U, 36                                                            | no                 | error, exits                                | S          |
+| `gemini`         | `gemini`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | S          |
+| `github-copilot` | `copilot`      | `--resume=<id>`                                                             | U, 36                                                            | no                 | new empty session with that id              | D          |
+| `qwen-code`      | `qwen`         | `--resume=<id>`                                                             | U, 36 (arena `-agent-…` ids fail closed)                         | yes                | "No saved session found", exits 1           | S          |
+
+Where a wrong id creates a new or empty session under that same id (Copilot, OpenCode 2.x), that
+session reports the id again, so the reference stays stable and harmless.
+
+Not in the table:
+
+- **Mastracode.** Below 0.45.0, `mastracode resume <id>` runs a headless model turn whose prompt is
+  `resume`, with every tool auto-approved; from 0.45.0 the same words open its interface. Neither
+  its hook payload nor its hook environment proves which version runs, a package-version check
+  races upgrades and `PATH` order, and no argument form resumes on 0.45.0 or later while failing
+  harmlessly earlier. A typed resume could therefore send a prompt, which rule 2 forbids.
+- **Cline.** Its adapter keys sessions by conversation, which is not the id `cline --id` resumes.
+- **Amp, Kiro, Maki and Muse** have no hook adapter, so no session key is ever observed.
+
+### Tokens and quoting
+
+- One builder turns a reference into argument tokens; the typed line uses it.
+- An option whose value is optional is typed `--name=<id>`, so the value stays glued to its option:
+  no parser takes it as a positional prompt, and a parser without `=` support rejects it harmlessly.
+  A required-value option or a subcommand takes a separate token. Claude Code keeps
+  `--resume <id>`, the form its witness covers, and OMP keeps `--resume <id>`, whose next-token
+  consumption is source-verified while its `=` support is not.
+- Tokens use only `[A-Za-z0-9_=-]`: never `'`, `:` or `.`. Letta's stored `default:<agent>` key is
+  split into `--conversation default --agent <agent>` before it is typed.
+- Programs resolve both in cmd and as a PowerShell application or external script, and none is a cmd
+  internal command: `cursor-agent`, never the generic `agent`; `qodercli`, never the IDE dispatcher
+  `qoder`; and `agy`.
+- PowerShell single-quotes every argument token. A quoted token is a plain string, never a
+  parameter, so it reaches a native program verbatim and an npm `.ps1` shim's `$args` intact. cmd
+  takes the tokens bare.
 
 ## Inputs and trust
 
@@ -34,10 +104,11 @@ would let any process in a Panel schedule execution at the next restart.
 ## Data
 
 - `AgentResumeProvider` is the closed provider table. `RetainedAgentSession` pairs a provider with
-  its native session id, which must be a hyphenated UUID (8-4-4-4-12 hex digits, either case) kept
-  verbatim. The charset is inert in PowerShell argument mode and in cmd, and an id cannot begin
-  with `-`, so it carries no option or command injection. The id is checked at capture and again
-  at parse.
+  its native session id, which must be valid in that provider's own grammar (the
+  [table](#rows)) and is kept verbatim, never case-folded. Every grammar admits only ASCII letters,
+  digits, `_` and `-`, plus the `:` of Letta's stored key, which is never typed, and no id begins
+  with `-`, so an id carries no option or command injection. The id is checked at capture and
+  again at parse.
 - The checkpoint `agentSessions` list holds one `presentationId`, `provider` and `sessionId` row per
   Presentation. The [checkpoint contract](workbench-checkpoint.md#per-presentation-agent-session-references)
   owns its validation, carry-over and order.
@@ -96,12 +167,12 @@ exit, profile `PATH` and `.cmd` or `.ps1` shims resolve as when the user types t
 the run prefix gives the resumed run a token, so the next capture finds it like any other run.
 Launch programs and the restored-program policy stay unchanged.
 
-| Restored shell                                                                                      | Typed line                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Managed PowerShell: `powershell` or `pwsh` whose last argument is the Worker's fixed initialization | `<#orchbee-run:<token>#> & (Get-Command '<program>' -CommandType Application,ExternalScript -ErrorAction Stop \| Select-Object -First 1) <args>` |
-| Other interactive PowerShell                                                                        | The same without the prefix.                                                                                                                     |
-| Interactive cmd                                                                                     | `<program> <args>`                                                                                                                               |
-| Any other shell                                                                                     | Nothing: the reference is skipped.                                                                                                               |
+| Restored shell                                                                                      | Typed line                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Managed PowerShell: `powershell` or `pwsh` whose last argument is the Worker's fixed initialization | `<#orchbee-run:<token>#> & (Get-Command '<program>' -CommandType Application,ExternalScript -ErrorAction Stop \| Select-Object -First 1) '<arg>' …` |
+| Other interactive PowerShell                                                                        | The same without the prefix.                                                                                                                        |
+| Interactive cmd                                                                                     | `<program> <arg> …`                                                                                                                                 |
+| Any other shell                                                                                     | Nothing: the reference is skipped.                                                                                                                  |
 
 The records are one paste of the line, then Right for PowerShell, then Enter, as an Agent start
 types them. The token is 16 bytes of operating-system entropy as 32 lowercase hex digits; without
@@ -160,7 +231,8 @@ The shell-only rule is the strict idle-shell rule an Agent start uses, shared in
 `orchbee-agent-observation-protocol`. The directory, the reported one else the root's, must equal
 the retained one, compared ASCII case-insensitively with one trailing separator trimmed, except a
 drive root's. Another directory skips: resuming elsewhere fails for Claude Code, whose session
-lookup is per project, and misplaces Codex. No directory evidence waits.
+lookup is per project, misplaces Codex, and for other providers changes the outcome where the
+[table](#rows) says so. No directory evidence waits.
 
 On a deliver, the send's own admission checks every guard again under its locks and takes the
 pending reference before any record leaves, so an input admitted before that point refutes the
@@ -178,14 +250,14 @@ capture carries every reference not yet attempted.
 
 ### Failures
 
-| Case                                       | Behavior                                                                        |
-| ------------------------------------------ | ------------------------------------------------------------------------------- |
-| Retained directory missing at restore      | Discarded; the shell starts in the Worker's home; nothing typed; no notice.     |
-| Directory differs when ready               | Skipped and consumed.                                                           |
-| Provider not on `PATH`                     | The shell prints its own error and stays; the next capture drops the reference. |
-| Session gone, such as a deleted transcript | The provider prints its error and exits; the shell stays; the reference drops.  |
-| Busy, unknown or touched terminal          | Skipped and consumed.                                                           |
-| No Client before stop                      | Nothing typed; the references carry over.                                       |
+| Case                                       | Behavior                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------- |
+| Retained directory missing at restore      | Discarded; the shell starts in the Worker's home; nothing typed; no notice.       |
+| Directory differs when ready               | Skipped and consumed.                                                             |
+| Provider not on `PATH`                     | The shell prints its own error and stays; the next capture drops the reference.   |
+| Session gone, such as a deleted transcript | The provider errors and exits, or opens an empty or new session; the shell stays. |
+| Busy, unknown or touched terminal          | Skipped and consumed.                                                             |
+| No Client before stop                      | Nothing typed; the references carry over.                                         |
 
 ### What Clients show
 
@@ -206,7 +278,9 @@ on, the built-in default; a Session without a preference store reads as off. The
 - At most one delivery per retained reference per Server lifetime, only into the restored Terminal
   generation of its own Presentation.
 - Rows are unique by Presentation and by `(provider, sessionId)`; each has a directory row; every id
-  is a hyphenated UUID.
+  is valid in its provider's grammar.
+- A typed resume binds the id to a value-taking option or a resume subcommand, so it never sends a
+  prompt.
 - A live reference comes only from the capture rule.
 - With the preference off, no row is written and nothing is typed.
 - Delivery happens only when all of these hold: the preference was on at startup, the binding and
@@ -221,7 +295,10 @@ on, the built-in default; a Session without a preference store reads as off. The
 ## Evidence
 
 Deterministic tests cover the checkpoint rows (every fault, the omitted list, carry-over, take, live
-override, the directory-row requirement, first-Presentation dedupe and recording off) and the
+override, the directory-row requirement, first-Presentation dedupe and recording off), each
+provider's id grammar (its accepted forms and alternates, a leading `-`, whitespace, a wrong prefix,
+wrong case where it matters, overlong ids and an embedded `'`), that every provider id is a native
+and a hook-contract provider id, the process identity matrix for every typed form, and the
 capture decision table (run token match, mismatch and tokenless; open, completed and unmarked
 command evidence; same provider, other provider, `None`, `Unknown` and `Unsupported` identities;
 ambiguity and invalid ids) and the delivery readiness table (a running command, another program,
@@ -235,4 +312,6 @@ preference off at startup. It runs only on request, with the pinned ConPTY that 
 correlation. Its shell is cmd: a restored terminal's `PATH` comes from the registry, where the
 user's real provider may sit, and only cmd resolves a command from its current directory first,
 where the stubs sit. The managed PowerShell line therefore has no end-to-end witness that keeps a
-real provider out of reach.
+real provider out of reach. The witness covers Claude Code and Codex; for the other providers,
+same-id and directory evidence rests on the table's sources, and where that is documentation only
+(Cursor, Droid, Devin, Copilot and Antigravity) a resume may fail until a real run confirms the id.

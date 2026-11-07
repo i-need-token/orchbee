@@ -141,6 +141,8 @@ const HOME: &str = r"C:\Users\u";
 const NPM: &str = r"C:\Users\u\AppData\Roaming\npm";
 const CURSOR: &str = r"C:\Users\u\AppData\Local\cursor-agent";
 const HERMES: &str = r"C:\Users\u\AppData\Roaming\uv\tools\hermes-agent\Scripts\hermes.exe";
+const ID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
+const OPENCODE_ID: &str = "ses_0123456789abCdEfGhIjKlMnOp";
 
 /// One fixture per Windows support matrix row and proposal counterexample:
 /// (row, image, decoded argv or `None` when unreadable, expected recognition).
@@ -151,8 +153,10 @@ fn recognition_matrix_rows_and_counterexamples() {
         s.replace("{home}", HOME)
             .replace("{npm}", NPM)
             .replace("{cursor}", CURSOR)
+            .replace("{id}", ID)
+            .replace("{ses}", OPENCODE_ID)
     };
-    let rows: Vec<(&str, &str, Option<Vec<&str>>, AgentProcessRecognition)> = vec![
+    let mut rows: Vec<(&str, &str, Option<Vec<&str>>, AgentProcessRecognition)> = vec![
         // Native image named by an alias.
         (
             "native",
@@ -637,7 +641,252 @@ fn recognition_matrix_rows_and_counterexamples() {
             REMOTE,
         ),
         ("remote", "docker.exe", Some(vec!["docker", "ps"]), NOT),
+        // Each typed resume form is interactive for its provider.
+        (
+            "resume",
+            "claude.exe",
+            Some(vec!["claude", "--resume", "{id}"]),
+            interactive(P::Claude, S::NativeImage),
+        ),
+        (
+            "resume",
+            "claude.exe",
+            Some(vec!["claude", "--resume={id}"]),
+            interactive(P::Claude, S::NativeImage),
+        ),
+        (
+            "resume",
+            "codex.exe",
+            Some(vec!["codex", "resume", "{id}"]),
+            interactive(P::Codex, S::NativeImage),
+        ),
+        (
+            "resume",
+            "grok.exe",
+            Some(vec!["grok", "--resume={id}"]),
+            interactive(P::Grok, S::NativeImage),
+        ),
+        (
+            "resume",
+            "opencode.exe",
+            Some(vec!["opencode", "--session={ses}"]),
+            interactive(P::OpenCode, S::NativeImage),
+        ),
+        (
+            "resume",
+            r"{npm}\node_modules\@kilocode\cli\bin\kilo.exe",
+            Some(vec!["kilo", "--session={ses}"]),
+            interactive(P::Kilo, S::NativeImage),
+        ),
+        (
+            "resume",
+            r"{cursor}\cursor-agent.exe",
+            Some(vec!["cursor-agent", "--resume={id}"]),
+            interactive(P::Cursor, S::NativeImage),
+        ),
+        (
+            "resume",
+            "qodercli.exe",
+            Some(vec!["qodercli", "--resume={id}"]),
+            interactive(P::Qoder, S::NativeImage),
+        ),
+        (
+            "resume",
+            "agy.exe",
+            Some(vec!["agy", "--conversation", "{id}"]),
+            interactive(P::Antigravity, S::NativeImage),
+        ),
+        (
+            "resume",
+            "droid.exe",
+            Some(vec!["droid", "--resume={id}"]),
+            interactive(P::Droid, S::NativeImage),
+        ),
+        (
+            "resume",
+            "kimi.exe",
+            Some(vec!["kimi", "--session=session_{id}"]),
+            interactive(P::Kimi, S::NativeImage),
+        ),
+        (
+            "resume",
+            "letta.exe",
+            Some(vec!["letta", "--conversation", "conv-{id}"]),
+            interactive(P::Letta, S::NativeImage),
+        ),
+        (
+            "resume",
+            "letta.exe",
+            Some(vec![
+                "letta",
+                "--conversation",
+                "default",
+                "--agent",
+                "agent-{id}",
+            ]),
+            interactive(P::Letta, S::NativeImage),
+        ),
+        (
+            "resume",
+            "devin.exe",
+            Some(vec!["devin", "--resume", "{id}"]),
+            interactive(P::Devin, S::NativeImage),
+        ),
+        (
+            "resume",
+            HERMES,
+            Some(vec!["hermes", "--resume", "20250101_120000_abcdef"]),
+            interactive(P::Hermes, S::NativeImage),
+        ),
+        (
+            "resume",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@earendil-works\pi-coding-agent\dist\cli.js",
+                "--session",
+                "{id}",
+            ]),
+            interactive(P::Pi, S::PackageEntry),
+        ),
+        (
+            "resume",
+            "omp.exe",
+            Some(vec!["omp", "--resume", "{id}"]),
+            interactive(P::Omp, S::NativeImage),
+        ),
+        (
+            "resume",
+            "gemini.exe",
+            Some(vec!["gemini", "--resume={id}"]),
+            interactive(P::Gemini, S::NativeImage),
+        ),
+        (
+            "resume",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@github\copilot\index.js",
+                "--resume={id}",
+            ]),
+            interactive(P::Copilot, S::PackageEntry),
+        ),
+        (
+            "resume",
+            "qwen.exe",
+            Some(vec!["qwen", "--resume={id}"]),
+            interactive(P::Qwen, S::NativeImage),
+        ),
+        // Bare launches of the providers that gained a grammar are unchanged.
+        (
+            "bare",
+            "grok.exe",
+            Some(vec!["grok"]),
+            interactive(P::Grok, S::NativeImage),
+        ),
+        (
+            "bare",
+            "qodercli.exe",
+            Some(vec!["qodercli"]),
+            interactive(P::Qoder, S::NativeImage),
+        ),
+        (
+            "bare",
+            "kimi.exe",
+            Some(vec!["kimi"]),
+            interactive(P::Kimi, S::NativeImage),
+        ),
+        (
+            "bare",
+            "agy.exe",
+            Some(vec!["agy"]),
+            interactive(P::Antigravity, S::NativeImage),
+        ),
+        (
+            "bare",
+            "devin.exe",
+            Some(vec!["devin"]),
+            interactive(P::Devin, S::NativeImage),
+        ),
+        // A bare optional option never consumes a positional; `exec` keeps its own `-r`.
+        (
+            "resume counterexample",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@github\copilot\index.js",
+                "--resume",
+                "foo",
+            ]),
+            unresolved(Some(P::Copilot), U::UnclassifiedArguments),
+        ),
+        (
+            "resume counterexample",
+            "droid.exe",
+            Some(vec!["droid", "exec", "-r", "high", "task"]),
+            noninteractive(P::Droid, S::NativeImage),
+        ),
+        // Qwen's entry re-executes `cli.js` with `--expose-gc`; the outer `cli-entry` anchors.
+        (
+            "qwen launcher",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@qwen-code\qwen-code\cli-entry.js",
+                "--resume={id}",
+            ]),
+            interactive(P::Qwen, S::PackageEntry),
+        ),
+        (
+            "qwen launcher",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                "--expose-gc",
+                r"{npm}\node_modules\@qwen-code\qwen-code\cli.js",
+                "--resume={id}",
+            ]),
+            interactive(P::Qwen, S::PackageEntry),
+        ),
+        (
+            "decoy",
+            "node.exe",
+            Some(vec!["node.exe", "--expose-gc", "ordinary.js"]),
+            NOT,
+        ),
     ];
+    // A bare optional option followed by a noninteractive option stays noninteractive.
+    for (image, program, option, provider) in [
+        ("claude.exe", "claude", "-r", P::Claude),
+        ("claude.exe", "claude", "--resume", P::Claude),
+        ("droid.exe", "droid", "--resume", P::Droid),
+        ("grok.exe", "grok", "-r", P::Grok),
+        ("grok.exe", "grok", "--resume", P::Grok),
+        ("qodercli.exe", "qodercli", "-r", P::Qoder),
+        ("qodercli.exe", "qodercli", "--resume", P::Qoder),
+        ("kimi.exe", "kimi", "-S", P::Kimi),
+        ("kimi.exe", "kimi", "--session", P::Kimi),
+    ] {
+        rows.push((
+            "optional option",
+            image,
+            Some(vec![program, option, "-v"]),
+            noninteractive(provider, S::NativeImage),
+        ));
+    }
+    for option in ["-r", "--resume"] {
+        rows.push((
+            "optional option",
+            "node.exe",
+            Some(vec![
+                "node.exe",
+                r"{npm}\node_modules\@github\copilot\index.js",
+                option,
+                "-v",
+            ]),
+            noninteractive(P::Copilot, S::PackageEntry),
+        ));
+    }
     for (row, image, argv, want) in rows {
         let image = f(image);
         let argv: Option<Vec<String>> = argv.map(|a| a.into_iter().map(f).collect());

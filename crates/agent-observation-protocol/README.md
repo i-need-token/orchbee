@@ -126,7 +126,16 @@ reuse it rather than keeping their own tables.
   they launch; shell syntax never resolves.
 - Mode: each provider's `AgentModeGrammar` classifies arguments as interactive, noninteractive, or
   unclassified. Anything the grammar does not list is unclassified, and an unreadable command line
-  is never interactive.
+  is never interactive. Interactive flags take no value; interactive options consume the next
+  argument unless written `--name=value`; interactive optional options are written bare or as
+  `--name=value` and never consume the next argument, so `--resume <word>` still leaves `<word>` to
+  the positional rule. Each grammar lists the resume option the Server types for its provider and
+  that option's documented short alias.
+- Runtime entries: the runtime skips its own listed options before the script, including the
+  value-less `--expose-gc` that Qwen's `cli-entry.js` passes when it re-executes `cli.js`. Both Qwen
+  files are package entries, so the outer `cli-entry.js` run anchors a Qwen sample.
+- `AGENT_PROVIDER_REGISTRY_VERSION` is 2: the resume options and Qwen's entries changed recognition
+  meaning.
 - Results: `AgentProcessIdentity` is `agent` with grade `confirmed` or `recognized`, `none`,
   `unknown` with one `AgentIdentityUnknownReason`, or `unsupported` with one
   `AgentIdentityUnsupportedReason`. The Server owns the state that produces it. Its wire form is

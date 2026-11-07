@@ -6,7 +6,7 @@ use super::mode::{AgentModeGrammar, grammar};
 use crate::AgentReportProvider;
 
 /// Registry data version; it changes whenever an entry's recognition meaning changes.
-pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 1;
+pub const AGENT_PROVIDER_REGISTRY_VERSION: u32 = 2;
 
 /// How much a bare process name proves about its provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -170,12 +170,12 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
                 &grammar::CURSOR,
             )
         },
-        entry(P::Devin, &[unique("devin")], NONE, &grammar::DEFAULT),
+        entry(P::Devin, &[unique("devin")], NONE, &grammar::DEVIN),
         entry(
             P::Antigravity,
             &[unique("agy"), unique("antigravity-cli")],
             NONE,
-            &grammar::DEFAULT,
+            &grammar::ANTIGRAVITY,
         ),
         entry(P::Cline, &[unique("cline")], NONE, &grammar::DEFAULT),
         entry(P::Omp, &[unique("omp")], NONE, &grammar::PI),
@@ -202,7 +202,7 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
             P::Kimi,
             &[unique("kimi")],
             &["node_modules/@moonshot-ai/kimi-code/dist/main.mjs"],
-            &grammar::DEFAULT,
+            &grammar::KIMI,
         ),
         entry(P::Kiro, &[unique("kiro-cli")], NONE, &grammar::DEFAULT),
         entry(P::Droid, &[unique("droid")], NONE, &grammar::DROID),
@@ -224,7 +224,7 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
                 P::Grok,
                 &[unique("grok"), generic("agent")],
                 NONE,
-                &grammar::DEFAULT,
+                &grammar::GROK,
             )
         },
         AgentProviderEntry {
@@ -245,12 +245,16 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
             P::Qoder,
             &[unique("qodercli"), unique("qoderclicn")],
             NONE,
-            &grammar::DEFAULT,
+            &grammar::QODER,
         ),
         entry(
             P::Qwen,
             &[unique("qwen")],
-            &["node_modules/@qwen-code/qwen-code/dist/index.js"],
+            &[
+                "node_modules/@qwen-code/qwen-code/dist/index.js",
+                "node_modules/@qwen-code/qwen-code/cli-entry.js",
+                "node_modules/@qwen-code/qwen-code/cli.js",
+            ],
             &grammar::GEMINI,
         ),
         entry(

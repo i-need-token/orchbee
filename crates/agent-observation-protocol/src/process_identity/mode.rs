@@ -25,6 +25,8 @@ pub struct AgentModeGrammar {
     pub interactive_commands: &'static [&'static str],
     /// Interactive options without a value.
     pub interactive_flags: &'static [&'static str],
+    /// Interactive options written bare or as `--name=value`; they never consume the next argument.
+    pub interactive_optional_options: &'static [&'static str],
     /// Interactive options that consume the next argument unless written with `=`.
     pub interactive_options: &'static [&'static str],
     /// The mode of other positional arguments, such as an initial prompt or a project path.
@@ -62,6 +64,9 @@ impl AgentModeGrammar {
                     || self.noninteractive_options.contains(&name)
                 {
                     return AgentInvocationMode::Noninteractive;
+                }
+                if self.interactive_optional_options.contains(&name) {
+                    continue;
                 }
                 if self.interactive_flags.contains(&name) && !inline_value {
                     continue;
@@ -112,6 +117,7 @@ pub(super) mod grammar {
             noninteractive_commands: &[],
             interactive_commands: &[],
             interactive_flags: &[],
+            interactive_optional_options: &[],
             interactive_options: &[],
             positional,
         }
@@ -139,8 +145,6 @@ pub(super) mod grammar {
         interactive_flags: &[
             "-c",
             "--continue",
-            "-r",
-            "--resume",
             "--dangerously-skip-permissions",
             "--verbose",
             "-d",
@@ -148,6 +152,7 @@ pub(super) mod grammar {
             "--ide",
             "--fork-session",
         ],
+        interactive_optional_options: &["-r", "--resume"],
         interactive_options: &[
             "--model",
             "--fallback-model",
@@ -305,10 +310,10 @@ pub(super) mod grammar {
             "--allow-all-tools",
             "--allow-all-paths",
             "--continue",
-            "--resume",
             "--banner",
             "--screen-reader",
         ],
+        interactive_optional_options: &["-r", "--resume"],
         interactive_options: &[
             "-i",
             "--interactive",
@@ -326,13 +331,15 @@ pub(super) mod grammar {
     pub const PI: AgentModeGrammar = AgentModeGrammar {
         noninteractive_options: &["-v", "-p", "--print", "--mode"],
         interactive_flags: &["-c", "--continue", "-r", "--resume"],
-        interactive_options: &["--model", "--provider", "--thinking"],
+        interactive_options: &["--model", "--provider", "--thinking", "--session"],
         ..base(M::Interactive)
     };
 
+    /// `-r` is not listed: it is `--reasoning-effort` under `exec`.
     pub const DROID: AgentModeGrammar = AgentModeGrammar {
         noninteractive_options: &["-v"],
         noninteractive_commands: &["exec", "mcp"],
+        interactive_optional_options: &["--resume"],
         ..base(M::Unclassified)
     };
 
@@ -342,6 +349,7 @@ pub(super) mod grammar {
             "setup", "model", "config", "gateway", "update", "doctor", "version", "login", "tools",
         ],
         interactive_commands: &["chat"],
+        interactive_options: &["-r", "--resume"],
         ..base(M::Unclassified)
     };
 
@@ -357,6 +365,32 @@ pub(super) mod grammar {
             "--output-format",
             "--input-format",
         ],
+        interactive_options: &["--conversation", "--conv", "-C", "--agent", "-a"],
         ..base(M::Unclassified)
+    };
+
+    pub const GROK: AgentModeGrammar = AgentModeGrammar {
+        interactive_optional_options: &["-r", "--resume"],
+        ..DEFAULT
+    };
+
+    pub const QODER: AgentModeGrammar = AgentModeGrammar {
+        interactive_optional_options: &["-r", "--resume"],
+        ..DEFAULT
+    };
+
+    pub const KIMI: AgentModeGrammar = AgentModeGrammar {
+        interactive_optional_options: &["-S", "--session"],
+        ..DEFAULT
+    };
+
+    pub const ANTIGRAVITY: AgentModeGrammar = AgentModeGrammar {
+        interactive_options: &["--conversation"],
+        ..DEFAULT
+    };
+
+    pub const DEVIN: AgentModeGrammar = AgentModeGrammar {
+        interactive_options: &["-r", "--resume"],
+        ..DEFAULT
     };
 }

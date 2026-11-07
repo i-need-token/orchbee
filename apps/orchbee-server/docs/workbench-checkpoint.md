@@ -86,12 +86,15 @@ Evidence must cover exact identity/revision fences, primary/child separation, in
 ### Per-Presentation Agent session references
 
 `checkpoint/agent_sessions.rs` owns the `agentSessions` list of `presentationId`, `provider` and
-`sessionId` rows. `provider` is `claude-code` or `codex`, the closed `AgentResumeProvider` table.
-`sessionId` is a hyphenated UUID, admitted case-insensitively and stored verbatim as
-`RetainedAgentSession`. Each row names a distinct member Presentation that also has a
+`sessionId` rows. `provider` is one id of the closed `AgentResumeProvider` table, and `sessionId`
+must be valid in that provider's own id grammar; the
+[provider table](agent-session-resume.md#provider-table) lists both. The id is stored verbatim,
+never case-folded, as `RetainedAgentSession`. Each row names a distinct member Presentation that also has a
 `terminalDirectories` row, and `(provider, sessionId)` pairs are distinct. A null list, a
-non-member or duplicate Presentation, an unknown provider, an invalid id, a duplicate pair, a row
-without a directory row or an unknown field rejects the entire document.
+non-member or duplicate Presentation, an unknown provider, an id invalid for its provider, a
+duplicate pair, a row without a directory row or an unknown field rejects the entire document. An
+older build therefore rejects a document with a provider it does not know and loses that layout
+once.
 
 The writer always emits the list. Unlike every other retained field it may be omitted on read,
 where it means no references: an omitted list cannot name anything to resume, so a document written
@@ -200,7 +203,7 @@ splits and child Presentations, profile rebasing, allocation after deleted ident
 ownership, corruption, duplicate/unknown fields, binding injection, graph failures and size limits.
 Current-shape fixtures preserve ungrouped membership, display order, unused/shared Directories,
 cwd. Strict fixtures cover missing fields and incompatible
-versions. Agent session fixtures cover every row fault, the omitted list, round trips into pending
+versions. Agent session fixtures cover every row fault, each provider's id grammar, the omitted list, round trips into pending
 intent, carry-over, take, live override, the directory-row requirement, first-member dedupe and
 recording off. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission

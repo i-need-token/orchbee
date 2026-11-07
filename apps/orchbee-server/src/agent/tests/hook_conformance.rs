@@ -632,3 +632,53 @@ fn kimi_hook_boundary_accepts_session_lifecycle_only() {
         assert!(resolve_adapter("kimi", event).is_none());
     }
 }
+
+/// Every resume provider id is a native process provider id and the provider id of a hook-contract
+/// adapter; otherwise that provider's candidates would silently never match.
+#[test]
+fn every_resume_provider_is_a_native_and_hook_contract_provider() {
+    use super::super::hook_contract::{HookObservationEvent as E, resolve_adapter};
+    use orchbee_agent_observation_protocol::AgentReportProvider;
+    use orchbee_server::AgentResumeProvider;
+    const EVENTS: [E; 19] = [
+        E::SessionIdentified,
+        E::SessionStarted,
+        E::SessionIdle,
+        E::TurnStarted,
+        E::ToolStarted,
+        E::ToolFinished,
+        E::ToolFailed,
+        E::QuestionRequested,
+        E::ApprovalRequested,
+        E::AttentionResolved,
+        E::CompactionStarted,
+        E::CompactionFinished,
+        E::SubagentStarted,
+        E::SubagentStopped,
+        E::TurnStopped,
+        E::TurnFailed,
+        E::TurnCanceled,
+        E::TurnInterrupted,
+        E::SessionEnded,
+    ];
+    for provider in AgentResumeProvider::ALL {
+        let id = provider.provider_id();
+        assert_eq!(
+            AgentReportProvider::from_native_provider_id(id)
+                .map(AgentReportProvider::native_provider_id),
+            Some(id)
+        );
+        assert!(
+            orchbee_agent_integration::IntegrationId::ALL
+                .iter()
+                .any(|adapter| {
+                    EVENTS.iter().any(|event| {
+                        resolve_adapter(adapter.as_str(), *event)
+                            .is_some_and(|definition| definition.provider_id == id)
+                    })
+                }),
+            "{id} is no hook-contract provider"
+        );
+        assert_eq!(AgentResumeProvider::from_provider_id(id), Some(provider));
+    }
+}
