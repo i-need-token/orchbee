@@ -83,10 +83,15 @@ impl LocalTerminalService {
                             Operation::Open {} => Outcome::Opened {
                                 snapshot: *snapshot,
                             },
-                            Operation::Save { .. } => Outcome::Saved {
-                                snapshot: *snapshot,
-                                changed,
-                            },
+                            Operation::Save { .. } => {
+                                if !snapshot.values.restore_terminal_output {
+                                    self.remove_terminal_output();
+                                }
+                                Outcome::Saved {
+                                    snapshot: *snapshot,
+                                    changed,
+                                }
+                            }
                         }
                     }
                     UserPreferencesResponse::Refused { reason } => Outcome::Refused {

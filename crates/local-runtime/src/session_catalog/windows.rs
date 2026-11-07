@@ -1181,6 +1181,27 @@ fn remove_private_file_if_present(path: &Path) -> io::Result<()> {
     }
 }
 
+/// Whether a leaf name belongs in one owned folder.
+type OwnsName = fn(&str) -> bool;
+/// Folders beside the checkpoint slots, each with the names it may hold.
+const OWNED_CHECKPOINT_FOLDERS: [(&str, OwnsName); 2] = [
+    (
+        crate::layout_history::DIRECTORY,
+        crate::layout_history::is_owned_name,
+    ),
+    (
+        crate::terminal_output::DIRECTORY,
+        crate::terminal_output::is_owned_name,
+    ),
+];
+
+fn owned_folder(name: &str) -> Option<OwnsName> {
+    OWNED_CHECKPOINT_FOLDERS
+        .iter()
+        .find(|(folder, _)| *folder == name)
+        .map(|(_, owns)| *owns)
+}
+
 struct OwnedDirectory {
     path: PathBuf,
     pins: Vec<File>,
@@ -1201,15 +1222,15 @@ impl OwnedDirectory {
                     && crate::checkpoint_rotation::is_corrupt_original(name))
             {
                 permissions::open_file(&entry.path(), false, false)?;
-            } else if files == CHECKPOINT_FILES && name == crate::layout_history::DIRECTORY {
+            } else if let Some(owns) = (files == CHECKPOINT_FILES)
+                .then(|| owned_folder(name))
+                .flatten()
+            {
                 let _pins = permissions::open_tree(&entry.path())?;
                 for owned in fs::read_dir(entry.path())? {
                     let owned = owned?;
                     let leaf = owned.file_name();
-                    if !leaf
-                        .to_str()
-                        .is_some_and(crate::layout_history::is_owned_name)
-                    {
+                    if !leaf.to_str().is_some_and(owns) {
                         return Err(io::ErrorKind::InvalidData.into());
                     }
                     permissions::open_file(&owned.path(), false, false)?;
@@ -1272,15 +1293,18 @@ impl OwnedDirectory {
                 Err(error) => return Err(error),
             }
         }
-        if files == CHECKPOINT_FILES {
-            let path = self.path.join(crate::layout_history::DIRECTORY);
+        for (folder, owns) in OWNED_CHECKPOINT_FOLDERS
+            .iter()
+            .filter(|_| files == CHECKPOINT_FILES)
+        {
+            let path = self.path.join(folder);
             match permissions::open_tree(&path) {
                 Ok(pins) => {
                     for owned in fs::read_dir(&path)? {
                         let owned = owned?;
                         let leaf = owned.file_name();
                         let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
-                        if !crate::layout_history::is_owned_name(name) {
+                        if !owns(name) {
                             return Err(io::ErrorKind::InvalidData.into());
                         }
                         check()?;

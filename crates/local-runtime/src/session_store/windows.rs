@@ -19,6 +19,7 @@ pub struct SessionStore {
 
 use super::{CheckpointLoad, CheckpointRestoreNotice};
 mod layout_history;
+mod terminal_output;
 
 impl SessionStore {
     /// `local_app_data` is an existing private absolute directory. The admitted runtime identity
@@ -214,15 +215,61 @@ impl SessionStore {
     }
 
     fn cleanup_pending(&self) -> io::Result<()> {
-        let path = self.directory.join("checkpoint.pending");
-        match permissions::open_file(&path, false, false) {
-            Ok(file) => {
-                drop(file);
-                fs::remove_file(path)
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error),
+        remove_if_present(&self.directory.join("checkpoint.pending"))
+    }
+}
+
+/// Opens `directory` as a private folder, creating and protecting it when absent. The returned
+/// handle pins it while the caller writes inside.
+fn private_folder(directory: &Path) -> io::Result<File> {
+    let created = match fs::create_dir(directory) {
+        Ok(()) => true,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
+        Err(error) => return Err(error),
+    };
+    let mut handle = permissions::open_directory(directory, created)?;
+    if created {
+        permissions::protect_new(&mut handle)?;
+    } else {
+        permissions::require_private(&handle)?;
+    }
+    Ok(handle)
+}
+
+/// Writes `bytes` to `pending`, flushes it and atomically renames it over `target`. A failure
+/// before the rename removes the staging file and leaves `target` unchanged.
+fn publish_private(pending: &Path, target: &Path, bytes: &[u8], what: &str) -> io::Result<()> {
+    remove_if_present(pending)?;
+    let mut file = permissions::open_file(pending, true, true)?;
+    let written = file.write_all(bytes).and_then(|()| file.sync_all());
+    drop(file);
+    let published = written.and_then(|()| {
+        winsafe::MoveFileEx(
+            text(pending)?,
+            Some(text(target)?),
+            winsafe::co::MOVEFILE::REPLACE_EXISTING,
+        )
+        .map_err(io::Error::other)
+    });
+    match published {
+        Ok(()) => Ok(()),
+        Err(error) => match remove_if_present(pending) {
+            Ok(()) => Err(error),
+            Err(cleanup) => Err(io::Error::other(format!(
+                "{error}; {what} staging cleanup unconfirmed: {cleanup}"
+            ))),
+        },
+    }
+}
+
+fn remove_if_present(path: &Path) -> io::Result<()> {
+    match permissions::open_file(path, false, false) {
+        Ok(file) => {
+            drop(file);
+            fs::remove_file(path)
         }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 

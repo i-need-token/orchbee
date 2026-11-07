@@ -23,6 +23,8 @@ mod local_terminal_service;
 #[cfg(any(unix, windows))]
 mod local_worker_service;
 #[cfg(any(unix, windows))]
+mod localization;
+#[cfg(any(unix, windows))]
 mod notification_registry;
 #[cfg(any(unix, windows))]
 mod session_coordinator;
@@ -30,6 +32,8 @@ mod session_coordinator;
 mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
+#[cfg(any(unix, windows))]
+mod terminal_output;
 #[cfg(any(unix, windows))]
 mod viewer_ready;
 #[cfg(any(unix, windows))]

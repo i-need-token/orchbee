@@ -43,6 +43,18 @@ impl SessionStore {
     pub fn read_layout_history_entry(&self, _saved_at: u64) -> io::Result<Option<Vec<u8>>> {
         Err(io::ErrorKind::Unsupported.into())
     }
+    pub fn terminal_output_tokens(&self) -> io::Result<Vec<u64>> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn read_terminal_output(&self, _token: u64) -> io::Result<Option<Vec<u8>>> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn write_terminal_output(&mut self, _token: u64, _payload: &[u8]) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn remove_terminal_output(&mut self, _token: u64) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     pub fn record_layout_history(
         &mut self,
         _saved_at: u64,

@@ -16,8 +16,15 @@ use std::{
 };
 
 pub(crate) struct CheckpointRestore {
-    pending: Vec<PendingOperation>,
+    /// Each restored launch and, when replay is on, the kept output its Presentation replays.
+    pending: Vec<(PendingOperation, Option<RestoredOutput>)>,
     agent_resume: super::agent_resume::AgentResumeCandidates,
+}
+
+/// The kept output one restored Presentation replays before its program starts.
+struct RestoredOutput {
+    presentation_id: orchbee_workbench_protocol::TerminalPresentationId,
+    token: u64,
 }
 
 impl CheckpointRestore {
@@ -50,6 +57,7 @@ impl LocalTerminalService {
         worker: &WorkerId,
     ) -> io::Result<(orchbee_workbench_protocol::WorkbenchRevision, Vec<u8>)> {
         let resume = self.agent_resume_enabled();
+        let replay = self.output_replay_enabled();
         let workers = self
             .workers
             .lock()
@@ -68,8 +76,13 @@ impl LocalTerminalService {
         }
         let directories = coordinator.cached_checkpoint_directories(&targets);
         let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
-        let bytes =
-            coordinator.checkpoint_with_observations(worker, &directories, agents.as_deref())?;
+        let outputs = self.checkpoint_outputs(replay, &targets);
+        let bytes = coordinator.checkpoint_with_observations(
+            worker,
+            &directories,
+            agents.as_deref(),
+            outputs.as_deref(),
+        )?;
         Ok((revision, bytes))
     }
 
@@ -106,6 +119,8 @@ impl LocalTerminalService {
         service.initialize_preferences(preferences)?;
         // The setting decides resuming once, from the store the scope just froze.
         let resume = service.agent_resume_enabled();
+        // Output replays only while the setting is on; otherwise the first save removes it.
+        let replay = service.output_replay_enabled();
         // One read serves every restored launch, after the scope it reads is frozen.
         let capture = service.launch_capture();
         let coordinator = service
@@ -159,7 +174,17 @@ impl LocalTerminalService {
                 Some(&handle),
                 capture.clone(),
             );
-            pending.push(*coordinator.prepare_checkpoint_terminal(&target, inputs, cwd)?);
+            let output = target
+                .restored_output()
+                .filter(|_| replay)
+                .map(|token| RestoredOutput {
+                    presentation_id: target.presentation_id().clone(),
+                    token,
+                });
+            pending.push((
+                *coordinator.prepare_checkpoint_terminal(&target, inputs, cwd)?,
+                output,
+            ));
         }
         Ok((
             service,
@@ -180,7 +205,17 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle();
-        for terminal in restore.pending {
+        for (mut terminal, output) in restore.pending {
+            // The kept output reaches the Host with the launch, before the program's first byte;
+            // a file that cannot replay here is never attached elsewhere.
+            if let Some(output) = output
+                && let Some(seed) = self.restored_output_seed(&output.presentation_id, output.token)
+                && terminal.set_output_seed(seed).is_err()
+            {
+                eprintln!(
+                    "orchbee-server diagnostic component=checkpoint operation=terminal-output stage=seed cause=refused"
+                );
+            }
             let completion = if Instant::now() >= deadline {
                 Completion::Unavailable
             } else {
@@ -209,13 +244,25 @@ impl LocalTerminalService {
 
     pub(crate) fn checkpoint(&self, worker: &WorkerId, deadline: Instant) -> io::Result<Vec<u8>> {
         let resume = self.agent_resume_enabled();
+        let replay = self.output_replay_enabled();
         let (revision, targets) = self
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?
             .checkpoint_observation_targets()?;
+        let presentations = if replay {
+            self.coordinator
+                .lock()
+                .map_err(|_| io::Error::other("coordinator failed"))?
+                .checkpoint_presentations()
+        } else {
+            Vec::new()
+        };
         self.settle_checkpoint_viewer(None)?;
         let mut directories = Vec::new();
+        let mut output_deadline_noted = false;
+        let output_deadline =
+            Instant::now() + deadline.saturating_duration_since(Instant::now()) / 2;
         for target in &targets {
             if Instant::now() >= deadline {
                 return Err(io::ErrorKind::TimedOut.into());
@@ -224,6 +271,25 @@ impl LocalTerminalService {
             self.settle_checkpoint_viewer(pending)?;
             if let Some(directory) = directory {
                 directories.push((target.binding.clone(), directory));
+            }
+            // Output capture spends at most half the save's budget; past it each terminal keeps
+            // its previous file and the save goes on.
+            if replay {
+                if Instant::now() >= output_deadline {
+                    if !output_deadline_noted {
+                        output_deadline_noted = true;
+                        eprintln!(
+                            "orchbee-server diagnostic component=checkpoint operation=terminal-output stage=final-capture cause=deadline"
+                        );
+                    }
+                    continue;
+                }
+                let presentation = presentations
+                    .iter()
+                    .find(|(binding, _)| binding == &target.binding)
+                    .map(|(_, presentation)| presentation);
+                let pending = self.capture_final_output(target, presentation);
+                self.settle_checkpoint_viewer(pending)?;
             }
         }
         let workers = self
@@ -243,7 +309,13 @@ impl LocalTerminalService {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
         let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
-        coordinator.checkpoint_with_observations(worker, &directories, agents.as_deref())
+        let outputs = self.checkpoint_outputs(replay, &targets);
+        coordinator.checkpoint_with_observations(
+            worker,
+            &directories,
+            agents.as_deref(),
+            outputs.as_deref(),
+        )
     }
 
     /// The final checkpoint once the Worker has exited. Nothing can sample a directory any more, so
@@ -253,6 +325,7 @@ impl LocalTerminalService {
     /// rather than leaving the Session unable to stop.
     pub(crate) fn checkpoint_without_worker(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
         let resume = self.agent_resume_enabled();
+        let replay = self.output_replay_enabled();
         let mut coordinator = self
             .coordinator
             .lock()
@@ -263,6 +336,13 @@ impl LocalTerminalService {
             .unwrap_or_default();
         let directories = coordinator.cached_checkpoint_directories(&targets);
         let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
-        coordinator.checkpoint_with_observations(worker, &directories, agents.as_deref())
+        // Output kept from earlier saves still names the exited terminals' files.
+        let outputs = self.checkpoint_outputs(replay, &targets);
+        coordinator.checkpoint_with_observations(
+            worker,
+            &directories,
+            agents.as_deref(),
+            outputs.as_deref(),
+        )
     }
 }

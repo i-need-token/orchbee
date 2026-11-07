@@ -28,9 +28,64 @@ pub(in crate::local_terminal_service) fn event_capture(
     read: &OutputRead,
 ) -> Result<(WorkbenchRevision, WorkbenchRevision, Vec<String>), Failure> {
     let frame = fresh_frame(viewer, template, stop).ok_or(Failure::SourceUnavailable)?;
-    let (floor, end) = range(viewer, &frame, read)?;
+    let lines = frame_lines(viewer, template, stop, &frame, read)?;
+    Ok((
+        WorkbenchRevision::new(frame.route.generation.get()),
+        WorkbenchRevision::new(frame.route.revision),
+        lines,
+    ))
+}
+
+/// One terminal's recent primary-screen lines for restart replay.
+pub(in crate::local_terminal_service) enum ReplayCapture {
+    /// The content generation and revision still equal the caller's last capture.
+    Unchanged,
+    /// A full-screen program owns the alternate screen; its content is never kept.
+    Alternate,
+    /// Logical lines with their styles, oldest first, at this content generation and revision.
+    Lines {
+        version: (u64, u64),
+        lines: Vec<String>,
+    },
+}
+
+/// Reads the last `lines` logical lines with styles unless the content is unchanged since
+/// `known` or the alternate screen is active.
+pub(in crate::local_terminal_service) fn replay_capture(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    lines: u16,
+    known: Option<(u64, u64)>,
+) -> Result<ReplayCapture, Failure> {
+    let frame = fresh_frame(viewer, template, stop).ok_or(Failure::SourceUnavailable)?;
+    if frame.alternate_screen {
+        return Ok(ReplayCapture::Alternate);
+    }
+    let version = (frame.route.generation.get(), frame.route.revision);
+    if known == Some(version) {
+        return Ok(ReplayCapture::Unchanged);
+    }
+    let read = OutputRead {
+        source: Source::RecentUnwrapped,
+        lines,
+        strip_ansi: false,
+        viewport: None,
+    };
+    let lines = frame_lines(viewer, template, stop, &frame, &read)?;
+    Ok(ReplayCapture::Lines { version, lines })
+}
+
+fn frame_lines(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    frame: &TerminalTextFrame,
+    read: &OutputRead,
+) -> Result<Vec<String>, Failure> {
+    let (floor, end) = range(viewer, frame, read)?;
     let mut start = end.saturating_sub(u64::from(read.lines)).max(floor);
-    let mut rows = read_rows(viewer, template, stop, &frame, start, end, read.strip_ansi)?;
+    let mut rows = read_rows(viewer, template, stop, frame, start, end, read.strip_ansi)?;
     if read.source == Source::RecentUnwrapped {
         loop {
             let logical = rows.iter().filter(|row| !row.from_previous).count();
@@ -39,7 +94,7 @@ pub(in crate::local_terminal_service) fn event_capture(
             }
             let next = start.saturating_sub(64).max(floor);
             let mut preceding =
-                read_rows(viewer, template, stop, &frame, next, start, read.strip_ansi)?;
+                read_rows(viewer, template, stop, frame, next, start, read.strip_ansi)?;
             preceding.append(&mut rows);
             rows = preceding;
             enforce_total(&rows)?;
@@ -71,11 +126,7 @@ pub(in crate::local_terminal_service) fn event_capture(
     if lines.len() > usize::from(read.lines) {
         lines.drain(..lines.len() - usize::from(read.lines));
     }
-    Ok((
-        WorkbenchRevision::new(frame.route.generation.get()),
-        WorkbenchRevision::new(frame.route.revision),
-        lines,
-    ))
+    Ok(lines)
 }
 fn range(
     viewer: &ViewerAttachment<'_>,

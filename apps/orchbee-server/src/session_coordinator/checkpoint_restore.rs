@@ -78,12 +78,35 @@ impl SessionCoordinator {
                 orchbee_server::RetainedAgentSession,
             )],
         >,
+        outputs: Option<&[(orchbee_workbench_protocol::PresentationBinding, u64)]>,
     ) -> io::Result<Vec<u8>> {
         self.workbench
             .as_ref()
             .ok_or_else(|| io::Error::other("Workbench unavailable"))?
-            .checkpoint_with_observations(worker, directories, agent_sessions)
+            .checkpoint_with_terminal_output(worker, directories, agent_sessions, outputs)
             .map_err(io::Error::other)
+    }
+
+    /// Every bound checkpoint member and the Presentation it shows.
+    #[cfg(windows)]
+    pub(crate) fn checkpoint_presentations(
+        &self,
+    ) -> Vec<(
+        orchbee_workbench_protocol::PresentationBinding,
+        orchbee_workbench_protocol::TerminalPresentationId,
+    )> {
+        self.workbench
+            .as_ref()
+            .map(orchbee_server::WorkbenchAuthority::terminal_restart_presentations)
+            .unwrap_or_default()
+    }
+
+    /// The kept output token a held, still unbound Presentation would replay.
+    pub(crate) fn restart_output(
+        &self,
+        presentation_id: &orchbee_workbench_protocol::TerminalPresentationId,
+    ) -> Option<u64> {
+        self.workbench.as_ref()?.restart_output(presentation_id)
     }
 
     /// Keeps `target` unbound in its place because the directory it would start in is

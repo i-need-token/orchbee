@@ -322,6 +322,9 @@ pub struct WorkbenchAuthority {
         orchbee_workbench_protocol::TerminalPresentationId,
         orchbee_workbench_protocol::WorkbenchDirectoryPath,
     >,
+    // Kept recent output each restored Presentation replays when it starts; a capture carries an
+    // entry only while its Presentation is still unbound.
+    restart_outputs: BTreeMap<orchbee_workbench_protocol::TerminalPresentationId, u64>,
     // Pending Agent resume intent: the driver takes an entry when it attempts it, and a capture
     // carries an entry nobody has taken. Taking one never changes the Workbench revision.
     restart_agent_sessions:
@@ -363,6 +366,7 @@ impl WorkbenchAuthority {
             panel_agent: panel_agent::PanelAgents::default(),
             plugin_panes: plugin_panes::Membership::default(),
             restart_directories: BTreeMap::new(),
+            restart_outputs: BTreeMap::new(),
             restart_agent_sessions: BTreeMap::new(),
             layout_lineage: checkpoint::LayoutLineage::default(),
         })

@@ -17,6 +17,8 @@ use orchbee_workbench_protocol::{
 /// What admission needs probed before the launch: the saved directory, or nothing for home.
 pub(crate) struct HeldRestoreProbe {
     pub(crate) directory: Option<WorkbenchDirectoryPath>,
+    /// The kept output the held Presentation replays when it starts, if any.
+    pub(crate) output: Option<(TerminalPresentationId, u64)>,
 }
 
 /// One reserved and bound restore launch, waiting for its dispatch to settle.
@@ -36,6 +38,15 @@ pub(crate) struct PendingHeldRestore {
 impl PendingHeldRestore {
     pub(crate) fn command(&self) -> &orchbee_capability_node_protocol::CapabilityNodeMessage {
         self.terminal.command()
+    }
+
+    /// Attaches the held Presentation's kept output; a refused seed starts without it.
+    pub(crate) fn set_output_seed(&mut self, seed: Vec<u8>) {
+        if self.terminal.set_output_seed(seed).is_err() {
+            eprintln!(
+                "orchbee-server diagnostic component=checkpoint operation=terminal-output stage=seed cause=refused"
+            );
+        }
     }
 }
 
@@ -92,6 +103,9 @@ impl SessionCoordinator {
                 WorkbenchRestoreDirectory::Saved => Some(held.0),
                 WorkbenchRestoreDirectory::Home => None,
             },
+            output: self
+                .restart_output(target.presentation_id)
+                .map(|token| (target.presentation_id.clone(), token)),
         })
     }
 

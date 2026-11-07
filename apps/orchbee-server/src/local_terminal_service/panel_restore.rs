@@ -42,6 +42,12 @@ impl LocalTerminalService {
         }
         let capture = self.launch_capture();
         let resume = self.agent_resume_enabled();
+        // The held Presentation keeps its file while held; read it outside every gate.
+        let seed = probe
+            .output
+            .as_ref()
+            .filter(|_| self.output_replay_enabled())
+            .and_then(|(presentation, token)| self.restored_output_seed(presentation, *token));
         let (pending, handle) = {
             let Ok(workers) = self.workers.lock() else {
                 return Ok(busy(&command));
@@ -57,7 +63,12 @@ impl LocalTerminalService {
                 return Ok(busy(&command));
             };
             match coordinator.prepare_held_restore(&command, inputs, probe.directory.as_ref()) {
-                Ok(pending) => (pending, handle),
+                Ok(mut pending) => {
+                    if let Some(seed) = seed {
+                        pending.set_output_seed(seed);
+                    }
+                    (pending, handle)
+                }
                 Err(result) => return Ok(*result),
             }
         };

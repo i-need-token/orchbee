@@ -60,6 +60,7 @@ mod tab_close;
 mod tab_create;
 mod tab_duplicate;
 mod tab_set_close;
+mod terminal_output;
 mod viewer_connection;
 pub(crate) use viewer_connection::LocalTerminalConnection;
 mod current_directory;
@@ -107,6 +108,7 @@ pub(crate) struct LocalTerminalService {
     tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
     layout_history: std::sync::OnceLock<Arc<crate::layout_history::LayoutHistory>>,
+    terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: Mutex<SessionCoordinator>,
     controllers: Mutex<
@@ -169,6 +171,7 @@ impl LocalTerminalService {
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
             layout_history: std::sync::OnceLock::new(),
+            terminal_output: std::sync::OnceLock::new(),
             workers,
             coordinator: Mutex::new(SessionCoordinator::new(workbench)),
             controllers: Mutex::new(std::collections::BTreeMap::new()),

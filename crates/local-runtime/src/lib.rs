@@ -73,6 +73,8 @@ mod retained_child;
 mod session_catalog;
 mod session_name;
 mod session_store;
+#[cfg(windows)]
+mod terminal_output;
 pub use session_catalog::{
     NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
     NamedSessionEntry, SessionCatalog, UnrecognizedRecord, UnrecognizedRecordKind,

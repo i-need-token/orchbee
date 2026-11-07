@@ -101,6 +101,20 @@ impl PendingOperation {
         &self.create_id
     }
 
+    /// Attaches earlier output the new terminal shows before its program starts. Only a launch
+    /// not yet dispatched carries it; its authorization and fence are unchanged.
+    pub(crate) fn set_output_seed(
+        &mut self,
+        seed: Vec<u8>,
+    ) -> Result<(), orchbee_capability_node_protocol::ProtocolError> {
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = &self.command else {
+            return Err(orchbee_capability_node_protocol::ProtocolError::InvalidPayload);
+        };
+        let launch = launch.clone().with_output_seed(Some(seed))?;
+        self.command = CapabilityNodeMessage::AuthorizedTerminalLaunch(launch);
+        Ok(())
+    }
+
     fn authorization(&self) -> TerminalOperationAuthorization {
         match &self.command {
             CapabilityNodeMessage::AuthorizedTerminalLaunch(command) => command.authorization(),

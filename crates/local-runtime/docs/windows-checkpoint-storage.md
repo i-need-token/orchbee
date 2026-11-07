@@ -87,6 +87,19 @@ owns when an entry is written and what reopening does. Session delete removes th
 other owned checkpoint files; inside it, deletion recognizes only the entry and pending names and
 refuses anything else.
 
+## Kept terminal output
+
+A private `terminal-output` folder beside the slots keeps terminal output for replay after a
+restart. Each file is one opaque payload framed like a slot and named `output-<16 lowercase
+hex>.bin` after a nonzero token the caller chooses; the frame generation must equal that token, so
+a renamed file is unreadable and reads as absent. A write flushes one private `output.pending` file
+and atomically renames it to the entry name; a failed write leaves every kept file unchanged. The
+store lists tokens, reads, writes and removes one file; the
+[Server checkpoint contract](../../../apps/orchbee-server/docs/workbench-checkpoint.md#terminal-output-replay)
+owns the payload, which tokens a checkpoint names and when files are removed. Session delete removes
+the folder with the other owned checkpoint files; inside it, deletion recognizes only the entry and
+pending names and refuses anything else.
+
 ## Restore notices
 
 The Server publishes a bounded private restore notice before making its managed Client endpoint

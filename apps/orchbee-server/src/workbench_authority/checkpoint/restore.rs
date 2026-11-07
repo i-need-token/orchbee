@@ -63,6 +63,7 @@ pub struct WorkbenchRestoreTarget {
     presentation_id: TerminalPresentationId,
     working_directory: Option<WorkbenchDirectoryPath>,
     restored_directory: Option<WorkbenchDirectoryPath>,
+    restored_output: Option<u64>,
 }
 
 impl WorkbenchRestoreTarget {
@@ -81,6 +82,11 @@ impl WorkbenchRestoreTarget {
     #[must_use]
     pub fn presentation_id(&self) -> &TerminalPresentationId {
         &self.presentation_id
+    }
+    /// The kept recent output token this Presentation was restored with, if any.
+    #[must_use]
+    pub const fn restored_output(&self) -> Option<u64> {
+        self.restored_output
     }
     #[must_use]
     pub fn working_directory(&self) -> Option<&WorkbenchDirectoryPath> {
@@ -140,6 +146,10 @@ impl WorkbenchAuthority {
                                     .restart_directories
                                     .get(&presentation.presentation_id)
                                     .cloned(),
+                                restored_output: self
+                                    .restart_outputs
+                                    .get(&presentation.presentation_id)
+                                    .copied(),
                             });
                         }
                     },

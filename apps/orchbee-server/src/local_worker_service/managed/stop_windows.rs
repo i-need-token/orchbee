@@ -70,6 +70,12 @@ pub(super) fn run(
         owners.terminals.bind_agent_names(&owners.agents)?;
         owners.terminals.start_close_maintenance()?;
         let resumes = restored.take_agent_resume();
+        // Restored launches read their kept output through the same store.
+        let output_store: Arc<dyn crate::terminal_output::TerminalOutputStore> =
+            Arc::clone(&owners.checkpoint_store) as _;
+        owners.terminals.install_terminal_output(Arc::new(
+            crate::terminal_output::TerminalOutput::new(output_store),
+        ));
         owners
             .terminals
             .launch_checkpoint_terminals(restored, startup_deadline)?;
@@ -256,6 +262,7 @@ fn settle(
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+        owners.terminals.terminal_output_after_save(&bytes);
         super::checkpoint_windows::autosave::record_history(&owners.terminals, &bytes, &mut None);
         shutdown.phase(attempt, StopPhase::Worker);
         let budget = deadline
@@ -408,6 +415,7 @@ fn settle_without_worker(
     }
     super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    owners.terminals.terminal_output_after_save(&bytes);
     super::checkpoint_windows::autosave::record_history(&owners.terminals, &bytes, &mut None);
     Ok(())
 }

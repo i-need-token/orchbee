@@ -174,13 +174,25 @@ impl WorkbenchAuthority {
         directories: &[(PresentationBinding, WorkbenchDirectoryPath)],
         agent_sessions: Option<&[(PresentationBinding, RetainedAgentSession)]>,
     ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
+        self.checkpoint_with_terminal_output(local_worker, directories, agent_sessions, None)
+    }
+
+    /// As [`Self::checkpoint_with_observations`], also naming each terminal's kept output token.
+    /// `outputs = None` means replay is off: no row names output, not even a held one's.
+    pub fn checkpoint_with_terminal_output(
+        &self,
+        local_worker: &WorkerId,
+        directories: &[(PresentationBinding, WorkbenchDirectoryPath)],
+        agent_sessions: Option<&[(PresentationBinding, RetainedAgentSession)]>,
+        outputs: Option<&[(PresentationBinding, u64)]>,
+    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
         }
         validate_catalog(&self.catalog)?;
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
-        let terminal_directories = directories::capture(self, local_worker, directories)?;
+        let terminal_directories = directories::capture(self, local_worker, directories, outputs)?;
         let agent_sessions =
             agent_sessions::capture(self, local_worker, agent_sessions, &terminal_directories)?;
         let mut snapshot = projection.snapshot().clone();
@@ -276,6 +288,12 @@ impl WorkbenchCheckpoint {
         authority.projection = parts.projection;
         authority.last_identity = self.checkpoint.last_identity.0;
         authority.catalog = parts.catalog;
+        authority.restart_outputs = self
+            .checkpoint
+            .terminal_directories
+            .iter()
+            .filter_map(|r| Some((r.presentation_id.clone(), r.output?.0)))
+            .collect();
         authority.restart_directories = self
             .checkpoint
             .terminal_directories
@@ -289,6 +307,16 @@ impl WorkbenchCheckpoint {
 }
 
 impl WorkbenchCheckpoint {
+    /// Every kept terminal output token this checkpoint names; any other kept file is stale.
+    #[must_use]
+    pub fn terminal_output_tokens(&self) -> Vec<u64> {
+        self.checkpoint
+            .terminal_directories
+            .iter()
+            .filter_map(|row| row.output.map(|token| token.0))
+            .collect()
+    }
+
     /// The retained graph with `local_worker` owning its Directories, and each member's retained
     /// directory. Parsing already validated both, so this only rebuilds them.
     pub(super) fn retained_graph(

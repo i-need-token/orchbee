@@ -14,6 +14,8 @@ const DEBOUNCE: Duration = Duration::from_millis(500);
 const PERIOD: Duration = Duration::from_secs(30);
 const POLL: Duration = Duration::from_millis(50);
 const RETRY: Duration = Duration::from_secs(1);
+/// The most one background save spends capturing terminal output before it saves anyway.
+const OUTPUT_CAPTURE: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SaveKind {
@@ -98,6 +100,9 @@ impl Saver {
                     if !schedule.ready(now) {
                         return Ok(false);
                     }
+                    if terminals.output_replay_enabled() {
+                        terminals.capture_terminal_output(Instant::now() + OUTPUT_CAPTURE);
+                    }
                     let (revision, bytes) = terminals.cached_checkpoint(&worker)?;
                     schedule.captured(revision, now);
                     if !publish_for_kind(
@@ -109,6 +114,7 @@ impl Saver {
                         return Ok(false);
                     }
                     suppressed_payload = None;
+                    terminals.terminal_output_after_save(&bytes);
                     record_history(&terminals, &bytes, &mut last_history_error);
                     Ok(true)
                 })();

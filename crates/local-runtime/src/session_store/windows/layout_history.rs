@@ -1,10 +1,10 @@
 //! Earlier-layout history beside the checkpoint slots: one atomically renamed file per entry,
 //! named by its save time, with the oldest beyond the kept count removed on the same write.
-use super::{SessionStore, text};
+use super::{SessionStore, private_folder, publish_private, remove_if_present};
 use crate::{LayoutHistoryEntry, layout_history as history, private_filesystem as permissions};
 use std::{
     fs,
-    io::{self, Read, Write},
+    io::{self, Read},
     num::NonZeroU64,
     path::PathBuf,
 };
@@ -48,41 +48,13 @@ impl SessionStore {
             return Err(io::ErrorKind::InvalidInput.into());
         }
         let directory = self.history_directory();
-        let created = match fs::create_dir(&directory) {
-            Ok(()) => true,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
-            Err(error) => return Err(error),
-        };
-        let mut handle = permissions::open_directory(&directory, created)?;
-        if created {
-            permissions::protect_new(&mut handle)?;
-        } else {
-            permissions::require_private(&handle)?;
-        }
-        let pending = directory.join(history::PENDING);
-        remove_if_present(&pending)?;
-        let target = directory.join(history::entry_name(saved_at));
-        let mut file = permissions::open_file(&pending, true, true)?;
-        let written = file
-            .write_all(&history::frame(saved_at, payload))
-            .and_then(|()| file.sync_all());
-        drop(file);
-        let published = written.and_then(|()| {
-            winsafe::MoveFileEx(
-                text(&pending)?,
-                Some(text(&target)?),
-                winsafe::co::MOVEFILE::REPLACE_EXISTING,
-            )
-            .map_err(io::Error::other)
-        });
-        if let Err(error) = published {
-            return match remove_if_present(&pending) {
-                Ok(()) => Err(error),
-                Err(cleanup) => Err(io::Error::other(format!(
-                    "{error}; layout history staging cleanup unconfirmed: {cleanup}"
-                ))),
-            };
-        }
+        let _folder = private_folder(&directory)?;
+        publish_private(
+            &directory.join(history::PENDING),
+            &directory.join(history::entry_name(saved_at)),
+            &history::frame(saved_at, payload),
+            "layout history",
+        )?;
         for old in self.history_times()?.into_iter().skip(keep) {
             remove_if_present(&directory.join(history::entry_name(old)))?;
         }
@@ -118,16 +90,5 @@ impl SessionStore {
             .take(history::frame_limit(self.maximum_bytes) as u64)
             .read_to_end(&mut bytes)?;
         Ok(history::unframe(saved_at, &bytes, self.maximum_bytes))
-    }
-}
-
-fn remove_if_present(path: &std::path::Path) -> io::Result<()> {
-    match permissions::open_file(path, false, false) {
-        Ok(file) => {
-            drop(file);
-            fs::remove_file(path)
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
     }
 }

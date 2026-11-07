@@ -73,12 +73,16 @@ first terminal is process-local and is not retained; see
 ### Per-terminal directory restoration
 
 The required `terminalDirectories` list stores stable `presentationId` and validated `path` pairs.
+A row may also name the Presentation's kept output with an optional `output` token, 16 lowercase
+hex digits and never zero (see [Terminal output replay](#terminal-output-replay)).
 Primary and child Presentations remain independent. Null lists, duplicate/foreign members and
 invalid paths reject the entire document; the 2 MiB limit remains.
 
 After request/background quiescence, clean stop takes a fresh bounded observation through the existing private viewer owner before Worker disposal. A valid terminal-reported directory takes precedence over the root process directory; child process directories never substitute for the root. The final physical membership and Worker generation must still match. Unknown detach remains owned by the stopped process observer, fails this stop attempt and preserves the preceding checkpoint; a later stop may settle that exact attachment.
 
-During normal operation the existing process sampler caches only its already observed validated directory, with the exact Worker generation, Host terminal identity and sample start time. Cached capture rechecks current physical membership under the Session gate. Stale, removed or replaced bindings contribute no directory. An unavailable observation does not fabricate a directory or erase retained restart intent. Saving never opens a viewer, samples processes or reads screen contents.
+During normal operation the existing process sampler caches only its already observed validated directory, with the exact Worker generation, Host terminal identity and sample start time. Cached capture rechecks current physical membership under the Session gate. Stale, removed or replaced bindings contribute no directory. An unavailable observation does not fabricate a directory or erase retained restart intent. Saving never opens a viewer, samples processes or reads screen contents for directories; only
+[terminal output replay](#terminal-output-replay), when it is on, reads recent output before a
+save.
 
 Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore holds the Presentation instead of launching (see [Held restore](#held-restore)). This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
@@ -206,7 +210,8 @@ Fresh physical creation establishes terminal bindings. Client and history recove
 
 The managed Windows Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
 Every 30 seconds it also captures cached directories. Agent session rows come from the same
-capture. No terminal screen, history, Agent conversation or live controller state enters the payload.
+capture. No terminal screen, history, Agent conversation or live controller state enters the payload;
+kept terminal output lives in its own files, which the payload names only by token.
 The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
 memory and does not publish that baseline. A later layout or cached directory
@@ -221,6 +226,44 @@ writer. Revision changes during I/O remain dirty and schedule another capture. A
 the previous valid copies and a bounded error state; it does not terminate a terminal or authorize a
 fresh Session. The saver must settle before final clean-stop capture. Failure to join it prevents stop
 completion rather than allowing two storage writers.
+
+## Terminal output replay
+
+The `restoreTerminalOutput` preference (off by default) keeps each terminal's recent output on this
+computer and shows it again after a full Server restart. `terminal_output.rs` owns the payload, the
+caps, the content token and an in-memory index of what each live terminal last kept;
+`local_terminal_service/terminal_output.rs` connects it to capture, saves and restore. The Server
+reads the preference at every save and restore, so a change from any writer applies at the next
+save.
+
+- **What is kept.** The last 2000 logical lines (scrollback and screen, unwrapped) with their styles,
+  at most 1 MiB less a small reserve for the divider; the oldest lines go first. A terminal showing
+  the alternate screen keeps its previous file, so full-screen programs are never kept. Control
+  characters other than the style sequences are dropped.
+- **Capture.** Before each background save the saver captures every live terminal on a temporary
+  viewer through the shared observer slot, spending at most 5 s; a terminal whose content revision
+  did not change is not reread. The clean-stop capture runs after the directory sample with the same
+  viewer cleanup rules and spends at most half the stop's remaining budget. A busy observer, a failed
+  capture or a missed deadline keeps that terminal's previous file and writes a diagnostic.
+- **Files.** One file per Presentation in the private `terminal-output` folder beside the checkpoint
+  slots, written atomically and named by a token: an FNV-1a digest of the Presentation id and the
+  content, so unchanged output is never rewritten. The payload begins with the owning Presentation
+  id and the time it was kept. A bound terminal names only output captured from it; a restored
+  Presentation that is still unbound (held) keeps naming the output it was restored with.
+- **Deletion.** After every committed save the Server removes each file the checkpoint does not name,
+  so a closed terminal's file is gone by the next save. With the preference off the checkpoint names
+  none, so every file goes at the next save; turning it off through the Server's settings removes
+  every file at once.
+- **Replay.** Restore reads the named file only while the preference is on. The file must belong to
+  that same Presentation; a damaged file or one owned by another Presentation is deleted and never
+  replayed. The seed is the kept output, a line break and one dim divider line,
+  `Output before restart (<local time>)` in en-US and its zh-CN counterpart, rendered in the
+  configured language with the time the output was kept. It travels with the launch to the Worker,
+  which stages it in the Host before the creation; the Host draws it into the new screen as output
+  before the program's first byte and pushes it into history, so it is never typed into the PTY.
+  Agent resume is unchanged.
+- **Held restore and earlier layouts.** A held Presentation keeps its file while held and replays it
+  on Retry or Start in home folder. Panels reopened from earlier layouts start without replay.
 
 ## Earlier layouts
 
@@ -286,6 +329,13 @@ intent, carry-over, take, live override, the directory-row requirement, first-me
 recording off. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
 also preserves pending files when the durable catalog is unsupported.
+
+Terminal output tests cover the line and byte caps and that only the named Presentation replays,
+with a foreign file removed. The Windows restart witness `cli_windows_output_replay` drives real
+Sessions: kept output for live terminals, a closed terminal's file gone after the next save, the
+checkpoint naming exactly the kept files, the replay above the divider and a new prompt in each
+terminal's own client text, swapped files deleted and never replayed, and the preference off
+removing every file.
 
 Layout history tests drive the record rule under an injected clock (change and interval, the
 48-entry bound, oldest first, reload) and reopen against a Session missing a Tab or a Workspace,
