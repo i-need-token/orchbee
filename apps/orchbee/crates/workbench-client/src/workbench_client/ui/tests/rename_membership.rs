@@ -171,7 +171,10 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
     let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
     let token = ui.request_rename_draft().unwrap();
     ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_rename_draft(token, RenameEdit::Clear);
+    ui.edit_rename_draft(
+        token,
+        RenameEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     ui.edit_rename_draft(token, RenameEdit::Append("new"));
     ui.submit_rename_draft(token);
     let lease = mailbox.try_recv().unwrap().unwrap();

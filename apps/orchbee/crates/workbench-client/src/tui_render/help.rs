@@ -178,7 +178,7 @@ pub(super) fn render(
         QueryField::Editing {
             label: locale.shortcut_search_label(),
             query: view.help_filter(),
-            cursor: view.help_filter().len(),
+            cursor: view.help_filter_cursor(),
         },
         theme,
     );

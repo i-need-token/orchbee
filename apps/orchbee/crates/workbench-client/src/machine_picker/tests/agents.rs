@@ -334,20 +334,20 @@ fn query_enter_escape_clear_and_bounds_never_activate_a_terminal() {
     for c in "same terminal".chars() {
         picker.key(KeyEvent::press(KeyCode::Char(c), Modifiers::NONE));
     }
-    assert_eq!(picker.agent_view.query, "same terminal");
+    assert_eq!(picker.agent_view.query.text(), "same terminal");
     picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
     assert!(!picker.editing_query);
     assert!(picker.open);
     assert!(picker.request.is_none());
     picker.key(KeyEvent::press(KeyCode::Char('/'), Modifiers::NONE));
     picker.key(KeyEvent::press(KeyCode::Backspace, Modifiers::NONE));
-    assert_eq!(picker.agent_view.query, "same termina");
+    assert_eq!(picker.agent_view.query.text(), "same termina");
     picker.key(KeyEvent::press(KeyCode::Char('u'), Modifiers::CTRL));
     for _ in 0..140 {
         picker.key(KeyEvent::press(KeyCode::Char('界'), Modifiers::NONE));
     }
     picker.key(KeyEvent::press(KeyCode::Char('\u{202e}'), Modifiers::NONE));
-    assert_eq!(picker.agent_view.query.chars().count(), 128);
+    assert_eq!(picker.agent_view.query.text().chars().count(), 128);
     let painted = paint(&picker, Locale::ZhCn, 50, 30);
     let cursor = painted
         .cursor

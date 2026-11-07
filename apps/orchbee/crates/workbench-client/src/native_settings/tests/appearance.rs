@@ -16,7 +16,9 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         match key {
             PreferenceKey::CustomForeground | PreferenceKey::CustomBackground => {
                 editor.edit(Edit::Activate);
-                editor.edit(Edit::Clear);
+                editor.edit(Edit::Line(
+                    crate::terminal_text::line_editor::LineKey::KillToStart,
+                ));
                 editor.paste("#123abc");
                 editor.edit(Edit::Activate);
             }
@@ -212,7 +214,9 @@ fn invalid_color_entry_and_reset_confirmation_keep_reversible_valid_presentation
     custom.terminal_display_theme = TerminalDisplayAppearance::Custom;
     editor.edit(Edit::Select(Row::Foreground));
     editor.edit(Edit::Activate);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("#bad");
     editor.edit(Edit::Activate);
     assert_eq!(

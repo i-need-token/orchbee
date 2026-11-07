@@ -3,7 +3,7 @@
 //! directory, or commit membership.
 
 use super::super::field_window::{FieldWindow, field_window};
-use super::super::line_editor::{LengthLimit, LineEditor};
+use super::super::line_editor::{LengthLimit, LineEditor, LineKey};
 use super::{
     SetupDraft, SetupIntent, SetupToken, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId,
 };
@@ -21,18 +21,21 @@ pub enum SetupEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
     Backspace,
-    Clear,
     Left,
     Right,
     Home,
     End,
     Delete,
-    WordBackspace,
+    /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`).
+    Line(LineKey),
     Fault,
     Completeness(bool),
     SelectPreviousProject,
     SelectNextProject,
-    ScrollProjects { up: bool, lines: usize },
+    ScrollProjects {
+        up: bool,
+        lines: usize,
+    },
 }
 pub(crate) use crate::localization::LocationLabelStatus;
 pub(crate) use crate::localization::LocationLabelTarget;
@@ -604,15 +607,11 @@ impl WorkbenchClientState {
         else {
             return false;
         };
-        let text_edit = matches!(
+        let text_edit = (matches!(
             edit,
-            SetupEdit::Append(_)
-                | SetupEdit::Paste(_)
-                | SetupEdit::Backspace
-                | SetupEdit::Delete
-                | SetupEdit::WordBackspace
-                | SetupEdit::Clear
-        ) && draft.text_field();
+            SetupEdit::Append(_) | SetupEdit::Paste(_) | SetupEdit::Backspace | SetupEdit::Delete
+        ) || matches!(edit, SetupEdit::Line(key) if key.edits_text()))
+            && draft.text_field();
         match edit {
             SetupEdit::SelectDirectory(_)
             | SetupEdit::SelectPreviousProject
@@ -720,13 +719,14 @@ impl WorkbenchClientState {
                 draft.editor_mut().delete();
                 draft.faulted = false;
             }
-            SetupEdit::WordBackspace if draft.complete && draft.text_field() => {
-                draft.editor_mut().word_back();
-                draft.faulted = false;
-            }
-            SetupEdit::Clear if draft.complete && draft.text_field() => {
-                draft.editor_mut().clear();
-                draft.faulted = false;
+            // A yank shares insertion's atomic budget and faults the same way; a
+            // kill clears the fault, as Backspace does.
+            SetupEdit::Line(key) if draft.complete && draft.text_field() => {
+                match draft.editor_mut().apply(key) {
+                    Err(_) => draft.faulted = true,
+                    Ok(_) if key.deletes_text() => draft.faulted = false,
+                    Ok(_) => {}
+                }
             }
             SetupEdit::Left if draft.complete && draft.text_field() => {
                 draft.editor_mut().left();

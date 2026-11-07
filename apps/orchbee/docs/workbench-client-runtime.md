@@ -1863,8 +1863,9 @@ The draft preserves exact schema-valid text and uses the bounded `RenameText` op
 successful drawing of its exact opaque token is required before Enter. Missing/failed drawing,
 hidden editor, viewport invalidation or draft replacement revokes qualification. Later text edits
 do not require a draw per scalar. A returned label remains exact; display sanitization is separate.
-Input faults clear only on explicit decoded Backspace or Ctrl+U, including Empty; these still pop
-or clear. Successful typing/paste, ignored sequences, failed edits and Enter cannot clear a fault.
+Input faults clear only on an explicit decoded deletion — Backspace, Delete, or a shared kill key
+such as Ctrl+U — including Empty; these still pop or clear. Successful typing/paste/yank, word
+movement, ignored sequences, failed edits and Enter cannot clear a fault.
 The localized error names Backspace and Ctrl+U. Cancellation destroys the draft and its fault.
 
 One existing input reader and terminal-mode owner handle the editor. ESC waits 50ms; CSI/SS3 uses a

@@ -198,7 +198,7 @@ fn picker_categories_query_controls_and_close_are_visible_mouse_paths() {
             let painted = paint(&picker, locale, width, height);
             let clear = painted.target(PickerAction::Control(Control::Clear));
             assert!(picker.activate_drawn_picker(&clear));
-            assert!(picker.agent_view.query.is_empty());
+            assert!(picker.agent_view.query.text().is_empty());
             let painted = paint(&picker, locale, width, height);
             let done = painted.target(PickerAction::Control(Control::Done));
             assert!(picker.activate_drawn_picker(&done));

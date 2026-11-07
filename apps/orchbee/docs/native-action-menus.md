@@ -82,7 +82,9 @@ not focused or has no frame omits the row, because the copy acts only on the foc
 Keyboard copy mode keeps its own entry and keys.
 
 The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
-query directly; Backspace removes the previous grapheme and Ctrl+U clears it. The query is limited
+query directly; Backspace removes the previous grapheme, Ctrl+U clears it from the end, and the
+other shared readline keys of the [native line editor](native-line-editor.md) edit it at its cursor
+while arrows and Home/End keep navigating the menu. The query is limited
 to 128 UTF-8 bytes, and menu capture keeps typed characters out of the terminal program. Matching
 uses a case-insensitive fuzzy subsequence over localized action labels, reviewed localized semantic
 aliases and the current effective shortcut. A matching child action makes its parent submenu

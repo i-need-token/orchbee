@@ -1947,7 +1947,7 @@ impl<'a> AgentBoardView<'a> {
     pub(crate) fn start_name(&self) -> &str {
         self.board.start.name()
     }
-    pub(crate) const fn start_name_cursor(&self) -> usize {
+    pub(crate) fn start_name_cursor(&self) -> usize {
         self.board.start.cursor()
     }
     pub(crate) fn start_phase(&self) -> Option<start::Phase> {

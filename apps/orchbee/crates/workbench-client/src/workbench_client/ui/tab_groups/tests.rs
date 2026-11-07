@@ -240,7 +240,10 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
         assert!(!text.contains("1–512"));
     }
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_setup_draft(token, SetupEdit::Clear);
+    ui.edit_setup_draft(
+        token,
+        SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     ui.submit_setup_draft(token);
     let group = WorkbenchTabGroupId::parse(&format!("{:032x}", 1902)).unwrap();
     let operation = accept_configuration(
@@ -377,7 +380,10 @@ fn tab_group_menus_submit_canonical_operations_and_preserve_selected_terminal() 
         "draft also requires a complete paint"
     );
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_setup_draft(token, SetupEdit::Clear);
+    ui.edit_setup_draft(
+        token,
+        SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     ui.edit_setup_draft(token, SetupEdit::Paste("构建 🦀"));
     ui.submit_setup_draft(token);
     accept_configuration(

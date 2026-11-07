@@ -174,7 +174,10 @@ fn label_operation(
             .is_none()
     );
     state.acknowledge_setup_draw(Some(token));
-    assert!(state.edit_setup_draft(token, Edit::Clear));
+    assert!(state.edit_setup_draft(
+        token,
+        Edit::Line(crate::terminal_text::line_editor::LineKey::KillToStart)
+    ));
     assert!(state.edit_setup_draft(token, Edit::Append(label)));
     let operation = state
         .plan_setup(
@@ -339,7 +342,10 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
     assert_eq!(state.setup_draft().unwrap().text().len(), 4096);
     assert!(state.edit_setup_draft(token, Edit::Append("x")));
     assert!(state.setup_draft().unwrap().faulted());
-    state.edit_setup_draft(token, Edit::Clear);
+    state.edit_setup_draft(
+        token,
+        Edit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     let path = "/tmp/literal ~ $HOME space";
     state.edit_setup_draft(token, Edit::Append(path));
     state.edit_setup_draft(token, Edit::Completeness(false));

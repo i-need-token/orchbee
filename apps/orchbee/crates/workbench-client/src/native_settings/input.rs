@@ -1,6 +1,7 @@
 //! Text editing owns printable keys; navigation, editing, and local hints share one key map.
 use super::{Edit, Page, View};
 use crate::client_view::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::terminal_text::line_editor::LineKey;
 
 #[derive(Clone, Copy)]
 struct BindingSpec {
@@ -30,8 +31,6 @@ enum LocalBinding {
     End,
     HomeEmacs,
     EndEmacs,
-    Clear,
-    WordBack,
     Backspace,
     Delete,
 }
@@ -88,18 +87,6 @@ impl LocalBinding {
                 Edit::End,
                 false,
             ),
-            Self::Clear => (
-                KeyCode::Char('u'),
-                Modifiers::NONE.with_ctrl(),
-                Edit::Clear,
-                false,
-            ),
-            Self::WordBack => (
-                KeyCode::Char('w'),
-                Modifiers::NONE.with_ctrl(),
-                Edit::WordBack,
-                false,
-            ),
             Self::Backspace => (KeyCode::Backspace, Modifiers::NONE, Edit::Backspace, false),
             Self::Delete => (KeyCode::Delete, Modifiers::NONE, Edit::Delete, false),
         };
@@ -111,7 +98,7 @@ impl LocalBinding {
     }
 }
 
-const DISPATCH_ORDER: [LocalBinding; 23] = [
+const DISPATCH_ORDER: [LocalBinding; 21] = [
     LocalBinding::Search,
     LocalBinding::Explain,
     LocalBinding::Save,
@@ -131,8 +118,6 @@ const DISPATCH_ORDER: [LocalBinding; 23] = [
     LocalBinding::End,
     LocalBinding::HomeEmacs,
     LocalBinding::EndEmacs,
-    LocalBinding::Clear,
-    LocalBinding::WordBack,
     LocalBinding::Backspace,
     LocalBinding::Delete,
 ];
@@ -204,7 +189,8 @@ const CONFIRMATION_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Confirm),
 ];
-/// Editing keys such as Backspace and Ctrl+U are conventions, not advertised hints.
+/// Editing keys such as Backspace and the shared readline keys are conventions, not advertised
+/// hints.
 const TEXT_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Accept),
@@ -270,6 +256,9 @@ pub(crate) fn key_edit(event: KeyEvent, text_entry: bool) -> Option<Edit> {
         }
     }) {
         return Some(edit);
+    }
+    if text_entry && let Some(key) = LineKey::for_key(event) {
+        return Some(Edit::Line(key));
     }
     if event.mods == Modifiers::NONE || event.mods == Modifiers::NONE.with_shift() {
         match event.code {

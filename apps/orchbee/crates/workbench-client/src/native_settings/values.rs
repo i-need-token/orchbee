@@ -259,9 +259,6 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
         Edit::Backspace => {
             editor.backspace();
         }
-        Edit::WordBack => {
-            editor.word_back();
-        }
         Edit::Delete => {
             editor.delete();
         }
@@ -277,12 +274,7 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
         Edit::End => {
             editor.end();
         }
-        Edit::Clear => {
-            *editor = super::LineEditor::new(
-                String::new(),
-                super::LengthLimit::Bytes(draft.row.text_limit().unwrap_or(0)),
-            );
-        }
+        Edit::Line(key) => draft.invalid = editor.apply(key).is_err(),
         Edit::Activate => {
             let value = editor.text().to_owned();
             if accept_text(draft, value) {

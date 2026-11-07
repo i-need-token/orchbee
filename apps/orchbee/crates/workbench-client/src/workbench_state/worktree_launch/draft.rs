@@ -5,7 +5,7 @@ use super::{
 pub(crate) use crate::localization::WorktreeStage;
 use crate::tui_presentation::PresentationPhase;
 use crate::workbench_state::field_window::{FieldWindow, field_window};
-use crate::workbench_state::line_editor::{LengthLimit, LineEditor};
+use crate::workbench_state::line_editor::{LengthLimit, LineEditor, LineKey};
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchTerminalGeometry, WorktreeEntryText, WorktreeIntent,
     WorktreeReference, WorktreeSelector, WorktreeSource,
@@ -18,13 +18,13 @@ pub enum WorktreeEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
     Backspace,
-    Clear,
     Left,
     Right,
     Home,
     End,
     Delete,
-    WordBackspace,
+    /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`).
+    Line(LineKey),
     Fault,
     Completeness(bool),
     Previous,
@@ -171,16 +171,15 @@ impl Draft {
                 true
             }
             WorktreeEdit::Backspace => self.field_mut().backspace(),
-            WorktreeEdit::Clear => {
-                self.field_mut().clear();
-                true
-            }
             WorktreeEdit::Left => self.field_mut().left(),
             WorktreeEdit::Right => self.field_mut().right(),
             WorktreeEdit::Home => self.field_mut().home(),
             WorktreeEdit::End => self.field_mut().end(),
             WorktreeEdit::Delete => self.field_mut().delete(),
-            WorktreeEdit::WordBackspace => self.field_mut().word_back(),
+            WorktreeEdit::Line(key) => self
+                .field_mut()
+                .apply(key)
+                .map_err(|_| WorktreeNotice::InputLimit)?,
             _ => false,
         };
         if changed {

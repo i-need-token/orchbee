@@ -1,6 +1,7 @@
 //! Workspace-name filtering and its local editor; typing never becomes list shortcuts or effects.
 use super::{KeyCode, Mode, Modifiers, Picker, Selection};
-use crate::terminal_text::sanitize_terminal_text;
+use crate::client_view::KeyEvent;
+use crate::terminal_text::{line_editor::LineKey, sanitize_terminal_text};
 
 impl Picker {
     pub(super) fn filter_workspaces(&mut self, selected: Option<Selection>) {
@@ -59,6 +60,15 @@ impl Picker {
             return false;
         }
         let selected = self.selection();
+        if let Some(key) = LineKey::for_key(KeyEvent::press(code, mods)) {
+            if self.workspace_query.apply(key).is_err() {
+                self.error = Some("workspace-query-limit");
+                return true;
+            }
+            self.error = None;
+            self.filter_workspaces(selected);
+            return true;
+        }
         match (code, mods) {
             (KeyCode::Char(character), mods)
                 if mods == Modifiers::NONE || mods == Modifiers::NONE.with_shift() =>
@@ -89,10 +99,6 @@ impl Picker {
             (KeyCode::End, Modifiers::NONE) | (KeyCode::Char('e'), Modifiers::CTRL) => {
                 self.workspace_query.end();
             }
-            (KeyCode::Char('w'), Modifiers::CTRL) => {
-                self.workspace_query.word_back();
-            }
-            (KeyCode::Char('u'), Modifiers::CTRL) => self.workspace_query.clear(),
             _ => return false,
         }
         self.error = None;

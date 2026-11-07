@@ -112,7 +112,9 @@ fn search_projects_only_matching_categories_and_drops_all_hidden_setting_targets
                 format!("[{label}{key}]")
             );
         }
-        editor.edit(Edit::Clear);
+        editor.edit(Edit::Line(
+            crate::terminal_text::line_editor::LineKey::KillToStart,
+        ));
         editor.paste("no-such-setting");
         let (terminal, map, draw) = present_once(&mut editor, 80, 24, locale, &theme);
         assert!(
@@ -232,7 +234,9 @@ fn minimal_text_editor_keeps_exact_entry_and_complete_footer_controls() {
                 let mut editor = editor_with(UserPreferencesValues::default());
                 select_and_present(&mut editor, Row::CompletionThreshold, locale, &theme);
                 editor.edit(Edit::Activate);
-                editor.edit(Edit::Clear);
+                editor.edit(Edit::Line(
+                    crate::terminal_text::line_editor::LineKey::KillToStart,
+                ));
                 editor.paste("17");
                 let (terminal, map, draw) = present_once(&mut editor, width, 10, locale, &theme);
                 assert!(terminal.backend().cursor_visible());

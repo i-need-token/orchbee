@@ -565,7 +565,9 @@ fn machine_cover_keeps_retained_settings_recovery_and_owns_its_close_packet_tail
     }
     port.editor.edit(Edit::Select(Row::Foreground));
     port.editor.edit(Edit::Activate);
-    port.editor.edit(Edit::Clear);
+    port.editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
 
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
@@ -656,7 +658,9 @@ fn settings_text_paste_is_bounded_atomic_and_never_forwarded_to_the_terminal() {
     }
     port.editor.edit(Edit::Select(Row::Foreground));
     port.editor.edit(Edit::Activate);
-    port.editor.edit(Edit::Clear);
+    port.editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(
@@ -1081,7 +1085,9 @@ fn settings_ctrl_w_edits_the_captured_word_without_saving_or_forwarding() {
     port.editor.edit(Edit::Activate);
     port.editor.edit(Edit::Select(Row::ProfileName));
     port.editor.edit(Edit::Activate);
-    port.editor.edit(Edit::Clear);
+    port.editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(
@@ -1120,7 +1126,9 @@ fn settings_backdrop_retains_drafts_children_confirmations_and_inflight_operatio
             1 => {
                 port.editor.edit(Edit::Select(Row::CompletionThreshold));
                 port.editor.edit(Edit::Activate);
-                port.editor.edit(Edit::Clear);
+                port.editor.edit(Edit::Line(
+                    crate::terminal_text::line_editor::LineKey::KillToStart,
+                ));
                 port.editor.paste("17");
             }
             2 | 3 => {
@@ -1130,7 +1138,9 @@ fn settings_backdrop_retains_drafts_children_confirmations_and_inflight_operatio
                 port.editor.edit(Edit::Activate);
                 port.editor.edit(Edit::Select(Row::ProfileName));
                 port.editor.edit(Edit::Activate);
-                port.editor.edit(Edit::Clear);
+                port.editor.edit(Edit::Line(
+                    crate::terminal_text::line_editor::LineKey::KillToStart,
+                ));
                 port.editor.paste("Temporary command · unsaved");
                 port.editor.edit(Edit::Activate);
                 port.editor.edit(Edit::Select(Row::CommandType));

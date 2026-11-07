@@ -907,13 +907,13 @@ impl Picker {
             }
         }
         let label = locale.machine_picker_text("agent-search");
-        let query = self.agent_view().query.as_str();
+        let query = self.agent_view().query.text();
         let key = search_key_label(theme);
         let field = if self.editing_query() {
             QueryField::Editing {
                 label,
                 query,
-                cursor: query.len(),
+                cursor: self.agent_view().query.cursor(),
             }
         } else if query.is_empty() {
             QueryField::Rest {

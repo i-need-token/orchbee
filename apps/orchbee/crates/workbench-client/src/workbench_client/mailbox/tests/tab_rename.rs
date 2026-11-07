@@ -9,7 +9,10 @@ fn rename_real_admission_refuses_unseen_and_full_without_burning_identity_or_dra
     let mailbox = bootstrapped_mailbox(1, 5);
     let mut state = ready_state(3);
     let token = state.open_rename_draft().unwrap();
-    state.edit_rename_draft(token, RenameDraftEdit::Clear);
+    state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     state.edit_rename_draft(token, RenameDraftEdit::Append(" exact 雪 "));
     let before = mailbox.cursors();
     assert!(

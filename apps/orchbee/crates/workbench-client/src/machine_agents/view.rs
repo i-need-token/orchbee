@@ -3,6 +3,7 @@ use super::checkpoint::Row;
 use crate::client_context::{ClientContextLocation, ClientContextTarget};
 use crate::machine_discovery::overview::display_label;
 use crate::machines::Choice;
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use crate::terminal_title::ChromeName;
 use orchbee_workbench_protocol::{
     AgentViewSpec, MetadataState, PanelAgentState, TerminalTitleObservation,
@@ -25,12 +26,24 @@ pub(crate) enum Order {
     Title,
     Sequence,
 }
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+/// The Agent search query's scalar budget.
+const MAXIMUM_QUERY_SCALARS: usize = 128;
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct View {
     pub(crate) state: Option<MetadataState>,
     pub(crate) scope: Scope,
     pub(crate) order: Order,
-    pub(crate) query: String,
+    pub(crate) query: LineEditor,
+}
+impl Default for View {
+    fn default() -> Self {
+        Self {
+            state: None,
+            scope: Scope::default(),
+            order: Order::default(),
+            query: Self::query_editor(String::new()),
+        }
+    }
 }
 pub(crate) struct Entry<'a> {
     pub(crate) machine: &'a Choice,
@@ -48,9 +61,16 @@ impl View {
         self.project_source(candidates, current, context, None, None)
     }
 
+    pub(crate) fn query_editor(query: String) -> LineEditor {
+        LineEditor::new(query, LengthLimit::Scalars(MAXIMUM_QUERY_SCALARS))
+    }
+
+    /// Inserts one typed scalar at the query cursor; a scalar without a display label or one past
+    /// the budget is dropped.
     pub(crate) fn push(&mut self, c: char) {
-        if self.query.chars().count() < 128 && !display_label(&c.to_string()).is_empty() {
-            self.query.push(c);
+        let text = c.to_string();
+        if !display_label(&text).is_empty() {
+            let _ = self.query.insert(&text);
         }
     }
     pub(crate) fn cycle_state(&mut self) {
@@ -94,7 +114,7 @@ impl View {
         {
             return false;
         }
-        let query = self.query.trim().to_lowercase();
+        let query = self.query.text().trim().to_lowercase();
         query.is_empty()
             || [
                 if machine == &Choice::Local {

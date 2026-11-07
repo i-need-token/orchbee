@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 mod paste;
 mod utf8;
 
+use crate::terminal_text::line_editor::LineKey;
 use paste::{Paste, PasteStep};
 use utf8::Scalar;
 
@@ -56,8 +57,8 @@ pub(super) enum ModalInputEvent {
     End,
     Delete,
     Backspace,
-    WordBackspace,
-    Clear,
+    /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`).
+    Line(LineKey),
     Fault,
     Completeness(bool),
     Focus(bool),
@@ -433,7 +434,21 @@ impl ModalDecoder {
                     0x80..=0xff => {
                         self.scalar_byte(Scalar::default(), true, byte, now, &mut events)
                     }
-                    _ => self.finish_frame(now, &mut events),
+                    // `ESC b`/`f`/`d` is the legacy Alt chord for a shared word key; any other
+                    // ESC-prefixed byte is consumed whole.
+                    _ => {
+                        let editing = self.editing;
+                        self.finish_frame(now, &mut events);
+                        let key = match byte {
+                            b'b' => Some(LineKey::WordLeft),
+                            b'f' => Some(LineKey::WordRight),
+                            b'd' => Some(LineKey::KillWordForward),
+                            _ => None,
+                        };
+                        if editing && let Some(key) = key {
+                            events.push(ModalInputEvent::Line(key));
+                        }
+                    }
                 },
                 Phase::GraphicsStart(_) => {
                     if byte == b'G' {
@@ -627,8 +642,10 @@ impl ModalDecoder {
             1 => events.push(ModalInputEvent::Home),
             5 => events.push(ModalInputEvent::End),
             8 | 127 => events.push(ModalInputEvent::Backspace),
-            21 => events.push(ModalInputEvent::Clear),
-            23 => events.push(ModalInputEvent::WordBackspace),
+            11 => events.push(ModalInputEvent::Line(LineKey::KillToEnd)),
+            21 => events.push(ModalInputEvent::Line(LineKey::KillToStart)),
+            23 => events.push(ModalInputEvent::Line(LineKey::KillWordBack)),
+            25 => events.push(ModalInputEvent::Line(LineKey::Yank)),
             b'\r' | b'\n' => {
                 self.swallow_lf = byte == b'\r';
                 events.push(ModalInputEvent::Submit);

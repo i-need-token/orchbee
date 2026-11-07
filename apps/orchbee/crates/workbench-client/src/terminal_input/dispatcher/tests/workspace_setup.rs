@@ -78,7 +78,7 @@ impl SetupPort {
                 let _removed = self.text.pop();
                 self.fault = false;
             }
-            SetupEdit::Clear => {
+            SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart) => {
                 self.text.clear();
                 self.fault = false;
             }
@@ -87,7 +87,10 @@ impl SetupPort {
             SetupEdit::Home => self.edits.push("home"),
             SetupEdit::End => self.edits.push("end"),
             SetupEdit::Delete => self.edits.push("delete"),
-            SetupEdit::WordBackspace => self.edits.push("word_backspace"),
+            SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillWordBack) => {
+                self.edits.push("word_backspace")
+            }
+            SetupEdit::Line(_) => self.edits.push("line_key"),
             SetupEdit::Fault => self.fault = true,
             SetupEdit::Completeness(complete) => self.complete = complete,
             SetupEdit::SelectPreviousProject => {

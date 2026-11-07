@@ -944,7 +944,10 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                     ui.submit_setup_draft(token);
                     assert!(mailbox.try_recv().unwrap().is_none());
                     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-                    ui.edit_setup_draft(token, SetupEdit::Clear);
+                    ui.edit_setup_draft(
+                        token,
+                        SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+                    );
                     ui.edit_setup_draft(token, SetupEdit::Append("Exact 雪"));
                     ui.submit_setup_draft(token);
                     let lease = mailbox.try_recv().unwrap().unwrap();

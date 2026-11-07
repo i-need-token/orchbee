@@ -4,7 +4,7 @@ use crate::client_actions::PrefixAction;
 use crate::client_view::{
     Binding, ClientAction, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
 };
-use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
 mod tab_presentation;
@@ -338,6 +338,8 @@ pub(crate) struct MenuView<'a> {
     #[cfg(test)]
     pub(crate) result_actions: &'a [usize],
     pub(crate) query: Option<&'a str>,
+    /// The query cursor's byte offset; always a grapheme boundary of `query`.
+    pub(crate) query_cursor: usize,
     pub(crate) search_children: &'a [MenuSearchChild],
     pub(crate) selected: usize,
     pub(crate) pending_selected_action: Option<&'a MenuAction>,
@@ -585,6 +587,7 @@ impl RetainedMenu {
             #[cfg(test)]
             result_actions: &self.result_actions,
             query: None,
+            query_cursor: 0,
             search_children: &[],
             selected: self.open_row,
             pending_selected_action: None,
@@ -669,6 +672,21 @@ impl ActionMenu {
             return self.confirm();
         }
         let searchable = self.menu.as_ref().is_some_and(|menu| menu.query.is_some());
+        if searchable && let Some(key) = LineKey::for_key(event) {
+            let changed = self
+                .menu
+                .as_mut()
+                .and_then(|menu| menu.query.as_mut())
+                .is_some_and(|query| query.apply(key) == Ok(true));
+            if changed {
+                if key.edits_text() {
+                    self.query_changed();
+                } else {
+                    self.query_cursor_moved();
+                }
+            }
+            return false;
+        }
         if searchable {
             match (event.mods, event.code) {
                 (Modifiers::NONE, KeyCode::Backspace) => {
@@ -677,26 +695,6 @@ impl ActionMenu {
                         .as_mut()
                         .and_then(|menu| menu.query.as_mut())
                         .is_some_and(LineEditor::backspace);
-                    if changed {
-                        self.query_changed();
-                    }
-                    return false;
-                }
-                (mods, KeyCode::Char('u'))
-                    if mods == Modifiers::CTRL && !event.mods.shift && !event.mods.alt =>
-                {
-                    let changed = self
-                        .menu
-                        .as_mut()
-                        .and_then(|menu| menu.query.as_mut())
-                        .is_some_and(|query| {
-                            if query.text().is_empty() {
-                                false
-                            } else {
-                                query.clear();
-                                true
-                            }
-                        });
                     if changed {
                         self.query_changed();
                     }
@@ -1074,6 +1072,7 @@ impl ActionMenu {
             #[cfg(test)]
             result_actions: &menu.result_actions,
             query: menu.query.as_ref().map(LineEditor::text),
+            query_cursor: menu.query.as_ref().map_or(0, LineEditor::cursor),
             search_children: &menu.search_children,
             selected: menu.selected,
             pending_selected_action: menu.pending_selected_action.as_ref(),
@@ -1283,6 +1282,21 @@ impl ActionMenu {
         menu.visible_rows = 0;
         menu.token = token;
         menu.drawn = None;
+    }
+
+    /// A cursor-only query edit repaints the query row without changing results or selection.
+    fn query_cursor_moved(&mut self) {
+        if self.confirmed.is_some() {
+            return;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return;
+        };
+        if let Some(menu) = &mut self.menu {
+            menu.token = token;
+            menu.drawn = None;
+        }
     }
 
     fn query_changed(&mut self) {

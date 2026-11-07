@@ -1,4 +1,4 @@
-use super::{ModalCapacity, ModalDecoder, ModalInputEvent as Event};
+use super::{LineKey, ModalCapacity, ModalDecoder, ModalInputEvent as Event};
 use std::time::{Duration, Instant};
 
 fn feed(decoder: &mut ModalDecoder, bytes: &[u8], now: Instant, remaining: usize) -> Vec<Event> {
@@ -217,7 +217,11 @@ fn paste_is_atomic_across_every_split_and_keeps_literal_controls_and_nested_open
         assert_eq!(pasted(&events), text);
         assert!(!events.iter().any(|event| matches!(
             event,
-            Event::Submit | Event::Cancel | Event::Backspace | Event::Clear | Event::Fault
+            Event::Submit
+                | Event::Cancel
+                | Event::Backspace
+                | Event::Line(LineKey::KillToStart)
+                | Event::Fault
         )));
     }
     let mut decoder = ModalDecoder::default();
@@ -397,12 +401,14 @@ fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_termin
     );
     assert!(events.contains(&Event::Fault));
     assert!(pasted(&events).is_empty());
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(event, Event::Clear | Event::Submit | Event::Cancel))
+    assert!(!events.iter().any(|event| matches!(
+        event,
+        Event::Line(LineKey::KillToStart) | Event::Submit | Event::Cancel
+    )));
+    assert_eq!(
+        feed(&mut decoder, b"\x15", now, 512),
+        [Event::Line(LineKey::KillToStart)]
     );
-    assert_eq!(feed(&mut decoder, b"\x15", now, 512), [Event::Clear]);
 }
 
 #[test]
@@ -702,7 +708,13 @@ fn unmodified_navigation_delete_and_word_keys_emit_edit_events() {
         (b"\x8fH".as_slice(), Event::Home),
         (b"\x01".as_slice(), Event::Home),
         (b"\x05".as_slice(), Event::End),
-        (b"\x17".as_slice(), Event::WordBackspace),
+        (b"\x17".as_slice(), Event::Line(LineKey::KillWordBack)),
+        (b"\x15".as_slice(), Event::Line(LineKey::KillToStart)),
+        (b"\x0b".as_slice(), Event::Line(LineKey::KillToEnd)),
+        (b"\x19".as_slice(), Event::Line(LineKey::Yank)),
+        (b"\x1bb".as_slice(), Event::Line(LineKey::WordLeft)),
+        (b"\x1bf".as_slice(), Event::Line(LineKey::WordRight)),
+        (b"\x1bd".as_slice(), Event::Line(LineKey::KillWordForward)),
     ] {
         let mut decoder = ModalDecoder::default();
         decoder.start();

@@ -408,6 +408,15 @@ localized metadata, and makes the recording path discovery-only rather than an e
 
 New Worktree and Open Worktree from the focused Panel (`workbench.worktree.active.create` and `workbench.worktree.active.open`), the counterparts of the TUI's `Ctrl+B W` and `Ctrl+B O`, have no default key and run from Action search. Standard `Ctrl+Shift+W` already closes the active terminal and `Mod+Shift+O` shows keyboard hints, and a `Ctrl+Alt` chord types an AltGr character on many Windows layouts, so no chord carries the TUI's mnemonic without taking one from the terminal or another command.
 
+## Text field editing
+
+Browser and Desktop text inputs keep the platform's native editing. The TUI's shared readline keys
+(`Ctrl+U`, `Ctrl+K`, `Ctrl+W`, `Ctrl+Y`, `Alt+B`, `Alt+F`, `Alt+D`; see the
+[native line editor](../../orchbee/docs/native-line-editor.md)) are a host difference, not a gap:
+browsers on Windows provide none of them, emulating them would take Control chords from the page
+and Alt chords from AltGr layouts, and native selection, undo and input-method behavior would
+diverge from the platform. No catalog entry claims them.
+
 ## Chord and conflict model
 
 `@orchbee/keyboard-shortcuts` provides only the pure physical-chord mechanism. A chord contains one

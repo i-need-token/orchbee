@@ -63,7 +63,10 @@ fn rename_draft_fault_only_clears_with_explicit_backspace_or_clear() {
     let mut state = ready(2);
     let token = state.open_rename_draft().unwrap();
     state.acknowledge_rename_draw(Some(token));
-    assert!(state.edit_rename_draft(token, RenameDraftEdit::Clear));
+    assert!(state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart)
+    ));
     assert!(state.plan_rename_draft(token).is_none());
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Fault));
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Append("雪é")));
@@ -77,7 +80,10 @@ fn rename_draft_fault_only_clears_with_explicit_backspace_or_clear() {
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Append(&"x".repeat(512))));
     assert_eq!(state.rename_draft().unwrap().text(), "雪");
     assert!(state.rename_draft().unwrap().input_fault());
-    assert!(state.edit_rename_draft(token, RenameDraftEdit::Clear));
+    assert!(state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart)
+    ));
     assert!(!state.rename_draft().unwrap().input_fault());
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Fault));
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Backspace));
@@ -94,11 +100,17 @@ fn rename_draft_incomplete_input_cannot_submit_or_correct_fault() {
     state.edit_rename_draft(token, RenameDraftEdit::Fault);
     state.edit_rename_draft(token, RenameDraftEdit::Completeness(false));
     assert!(!state.edit_rename_draft(token, RenameDraftEdit::Backspace));
-    assert!(!state.edit_rename_draft(token, RenameDraftEdit::Clear));
+    assert!(!state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart)
+    ));
     assert!(state.plan_rename_draft(token).is_none());
     state.edit_rename_draft(token, RenameDraftEdit::Completeness(true));
     assert!(state.rename_draft().unwrap().input_fault());
-    state.edit_rename_draft(token, RenameDraftEdit::Clear);
+    state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     state.edit_rename_draft(token, RenameDraftEdit::Append("new"));
     assert!(state.plan_rename_draft(token).is_some());
 }
@@ -113,7 +125,10 @@ fn rename_draft_cancellation_and_stale_authority_never_retarget_text() {
     assert_ne!(old, next);
     state.acknowledge_rename_draw(Some(old));
     assert!(state.plan_rename_draft(next).is_none());
-    assert!(!state.edit_rename_draft(old, RenameDraftEdit::Clear));
+    assert!(!state.edit_rename_draft(
+        old,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart)
+    ));
     state.acknowledge_rename_draw(Some(next));
     state.cache = projected(2, 2);
     assert!(state.rename_draft().is_none());
@@ -229,11 +244,17 @@ fn rename_draft_edits_graphemes_and_projects_its_cursor_through_the_window() {
     // Word-backspace deletes a contiguous suffix back to the last Unicode
     // word boundary — \x07 breaks words, so the first deletion removes `z`
     // alone and a second removes the word run before it.
-    assert!(state.edit_rename_draft(token, RenameDraftEdit::WordBackspace));
+    assert!(state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillWordBack)
+    ));
     let after_first = state.rename_draft().unwrap().text().to_owned();
     assert!(text.starts_with(&after_first) && after_first.len() < text.len());
     assert!(after_first.ends_with('\x07'));
-    assert!(state.edit_rename_draft(token, RenameDraftEdit::WordBackspace));
+    assert!(state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillWordBack)
+    ));
     // The second deletion spans from the last word's start to the cursor —
     // the trailing non-word \x07 goes with it.
     assert_eq!(state.rename_draft().unwrap().text(), format!("X{prefill} "));

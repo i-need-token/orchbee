@@ -199,7 +199,7 @@ fn view_matches_an_alias_present_only_in_the_runtime_name() {
     named.name = Some("Review Orchid".into());
     let rows = [(Choice::Local, named)];
     let view = View {
-        query: "  REVIEW orchid  ".into(),
+        query: View::query_editor("  REVIEW orchid  ".into()),
         ..View::default()
     };
     assert_eq!(project(&view, &rows, &Choice::Local, None).len(), 1);
@@ -228,7 +228,7 @@ fn view_searches_guarded_display_and_tokens_and_rejects_host_control_characters(
         "LOCAL",
     ] {
         let view = View {
-            query: query.into(),
+            query: View::query_editor(query.into()),
             ..View::default()
         };
         assert_eq!(project(&view, &rows, &Choice::Local, None).len(), 1);
@@ -237,11 +237,11 @@ fn view_searches_guarded_display_and_tokens_and_rejects_host_control_characters(
     for c in ['\x1b', '\n', '\u{202e}'] {
         view.push(c);
     }
-    assert!(view.query.is_empty());
+    assert!(view.query.text().is_empty());
     for _ in 0..129 {
         view.push('界');
     }
-    assert_eq!(view.query.chars().count(), 128);
+    assert_eq!(view.query.text().chars().count(), 128);
     assert!(project(&view, &rows, &Choice::Local, None).is_empty());
 }
 #[test]

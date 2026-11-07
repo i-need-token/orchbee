@@ -138,7 +138,9 @@ fn bounded_adjustments_use_owner_steps_without_rounding_and_disable_at_endpoints
     editor.edit(Edit::Select(Row::Scrollback));
     draw(&mut editor);
     editor.edit(Edit::Activate);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("10.000001");
     editor.edit(Edit::Activate);
     draw(&mut editor);
@@ -343,7 +345,9 @@ fn settings_mouse_controls_follow_text_back_confirmation_and_hidden_save_lifetim
     editor.click(editor.view().unwrap().token(), Row::LaunchProfiles);
     draw(&mut editor);
     editor.click(editor.view().unwrap().token(), Row::ProfileName);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("Mouse profile");
     draw(&mut editor);
     let stale = editor.view().unwrap().token();
@@ -910,13 +914,17 @@ fn text_is_grapheme_atomic_and_invalid_values_keep_the_editor_open() {
     let mut editor = ready();
     editor.edit(Edit::Select(Row::CompletionThreshold));
     editor.edit(Edit::Activate);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("0");
     editor.edit(Edit::Activate);
     assert!(
         matches!(editor.view(), Some(View::Draft(draft)) if draft.invalid && draft.text.is_some())
     );
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("3600");
     editor.edit(Edit::Activate);
     let View::Draft(draft) = editor.view().unwrap() else {
@@ -995,7 +1003,9 @@ fn invalid_nondefault_profile() -> Editor {
     editor.edit(Edit::Activate);
     editor.edit(Edit::Select(Row::ProfileName));
     editor.edit(Edit::Activate);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("Broken profile");
     editor.edit(Edit::Activate);
     editor.edit(Edit::Select(Row::CommandType));

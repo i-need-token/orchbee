@@ -1,5 +1,5 @@
 //! A bounded settings draft. Storage, transport and live application remain separate owners.
-use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_agent_integration::IntegrationId;
 use orchbee_workbench_protocol::{
@@ -140,11 +140,11 @@ pub(crate) enum Edit {
     Cancel,
     Insert(char),
     Backspace,
-    WordBack,
     Delete,
     Home,
     End,
-    Clear,
+    /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`) in a text field.
+    Line(LineKey),
     Search,
     Save,
     Page(bool),
@@ -1165,10 +1165,6 @@ impl Editor {
                         draft.filter.backspace();
                         draft.invalid = false;
                     }
-                    Edit::WordBack => {
-                        draft.filter.word_back();
-                        draft.invalid = false;
-                    }
                     Edit::Delete => {
                         draft.filter.delete();
                         draft.invalid = false;
@@ -1185,9 +1181,8 @@ impl Editor {
                     Edit::End => {
                         draft.filter.end();
                     }
-                    Edit::Clear => {
-                        draft.filter.clear();
-                        draft.invalid = false;
+                    Edit::Line(key) => {
+                        draft.invalid = draft.filter.apply(key).is_err();
                     }
                     _ => return None,
                 }

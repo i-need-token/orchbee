@@ -3,8 +3,10 @@ use super::{
     Choice, ClientContextTarget, ClientMemberTarget, KeyCode, Mode, Modifiers, Picker, Row,
     SelectionOrigin,
 };
+use crate::client_view::KeyEvent;
 use crate::machine_agents::Observation as Agents;
 use crate::machine_agents::view::{Entry, Scope};
+use crate::terminal_text::line_editor::LineKey;
 use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Control {
@@ -347,20 +349,41 @@ impl Picker {
             return false;
         }
         if self.editing_query {
-            match (code, mods) {
-                (KeyCode::Esc | KeyCode::Enter, Modifiers::NONE)
-                | (KeyCode::Char('m'), Modifiers::CTRL) => self.editing_query = false,
-                (KeyCode::Backspace, Modifiers::NONE) => {
-                    self.agent_view.query.pop();
+            // The query budget is enforced inside the editor; an over-budget yank is dropped like
+            // an over-budget typed scalar.
+            let line_key = LineKey::for_key(KeyEvent::press(code, mods));
+            if let Some(key) = line_key {
+                let _ = self.agent_view.query.apply(key);
+            } else {
+                match (code, mods) {
+                    (KeyCode::Esc | KeyCode::Enter, Modifiers::NONE)
+                    | (KeyCode::Char('m'), Modifiers::CTRL) => self.editing_query = false,
+                    (KeyCode::Backspace, Modifiers::NONE) => {
+                        self.agent_view.query.backspace();
+                    }
+                    (KeyCode::Delete, Modifiers::NONE) => {
+                        self.agent_view.query.delete();
+                    }
+                    (KeyCode::Left, Modifiers::NONE) => {
+                        self.agent_view.query.left();
+                    }
+                    (KeyCode::Right, Modifiers::NONE) => {
+                        self.agent_view.query.right();
+                    }
+                    (KeyCode::Home, Modifiers::NONE) | (KeyCode::Char('a'), Modifiers::CTRL) => {
+                        self.agent_view.query.home();
+                    }
+                    (KeyCode::End, Modifiers::NONE) | (KeyCode::Char('e'), Modifiers::CTRL) => {
+                        self.agent_view.query.end();
+                    }
+                    (KeyCode::Char(c), m)
+                        if m == Modifiers::NONE || m == Modifiers::NONE.with_shift() =>
+                    {
+                        self.agent_view
+                            .push(if m.shift { c.to_ascii_uppercase() } else { c })
+                    }
+                    _ => {}
                 }
-                (KeyCode::Char('u'), Modifiers::CTRL) => self.agent_view.query.clear(),
-                (KeyCode::Char(c), m)
-                    if m == Modifiers::NONE || m == Modifiers::NONE.with_shift() =>
-                {
-                    self.agent_view
-                        .push(if m.shift { c.to_ascii_uppercase() } else { c })
-                }
-                _ => {}
             }
             let selected = self.selection();
             self.error = None;

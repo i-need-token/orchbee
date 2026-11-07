@@ -78,13 +78,13 @@ pub enum RenameEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
     Backspace,
-    Clear,
     Left,
     Right,
     Home,
     End,
     Delete,
-    WordBackspace,
+    /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`).
+    Line(crate::terminal_text::line_editor::LineKey),
     Fault,
     Completeness(bool),
 }

@@ -799,6 +799,7 @@ fn paint_frame(
             frame,
             Rect::new(inner.x, inner.y, inner.width, 1),
             query,
+            menu.query_cursor,
             measured.result_actions.len(),
             locale,
             theme,
@@ -1050,6 +1051,7 @@ fn render_search_row(
     frame: &mut Frame<'_>,
     area: Rect,
     query: &str,
+    cursor: usize,
     count: usize,
     locale: Locale,
     theme: &Theme,
@@ -1075,7 +1077,7 @@ fn render_search_row(
         QueryField::Editing {
             label: locale.menu_search_label(),
             query,
-            cursor: query.len(),
+            cursor,
         },
         theme,
     );

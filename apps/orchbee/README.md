@@ -435,8 +435,9 @@ structural operation.
 
 Rename preserves exact text up to 512 Unicode scalars. Bracketed paste is atomic and lands as one
 edit — prefix, bracket, and newline bytes inside the payload never escalate to commands. Backspace
-removes one scalar and Ctrl+U clears the draft; unmodified Left/Right/Home/End/Delete, Ctrl+A/Ctrl+E,
-and Ctrl+W reach the draft as semantic edits, while modified or unbound sequences are consumed whole
+removes one scalar and Ctrl+U clears the draft from the end; unmodified Left/Right/Home/End/Delete,
+Ctrl+A/Ctrl+E, and the shared readline keys (Ctrl+W/K/Y, Alt+B/F/D; see
+[native line editor](docs/native-line-editor.md)) reach the draft as semantic edits, while modified or unbound sequences are consumed whole
 without cancelling the draft. A known rename with unavailable projection uses the same
 explicit `w` recovery without resubmitting the command. The [Workbench Client runtime contract](docs/workbench-client-runtime.md)
 owns admission, geometry, feedback, failure, recovery and evidence bounds. Close requires a separate

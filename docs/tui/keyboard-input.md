@@ -177,9 +177,19 @@ does not silently rebind a convention it claims to support.
 | `Delete`                       | Delete one grapheme after the cursor                            |
 | `← →`                          | Move one grapheme                                               |
 | `Home` `End` `Ctrl+A` `Ctrl+E` | Move to the start or end                                        |
-| `Ctrl+W`                       | Delete the word before the cursor                               |
-| `Ctrl+U`                       | Clear the draft explicitly                                      |
+| `Ctrl+W`                       | Kill the word before the cursor                                 |
+| `Alt+D`                        | Kill the word after the cursor                                  |
+| `Ctrl+U`                       | Kill to the start; with the cursor at the end, clears the draft |
+| `Ctrl+K`                       | Kill to the end                                                 |
+| `Ctrl+Y`                       | Insert the most recent kill at the cursor                       |
+| `Alt+B` `Alt+F`                | Move to the previous word start or the next word end            |
 | Paste                          | Insert atomically at the cursor                                 |
+
+- Word keys use one Unicode word rule per editor, and every resulting cursor stays on a grapheme
+  boundary. A kill goes to that editor's in-memory kill buffer, never the system clipboard;
+  consecutive kills extend it as readline does. These keys are fixed editing conventions, not
+  configurable actions. A field that already gives one of them another meaning keeps that meaning
+  and its owner documents the exception.
 
 - An editor declares whether its value is a persistent composer draft, a staged edit, or an
   immediate control. Moving focus, opening help or a picker, parking an Orchbee-authored blocking

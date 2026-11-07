@@ -14,7 +14,9 @@ fn global_search_uses_both_locales_and_never_indexes_values() {
     assert!(rows.contains(&Row::Background));
     assert_eq!(filtered.values, &basis().values);
     assert!(!filtered.dirty);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("#141414");
     let View::Draft(empty) = editor.view().unwrap() else {
         panic!("draft")
@@ -173,7 +175,9 @@ fn search_has_an_atomic_byte_bound_and_an_empty_result_cannot_submit_a_dirty_dra
     assert!(
         matches!(editor.view(), Some(View::Draft(view)) if view.invalid && view.query.is_empty())
     );
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste("no-such-setting");
     draw(&mut editor);
     assert!(editor.edit(Edit::Activate).is_none());

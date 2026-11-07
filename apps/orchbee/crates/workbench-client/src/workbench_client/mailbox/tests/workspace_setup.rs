@@ -153,7 +153,10 @@ fn draft(state: &mut WorkbenchClientState) -> SetupToken {
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
     let token = state.setup_draft().unwrap().token();
-    state.edit_setup_draft(token, SetupEdit::Clear);
+    state.edit_setup_draft(
+        token,
+        SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     state.edit_setup_draft(token, SetupEdit::Append("Group"));
     state.acknowledge_setup_draw(Some(token));
     token

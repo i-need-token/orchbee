@@ -1,4 +1,5 @@
-use super::{LengthLimit, LineEditor};
+use super::{LengthLimit, LineEditor, LineKey};
+use crate::terminal_events::keys::{KeyCode, KeyEvent, Modifiers};
 use unicode_segmentation::UnicodeSegmentation;
 
 const LABEL: usize = 512;
@@ -304,4 +305,88 @@ fn repeated_mixed_operations_keep_invariants() {
         assert_invariants(&editor);
     }
     assert_eq!(editor.text(), "");
+}
+
+fn apply(editor: &mut LineEditor, key: LineKey) -> bool {
+    let changed = editor.apply(key).unwrap();
+    assert_invariants(editor);
+    changed
+}
+
+#[test]
+fn consecutive_kills_to_either_end_yank_back_in_reading_order() {
+    let mut editor = labels("你好 world");
+    while editor.cursor() > "你好".len() {
+        editor.left();
+    }
+    assert!(apply(&mut editor, LineKey::KillToEnd));
+    assert_eq!(editor.text(), "你好");
+    assert!(apply(&mut editor, LineKey::KillToStart));
+    assert_eq!((editor.text(), editor.cursor()), ("", 0));
+    assert!(apply(&mut editor, LineKey::Yank));
+    assert_eq!(editor.text(), "你好 world");
+    assert_eq!(editor.cursor(), editor.text().len());
+    assert!(!apply(&mut editor, LineKey::KillToEnd));
+}
+
+#[test]
+fn any_other_edit_ends_the_kill_chain() {
+    let mut editor = labels("one two three");
+    assert!(apply(&mut editor, LineKey::KillWordBack));
+    assert!(apply(&mut editor, LineKey::KillWordBack));
+    assert_eq!(editor.text(), "one ");
+    editor.insert("x").unwrap();
+    assert!(editor.backspace());
+    assert!(apply(&mut editor, LineKey::KillWordBack));
+    assert_eq!(editor.text(), "");
+    assert!(apply(&mut editor, LineKey::Yank));
+    assert_eq!(editor.text(), "one ");
+}
+
+#[test]
+fn word_keys_follow_unicode_words_over_combining_cjk_and_emoji() {
+    let mut editor = labels("a\u{301}b 中文 😀 end");
+    editor.home();
+    assert!(apply(&mut editor, LineKey::WordRight));
+    assert_eq!(editor.cursor(), "a\u{301}b".len());
+    assert!(apply(&mut editor, LineKey::WordRight));
+    assert_eq!(editor.cursor(), "a\u{301}b 中".len());
+    assert!(apply(&mut editor, LineKey::KillWordForward));
+    assert!(apply(&mut editor, LineKey::KillWordForward));
+    assert_eq!(editor.text(), "a\u{301}b 中");
+    assert!(!apply(&mut editor, LineKey::KillWordForward));
+    assert!(apply(&mut editor, LineKey::WordLeft));
+    assert_eq!(editor.cursor(), "a\u{301}b ".len());
+    assert!(apply(&mut editor, LineKey::WordLeft));
+    assert_eq!(editor.cursor(), 0);
+    assert!(!apply(&mut editor, LineKey::WordLeft));
+    assert!(apply(&mut editor, LineKey::Yank));
+    assert_eq!(editor.text(), "文 😀 enda\u{301}b 中");
+}
+
+#[test]
+fn yank_over_budget_is_rejected_atomically() {
+    let mut editor = LineEditor::new("ab".to_owned(), LengthLimit::Scalars(3));
+    assert!(editor.apply(LineKey::KillToStart).unwrap());
+    editor.insert("xyz").unwrap();
+    let before = (editor.text().to_owned(), editor.cursor());
+    assert!(editor.apply(LineKey::Yank).is_err());
+    assert_eq!((editor.text().to_owned(), editor.cursor()), before);
+    assert!(editor.apply(LineKey::KillToStart).unwrap());
+    assert!(editor.apply(LineKey::Yank).unwrap());
+    assert_eq!(editor.text(), "xyz");
+}
+
+#[test]
+fn host_keys_map_only_with_their_exact_modifiers() {
+    let press = |character, mods| LineKey::for_key(KeyEvent::press(KeyCode::Char(character), mods));
+    let alt = Modifiers::NONE.with_alt();
+    assert_eq!(press('k', Modifiers::CTRL), Some(LineKey::KillToEnd));
+    assert_eq!(press('y', Modifiers::CTRL), Some(LineKey::Yank));
+    assert_eq!(press('b', alt), Some(LineKey::WordLeft));
+    assert_eq!(press('f', alt), Some(LineKey::WordRight));
+    assert_eq!(press('d', alt), Some(LineKey::KillWordForward));
+    assert_eq!(press('K', Modifiers::CTRL), None);
+    assert_eq!(press('b', Modifiers::CTRL.with_alt()), None);
+    assert_eq!(press('b', Modifiers::NONE), None);
 }

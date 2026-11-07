@@ -6,12 +6,12 @@
 
 use std::num::NonZeroU64;
 
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 use crate::{
     terminal_content::TerminalScreen,
     terminal_copy::{CopyMotion, CopySearchDirection, CopySearchResult, TerminalTextPoint},
     terminal_text::is_forbidden_terminal_scalar,
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 const MAXIMUM_SEARCH_SCALARS: usize = 512;
 
@@ -242,6 +242,8 @@ pub(crate) enum SearchEdit<'a> {
     Right,
     Home,
     End,
+    /// A shared readline key (`Ctrl+U`/`K`/`W`/`Y`, `Alt+B`/`F`/`D`).
+    Line(LineKey),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -299,8 +301,7 @@ enum Flight {
 #[derive(Clone, Debug)]
 struct SearchDraft {
     direction: CopySearchDirection,
-    text: String,
-    cursor: usize,
+    editor: LineEditor,
 }
 
 #[derive(Clone, Debug)]
@@ -383,8 +384,8 @@ impl Mode {
             selecting: self.selecting,
             search: self.search.as_ref().map(|search| CopyModeSearchView {
                 direction: search.direction,
-                draft: &search.text,
-                cursor: search.cursor,
+                draft: search.editor.text(),
+                cursor: search.editor.cursor(),
             }),
             pointer: Some(CopyModeToken {
                 episode: self.episode,
@@ -497,8 +498,7 @@ impl Mode {
         }
         self.search = Some(SearchDraft {
             direction,
-            text: String::new(),
-            cursor: 0,
+            editor: LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_SEARCH_SCALARS)),
         });
         Ok(())
     }
@@ -507,49 +507,24 @@ impl Mode {
         let Some(search) = self.search.as_mut() else {
             return Err(Refusal::Invalid);
         };
+        let editor = &mut search.editor;
         let changed = match edit {
             SearchEdit::Insert(value) => {
                 if value.chars().any(|character| {
                     character.is_control() || is_forbidden_terminal_scalar(character)
-                }) || search.text.chars().count() + value.chars().count()
-                    > MAXIMUM_SEARCH_SCALARS
-                {
+                }) {
                     return Err(Refusal::Limit);
                 }
-                let intent = search.cursor + value.len();
-                search.text.insert_str(search.cursor, value);
-                search.cursor = boundary_at_or_after(&search.text, intent);
+                editor.insert(value).map_err(|_| Refusal::Limit)?;
                 true
             }
-            SearchEdit::Backspace if search.cursor > 0 => {
-                let start = boundary_before(&search.text, search.cursor);
-                search.text.replace_range(start..search.cursor, "");
-                search.cursor = boundary_at_or_after(&search.text, start);
-                true
-            }
-            SearchEdit::Delete if search.cursor < search.text.len() => {
-                let end = boundary_after(&search.text, search.cursor);
-                search.text.replace_range(search.cursor..end, "");
-                search.cursor = boundary_at_or_after(&search.text, search.cursor);
-                true
-            }
-            SearchEdit::Left if search.cursor > 0 => {
-                search.cursor = boundary_before(&search.text, search.cursor);
-                true
-            }
-            SearchEdit::Right if search.cursor < search.text.len() => {
-                search.cursor = boundary_after(&search.text, search.cursor);
-                true
-            }
-            SearchEdit::Home if search.cursor != 0 => {
-                search.cursor = 0;
-                true
-            }
-            SearchEdit::End if search.cursor != search.text.len() => {
-                search.cursor = search.text.len();
-                true
-            }
-            _ => false,
+            SearchEdit::Backspace => editor.backspace(),
+            SearchEdit::Delete => editor.delete(),
+            SearchEdit::Left => editor.left(),
+            SearchEdit::Right => editor.right(),
+            SearchEdit::Home => editor.home(),
+            SearchEdit::End => editor.end(),
+            SearchEdit::Line(key) => editor.apply(key).map_err(|_| Refusal::Limit)?,
         };
         Ok(changed)
     }
@@ -562,11 +537,11 @@ impl Mode {
         let Some(search) = self.search.take() else {
             return Err(Refusal::Invalid);
         };
-        if search.text.is_empty() {
+        if search.editor.text().is_empty() {
             return Ok(false);
         }
         self.issue_search(
-            search.text.into_boxed_str(),
+            search.editor.text().into(),
             search.direction,
             search.direction,
             None,
@@ -898,34 +873,6 @@ const fn reverse_direction(direction: CopySearchDirection) -> CopySearchDirectio
         CopySearchDirection::Forward => CopySearchDirection::Backward,
         CopySearchDirection::Backward => CopySearchDirection::Forward,
     }
-}
-
-fn boundary_at_or_after(text: &str, index: usize) -> usize {
-    if index == 0 || index >= text.len() {
-        return index.min(text.len());
-    }
-    text.grapheme_indices(true)
-        .find_map(|(offset, cluster)| {
-            (offset < index && index < offset + cluster.len()).then_some(offset + cluster.len())
-        })
-        .unwrap_or(index)
-}
-
-fn boundary_before(text: &str, index: usize) -> usize {
-    text[..index]
-        .grapheme_indices(true)
-        .next_back()
-        .map_or(0, |(offset, _)| offset)
-}
-
-fn boundary_after(text: &str, index: usize) -> usize {
-    if index >= text.len() {
-        return text.len();
-    }
-    text[index..]
-        .grapheme_indices(true)
-        .nth(1)
-        .map_or(text.len(), |(offset, _)| index + offset)
 }
 
 #[cfg(test)]

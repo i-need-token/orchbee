@@ -10,8 +10,14 @@ use orchbee_agent_observation_protocol::{AgentName, AgentProviderId};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
 
 const MAXIMUM_NAME_BYTES: usize = 32;
+
+/// The name editor; its ASCII-only admission keeps byte offsets equal to display columns.
+fn name_editor(name: String) -> LineEditor {
+    LineEditor::new(name, LengthLimit::Bytes(MAXIMUM_NAME_BYTES))
+}
 
 pub(crate) mod jobs;
 
@@ -67,12 +73,11 @@ pub(crate) struct State {
     launch_supported: bool,
     catalog: Catalog,
     catalog_revision: u64,
-    name: String,
+    name: LineEditor,
     automatic_name: bool,
     provider_chosen: bool,
     providers: Vec<&'static str>,
     detected: Vec<&'static str>,
-    cursor: usize,
     /// Unset while local detection may still find an installed provider, so the form never
     /// presents an undetected default that later jumps.
     selected_provider: Option<usize>,
@@ -95,12 +100,11 @@ impl State {
                 Catalog::Unsupported
             },
             catalog_revision: 0,
-            name: String::new(),
+            name: name_editor(String::new()),
             automatic_name: true,
             provider_chosen: false,
             providers: crate::agent_provider::CANONICAL_IDS.to_vec(),
             detected: Vec::new(),
-            cursor: 0,
             selected_provider: None,
             draft_revision: 0,
             generation: 0,
@@ -242,8 +246,7 @@ impl State {
         if self.automatic_name && self.draft_editable() {
             let provider = self.selected_provider().unwrap_or("agent");
             let base = crate::agent_provider::executable(provider).unwrap_or(provider);
-            self.name = format!("{base}-{}", self.generation.saturating_add(1));
-            self.cursor = self.name.len();
+            self.name = name_editor(format!("{base}-{}", self.generation.saturating_add(1)));
             self.touch_draft();
         }
     }
@@ -282,11 +285,11 @@ impl State {
     }
 
     pub(super) fn name(&self) -> &str {
-        &self.name
+        self.name.text()
     }
 
-    pub(super) const fn cursor(&self) -> usize {
-        self.cursor
+    pub(super) fn cursor(&self) -> usize {
+        self.name.cursor()
     }
 
     pub(super) fn operation_phase(&self) -> Option<Phase> {
@@ -313,7 +316,7 @@ impl State {
         self.launch_supported
             && self.draft_editable()
             && self.selected_provider().is_some()
-            && AgentName::parse(&self.name).is_ok()
+            && AgentName::parse(self.name.text()).is_ok()
             && self.origin_local.is_some()
     }
 
@@ -351,58 +354,35 @@ impl State {
         if event.kind == KeyKind::Release || !self.draft_editable() {
             return false;
         }
-        let changed = match (event.code, event.mods) {
-            (KeyCode::Char(character), modifiers)
-                if !modifiers.ctrl && !modifiers.alt && !modifiers.super_ =>
-            {
-                let character = character.to_ascii_lowercase();
-                if (character.is_ascii_lowercase()
-                    || character.is_ascii_digit()
-                    || matches!(character, '-' | '_'))
-                    && self.name.len() < MAXIMUM_NAME_BYTES
+        // A shared readline key edits the suggested name in place rather than replacing it.
+        let changed = if let Some(key) = LineKey::for_key(event) {
+            self.name.apply(key) == Ok(true)
+        } else {
+            match (event.code, event.mods) {
+                (KeyCode::Char(character), modifiers)
+                    if !modifiers.ctrl && !modifiers.alt && !modifiers.super_ =>
                 {
-                    if self.automatic_name {
-                        self.name.clear();
-                        self.cursor = 0;
+                    let character = character.to_ascii_lowercase();
+                    if character.is_ascii_lowercase()
+                        || character.is_ascii_digit()
+                        || matches!(character, '-' | '_')
+                    {
+                        if self.automatic_name {
+                            self.name.clear();
+                        }
+                        self.name.insert(&character.to_string()).is_ok()
+                    } else {
+                        false
                     }
-                    self.name.insert(self.cursor, character);
-                    self.cursor += 1;
-                    true
-                } else {
-                    false
                 }
+                (KeyCode::Backspace, Modifiers::NONE) => self.name.backspace(),
+                (KeyCode::Delete, Modifiers::NONE) => self.name.delete(),
+                (KeyCode::Left, Modifiers::NONE) => self.name.left(),
+                (KeyCode::Right, Modifiers::NONE) => self.name.right(),
+                (KeyCode::Home, Modifiers::NONE) => self.name.home(),
+                (KeyCode::End, Modifiers::NONE) => self.name.end(),
+                _ => false,
             }
-            (KeyCode::Backspace, Modifiers::NONE) if self.cursor > 0 => {
-                self.cursor -= 1;
-                self.name.remove(self.cursor);
-                true
-            }
-            (KeyCode::Delete, Modifiers::NONE) if self.cursor < self.name.len() => {
-                self.name.remove(self.cursor);
-                true
-            }
-            (KeyCode::Left, Modifiers::NONE) if self.cursor > 0 => {
-                self.cursor -= 1;
-                true
-            }
-            (KeyCode::Right, Modifiers::NONE) if self.cursor < self.name.len() => {
-                self.cursor += 1;
-                true
-            }
-            (KeyCode::Home, Modifiers::NONE) if self.cursor != 0 => {
-                self.cursor = 0;
-                true
-            }
-            (KeyCode::End, Modifiers::NONE) if self.cursor != self.name.len() => {
-                self.cursor = self.name.len();
-                true
-            }
-            (KeyCode::Char('u'), Modifiers::CTRL) if !self.name.is_empty() => {
-                self.name.clear();
-                self.cursor = 0;
-                true
-            }
-            _ => false,
         };
         if changed {
             self.automatic_name = false;
@@ -429,7 +409,7 @@ impl State {
             return None;
         }
         let (Ok(name), Some(provider)) = (
-            AgentName::parse(&self.name),
+            AgentName::parse(self.name.text()),
             self.selected_provider()
                 .and_then(|provider| AgentProviderId::parse(provider).ok()),
         ) else {
@@ -550,9 +530,8 @@ impl State {
 
     #[cfg(test)]
     pub(super) fn set_name(&mut self, name: &str) {
-        self.name = name.to_owned();
+        self.name = name_editor(name.to_owned());
         self.automatic_name = false;
-        self.cursor = self.name.len();
         self.touch_draft();
     }
 

@@ -1,6 +1,9 @@
 //! Client-owned shortcut-help incarnation and exact successful-frame authority.
 
-use unicode_segmentation::UnicodeSegmentation;
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
+
+/// The shortcut filter's scalar budget.
+const MAXIMUM_FILTER_SCALARS: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HelpEpisodeToken(u64);
@@ -132,17 +135,35 @@ pub(super) enum Activation {
     Page(usize),
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct State {
     episode: u64,
     /// First rendered line in the continuous result list (the old name stays
     /// on the draw protocol to preserve its narrow pointer contract).
     page: usize,
     revision: u64,
-    filter: String,
+    filter: LineEditor,
     expanded: bool,
     page_rows: usize,
     shown: Option<HelpDrawSource>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            episode: 0,
+            page: 0,
+            revision: 0,
+            filter: empty_filter(),
+            expanded: false,
+            page_rows: 0,
+            shown: None,
+        }
+    }
+}
+
+fn empty_filter() -> LineEditor {
+    LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_FILTER_SCALARS))
 }
 
 impl State {
@@ -153,7 +174,7 @@ impl State {
         self.episode = episode;
         self.page = 0;
         self.revision = 0;
-        self.filter.clear();
+        self.filter = empty_filter();
         self.expanded = false;
         self.shown = None;
         true
@@ -161,7 +182,7 @@ impl State {
 
     pub(super) fn close(&mut self) {
         self.page = 0;
-        self.filter.clear();
+        self.filter = empty_filter();
         self.expanded = false;
         self.shown = None;
     }
@@ -204,7 +225,12 @@ impl State {
     }
 
     pub(super) fn filter(&self) -> &str {
-        &self.filter
+        self.filter.text()
+    }
+
+    /// The filter cursor's byte offset; always a grapheme boundary of the filter.
+    pub(super) fn filter_cursor(&self) -> usize {
+        self.filter.cursor()
     }
 
     pub(super) fn end_page(&self) -> Option<usize> {
@@ -215,36 +241,63 @@ impl State {
     }
 
     pub(super) fn append_filter(&mut self, character: char) -> bool {
-        if character.is_control() || self.filter.chars().count() >= 128 {
+        if character.is_control() || self.filter.insert(&character.to_string()).is_err() {
             return false;
         }
-        self.filter.push(character);
-        self.page = 0;
-        self.bump_revision();
-        self.shown = None;
+        self.filter_changed();
         true
     }
 
     pub(super) fn backspace_filter(&mut self) -> bool {
-        let Some(grapheme_width) = self.filter.graphemes(true).next_back().map(str::len) else {
-            return false;
-        };
-        self.filter.truncate(self.filter.len() - grapheme_width);
-        self.page = 0;
-        self.bump_revision();
-        self.shown = None;
-        true
+        let changed = self.filter.backspace();
+        if changed {
+            self.filter_changed();
+        }
+        changed
     }
 
-    pub(super) fn clear_filter(&mut self) -> bool {
-        if self.filter.is_empty() {
-            return false;
+    pub(super) fn delete_filter(&mut self) -> bool {
+        let changed = self.filter.delete();
+        if changed {
+            self.filter_changed();
         }
-        self.filter.clear();
+        changed
+    }
+
+    /// Moves the filter cursor one grapheme; only the query row repaints.
+    pub(super) fn move_filter_cursor(&mut self, forward: bool) -> bool {
+        let moved = if forward {
+            self.filter.right()
+        } else {
+            self.filter.left()
+        };
+        if moved {
+            self.filter_cursor_moved();
+        }
+        moved
+    }
+
+    /// Applies one shared readline key; an over-budget yank changes nothing.
+    pub(super) fn edit_filter(&mut self, key: LineKey) -> bool {
+        let changed = self.filter.apply(key) == Ok(true);
+        if changed && key.edits_text() {
+            self.filter_changed();
+        } else if changed {
+            self.filter_cursor_moved();
+        }
+        changed
+    }
+
+    /// A text edit restarts the result list at its top and revokes the presented frame.
+    fn filter_changed(&mut self) {
         self.page = 0;
         self.bump_revision();
         self.shown = None;
-        true
+    }
+
+    fn filter_cursor_moved(&mut self) {
+        self.bump_revision();
+        self.shown = None;
     }
 
     fn bump_revision(&mut self) {

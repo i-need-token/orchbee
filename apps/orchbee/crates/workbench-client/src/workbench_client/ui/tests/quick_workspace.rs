@@ -102,7 +102,10 @@ fn directory_review_prepares_without_launching_and_submits_only_the_visible_edit
     assert_eq!(draft.text(), "C:/旧目录 项目");
     let token = draft.token();
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.edit_setup_draft(token, SetupEdit::Clear);
+    ui.edit_setup_draft(
+        token,
+        SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     ui.edit_setup_draft(token, SetupEdit::Paste("C:/第二个 项目"));
     ui.submit_setup_draft(token);
     let lease = mailbox.try_recv().unwrap().unwrap();

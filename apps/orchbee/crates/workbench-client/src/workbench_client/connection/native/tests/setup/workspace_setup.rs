@@ -217,7 +217,10 @@ impl UiDriver {
             .ok_or_else(|| test_error("location label draft admission"))?;
         state.acknowledge_setup_draw(Some(token));
         if let Some(label) = replacement {
-            assert!(state.edit_setup_draft(token, SetupEdit::Clear));
+            assert!(state.edit_setup_draft(
+                token,
+                SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart)
+            ));
             assert!(state.edit_setup_draft(token, SetupEdit::Append(label)));
         }
         Ok(token)

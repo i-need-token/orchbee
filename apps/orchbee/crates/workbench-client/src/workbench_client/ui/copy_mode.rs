@@ -15,6 +15,7 @@ use crate::terminal_copy_query::{
     Action as QueryAction, Admission as QueryAdmission, Failure as QueryFailure, QueryIdentity,
     Request as QueryRequest, Value as QueryValue,
 };
+use crate::terminal_text::line_editor::LineKey;
 use crate::terminal_viewport::{TerminalViewport, ViewportNav, ViewportStep};
 use crate::workbench_client::copy_episode::PendingQuery;
 use crate::workbench_client::mailbox::{AdmissionError, CommandMailbox, QueuedCommand, Tagged};
@@ -762,7 +763,7 @@ impl WorkbenchClientUi {
             (KeyCode::Right, Modifiers::NONE) => Some(SearchEdit::Right),
             (KeyCode::Home, Modifiers::NONE) => Some(SearchEdit::Home),
             (KeyCode::End, Modifiers::NONE) => Some(SearchEdit::End),
-            _ => None,
+            _ => LineKey::for_key(*event).map(SearchEdit::Line),
         };
         if let Some(edit) = edit {
             let result = self

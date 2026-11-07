@@ -31,7 +31,10 @@ fn workspace_rename_refuses_blank_names_preserving_draft_and_canonical_label() {
             .open_setup_draft(SetupIntent::RenameLocation(Target::Workspace))
             .unwrap();
         state.acknowledge_setup_draw(Some(token));
-        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(
+            token,
+            Edit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+        );
         state.edit_setup_draft(token, Edit::Append(value));
         assert!(
             state
@@ -88,7 +91,10 @@ fn operation(
     );
     state.acknowledge_setup_draw(Some(token));
     if let Some(label) = replacement {
-        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(
+            token,
+            Edit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+        );
         state.edit_setup_draft(token, Edit::Append(label));
     }
     state
@@ -135,7 +141,10 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
             }
         );
         state.acknowledge_setup_draw(Some(token));
-        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(
+            token,
+            Edit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+        );
         state.edit_setup_draft(token, Edit::Append(&"🚀".repeat(512)));
         assert_eq!(state.setup_draft().unwrap().token(), token);
         assert!(!state.setup_draft().unwrap().faulted());
@@ -474,7 +483,10 @@ fn targeted_operation(state: &mut WorkbenchClientState, changed: bool) -> SetupO
     assert_eq!(state.setup_draft().unwrap().text(), "Project");
     state.acknowledge_setup_draw(Some(token));
     if changed {
-        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(
+            token,
+            Edit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+        );
         state.edit_setup_draft(token, Edit::Append("Target 雪"));
     }
     state

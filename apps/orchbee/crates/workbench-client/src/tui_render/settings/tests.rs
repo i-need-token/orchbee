@@ -879,7 +879,9 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     let theme = Theme::orchbee_light();
     let mut editor = editor_with(UserPreferencesValues::default());
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste(" ");
     editor.edit(Edit::Activate);
     let token = editor.view().expect("invalid editor stays open").token();
@@ -1199,7 +1201,9 @@ fn assert_projected_text_cursor(raw: &str, glyph: &str, right_column: u16, end_c
     let theme = Theme::orchbee_light();
     let mut editor = editor_with(UserPreferencesValues::default());
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
-    editor.edit(Edit::Clear);
+    editor.edit(Edit::Line(
+        crate::terminal_text::line_editor::LineKey::KillToStart,
+    ));
     editor.paste(raw);
     for (edit, column) in [
         (Edit::Home, 0),
@@ -1330,7 +1334,9 @@ fn invalid_nondefault_executable_renders_its_profile_required_field_and_correcti
             editor.edit(Edit::Activate);
             editor.edit(Edit::Select(Row::ProfileName));
             editor.edit(Edit::Activate);
-            editor.edit(Edit::Clear);
+            editor.edit(Edit::Line(
+                crate::terminal_text::line_editor::LineKey::KillToStart,
+            ));
             editor.paste("Broken profile");
             editor.edit(Edit::Activate);
             editor.edit(Edit::Select(Row::CommandType));

@@ -12,6 +12,7 @@ mod bindings;
 mod copy;
 pub(crate) mod help;
 use crate::terminal_events::keys;
+use crate::terminal_text::line_editor::LineKey;
 pub(crate) mod navigator;
 pub(crate) mod notifications;
 mod resize;
@@ -554,11 +555,17 @@ impl ClientView {
             }
             return None;
         }
-        let (code, modifiers) = event.normalized();
-        if code == KeyCode::Char('u') && modifiers.ctrl && !modifiers.alt && !modifiers.super_ {
-            self.help.clear_filter();
+        let (_, modifiers) = event.normalized();
+        if let Some(key) = LineKey::for_key(event) {
+            self.help.edit_filter(key);
         } else if Binding::new(KeyCode::Backspace, Modifiers::NONE).matches(event) {
             self.help.backspace_filter();
+        } else if Binding::new(KeyCode::Delete, Modifiers::NONE).matches(event) {
+            self.help.delete_filter();
+        } else if Binding::new(KeyCode::Left, Modifiers::NONE).matches(event) {
+            self.help.move_filter_cursor(false);
+        } else if Binding::new(KeyCode::Right, Modifiers::NONE).matches(event) {
+            self.help.move_filter_cursor(true);
         } else if !modifiers.ctrl
             && !modifiers.alt
             && !modifiers.super_
@@ -719,6 +726,10 @@ impl ClientView {
 
     pub(crate) fn help_filter(&self) -> &str {
         self.help.filter()
+    }
+
+    pub(crate) fn help_filter_cursor(&self) -> usize {
+        self.help.filter_cursor()
     }
 
     /// Projects the exact current Help candidate without granting input authority.

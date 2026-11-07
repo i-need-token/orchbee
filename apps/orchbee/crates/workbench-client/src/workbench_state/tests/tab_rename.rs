@@ -68,7 +68,10 @@ fn automatic_rename_placeholder_tracks_the_tab_position_after_reordering() {
 
 fn rename_operation(state: &mut WorkbenchClientState, text: &str) -> RenameOperation {
     let token = state.open_rename_draft().unwrap();
-    state.edit_rename_draft(token, RenameDraftEdit::Clear);
+    state.edit_rename_draft(
+        token,
+        RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     state.edit_rename_draft(token, RenameDraftEdit::Append(text));
     state.acknowledge_rename_draw(Some(token));
     RenameOperation::from_draft(
@@ -131,7 +134,10 @@ fn panel_rename_uses_the_canonical_primary_override_set_and_clear_request() {
             "hidden drafts cannot submit"
         );
         state.acknowledge_rename_draw(Some(token));
-        state.edit_rename_draft(token, RenameDraftEdit::Clear);
+        state.edit_rename_draft(
+            token,
+            RenameDraftEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+        );
         state.edit_rename_draft(token, RenameDraftEdit::Append(text));
         assert!(state.rename_draft().unwrap().field_error().is_none());
         let intent = state.plan_rename_draft(token).unwrap();

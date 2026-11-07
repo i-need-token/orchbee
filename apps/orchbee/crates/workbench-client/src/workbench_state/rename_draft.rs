@@ -3,7 +3,7 @@
 //! draft authorize submission.
 
 use super::field_window::{FieldWindow, field_window};
-use super::line_editor::{LengthLimit, LineEditor};
+use super::line_editor::{LengthLimit, LineEditor, LineKey};
 use super::{AttachmentKey, ClientContextTabs, ClientPhase, PaneKey, WorkbenchClientState};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{
@@ -40,13 +40,12 @@ pub(crate) enum RenameDraftEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
     Backspace,
-    Clear,
     Left,
     Right,
     Home,
     End,
     Delete,
-    WordBackspace,
+    Line(LineKey),
     Fault,
     Completeness(bool),
 }
@@ -322,15 +321,14 @@ impl WorkbenchClientState {
         else {
             return false;
         };
-        if matches!(
+        if (matches!(
             edit,
             RenameDraftEdit::Append(_)
                 | RenameDraftEdit::Paste(_)
                 | RenameDraftEdit::Backspace
                 | RenameDraftEdit::Delete
-                | RenameDraftEdit::WordBackspace
-                | RenameDraftEdit::Clear
-        ) && draft.complete
+        ) || matches!(edit, RenameDraftEdit::Line(key) if key.edits_text()))
+            && draft.complete
         {
             draft.touched = true;
         }
@@ -350,14 +348,13 @@ impl WorkbenchClientState {
                 draft.editor.delete();
                 draft.input_fault = false;
             }
-            RenameDraftEdit::WordBackspace if draft.complete => {
-                draft.editor.word_back();
-                draft.input_fault = false;
-            }
-            RenameDraftEdit::Clear if draft.complete => {
-                draft.editor.clear();
-                draft.input_fault = false;
-            }
+            // A yank shares insertion's atomic budget and faults the same way; a
+            // kill clears the fault, as Backspace does.
+            RenameDraftEdit::Line(key) if draft.complete => match draft.editor.apply(key) {
+                Err(_) => draft.input_fault = true,
+                Ok(_) if key.deletes_text() => draft.input_fault = false,
+                Ok(_) => {}
+            },
             RenameDraftEdit::Left if draft.complete => {
                 draft.editor.left();
             }

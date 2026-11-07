@@ -405,7 +405,9 @@ labels and tokens never replace the physical navigation target.
 The Client owns ephemeral status/scope/order/search controls. `f` cycles status (including Done),
 `c` cycles all/current machine/current context, `s` cycles placement/priority/provider/
 title/state sequence, and slash edits a query of at most 128 safe scalars. Enter
-or Escape first leaves query editing; Ctrl+U clears it. Painted controls accept
+or Escape first leaves query editing. The query takes the cursor keys and shared readline keys of
+the [native line editor](native-line-editor.md), except `Ctrl+Y`, which keeps copying the selected
+row's ID. Painted controls accept
 mouse activation. Filtering includes safe machine/location/title/provider/token
 text. Stable ordering preserves canonical placement for ties; priority orders
 Blocked, Error, Done, Working, Idle, Unknown. State sequence is a reported version, not a

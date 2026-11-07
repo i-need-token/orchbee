@@ -397,7 +397,10 @@ fn worktree_reference_utf8_limit_is_atomic_and_base_empty_preserves_head_default
     assert_eq!(l.view().unwrap().branch(), branch);
     edit(&mut l, WorktreeEdit::NextField);
     l.draw(l.token());
-    edit(&mut l, WorktreeEdit::Clear);
+    edit(
+        &mut l,
+        WorktreeEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
     let plan = confirm(&mut l, &origin).unwrap();
     assert!(matches!(
         plan.intent,
