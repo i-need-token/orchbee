@@ -364,13 +364,6 @@ export function Workbench({
 			onFocusCapture={view.onRootFocusCapture}
 			ref={view.shortcutScopeReference}
 		>
-			<div aria-live='polite' className={styles['liveRegion']}>
-				{view.agentNavigationAnnouncement === null ? null : (
-					<span key={view.agentNavigationAnnouncement.sequence}>
-						{view.agentNavigationAnnouncement.message}
-					</span>
-				)}
-			</div>
 			<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
 				{preferencesUnreadable ? (
 					<button

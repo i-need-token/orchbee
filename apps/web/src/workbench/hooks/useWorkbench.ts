@@ -166,10 +166,6 @@ interface WorkbenchView {
 	readonly closeAgentBoard: () => void;
 	/** Closes the board after a jump and hands the shown terminal the keyboard. */
 	readonly showAgentBoardSession: () => void;
-	readonly agentNavigationAnnouncement: {
-		readonly message: string;
-		readonly sequence: number;
-	} | null;
 	readonly authority: WorkbenchAuthorityNoticeView['authority'];
 	readonly authorityNotice: WorkbenchAuthorityNoticeView['notice'];
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
@@ -367,8 +363,6 @@ export function useWorkbench({
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
 	const authorityNotice = useWorkbenchAuthorityNotice(authority, projectWorkspaceRuntime);
-	const [agentNavigationAnnouncementSequence, setAgentNavigationAnnouncementSequence] =
-		React.useState(0);
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
 	);
@@ -825,12 +819,9 @@ export function useWorkbench({
 	const invokeAgentNavigation = useMemoizedFn((input: WorkbenchAgentNavigationInput) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.navigateAgent, input, 'button'),
 	);
-	const announceAgentNavigationUnavailable = useMemoizedFn(() => {
-		setAgentNavigationAnnouncementSequence((sequence) => sequence + 1);
-	});
 	const navigateAgent = useWorkbenchAgentNavigation({
 		activeLocation: projectWorkspaceState.activeLocation,
-		announceUnavailable: announceAgentNavigationUnavailable,
+		announceUnavailable: authorityNotice.reportAgentNavigationUnavailable,
 		invokeAgentNavigation,
 		projectWorkspaceRuntime,
 		requestTerminalFocus: focusRouting.requestTerminalFocus,
@@ -921,13 +912,6 @@ export function useWorkbench({
 		agentBoardFinalFocus,
 		closeAgentBoard,
 		showAgentBoardSession,
-		agentNavigationAnnouncement:
-			agentNavigationAnnouncementSequence === 0
-				? null
-				: {
-						message: intl.formatMessage(workbenchMessages.workspaceAgentNavigationUnavailable),
-						sequence: agentNavigationAnnouncementSequence,
-					},
 		authority: authorityNotice.authority,
 		authorityNotice: authorityNotice.notice,
 		navigateAgent: (input) => {

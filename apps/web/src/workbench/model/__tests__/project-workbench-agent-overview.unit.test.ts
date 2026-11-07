@@ -92,6 +92,21 @@ describe('Workbench Agent overview', () => {
 			),
 		).toBeNull();
 		expect(resolveWorkbenchAgentNavigationTarget(input, agents([]), fixture.runtime)).toBeNull();
+		// A notification names the incarnation it announced; a rebound terminal is not its target.
+		expect(
+			resolveWorkbenchAgentNavigationTarget(
+				{ ...input, binding: 'terminal:codex' },
+				observed,
+				fixture.runtime,
+			),
+		).toMatchObject({ presentationId: fixture.secondTabPresentation });
+		expect(
+			resolveWorkbenchAgentNavigationTarget(
+				{ ...input, binding: 'terminal:replaced' },
+				observed,
+				fixture.runtime,
+			),
+		).toBeNull();
 		expect(
 			findWorkbenchAgentDestination(fixture.runtime, fixture.secondWorkspacePresentation),
 		).toMatchObject({ workspaceId: fixture.secondWorkspaceId });

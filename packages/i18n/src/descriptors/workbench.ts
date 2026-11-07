@@ -951,7 +951,8 @@ export const workbenchMessages = defineMessages({
 	workspaceAgentNavigationUnavailable: {
 		id: 'workbench.workspaces.agents.navigationUnavailable',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.navigationUnavailable'],
-		description: 'Announcement when an Agent leaves its terminal before navigation can commit.',
+		description:
+			'Status notice when an Agent destination, such as a notification target, is gone, rebound to another terminal, or unavailable, so navigation moved nowhere.',
 	},
 	workspaceDefaultName: {
 		id: 'workbench.workspaces.names.default',

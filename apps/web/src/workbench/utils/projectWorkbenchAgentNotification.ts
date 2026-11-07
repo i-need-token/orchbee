@@ -17,7 +17,10 @@ interface ProjectWorkbenchAgentNotificationOptions {
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }
 
-/** A notification about a terminal this Workbench still holds; activating it opens that terminal. */
+/**
+ * A notification about a terminal this Workbench still holds; activating it opens that terminal
+ * while the same incarnation still hosts the Agent, and otherwise opens nothing else.
+ */
 export function projectWorkbenchAgentNotification({
 	candidate,
 	intl,
@@ -37,6 +40,7 @@ export function projectWorkbenchAgentNotification({
 			}),
 			onActivate: () =>
 				navigateAgent({
+					binding,
 					presentationId: destination.presentationId,
 					workspaceId: destination.workspaceId,
 				}),

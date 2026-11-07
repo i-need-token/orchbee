@@ -137,7 +137,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.agents.location.childTerminal': 'Child terminal {position}',
 	'workbench.workspaces.agents.location.primaryTerminal': 'Primary terminal',
 	'workbench.workspaces.agents.navigationLabel': '{provider}, {status}, {location}',
-	'workbench.workspaces.agents.navigationUnavailable': 'This Agent is no longer available.',
+	'workbench.workspaces.agents.navigationUnavailable': 'This Agent is no longer available',
 	'workbench.workspaces.close.changed': 'Workspace changed; try again',
 	'workbench.workspaces.close.closed': 'Workspace closed · {label}',
 	'workbench.workspaces.close.closing': 'Closing Workspace · {label}',

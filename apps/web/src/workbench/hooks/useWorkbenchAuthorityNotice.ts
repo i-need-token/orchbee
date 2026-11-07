@@ -32,6 +32,8 @@ import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 export interface WorkbenchAuthorityNoticeView {
 	readonly authority: WorkbenchAuthority;
 	readonly notice: { readonly message: string; readonly persistent: boolean } | null;
+	/** An Agent destination failed revalidation, so nothing moved; the TUI says the same. */
+	readonly reportAgentNavigationUnavailable: () => void;
 	readonly reportDuplicationStopped: (
 		stop: WorkbenchTabDuplicationStop,
 		counts: { readonly created: number; readonly total: number },
@@ -294,6 +296,12 @@ export function useWorkbenchAuthorityNotice(
 			setNotice(workbenchTabDuplicationStoppedNotice(stop, counts));
 		},
 	);
+	const reportAgentNavigationUnavailable = useMemoizedFn(() => {
+		setNotice({
+			descriptor: workbenchMessages.workspaceAgentNavigationUnavailable,
+			lifetime: 'timed',
+		});
+	});
 	React.useEffect(() => {
 		if (notice === null || notice.lifetime === 'until-replaced') return undefined;
 		if (notice.lifetime === 'timed') {
@@ -317,6 +325,7 @@ export function useWorkbenchAuthorityNotice(
 						message: intl.formatMessage(notice.descriptor, notice.values),
 						persistent: notice.lifetime === 'until-press',
 					},
+		reportAgentNavigationUnavailable,
 		reportDuplicationStopped,
 	};
 }

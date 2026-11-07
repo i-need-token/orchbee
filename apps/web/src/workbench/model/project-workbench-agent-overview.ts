@@ -48,6 +48,11 @@ interface WorkbenchWorkspaceAgentOverview {
 }
 
 export interface WorkbenchAgentNavigationInput {
+	/**
+	 * The terminal incarnation a notification announced. A Presentation rebound to another terminal
+	 * is then no longer the destination, and nothing else replaces it.
+	 */
+	readonly binding?: string;
 	readonly presentationId: TerminalPresentationId;
 	readonly workspaceId: string;
 }
@@ -108,7 +113,9 @@ export function resolveWorkbenchAgentNavigationTarget(
 	snapshot: WorkbenchAgentSnapshot,
 	runtime: WorkbenchProjectWorkspaceRuntime,
 ): WorkbenchAgentDestination | null {
-	if (!snapshot.presentations.has(input.presentationId)) return null;
+	const observation = snapshot.presentations.get(input.presentationId);
+	if (observation === undefined) return null;
+	if (input.binding !== undefined && observation.binding !== input.binding) return null;
 	const workspace = runtime
 		.getSnapshot()
 		.workspaces.find((candidate) => candidate.id === input.workspaceId);
