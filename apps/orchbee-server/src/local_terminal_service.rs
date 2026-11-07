@@ -52,6 +52,7 @@ mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
 mod panel_metadata;
+#[cfg(windows)]
 mod panel_restore;
 mod process_observer;
 mod projection;
@@ -60,6 +61,7 @@ mod tab_close;
 mod tab_create;
 mod tab_duplicate;
 mod tab_set_close;
+#[cfg(windows)]
 mod terminal_output;
 mod viewer_connection;
 pub(crate) use viewer_connection::LocalTerminalConnection;
@@ -107,7 +109,9 @@ pub(crate) struct LocalTerminalService {
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
     tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
+    #[cfg(windows)]
     layout_history: std::sync::OnceLock<Arc<crate::layout_history::LayoutHistory>>,
+    #[cfg(windows)]
     terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: Mutex<SessionCoordinator>,
@@ -170,7 +174,9 @@ impl LocalTerminalService {
                 Self::tab_duplicate_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
+            #[cfg(windows)]
             layout_history: std::sync::OnceLock::new(),
+            #[cfg(windows)]
             terminal_output: std::sync::OnceLock::new(),
             workers,
             coordinator: Mutex::new(SessionCoordinator::new(workbench)),

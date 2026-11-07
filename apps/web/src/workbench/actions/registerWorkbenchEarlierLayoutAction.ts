@@ -52,6 +52,8 @@ export function registerWorkbenchEarlierLayoutAction({
 			},
 			// The Server answers whether anything is kept or missing; Search's picker reads it.
 			getAvailability: () => ({ kind: 'enabled' }),
+			// Search lists an Action that still needs its layout only when it declares this.
+			getDiscoveryAvailability: () => ({ kind: 'enabled' }),
 			handler: {
 				execute: (context, input) =>
 					reopenEarlierLayout(context, input, {

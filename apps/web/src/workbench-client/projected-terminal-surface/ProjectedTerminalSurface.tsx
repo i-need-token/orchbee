@@ -10,33 +10,11 @@ import { ProjectedTerminalPasteReviewDialog } from './components/projected-termi
 import { ProjectedTerminalPersistentStatus } from './components/projected-terminal-persistent-status/ProjectedTerminalPersistentStatus';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
-export function ProjectedTerminalSurface({
-	actionRuntime,
-	actionScope,
-	admitBellEffect,
-	autoFocus,
-	bindActionContextProvider,
-	closeTerminal,
-	createTab,
-	focusRequest,
-	onPresentationReady,
-	onTerminalEdit,
-	presentation,
-	presentationMode,
-}: WorkbenchTerminalSurfaceProps): ReactNode {
-	const view = useProjectedTerminalSurface(presentation, {
-		actionRuntime,
-		actionScope,
-		admitBellEffect,
-		autoFocus,
-		bindActionContextProvider,
-		closeTerminal,
-		createTab,
-		focusRequest,
-		onPresentationReady,
-		onTerminalEdit,
-		presentationMode,
-	});
+export function ProjectedTerminalSurface(props: WorkbenchTerminalSurfaceProps): ReactNode {
+	const { presentation } = props;
+	// The host's props pass through whole, so an optional capability the host adds cannot be
+	// dropped by a field list kept here.
+	const view = useProjectedTerminalSurface(presentation, props);
 	const intl = useOrchbeeIntl();
 	// An ended terminal keeps its last frame but takes no input and has no control to take.
 	const terminalShown = view.launchFailure === null && view.terminalOutcome === null;

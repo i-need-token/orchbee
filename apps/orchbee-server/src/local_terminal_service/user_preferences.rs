@@ -84,6 +84,8 @@ impl LocalTerminalService {
                                 snapshot: *snapshot,
                             },
                             Operation::Save { .. } => {
+                                // Saved output exists only in the Windows checkpoint store.
+                                #[cfg(windows)]
                                 if !snapshot.values.restore_terminal_output {
                                     self.remove_terminal_output();
                                 }

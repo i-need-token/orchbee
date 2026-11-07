@@ -21,6 +21,7 @@ mod events;
 mod graphics;
 pub(in crate::local_terminal_service) use events::event_capture;
 #[cfg(windows)]
+#[cfg(windows)]
 pub(in crate::local_terminal_service) use events::{ReplayCapture, replay_capture};
 pub(in crate::local_terminal_service) use graphics::graphics_png;
 

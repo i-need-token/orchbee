@@ -15,6 +15,7 @@ mod client_view_registry;
 #[cfg(any(unix, windows))]
 mod frame_directory;
 #[cfg(any(unix, windows))]
+#[cfg(windows)]
 mod layout_history;
 #[cfg(any(unix, windows))]
 mod local_client_service;
@@ -23,6 +24,7 @@ mod local_terminal_service;
 #[cfg(any(unix, windows))]
 mod local_worker_service;
 #[cfg(any(unix, windows))]
+#[cfg(windows)]
 mod localization;
 #[cfg(any(unix, windows))]
 mod notification_registry;
@@ -33,6 +35,7 @@ mod session_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
 #[cfg(any(unix, windows))]
+#[cfg(windows)]
 mod terminal_output;
 #[cfg(any(unix, windows))]
 mod viewer_ready;

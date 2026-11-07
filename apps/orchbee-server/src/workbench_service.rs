@@ -307,9 +307,18 @@ impl WorkbenchService {
                 ));
             }
             WorkbenchRequest::LayoutHistory(request) => {
-                return WorkbenchExecution::Response(WorkbenchResponse::LayoutHistory(
-                    self.terminals.execute_layout_history(request.clone()),
-                ));
+                #[cfg(windows)]
+                let result = self.terminals.execute_layout_history(request.clone());
+                // Earlier layouts are kept only by the Windows checkpoint store.
+                #[cfg(not(windows))]
+                let result = orchbee_workbench_protocol::WorkbenchLayoutHistoryResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id.clone(),
+                    outcome: orchbee_workbench_protocol::LayoutHistoryOutcome::Unavailable {
+                        reason: orchbee_workbench_protocol::LayoutHistoryUnavailable::ServiceUnavailable,
+                    },
+                };
+                return WorkbenchExecution::Response(WorkbenchResponse::LayoutHistory(result));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(

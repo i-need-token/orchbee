@@ -354,6 +354,7 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
         attachment_id: first_attachment,
         host_epoch,
         host_terminal_id,
+        ..
     } = receive_viewer(&mut first, &first_request)?
     else {
         return Err("first binding Attach failed".into());
@@ -381,6 +382,7 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
         attachment_id: second_attachment,
         host_epoch: second_epoch,
         host_terminal_id: second_terminal_id,
+        ..
     } = receive_viewer(&mut second, &second_request)?
     else {
         return Err("second binding Attach failed".into());

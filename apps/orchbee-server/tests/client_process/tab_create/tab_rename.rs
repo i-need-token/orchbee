@@ -131,6 +131,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         attachment_id,
         host_epoch,
         host_terminal_id,
+        ..
     } = attach_result.outcome()
     else {
         return Err(io::Error::other("Client viewer Attach was not accepted").into());

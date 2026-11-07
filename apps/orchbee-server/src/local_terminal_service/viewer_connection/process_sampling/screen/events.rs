@@ -37,6 +37,7 @@ pub(in crate::local_terminal_service) fn event_capture(
 }
 
 /// One terminal's recent primary-screen lines for restart replay.
+#[cfg(windows)]
 pub(in crate::local_terminal_service) enum ReplayCapture {
     /// The content generation and revision still equal the caller's last capture.
     Unchanged,
@@ -49,6 +50,7 @@ pub(in crate::local_terminal_service) enum ReplayCapture {
     },
 }
 
+#[cfg(windows)]
 /// Reads the last `lines` logical lines with styles unless the content is unchanged since
 /// `known` or the alternate screen is active.
 pub(in crate::local_terminal_service) fn replay_capture(

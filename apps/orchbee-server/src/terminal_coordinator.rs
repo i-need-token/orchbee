@@ -103,6 +103,7 @@ impl PendingOperation {
 
     /// Attaches earlier output the new terminal shows before its program starts. Only a launch
     /// not yet dispatched carries it; its authorization and fence are unchanged.
+    #[cfg(windows)]
     pub(crate) fn set_output_seed(
         &mut self,
         seed: Vec<u8>,

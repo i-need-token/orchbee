@@ -102,6 +102,7 @@ impl SessionCoordinator {
     }
 
     /// The kept output token a held, still unbound Presentation would replay.
+    #[cfg(windows)]
     pub(crate) fn restart_output(
         &self,
         presentation_id: &orchbee_workbench_protocol::TerminalPresentationId,
