@@ -460,4 +460,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.agentBoard.jump.ended': '会话已结束',
 	'workbench.agentBoard.jump.noPlacement': '会话没有可跳转的面板',
 	'workbench.agentBoard.jump.expired': '跳转超时',
+	'workbench.heldRestore.directoryUnavailable': '目录仍不可用',
+	'workbench.heldRestore.agentNotResumed': '未续接智能体对话',
+	'workbench.heldRestore.notStarted': '终端未启动',
 } as const satisfies Readonly<Record<WorkbenchMessageId, string>>;

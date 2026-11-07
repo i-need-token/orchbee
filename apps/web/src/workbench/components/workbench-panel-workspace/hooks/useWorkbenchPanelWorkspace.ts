@@ -310,6 +310,7 @@ export function useWorkbenchPanelWorkspace({
 		},
 	);
 	const minimumSplitPercent = authority.minimumSplitPercent;
+	const heldRestores = authority.heldRestores;
 	const sharedSplitResize = React.useMemo<SharedSplitResize>(
 		() => ({ commit: commitSplitRatio, minimumChildPercent: minimumSplitPercent }),
 		[commitSplitRatio, minimumSplitPercent],
@@ -858,6 +859,12 @@ export function useWorkbenchPanelWorkspace({
 		confirmClose: () => {
 			pendingConfirmationRef.current?.(true);
 		},
+		restoreHeldTerminal:
+			heldRestores === undefined
+				? undefined
+				: async (presentationId, directory) => {
+						await heldRestores.restore(presentationId, directory);
+					},
 		createTerminalTab: (source: ActionInvocationSource = 'programmatic') => {
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.createTerminal,

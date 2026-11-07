@@ -44,6 +44,13 @@ the Server holds none, so every Client shows the same sizes.
 | A binding this window saw settle | `exited` or `failed`, as it ended |
 | Any other binding                | `running`                         |
 
+A Presentation a restore held because its saved directory was unavailable has no binding, so it
+projects as `unbound`; the terminal surface reads the hold from the Server's `launchFailure` and
+shows the directory with Retry, Start in home folder and Close, as the TUI does. Retry and Start in
+home folder submit `panel.restore-terminal` through the authority's held restores, which report
+"Directory still unavailable", "Agent conversation not resumed" or "Terminal not started" on the
+status line; nothing retries by itself.
+
 Members a progressing close the window follows are withheld from the projection until that close
 settles, from the Server's acceptance of it. A Tab leaves the published Tabs, and a Group that holds
 only withheld Tabs leaves with them; every other Tab keeps the place its automatic name carries. A

@@ -113,6 +113,12 @@ export function WorkbenchTerminalViewport({
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						closeTerminal={(source) => view.closeActiveTerminal(panelId, source)}
 						createTab={view.createTerminalTab}
+						restoreTerminal={
+							view.restoreHeldTerminal === undefined
+								? undefined
+								: async (directory) =>
+										view.restoreHeldTerminal?.(terminal.presentationId, directory)
+						}
 						onTerminalEdit={() => view.onTerminalEdit?.(terminal.presentationId)}
 						onPresentationReady={(readiness) => {
 							setDisplayReady((current) =>

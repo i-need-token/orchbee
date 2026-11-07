@@ -499,6 +499,9 @@ export const enUSWorkbenchMessages = {
 	'workbench.agentBoard.jump.ended': 'Session has ended',
 	'workbench.agentBoard.jump.noPlacement': 'Session has no navigable Panel',
 	'workbench.agentBoard.jump.expired': 'Jump timed out',
+	'workbench.heldRestore.directoryUnavailable': 'Directory still unavailable',
+	'workbench.heldRestore.agentNotResumed': 'Agent conversation not resumed',
+	'workbench.heldRestore.notStarted': 'Terminal not started',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

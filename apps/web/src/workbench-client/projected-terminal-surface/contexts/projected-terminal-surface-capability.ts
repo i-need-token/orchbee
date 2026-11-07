@@ -19,11 +19,22 @@ import type { TerminalCompletionReminderObserver } from '../../../terminal-feedb
 import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';
 
-/** Why a terminal launch failed, as the Server recorded it. */
-interface ProjectedTerminalLaunchFailure {
-	/** The program that could not start, when the launch named one. */
-	readonly executable: string | null;
-}
+/**
+ * Why a terminal shows no running terminal, as the Server recorded it: its launch failed, or a
+ * restore held it because its saved directory was unavailable.
+ */
+type ProjectedTerminalLaunchFailure =
+	| {
+			/** The program that could not start, when the launch named one. */
+			readonly executable: string | null;
+			readonly kind: 'failed';
+	  }
+	| {
+			/** A retained Agent conversation waits to resume in that directory. */
+			readonly agentResume: boolean;
+			readonly directory: string;
+			readonly kind: 'directory-unavailable';
+	  };
 
 export interface ProjectedTerminalSurfaceCapability {
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
@@ -33,8 +44,9 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly platformEffects: ProjectedTerminalPlatformEffects;
 	readonly projectionClient: Pick<TerminalProjectionClient, 'open'>;
 	/**
-	 * The recorded failure of a terminal whose creation failed, or null when nothing launched it. A
-	 * Client without this record reports every failed creation without its reason.
+	 * The recorded failure of a terminal whose creation failed or whose restore was held, or null when
+	 * nothing launched it. A Client without this record reports every failed creation without its
+	 * reason.
 	 */
 	readonly readTerminalLaunchFailure?:
 		| ((presentationId: TerminalPresentationId) => ProjectedTerminalLaunchFailure | null)

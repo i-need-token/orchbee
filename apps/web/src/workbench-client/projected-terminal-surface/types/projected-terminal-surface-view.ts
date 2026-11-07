@@ -8,9 +8,13 @@ import type {
 	ProjectedTerminalOutcome,
 } from '../../projected-terminal-renderer';
 
-/** A terminal shown without one: its creation failed, or nothing launched it. */
+/**
+ * A terminal shown without one: its creation failed, a restore held it because its saved directory
+ * was unavailable, or nothing launched it.
+ */
 export type ProjectedTerminalLaunchFailureView =
 	| { readonly executable: string | null; readonly kind: 'failed' }
+	| { readonly directory: string; readonly kind: 'directory-unavailable' }
 	| { readonly kind: 'unavailable' };
 
 export interface ProjectedTerminalSurfaceView {
@@ -31,6 +35,8 @@ export interface ProjectedTerminalSurfaceView {
 	cancelPaste(): void;
 	closeTerminal(): void;
 	createTab(): void;
+	/** Starts a held restore's terminal; null where this surface cannot. */
+	readonly restoreTerminal: ((directory: 'home' | 'saved') => Promise<void>) | null;
 	retryProjection(): void;
 	sendMobileKey(key: MobileTerminalKey): boolean;
 	takeControl(): void;

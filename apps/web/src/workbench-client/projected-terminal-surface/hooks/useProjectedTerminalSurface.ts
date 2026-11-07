@@ -72,6 +72,7 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 			WorkbenchTerminalSurfaceProps,
 			| 'closeTerminal'
 			| 'createTab'
+			| 'restoreTerminal'
 			| 'focusRequest'
 			| 'onPresentationReady'
 			| 'presentationMode'
@@ -90,6 +91,7 @@ export function useProjectedTerminalSurface(
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
 	const closeTerminal = workbenchHost?.closeTerminal;
 	const createTab = workbenchHost?.createTab;
+	const restoreTerminal = workbenchHost?.restoreTerminal;
 	const focusRequest = workbenchHost?.focusRequest ?? 0;
 	const onPresentationReady = workbenchHost?.onPresentationReady;
 	const onTerminalEdit = workbenchHost?.onTerminalEdit;
@@ -400,6 +402,7 @@ export function useProjectedTerminalSurface(
 		failureMessage,
 		launchFailure,
 		launchFailureRoot,
+		restoreTerminal: restoreTerminal ?? null,
 		liveCropped: currentControl?.liveCropped === true,
 		mobileInputState,
 		pasteReview,
@@ -425,7 +428,8 @@ function describeLaunchFailure(
 ): ProjectedTerminalLaunchFailureView {
 	if (read === undefined) return { executable: null, kind: 'failed' };
 	const failure = read(presentationId);
-	return failure === null
-		? { kind: 'unavailable' }
+	if (failure === null) return { kind: 'unavailable' };
+	return failure.kind === 'directory-unavailable'
+		? { directory: failure.directory, kind: 'directory-unavailable' }
 		: { executable: failure.executable, kind: 'failed' };
 }

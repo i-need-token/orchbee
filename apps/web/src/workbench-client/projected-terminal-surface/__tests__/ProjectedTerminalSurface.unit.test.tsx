@@ -44,6 +44,7 @@ function surfaceView(
 		},
 		projectionState: 'requested',
 		recoveryAvailable: false,
+		restoreTerminal: null,
 		retryProjection: () => undefined,
 		root: { current: null },
 		sendMobileKey: () => false,

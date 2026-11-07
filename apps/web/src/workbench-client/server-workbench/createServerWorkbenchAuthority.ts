@@ -22,6 +22,7 @@ import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { createServerWorkbenchClose } from './createServerWorkbenchClose';
 import { createServerWorktrees } from './createServerWorktrees';
+import { createServerHeldRestores } from './createServerHeldRestores';
 import { duplicateServerTabs } from './duplicateServerTabs';
 import {
 	SERVER_MINIMUM_SPLIT_PERCENT,
@@ -374,6 +375,7 @@ export function createServerWorkbenchAuthority({
 			);
 		},
 		duplicateTabs: (context, duplication) => duplicateServerTabs(session, context, duplication),
+		heldRestores: createServerHeldRestores(session),
 		worktrees: createServerWorktrees(session),
 	};
 }

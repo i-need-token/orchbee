@@ -1670,4 +1670,22 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.agentBoard.jump.expired'],
 		description: 'Agent board notice when showing the session took longer than allowed.',
 	},
+	heldRestoreDirectoryUnavailable: {
+		id: 'workbench.heldRestore.directoryUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.heldRestore.directoryUnavailable'],
+		description:
+			'Status notice when Retry on a Panel a restore held found its saved directory still unavailable.',
+	},
+	heldRestoreAgentNotResumed: {
+		id: 'workbench.heldRestore.agentNotResumed',
+		defaultMessage: enUSWorkbenchMessages['workbench.heldRestore.agentNotResumed'],
+		description:
+			'Status notice when a held Panel started in the home folder, so its Agent conversation was not resumed.',
+	},
+	heldRestoreNotStarted: {
+		id: 'workbench.heldRestore.notStarted',
+		defaultMessage: enUSWorkbenchMessages['workbench.heldRestore.notStarted'],
+		description:
+			'Status notice when starting a held Panel did not start its terminal, for example because the Panel changed.',
+	},
 });

@@ -111,6 +111,10 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly renamePanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
 	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
+	/** Starts a held restore's terminal; absent where the authority holds no restore. */
+	readonly restoreHeldTerminal?:
+		| ((presentationId: string, directory: 'home' | 'saved') => Promise<void>)
+		| undefined;
 	readonly displayedRoot: PanelLayoutNode | null;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly handlePanelVisualSelectionKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;

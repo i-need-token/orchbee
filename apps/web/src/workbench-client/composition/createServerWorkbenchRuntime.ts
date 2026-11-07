@@ -376,7 +376,14 @@ export function createServerWorkbenchRuntime({
 		projectionClient,
 		readTerminalLaunchFailure: (presentationId) => {
 			const failure = findServerPresentation(session.snapshot, presentationId)?.launchFailure;
-			return failure === undefined ? null : { executable: failure.executable };
+			if (failure === undefined) return null;
+			return failure.reason === 'directory-unavailable' && failure.directory !== undefined
+				? {
+						agentResume: failure.agentResume === true,
+						directory: failure.directory,
+						kind: 'directory-unavailable',
+					}
+				: { executable: failure.executable, kind: 'failed' };
 		},
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,

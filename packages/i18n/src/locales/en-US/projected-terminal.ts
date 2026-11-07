@@ -167,6 +167,9 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.launch.shellFailed':
 		'The configured shell could not be started. Check its launch profile and working directory.',
 	'terminal.projected.launch.unavailable': 'Terminal unavailable',
+	'terminal.projected.heldRestore.title': 'Directory unavailable',
+	'terminal.projected.heldRestore.retry': 'Retry',
+	'terminal.projected.heldRestore.startInHome': 'Start in home folder',
 } as const;
 
 export type ProjectedTerminalMessageId = keyof typeof enUSProjectedTerminalMessages;

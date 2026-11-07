@@ -278,7 +278,8 @@ function projectTerminalLifecycle(
 	presentation: WorkbenchPresentation,
 	observedEnds: ObservedServerTerminalEnds,
 ): TerminalPresentationLifecycle {
-	if (presentation.launchFailure !== undefined) {
+	// A restore held for an unavailable directory has no binding, so it shows as unbound.
+	if (presentation.launchFailure?.reason === 'terminal-create-failed') {
 		return { failure: { code: presentation.launchFailure.reason }, kind: 'launch-failed' };
 	}
 	if (presentation.binding === null) return { kind: 'unbound' };

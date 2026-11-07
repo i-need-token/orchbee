@@ -59,6 +59,11 @@ export interface WorkbenchTerminalSurfaceProps {
 	readonly closeTerminal: (source: ActionInvocationSource) => void;
 	/** Opens a new Tab as the Workbench's New Tab does. */
 	readonly createTab: (source: ActionInvocationSource) => void;
+	/**
+	 * Starts this surface's terminal after a restore held it for an unavailable directory: in the
+	 * saved directory again, or in the home folder. Absent where nothing can hold a restore.
+	 */
+	readonly restoreTerminal?: ((directory: 'home' | 'saved') => Promise<void>) | undefined;
 	/** Report actual display readiness for both initial active and incoming surfaces. */
 	readonly onPresentationReady: (readiness: WorkbenchTerminalPresentationReadiness) => void;
 	readonly presentation: WorkbenchTerminalPresentation;

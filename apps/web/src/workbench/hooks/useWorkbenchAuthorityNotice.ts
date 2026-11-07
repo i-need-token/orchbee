@@ -24,6 +24,7 @@ import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProject
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
+	WorkbenchHeldRestores,
 	WorkbenchTabDuplicationStop,
 } from '../types/workbench-authority';
 import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
@@ -102,6 +103,32 @@ function reportingWorktrees(
 			const next = workbenchWorktreeOutcomeNotice(command, outcome);
 			// Saying nothing removes only what this command said, not what later work says.
 			setNotice((current) => (next === null ? (current === progress ? null : current) : next));
+			return outcome;
+		},
+	};
+}
+
+/**
+ * Starting a held restore says why it did not start, as the TUI's status line does, and that the
+ * Agent conversation stays behind when it starts in the home folder instead.
+ */
+function reportingHeldRestores(
+	restores: WorkbenchHeldRestores,
+	setNotice: React.Dispatch<React.SetStateAction<WorkbenchAuthorityNotice | null>>,
+): WorkbenchHeldRestores {
+	return {
+		restore: async (presentationId, directory) => {
+			setNotice(null);
+			const outcome = await restores.restore(presentationId, directory);
+			let descriptor: WorkbenchAuthorityNotice['descriptor'] | null = null;
+			if (outcome.kind === 'directory-unavailable') {
+				descriptor = workbenchMessages.heldRestoreDirectoryUnavailable;
+			} else if (outcome.kind === 'not-started') {
+				descriptor = workbenchMessages.heldRestoreNotStarted;
+			} else if (outcome.agentNotResumed) {
+				descriptor = workbenchMessages.heldRestoreAgentNotResumed;
+			}
+			if (descriptor !== null) setNotice({ descriptor, lifetime: 'timed' });
 			return outcome;
 		},
 	};
@@ -270,6 +297,10 @@ export function useWorkbenchAuthorityNotice(
 				return result;
 			},
 			focusNewPanel: authority.focusNewPanel,
+			heldRestores:
+				authority.heldRestores === undefined
+					? undefined
+					: reportingHeldRestores(authority.heldRestores, setNotice),
 			launchProfiles: authority.launchProfiles,
 			stoppedTabClose: (terminalContextId, tabId) =>
 				authority.stoppedTabClose(terminalContextId, tabId),

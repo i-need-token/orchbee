@@ -31,7 +31,8 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
-.executable {
+.executable,
+.directory {
 	max-width: 100%;
 	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-code-sm);

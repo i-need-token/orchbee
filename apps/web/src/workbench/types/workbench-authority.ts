@@ -282,6 +282,23 @@ export interface WorkbenchAuthorityCloseContext extends WorkbenchAuthorityContex
 	readonly markLeft?: (() => void) | undefined;
 }
 
+/** How starting the terminal of a Presentation a restore held for an unavailable directory ended. */
+export type WorkbenchHeldRestoreOutcome =
+	/** The terminal was created; a failed launch shows its own guidance in the Panel. */
+	| { readonly agentNotResumed: boolean; readonly kind: 'created' }
+	/** Retry found the saved directory still unavailable, so the Panel stays held. */
+	| { readonly kind: 'directory-unavailable' }
+	/** Nothing started: the hold changed, the Server refused, or the outcome is unknown. */
+	| { readonly kind: 'not-started' };
+
+/** Starts the terminal of a held restore in its saved directory or the home folder, once. */
+export interface WorkbenchHeldRestores {
+	restore(
+		presentationId: string,
+		directory: 'home' | 'saved',
+	): Promise<WorkbenchHeldRestoreOutcome>;
+}
+
 /**
  * Whoever decides the shared Workbench when this Client does not. A result settles only once this
  * Client's read model holds what it reports, so the caller can act on what it reads next. A caller
@@ -331,6 +348,8 @@ export interface WorkbenchAuthority {
 		context: WorkbenchAuthorityContext,
 		duplication: WorkbenchAuthorityTabDuplication,
 	): Promise<ActionResult<WorkbenchAuthorityTabDuplicationReport>>;
+	/** Absent where no restore holds a Presentation for an unavailable directory. */
+	readonly heldRestores?: WorkbenchHeldRestores | undefined;
 	/** Absent where every new Tab starts with the default launch profile. */
 	readonly launchProfiles?: WorkbenchLaunchProfiles | undefined;
 	/** Absent where every new Panel takes the focus, as the default configuration sets it. */

@@ -69,6 +69,7 @@ export function ProjectedTerminalSurface({
 						failure={view.launchFailure}
 						onClose={view.closeTerminal}
 						onCreateTab={view.createTab}
+						onRestore={view.restoreTerminal}
 						rootRef={view.launchFailureRoot}
 					/>
 				)}
