@@ -51,11 +51,13 @@ pub enum AgentResumeProvider {
     GitHubCopilot,
     #[serde(rename = "qwen-code")]
     QwenCode,
+    #[serde(rename = "cline")]
+    Cline,
 }
 
 impl AgentResumeProvider {
     /// Every resumable provider.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
@@ -74,6 +76,7 @@ impl AgentResumeProvider {
         Self::Gemini,
         Self::GitHubCopilot,
         Self::QwenCode,
+        Self::Cline,
     ];
 
     /// Maps a canonical Agent provider id onto the table; any other provider has no row.
@@ -106,6 +109,7 @@ impl AgentResumeProvider {
             Self::Gemini => "gemini",
             Self::GitHubCopilot => "github-copilot",
             Self::QwenCode => "qwen-code",
+            Self::Cline => "cline",
         }
     }
 }
@@ -163,6 +167,7 @@ fn valid_id(provider: AgentResumeProvider, id: &str) -> bool {
         P::Letta => letta_conversation(id),
         P::Devin => devin_session(id),
         P::Hermes => hermes_session(id),
+        P::Cline => cline_session(id),
     }
 }
 
@@ -236,6 +241,16 @@ fn hermes_session(value: &str) -> bool {
         (Some(date), Some(time), Some(suffix), None)
             if digits(date, 8) && digits(time, 6) && (6..=12).contains(&suffix.len()) && lower_hex(suffix)
     )
+}
+
+/// 13 decimal digits, `_`, then 5 lowercase letters or digits.
+fn cline_session(value: &str) -> bool {
+    value.len() == 19
+        && value.bytes().enumerate().all(|(index, byte)| match index {
+            0..13 => byte.is_ascii_digit(),
+            13 => byte == b'_',
+            _ => byte.is_ascii_digit() || byte.is_ascii_lowercase(),
+        })
 }
 
 #[derive(Serialize, Deserialize)]

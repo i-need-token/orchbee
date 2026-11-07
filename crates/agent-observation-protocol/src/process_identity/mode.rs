@@ -393,4 +393,9 @@ pub(super) mod grammar {
         interactive_options: &["-r", "--resume"],
         ..DEFAULT
     };
+
+    pub const CLINE: AgentModeGrammar = AgentModeGrammar {
+        interactive_options: &["--id"],
+        ..DEFAULT
+    };
 }

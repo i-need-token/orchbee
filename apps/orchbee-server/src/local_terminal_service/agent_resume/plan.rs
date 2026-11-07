@@ -46,6 +46,7 @@ const fn resume_program(provider: AgentResumeProvider) -> &'static str {
         P::Gemini => "gemini",
         P::GitHubCopilot => "copilot",
         P::QwenCode => "qwen",
+        P::Cline => "cline",
     }
 }
 
@@ -59,9 +60,9 @@ pub(super) fn resume_arguments(session: &RetainedAgentSession) -> Vec<String> {
     let id = session.session_id();
     let separate = |option: &str| vec![option.to_owned(), id.to_owned()];
     match session.provider() {
-        P::ClaudeCode => separate("--resume"),
         P::Codex => separate("resume"),
-        P::Grok
+        P::ClaudeCode
+        | P::Grok
         | P::Cursor
         | P::QoderCli
         | P::Droid
@@ -80,6 +81,7 @@ pub(super) fn resume_arguments(session: &RetainedAgentSession) -> Vec<String> {
         },
         P::Devin | P::Hermes | P::Omp => separate("--resume"),
         P::Pi => separate("--session"),
+        P::Cline => separate("--id"),
     }
 }
 

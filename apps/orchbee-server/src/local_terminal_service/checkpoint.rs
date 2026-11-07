@@ -55,7 +55,7 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_| io::Error::other("Worker registry failed"))?;
         let placement = placement(workers.request_handle().as_ref());
-        let coordinator = self
+        let mut coordinator = self
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?;
@@ -221,7 +221,7 @@ impl LocalTerminalService {
         {
             return Err(io::Error::other("checkpoint observation expired"));
         }
-        let coordinator = self
+        let mut coordinator = self
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?;
@@ -239,7 +239,7 @@ impl LocalTerminalService {
     /// rather than leaving the Session unable to stop.
     pub(crate) fn checkpoint_without_worker(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
         let resume = self.agent_resume_enabled();
-        let coordinator = self
+        let mut coordinator = self
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?;

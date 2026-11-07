@@ -42,7 +42,7 @@ pub(super) struct Sample {
     directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
-fn key(binding: &PresentationBinding) -> (String, String) {
+pub(super) fn key(binding: &PresentationBinding) -> (String, String) {
     (
         binding.worker_id.as_str().into(),
         binding.terminal_id.as_str().into(),
@@ -206,6 +206,8 @@ impl SessionCoordinator {
         // Discard tracking only, never emit an exit from missing coordinator facts.
         self.process_samples
             .retain(|_, s| facts.contains(&s.target));
+        #[cfg(windows)]
+        self.retain_carried_agent_sessions(&facts);
         let key = key(&physical.binding);
         let prior = self.process_samples.get(&key);
         if prior.is_some_and(|p| p.started >= started) {
@@ -304,6 +306,8 @@ impl SessionCoordinator {
         if let Some(directory) = &directory {
             self.follow_first_terminal_directory(&physical.binding, directory);
         }
+        #[cfg(windows)]
+        self.bind_carried_agent_session(&physical, retained, identity.result(), sample);
         self.process_samples.insert(
             key,
             Sample {
@@ -350,22 +354,26 @@ impl SessionCoordinator {
             )
     }
 
+    /// The run Panel reports attribute to the exact physical generation, if any.
+    pub(crate) fn published_run(&self, physical: &TerminalAgentBinding) -> Option<Selected> {
+        self.process_samples
+            .get(&key(&physical.binding))
+            .filter(|sample| sample.target == *physical)
+            .and_then(Sample::published)
+    }
+
     /// The anchor of the run Panel reports attribute to the exact physical generation, if any.
     /// Read under the same lock as [Self::process_identity], so an `agent` result names it.
     pub(crate) fn process_anchor(
         &self,
         physical: &TerminalAgentBinding,
     ) -> Option<orchbee_agent_observation_protocol::AgentProcessAnchor> {
-        self.process_samples
-            .get(&key(&physical.binding))
-            .filter(|sample| sample.target == *physical)
-            .and_then(Sample::published)
-            .map(
-                |run| orchbee_agent_observation_protocol::AgentProcessAnchor {
-                    pid: run.pid,
-                    provider: run.provider,
-                },
-            )
+        self.published_run(physical).map(|run| {
+            orchbee_agent_observation_protocol::AgentProcessAnchor {
+                pid: run.pid,
+                provider: run.provider,
+            }
+        })
     }
 
     /// Answers `identify` for the presentation's current Terminal generation: the canonical
@@ -578,6 +586,8 @@ impl SessionCoordinator {
         let Some(workbench) = self.workbench.as_ref() else {
             self.process_samples.clear();
             self.terminal_observations.clear();
+            #[cfg(windows)]
+            self.carried_agent_sessions.clear();
             return Ok(vec![]);
         };
         let session_id = workbench.session_id().clone();
@@ -623,6 +633,8 @@ impl SessionCoordinator {
             .retain(|_, s| retained.contains(&s.target));
         self.terminal_observations
             .retain(|_, s| retained.contains(&s.physical));
+        #[cfg(windows)]
+        self.retain_carried_agent_sessions(&retained);
         Ok(targets.into_values().collect())
     }
 }

@@ -1,6 +1,7 @@
 //! Selects the live Agent session reference each checkpoint retains for a Presentation: Agent
 //! candidates joined to the exact Terminal generation, refuted by that generation's command and
-//! process evidence, and admitted only when exactly one remains. Reports, process names and screen
+//! process evidence, and admitted only when exactly one remains, or else a delivered reference
+//! carried forward while the process its delivery started lives. Reports, process names and screen
 //! detection never grant a reference. It does not persist, deduplicate across Presentations or
 //! deliver a resume.
 
@@ -80,15 +81,218 @@ pub(crate) fn select(
     RetainedAgentSession::new(provider, key)
 }
 
+/// The process a delivery started: its pid and its creation time in sample row units, which
+/// defeats pid reuse.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct RunAnchor {
+    pub(crate) pid: u32,
+    pub(crate) created: u64,
+}
+
+/// A delivered reference carried forward. It stays capturable while, and only while, the process
+/// its delivery started lives in the Terminal generation the delivery reached.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Carried {
+    pub(crate) session: RetainedAgentSession,
+    /// The argument tokens the delivery typed after the program.
+    pub(crate) arguments: Vec<String>,
+    /// The run the delivery started, once a sample commit bound it.
+    pub(crate) anchor: Option<RunAnchor>,
+}
+
+/// The carried generation's published run, as one sample commit or capture reads it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PublishedRun<'a> {
+    pub(crate) anchor: RunAnchor,
+    pub(crate) identity: AgentProcessIdentity,
+    /// The anchor row's decoded arguments: `None` when unreadable. Capture never reads them.
+    pub(crate) argv: Option<&'a [String]>,
+}
+
+/// One moment that decides a carried reference.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CarriedMoment<'a> {
+    /// A committed sample of the carried generation, with its published run, if any.
+    Sample(Option<PublishedRun<'a>>),
+    /// A checkpoint capture of the carried generation: whether any hook candidate names it, and
+    /// its published run, if any.
+    Capture {
+        candidate: bool,
+        run: Option<PublishedRun<'a>>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CarriedOutcome {
+    /// Bind the reference to this run.
+    Bind(RunAnchor),
+    /// Write the reference as the generation's live one, and keep carrying it.
+    Write,
+    /// Keep carrying it without writing it.
+    Keep,
+    /// Drop it for good.
+    Drop,
+}
+
+/// The carry-forward decision. At a sample commit the first published run decides an unbound
+/// reference: the reference binds to that run when it is an `Agent` of the carried provider whose
+/// anchor row's arguments end with the typed tokens, so a manual start of the same provider never
+/// inherits it, and any other run drops it. At a capture any hook candidate drops it, so the live
+/// rule decides; otherwise a bound reference whose anchor is still the published run, as an
+/// `Agent` of its provider, is written, and any other bound one is dropped. An unbound reference
+/// is never written, so a resume that fails fast never repeats.
+pub(crate) fn carried_outcome(carried: &Carried, moment: CarriedMoment<'_>) -> CarriedOutcome {
+    let own = |run: &PublishedRun<'_>| {
+        matches!(run.identity, AgentProcessIdentity::Agent { provider, .. }
+            if provider.native_provider_id() == carried.session.provider().provider_id())
+    };
+    let typed =
+        |argv: &[String]| !carried.arguments.is_empty() && argv.ends_with(&carried.arguments);
+    match moment {
+        CarriedMoment::Sample(run) => match (carried.anchor, run) {
+            (Some(_), _) | (None, None) => CarriedOutcome::Keep,
+            (None, Some(run)) if own(&run) && run.argv.is_some_and(typed) => {
+                CarriedOutcome::Bind(run.anchor)
+            }
+            (None, Some(_)) => CarriedOutcome::Drop,
+        },
+        CarriedMoment::Capture {
+            candidate: true, ..
+        } => CarriedOutcome::Drop,
+        CarriedMoment::Capture { run, .. } => match (carried.anchor, run) {
+            (None, _) => CarriedOutcome::Keep,
+            (Some(anchor), Some(run)) if run.anchor == anchor && own(&run) => CarriedOutcome::Write,
+            (Some(_), _) => CarriedOutcome::Drop,
+        },
+    }
+}
+
+/// Carried references keyed like process samples, each with the exact Terminal generation its
+/// delivery reached.
+#[cfg(windows)]
+pub(super) type CarriedSessions =
+    std::collections::BTreeMap<(String, String), (orchbee_server::TerminalAgentBinding, Carried)>;
+
 #[cfg(windows)]
 impl super::SessionCoordinator {
+    /// Records the reference the driver just admitted for delivery into `target`'s exact Terminal
+    /// generation, with the tokens that delivery types. At most one delivery reaches a Presentation
+    /// per Server lifetime, so nothing earlier is carried there.
+    pub(crate) fn carry_agent_session(
+        &mut self,
+        target: &super::ProcessObservationTarget,
+        session: RetainedAgentSession,
+        arguments: Vec<String>,
+    ) {
+        let physical = orchbee_server::TerminalAgentBinding {
+            binding: target.binding.clone(),
+            worker_generation: target.target.worker.generation,
+            identity: target.target.identity,
+        };
+        let carried = Carried {
+            session,
+            arguments,
+            anchor: None,
+        };
+        self.carried_agent_sessions
+            .insert(target.key(), (physical, carried));
+    }
+
+    /// Applies one committed sample of `physical` to its carried reference: the first published
+    /// run binds or drops an unbound one. A reference of another generation is dropped.
+    pub(super) fn bind_carried_agent_session(
+        &mut self,
+        physical: &orchbee_server::TerminalAgentBinding,
+        run: Option<super::process_observation::Selected>,
+        identity: AgentProcessIdentity,
+        sample: &orchbee_terminal_protocol::TerminalProcessInfo,
+    ) {
+        let key = super::process_observation::key(&physical.binding);
+        let Some((carried_physical, carried)) = self.carried_agent_sessions.get_mut(&key) else {
+            return;
+        };
+        let outcome = if carried_physical == physical {
+            let argv = run
+                .and_then(|run| {
+                    sample
+                        .processes
+                        .iter()
+                        .find(|p| p.pid == run.pid() && p.creation_time == run.created())
+                })
+                .and_then(|row| super::decoded_argv(row.command_line.as_deref()));
+            let run = run.map(|run| PublishedRun {
+                anchor: RunAnchor {
+                    pid: run.pid(),
+                    created: run.created(),
+                },
+                identity,
+                argv: argv.as_deref(),
+            });
+            carried_outcome(carried, CarriedMoment::Sample(run))
+        } else {
+            CarriedOutcome::Drop
+        };
+        match outcome {
+            CarriedOutcome::Bind(anchor) => carried.anchor = Some(anchor),
+            CarriedOutcome::Drop => {
+                self.carried_agent_sessions.remove(&key);
+            }
+            CarriedOutcome::Write | CarriedOutcome::Keep => {}
+        }
+    }
+
+    /// Drops every carried reference whose exact Terminal generation is no longer registered: a
+    /// binding or generation change, or a Presentation that went away.
+    pub(super) fn retain_carried_agent_sessions(
+        &mut self,
+        registered: &[orchbee_server::TerminalAgentBinding],
+    ) {
+        self.carried_agent_sessions
+            .retain(|_, (physical, _)| registered.contains(physical));
+    }
+
+    /// Applies one capture to `physical`'s carried reference and returns it when it is written.
+    fn capture_carried_agent_session(
+        &mut self,
+        physical: &orchbee_server::TerminalAgentBinding,
+        candidate: bool,
+    ) -> Option<RetainedAgentSession> {
+        let key = super::process_observation::key(&physical.binding);
+        let outcome = match self.carried_agent_sessions.get(&key)? {
+            (carried_physical, _) if carried_physical != physical => CarriedOutcome::Drop,
+            (_, carried) => {
+                let run = self.published_run(physical).map(|run| PublishedRun {
+                    anchor: RunAnchor {
+                        pid: run.pid(),
+                        created: run.created(),
+                    },
+                    identity: self.process_identity(physical),
+                    argv: None,
+                });
+                carried_outcome(carried, CarriedMoment::Capture { candidate, run })
+            }
+        };
+        match outcome {
+            CarriedOutcome::Write => self
+                .carried_agent_sessions
+                .get(&key)
+                .map(|(_, carried)| carried.session.clone()),
+            CarriedOutcome::Keep => None,
+            CarriedOutcome::Drop | CarriedOutcome::Bind(_) => {
+                self.carried_agent_sessions.remove(&key);
+                None
+            }
+        }
+    }
+
     /// The live reference of every checkpoint target that has one, keyed by its binding. Targets
     /// join their Presentation through current registration at the exact generation they name;
     /// a stale target, an unreadable registration or an unavailable Agent cell contributes
-    /// nothing, so pending restart references still carry over. Capture owns cross-Presentation
-    /// deduplication in its own order.
+    /// nothing, so pending restart references still carry over. A target with any hook candidate
+    /// drops its carried reference and takes the live rule; otherwise its carried reference
+    /// decides. Capture owns cross-Presentation deduplication in its own order.
     pub(crate) fn checkpoint_agent_sessions(
-        &self,
+        &mut self,
         targets: &[super::ProcessObservationTarget],
     ) -> Vec<(
         orchbee_workbench_protocol::PresentationBinding,
@@ -128,19 +332,25 @@ impl super::SessionCoordinator {
         let Ok(candidates) = agents.resume_candidates(&identities) else {
             return Vec::new();
         };
-        physical
-            .into_iter()
-            .filter_map(|(presentation, terminal)| {
-                let own: Vec<_> = candidates
-                    .iter()
-                    .filter(|c| c.presentation == presentation)
-                    .cloned()
-                    .collect();
-                let evidence = CommandEvidence::of(self.latest_command(&terminal));
-                let session = select(&own, evidence, &self.process_identity(&terminal))?;
-                Some((terminal.binding, session))
-            })
-            .collect()
+        let mut live = Vec::new();
+        for (presentation, terminal) in physical {
+            let own: Vec<_> = candidates
+                .iter()
+                .filter(|c| c.presentation == presentation)
+                .cloned()
+                .collect();
+            let session = match self.capture_carried_agent_session(&terminal, !own.is_empty()) {
+                Some(carried) => Some(carried),
+                None => {
+                    let evidence = CommandEvidence::of(self.latest_command(&terminal));
+                    select(&own, evidence, &self.process_identity(&terminal))
+                }
+            };
+            if let Some(session) = session {
+                live.push((terminal.binding, session));
+            }
+        }
+        live
     }
 }
 

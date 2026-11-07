@@ -200,6 +200,24 @@ fn each_provider_admits_only_its_own_inert_id_grammar() {
             format!("Local-{hex64}"),
         ],
     ));
+    table.push((
+        P::Cline,
+        vec![
+            "1730000000000_a1b2c".to_owned(),
+            "0000000000000_00000".to_owned(),
+        ],
+        vec![
+            "1730000000000_A1B2C".to_owned(),
+            "173000000000_a1b2c".to_owned(),
+            "17300000000000_a1b2c".to_owned(),
+            "1730000000000_a1b2".to_owned(),
+            "1730000000000_a1b2cd".to_owned(),
+            "1730000000000-a1b2c".to_owned(),
+            "173000000000x_a1b2c".to_owned(),
+            "1730000000000_a1b-c".to_owned(),
+            CLAUDE.to_owned(),
+        ],
+    ));
     assert_eq!(table.len(), P::ALL.len());
     for (provider, accepted, rejected) in table {
         for id in &accepted {

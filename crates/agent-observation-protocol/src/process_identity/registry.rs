@@ -177,7 +177,7 @@ pub static AGENT_PROVIDER_REGISTRY: [AgentProviderEntry; 24] = {
             NONE,
             &grammar::ANTIGRAVITY,
         ),
-        entry(P::Cline, &[unique("cline")], NONE, &grammar::DEFAULT),
+        entry(P::Cline, &[unique("cline")], NONE, &grammar::CLINE),
         entry(P::Omp, &[unique("omp")], NONE, &grammar::PI),
         entry(
             P::Mastracode,

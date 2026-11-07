@@ -69,6 +69,9 @@ pub(crate) struct SessionCoordinator {
     terminal_observations: semantic_events::Observations,
     /// The one Agent cell, shared by managed names and resume capture.
     agents: Option<std::sync::Weak<crate::agent_service::AgentService>>,
+    /// Delivered Agent session references carried forward to later captures.
+    #[cfg(windows)]
+    carried_agent_sessions: agent_resume::CarriedSessions,
 }
 
 #[cfg(test)]
@@ -83,6 +86,8 @@ impl SessionCoordinator {
             followed_directories: directory_label::FollowedDirectories::new(),
             terminal_observations: semantic_events::Observations::new(),
             agents: None,
+            #[cfg(windows)]
+            carried_agent_sessions: agent_resume::CarriedSessions::new(),
         }
     }
 

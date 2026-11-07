@@ -1,7 +1,7 @@
 # Agent session resume
 
-Status: implemented for the managed Windows Session: the preference, the retained format, capture
-and delivery after a restart.
+Status: implemented for the managed Windows Session: the preference, the retained format, capture,
+delivery after a restart and carry-forward of a delivered reference.
 
 ## Outcome and scope
 
@@ -41,30 +41,35 @@ mismatch would silently drop all of that provider's candidates.
 U is a hyphenated UUID: 8-4-4-4-12 hex digits in either case, 36 characters. Evidence: S is source,
 D is documentation, H is Herdr precedent. "Directory" says whether resuming outside the session's
 own directory changes the outcome; the retained-directory gate applies to every row regardless.
+"Re-reports" says when a resumed run reports its session again; until then
+[carry-forward](#carry-forward) keeps the delivered reference.
 
-| Provider id      | Program        | Typed arguments (cmd)                                                       | Valid id, max length                                             | Directory          | Wrong or stale id                           | Evidence   |
-| ---------------- | -------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ | ------------------------------------------- | ---------- |
-| `claude-code`    | `claude`       | `--resume <id>`                                                             | U, 36                                                            | yes                | error, exits                                | S, witness |
-| `codex`          | `codex`        | `resume <id>`                                                               | U, 36                                                            | gate               | error, exits                                | S, witness |
-| `grok`           | `grok`         | `--resume=<id>`                                                             | U, 36                                                            | no                 | error; UUIDs never match titles             | S          |
-| `opencode`       | `opencode`     | `--session=<id>`                                                            | `^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`, 30                          | yes on 1.1.25      | 1.x exits 1; 2.x empty session with that id | S          |
-| `kilo`           | `kilo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | no                 | error, exits                                | S          |
-| `cursor`         | `cursor-agent` | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new chat                           | D, H       |
-| `qodercli`       | `qodercli`     | `--resume=<id>`                                                             | U, 36                                                            | yes                | error or new session                        | D, bundle  |
-| `antigravity`    | `agy`          | `--conversation <id>`                                                       | U, 36                                                            | undocumented       | error or new conversation                   | D          |
-| `droid`          | `droid`        | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new session                        | D, H       |
-| `kimi`           | `kimi`         | `--session=<id>`                                                            | `session_` and a version 4 U, 44                                 | strict spelling    | error, exits                                | S          |
-| `letta`          | `letta`        | `--conversation <id>`; `default:<a>` → `--conversation default --agent <a>` | `^(?:local-)?conv-U$`, `^default:agent-(?:local-)?U$`, 56        | no                 | error or new conversation                   | S          |
-| `devin`          | `devin`        | `--resume <id>`                                                             | `^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){0,7}$`, 64 (provisional)         | yes (else prompts) | error or new session                        | D, H       |
-| `hermes`         | `hermes`       | `--resume <id>`                                                             | `^[0-9]{8}_[0-9]{6}_[0-9a-f]{6,12}$`, `^local-[0-9a-f]{64}$`, 70 | no                 | error, exits                                | S          |
-| `pi`             | `pi`           | `--session <id>`                                                            | U, 36                                                            | yes (else forks)   | error, exits                                | S          |
-| `omp`            | `omp`          | `--resume <id>`                                                             | U, 36                                                            | no                 | error, exits                                | S          |
-| `gemini`         | `gemini`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | S          |
-| `github-copilot` | `copilot`      | `--resume=<id>`                                                             | U, 36                                                            | no                 | new empty session with that id              | D          |
-| `qwen-code`      | `qwen`         | `--resume=<id>`                                                             | U, 36 (arena `-agent-…` ids fail closed)                         | yes                | "No saved session found", exits 1           | S          |
+| Provider id      | Program        | Typed arguments (cmd)                                                       | Valid id, max length                                             | Directory          | Wrong or stale id                           | Re-reports      | Evidence   |
+| ---------------- | -------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ | ------------------------------------------- | --------------- | ---------- |
+| `claude-code`    | `claude`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | yes             | S, witness |
+| `codex`          | `codex`        | `resume <id>`                                                               | U, 36                                                            | gate               | error, exits                                | yes             | S, witness |
+| `grok`           | `grok`         | `--resume=<id>`                                                             | U, 36                                                            | no                 | error; UUIDs never match titles             | yes             | S          |
+| `opencode`       | `opencode`     | `--session=<id>`                                                            | `^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`, 30                          | yes on 1.1.25      | 1.x exits 1; 2.x empty session with that id | on first prompt | S          |
+| `kilo`           | `kilo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | no                 | error, exits                                | on first prompt | S          |
+| `cursor`         | `cursor-agent` | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new chat                           | probably no     | D, H       |
+| `qodercli`       | `qodercli`     | `--resume=<id>`                                                             | U, 36                                                            | yes                | error or new session                        | yes             | D, bundle  |
+| `antigravity`    | `agy`          | `--conversation <id>`                                                       | U, 36                                                            | undocumented       | error or new conversation                   | on first prompt | D          |
+| `droid`          | `droid`        | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new session                        | yes             | D, H       |
+| `kimi`           | `kimi`         | `--session=<id>`                                                            | `session_` and a version 4 U, 44                                 | strict spelling    | error, exits                                | yes             | S          |
+| `letta`          | `letta`        | `--conversation <id>`; `default:<a>` → `--conversation default --agent <a>` | `^(?:local-)?conv-U$`, `^default:agent-(?:local-)?U$`, 56        | no                 | error or new conversation                   | yes             | S          |
+| `devin`          | `devin`        | `--resume <id>`                                                             | `^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){0,7}$`, 64 (provisional)         | yes (else prompts) | error or new session                        | unknown         | D, H       |
+| `hermes`         | `hermes`       | `--resume <id>`                                                             | `^[0-9]{8}_[0-9]{6}_[0-9a-f]{6,12}$`, `^local-[0-9a-f]{64}$`, 70 | no                 | error, exits                                | yes             | S          |
+| `pi`             | `pi`           | `--session <id>`                                                            | U, 36                                                            | yes (else forks)   | error, exits                                | yes             | S          |
+| `omp`            | `omp`          | `--resume <id>`                                                             | U, 36                                                            | no                 | error, exits                                | yes             | S          |
+| `gemini`         | `gemini`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | yes             | S          |
+| `github-copilot` | `copilot`      | `--resume=<id>`                                                             | U, 36                                                            | no                 | new empty session with that id              | unknown         | D          |
+| `qwen-code`      | `qwen`         | `--resume=<id>`                                                             | U, 36 (arena `-agent-…` ids fail closed)                         | yes                | "No saved session found", exits 1           | yes             | S          |
+| `cline`          | `cline`        | `--id <id>`                                                                 | `^[0-9]{13}_[0-9a-z]{5}$`, 19                                    | no                 | empty session with that id, or error        | on first run    | S          |
 
-Where a wrong id creates a new or empty session under that same id (Copilot, OpenCode 2.x), that
-session reports the id again, so the reference stays stable and harmless.
+Where a wrong id creates a new or empty session under that same id (Copilot, OpenCode 2.x, Cline),
+that session reports the id again, so the reference stays stable and harmless. Cline's adapter keys
+each session by the core session id its plugin setup receives, the id `cline --id` resumes, and
+drops subagent runs.
 
 Not in the table:
 
@@ -73,17 +78,17 @@ Not in the table:
   its hook payload nor its hook environment proves which version runs, a package-version check
   races upgrades and `PATH` order, and no argument form resumes on 0.45.0 or later while failing
   harmlessly earlier. A typed resume could therefore send a prompt, which rule 2 forbids.
-- **Cline.** Its adapter keys sessions by conversation, which is not the id `cline --id` resumes.
 - **Amp, Kiro, Maki and Muse** have no hook adapter, so no session key is ever observed.
 
 ### Tokens and quoting
 
-- One builder turns a reference into argument tokens; the typed line uses it.
+- One builder turns a reference into argument tokens; the typed line and
+  [carry-forward](#carry-forward)'s binding both use it.
 - An option whose value is optional is typed `--name=<id>`, so the value stays glued to its option:
   no parser takes it as a positional prompt, and a parser without `=` support rejects it harmlessly.
-  A required-value option or a subcommand takes a separate token. Claude Code keeps
-  `--resume <id>`, the form its witness covers, and OMP keeps `--resume <id>`, whose next-token
-  consumption is source-verified while its `=` support is not.
+  A required-value option or a subcommand takes a separate token. Claude Code's value is optional,
+  so it takes `--resume=<id>`. OMP keeps `--resume <id>`, whose next-token consumption is
+  source-verified while its `=` support is not.
 - Tokens use only `[A-Za-z0-9_=-]`: never `'`, `:` or `.`. Letta's stored `default:<agent>` key is
   split into `--conversation default --agent <agent>` before it is typed.
 - Programs resolve both in cmd and as a PowerShell application or external script, and none is a cmd
@@ -115,10 +120,15 @@ Not in the table:
 - `WorkbenchAuthority` keeps restored rows as pending restart intent keyed by Presentation.
   `pending_agent_session` reads an entry and `take_pending_agent_session` consumes it; neither
   changes the Workbench revision.
+- The Session coordinator owns carried references: each delivered reference, with the exact
+  Terminal generation its delivery reached, the tokens it typed and, once bound, its run anchor.
+  They live only in memory, for one Server lifetime.
 
 ## Capture rule
 
-Each checkpoint capture computes at most one live reference per bound Presentation.
+Each checkpoint capture computes at most one live reference per bound Presentation. A carried
+reference decides first ([carry-forward](#carry-forward)); without one, or once it drops, these
+steps decide.
 
 1. **Candidates.** The Agent cell supplies root hook sessions whose provider has a table row, whose
    canonical session is `Live` with no parent, and which hold a navigable attachment of this
@@ -159,12 +169,53 @@ Capture uses the existing triggers: the background saver after a layout change o
 and the fresh final capture at clean stop. An Agent started less than 30 seconds before a crash may
 be missed.
 
+## Carry-forward
+
+Several providers stay silent after a resume until a prompt or run starts (the table's
+"Re-reports" column), so the capture rule alone would find no candidate and the next restart would
+lose the session. A delivered reference therefore stays capturable while, and only while, the
+process its delivery started lives in that Terminal generation. It applies to every provider: where
+the provider re-reports, the report takes over, and the anchor binding keeps it safe without a
+per-provider flag.
+
+- **Record.** When the send's admission takes the pending reference under its locks, the Session
+  coordinator records it as carried for that exact Terminal generation, with the tokens the
+  delivery types and no anchor. The pending reference is consumed as before.
+- **Bind.** At each committed process sample of that generation, the first published run decides.
+  The reference binds to that run's anchor, its process id and creation time, when the run's
+  identity is `Agent` of the carried provider and the anchor row's decoded arguments end with the
+  typed tokens. Any other first run drops it, so a manual start of the same provider never
+  inherits a failed resume.
+- **Capture**, per Presentation:
+  1. Any candidate at that generation drops the carried reference for good, and the capture rule
+     decides. That covers a re-report of the same key, a new key and ambiguity.
+  2. Otherwise, a bound reference whose anchor is still the generation's published run, as `Agent`
+     of its provider, is written as the live reference.
+  3. Otherwise a bound reference is dropped. An unbound reference is kept for its first run but
+     never written, so a resume that fails fast is never typed again.
+- **Other drops.** A binding or generation change, or the Presentation going away, drops it. With
+  the preference off it is not written. The creation time defeats process id reuse, and a run that
+  hands off to a new anchor no longer matches, so its reference drops.
+
+One pure decision, `carried_outcome`, gives each moment's `Bind`, `Write`, `Keep` or `Drop`.
+
+Stale ids stay harmless:
+
+- If the Agent exits and a new session starts without a report, the anchor is gone, so the
+  reference drops.
+- If the conversation switches inside the process with no report at all (Cursor `/new` without
+  `sessionStart`, or an untouched switch in Antigravity or OpenCode), the next restart reopens an
+  older conversation that still exists. That is never a prompt.
+- A later report drops the reference at the next capture, at most 30 seconds away. A report that
+  appears and ends between two captures can leave the old id, which is stale but harmless.
+
 ## Delivery
 
 Orchbee types the provider's own resume command into the restored default shell, the way Herdr
 does, instead of launching the Agent as the terminal's program. The shell survives the Agent's
 exit, profile `PATH` and `.cmd` or `.ps1` shims resolve as when the user types the command, and
-the run prefix gives the resumed run a token, so the next capture finds it like any other run.
+the run prefix gives the resumed run a token, so the next capture finds it like any other run, or
+keeps the delivered reference while the provider stays silent ([carry-forward](#carry-forward)).
 Launch programs and the restored-program policy stay unchanged.
 
 | Restored shell                                                                                      | Typed line                                                                                                                                          |
@@ -254,7 +305,7 @@ capture carries every reference not yet attempted.
 | ------------------------------------------ | --------------------------------------------------------------------------------- |
 | Retained directory missing at restore      | Discarded; the shell starts in the Worker's home; nothing typed; no notice.       |
 | Directory differs when ready               | Skipped and consumed.                                                             |
-| Provider not on `PATH`                     | The shell prints its own error and stays; the next capture drops the reference.   |
+| Provider not on `PATH`                     | The shell prints its own error and stays; no run binds, so no capture writes it.  |
 | Session gone, such as a deleted transcript | The provider errors and exits, or opens an empty or new session; the shell stays. |
 | Busy, unknown or touched terminal          | Skipped and consumed.                                                             |
 | No Client before stop                      | Nothing typed; the references carry over.                                         |
@@ -281,7 +332,8 @@ on, the built-in default; a Session without a preference store reads as off. The
   is valid in its provider's grammar.
 - A typed resume binds the id to a value-taking option or a resume subcommand, so it never sends a
   prompt.
-- A live reference comes only from the capture rule.
+- A live reference comes only from the capture rule, or from a delivered reference bound to the
+  live process its delivery started.
 - With the preference off, no row is written and nothing is typed.
 - Delivery happens only when all of these hold: the preference was on at startup, the binding and
   Terminal generation are unchanged, no Client input reached that terminal, no command was
@@ -301,10 +353,14 @@ wrong case where it matters, overlong ids and an embedded `'`), that every provi
 and a hook-contract provider id, the process identity matrix for every typed form, and the
 capture decision table (run token match, mismatch and tokenless; open, completed and unmarked
 command evidence; same provider, other provider, `None`, `Unknown` and `Unsupported` identities;
-ambiguity and invalid ids) and the delivery readiness table (a running command, another program,
-unsupported roots, every undecidable sample, each shell at its prompt, silence for marked and
-unmarked shells, and directory equality). Candidate joining, lock order, the gate, ordering,
-spacing, the observer lane and saver wiring are not claimed by unit tests;
+ambiguity and invalid ids), the carry-forward decision table (its own run binds; another
+provider, a manual start, unreadable arguments and a run not yet an `Agent` drop; a candidate, a
+gone anchor, a reused process id with a new creation time and a run that is no longer `Agent` of
+the provider drop; a living bound run is written; an unbound reference is kept but never written)
+and the delivery readiness table (a running command, another program, unsupported roots, every
+undecidable sample, each shell at its prompt, silence for marked and unmarked shells, and directory
+equality). Candidate joining, lock order, the gate, ordering, spacing, the observer lane, saver
+wiring and carry-forward's record, bind and prune wiring are not claimed by unit tests;
 `apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts,
 with stub providers reporting through the managed hook path: capture, the bare cmd line in the
 retained directory, a second resume, a missing directory, Client input during the settle, and the
@@ -312,6 +368,8 @@ preference off at startup. It runs only on request, with the pinned ConPTY that 
 correlation. Its shell is cmd: a restored terminal's `PATH` comes from the registry, where the
 user's real provider may sit, and only cmd resolves a command from its current directory first,
 where the stubs sit. The managed PowerShell line therefore has no end-to-end witness that keeps a
-real provider out of reach. The witness covers Claude Code and Codex; for the other providers,
+real provider out of reach. The witness covers Claude Code, typed `--resume=<id>`, and Codex, which
+both re-report on resume, so carry-forward's binding and its capture of a silent provider rest on
+the decision table and have no end-to-end witness yet. For the other providers,
 same-id and directory evidence rests on the table's sources, and where that is documentation only
 (Cursor, Droid, Devin, Copilot and Antigravity) a resume may fail until a real run confirms the id.

@@ -777,6 +777,12 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["qwen", "--resume={id}"]),
             interactive(P::Qwen, S::NativeImage),
         ),
+        (
+            "resume",
+            "cline.exe",
+            Some(vec!["cline", "--id", "1730000000000_a1b2c"]),
+            interactive(P::Cline, S::NativeImage),
+        ),
         // Bare launches of the providers that gained a grammar are unchanged.
         (
             "bare",
@@ -807,6 +813,12 @@ fn recognition_matrix_rows_and_counterexamples() {
             "devin.exe",
             Some(vec!["devin"]),
             interactive(P::Devin, S::NativeImage),
+        ),
+        (
+            "bare",
+            "cline.exe",
+            Some(vec!["cline"]),
+            interactive(P::Cline, S::NativeImage),
         ),
         // A bare optional option never consumes a positional; `exec` keeps its own `-r`.
         (

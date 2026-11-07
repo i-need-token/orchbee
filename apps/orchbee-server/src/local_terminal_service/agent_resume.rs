@@ -400,7 +400,8 @@ impl LocalTerminalService {
         }
     }
 
-    /// The final check under the send's locks. Nothing means admitted, with the reference taken.
+    /// The final check under the send's locks. Nothing means admitted, with the reference taken
+    /// and handed to the coordinator to carry forward.
     fn admit(
         &self,
         coordinator: &mut SessionCoordinator,
@@ -428,7 +429,10 @@ impl LocalTerminalService {
                 Some(outcome)
             }
             None => match coordinator.take_pending_agent_session(&candidate.presentation) {
-                Some(taken) if taken == *session => None,
+                Some(taken) if taken == *session => {
+                    coordinator.carry_agent_session(target, taken, plan::resume_arguments(session));
+                    None
+                }
                 _ => Some(Outcome::Skipped(Reason::Gone)),
             },
         }

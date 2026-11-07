@@ -152,3 +152,174 @@ fn only_one_distinct_valid_reference_is_admitted() {
     let invalid = candidate(AgentResumeProvider::ClaudeCode, "session-1", None);
     assert_eq!(select(&[claude(None), invalid], unmarked, &UNKNOWN), None);
 }
+
+#[test]
+fn a_carried_reference_binds_only_its_own_run_and_is_written_only_while_that_run_lives() {
+    use super::{Carried, CarriedMoment as M, CarriedOutcome as O, PublishedRun, RunAnchor};
+    let typed = vec![format!("--resume={CLAUDE}")];
+    let unbound = Carried {
+        session: reference(AgentResumeProvider::ClaudeCode, CLAUDE).unwrap(),
+        arguments: typed.clone(),
+        anchor: None,
+    };
+    let anchor = RunAnchor {
+        pid: 40,
+        created: 1_000,
+    };
+    let bound = Carried {
+        anchor: Some(anchor),
+        ..unbound.clone()
+    };
+    let resumed: Vec<String> = ["node.exe", r"C:\npm\cli.js"]
+        .into_iter()
+        .map(str::to_owned)
+        .chain(typed)
+        .collect();
+    let manual = vec!["claude.exe".to_owned()];
+    let claude = agent(AgentReportProvider::Claude);
+    let codex = agent(AgentReportProvider::Codex);
+    let unclassified =
+        AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::UnclassifiedArguments);
+    let ambiguous = AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::AmbiguousCandidates);
+    fn run(
+        anchor: RunAnchor,
+        identity: AgentProcessIdentity,
+        argv: Option<&[String]>,
+    ) -> Option<PublishedRun<'_>> {
+        Some(PublishedRun {
+            anchor,
+            identity,
+            argv,
+        })
+    }
+    let (resumed, manual) = (Some(resumed.as_slice()), Some(manual.as_slice()));
+    let reused = RunAnchor {
+        pid: 40,
+        created: 2_000,
+    };
+    let rows: [(&str, &Carried, M<'_>, O); 16] = [
+        // A sample commit: the first published run decides an unbound reference.
+        ("no run yet", &unbound, M::Sample(None), O::Keep),
+        (
+            "its own run",
+            &unbound,
+            M::Sample(run(anchor, claude, resumed)),
+            O::Bind(anchor),
+        ),
+        (
+            "another provider",
+            &unbound,
+            M::Sample(run(anchor, codex, resumed)),
+            O::Drop,
+        ),
+        (
+            "a manual start",
+            &unbound,
+            M::Sample(run(anchor, claude, manual)),
+            O::Drop,
+        ),
+        (
+            "unreadable arguments",
+            &unbound,
+            M::Sample(run(anchor, claude, None)),
+            O::Drop,
+        ),
+        (
+            "not yet an Agent",
+            &unbound,
+            M::Sample(run(anchor, unclassified, resumed)),
+            O::Drop,
+        ),
+        (
+            "already bound",
+            &bound,
+            M::Sample(run(reused, claude, manual)),
+            O::Keep,
+        ),
+        // A capture: a candidate hands over to the live rule; only a living bound run is written.
+        (
+            "its run lives",
+            &bound,
+            M::Capture {
+                candidate: false,
+                run: run(anchor, claude, None),
+            },
+            O::Write,
+        ),
+        (
+            "a candidate",
+            &bound,
+            M::Capture {
+                candidate: true,
+                run: run(anchor, claude, None),
+            },
+            O::Drop,
+        ),
+        (
+            "a candidate before binding",
+            &unbound,
+            M::Capture {
+                candidate: true,
+                run: None,
+            },
+            O::Drop,
+        ),
+        (
+            "the anchor is gone",
+            &bound,
+            M::Capture {
+                candidate: false,
+                run: None,
+            },
+            O::Drop,
+        ),
+        (
+            "a reused pid",
+            &bound,
+            M::Capture {
+                candidate: false,
+                run: run(reused, claude, None),
+            },
+            O::Drop,
+        ),
+        (
+            "the run is no longer its provider",
+            &bound,
+            M::Capture {
+                candidate: false,
+                run: run(anchor, codex, None),
+            },
+            O::Drop,
+        ),
+        (
+            "the run is ambiguous",
+            &bound,
+            M::Capture {
+                candidate: false,
+                run: run(anchor, ambiguous, None),
+            },
+            O::Drop,
+        ),
+        (
+            "still unbound",
+            &unbound,
+            M::Capture {
+                candidate: false,
+                run: None,
+            },
+            O::Keep,
+        ),
+        (
+            "still unbound beside a run",
+            &unbound,
+            M::Capture {
+                candidate: false,
+                run: run(anchor, claude, None),
+            },
+            O::Keep,
+        ),
+    ];
+    for (case, carried, moment, expected) in rows {
+        assert_eq!(super::carried_outcome(carried, moment), expected, "{case}");
+    }
+}

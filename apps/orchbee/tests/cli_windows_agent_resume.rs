@@ -51,7 +51,7 @@ const ROWS: u16 = 30;
 const CMD_PROFILE: &str = "cmd";
 
 /// One stub provider: its command, its package entry, its hook adapter and the argument that
-/// resumes a session.
+/// resumes a session, which takes the id glued after it when it ends with `=`.
 struct Stub {
     program: &'static str,
     entry: &'static str,
@@ -63,7 +63,7 @@ const CLAUDE: Stub = Stub {
     program: "claude",
     entry: "node_modules/@anthropic-ai/claude-code/cli.js",
     adapter: "claude-code",
-    resume: "--resume",
+    resume: "--resume=",
 };
 
 const CODEX: Stub = Stub {
@@ -81,7 +81,10 @@ const { spawn } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { appendFileSync } = require('node:fs');
 const argv = process.argv.slice(2);
-const session = argv[0] === RESUME && argv.length === 2 ? argv[1] : randomUUID();
+const resumed = RESUME.endsWith('=')
+  ? argv.length === 1 && argv[0].startsWith(RESUME) && argv[0].slice(RESUME.length)
+  : argv.length === 2 && argv[0] === RESUME && argv[1];
+const session = resumed || randomUUID();
 const hook = spawn(process.execPath, [HOOK, ADAPTER], { stdio: ['pipe', 'ignore', 'ignore'] });
 hook.on('exit', () => {
   const record = { adapter: ADAPTER, script: __filename, argv, cwd: process.cwd(), session };
@@ -136,7 +139,7 @@ fn retained_agents_resume_once_in_their_own_shells_and_never_in_a_moved_or_touch
     witness.assert_resumed(&CODEX, &touched, "work/touched", 0);
     let typed = witness.screen(&claude_panel);
     assert!(
-        typed.contains(&format!("claude --resume {claude}")),
+        typed.contains(&format!("claude --resume={claude}")),
         "cmd did not receive the bare command:\n{typed}"
     );
     let touched_screen = witness.screen(&touched_panel);
@@ -441,9 +444,7 @@ impl Witness {
     fn resumes(&self, stub: &Stub, session: &str) -> Vec<Value> {
         self.calls()
             .into_iter()
-            .filter(|call| {
-                call["adapter"] == stub.adapter && call["argv"] == json!([stub.resume, session])
-            })
+            .filter(|call| call["adapter"] == stub.adapter && call["argv"] == stub.argv(session))
             .collect()
     }
 
@@ -601,6 +602,17 @@ impl Witness {
             ),
             "{response:?}"
         );
+    }
+}
+
+impl Stub {
+    /// The arguments that resume `session`.
+    fn argv(&self, session: &str) -> Value {
+        if self.resume.ends_with('=') {
+            json!([format!("{}{session}", self.resume)])
+        } else {
+            json!([self.resume, session])
+        }
     }
 }
 
