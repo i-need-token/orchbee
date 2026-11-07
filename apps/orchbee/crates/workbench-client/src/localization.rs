@@ -11,6 +11,7 @@ pub(crate) use parameters::{BackendAction, PanelDirection};
 mod control_takeover;
 pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
+mod layout_history;
 mod machines;
 pub(crate) use machines::SidebarActionLabel;
 pub(crate) use machines::{MachineControlLabel, SidebarPlacementLabel};

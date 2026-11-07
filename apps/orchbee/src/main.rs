@@ -151,6 +151,12 @@ fn main() -> ExitCode {
             Ok(invocation::Request::TerminalClear { target, format }) => {
                 cli::clear_terminal(&target, format, locale)
             }
+            Ok(invocation::Request::LayoutHistory { format }) => {
+                cli::layout_history(format, locale)
+            }
+            Ok(invocation::Request::LayoutReopen { saved_at, format }) => {
+                cli::layout_reopen(saved_at, format, locale)
+            }
             Ok(invocation::Request::TerminalEditor {
                 target,
                 client,

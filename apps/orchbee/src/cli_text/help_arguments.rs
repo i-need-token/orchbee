@@ -35,6 +35,7 @@ enum Argument {
     InstalledRepository,
     Path,
     Plugin,
+    SavedAt,
 }
 
 impl super::CliText {
@@ -65,6 +66,8 @@ impl super::CliText {
             CommandPath::LayoutSetSplitRatio => &[],
             CommandPath::LayoutExport => &[],
             CommandPath::LayoutApply => &[],
+            CommandPath::LayoutHistory => &[],
+            CommandPath::LayoutReopen => &[Argument::SavedAt],
             CommandPath::PanelZoom => &[Argument::Panel],
             CommandPath::PanelLayout => &[Argument::Panel],
             CommandPath::PanelNeighbor => &[Argument::Panel],
@@ -235,6 +238,7 @@ impl super::CliText {
                 Argument::Args => ("-- <args> ...", "Arguments passed to the Agent; --arg can be repeated instead.", "传给智能体的参数；也可重复使用 --arg。"),
                 Argument::Client => ("<client-id>", "Full client ID returned by orchbee client list.", "orchbee client list 返回的完整客户端 ID。"),
                 Argument::Request => ("<request-id>", "Exact retained request ID returned by the operation.", "操作返回的精确保留请求 ID。"),
+                Argument::SavedAt => ("<saved-at>", "Save time of an earlier layout, as orchbee layout history shows it.", "早先布局的保存时间，即 orchbee layout history 显示的值。"),
                 Argument::Operation => ("<operation-id>", "Complete operation ID returned by the original request.", "原请求返回的完整操作 ID。"),
                 Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host; batch authentication must already work.", "OpenSSH 目标，例如 user@host；须已能进行批处理认证。"),
                 Argument::Machine => ("<profile-id>", "Exact saved machine ID from orchbee machine list.", "orchbee machine list 中保存的精确机器 ID。"),

@@ -46,6 +46,38 @@ pub(super) fn resolve_words(
         ["popup", ..] => plugins::panes::parse_close(words, options, envelope),
         ["layout", "export"] => layouts::export(options, envelope),
         ["layout", "apply"] => layouts::apply(options, envelope),
+        ["layout", "history"] => {
+            check_scope(options, UsageContext::Path("layout history"), envelope)?;
+            Ok(Request::LayoutHistory {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["layout", "reopen", value] => {
+            let context = UsageContext::Path("layout reopen");
+            check_scope(options, context, envelope)?;
+            let saved_at = (!value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| value.parse::<u64>().ok())
+                .flatten()
+                .filter(|saved_at| {
+                    (1..=orchbee_workbench_protocol::MAXIMUM_LAYOUT_HISTORY_SAVED_AT)
+                        .contains(saved_at)
+                })
+                .ok_or_else(|| {
+                    usage_with(
+                        UsageReason::InvalidValue {
+                            context,
+                            option: "saved-at",
+                            value: (*value).to_owned(),
+                            expected: ExpectedValue::LayoutSavedAt,
+                        },
+                        envelope,
+                    )
+                })?;
+            Ok(Request::LayoutReopen {
+                saved_at,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["session", ..] => named_sessions::parse(words, options, envelope),
         ["machine", ..] => machines::parse(words, options, envelope),
         ["client", ..]

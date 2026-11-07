@@ -1,0 +1,222 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.layout.reopen",
+	"title": "orchbee.layout.reopen",
+	"$comment": "One reopen receipt; an unknown observation may have opened items and exits 8. Never replay it.",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.layout.reopen"
+		},
+		"version": {
+			"const": 1
+		},
+		"requestId": {
+			"$ref": "#/$defs/identity"
+		},
+		"sessionId": {
+			"$ref": "#/$defs/identity"
+		},
+		"interrupted": {
+			"type": "boolean"
+		},
+		"cleanupFailed": {
+			"type": "boolean"
+		},
+		"observation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "server"
+						},
+						"reply": {
+							"$ref": "#/$defs/result"
+						}
+					},
+					"required": ["kind", "reply"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": [
+								"request-write",
+								"response-read",
+								"response-deadline",
+								"response-correlation",
+								"response-protocol"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		}
+	},
+	"required": [
+		"schema",
+		"version",
+		"requestId",
+		"sessionId",
+		"interrupted",
+		"cleanupFailed",
+		"observation"
+	],
+	"additionalProperties": false,
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"savedAt": {
+			"description": "Save time in Unix milliseconds.",
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"count": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 4294967295
+		},
+		"entry": {
+			"type": "object",
+			"properties": {
+				"savedAt": {
+					"$ref": "#/$defs/savedAt"
+				},
+				"workspaces": {
+					"$ref": "#/$defs/count"
+				},
+				"tabs": {
+					"$ref": "#/$defs/count"
+				},
+				"workspacesNotOpen": {
+					"$ref": "#/$defs/count"
+				},
+				"tabsNotOpen": {
+					"$ref": "#/$defs/count"
+				}
+			},
+			"required": ["savedAt", "workspaces", "tabs", "workspacesNotOpen", "tabsNotOpen"],
+			"additionalProperties": false
+		},
+		"focus": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/identity"
+				},
+				"tabId": {
+					"$ref": "#/$defs/identity"
+				}
+			},
+			"required": ["terminalContextId", "tabId"],
+			"additionalProperties": false
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "reopened"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						},
+						"workspaces": {
+							"$ref": "#/$defs/count"
+						},
+						"tabs": {
+							"$ref": "#/$defs/count"
+						},
+						"focus": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/focus"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "revision", "workspaces", "tabs", "focus"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["nothing-to-reopen", "not-found", "denied"]
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"enum": ["session-mismatch", "resource-limit"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["service-unavailable", "busy"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.layout-history.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

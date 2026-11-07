@@ -62,6 +62,8 @@ mod terminal_clear;
 mod terminal_editor;
 mod terminal_list;
 pub(crate) use terminal_clear::run as clear_terminal;
+mod layout_history;
+pub(crate) use layout_history::{list as layout_history, reopen as layout_reopen};
 pub(crate) use terminal_editor::run as edit_terminal_scrollback;
 pub(crate) mod config;
 pub(crate) mod config_reset;

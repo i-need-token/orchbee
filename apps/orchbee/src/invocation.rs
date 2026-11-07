@@ -759,6 +759,13 @@ pub(crate) enum Request {
         target: Target,
         format: OutputFormat,
     },
+    LayoutHistory {
+        format: OutputFormat,
+    },
+    LayoutReopen {
+        saved_at: u64,
+        format: OutputFormat,
+    },
     TerminalLink {
         command: TerminalLinkCommand,
         format: OutputFormat,
