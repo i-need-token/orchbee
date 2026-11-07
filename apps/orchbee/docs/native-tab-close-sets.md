@@ -37,6 +37,16 @@ cancelled, stale, resized or unpresentable confirmation cannot submit. The exist
 captures the entire decision packet, including a menu-to-confirmation handoff tail. Opening and
 cancellation do not allocate a lifecycle request or remove canonical state.
 
+A confirmed `Enter`, or Close release, never ends without a close or a visible reason. When another
+close's status read or exchange, or a refresh, holds the command slot the close needs, the Client
+holds the decision and submits it, once, in the first tick that finds the slot free and before
+further background reads start. Meanwhile the confirmation stays drawn and armed: `Esc` withdraws
+the decision with nothing sent, and a later `Enter` confirms again. A target that drifts meanwhile
+cancels the confirmation with its changed-target notice, as an open one does; a decision still
+waiting after the held-intent bound (5 s) is dropped with `Client busy · no command sent`, and the
+confirmation stays armed for another `Enter`. The set confirmation and a Panel confirmation follow
+the same rule.
+
 ## Close impact
 
 Single, set and Resume confirmations name what the close ends from terminal facts this Client

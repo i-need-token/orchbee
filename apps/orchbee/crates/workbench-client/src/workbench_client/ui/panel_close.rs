@@ -1,7 +1,9 @@
 //! Adapts Panel close input and draw receipts to the exact confirmation token before queueing
-//! a captured close plan. It does not paint the prompt or grant closure from an unpresented or
-//! stale confirmation.
+//! a captured close plan; a confirmed close that finds its slot taken waits for it as a held
+//! intent. It does not paint the prompt or grant closure from an unpresented or stale
+//! confirmation.
 
+use super::held_intent::{CloseSubmission, ConfirmedClose};
 use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::workbench_state::{self, OPERATION_TOTAL, WorkbenchClientState};
 use crate::{
@@ -134,20 +136,30 @@ impl WorkbenchClientUi {
     }
 
     pub(in crate::workbench_client) fn cancel_panel_close(&mut self) -> ClientActionDisposition {
+        self.release_held_close();
         if let Some(state) = &mut self.state {
             state.cancel_panel_close_confirmation();
         }
         ClientActionDisposition::KeepNavigator
     }
 
-    pub(in crate::workbench_client) fn confirm_panel_close(&mut self) -> ClientActionDisposition {
+    /// Confirms the drawn prompt `token`. Another close's status read or exchange, or a refresh,
+    /// can hold the slot the close needs; the close then waits for it with its prompt open.
+    fn confirm_panel_close(&mut self, token: PanelCloseConfirmationToken) {
+        let _disposition = self.confirm_close_decision(ConfirmedClose::Panel(token));
+    }
+
+    /// Submits the armed confirmation's close once. Any refusal but a closed mailbox is the slot
+    /// being taken: planning refuses a confirmation that is not drawn, and the caller settles a
+    /// drifted one before submitting.
+    pub(super) fn submit_panel_close(&mut self) -> CloseSubmission {
         let Some(deadline) = self.clock.now().checked_add(OPERATION_TOTAL) else {
-            return ClientActionDisposition::KeepNavigator;
+            return CloseSubmission::Ended;
         };
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
         else {
-            return ClientActionDisposition::KeepNavigator;
+            return CloseSubmission::Ended;
         };
         let result = mailbox.try_enqueue_panel_for(
             state,
@@ -165,12 +177,12 @@ impl WorkbenchClientUi {
             },
         );
         match result {
-            Ok(_) => ClientActionDisposition::DismissNavigator,
+            Ok(_) => CloseSubmission::Submitted,
             Err(MoveAdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
-                ClientActionDisposition::KeepNavigator
+                CloseSubmission::Ended
             }
-            Err(_) => ClientActionDisposition::KeepNavigator,
+            Err(_) => CloseSubmission::Waiting,
         }
     }
 
@@ -210,7 +222,7 @@ impl WorkbenchClientUi {
         }
         match key {
             ClientKey::Enter => {
-                self.confirm_panel_close();
+                self.confirm_panel_close(expected);
             }
             ClientKey::Escape => {
                 self.cancel_panel_close();

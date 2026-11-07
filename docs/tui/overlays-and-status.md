@@ -304,6 +304,11 @@ Every dialog uses the same rows from top to bottom. An omitted row closes up wit
 - Unmodified `Enter` takes the focused button's action and `Esc` cancels. A confirmation interprets
   no other key, and its decision packet is captured as described in
   [`keyboard-input.md`](keyboard-input.md#editing-and-drafts).
+- A confirmed decision that must wait for work holding its resource keeps the confirmation open
+  and armed, with no notice of its own, until the decision goes out. `Esc` withdraws it, a drifted
+  target closes the confirmation with the changed-target notice, and a wait past its bound ends
+  with the busy notice while the confirmation stays. The confirmation never closes on a decision
+  that was not sent and left no notice.
 
 ### Closing
 

@@ -1536,6 +1536,7 @@ impl WorkbenchClientUi {
             .chain(summary)
             .chain(pending)
             .chain(self.duplication.wake())
+            .chain(self.held_intent_wake())
             .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
     }

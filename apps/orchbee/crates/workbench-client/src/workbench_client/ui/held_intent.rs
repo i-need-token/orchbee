@@ -8,13 +8,20 @@
 //! could not resolve while the switch lands may have chosen another Workspace: until the switch
 //! landed and a hold bound passed, a key that names "current" is refused instead of acting on a
 //! Workspace the user may not want, once after the landing so that trying again works.
+//!
+//! A confirmed Tab or Panel close waits the same way while another close's status read or
+//! exchange, or a refresh, holds the slot its submission needs: its confirmation stays open and
+//! armed, and the close goes out as soon as the slot is free, within the same bound.
 
 use super::WorkbenchClientUi;
 use super::worktree_launch::WorktreeMode;
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, PanelDirection};
 use crate::workbench_projection::{ClientContextLocation, ClientContextTarget};
 use crate::workbench_state::workspace_close::{WorkspaceCloseToken, WorkspaceDeleteRequest};
-use crate::workbench_state::{ClientNotice, PanelRequestKind, WorkbenchClientState};
+use crate::workbench_state::{
+    ClientNotice, CloseConfirmationToken, PanelCloseConfirmationToken, PanelRequestKind,
+    WorkbenchClientState,
+};
 use orchbee_workbench_protocol::{
     WorkbenchPanelId, WorkbenchTabMoveDirection, WorkbenchWorkspaceId,
 };
@@ -25,7 +32,8 @@ use std::time::{Duration, Instant};
 /// a response to the key, so it ends with a refusal instead.
 const HOLD: Duration = Duration::from_secs(5);
 
-/// An invocation whose effect waits for the refresh slot.
+/// An invocation whose effect waits for the refresh slot, or a confirmed close for the slot its
+/// submission needs.
 #[derive(Clone, Debug)]
 pub(super) enum HeldIntent {
     /// The drawn Workspace or Project close confirmation was confirmed.
@@ -43,6 +51,26 @@ pub(super) enum HeldIntent {
     Context { next: bool },
     /// A Tab or Panel action of the current Workspace, resolved against the landed projection.
     Structure(StructureAction),
+    /// The drawn Tab or Panel close confirmation was confirmed.
+    Close(ConfirmedClose),
+}
+
+/// The close confirmation whose `Enter` a held close replays.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ConfirmedClose {
+    Tab(CloseConfirmationToken),
+    Panel(PanelCloseConfirmationToken),
+}
+
+/// What became of one submission of a confirmed close.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum CloseSubmission {
+    /// The close is on its way.
+    Submitted,
+    /// Another close's status read or exchange, or a refresh, holds the slot the close needs.
+    Waiting,
+    /// The confirmation ended without a close; whatever ended it said why.
+    Ended,
 }
 
 /// A Tab or Panel action of the current Workspace. Its admission needs a settled projection, so
@@ -177,11 +205,77 @@ impl WorkbenchClientUi {
         self.held_intents.held = Some(Hold { intent, until });
     }
 
+    /// When the held invocation's bound ends, so that its refusal shows even when nothing else
+    /// wakes the Client meanwhile.
+    pub(super) fn held_intent_wake(&self) -> Option<Instant> {
+        self.held_intents.held.as_ref().map(|held| held.until)
+    }
+
     /// Escape on the confirmation also withdraws its held confirmation.
     pub(super) fn release_held_workspace_close(&mut self, token: WorkspaceCloseToken) {
         if self.held_intents.held.as_ref().is_some_and(
             |held| matches!(held.intent, HeldIntent::WorkspaceClose(held) if held == token),
         ) {
+            self.held_intents.held = None;
+        }
+    }
+
+    /// Submits the confirmed close, or holds it while another close's status read or exchange, or
+    /// a refresh, holds the slot its submission needs. The confirmation stays open and armed while
+    /// the close waits.
+    pub(super) fn confirm_close_decision(
+        &mut self,
+        close: ConfirmedClose,
+    ) -> ClientActionDisposition {
+        match self.submit_confirmed_close(close) {
+            CloseSubmission::Submitted => ClientActionDisposition::DismissNavigator,
+            CloseSubmission::Waiting => {
+                self.hold_intent(HeldIntent::Close(close));
+                ClientActionDisposition::KeepNavigator
+            }
+            CloseSubmission::Ended => ClientActionDisposition::KeepNavigator,
+        }
+    }
+
+    fn submit_confirmed_close(&mut self, close: ConfirmedClose) -> CloseSubmission {
+        // A confirmation whose frozen target drifted while its close waited cancels with its
+        // notice instead of closing.
+        if let Some(state) = self.state.as_mut() {
+            let _settled = state.settle_stale_close_confirmations();
+        }
+        if !self.close_confirmation_armed(close) {
+            return CloseSubmission::Ended;
+        }
+        match close {
+            ConfirmedClose::Tab(_) => self.submit_tab_close(),
+            ConfirmedClose::Panel(_) => self.submit_panel_close(),
+        }
+    }
+
+    /// Whether the confirmation `close` names is still the armed one.
+    fn close_confirmation_armed(&self, close: ConfirmedClose) -> bool {
+        let Some(view) = self.state.as_ref().map(WorkbenchClientState::view) else {
+            return false;
+        };
+        match close {
+            ConfirmedClose::Tab(token) => view
+                .close_confirmation()
+                .is_some_and(|prompt| prompt.token() == token),
+            ConfirmedClose::Panel(token) => view
+                .panel_close_confirmation()
+                .is_some_and(|prompt| prompt.token() == token),
+        }
+    }
+
+    /// Cancelling a close confirmation also withdraws the confirmed close it holds; nothing was
+    /// sent.
+    pub(super) fn release_held_close(&mut self) {
+        if self
+            .held_intents
+            .held
+            .as_ref()
+            .is_some_and(|held| matches!(held.intent, HeldIntent::Close(_)))
+        {
             self.held_intents.held = None;
         }
     }
@@ -267,15 +361,26 @@ impl WorkbenchClientUi {
     /// admission.
     pub(super) fn replay_held_intent(&mut self) -> bool {
         self.lapse_destination_uncertainty();
-        let Some(until) = self.held_intents.held.as_ref().map(|held| held.until) else {
+        let Some((until, close)) = self.held_intents.held.as_ref().map(|held| {
+            let close = match held.intent {
+                HeldIntent::Close(close) => Some(close),
+                _ => None,
+            };
+            (held.until, close)
+        }) else {
             return false;
         };
-        if self.settling_for_user_action() {
+        // A confirmed close also waits for a slot that is merely taken, so it ends at its bound
+        // even when nothing settles meanwhile.
+        if self.settling_for_user_action() || (close.is_some() && self.clock.now() >= until) {
             if self.clock.now() < until {
                 return false;
             }
             self.held_intents.held = None;
-            if let Some(state) = self.state.as_mut() {
+            // A confirmation that already ended said why; the close it held goes with it.
+            if close.is_none_or(|close| self.close_confirmation_armed(close))
+                && let Some(state) = self.state.as_mut()
+            {
                 state.set_notice(ClientNotice::LocalBusy);
             }
             return true;
@@ -317,6 +422,17 @@ impl WorkbenchClientUi {
             HeldIntent::Structure(action) => {
                 let disposition = self.apply_structure_action(action);
                 self.held_intents.layout_replayed |= disposition.changes_layout();
+            }
+            HeldIntent::Close(close) => {
+                if self.submit_confirmed_close(close) == CloseSubmission::Waiting {
+                    // The slot is still taken: the close keeps waiting under its first bound, and
+                    // nothing on screen changed.
+                    self.held_intents.held = Some(Hold {
+                        intent: HeldIntent::Close(close),
+                        until,
+                    });
+                    return false;
+                }
             }
         }
         true

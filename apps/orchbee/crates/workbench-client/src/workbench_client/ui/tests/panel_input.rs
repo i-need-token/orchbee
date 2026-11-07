@@ -983,3 +983,240 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
     );
     assert!(mailbox.try_recv().unwrap().is_none());
 }
+
+/// Regression (ORC-362): of two Panels closed in quick succession, the second close confirmed
+/// while the first close's status read was in flight was refused as busy and dropped without a
+/// word. One Enter on a drawn confirmation submits the close exactly once, or leaves a visible
+/// reason.
+#[test]
+fn a_panel_close_confirmed_while_another_close_reads_is_never_dropped_silently() {
+    use crate::exchange_values::workbench::panel_close::WorkbenchPanelCloseAccepted;
+    use crate::workbench_client::mailbox::{CommandLease, MutationResult};
+    use crate::workbench_state::{CloseOperationKind, CloseResult, PanelResult};
+    use orchbee_workbench_protocol::{
+        PanelNode, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePhase,
+        WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus,
+    };
+
+    // Two Panels; the second is unbound, so the focus can move onto it without an attach.
+    let mut source = super::super::tests::publication_hint::split_snapshot(1);
+    let PanelNode::Split { children, .. } = &mut source.terminal_contexts[0].tabs[0].root else {
+        unreachable!("the split fixture");
+    };
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut children[1].node
+    else {
+        unreachable!("the split fixture's second leaf");
+    };
+    primary_presentation.binding = None;
+    let (mut ui, mailbox, clock, _elapsed) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+
+    // Plays the worker for everything this test does not hold: a Poll finishes unanswered and a
+    // publication read finds the Workbench unchanged. Returns the first other command.
+    let serve = |ui: &mut WorkbenchClientUi| -> Option<CommandLease> {
+        while let Some(lease) = mailbox.try_recv().unwrap() {
+            match lease.record() {
+                QueuedCommand::Poll(_) => mailbox.finish_lease(lease).unwrap(),
+                QueuedCommand::Refresh(marker) => {
+                    let (generation, deadline) = (marker.generation(), marker.deadline());
+                    assert_eq!(
+                        mailbox.mark_refresh_in_flight(generation).unwrap(),
+                        MutationResult::Applied
+                    );
+                    let wait = mailbox
+                        .publish_refresh_result_before(
+                            generation,
+                            WorkbenchSnapshotOutcome::Available {
+                                snapshot: source.clone(),
+                            },
+                            deadline,
+                            &clock,
+                        )
+                        .unwrap();
+                    ui.tick();
+                    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+                    mailbox.finish_lease(lease).unwrap();
+                }
+                _ => return Some(lease),
+            }
+        }
+        None
+    };
+    let confirm_focused_panel_close = |ui: &mut WorkbenchClientUi| {
+        assert_eq!(
+            ui.apply_client_action(ClientAction::ClosePanel),
+            ClientActionDisposition::DismissNavigator
+        );
+        draw_panel_prompt(ui);
+        assert!(ui.capture_confirmation_key(ClientKey::Enter));
+    };
+    assert!(serve(&mut ui).is_none());
+
+    // The first close goes out, and the Server accepts it: its Panel leaves and the focus moves on.
+    confirm_focused_panel_close(&mut ui);
+    let lease = serve(&mut ui).expect("the first Panel close");
+    let QueuedCommand::Panel(marker) = lease.record() else {
+        panic!("one Panel marker");
+    };
+    let first = marker.operation().clone();
+    assert_eq!(first.intent(), &PanelIntent::Close);
+    assert_eq!(
+        mailbox.mark_panel_in_flight(&first).unwrap(),
+        MutationResult::Applied
+    );
+    let wait = mailbox
+        .publish_panel_result_before(
+            first.clone(),
+            PanelResult::CloseAccepted(WorkbenchPanelCloseAccepted {
+                close_request_id: first.request_id().clone(),
+                terminal_context_id: first.baseline().terminal_context_id().unwrap().clone(),
+                tab_id: first.target().tab_id().clone(),
+                panel_id: first.panel_id().clone(),
+                accepted_revision: first.baseline().revision(),
+            }),
+            first.deadline(),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    ui.tick();
+    let second_panel = ui.state.as_ref().unwrap().focus_panel_id().unwrap().clone();
+    assert_ne!(&second_panel, first.panel_id());
+
+    // The retained first close is read by its operation; that read is in flight.
+    let read_lease = serve(&mut ui).expect("the first close's status read");
+    let QueuedCommand::Close(marker) = read_lease.record() else {
+        panic!("one Close marker");
+    };
+    let read = marker.operation().clone();
+    let CloseOperationKind::Read {
+        expected_operation: Some(close_request_id),
+        ..
+    } = read.kind().clone()
+    else {
+        panic!("the accepted Panel close is read by its operation");
+    };
+    assert_eq!(
+        mailbox.mark_close_in_flight(&read).unwrap(),
+        MutationResult::Applied
+    );
+
+    // The second Panel's close is confirmed while that read is still on its way.
+    confirm_focused_panel_close(&mut ui);
+
+    // The read answers that the first close is still progressing.
+    let wait = mailbox
+        .publish_close_result_before(
+            read.clone(),
+            CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
+                close_request_id,
+                terminal_context_id: read.key().target().terminal_context_id().clone(),
+                tab_id: read.key().target().tab_id().clone(),
+                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                status: WorkbenchTabCloseStatus::Closing {
+                    phase: WorkbenchTabClosePhase::WaitingGrace,
+                },
+            }),
+            read.deadline(),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(read_lease).unwrap();
+
+    let mut submitted = 0;
+    for _ in 0..3 {
+        ui.tick();
+        while let Some(lease) = serve(&mut ui) {
+            if let QueuedCommand::Panel(marker) = lease.record() {
+                assert_eq!(marker.operation().intent(), &PanelIntent::Close);
+                assert_eq!(marker.operation().panel_id(), &second_panel);
+                submitted += 1;
+            }
+            mailbox.finish_lease(lease).unwrap();
+        }
+    }
+    let reason = ui.view().notice().is_some();
+    assert!(
+        submitted == 1 || (submitted == 0 && reason),
+        "the confirmed second close was submitted {submitted} times with no visible reason"
+    );
+}
+
+/// The Tab close confirmation follows the same rule: confirmed while a background publication
+/// read holds the slot its submission needs, the close goes out exactly once, or a visible reason
+/// shows.
+#[test]
+fn a_tab_close_confirmed_during_a_background_read_is_never_dropped_silently() {
+    use crate::workbench_client::mailbox::MutationResult;
+    let (mut ui, mailbox, clock, _elapsed) = ready_ui();
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestCloseTab),
+        ClientActionDisposition::DismissNavigator
+    );
+    let token = ui.view().close_confirmation().unwrap().token();
+    ui.after_close_draw(DrawReceipt::new(
+        Some(ModalPresentation::Presented(token)),
+        None,
+    ));
+
+    // Another terminal's publication asks for a read, which goes out under the open prompt.
+    ui.state.as_mut().unwrap().note_publication_hint();
+    ui.tick();
+    let lease = loop {
+        let lease = mailbox.try_recv().unwrap().expect("the publication read");
+        if matches!(lease.record(), QueuedCommand::Refresh(_)) {
+            break lease;
+        }
+        mailbox.finish_lease(lease).unwrap();
+    };
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        unreachable!("a Refresh marker");
+    };
+    let (generation, deadline) = (marker.generation(), marker.deadline());
+    assert_eq!(
+        mailbox.mark_refresh_in_flight(generation).unwrap(),
+        MutationResult::Applied
+    );
+    assert!(ui.capture_confirmation_key(ClientKey::Enter));
+
+    // The read finds the Workbench unchanged.
+    let wait = mailbox
+        .publish_refresh_result_before(
+            generation,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: super::super::tests::membership::snapshot(2, 1),
+            },
+            deadline,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+
+    let mut submitted = 0;
+    for _ in 0..3 {
+        ui.tick();
+        while let Some(lease) = mailbox.try_recv().unwrap() {
+            if matches!(lease.record(), QueuedCommand::Close(_)) {
+                submitted += 1;
+            }
+            mailbox.finish_lease(lease).unwrap();
+        }
+    }
+    let reason = ui.view().notice().is_some();
+    assert!(
+        submitted == 1 || (submitted == 0 && reason),
+        "the confirmed Tab close was submitted {submitted} times with no visible reason"
+    );
+}

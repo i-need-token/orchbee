@@ -91,6 +91,14 @@ frame. A close among them that stops shows the Tab again with that Panel, unsele
 selection moved; a focus left on a leaving Panel moves to the Panel shown again, and a later switch
 to the Tab lands on a Panel it draws.
 
+Closing several Panels quickly confirms the next close while an earlier close is still on its way.
+Its `Enter` lands while that close's exchange or status read, or a publication read, holds the slot
+the submission needs; the Client then holds the confirmed decision with the confirmation drawn and
+armed, and submits it as soon as the slot is free, as a confirmed Tab close waits
+([targets and confirmation](native-tab-close-sets.md#targets-and-confirmation)). A drifted target
+cancels the confirmation with its notice, and a decision still waiting at the bound ends with the
+busy notice; the decision is never dropped silently.
+
 From its acceptance the close is retained and followed by its operation,
 `workbench.close-operation.read`, under the read pacing of a retained Tab close
 ([close status](native-tab-close-sets.md#close-status)); nothing is sent again. A read that sees

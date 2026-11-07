@@ -160,6 +160,11 @@ unless the owning workflow explicitly defines that behavior.
   work settles, before admitting further background work. The hold is bounded; expiry ends with a
   visible busy refusal, and the replay revalidates every fact. An invocation is never dropped
   because unrelated background work was in flight.
+- A confirmed decision waits the same way when another of the user's own operations holds the
+  resource its submission needs, such as an earlier close's status read or exchange. Its
+  confirmation stays open and armed while the decision waits; cancelling it withdraws the decision
+  with nothing sent, and a target that drifts meanwhile ends it with the localized changed-target
+  notice. One confirmation either commits its decision or leaves a visible reason.
 - The user's own switch that is still landing settles the same way: an invocation pressed while
   the destination's read or terminal attach is in flight, or while a requested navigation still
   waits behind an earlier switch or read, waits for the switch and then runs against the

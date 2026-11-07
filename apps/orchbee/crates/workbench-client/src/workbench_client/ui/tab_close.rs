@@ -2,6 +2,7 @@
 //! Client state and mailbox admission. It observes Server close truth without painting the
 //! prompt, executing physical closure, or acknowledging a merely prepared frame.
 
+use super::held_intent::{CloseSubmission, ConfirmedClose};
 use super::{PanelCloseConfirmationToken, WorkbenchClientUi, WorkbenchClientView};
 use crate::client_view::{ClientActionDisposition, ClientKey};
 use crate::localization::CloseImpact;
@@ -610,20 +611,38 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn cancel_close(&mut self) -> ClientActionDisposition {
+        self.release_held_close();
         if let Some(state) = &mut self.state {
             state.cancel_close_confirmation();
         }
         ClientActionDisposition::KeepNavigator
     }
 
+    /// Confirms the armed prompt. Another close's status read or exchange, or a refresh, can hold
+    /// the slot the close needs; the close then waits for it with its prompt open.
     pub(super) fn confirm_close(&mut self) -> ClientActionDisposition {
-        let Some(deadline) = self.clock.now().checked_add(OPERATION_TOTAL) else {
+        let Some(token) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().close_confirmation())
+            .map(|prompt| prompt.token())
+        else {
             return ClientActionDisposition::KeepNavigator;
+        };
+        self.confirm_close_decision(ConfirmedClose::Tab(token))
+    }
+
+    /// Submits the armed confirmation's close, or the Start of its set, once. Any refusal but a
+    /// closed mailbox is the slot being taken: planning refuses a confirmation that is not drawn,
+    /// and the caller settles a drifted one before submitting.
+    pub(super) fn submit_tab_close(&mut self) -> CloseSubmission {
+        let Some(deadline) = self.clock.now().checked_add(OPERATION_TOTAL) else {
+            return CloseSubmission::Ended;
         };
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
         else {
-            return ClientActionDisposition::KeepNavigator;
+            return CloseSubmission::Ended;
         };
         let result = mailbox.try_enqueue_close_for(
             state,
@@ -633,12 +652,12 @@ impl WorkbenchClientUi {
             WorkbenchClientState::begin_close_exchange,
         );
         match result {
-            Ok(_) => ClientActionDisposition::DismissNavigator,
+            Ok(_) => CloseSubmission::Submitted,
             Err(CloseAdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
-                ClientActionDisposition::KeepNavigator
+                CloseSubmission::Ended
             }
-            Err(_) => ClientActionDisposition::KeepNavigator,
+            Err(_) => CloseSubmission::Waiting,
         }
     }
 
