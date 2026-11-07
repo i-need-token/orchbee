@@ -57,7 +57,7 @@ impl LocalTerminalService {
             return Err(io::Error::other("checkpoint Worker changed"));
         }
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let bytes = coordinator.checkpoint_with_terminal_directories(worker, &directories)?;
+        let bytes = coordinator.checkpoint_with_observations(worker, &directories, None)?;
         Ok((revision, bytes))
     }
 
@@ -191,7 +191,7 @@ impl LocalTerminalService {
         if coordinator.checkpoint_observation_targets()? != (revision, targets) {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
-        coordinator.checkpoint_with_terminal_directories(worker, &directories)
+        coordinator.checkpoint_with_observations(worker, &directories, None)
     }
 
     /// The final checkpoint once the Worker has exited. Nothing can sample a directory any more, so
@@ -208,6 +208,6 @@ impl LocalTerminalService {
             .checkpoint_observation_targets()
             .map(|(_, targets)| coordinator.cached_checkpoint_directories(&targets))
             .unwrap_or_default();
-        coordinator.checkpoint_with_terminal_directories(worker, &directories)
+        coordinator.checkpoint_with_observations(worker, &directories, None)
     }
 }

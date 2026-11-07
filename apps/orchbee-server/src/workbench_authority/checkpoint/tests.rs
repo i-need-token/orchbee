@@ -7,6 +7,7 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Value, json};
 
+mod agent_sessions;
 mod directories;
 mod navigation;
 mod restore;
@@ -394,6 +395,13 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
             "missing {field}"
         );
     }
+    // The one omittable field: an omitted Agent session list reads as no references.
+    assert!(
+        restore(&changed(|value| {
+            value.as_object_mut().unwrap().remove("agentSessions");
+        }))
+        .is_ok()
+    );
     for (path, field) in [
         ("/terminalContexts/0/tabs/1", "automaticLabel"),
         ("/terminalContexts/0/tabs/0", "groupId"),

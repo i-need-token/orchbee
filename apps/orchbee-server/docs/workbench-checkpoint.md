@@ -15,9 +15,12 @@ retains Launch Profile definitions and the allocation high-water counter, includ
 All primary and child Presentations survive structurally but carry no terminal binding, launched program or launch failure.
 
 It does not retain running processes, Session/Worker identities, controller grants, leases, Client
-views/focus/zoom, request results, publication cursors, unfinished operations, Agent state
-or terminal history. Their recovery belongs to the corresponding runtime owners. A checkpoint
-never authorizes replay of a terminal command or Git operation.
+views/focus/zoom, request results, publication cursors, unfinished operations or terminal history.
+Of Agent state it retains only per-Presentation Agent session references: a provider from a closed
+table and that provider's native session id. Their recovery belongs to the corresponding runtime
+owners. A checkpoint never authorizes replay of a terminal command or Git operation; resuming an
+Agent types the provider's own resume command from the closed table and never replays retained
+text.
 
 ## Model
 
@@ -39,7 +42,7 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 The writer and reader use only `orchbee.workbench.checkpoint` with numeric `version: 1`.
 All retained fields are required, including `terminalDirectories`,
-`projectOrder` and `workspaceOrder`. `checkpoint/navigation.rs` has one DTO: identity-sorted global
+`projectOrder` and `workspaceOrder`; the one exception is `agentSessions`, described below. `checkpoint/navigation.rs` has one DTO: identity-sorted global
 `directories`, `projects` and `workspaces` arrays. Project rows contain `projectId` and `label`;
 Workspace `projectId` is required-nullable. Directory rows contain `directoryId` and `path`, with
 fresh Worker ownership supplied during reconstruction. Workspace order is a complete permutation;
@@ -79,6 +82,29 @@ During normal operation the existing process sampler caches only its already obs
 Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore uses the Worker's home default. This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
 Evidence must cover exact identity/revision fences, primary/child separation, incompatible-format rejection, malformed rows, capture/reconstruct without live authority, unresolved viewer cleanup, actual Windows directory changes and a deleted saved directory. A process launch witness alone does not prove this directory lifecycle.
+
+### Per-Presentation Agent session references
+
+`checkpoint/agent_sessions.rs` owns the `agentSessions` list of `presentationId`, `provider` and
+`sessionId` rows. `provider` is `claude-code` or `codex`, the closed `AgentResumeProvider` table.
+`sessionId` is a hyphenated UUID, admitted case-insensitively and stored verbatim as
+`RetainedAgentSession`. Each row names a distinct member Presentation that also has a
+`terminalDirectories` row, and `(provider, sessionId)` pairs are distinct. A null list, a
+non-member or duplicate Presentation, an unknown provider, an invalid id, a duplicate pair, a row
+without a directory row or an unknown field rejects the entire document.
+
+The writer always emits the list. Unlike every other retained field it may be omitted on read,
+where it means no references: an omitted list cannot name anything to resume, so a document written
+before the list existed keeps its layout. A present list is validated strictly.
+
+Reconstruction keeps the rows as pending restart intent on `WorkbenchAuthority`, keyed by
+Presentation, the same way it keeps restart directories. `take_pending_agent_session` consumes an
+entry without changing the Workbench revision. Capture writes, for each member in capture order, its
+live reference if the runtime supplies one, else its still pending reference, and only when the
+same checkpoint has that Presentation's directory row. The first member keeps a shared
+`(provider, sessionId)`; later duplicates are dropped. Observed bindings must belong to the local
+Worker and to current members, one per terminal. When recording is off the runtime supplies no
+observation set and capture writes no rows, pending ones included. Removed members disappear.
 
 The encoded checkpoint limit is 2 MiB. The reconstructed Snapshot must pass the existing complete
 graph validator and 1 MiB wire bound; the catalog keeps its 64-entry and 256 KiB bounds. All owned
@@ -146,7 +172,8 @@ Fresh physical creation establishes terminal bindings. Client and history recove
 ## Running save model
 
 The managed Windows Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
-Every 30 seconds it also captures cached directories. No terminal screen, history, Agent conversation or live controller state enters the payload.
+Every 30 seconds it also captures cached directories. Agent session rows come from the same
+capture. No terminal screen, history, Agent conversation or live controller state enters the payload.
 The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
 memory and does not publish that baseline. A later layout or cached directory
@@ -169,7 +196,9 @@ splits and child Presentations, profile rebasing, allocation after deleted ident
 ownership, corruption, duplicate/unknown fields, binding injection, graph failures and size limits.
 Current-shape fixtures preserve ungrouped membership, display order, unused/shared Directories,
 cwd. Strict fixtures cover missing fields and incompatible
-versions. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
+versions. Agent session fixtures cover every row fault, the omitted list, round trips into pending
+intent, carry-over, take, live override, the directory-row requirement, first-member dedupe and
+recording off. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
 also preserves pending files when the durable catalog is unsupported.
 

@@ -65,18 +65,24 @@ impl SessionCoordinator {
     }
 
     #[cfg(windows)]
-    pub(crate) fn checkpoint_with_terminal_directories(
+    pub(crate) fn checkpoint_with_observations(
         &self,
         worker: &orchbee_workbench_protocol::WorkerId,
         directories: &[(
             orchbee_workbench_protocol::PresentationBinding,
             orchbee_workbench_protocol::WorkbenchDirectoryPath,
         )],
+        agent_sessions: Option<
+            &[(
+                orchbee_workbench_protocol::PresentationBinding,
+                orchbee_server::RetainedAgentSession,
+            )],
+        >,
     ) -> io::Result<Vec<u8>> {
         self.workbench
             .as_ref()
             .ok_or_else(|| io::Error::other("Workbench unavailable"))?
-            .checkpoint_with_terminal_directories(worker, directories)
+            .checkpoint_with_observations(worker, directories, agent_sessions)
             .map_err(io::Error::other)
     }
 

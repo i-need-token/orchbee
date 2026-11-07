@@ -1,12 +1,17 @@
-//! Private retained configuration and terminal directories, without physical runtime authority.
+//! Private retained configuration, terminal directories and Agent session references, without
+//! physical runtime authority.
 
-use std::{collections::BTreeSet, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 use orchbee_workbench_protocol::{
     ContractError, LaunchProfileEntry, LaunchProfileId, LaunchProfileName, LaunchSelection,
     MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES, PanelNode, Presentation,
-    ProtocolVersion, SessionId, Snapshot, TerminalContext, WorkbenchDirectoryPath,
-    WorkbenchProtocolDocument, WorkbenchRevision, WorkerId, serialize_document,
+    PresentationBinding, ProtocolVersion, SessionId, Snapshot, TerminalContext,
+    TerminalPresentationId, WorkbenchDirectoryPath, WorkbenchProtocolDocument, WorkbenchRevision,
+    WorkerId, serialize_document,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +22,8 @@ mod contexts;
 use contexts::StoredContext;
 mod navigation;
 use navigation::StoredNavigation;
+mod agent_sessions;
+pub use agent_sessions::{AgentResumeProvider, RetainedAgentSession};
 mod directories;
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
@@ -35,6 +42,7 @@ pub enum WorkbenchCheckpointError {
     InvalidCatalog,
     TerminalBinding,
     InvalidTerminalDirectory,
+    InvalidAgentSession,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -64,6 +72,7 @@ impl fmt::Display for WorkbenchCheckpointError {
             Self::InvalidTerminalDirectory => {
                 formatter.write_str("invalid checkpoint terminal directory")
             }
+            Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
         }
     }
 }
@@ -129,6 +138,9 @@ struct Checkpoint {
     terminal_contexts: Vec<StoredContext>,
     profiles: Vec<StoredProfile>,
     terminal_directories: Vec<directories::StoredDirectory>,
+    /// Always written; an omitted list reads as no references, while a present list is strict.
+    #[serde(default)]
+    agent_sessions: Vec<agent_sessions::StoredAgentSession>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -142,17 +154,17 @@ struct StoredProfile {
 impl WorkbenchAuthority {
     /// Captures committed configuration without changing this authority or authorizing effects.
     pub fn checkpoint(&self, local_worker: &WorkerId) -> Result<Vec<u8>, WorkbenchCheckpointError> {
-        self.checkpoint_with_terminal_directories(local_worker, &[])
+        self.checkpoint_with_observations(local_worker, &[], None)
     }
 
-    /// The runtime supplies directory observations after exact physical-generation fencing.
-    pub fn checkpoint_with_terminal_directories(
+    /// The runtime supplies directory and live Agent session observations after exact
+    /// physical-generation fencing. `agent_sessions = None` means recording is off: no Agent
+    /// session row is written, not even a pending restart reference.
+    pub fn checkpoint_with_observations(
         &self,
         local_worker: &WorkerId,
-        observed: &[(
-            orchbee_workbench_protocol::PresentationBinding,
-            WorkbenchDirectoryPath,
-        )],
+        directories: &[(PresentationBinding, WorkbenchDirectoryPath)],
+        agent_sessions: Option<&[(PresentationBinding, RetainedAgentSession)]>,
     ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
@@ -160,7 +172,9 @@ impl WorkbenchAuthority {
         validate_catalog(&self.catalog)?;
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
-        let terminal_directories = directories::capture(self, local_worker, observed)?;
+        let terminal_directories = directories::capture(self, local_worker, directories)?;
+        let agent_sessions =
+            agent_sessions::capture(self, local_worker, agent_sessions, &terminal_directories)?;
         let mut snapshot = projection.snapshot().clone();
         for context in &mut snapshot.terminal_contexts {
             for tab in &mut context.tabs {
@@ -199,6 +213,7 @@ impl WorkbenchAuthority {
                 .collect(),
             profiles,
             terminal_directories,
+            agent_sessions,
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -259,6 +274,7 @@ impl WorkbenchCheckpoint {
             .into_iter()
             .map(|r| (r.presentation_id, r.path))
             .collect();
+        authority.restart_agent_sessions = parts.agent_sessions;
         Ok(authority)
     }
 }
@@ -266,6 +282,7 @@ impl WorkbenchCheckpoint {
 struct CheckpointParts {
     projection: WorkbenchProjectionStore,
     catalog: Vec<LaunchProfileEntry>,
+    agent_sessions: BTreeMap<TerminalPresentationId, RetainedAgentSession>,
 }
 
 fn checkpoint_parts(
@@ -312,9 +329,15 @@ fn checkpoint_parts(
         checkpoint.last_identity,
     )?;
     directories::validate(&checkpoint.terminal_directories, projection.snapshot())?;
+    let agent_sessions = agent_sessions::validate(
+        &checkpoint.agent_sessions,
+        projection.snapshot(),
+        &checkpoint.terminal_directories,
+    )?;
     Ok(CheckpointParts {
         projection,
         catalog,
+        agent_sessions,
     })
 }
 fn enforce_encoded_limit(encoded: &[u8]) -> Result<(), WorkbenchCheckpointError> {

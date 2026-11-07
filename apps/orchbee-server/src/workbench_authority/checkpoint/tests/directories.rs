@@ -81,7 +81,7 @@ fn fresh_observations_replace_intent_only_for_current_members_and_capture_is_pur
         WorkbenchDirectoryPath::parse("E:/new").unwrap(),
     );
     let bytes = a
-        .checkpoint_with_terminal_directories(&worker(400), std::slice::from_ref(&observed))
+        .checkpoint_with_observations(&worker(400), std::slice::from_ref(&observed), None)
         .unwrap();
     let fresh = restore(&bytes).unwrap();
     let restored = fresh.restoration_targets(&worker(400)).unwrap();
@@ -92,13 +92,13 @@ fn fresh_observations_replace_intent_only_for_current_members_and_capture_is_pur
     );
     assert_eq!(a.snapshot(), &before);
     assert!(
-        a.checkpoint_with_terminal_directories(&worker(400), &[observed.clone(), observed.clone()])
+        a.checkpoint_with_observations(&worker(400), &[observed.clone(), observed.clone()], None)
             .is_err()
     );
     let mut foreign = observed;
     foreign.0.worker_id = worker(500);
     assert!(
-        a.checkpoint_with_terminal_directories(&worker(400), &[foreign])
+        a.checkpoint_with_observations(&worker(400), &[foreign], None)
             .is_err()
     );
     a.restart_directories.insert(

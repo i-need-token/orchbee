@@ -59,7 +59,10 @@ impl WorkbenchAuthority {
     }
 }
 
-fn members(snapshot: &Snapshot) -> BTreeMap<TerminalPresentationId, Option<PresentationBinding>> {
+/// Every member Presentation and its current binding, in capture order.
+pub(super) fn members(
+    snapshot: &Snapshot,
+) -> BTreeMap<TerminalPresentationId, Option<PresentationBinding>> {
     let mut members = BTreeMap::new();
     for context in &snapshot.terminal_contexts {
         for tab in &context.tabs {

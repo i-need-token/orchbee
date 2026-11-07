@@ -28,8 +28,9 @@ use crate::workbench_projection::{
 
 mod checkpoint;
 pub use checkpoint::{
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
-    WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
+    AgentResumeProvider, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding,
+    RetainedAgentSession, WorkbenchCheckpoint, WorkbenchCheckpointError, WorkbenchRestoreError,
+    WorkbenchRestoreTarget,
 };
 mod agent_reports;
 mod panel_agent;
@@ -319,6 +320,10 @@ pub struct WorkbenchAuthority {
         orchbee_workbench_protocol::TerminalPresentationId,
         orchbee_workbench_protocol::WorkbenchDirectoryPath,
     >,
+    // Pending Agent resume intent: the driver takes an entry when it attempts it, and a capture
+    // carries an entry nobody has taken. Taking one never changes the Workbench revision.
+    restart_agent_sessions:
+        BTreeMap<orchbee_workbench_protocol::TerminalPresentationId, RetainedAgentSession>,
 }
 
 impl WorkbenchAuthority {
@@ -354,6 +359,7 @@ impl WorkbenchAuthority {
             panel_agent: panel_agent::PanelAgents::default(),
             plugin_panes: plugin_panes::Membership::default(),
             restart_directories: BTreeMap::new(),
+            restart_agent_sessions: BTreeMap::new(),
         })
     }
 

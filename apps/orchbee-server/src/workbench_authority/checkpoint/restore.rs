@@ -87,6 +87,11 @@ impl WorkbenchRestoreTarget {
             .as_ref()
             .or(self.working_directory.as_ref())
     }
+    /// The retained per-Presentation directory alone, without the Workspace default.
+    #[must_use]
+    pub fn restored_directory(&self) -> Option<&WorkbenchDirectoryPath> {
+        self.restored_directory.as_ref()
+    }
 }
 
 pub struct PreparedWorkbenchRestoreBinding<'authority> {
