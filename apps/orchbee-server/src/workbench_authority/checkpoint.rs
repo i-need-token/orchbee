@@ -25,6 +25,8 @@ use navigation::StoredNavigation;
 mod agent_sessions;
 pub use agent_sessions::{AgentResumeProvider, RetainedAgentSession};
 mod directories;
+mod layout_history;
+pub use layout_history::{LayoutHistorySummary, LayoutReopenError, ReopenedLayout, RetainedLayout};
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
 
@@ -249,8 +251,7 @@ impl WorkbenchCheckpoint {
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
-        let validation_session = SessionId::parse("00000000000000000000000000000001")
-            .expect("canonical nonzero validation identity");
+        let validation_session = validation_session();
         let validation_worker = WorkerId::parse("00000000000000000000000000000001")
             .expect("canonical nonzero validation identity");
         let _validated = checkpoint_parts(&checkpoint, &validation_session, &validation_worker)?;
@@ -277,6 +278,35 @@ impl WorkbenchCheckpoint {
         authority.restart_agent_sessions = parts.agent_sessions;
         Ok(authority)
     }
+}
+
+impl WorkbenchCheckpoint {
+    /// The retained graph with `local_worker` owning its Directories, and each member's retained
+    /// directory. Parsing already validated both, so this only rebuilds them.
+    pub(super) fn retained_graph(
+        &self,
+        local_worker: &WorkerId,
+    ) -> Result<
+        (
+            Snapshot,
+            BTreeMap<TerminalPresentationId, WorkbenchDirectoryPath>,
+        ),
+        WorkbenchCheckpointError,
+    > {
+        let parts = checkpoint_parts(&self.checkpoint, &validation_session(), local_worker)?;
+        let directories = self
+            .checkpoint
+            .terminal_directories
+            .iter()
+            .map(|row| (row.presentation_id.clone(), row.path.clone()))
+            .collect();
+        Ok((parts.projection.snapshot().clone(), directories))
+    }
+}
+
+fn validation_session() -> SessionId {
+    SessionId::parse("00000000000000000000000000000001")
+        .expect("canonical nonzero validation identity")
 }
 
 struct CheckpointParts {

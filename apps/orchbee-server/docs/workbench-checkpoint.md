@@ -221,6 +221,43 @@ the previous valid copies and a bounded error state; it does not terminate a ter
 fresh Session. The saver must settle before final clean-stop capture. Failure to join it prevents stop
 completion rather than allowing two storage writers.
 
+## Earlier layouts
+
+The Server keeps earlier layouts so a person can reopen Workspaces and Tabs they closed. The
+history policy lives in `layout_history.rs`; it sees only committed saves and a narrow store port,
+so the save path above is unchanged. After each committed save (background or clean stop) it
+records the saved checkpoint as an entry when the layout differs from the newest entry and at least
+15 minutes have passed since that entry, or the history is empty. Layout means Workspaces, Tabs
+and Panels by identity, label and order; focus, scroll, split ratios and directories are not part
+of it. The index of kept layouts is read once at startup, so a save never reads entries back. A
+clock behind the newest entry records nothing. A failed history write is one
+`operation=layout-history` diagnostic per failure kind and never fails the save. The newest 48
+entries are kept; the interval is a constant, not a setting. The
+[storage owner](../../../crates/local-runtime/docs/windows-checkpoint-storage.md#earlier-layouts)
+defines files and atomicity.
+
+`workbench.layout-history` lists entries newest first, each with its save time, Workspace and Tab
+counts and how many of them are not open now by identity (`read` permission). `reopen` names an
+entry by save time (navigation and terminal-create permission). In one commit it adds only the
+Workspaces and Tabs whose identity is not open now, with fresh identities and their saved split
+layout and labels; nothing open is closed, moved or relabeled:
+
+- a missing Workspace comes back whole at the end of the Workspace order, reusing an existing
+  Directory with the same path, inside its Project when that Project still admits it, otherwise
+  ungrouped; its Tab groups and pins come back with it;
+- a missing Tab of an open Workspace returns at its saved index, clamped to the current strip after
+  the pinned prefix and outside groups, unpinned and ungrouped; a Close that holds that Workspace
+  answers `unavailable/busy`;
+- a result that would exceed the Workbench bounds is `rejected/resource-limit` and opens nothing;
+  an entry with nothing missing answers `nothing-to-reopen`.
+
+Each reopened Presentation keeps its saved directory as restart intent. After the commit the Server
+probes those directories outside every gate; a missing one gets the [held restore](#held-restore)
+state, and the rest bind and launch through restore's reservation path. No process, Agent or
+screen comes back. The result names the first reopened Tab; interactive Clients select it, and the
+CLI does not move focus. Because identities are fresh, reopening the same entry again opens
+another copy.
+
 ## Evidence
 
 Deterministic tests exercise capture/reconstruct with independent graph expectations, nested
@@ -233,6 +270,10 @@ intent, carry-over, take, live override, the directory-row requirement, first-me
 recording off. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
 also preserves pending files when the durable catalog is unsupported.
+
+Layout history tests drive the record rule under an injected clock (change and interval, the
+48-entry bound, oldest first, reload) and reopen against a Session missing a Tab or a Workspace,
+including the hold of a missing directory; the storage test covers pruning and a renamed frame.
 
 Coordinator tests cover joint physical/graph preparation, grouped/pinned/child membership, binding reattachment and explicit unavailable outcomes without replay. Windows storage/process tests cover private
 replacement, locking and exact-handle termination. Packaged Windows clean-stop/restart acceptance

@@ -24,6 +24,7 @@ mod editor_popup;
 #[cfg(windows)]
 mod held_restore;
 mod independent_popup;
+mod layout_reopen;
 mod plugin_popup;
 pub(crate) use editor_popup::EditorPopupLaunch;
 mod exit_close;

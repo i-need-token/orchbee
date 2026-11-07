@@ -165,6 +165,12 @@ impl WorkbenchService {
                     self.policy.manage_navigation && self.policy.create_terminal
                 }
             }
+            WorkbenchRequest::LayoutHistory(request) => match request.action {
+                orchbee_workbench_protocol::LayoutHistoryAction::List {} => self.policy.read,
+                orchbee_workbench_protocol::LayoutHistoryAction::Reopen { .. } => {
+                    self.policy.manage_navigation && self.policy.create_terminal
+                }
+            },
             WorkbenchRequest::WorktreeOperation(request) => {
                 if matches!(
                     request.action,
@@ -298,6 +304,11 @@ impl WorkbenchService {
             WorkbenchRequest::TabDuplicate(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::TabDuplicate(
                     self.terminals.execute_tab_duplicate(request.clone()),
+                ));
+            }
+            WorkbenchRequest::LayoutHistory(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::LayoutHistory(
+                    self.terminals.execute_layout_history(request.clone()),
                 ));
             }
             WorkbenchRequest::WorktreeQuery(query) => {
@@ -830,6 +841,20 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                     orchbee_workbench_protocol::TabDuplicateOutcome::Unavailable {
                         reason:
                             orchbee_workbench_protocol::TabDuplicateUnavailable::ServiceUnavailable,
+                    }
+                },
+            },
+        ),
+        WorkbenchRequest::LayoutHistory(request) => WorkbenchResponse::LayoutHistory(
+            orchbee_workbench_protocol::WorkbenchLayoutHistoryResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                outcome: if denied {
+                    orchbee_workbench_protocol::LayoutHistoryOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::LayoutHistoryOutcome::Unavailable {
+                        reason:
+                            orchbee_workbench_protocol::LayoutHistoryUnavailable::ServiceUnavailable,
                     }
                 },
             },

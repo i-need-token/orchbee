@@ -79,6 +79,18 @@ pub(super) fn run(
         // Resumes read through the observer and wait for a Client, so no listener may open first.
         owners.terminals.start_agent_resume(resumes)?;
         let worker = checkpoint_worker(&owners.handle)?;
+        // Earlier layouts are an aid, never a reason to refuse the Session.
+        let store: Arc<dyn crate::layout_history::LayoutHistoryStore> =
+            Arc::clone(&owners.checkpoint_store) as _;
+        match crate::layout_history::LayoutHistory::load(store) {
+            Ok(history) => {
+                owners.terminals.install_layout_history(Arc::new(history));
+            }
+            Err(error) => eprintln!(
+                "orchbee-server diagnostic component=checkpoint operation=layout-history stage=load cause=io:{:?}",
+                error.kind()
+            ),
+        }
         owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
             Arc::clone(&owners.checkpoint_store),
             Arc::clone(&owners.terminals),
@@ -244,6 +256,7 @@ fn settle(
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+        super::checkpoint_windows::autosave::record_history(&owners.terminals, &bytes, &mut None);
         shutdown.phase(attempt, StopPhase::Worker);
         let budget = deadline
             .saturating_duration_since(Instant::now())
@@ -394,7 +407,9 @@ fn settle_without_worker(
         ));
     }
     super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    super::checkpoint_windows::autosave::record_history(&owners.terminals, &bytes, &mut None);
+    Ok(())
 }
 
 /// Only an exact observation that the Host is gone, or that it never started, counts.

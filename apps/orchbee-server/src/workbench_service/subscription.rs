@@ -2,10 +2,10 @@
 //! Multiplex subscription admission separately excludes reads with delivery side effects.
 use orchbee_workbench_protocol::{
     AgentManifestsAction, ClientViewAction, ConfigurationAction, ConfiguredCommandAction,
-    NotificationAction, PaneGraphicsAction, PanelAgentAction, PanelMetadataAction,
-    SemanticEventsAction, SettingsOperation, TabDuplicateAction, TabSetCloseAction,
-    TerminalEditorAction, WindowTitleAction, WorkbenchRequest, WorkbenchWorktreeAction,
-    WorkspaceMetadataAction,
+    LayoutHistoryAction, NotificationAction, PaneGraphicsAction, PanelAgentAction,
+    PanelMetadataAction, SemanticEventsAction, SettingsOperation, TabDuplicateAction,
+    TabSetCloseAction, TerminalEditorAction, WindowTitleAction, WorkbenchRequest,
+    WorkbenchWorktreeAction, WorkspaceMetadataAction,
 };
 
 pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
@@ -87,6 +87,9 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         }
         WorkbenchRequest::TabDuplicate(request) => {
             matches!(request.action, TabDuplicateAction::Read { .. })
+        }
+        WorkbenchRequest::LayoutHistory(request) => {
+            matches!(request.action, LayoutHistoryAction::List {})
         }
         WorkbenchRequest::AgentManifests(request) => matches!(
             request.action,

@@ -46,11 +46,12 @@ pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
 mod controller_connection;
 mod controller_focus;
+#[cfg(windows)]
+mod layout_history;
 mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
 mod panel_metadata;
-#[cfg(windows)]
 mod panel_restore;
 mod process_observer;
 mod projection;
@@ -105,6 +106,7 @@ pub(crate) struct LocalTerminalService {
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
     tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
+    layout_history: std::sync::OnceLock<Arc<crate::layout_history::LayoutHistory>>,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: Mutex<SessionCoordinator>,
     controllers: Mutex<
@@ -166,6 +168,7 @@ impl LocalTerminalService {
                 Self::tab_duplicate_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
+            layout_history: std::sync::OnceLock::new(),
             workers,
             coordinator: Mutex::new(SessionCoordinator::new(workbench)),
             controllers: Mutex::new(std::collections::BTreeMap::new()),
