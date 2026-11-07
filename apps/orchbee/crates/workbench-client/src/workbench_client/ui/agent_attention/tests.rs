@@ -228,7 +228,7 @@ fn hidden_physical_transition_emits_after_draw_but_visible_transition_is_seen() 
         "even zero delay waits for a successful post-transition draw"
     );
     background.after_close_draw(draw(&background, 120, 40, &shell));
-    let (delivery, message) = background
+    let (delivery, message, _) = background
         .take_agent_notification(Locale::EnUs, true)
         .unwrap();
     assert_eq!(delivery, Delivery::Tui);
@@ -302,7 +302,7 @@ fn unfocused_exact_visible_paint_suppresses_only_that_notification_version() {
     publish_physical(&mut ui, &state);
     ui.after_close_draw(draw(&ui, 8, 2, &shell));
     assert!(!physical_seen(&ui, &state));
-    let (_, message) = ui.take_agent_notification(Locale::EnUs, true).unwrap();
+    let (_, message, _) = ui.take_agent_notification(Locale::EnUs, true).unwrap();
     assert_eq!(message.sound, NotificationSound::Done);
 }
 
@@ -340,8 +340,14 @@ fn shared_hidden_request_uses_localized_context_and_per_agent_sound_mute_is_hard
         ui.after_close_draw(draw(&ui, 120, 40, &shell));
         let notification = ui.take_agent_notification(Locale::ZhCn, true);
         assert!(notification.is_some());
-        if let Some((delivery, message)) = notification {
+        if let Some((delivery, message, target)) = notification {
             assert_eq!(delivery, Delivery::Tui);
+            // The card opens the Panel hosting the observed presentation, in a background Tab.
+            let tab = ui.view().tab(1).unwrap();
+            let target = target.expect("the observed presentation has a canonical placement");
+            assert_eq!(&target.tab, tab.tab_id());
+            assert_eq!(&target.panel, tab.panel(0).unwrap().panel_id());
+            assert_eq!(target.physical, state.binding);
             assert_eq!(message.title, "pi 需要处理");
             assert_eq!(
                 message.sound,

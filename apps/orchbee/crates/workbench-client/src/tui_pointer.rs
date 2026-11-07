@@ -2117,6 +2117,7 @@ impl PointerState {
             }
             HitResolution::Region(
                 HitTarget::OverlaySurface
+                | HitTarget::NotificationCard(_)
                 | HitTarget::Setup { .. }
                 | HitTarget::WorkspaceClose { .. }
                 | HitTarget::TabClose { .. }

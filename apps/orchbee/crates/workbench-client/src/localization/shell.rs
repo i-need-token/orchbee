@@ -401,6 +401,10 @@ impl Locale {
             (Self::ZhCn, Some(Notice::TerminalInputUnavailable)) => "终端输入不可用 · 未发送输入",
             (Self::EnUs, Some(Notice::NavigationInputHeld)) => "Switching · input was not sent",
             (Self::ZhCn, Some(Notice::NavigationInputHeld)) => "正在切换 · 未发送输入",
+            (Self::EnUs, Some(Notice::NotificationTargetUnavailable)) => {
+                "This Agent is no longer available"
+            }
+            (Self::ZhCn, Some(Notice::NotificationTargetUnavailable)) => "这个智能体已不可用",
             (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => {
                 "Could not switch · select the destination again to retry"
             }

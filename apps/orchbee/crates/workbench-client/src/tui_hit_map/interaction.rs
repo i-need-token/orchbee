@@ -54,6 +54,8 @@ pub enum InteractionTarget {
         start: crate::workbench_state::TabStripStart,
     },
     PopupClose(crate::independent_popup::DrawnPopupClose),
+    /// The painted Agent notification card; a custom card stays a noncapturing shield.
+    NotificationCard(crate::client_view::notifications::CardToken),
     #[cfg(any(test, feature = "test-support"))]
     Fixture(HitTarget),
 }
@@ -101,6 +103,7 @@ impl InteractionTarget {
         if matches!(
             self,
             Self::GlobalChrome(_)
+                | Self::NotificationCard(_)
                 | Self::Sidebar(_)
                 | Self::SidebarFixed(_)
                 | Self::TabCreate(_)
@@ -141,6 +144,7 @@ impl InteractionTarget {
             Self::AgentBoardRow(target) => HitTarget::AgentBoardRow(target.clone()),
             Self::AgentBoardControl(target) => HitTarget::AgentBoardControl(target.clone()),
             Self::Presentation(target) => HitTarget::Presentation(target.clone()),
+            Self::NotificationCard(token) => HitTarget::NotificationCard(*token),
 
             Self::ActionMenuRow { token, row, .. } => HitTarget::ActionMenuRow {
                 token: *token,

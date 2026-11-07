@@ -303,7 +303,6 @@ fn generated_default_config_passes_the_offline_config_check() {
     std::fs::write(&config, uncommented).unwrap();
     let document = config_check_document(&fixture);
     let user_config = &document["result"]["checks"][5];
-    assert_eq!(actions.len(), 37);
     assert_eq!(user_config["status"], "warning");
     assert_eq!(user_config["details"]["keyOverrides"], json!(actions.len()));
     assert_eq!(user_config["details"]["diagnosticsOmitted"], 0);

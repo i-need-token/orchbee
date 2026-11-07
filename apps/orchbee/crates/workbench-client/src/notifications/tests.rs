@@ -50,7 +50,7 @@ fn automatic_delivery_does_not_inherit_or_change_manual_delivery() {
     policy.agent_delivery = Delivery::System;
     state.configure(policy);
     let now = Instant::now();
-    assert!(state.install_automatic(message(Position::BottomRight), Delivery::System, now,));
+    assert!(state.install_automatic(message(Position::BottomRight), Delivery::System, None, now));
     assert_eq!(state.take_effect().unwrap().delivery, Delivery::System);
     assert!(state.install(message(Position::BottomRight), now));
     assert_eq!(state.take_effect().unwrap().delivery, Delivery::Off);

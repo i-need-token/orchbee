@@ -67,6 +67,8 @@ pub enum ClientAction {
     PreviousAgent,
     NextAgent,
     FocusAgent(u8),
+    /// Opens the Agent the visible notification card announced.
+    OpenNotificationTarget,
     CloseWorkbenchNavigator,
     /// `Ctrl+B g` — toggles the Client-owned Agent board overlay.
     ToggleAgentBoard,
@@ -111,9 +113,11 @@ impl ClientAction {
             | Self::ExitResizeMode
             | Self::ResizePane { .. } => None,
             Self::ConfiguredCommand(_) => None,
-            Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
-                None
-            }
+            Self::OpenMachines
+            | Self::PreviousAgent
+            | Self::NextAgent
+            | Self::FocusAgent(_)
+            | Self::OpenNotificationTarget => None,
             Self::TabMenu { .. } | Self::ToggleTabGroup(_) => None,
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
@@ -249,6 +253,8 @@ pub enum MenuAction {
     Sidebar,
     Navigator,
     AgentBoard,
+    /// Shown only while an Agent notification card is current.
+    OpenNotificationTarget,
     ReleasePointer,
     Detach,
 }
@@ -327,6 +333,7 @@ impl From<&MenuAction> for crate::localization::MenuLabel {
             MenuAction::Sidebar => Self::Sidebar,
             MenuAction::Navigator => Self::Navigator,
             MenuAction::AgentBoard => Self::AgentBoard,
+            MenuAction::OpenNotificationTarget => Self::OpenNotificationTarget,
             MenuAction::ReleasePointer => Self::ReleasePointer,
             MenuAction::Detach => Self::Detach,
         }
@@ -412,6 +419,7 @@ impl MenuAction {
             Self::Sidebar => ClientAction::ToggleBusinessSidebar,
             Self::Navigator => ClientAction::OpenWorkbenchNavigator,
             Self::AgentBoard => ClientAction::ToggleAgentBoard,
+            Self::OpenNotificationTarget => ClientAction::OpenNotificationTarget,
             Self::ReleasePointer => ClientAction::TogglePointerCapture,
             Self::Detach => ClientAction::Exit,
             Self::WorkspaceProjects

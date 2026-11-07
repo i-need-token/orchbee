@@ -29,6 +29,7 @@ pub(super) const ACTIONS: &[&str] = &[
     "previous_agent",
     "next_agent",
     "focus_agent",
+    "open_notification_target",
     "new_tab",
     "rename_tab",
     "previous_tab",

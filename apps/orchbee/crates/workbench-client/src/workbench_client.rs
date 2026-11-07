@@ -437,15 +437,17 @@ impl WorkbenchClient {
             let automatic_accepting = view.notifications.empty()
                 && (!native.agent_notification_requires_card()
                     || ui::notification_available(view, Some(native.view())));
-            if let Some((delivery, message)) =
+            if let Some((delivery, message, target)) =
                 native.take_agent_notification(locale, automatic_accepting)
             {
                 changed |= view.notifications.install_automatic(
                     message,
                     delivery,
+                    target,
                     std::time::Instant::now(),
                 );
             }
+            native.observe_notification_target(view.notifications.agent_card().is_some());
         }
         changed
     }
@@ -807,6 +809,15 @@ impl TerminalInputPort for WorkbenchClient {
     fn copy_picker_identifier(&mut self, text: String) -> bool {
         match &mut self.backend {
             ClientBackend::Native(native) => native.copy_picker_identifier(text),
+        }
+    }
+
+    fn open_notification_target(
+        &mut self,
+        target: &crate::machine_agents::Target,
+    ) -> crate::client_view::notifications::TargetOpening {
+        match &mut self.backend {
+            ClientBackend::Native(native) => native.open_notification_target(target),
         }
     }
 

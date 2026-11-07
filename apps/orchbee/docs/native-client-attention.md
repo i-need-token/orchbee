@@ -41,7 +41,10 @@ The renderer returns bounded concrete paint proofs; a receipt for an earlier sna
 
 Explicit `agent focus` has a separate command effect: after validated navigation and draw it marks
 the focused Panel's selected presentation versions seen, including
-known outer focus loss. It does not weaken ordinary paint gates or make read-only attention
+known outer focus loss. Opening an Agent notification's target, by a card click or
+`open_notification_target`, has the same explicit effect for that Agent's Presentation once its
+revalidated navigation is current or admitted ([Windows notifications](windows-notifications.md#opening-the-notification-target)).
+It does not weaken ordinary paint gates or make read-only attention
 acknowledge. [Agent navigation](native-agent-navigation.md#agent-identity-and-explicit-acknowledgement)
 owns identity checks, interruption and the post-draw boundary.
 

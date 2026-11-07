@@ -1,5 +1,6 @@
 //! Client-local transient notification card state: delivery policy, the one visible card, and
 //! the one pending outside effect. Painting, transport, and host effects live in `notifications`.
+use crate::machine_agents::checkpoint::Target;
 use orchbee_local_runtime::{NotificationDelivery as Delivery, NotificationSettings};
 use orchbee_workbench_protocol::{
     Notification, NotificationPosition as Position, NotificationSound,
@@ -10,17 +11,35 @@ pub struct Effect {
     pub delivery: Delivery,
     pub message: Notification,
 }
+/// Names one installed card, so a pointer gesture opens only the card it pressed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CardToken(u64);
+/// How the Workbench answered a request to open an Agent notification's target.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TargetOpening {
+    /// The target Panel is focused now or its navigation was admitted.
+    Opened,
+    /// Another navigation is still settling; the card stays for another attempt.
+    Busy,
+    /// The target is gone, rebound, or outside the attached Session; nothing moved.
+    Unavailable,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Visible {
     message: Notification,
     until: Instant,
     sound_pending: bool,
+    token: CardToken,
+    /// The Agent an automatic notification announced, as observed when it was raised. Custom
+    /// notifications have none.
+    target: Option<Box<Target>>,
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct State {
     visible: Option<Visible>,
     policy: NotificationSettings,
     pending: Option<Effect>,
+    serial: u64,
 }
 impl State {
     pub fn configure(&mut self, policy: NotificationSettings) {
@@ -33,6 +52,20 @@ impl State {
     /// The message of the card painted now, if any.
     pub(crate) fn visible_message(&self) -> Option<&Notification> {
         self.visible.as_ref().map(|visible| &visible.message)
+    }
+    /// The visible card's Agent target, if the card announces an Agent.
+    pub(crate) fn agent_card(&self) -> Option<(CardToken, &Target)> {
+        let visible = self.visible.as_ref()?;
+        Some((visible.token, visible.target.as_deref()?))
+    }
+    /// Removes the card this token names; a newer card stays.
+    pub(crate) fn dismiss(&mut self, token: CardToken) -> bool {
+        if self.visible.as_ref().is_some_and(|v| v.token == token) {
+            self.visible = None;
+            true
+        } else {
+            false
+        }
     }
     pub(crate) fn card_delivery(&self) -> bool {
         self.policy.delivery == Delivery::Tui
@@ -55,20 +88,22 @@ impl State {
         self.visible.is_none() && self.pending.is_none()
     }
     pub(crate) fn install(&mut self, message: Notification, now: Instant) -> bool {
-        self.install_with_delivery(message, self.policy.delivery, now)
+        self.install_with_delivery(message, self.policy.delivery, None, now)
     }
     pub(crate) fn install_automatic(
         &mut self,
         message: Notification,
         delivery: Delivery,
+        target: Option<Target>,
         now: Instant,
     ) -> bool {
-        self.install_with_delivery(message, delivery, now)
+        self.install_with_delivery(message, delivery, target, now)
     }
     fn install_with_delivery(
         &mut self,
         mut message: Notification,
         delivery: Delivery,
+        target: Option<Target>,
         now: Instant,
     ) -> bool {
         if !self.empty() {
@@ -84,10 +119,13 @@ impl State {
             "bottom-left" => Position::BottomLeft,
             _ => Position::BottomRight,
         }));
+        self.serial = self.serial.wrapping_add(1);
         self.visible = Some(Visible {
             message,
             until: now + Duration::from_secs(5),
             sound_pending: true,
+            token: CardToken(self.serial),
+            target: target.map(Box::new),
         });
         true
     }

@@ -99,6 +99,7 @@ pub(crate) enum MenuLabel {
     Sidebar,
     Navigator,
     AgentBoard,
+    OpenNotificationTarget,
     ReleasePointer,
     Detach,
 }
@@ -532,6 +533,8 @@ impl Locale {
             (Self::ZhCn, Navigator) => "工作区导航器",
             (Self::EnUs, AgentBoard) => "Agent board",
             (Self::ZhCn, AgentBoard) => "智能体看板",
+            (Self::EnUs, OpenNotificationTarget) => "Open notification target",
+            (Self::ZhCn, OpenNotificationTarget) => "打开通知目标",
             (Self::EnUs, ReleasePointer) => "Release mouse",
             (Self::ZhCn, ReleasePointer) => "释放鼠标",
             (_, Detach) => self.client_detach_label(),

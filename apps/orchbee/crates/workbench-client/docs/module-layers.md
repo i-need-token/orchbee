@@ -56,7 +56,7 @@ borrows or receive derived values; render reads only the derived view model.
 | Client-local view    | Owns chrome, selection, focus, drafts, menus, notices, copy mode, preferences, and positions that exist only in this Client; persists only through its own single store | `client_view`, `client_view::notifications`, `action_menu`, `machine_agents::attention`, `machine_agents::view`, `machine_picker`, `machines`, `native_settings`, `onboarding`, `startup_directory`, `startup_preference`, `terminal_copy_mode`, `terminal_viewport`, `transient_notice`, `workbench_client::command_notice`, `workbench_client::completion_reminders`, `workbench_client::copy_episode`, `workbench_client::normal_exit_hold`, `workbench_client::settings_notice`, `workbench_client::terminal_selection`, `workbench_client::ui::action_menus::episode`, `workbench_client::ui::history_positions`, `workbench_client::ui::retained_frames` |
 | Connection lifecycle | Owns the queues, correlation, generations, retained evidence, and wakeups of one Client Connection; the `workflow` connection task drives it                            | `workbench_client::mailbox`, `ui_wakeup`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
-`ClientView` and `WorkbenchClientUi` share four values. Each has one writer, and the other holder
+`ClientView` and `WorkbenchClientUi` share five values. Each has one writer, and the other holder
 receives the owner's value through composition:
 
 - Host capabilities are a compile-time admission. Each holder receives them once at construction,
@@ -67,6 +67,9 @@ receives the owner's value through composition:
   `WorkbenchClientUi` receives that policy with the revision that admitted it.
 - `workbench_client::copy_episode` owns copy-mode activity. `ClientView` keeps a mirror that only
   `settle_copy_mode` writes from the owner's current answer.
+- `client_view::notifications` owns the current Agent notification card and its target.
+  `WorkbenchClientUi` keeps a mirror of whether one is current, which only the automatic
+  notification tick writes, so the action menu offers Open notification target only then.
 
 Client-local notices in `ClientView` and Workbench command notices in
 `workbench_client::command_notice` are separate facts with separate writers.
@@ -91,12 +94,12 @@ vocabulary, grouped by the feature that names each action, because the witnesses
 from `state`, `presentation`, and `input` modules. The port has one entry per responsibility, never
 one per gesture:
 
-| Group             | Entries                                                                                                                                                   | Carries                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Facts             | `native_capture_claims`, `native_capture_context`, `copy_mode_active`, `pointer_probe`, drag sources, divider and resize projections, `navigator_catalog` | What dispatch and gesture resolution read                                                                       |
-| Terminal          | `forward`, `observe_terminal`                                                                                                                             | Terminal forwarding and host or input-stream observations                                                       |
-| Local input       | `pane_input`, `surface_input`, `scroll_list`                                                                                                              | Pane steps, input for the surface that holds input, and painted-list scrolling; the result stays with the owner |
-| Committed results | `surface_action`, `apply_client_action`, `tab_create_action`, action-menu entries, `activate_navigator`, `copy_picker_identifier`                         | A feature-defined `SurfaceAction`, or a Client action resolved from bindings, menus, the navigator, or a picker |
+| Group             | Entries                                                                                                                                                       | Carries                                                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Facts             | `native_capture_claims`, `native_capture_context`, `copy_mode_active`, `pointer_probe`, drag sources, divider and resize projections, `navigator_catalog`     | What dispatch and gesture resolution read                                                                                                                   |
+| Terminal          | `forward`, `observe_terminal`                                                                                                                                 | Terminal forwarding and host or input-stream observations                                                                                                   |
+| Local input       | `pane_input`, `surface_input`, `scroll_list`                                                                                                                  | Pane steps, input for the surface that holds input, and painted-list scrolling; the result stays with the owner                                             |
+| Committed results | `surface_action`, `apply_client_action`, `tab_create_action`, action-menu entries, `activate_navigator`, `copy_picker_identifier`, `open_notification_target` | A feature-defined `SurfaceAction`, or a Client action resolved from bindings, menus, the navigator, or a picker, or the Agent target of a notification card |
 
 Every implementation keeps these invariants:
 

@@ -239,6 +239,8 @@ pub enum HitTarget {
     /// Painted overlay body with no action — swallows the click so it
     /// cannot reach the layer beneath.
     OverlaySurface,
+    /// One painted Agent notification card, which opens the Agent it announced.
+    NotificationCard(crate::client_view::notifications::CardToken),
     /// An Agent board row from one exact successfully presented Board view.
     /// Press-time selection validates this complete witness with the owner.
     AgentBoardRow(crate::agent_board::AgentBoardRowTarget),

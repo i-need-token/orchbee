@@ -177,6 +177,11 @@ impl WorkbenchClientUi {
         self.attention.notification_requires_card()
     }
 
+    /// Mirrors whether the visible card announces an Agent, for the action menu's offer.
+    pub(in crate::workbench_client) fn observe_notification_target(&mut self, visible: bool) {
+        self.notification_target = visible;
+    }
+
     pub(in crate::workbench_client) fn take_agent_notification(
         &mut self,
         locale: crate::localization::Locale,
@@ -184,6 +189,7 @@ impl WorkbenchClientUi {
     ) -> Option<(
         orchbee_local_runtime::NotificationDelivery,
         orchbee_workbench_protocol::Notification,
+        Option<crate::machine_agents::Target>,
     )> {
         use crate::workbench_client::agent_notifications::AgentNotificationKind;
         use orchbee_workbench_protocol::NotificationSound;
@@ -243,7 +249,40 @@ impl WorkbenchClientUi {
             sound,
         )
         .ok()?;
-        Some((delivery, message))
+        let target = self.agent_notification_target(&command);
+        Some((delivery, message, target))
+    }
+
+    /// The exact Agent a notification announces, read from the canonical Workbench as it is raised:
+    /// the Session, Workspace, Tab, Panel, and terminal binding hosting the observed incarnation.
+    /// Opening it later revalidates every part through the sidebar's Agent navigation.
+    fn agent_notification_target(
+        &self,
+        command: &crate::workbench_client::agent_notifications::AgentNotificationCommand,
+    ) -> Option<crate::machine_agents::Target> {
+        use orchbee_agent_observation_protocol as obap;
+
+        let identity = &command.identity;
+        let physical = obap::AgentLaunchBinding {
+            presentation_id: obap::AgentPresentationId::parse(&identity.presentation_id).ok()?,
+            generation: obap::AgentAttachmentGeneration::parse(&identity.generation).ok()?,
+            host_epoch: obap::AgentHostEpoch::parse(&identity.host_epoch).ok()?,
+            host_terminal_id: obap::AgentHostTerminalId::parse(&identity.host_terminal_id).ok()?,
+        };
+        let snapshot = self.state.as_ref()?.cache().canonical_snapshot();
+        let placement = crate::machine_agents::placements(snapshot)
+            .ok()?
+            .into_iter()
+            .find(|placement| placement.member.as_str() == identity.presentation_id)?;
+        Some(crate::machine_agents::Target {
+            context: placement.context,
+            tab: placement.tab,
+            panel: placement.panel,
+            member: placement.member,
+            terminal: placement.terminal,
+            physical,
+            agent: command.agent.clone(),
+        })
     }
 
     pub(in crate::workbench_client) fn read_terminal_agent_attention(

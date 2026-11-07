@@ -1434,6 +1434,9 @@ pub(super) struct WorkbenchClientUi {
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
     notification_base: (u64, orchbee_local_runtime::NotificationSettings),
+    /// Whether the `ClientView` card announces an Agent now; composition writes it from that
+    /// owner's answer on every automatic-notification tick.
+    notification_target: bool,
     menus: action_menus::MenuEpisode,
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
@@ -1635,6 +1638,7 @@ impl WorkbenchClientUi {
             scrollback_editor: None,
             viewer_recovery: viewer_recovery::ViewerRecovery::default(),
             retirement_failure: None,
+            notification_target: false,
             retirement_finalized: false,
             retirement: None,
             retired_mailbox_seed: None,
@@ -3087,7 +3091,8 @@ impl WorkbenchClientUi {
             | ClientAction::ConfiguredCommand(_)
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
-            | ClientAction::FocusAgent(_) => ClientActionDisposition::KeepNavigator,
+            | ClientAction::FocusAgent(_)
+            | ClientAction::OpenNotificationTarget => ClientActionDisposition::KeepNavigator,
             ClientAction::RequestWorktreeCreate => self.request_worktree(WorktreeMode::Create),
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {

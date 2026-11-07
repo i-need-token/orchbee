@@ -975,6 +975,10 @@ impl ClientView {
     pub fn workspace_navigation_unavailable(&mut self) {
         self.notice = Some(Notice::WorkspaceNavigationUnavailable);
     }
+    /// A notification's Agent target failed revalidation; nothing moved.
+    pub(crate) fn notification_target_unavailable(&mut self) {
+        self.notice = Some(Notice::NotificationTargetUnavailable);
+    }
     pub fn clear_workspace_navigation_notice(&mut self) {
         if self.notice == Some(Notice::WorkspaceNavigationUnavailable) {
             self.notice = None;
@@ -1350,6 +1354,11 @@ impl ClientView {
             }
             ClientAction::ToggleAgentBoard => {
                 self.replace_overlay(None);
+                (action, ShellCommand::None)
+            }
+            // Opening a card's Agent hands the keyboard to its Panel, as a chosen sidebar row does.
+            ClientAction::OpenNotificationTarget if self.notifications.agent_card().is_some() => {
+                self.dismiss_focus_modes();
                 (action, ShellCommand::None)
             }
             ClientAction::OpenShortcutHelp => {

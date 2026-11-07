@@ -764,6 +764,10 @@ impl WorkbenchClientUi {
             // Discovery supplies every row of the Open Worktree submenu.
             actions = Vec::new();
         }
+        if !self.notification_target {
+            // The action opens only the Agent card shown now; without one it is irrelevant.
+            actions.retain(|action| *action != MenuAction::OpenNotificationTarget);
+        }
         let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
             let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))
             else {

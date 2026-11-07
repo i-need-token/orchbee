@@ -384,6 +384,15 @@ pub trait TerminalInputPort {
     fn copy_picker_identifier(&mut self, _text: String) -> bool {
         false
     }
+
+    /// Opens the Agent target a visible notification card announced, revalidated against the
+    /// current Workbench. The default opens nothing.
+    fn open_notification_target(
+        &mut self,
+        _target: &crate::machine_agents::Target,
+    ) -> crate::client_view::notifications::TargetOpening {
+        crate::client_view::notifications::TargetOpening::Unavailable
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]

@@ -6,7 +6,7 @@
 
 The existing Server Workbench service owns an ephemeral notification registry. Each listener belongs to its authenticated connection generation and active subscription, and has one pending message with a five-second lifetime. Subscription cancellation or connection loss retires the listener; idle listening needs no timer poll. At most 32 listeners and 256 request receipts are retained; receipts expire after 60 seconds. A successful Show queues to every currently accepting live main-TUI listener and starts the one-second rate limit. Disabled, busy, rate-limited and no-foreground-client outcomes perform no delivery. Exact retained request replay returns its original result without enqueueing; conflicting request identities fail. No mutation is retried after transport uncertainty. A successful receipt describes queue admission, not physical display or audible playback. Listeners consume once; disconnection and expiry release pending state. No work is retained across Session restart.
 
-A cancellable event subscription uses the shared Client carrier; the UI polls only its bounded inbox, with no forwarding thread or independent connection. Only the UI owner installs notifications. With card delivery enabled, one five-second transient card uses the requested corner within the content region, keeps clear of the last row where the status chip floats, captures no keys, moves no focus and changes no layout. The card stays non-modal: its painted cells join the frame's hit map as a noncapturing shield, so a click on the card neither activates a covered control nor reaches the pane beneath and cannot hand off a terminal link; cells outside the card keep their ordinary pointer policy, and keyboard input keeps reaching the focused pane. Blocking dialogs, menus, an armed prefix, captured input and other user-owned blocking surfaces make the listener temporarily unavailable; an ordinary transient status notice does not block admission or painting. A race is resolved by discarding the incoming card rather than replacing a user-owned surface. Expiry schedules redraw while idle. Display text escapes terminal and directional formatting controls and clips using terminal display width. A successfully drawn card may issue one safe Windows sound cue: information for done, exclamation for request, no cue for none. System sound policy may suppress playback. External delivery requests sound independently of visual success; system mode requests a Windows notification-area balloon. No delivery activates a native window or navigates to an Agent target.
+A cancellable event subscription uses the shared Client carrier; the UI polls only its bounded inbox, with no forwarding thread or independent connection. Only the UI owner installs notifications. With card delivery enabled, one five-second transient card uses the requested corner within the content region, keeps clear of the last row where the status chip floats, captures no keys, moves no focus and changes no layout. The card stays non-modal: its painted cells join the frame's hit map, so a click on the card neither activates a covered control nor reaches the pane beneath and cannot hand off a terminal link. A custom card is a noncapturing shield; an automatic Agent card [opens its Agent](#opening-the-notification-target). Cells outside the card keep their ordinary pointer policy, and keyboard input keeps reaching the focused pane. Blocking dialogs, menus, an armed prefix, captured input and other user-owned blocking surfaces make the listener temporarily unavailable; an ordinary transient status notice does not block admission or painting. A race is resolved by discarding the incoming card rather than replacing a user-owned surface. Expiry schedules redraw while idle. Display text escapes terminal and directional formatting controls and clips using terminal display width. A successfully drawn card may issue one safe Windows sound cue: information for done, exclamation for request, no cue for none. System sound policy may suppress playback. External delivery requests sound independently of visual success; system mode requests a Windows notification-area balloon. No delivery activates a native window; only a painted Agent card navigates, and only to its own Agent.
 
 TooSmall root frames do not paint notification cards, consume their pending sound, or acknowledge
 attention. The existing card and expiry remain retained; after geometry recovers, the first
@@ -15,7 +15,7 @@ successful root frame alone is not a successful notification-card draw.
 
 ## Boundaries and evidence
 
-Client delivery policy is distinct from Server fallback policy. Native custom notifications honor Client delivery policy and omitted-position inheritance. Automatic Agent notifications are specified below; clipboard policy, custom audio and target navigation remain separate alignment work. Matched private cohorts upgrade/roll back together. No new persisted format, dependency version or unbounded queue is introduced.
+Client delivery policy is distinct from Server fallback policy. Native custom notifications honor Client delivery policy and omitted-position inheritance. Automatic Agent notifications are specified below; clipboard policy and custom audio remain separate alignment work. Matched private cohorts upgrade/roll back together. No new persisted format, dependency version or unbounded queue is introduced.
 
 Focused evidence covers sanitizer boundaries, independent protocol validation, registry expiry/replay/fanout/backpressure, actual Windows CLI pipes, shutdown, Unicode corner rendering, idle expiry and preservation of input ownership. This does not establish authenticated provider, physical Windows visual/audio or final full-regression acceptance.
 
@@ -53,8 +53,8 @@ Shared `soundEnabled = false` is a hard stop; with sound enabled, a per-Agent `o
 that detected label and `default` or `on` permits the built-in cue.
 Agent keys are lowercase detector IDs of at most 64 ASCII letters, digits, dots or hyphens, with an
 alphanumeric first and last character. No Agent is muted by default. Done uses the Windows information cue and request uses the Windows
-exclamation cue. Custom files, decoder dependencies, helper processes and click navigation are not
-part of this contract.
+exclamation cue. Custom files, decoder dependencies and helper processes are not part of this
+contract; [opening the notification target](#opening-the-notification-target) is its only navigation.
 
 ### Domain model and transitions
 
@@ -97,9 +97,48 @@ installation. A valid changed revision cancels all old automatic candidates and 
 effects; later state transitions use the new profile. Shared preferences enable in-app automatic
 popups and global sound; their default is off. Disable both in Settings to stop automatic delivery.
 
+### Opening the notification target
+
+When a card delivery installs an automatic Agent notification, the card keeps the Agent's target:
+the Workspace, Tab, Panel and Presentation that showed the Agent's exact launch binding in this
+Client's canonical placements when the notification was raised. The target lives only in the Client.
+The wire `Notification` that `notification show` submits stays target-less, so a custom card keeps
+its shield and opens nothing.
+
+A primary click on an Agent card, released on the card, opens its target. So does the configurable
+`open_notification_target` action, default `prefix+o`, whose global action menu row "Open
+notification target" ("打开通知目标") is offered only while an Agent card is current. The key with
+no current Agent card does nothing. All three run through the revalidating navigation of sidebar
+Agent rows ([Main Agent sidebar](machines.md#main-agent-sidebar)): the Session, Tab, Panel,
+Presentation, canonical binding and expected physical host must still match, Workspace and Tab
+switch as needed, and the Panel takes focus. Navigation stays inside the notification's source
+Session and never switches machines.
+
+| Outcome     | Effect                                                                                                                                                                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Opened      | The target was current or its selection was admitted. The card closes and the Agent's current versions are marked seen, as [explicit Agent focus](native-client-attention.md) marks them.                                                                           |
+| Busy        | An earlier selection has not settled. Nothing moves and the card stays, so a later click or key can open it.                                                                                                                                                        |
+| Unavailable | The Panel was closed or removed, its terminal was rebound, or the Session, Workspace or host is unavailable. The card closes, the status line says "This Agent is no longer available" ("这个智能体已不可用"), and nothing else takes focus or replaces the target. |
+
+The Agent card shows the shared pointer feedback: hover takes the hover surface, and a press takes
+the pressed surface with a bold title. It has no tooltip, because TUI pointer tooltips belong to the
+sidebar, Tab strip and pane titles. While an armed prefix, an overlay, captured input or a native
+notice hides the card, it cannot be clicked; the key and the menu row still reach it until the card
+expires. Terminal and system deliveries carry no target. The GUI follows the same rules for its
+browser and Desktop notifications ([Workbench](../../web/docs/workbench.md)).
+
+Clicking a Windows system balloon is follow-up work. The current notification-area path sets no
+callback message. Receiving the balloon's click itself would need no installer, registry or COM
+registration, but the click alone is not enough to open the target. The notification moves to
+Action Center once the icon is released after ten seconds, and a later click there never reaches
+this process. A console Client cannot reliably bring its hosting terminal window forward, because
+the terminal, not the Client, owns that window and foreground rules apply. The click would also need
+a bounded handoff from the notification thread into the UI loop. Each of these needs a design and
+real-window evidence first.
+
 ### Correctness claims and evidence
 
-The owning implementation tests cover baseline/replacement silence, exact Client/identity/sequence/kind deduplication, stale candidate rejection, client-local acknowledgement, mute policy, invalid-reload preservation, valid-reload cancellation and no effect after retirement.
+The owning implementation tests cover baseline/replacement silence, exact Client/identity/sequence/kind deduplication, stale candidate rejection, client-local acknowledgement, mute policy, invalid-reload preservation, valid-reload cancellation, no effect after retirement, and the Tab, Panel and binding a raised notification targets. Opening the target reuses the sidebar Agent navigation and its evidence.
 
 Maintain the concrete witnesses in `crates/workbench-client/src/workbench_client/agent_notifications/tests.rs`, `crates/workbench-client/src/workbench_client/agent_notifications/tests/generated.rs`, `crates/workbench-client/src/notifications/tests.rs`, `src/tui_shell/tests/notification_too_small.rs` and the adjacent state, carrier, input and rendering suites. The actual root-frame resize witness verifies hidden-card effect retention and one-time settlement without requesting OS sound. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

@@ -2030,6 +2030,26 @@ impl InputDispatcher {
                                     }
                                 }
 
+                                // Only the card the press armed opens; a newer card waits for its own.
+                                InteractionTarget::NotificationCard(token)
+                                    if Self::projected_capture(view, port).is_none()
+                                        && view
+                                            .notifications
+                                            .agent_card()
+                                            .is_some_and(|(current, _)| current == token) =>
+                                {
+                                    let transition =
+                                        view.decide_action(ClientAction::OpenNotificationTarget);
+                                    return self.apply_transition(
+                                        view,
+                                        port,
+                                        now,
+                                        transition,
+                                        None,
+                                        after_layout,
+                                        mode,
+                                    );
+                                }
                                 InteractionTarget::TabCloseRequest { source, tab } => {
                                     self.menu_packet = true;
                                     port.surface_action(SurfaceAction::Tabs(
@@ -2347,6 +2367,12 @@ impl InputDispatcher {
             self.cancel_pointer(port);
         }
         let applied = action.clone().and_then(|action| {
+            // Without an Agent card the action has nothing to open and leaves every surface as is.
+            if action == ClientAction::OpenNotificationTarget
+                && view.notifications.agent_card().is_none()
+            {
+                return Some(ClientActionDisposition::KeepNavigator);
+            }
             if action == ClientAction::FocusBusinessSidebar {
                 return if board_action_handoff {
                     port.apply_client_action(action.into())
@@ -2384,6 +2410,8 @@ impl InputDispatcher {
             transition,
             applied.unwrap_or(ClientActionDisposition::KeepNavigator),
         );
+        let opened = action == Some(ClientAction::OpenNotificationTarget)
+            && self.open_notification_target(view, port);
         if action == Some(ClientAction::FocusBusinessSidebar) {
             self.sidebar_packet = true;
             self.keys.capture_pending();
@@ -2454,7 +2482,8 @@ impl InputDispatcher {
         {
             mode(ModeRequest::BracketedPaste(false))?;
         }
-        if layout_changed || applied.is_some_and(ClientActionDisposition::changes_layout) {
+        if layout_changed || opened || applied.is_some_and(ClientActionDisposition::changes_layout)
+        {
             after_layout(view, port)?;
             // Keyboard-driven layout changes stale the map the same way a
             // pointer navigation does.
@@ -2480,6 +2509,34 @@ impl InputDispatcher {
             ShellCommand::None => {}
         }
         Ok(DispatchOutcome::Continue)
+    }
+
+    /// Opens the visible Agent card's target through the revalidating port entry. Returns
+    /// whether the navigation was admitted, which may change the painted layout.
+    fn open_notification_target(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut (impl TerminalInputPort + ?Sized),
+    ) -> bool {
+        use crate::client_view::notifications::TargetOpening;
+
+        let Some((token, target)) = view.notifications.agent_card() else {
+            return false;
+        };
+        let target = target.clone();
+        let opening = port.open_notification_target(&target);
+        if opening == TargetOpening::Busy {
+            // Another navigation is settling; the card stays for the next attempt.
+            return false;
+        }
+        view.notifications.dismiss(token);
+        // The card's cells leave the painted map with it.
+        self.pointer.invalidate_map_with_port(port);
+        if opening == TargetOpening::Unavailable {
+            // A stale target never falls through to another Panel; the notice replaces the card.
+            view.notification_target_unavailable();
+        }
+        opening == TargetOpening::Opened
     }
 
     fn flush_pending(

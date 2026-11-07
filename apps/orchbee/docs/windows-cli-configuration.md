@@ -187,6 +187,10 @@ outcomes. `last_pane` steps back to the last focused Panel in any Tab or Workspa
 `menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
 The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.
 
+`open_notification_target` opens the Agent of the current Agent notification card, default
+`prefix+o`, as the [notification contract](windows-notifications.md#opening-the-notification-target)
+describes. Safe direct chords and disabling use the same registry.
+
 `resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
 `resize_pane_left`, `resize_pane_right`, `resize_pane_up` and `resize_pane_down` are unbound
 by default and accept the same safe chords. They move the nearest eligible divider five percentage
@@ -211,7 +215,7 @@ Apple hosts, Apple modifier symbols. Simplified glyph mode spells `Up`, `Down`, 
 one space. These display rules do not change TOML spelling, normalization, matching or dispatch.
 
 Supported action fields are `help`, `settings`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `close_workspace`, `workspace_picker`,
-`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
+`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `open_notification_target`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_pane`, `rename_pane`, `last_pane`, `clear_terminal`, `edit_scrollback`, `zoom`, `toggle_sidebar` and `reload_config`. They invoke existing native actions;

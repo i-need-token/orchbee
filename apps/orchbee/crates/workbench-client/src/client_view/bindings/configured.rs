@@ -530,6 +530,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "next_workspace" => (A::SelectNextContext, D::SelectContext),
         "previous_agent" => (A::PreviousAgent, D::AgentCycle),
         "next_agent" => (A::NextAgent, D::AgentCycle),
+        "open_notification_target" => (A::OpenNotificationTarget, D::OpenNotificationTarget),
         "focus_agent" => {
             return (
                 PrefixAction::SelectAgentDigit,

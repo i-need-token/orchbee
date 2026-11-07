@@ -176,6 +176,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::Sidebar,
     MenuAction::Navigator,
     MenuAction::AgentBoard,
+    MenuAction::OpenNotificationTarget,
     MenuAction::ReleasePointer,
 ];
 
@@ -222,6 +223,7 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::Sidebar) => PrefixAction::SidebarToggle,
         (T::Global, M::Navigator) => PrefixAction::NavigatorToggle,
         (T::Global, M::AgentBoard) => PrefixAction::BoardToggle,
+        (T::Global, M::OpenNotificationTarget) => PrefixAction::Client(A::OpenNotificationTarget),
         (T::Global, M::ReleasePointer) => PrefixAction::Client(A::TogglePointerCapture),
         (T::Global, M::Detach) => PrefixAction::Client(A::Exit),
         (T::TabCreate(_), M::NewTab) => PrefixAction::Client(A::CreateTab),

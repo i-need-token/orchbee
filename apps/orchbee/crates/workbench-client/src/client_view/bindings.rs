@@ -135,6 +135,13 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     },
     PrefixGroup {
         members: &[member(
+            key(KeyCode::Char('o')),
+            ClientAction::OpenNotificationTarget,
+        )],
+        desc: PrefixDesc::OpenNotificationTarget,
+    },
+    PrefixGroup {
+        members: &[member(
             key(KeyCode::Char('a')),
             ClientAction::RequestWorkspaceCreate,
         )],

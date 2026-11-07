@@ -136,6 +136,27 @@ impl WorkbenchClientUi {
             Admission::Unavailable
         }
     }
+
+    /// Opens the Agent a notification card announced through the same revalidating navigation as
+    /// a sidebar Agent row, never another target. An admitted opening marks that Agent's current
+    /// attention read, as explicit focus does.
+    pub(in crate::workbench_client) fn open_notification_target(
+        &mut self,
+        target: &crate::machine_agents::Target,
+    ) -> crate::client_view::notifications::TargetOpening {
+        use crate::client_view::notifications::TargetOpening;
+
+        match self.navigate_agent(target) {
+            Admission::Current | Admission::Admitted => {
+                self.attention.acknowledge_focused_presentations(
+                    &std::iter::once(target.physical.presentation_id.as_str()).collect(),
+                );
+                TargetOpening::Opened
+            }
+            Admission::Busy => TargetOpening::Busy,
+            Admission::Unavailable => TargetOpening::Unavailable,
+        }
+    }
 }
 
 #[cfg(test)]

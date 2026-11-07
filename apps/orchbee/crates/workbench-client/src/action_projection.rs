@@ -266,6 +266,9 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::OpenMachines) => {
             built_in("orchbee.native.machines.open", C::Navigation, NONE)
         }
+        PrefixAction::Client(A::OpenNotificationTarget) => {
+            built_in("orchbee.native.notification.target.open", C::Agent, AGENT)
+        }
         PrefixAction::Client(A::PreviousAgent | A::NextAgent) => built_in(
             "orchbee.native.agent.select",
             C::Agent,
@@ -494,6 +497,9 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             NAVIGATOR,
         ),
         A::AgentBoard => built_in("orchbee.native.agent-board.toggle", C::Agent, AGENT),
+        A::OpenNotificationTarget => {
+            built_in("orchbee.native.notification.target.open", C::Agent, AGENT)
+        }
         A::ReleasePointer => built_in("orchbee.native.pointer-capture.toggle", C::Input, MOUSE),
         A::Detach => built_in("orchbee.native.window.detach", C::Client, DETACH),
     };
