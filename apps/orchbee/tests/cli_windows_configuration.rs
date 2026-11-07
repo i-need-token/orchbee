@@ -290,6 +290,7 @@ fn generated_default_config_passes_the_offline_config_check() {
     let generated = std::fs::read_to_string(&config).unwrap();
     let actions = orchbee_local_runtime::KeySettings::registered_actions();
     let mut uncommented = String::new();
+    let mut unbound = Vec::new();
     for line in generated.lines() {
         let action_line = line.strip_prefix("# ").filter(|candidate| {
             actions.iter().any(|action| {
@@ -297,6 +298,9 @@ fn generated_default_config_passes_the_offline_config_check() {
                 candidate.starts_with(prefix.as_str())
             })
         });
+        if let Some(action) = action_line.and_then(|line| line.strip_suffix(" = []")) {
+            unbound.push(action.to_owned());
+        }
         uncommented.push_str(action_line.unwrap_or(line));
         uncommented.push('\n');
     }
@@ -306,20 +310,16 @@ fn generated_default_config_passes_the_offline_config_check() {
     assert_eq!(user_config["status"], "warning");
     assert_eq!(user_config["details"]["keyOverrides"], json!(actions.len()));
     assert_eq!(user_config["details"]["diagnosticsOmitted"], 0);
+    // Each uncommented action without a default binding is the one warning it causes.
+    assert!(!unbound.is_empty());
     assert_eq!(
         user_config["details"]["diagnostics"]
             .as_array()
             .unwrap()
             .len(),
-        5
+        unbound.len()
     );
-    for action in [
-        "focus_agent",
-        "resize_pane_down",
-        "resize_pane_left",
-        "resize_pane_right",
-        "resize_pane_up",
-    ] {
+    for action in &unbound {
         assert_warning_diagnostic(
             &document,
             &format!("keys.{action}"),
