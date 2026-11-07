@@ -764,7 +764,7 @@ impl Theme {
             && !style.add_modifier.contains(Modifier::REVERSED))
         .then_some(style.bg)
         .flatten()
-        .filter(|color| *color != Color::Reset && Some(*color) != self.styles.surface_chrome.bg)
+        .filter(|color| *color != Color::Reset)
     }
 
     /// Whether form fields paint their own `surface-field` band. Without one, as in

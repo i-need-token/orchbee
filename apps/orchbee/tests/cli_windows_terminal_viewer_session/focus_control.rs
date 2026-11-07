@@ -12,6 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+// The state-color probe locates this text beside the provider in the 30-column sidebar; it must
+// remain unique and fit there after terminal titles replace the initial Panel-header label.
+const STATE_ROW_LABEL: &str = "job";
+
 fn read(fixture: &Fixture, terminal: &str) -> Value {
     let read = fixture.run(&["terminal", "read", terminal, "--source", "visible"]);
     assert_eq!(read.code, Some(0), "{read}");
@@ -217,7 +221,7 @@ fn attention(fixture: &Fixture, tui: &Tui, panel: &str, seen: bool) {
 }
 
 fn agent_color(fixture: &Fixture, tui: &Tui) -> Option<Vec<u16>> {
-    fixture.state_color(&tui.terminal, "decision-panel")
+    fixture.state_color(&tui.terminal, STATE_ROW_LABEL)
 }
 
 #[test]
@@ -231,7 +235,7 @@ fn a_visible_split_stays_unread_until_focused_and_completion_survives_viewing_un
         "--direction",
         "right",
         "--label",
-        "decision-panel",
+        STATE_ROW_LABEL,
         "--no-focus",
     ]);
     assert_eq!(split.code, Some(0), "{split}");

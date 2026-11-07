@@ -70,28 +70,39 @@ attachment, and total deadline once, at admission; nothing may silently renumber
 
 Close `Accepted` removes the leaf from the drawn layout at once, as a Tab close does. The drawn
 tree collapses the leaf onto its sibling, the shape the canonical removal yields; the cached tree
-and revision keep the leaf until a canonical publication removes it. When the focus was on the
-closed Panel, the focus moves to the survivor the canonical install would choose: the overlay
-return Panel when one applies, else the closed Panel's ordinal clamped to the surviving leaves.
-Zoom on the closed Panel drops with it. The focus move attaches nothing new, because the survivor
-must already have a live viewer or be unbound. The accepted record ends when a canonical
-publication removes the leaf; a publication that still carries the leaf keeps it hidden, with the
-tree re-derived from that publication. When the survivor has no live or unbound pane, the focus
-does not move and the leaf keeps drawing until publication removes it. Refused and
-`confirmation-required` results never start this overlay. The canonical install releases the
-closed Panel's attachment, as before.
+and revision keep the leaf until a canonical publication removes it. Several accepted closes may be
+on their way at once, in one Tab or in several: each keeps its own leaf out until its own close
+settles, whatever the others do and in whichever order they settle, and the drawn tree collapses
+every leaving leaf. When the focus was on the closed Panel, the focus moves to the survivor the
+canonical install would choose among the Panels the Tab still draws: the overlay return Panel when
+one applies, else the closed Panel's ordinal clamped to those Panels. Zoom on the closed Panel
+drops with it. The focus move attaches nothing new, because the survivor must already have a live
+viewer or be unbound. Each leaving leaf ends when a canonical publication removes it; a publication
+that still carries it keeps it hidden, with the tree re-derived from that publication. When the
+survivor has no live or unbound pane, the focus does not move and the leaf keeps drawing until
+publication removes it. Refused and `confirmation-required` results never start this overlay. The
+canonical install releases the closed Panel's attachment, as before.
+
+When the closes leave no Panel of a Tab to draw, the Tab leaves with them, as in the GUI and as the
+close of its last Panel does: it leaves the strip and sidebar, holds its attachments' input and
+effects, and the selection moves to the next Tab still shown, else the previous one; without one,
+the Panel reads as the empty Workbench. The last Panel to leave keeps the focus as the Tab's last
+frame. A close among them that stops shows the Tab again with that Panel, unselected when the
+selection moved; a focus left on a leaving Panel moves to the Panel shown again, and a later switch
+to the Tab lands on a Panel it draws.
 
 From its acceptance the close is retained and followed by its operation,
 `workbench.close-operation.read`, under the read pacing of a retained Tab close
 ([close status](native-tab-close-sets.md#close-status)); nothing is sent again. A read that sees
 the close `Closed` ends the follow silently, and the leaf stays hidden until the publication
 removes it. A close that stops (blocked, outcome unknown, its observation lost, or the Server
-holding no such close) shows the Panel again with its report on the status line, and the focus
-stays on the survivor. The report names the Panel, a disposed close reads `Execution ended;
+holding no such close) shows only its own Panel again, with its report on the status line, and the
+focus stays on the survivor. The report names the Panel, a disposed close reads `Execution ended;
 awaiting Panel removal`, and it offers no Resume, as in the GUI. A later read that finds the close
 progressing again leaves the Panel drawn. The publication that removes the Panel ends its follow,
-whatever the last read said. Between its reads the follow holds no navigation or structure, and
-its reads never refuse the Tab's other Panels: their input, attachment and effects carry on. A
+whatever the last read said. Retained Panel closes share the one-at-a-time read pacing, so more of
+them never read more often. Between their reads the follows hold no navigation or structure, and
+their reads never refuse the Tab's other Panels: their input, attachment and effects carry on. A
 Panel that already holds a retained close keeps that record and its report and keeps drawing; a
 close that cannot be retained starts no overlay, and the leaf keeps drawing until publication
 removes it.
@@ -103,15 +114,17 @@ shown, else the previous one, and the close is read, reported and offered for Re
 accepted Tab close is ([close status](native-tab-close-sets.md#close-status)). A close that stops
 or loses its observation shows the Tab again with its report and leaves the selection where it
 moved. A Tab that already holds a retained close keeps that record, and its last Panel keeps
-drawing until publication removes it.
+drawing until publication removes it. Which Panel is last follows the cached canonical tree: while
+other Panels of the Tab are still leaving, the Server closes the last drawn one as a Panel too, and
+the Tab leaves with all of them as above.
 
 ## Invariants and temporal rules
 
 The single-operation implementation contract requires one selected attachment per operation; exact request/serial/baseline correlation; structural exclusion while a panel flight freezes its baseline; and retention of every known committed fact. Invalid grafts must not apply. A legal superseding leaf removal repairs membership instead of fabricating divergence.
 
-Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance changes only the drawn layout and, when the closed Panel was focused, the
-selection, and starts the retained follow of the close: of its Panel, or for a Tab's last Panel of
-its Tab; the cached canonical tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
+Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance changes only the drawn layout, with the strip once no Panel of the Tab is left to
+draw, and, when the closed Panel was focused, the selection, and starts the retained follow of the
+close: of its Panel, or for a Tab's last Panel of its Tab; the cached canonical tree and revision wait for publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
 
 These operation-specific traces do not claim exhaustive TLC progress. The retained pane collection core below checks the shared identity and cleanup protocol separately.
 

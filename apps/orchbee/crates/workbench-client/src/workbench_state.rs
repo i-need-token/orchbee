@@ -1337,9 +1337,10 @@ pub(crate) struct WorkbenchClientState {
     /// Never wired, shared between Clients, or persisted; bounded by the
     /// same navigation retention the context snapshots already obey.
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
-    /// A Panel the Server accepted closing, which the Client has stopped drawing; see
-    /// `panel_close::PanelLeaving`.
-    panel_leaving: Option<panel_close::PanelLeaving>,
+    /// The Panels the Server accepted closing and the Client has stopped drawing, at most one entry
+    /// per Tab and each Panel until its own close settles; see `panel_close::PanelsLeaving`.
+    /// Bounded by the cached Panels, since an install drops every Panel it no longer holds.
+    panel_leaving: Vec<panel_close::PanelsLeaving>,
     plugin_overlays: Vec<plugin_overlays::Overlay>,
 }
 
@@ -1481,7 +1482,7 @@ impl WorkbenchClientState {
             pending_membership: None,
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
-            panel_leaving: None,
+            panel_leaving: Vec::new(),
             plugin_overlays: Vec::new(),
         }
     }
@@ -1944,9 +1945,9 @@ impl WorkbenchClientState {
         // it: the drawn layout hides it, but its pane record departs only with that publication.
         let leaving = self
             .panel_leaving
-            .as_ref()
+            .iter()
             .filter(|leaving| leaving.tab_id == *anchor.tab_id())
-            .map(|leaving| &leaving.panel_id);
+            .flat_map(|leaving| &leaving.panel_ids);
         let leaf_ids: std::collections::BTreeSet<&WorkbenchPanelId> = leaves
             .iter()
             .map(|(panel_id, _, _)| panel_id)
@@ -3582,9 +3583,11 @@ impl WorkbenchClientState {
         }
         let provenance = self.provenance.get(index)?.clone();
         let tab = self.cache.tabs().get(index)?;
-        let panel_index = self
-            .navigation_memory
-            .panel_index(self.cache.location(), tab);
+        let panel_index = self.drawn_panel_index(
+            tab,
+            self.navigation_memory
+                .panel_index(self.cache.location(), tab),
+        );
         let panel = tab.panel(panel_index)?;
         let pane = PaneKey::new(key, panel.panel_id().clone());
         self.attach_target(
@@ -4356,9 +4359,10 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.cache.tabs().len()
     }
 
-    /// Whether this Tab's close is progressing normally, so the strip already leaves it out.
+    /// Whether this Tab's close, or the close of every Panel it holds, is progressing normally, so
+    /// the strip already leaves it out.
     pub(crate) fn tab_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
-        self.state.close.tab_leaving(tab_id)
+        self.state.tab_leaving(tab_id)
     }
 
     /// Whether the selected Tab is leaving with no other Tab shown for the selection to follow.

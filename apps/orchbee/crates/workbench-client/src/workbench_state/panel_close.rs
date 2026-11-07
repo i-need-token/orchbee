@@ -426,33 +426,89 @@ impl<'a> super::WorkbenchClientView<'a> {
     }
 }
 
-/// A Panel whose close the Server accepted and that the Client has stopped drawing. The leaf
-/// leaves at acceptance, as a Tab does. The canonical publication that removes it clears this
-/// record; an install that still carries the leaf keeps the record with a refreshed tree.
+/// The Panels of one Tab whose closes the Server accepted and that the Client has stopped drawing.
+/// Each leaf leaves at its own acceptance, as a Tab does, and stays out until its own close
+/// settles, whatever the other closes do: a stop shows it again, and the canonical publication that
+/// removes it ends its place here. An install that still carries a leaving Panel keeps it, with the
+/// tree re-derived from that install.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PanelLeaving {
+pub(crate) struct PanelsLeaving {
     pub(super) tab_id: WorkbenchTabId,
-    pub(super) panel_id: WorkbenchPanelId,
+    /// The leaving Panels in acceptance order; never empty.
+    pub(super) panel_ids: Vec<WorkbenchPanelId>,
+    /// The Tab's tree with every leaving leaf collapsed onto its sibling. When every leaf leaves,
+    /// the last one accepted stays in it as the Tab's last frame while the Tab itself leaves.
     pub(super) tree: ClientPanelTree,
 }
 
+/// The tree `tab` draws while the Panels `leaving` names leave with their accepted closes.
+fn leaving_tree(tab: &ClientTab, leaving: &[WorkbenchPanelId]) -> ClientPanelTree {
+    leaving
+        .iter()
+        .fold(tab.panel_tree().clone(), |tree, panel_id| {
+            tab.panel_index(panel_id)
+                .and_then(|index| tree.without_leaf(index))
+                .unwrap_or(tree)
+        })
+}
+
 impl WorkbenchClientState {
-    /// The Panel tree a Tab draws. A cached Tab with a leaving Panel draws its tree with that leaf
-    /// collapsed; any other Tab, including a candidate Tab that shares the identifier, draws its own.
+    /// The Panel tree a Tab draws. A cached Tab with leaving Panels draws its tree with those
+    /// leaves collapsed; any other Tab, including a candidate Tab that shares the identifier, draws
+    /// its own.
     pub(crate) fn display_panel_tree<'s>(&'s self, tab: &'s ClientTab) -> &'s ClientPanelTree {
-        let Some(leaving) = self.panel_leaving.as_ref() else {
-            return tab.panel_tree();
-        };
         let cached = self
             .cache
             .tabs()
             .iter()
             .any(|cached| std::ptr::eq(cached, tab));
-        if cached && leaving.tab_id == *tab.tab_id() {
-            &leaving.tree
-        } else {
-            tab.panel_tree()
+        self.panel_leaving
+            .iter()
+            .find(|leaving| cached && leaving.tab_id == *tab.tab_id())
+            .map_or(tab.panel_tree(), |leaving| &leaving.tree)
+    }
+
+    /// Whether this Panel of the cached Tab is leaving with its accepted close.
+    fn panel_leaves(&self, tab_id: &WorkbenchTabId, panel_id: &WorkbenchPanelId) -> bool {
+        self.panel_leaving
+            .iter()
+            .any(|leaving| leaving.tab_id == *tab_id && leaving.panel_ids.contains(panel_id))
+    }
+
+    /// Whether every Panel the cached Tab holds is leaving with its accepted close. The Tab then
+    /// leaves the Client's view with them, as with a close of its own and as in the GUI.
+    pub(crate) fn every_panel_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        let Some(leaving) = self
+            .panel_leaving
+            .iter()
+            .find(|leaving| leaving.tab_id == *tab_id)
+        else {
+            return false;
+        };
+        self.cache
+            .tab_index(tab_id)
+            .and_then(|index| self.cache.tabs().get(index))
+            .is_some_and(|tab| {
+                (0..tab.panel_count())
+                    .filter_map(|index| tab.panel(index))
+                    .all(|panel| leaving.panel_ids.contains(panel.panel_id()))
+            })
+    }
+
+    /// The Panel a switch to the cached `tab` lands on: the remembered `index`, unless that Panel
+    /// is leaving with its accepted close; then the first leaf the Tab still draws.
+    pub(super) fn drawn_panel_index(&self, tab: &ClientTab, index: usize) -> usize {
+        if tab
+            .panel(index)
+            .is_none_or(|panel| !self.panel_leaves(tab.tab_id(), panel.panel_id()))
+        {
+            return index;
         }
+        self.display_panel_tree(tab)
+            .leaf_panel_indices()
+            .first()
+            .copied()
+            .unwrap_or(index)
     }
 
     /// Starts drawing what an accepted Panel close removes as gone. A Tab's last Panel takes its
@@ -495,117 +551,203 @@ impl WorkbenchClientState {
         }
     }
 
-    /// Shows the leaving Panel again once its retained close stopped, with the close's report. The
-    /// focus stays where the acceptance moved it.
-    pub(super) fn reveal_stopped_panel_close(&mut self) {
-        let Some(leaving) = &self.panel_leaving else {
-            return;
-        };
+    /// Shows each leaving Panel again whose retained close stopped, with the close's report, and
+    /// keeps every other leaving Panel out. The focus stays where each acceptance moved it; only a
+    /// focus left on a leaving Panel, because every Panel of its Tab was leaving, moves to a Panel
+    /// the Tab draws again.
+    pub(super) fn reveal_stopped_panel_closes(&mut self) {
         let Some(terminal_context_id) = self.cache.terminal_context_id() else {
             return;
         };
-        let target = CloseTarget::panel(
-            self.cache.session_id().clone(),
-            terminal_context_id.clone(),
-            leaving.tab_id.clone(),
-            leaving.panel_id.clone(),
-        );
-        if self.close.panel_close_stopped(&target) == Some(true) {
-            self.panel_leaving = None;
+        let session_id = self.cache.session_id();
+        let close = &self.close;
+        let mut revealed = false;
+        for leaving in &mut self.panel_leaving {
+            let before = leaving.panel_ids.len();
+            leaving.panel_ids.retain(|panel_id| {
+                let target = CloseTarget::panel(
+                    session_id.clone(),
+                    terminal_context_id.clone(),
+                    leaving.tab_id.clone(),
+                    panel_id.clone(),
+                );
+                close.panel_close_stopped(&target) != Some(true)
+            });
+            revealed |= leaving.panel_ids.len() != before;
+        }
+        if revealed {
+            self.panel_leaving
+                .retain(|leaving| !leaving.panel_ids.is_empty());
+            self.rederive_leaving_trees();
+            self.move_focus_off_leaving_panel();
         }
     }
 
-    /// Starts drawing a Panel as gone once the Server accepted its close. When the focus is on that
-    /// Panel it moves first to the survivor the canonical install would choose, so the publication
-    /// confirms the leaf the user already sees. Without a live survivor the leaf keeps drawing until
-    /// the publication removes it.
+    /// Starts drawing a Panel as gone once the Server accepted its close, beside every other Panel
+    /// still leaving with its own. When the focus is on that Panel it moves first to the survivor
+    /// the canonical install would choose among the Panels the Tab still draws, so the publication
+    /// confirms the leaf the user already sees. When the Tab draws no other Panel, the Tab leaves
+    /// with this one, which keeps the focus as the Tab's last frame. Without a live survivor the
+    /// leaf keeps drawing until the publication removes it.
     fn begin_panel_leaving(&mut self, tab_id: &WorkbenchTabId, panel_id: &WorkbenchPanelId) {
         let Some(index) = self.cache.tab_index(tab_id) else {
             return;
         };
-        let Some(tab) = self.cache.tabs().get(index) else {
-            return;
-        };
-        let Some(panel_index) = tab.panel_index(panel_id) else {
-            return;
-        };
-        let Some(tree) = tab.panel_tree().without_leaf(panel_index) else {
+        let Some(panel_index) = self
+            .cache
+            .tabs()
+            .get(index)
+            .and_then(|tab| tab.panel_index(panel_id))
+        else {
             return;
         };
         let focused_here = self.active().is_some_and(|active| active.index() == index)
             && self.focus_panel_id() == Some(panel_id);
-        if focused_here {
-            let Some(survivor) = self.leaving_survivor(tab, panel_index, panel_id) else {
-                return;
-            };
-            let Some(pane) = self.plan_panel_focus_local_at(&survivor) else {
-                return;
-            };
-            // Zoom follows the focused Panel, so it is read before the focus leaves that Panel.
-            let zoomed_here = self
-                .zoomed_panels()
-                .iter()
-                .any(|(zoomed_tab, zoomed_panel)| zoomed_tab == tab_id && zoomed_panel == panel_id);
-            if !self.move_panel_focus_local(pane) {
-                return;
-            }
-            if zoomed_here {
-                self.zoomed_tabs.remove(tab_id);
-            }
+        if focused_here && !self.move_focus_off_leaving(index, panel_index, panel_id) {
+            return;
         }
-        self.panel_leaving = Some(PanelLeaving {
-            tab_id: tab_id.clone(),
-            panel_id: panel_id.clone(),
-            tree,
-        });
+        match self
+            .panel_leaving
+            .iter_mut()
+            .find(|leaving| leaving.tab_id == *tab_id)
+        {
+            Some(leaving) if leaving.panel_ids.contains(panel_id) => return,
+            Some(leaving) => leaving.panel_ids.push(panel_id.clone()),
+            None => self.panel_leaving.push(PanelsLeaving {
+                tab_id: tab_id.clone(),
+                panel_ids: vec![panel_id.clone()],
+                tree: ClientPanelTree::Panel { panel_index },
+            }),
+        }
+        self.rederive_leaving_trees();
     }
 
-    /// The leaf that takes the focus when the focused Panel leaves: the overlay return Panel when
-    /// one applies, else the vanished leaf ordinal clamped to the surviving leaves. That is the
-    /// stand-in the canonical install applies to a vanished selection.
+    /// Moves the focus off the leaving Panel `panel_id` of the selected Tab at `index` onto its
+    /// survivor among the Panels the Tab still draws, and drops a zoom on the leaving Panel. True
+    /// when the focus may rest where it ends: on the survivor, or on the leaving Panel when the Tab
+    /// draws no other. False when the survivor cannot take the focus now.
+    fn move_focus_off_leaving(
+        &mut self,
+        index: usize,
+        panel_index: usize,
+        panel_id: &WorkbenchPanelId,
+    ) -> bool {
+        let Some(tab) = self.cache.tabs().get(index) else {
+            return false;
+        };
+        let tab_id = tab.tab_id().clone();
+        let Some(survivor) = self.leaving_survivor(tab, panel_index, panel_id) else {
+            return true;
+        };
+        let Some(pane) = self.plan_panel_focus_local_at(&survivor) else {
+            return false;
+        };
+        // Zoom follows the focused Panel, so it is read before the focus leaves that Panel.
+        let zoomed_here = self
+            .zoomed_panels()
+            .iter()
+            .any(|(zoomed_tab, zoomed_panel)| *zoomed_tab == tab_id && zoomed_panel == panel_id);
+        if !self.move_panel_focus_local(pane) {
+            return false;
+        }
+        if zoomed_here {
+            self.zoomed_tabs.remove(&tab_id);
+        }
+        true
+    }
+
+    /// Moves a focus left on a leaving Panel, because every Panel of its Tab was leaving, to a
+    /// Panel the Tab draws again.
+    fn move_focus_off_leaving_panel(&mut self) {
+        let Some(index) = self.active().map(super::SelectedTab::index) else {
+            return;
+        };
+        let Some(focus) = self.focus_panel_id().cloned() else {
+            return;
+        };
+        let Some((tab_id, panel_index)) = self
+            .cache
+            .tabs()
+            .get(index)
+            .and_then(|tab| Some((tab.tab_id().clone(), tab.panel_index(&focus)?)))
+        else {
+            return;
+        };
+        if self.panel_leaves(&tab_id, &focus) && !self.every_panel_leaving(&tab_id) {
+            self.move_focus_off_leaving(index, panel_index, &focus);
+        }
+    }
+
+    /// The leaf that takes the focus when the focused Panel leaves, among the Panels its Tab still
+    /// draws: the overlay return Panel when one applies, else the vanished leaf's place clamped to
+    /// those Panels. That is the stand-in the canonical install applies to a vanished selection.
+    /// `None` when the Tab draws no other Panel.
     fn leaving_survivor(
         &self,
         tab: &ClientTab,
         removed_index: usize,
         removed: &WorkbenchPanelId,
     ) -> Option<WorkbenchPanelId> {
-        let surviving = tab.panel_count().checked_sub(1)?;
-        let index = match self.overlay_return_index(tab, removed) {
-            Some(index) if index != removed_index => index,
-            _ => {
-                let ordinal = removed_index.min(surviving.saturating_sub(1));
-                if ordinal < removed_index {
-                    ordinal
-                } else {
-                    ordinal + 1
-                }
+        let drawn = |index: &usize| {
+            *index != removed_index
+                && tab
+                    .panel(*index)
+                    .is_some_and(|panel| !self.panel_leaves(tab.tab_id(), panel.panel_id()))
+        };
+        let index = match self
+            .overlay_return_index(tab, removed)
+            .filter(|index| drawn(index))
+        {
+            Some(index) => index,
+            None => {
+                let surviving: Vec<usize> = (0..tab.panel_count())
+                    .filter(|index| drawn(index))
+                    .collect();
+                let place = surviving
+                    .iter()
+                    .take_while(|index| **index < removed_index)
+                    .count();
+                *surviving.get(place.min(surviving.len().checked_sub(1)?))?
             }
         };
         tab.panel(index).map(|panel| panel.panel_id().clone())
     }
 
-    /// Keeps the leaving record only while the candidate still holds that Panel in the same
-    /// Context, and re-derives the drawn tree from the candidate. Once the publication removes the
-    /// leaf, the record ends, and so does the follow of every Panel close whose Panel it removed.
+    /// Re-derives the drawn tree of each Tab with leaving Panels from the cached Tab.
+    fn rederive_leaving_trees(&mut self) {
+        let cache = &self.cache;
+        for leaving in &mut self.panel_leaving {
+            if let Some(tab) = cache
+                .tab_index(&leaving.tab_id)
+                .and_then(|index| cache.tabs().get(index))
+            {
+                leaving.tree = leaving_tree(tab, &leaving.panel_ids);
+            }
+        }
+    }
+
+    /// Keeps each leaving Panel only while the candidate still holds it in the same Context, and
+    /// re-derives the drawn trees from the candidate. Once the publication removes a leaf, its
+    /// place here ends, and so does the follow of every Panel close whose Panel it removed.
     pub(crate) fn refresh_panel_leaving(&mut self, candidate: &ClientContextTabs) {
         self.close
             .prune_departed_panel_closes(|target| super::tab_close::panel_drawn(candidate, target));
-        let Some(leaving) = self.panel_leaving.take() else {
-            return;
-        };
+        let leaving = std::mem::take(&mut self.panel_leaving);
         if candidate.location() != self.cache.location() {
             return;
         }
-        let Some(tree) = candidate
-            .tab_index(&leaving.tab_id)
-            .and_then(|index| candidate.tabs().get(index))
-            .and_then(|tab| {
-                tab.panel_index(&leaving.panel_id)
-                    .and_then(|panel_index| tab.panel_tree().without_leaf(panel_index))
+        self.panel_leaving = leaving
+            .into_iter()
+            .filter_map(|mut leaving| {
+                let tab = candidate
+                    .tab_index(&leaving.tab_id)
+                    .and_then(|index| candidate.tabs().get(index))?;
+                leaving
+                    .panel_ids
+                    .retain(|panel_id| tab.panel_index(panel_id).is_some());
+                leaving.tree = leaving_tree(tab, &leaving.panel_ids);
+                (!leaving.panel_ids.is_empty()).then_some(leaving)
             })
-        else {
-            return;
-        };
-        self.panel_leaving = Some(PanelLeaving { tree, ..leaving });
+            .collect();
     }
 }

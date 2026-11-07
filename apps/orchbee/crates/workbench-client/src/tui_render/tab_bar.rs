@@ -200,10 +200,11 @@ pub(super) fn render(
     let end_width =
         |text: &str| 2 + 2 * pad + u16::try_from(display_width(text)).unwrap_or(u16::MAX);
     let room = |end: u16| {
-        bar.right()
-            .saturating_sub(from)
-            .saturating_sub(pad + end + pad + closed)
-            .saturating_sub(2 * GAP)
+        centered_width(
+            bar,
+            from,
+            bar.right().saturating_sub(pad + end + pad + closed),
+        )
     };
     let word = room(end_width(&named)).saturating_sub(NAME_RESERVE) >= MINIMUM_NAME_CELLS;
     let end_text = if word { &named } else { &count_text };
@@ -393,10 +394,11 @@ fn paint_title(
         halos.fill(theme, band, Some(Role::SurfacePressed));
     }
     let mut cut = None;
-    if let Some(current) = current {
+    // Reserve both buttons' larger inset on both sides before truncating, so a long name never
+    // has to move away from the whole bar's center to keep its gap from a button.
+    let maximum = centered_width(row, title.x, title.right());
+    if let Some(current) = current.filter(|_| maximum > 0) {
         let working_frame = view.machines.working_frame();
-        let lo = title.x + GAP;
-        let hi = title.right().saturating_sub(1 + GAP);
         let glyph = current
             .agent
             .map(|agent| state_glyph(agent.state, theme, working_frame));
@@ -409,16 +411,15 @@ fn paint_title(
                 0
             };
         let full = sanitize_terminal_text(&current.label);
-        let room = usize::from((hi + 1).saturating_sub(lo))
-            .saturating_sub(fixed)
-            .max(1);
+        let room = usize::from(maximum).saturating_sub(fixed);
         let name = truncate_display(&full, room, theme.glyphs.ellipsis);
         if name != full {
             cut = Some(full.into_owned());
         }
-        let width = u16::try_from(fixed + display_width(&name)).unwrap_or(u16::MAX);
-        let centered = row.x + row.width.saturating_sub(width) / 2;
-        let x = centered.min((hi + 1).saturating_sub(width)).max(lo);
+        let width = u16::try_from(fixed + display_width(&name))
+            .unwrap_or(u16::MAX)
+            .min(maximum);
+        let x = row.x + row.width.saturating_sub(width) / 2;
         let band = Rect::new(x, row.y, width, 1).intersection(title);
         let fill = if pressed {
             Role::SurfacePressed
@@ -491,3 +492,15 @@ fn paint_title(
     }
     hits.record_interaction(HitLayer::Foreground, title, title, open_target(), spec());
 }
+
+/// The centered fill's maximum width inside the buttons' bounds, including their blank gap.
+fn centered_width(bar: Rect, left: u16, right: u16) -> u16 {
+    let margin = left
+        .saturating_sub(bar.x)
+        .max(bar.right().saturating_sub(right))
+        .saturating_add(GAP);
+    bar.width.saturating_sub(margin.saturating_mul(2))
+}
+
+#[cfg(test)]
+mod tests;

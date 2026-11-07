@@ -736,15 +736,18 @@ the two never show together.
 
 Below 60 columns the top strip shows only the current Tab. From 24 rows the bar takes three rows,
 its content row in the middle and a touch line above and below it; from 12 rows it is one row;
-under 12 rows there is no bar. At 60 columns and wider the strip is unchanged.
+under 12 rows there is no bar. Under a named color theme, the track and current or interaction
+fills extend half a cell onto each touch line, giving the whole bar the same two-cell visual
+height. At 60 columns and wider the strip is unchanged.
 
 - `[ » ]` leads the content row while the sidebar can open, as the
   [show toggle](#sidebar-toggle-and-help), and opens the [list screen](#mobile-sidebar-list).
 - `[ Tabs 8 ]` (`[ 标签页 8 ]`) ends it, the count in the secondary text color, and opens the
-  [Tab list](#tab-list). When the word would leave the current Tab fewer than 8 name cells, about
-  35 columns with the toggle, the button shows only the count, `[ 8 ]`.
+  [Tab list](#tab-list). When keeping the word would leave the centered current Tab fewer than 8
+  name cells, the button shows only the count, `[ 8 ]`.
 - The current Tab, with its state glyph and unread dot, is centered on the whole bar in the bold
-  current fill. Its fill keeps at least 3 blank cells from each button, and a name that does not fit
+  current fill. Its fill keeps at least 3 blank cells from each button; the wider button constrains
+  both sides of the title so truncation preserves the whole-bar center. A name that does not fit
   ends in `…` and shows in full in the pointer tooltip. While a new Workspace replaces the content,
   the bar shows its pending Tab and a count of 1.
 

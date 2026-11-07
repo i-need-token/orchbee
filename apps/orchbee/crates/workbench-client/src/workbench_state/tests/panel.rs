@@ -16,9 +16,10 @@ use crate::workbench_state::{CloseOperationKind, CloseReadMode, CloseResult, Clo
 use orchbee_workbench_protocol::{
     WorkbenchCommandUnavailableReason, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
     WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus,
-    WorkbenchTabMoveDirection,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
+    WorkbenchTabCloseStatus, WorkbenchTabMoveDirection,
 };
+use std::collections::BTreeSet;
 
 fn plan(state: &WorkbenchClientState, request: u128, kind: PanelRequestKind) -> PanelOperation {
     state
@@ -1758,6 +1759,255 @@ fn accepted_panel_close_that_stops_shows_the_panel_again_with_its_report() {
         }
         assert_ne!(state.focus_panel_id(), Some(&closing));
     }
+}
+
+/// Brings `panel` of the selected Tab to a live attachment, which a local focus move onto it needs.
+fn attach_panel(state: &mut WorkbenchClientState, panel: &WorkbenchPanelId) {
+    let index = state.active().unwrap().index();
+    let panel_index = state.tab(index).unwrap().panel_index(panel).unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel.clone());
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), index, panel_index));
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+    assert!(state.record_setup_configuration_t(&pane_ref, controlling(), Some(geometry(80))));
+}
+
+/// Closes the focused Panel through a close the Server accepts, and returns that Panel.
+fn accept_focused_panel_close(state: &mut WorkbenchClientState, request: u128) -> WorkbenchPanelId {
+    let operation = plan(state, request, PanelRequestKind::Close);
+    assert!(state.begin_panel(operation.clone()));
+    let accepted = WorkbenchPanelCloseAccepted {
+        close_request_id: WorkbenchRequestId::parse(&id(request)).unwrap(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
+        tab_id: operation.target().tab_id().clone(),
+        panel_id: operation.panel_id().clone(),
+        accepted_revision: WorkbenchRevision::new(1),
+    };
+    let prepared = state.prepare_panel(&operation, PanelResult::CloseAccepted(accepted));
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+    operation.panel_id().clone()
+}
+
+/// Answers the next status read of a retained close with the status `answer` gives the Panel it
+/// reads, and returns that Panel.
+fn answer_next_panel_close_read(
+    state: &mut WorkbenchClientState,
+    request: u128,
+    at: Instant,
+    answer: impl Fn(&WorkbenchPanelId) -> WorkbenchTabCloseStatus,
+) -> WorkbenchPanelId {
+    let read = state
+        .plan_close_read(
+            WorkbenchRequestId::parse(&id(request)).unwrap(),
+            at + OPERATION_TOTAL,
+            at,
+        )
+        .unwrap();
+    let CloseOperationKind::Read {
+        expected_operation: Some(close_request_id),
+        ..
+    } = read.kind().clone()
+    else {
+        panic!("an accepted Panel close is read by its operation");
+    };
+    let target = read.key().target().clone();
+    let panel = target.panel_id().expect("a Panel close").clone();
+    state.begin_close_exchange(&read, at).unwrap();
+    state
+        .settle_close_exchange(
+            &read,
+            &CloseResult::Read(
+                orchbee_workbench_protocol::WorkbenchTabCloseReadOutcome::Available {
+                    close_request_id,
+                    terminal_context_id: target.terminal_context_id().clone(),
+                    tab_id: target.tab_id().clone(),
+                    attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                    status: answer(&panel),
+                },
+            ),
+        )
+        .unwrap();
+    panel
+}
+
+/// The Panels the first Tab draws.
+fn drawn_panels(state: &WorkbenchClientState) -> BTreeSet<WorkbenchPanelId> {
+    let tab = &state.cache().tabs()[0];
+    state
+        .display_panel_tree(tab)
+        .leaf_panel_indices()
+        .into_iter()
+        .filter_map(|index| tab.panel(index))
+        .map(|panel| panel.panel_id().clone())
+        .collect()
+}
+
+/// Installs the Server's publication of `snapshot`.
+fn publish(state: &mut WorkbenchClientState, snapshot: Snapshot) {
+    assert!(state.start_pending_refresh(7));
+    let prepared = state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot });
+    assert_eq!(
+        state.apply_prepared_refresh(prepared, Instant::now()),
+        RefreshDecision::Continue
+    );
+}
+
+const CLOSE_READ_SPACING: Duration = Duration::from_millis(300);
+
+/// Regression: the Client hid one accepted closing Panel at a time, so the acceptance of a second
+/// close showed the first Panel again until a publication removed it. Every accepted Panel close
+/// still on its way now keeps its own Panel out until its own settlement, in whichever order the
+/// settlements arrive: a close that completes keeps its Panel out until the publication removes
+/// it, and one that stops shows only its own Panel again, with its report.
+#[test]
+fn overlapping_panel_closes_each_keep_their_panel_out_until_their_own_settlement() {
+    let closing = WorkbenchTabCloseStatus::Closing {
+        phase: WorkbenchTabClosePhase::WaitingGrace,
+    };
+    let blocked = WorkbenchTabCloseStatus::CleanupBlocked {
+        reason: WorkbenchTabCloseBlockedReason::HostRefused,
+        resumable: true,
+    };
+    let closed = WorkbenchTabCloseStatus::Closed {
+        revision: WorkbenchRevision::new(2),
+    };
+    for earlier_stops in [true, false] {
+        let now = Instant::now();
+        let mut baseline = split_panel_baseline();
+        super::split_root(&mut baseline.terminal_contexts[0].tabs[0].root, 7_000);
+        let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
+        let leaves = state.tab(0).unwrap().leaf_panel_ids();
+        assert_eq!(leaves.len(), 3);
+        for leaf in &leaves[1..] {
+            attach_panel(&mut state, leaf);
+        }
+
+        let earlier = accept_focused_panel_close(&mut state, 70_170);
+        let later = accept_focused_panel_close(&mut state, 70_171);
+        let survivor = leaves
+            .iter()
+            .find(|leaf| **leaf != earlier && **leaf != later)
+            .unwrap()
+            .clone();
+        // Both closes are on their way: neither Panel draws, and the focus rests on the survivor.
+        assert_eq!(drawn_panels(&state), BTreeSet::from([survivor.clone()]));
+        assert_eq!(state.focus_panel_id(), Some(&survivor));
+        assert!(state.tab_shown(0));
+
+        let (stops, completes) = if earlier_stops {
+            (&earlier, &later)
+        } else {
+            (&later, &earlier)
+        };
+        let settled = |panel: &WorkbenchPanelId| {
+            if panel == stops {
+                blocked.clone()
+            } else {
+                closed.clone()
+            }
+        };
+
+        // The later close settles first, while the earlier one is still closing.
+        for (reads, request) in [(1, 70_172), (2, 70_173)] {
+            answer_next_panel_close_read(
+                &mut state,
+                request,
+                now + CLOSE_READ_SPACING * reads,
+                |panel| {
+                    if *panel == later {
+                        settled(panel)
+                    } else {
+                        closing.clone()
+                    }
+                },
+            );
+        }
+        let mut drawn = BTreeSet::from([survivor.clone()]);
+        if !earlier_stops {
+            drawn.insert(later.clone());
+        }
+        assert_eq!(drawn_panels(&state), drawn);
+        if earlier_stops {
+            // The publication removing the completed Panel leaves the earlier one out.
+            publish(&mut state, super::without_leaf(&baseline, completes, 2));
+            assert_eq!(state.cache().tabs()[0].panel_count(), 2);
+            assert_eq!(drawn_panels(&state), drawn);
+        }
+
+        // Then the earlier close settles.
+        answer_next_panel_close_read(&mut state, 70_174, now + CLOSE_READ_SPACING * 3, settled);
+        if !earlier_stops {
+            assert_eq!(drawn_panels(&state), drawn);
+            publish(&mut state, super::without_leaf(&baseline, completes, 2));
+        }
+        assert_eq!(
+            drawn_panels(&state),
+            BTreeSet::from([survivor.clone(), stops.clone()])
+        );
+        let report = state
+            .view()
+            .announced_close_status()
+            .expect("the stopped close reports");
+        assert_eq!(report.status(), CloseStatusKind::CleanupBlocked);
+        assert!(report.panel() && !report.resumable());
+        assert_eq!(state.focus_panel_id(), Some(&survivor));
+        assert!(state.invariant_holds());
+    }
+}
+
+/// Closing every Panel of a split Tab takes the Tab out with them, as in the GUI and as the close
+/// of its last Panel does, so the selection follows it. A close among them that stops shows the Tab
+/// again with that Panel, focused, and its report; a completed one keeps its Panel out.
+#[test]
+fn closing_every_panel_of_a_tab_takes_the_tab_out_until_one_close_stops() {
+    let blocked = WorkbenchTabCloseStatus::CleanupBlocked {
+        reason: WorkbenchTabCloseBlockedReason::HostRefused,
+        resumable: true,
+    };
+    let closed = WorkbenchTabCloseStatus::Closed {
+        revision: WorkbenchRevision::new(2),
+    };
+    let now = Instant::now();
+    let mut state = split_ready_two_tabs();
+    super::attach_nonfirst_leaf(&mut state);
+    let earlier = accept_focused_panel_close(&mut state, 70_180);
+    assert!(state.tab_shown(0));
+    let later = accept_focused_panel_close(&mut state, 70_181);
+    assert_ne!(earlier, later);
+    // No Panel of the Tab is left to draw: the Tab leaves as a closing Tab does.
+    assert!(!state.tab_shown(0));
+    let successor = state.leaving_selection_successor();
+    assert!(successor.is_some_and(|index| index != 0 && state.tab_shown(index)));
+    assert!(state.invariant_holds());
+
+    let settled = |panel: &WorkbenchPanelId| {
+        if *panel == earlier {
+            blocked.clone()
+        } else {
+            closed.clone()
+        }
+    };
+    for (reads, request) in [(1, 70_182), (2, 70_183)] {
+        answer_next_panel_close_read(
+            &mut state,
+            request,
+            now + CLOSE_READ_SPACING * reads,
+            settled,
+        );
+    }
+    assert!(state.tab_shown(0));
+    assert_eq!(drawn_panels(&state), BTreeSet::from([earlier.clone()]));
+    assert_eq!(state.focus_panel_id(), Some(&earlier));
+    assert_eq!(state.leaving_selection_successor(), None);
+    let report = state
+        .view()
+        .announced_close_status()
+        .expect("the stopped close reports");
+    assert!(report.panel() && !report.resumable());
+    assert!(state.invariant_holds());
 }
 
 #[test]

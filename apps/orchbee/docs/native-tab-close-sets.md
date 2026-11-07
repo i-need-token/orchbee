@@ -143,7 +143,10 @@ The accepted close of one Panel of several is retained and read the same way, by
 but it is no Tab close: it hides only its leaf, names the Panel in its report, offers no Resume,
 holds no navigation or structure between its reads, and never refuses the other Panels of its Tab.
 It ends when a read sees it `Closed` or a publication removes the Panel; a stop shows the Panel
-again with its report ([native panel lifecycle](native-panel-lifecycle.md)).
+again with its report ([native panel lifecycle](native-panel-lifecycle.md)). Several such closes
+are retained side by side, each hiding its own leaf until its own settlement, and their reads take
+turns under the same pacing. A Tab none of whose Panels is left to draw leaves the strip with them,
+and the selection follows it as it follows an accepted Tab close.
 
 Blocked, unknown, unavailable and uncertain closes report at once, and a later validated `Closed`
 clears the report. A refusal keeps the Tab and reports only its notice. `close_status` stays

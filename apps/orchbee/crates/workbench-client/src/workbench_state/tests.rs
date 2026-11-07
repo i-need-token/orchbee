@@ -1398,6 +1398,66 @@ fn split_panel_baseline() -> Snapshot {
     baseline
 }
 
+/// Replaces a Tab root with a two-leaf horizontal split whose added peer
+/// leaf derives its IDs from `seed` — the shared multi-leaf fixture shape.
+fn split_root(root: &mut PanelNode, seed: u128) {
+    let original = root.clone();
+    *root = PanelNode::Split {
+        ratio: Default::default(),
+        children: Box::new([
+            PanelSlot {
+                node: original,
+                slot_id: WorkbenchPanelSlotId::parse(&id(seed + 1)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    right_click: Default::default(),
+                    child_presentations: Vec::new(),
+                    panel_id: panel_id(seed + 10),
+                    primary_presentation: Presentation {
+                        custom_label: None,
+                        binding: Some(PresentationBinding {
+                            terminal_id: terminal_id(seed + 12),
+                            worker_id: worker_id(seed + 11),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: presentation_id(seed + 13),
+                        launch_failure: None,
+                        launch_program: None,
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&id(seed + 14)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&id(seed + 20)).unwrap(),
+    };
+}
+
+/// The next refresh's membership without `panel`, as the Server publishes a removed leaf.
+fn without_leaf(baseline: &Snapshot, panel: &WorkbenchPanelId, revision: u64) -> Snapshot {
+    fn drop_leaf(node: &mut PanelNode, panel: &WorkbenchPanelId) {
+        let PanelNode::Split { children, .. } = node else {
+            return;
+        };
+        let [first, second] = &mut **children;
+        let keep = match (&first.node, &second.node) {
+            (PanelNode::Panel { panel_id, .. }, _) if panel_id == panel => second.node.clone(),
+            (_, PanelNode::Panel { panel_id, .. }) if panel_id == panel => first.node.clone(),
+            _ => {
+                drop_leaf(&mut first.node, panel);
+                drop_leaf(&mut second.node, panel);
+                return;
+            }
+        };
+        *node = keep;
+    }
+    let mut next = baseline.clone();
+    next.revision = WorkbenchRevision::new(revision);
+    drop_leaf(&mut next.terminal_contexts[0].tabs[0].root, panel);
+    next
+}
+
 /// Brings the split baseline's second leaf to a live projected attachment —
 /// the precondition a local focus move requires on the target pane.
 fn attach_nonfirst_leaf(state: &mut WorkbenchClientState) -> PaneRef {

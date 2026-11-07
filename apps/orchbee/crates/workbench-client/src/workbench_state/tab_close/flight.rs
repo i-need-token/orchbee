@@ -816,10 +816,12 @@ impl WorkbenchClientState {
         }
     }
 
-    /// Whether a close of this attachment's whole Tab holds its effects. A Panel close leaves the
-    /// Tab's other Panels working.
+    /// Whether a close of this attachment's whole Tab holds its effects: its own, or the closes of
+    /// every Panel it holds, with which the Tab leaves. A Panel close leaves the Tab's other Panels
+    /// working.
     pub(crate) fn close_suppresses_attachment(&self, key: &AttachmentKey) -> bool {
         self.close.set_leaving(key.tab_id())
+            || self.every_panel_leaving(key.tab_id())
             || self.close.records.iter().any(|record| {
                 record.selection.target.panel_id().is_none()
                     && record.selection.target.tab_id() == key.tab_id()

@@ -227,6 +227,39 @@ fn hidden_sidebar_leaves_its_toggle_at_the_strip_leading_edge() {
     }
 }
 
+/// The mobile return affordance must keep both brackets and its seven-cell target when the
+/// English action and shortcut compete for the first row at phone width.
+#[test]
+fn mobile_return_keeps_its_complete_control_before_the_shortcut_hint() {
+    let (width, height) = (34, 30);
+    let mut view = visible_view(width, height, 30);
+    view.machines.enter_sidebar_navigation();
+    let theme = Theme::orchbee_light();
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            super::super::render_terminal_shell(
+                frame,
+                &view,
+                Locale::EnUs,
+                None,
+                &theme,
+                &mut hits,
+            );
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert!(text(buffer, 1, 0, width).contains("[ « ]"));
+    let map = hits.finish();
+    for y in 0..3 {
+        let target: Vec<_> = (0..width)
+            .filter(|x| map.hit_target_at(*x, y) == Some(&HitTarget::SidebarHideButton))
+            .collect();
+        assert_eq!(target.len(), 7);
+    }
+}
+
 /// Narrower sidebar regions than the admitted width drop Help before Settings and the toggle before
 /// the action sharing its row; nothing ever overlaps.
 #[test]

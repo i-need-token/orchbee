@@ -464,9 +464,9 @@ pub(crate) struct CloseState {
 }
 
 impl CloseState {
-    /// No close work is open. A retained Panel close between its reads is none: it follows one
-    /// leaf, which a membership that no longer draws that leaf ends, so it never holds navigation
-    /// or structure.
+    /// No close work is open. Retained Panel closes between their reads are none, however many:
+    /// each follows its own leaf, which a membership that no longer draws that leaf ends, so none
+    /// holds navigation or structure.
     pub(super) fn permits_retired_membership(&self) -> bool {
         self.records
             .iter()
@@ -1067,12 +1067,19 @@ impl super::WorkbenchClientState {
     }
 
     /// Ends the follow of each Panel close whose Panel the drawn membership no longer holds, and
-    /// shows the leaving Panel again once its close stopped. Runs after every settled close step.
+    /// shows each leaving Panel again once its own close stopped. Runs after every settled close
+    /// step.
     pub(super) fn settle_panel_close_follow(&mut self) {
         let cache = &self.cache;
         self.close
             .prune_departed_panel_closes(|target| panel_drawn(cache, target));
-        self.reveal_stopped_panel_close();
+        self.reveal_stopped_panel_closes();
+    }
+
+    /// Whether this Tab has left the Client's view: its own close is progressing, alone or in a
+    /// set, or every Panel it holds is leaving with its accepted close.
+    pub(crate) fn tab_leaving(&self, tab_id: &WorkbenchTabId) -> bool {
+        self.close.tab_leaving(tab_id) || self.every_panel_leaving(tab_id)
     }
 
     /// Whether the Tab at `index` is still in the Client's view, not leaving with its close.
@@ -1080,20 +1087,19 @@ impl super::WorkbenchClientState {
         self.cache
             .tabs()
             .get(index)
-            .is_some_and(|tab| !self.close.tab_leaving(tab.tab_id()))
+            .is_some_and(|tab| !self.tab_leaving(tab.tab_id()))
     }
 
     /// Where the selection goes once the Server accepts the selected Tab's close, alone or in a
-    /// set: the next Tab still shown, else the previous one, the survivor the removal itself would
-    /// select. The Panel then leaves at the next Tab's first frame instead of when the publication
-    /// lands. There is none when every Tab leaves; the last removal then empties the Client. A set
-    /// member left open comes back unselected.
+    /// set, or the close of every Panel it holds: the next Tab still shown, else the previous one,
+    /// the survivor the removal itself would select. The Panel then leaves at the next Tab's first
+    /// frame instead of when the publication lands. There is none when every Tab leaves; the last
+    /// removal then empties the Client. A set member left open, or a Tab one of whose Panel closes
+    /// stopped, comes back unselected.
     pub(crate) fn leaving_selection_successor(&self) -> Option<usize> {
         let selected = self.active()?.index();
-        if !self
-            .close
-            .tab_close_accepted(self.cache.tabs().get(selected)?.tab_id())
-        {
+        let tab_id = self.cache.tabs().get(selected)?.tab_id();
+        if !self.close.tab_close_accepted(tab_id) && !self.every_panel_leaving(tab_id) {
             return None;
         }
         (selected + 1..self.cache.tabs().len())
