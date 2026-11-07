@@ -228,10 +228,19 @@ impl Witness {
                 ],
             }),
         );
-        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        // A version-manager shim on `PATH` would run inside the scratch profile, where it can
+        // try to install tools; the stubs call the interpreter's own executable instead.
+        let shim = std::env::split_paths(&std::env::var_os("PATH").unwrap())
             .map(|path| path.join("node.exe"))
             .find(|path| path.is_file())
             .expect("node.exe on PATH");
+        let resolved = Command::new(&shim)
+            .args(["-p", "process.execPath"])
+            .output()
+            .unwrap();
+        assert!(resolved.status.success(), "{}", shim.display());
+        let node = PathBuf::from(String::from_utf8(resolved.stdout).unwrap().trim());
+        assert!(node.is_file(), "{}", node.display());
         let hook = Path::new(env!("CARGO_MANIFEST_DIR")).join(
             "../../crates/agent-integration-writer/agent-observation-adapters/bundle/scripts/forward-hook.mjs",
         );
