@@ -1,10 +1,14 @@
 import { forwardSanitizedObservation } from './observation-transport.mjs';
 
+// Child sessions (subagent tasks) remembered so their events never read as root sessions.
+export const OPENCODE_CHILD_SESSION_LIMIT = 256;
+
 // Both provider entries delegate normalization and bounded best-effort delivery
 // to this owner. Only normalized observations are retained between callbacks.
 export function createOpenCodeObservation(adapterId, { send = forwardSanitizedObservation } = {}) {
 	if (adapterId !== 'opencode' && adapterId !== 'kilo') throw new Error('Unknown adapter');
 	const pending = [];
+	const childSessions = new Set();
 	let running = false;
 	let stopped = false;
 	const stop = () => {
@@ -29,7 +33,7 @@ export function createOpenCodeObservation(adapterId, { send = forwardSanitizedOb
 	const accept = (event) => {
 		if (stopped) return;
 		const normalized = sanitizeOpenCodeFamilyEvent(adapterId, event);
-		if (normalized === null) return;
+		if (normalized === null || childSessions.has(normalized.sessionKey)) return;
 		if (pending.length + Number(running) >= 64) {
 			stop();
 			return;
@@ -38,7 +42,11 @@ export function createOpenCodeObservation(adapterId, { send = forwardSanitizedOb
 		if (!running) void drain();
 	};
 	return {
-		event: async (input) => accept(isRecord(input) ? input.event : null),
+		event: async (input) => {
+			const event = isRecord(input) ? input.event : null;
+			rememberChildSession(childSessions, event);
+			accept(event);
+		},
 		'chat.message': async (input) => accept({ type: 'chat.message', properties: input }),
 		'tool.execute.before': async (input) =>
 			accept({ type: 'tool.execute.before', properties: input }),
@@ -46,6 +54,22 @@ export function createOpenCodeObservation(adapterId, { send = forwardSanitizedOb
 			accept({ type: 'tool.execute.after', properties: input }),
 		dispose: async () => stop(),
 	};
+}
+
+// A child is a created or updated session whose info names a parent. The set
+// is first-in, first-out; a child it never saw stays a second root candidate.
+function rememberChildSession(childSessions, event) {
+	if (!isRecord(event) || (event.type !== 'session.created' && event.type !== 'session.updated')) {
+		return;
+	}
+	const info = isRecord(event.properties) ? event.properties.info : null;
+	if (!isRecord(info) || typeof info.parentID !== 'string' || info.parentID === '') return;
+	const childId = identity(info.id);
+	if (childId === null || childSessions.has(childId)) return;
+	if (childSessions.size >= OPENCODE_CHILD_SESSION_LIMIT) {
+		childSessions.delete(childSessions.values().next().value);
+	}
+	childSessions.add(childId);
 }
 
 function sessionIdentity(properties, event) {

@@ -5,9 +5,15 @@ export const CLINE_COMPLETION_RETENTION = Object.freeze({
 	conversations: 128,
 });
 
-export function sanitizeClineRuntimeEvent(value) {
+// `rootSessionKey` is the root session id Cline hands to `setup`; it is the id
+// `cline --id` resumes. Without it the conversation id stands in, which no
+// resume accepts.
+export function sanitizeClineRuntimeEvent(value, rootSessionKey = null) {
 	if (!isRecord(value) || !isRecord(value.snapshot)) return null;
-	const sessionKey = identity(value.snapshot.conversationId);
+	// Subagent runs carry their parent Agent; they would otherwise read as extra root sessions.
+	const parentAgentId = value.snapshot.parentAgentId;
+	if (typeof parentAgentId === 'string' && parentAgentId !== '') return null;
+	const sessionKey = rootSessionKey ?? identity(value.snapshot.conversationId);
 	const turnKey = identity(value.snapshot.runId);
 	if (sessionKey === null || turnKey === null) return null;
 
@@ -61,8 +67,8 @@ export function sanitizeClineRuntimeEvent(value) {
 
 export function createClineRuntimeEventDelivery() {
 	const completedRunsByConversation = new Map();
-	return (value, deliver = deliverObservation) => {
-		const normalized = sanitizeClineRuntimeEvent(value);
+	return (value, deliver = deliverObservation, rootSessionKey = null) => {
+		const normalized = sanitizeClineRuntimeEvent(value, rootSessionKey);
 		if (normalized === null) return;
 		if (
 			completedRunIsRetained(completedRunsByConversation, normalized.sessionKey, normalized.turnKey)
@@ -77,17 +83,31 @@ export function createClineRuntimeEventDelivery() {
 	};
 }
 
-export const deliverClineRuntimeEvent = createClineRuntimeEventDelivery();
-
-export const plugin = {
-	hooks: {
-		onEvent(value) {
-			deliverClineRuntimeEvent(value);
+// Cline loads each sandboxed plugin once per session, so one plugin instance
+// serves one root session. If `setup` ever reports a missing or different id,
+// the instance is shared and no event can be attributed: fall back for good.
+export function createClinePlugin(deliver = deliverObservation) {
+	const deliverRuntimeEvent = createClineRuntimeEventDelivery();
+	let rootSessionKey = null;
+	let setupCount = 0;
+	return {
+		hooks: {
+			onEvent(value) {
+				deliverRuntimeEvent(value, deliver, rootSessionKey);
+			},
 		},
-	},
-	manifest: { capabilities: ['hooks'] },
-	name: 'orchbee-agent-observation',
-};
+		manifest: { capabilities: ['hooks'] },
+		name: 'orchbee-agent-observation',
+		setup(_api, ctx) {
+			const reported =
+				isRecord(ctx) && isRecord(ctx.session) ? identity(ctx.session.sessionId) : null;
+			setupCount += 1;
+			rootSessionKey = setupCount === 1 || reported === rootSessionKey ? reported : null;
+		},
+	};
+}
+
+export const plugin = createClinePlugin();
 
 function deliverObservation(value) {
 	void forwardSanitizedObservation('cline', value).catch(() => undefined);

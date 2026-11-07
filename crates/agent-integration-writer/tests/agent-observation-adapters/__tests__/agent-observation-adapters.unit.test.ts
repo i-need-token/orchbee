@@ -467,6 +467,75 @@ describe('OpenCode-family observation boundary', () => {
 		await next.event({ event: { type: 'session.deleted', properties: { sessionID: 'second' } } });
 		expect(delivered).toEqual(['first', 'second']);
 	});
+
+	it('drops an OpenCode or Kilo child session after it names its parent, keeping the root', async () => {
+		const family = await import(resourceUrl('scripts/opencode-family-observation.mjs'));
+		for (const [provider, learnedFrom] of [
+			['opencode', 'session.created'],
+			['kilo', 'session.updated'],
+		] as const) {
+			const sent: string[] = [];
+			const plugin = family.createOpenCodeObservation(provider, {
+				send: async (_id: string, value: { event: string; sessionKey: string }) => {
+					sent.push(`${value.sessionKey}:${value.event}`);
+				},
+			});
+			await plugin.event({
+				event: { type: 'session.created', properties: { info: { id: 'ses_root' } } },
+			});
+			await plugin.event({
+				event: {
+					type: learnedFrom,
+					properties: { sessionID: 'ses_child', info: { id: 'ses_child', parentID: 'ses_root' } },
+				},
+			});
+			await plugin.event({
+				event: {
+					type: 'session.status',
+					properties: { sessionID: 'ses_child', status: { type: 'busy' } },
+				},
+			});
+			await plugin['tool.execute.before']({
+				sessionID: 'ses_child',
+				callID: 'call-1',
+				tool: 'bash',
+			});
+			await plugin.event({
+				event: { type: 'session.idle', properties: { sessionID: 'ses_root' } },
+			});
+			await vi.waitFor(() => expect(sent).toHaveLength(2));
+			expect(sent).toEqual(['ses_root:session-started', 'ses_root:session-idle']);
+			await plugin.dispose();
+		}
+	});
+
+	it('bounds the remembered OpenCode child sessions first in, first out', async () => {
+		const family = await import(resourceUrl('scripts/opencode-family-observation.mjs'));
+		const limit = family.OPENCODE_CHILD_SESSION_LIMIT;
+		const sent: string[] = [];
+		const plugin = family.createOpenCodeObservation('opencode', {
+			send: async (_id: string, value: { sessionKey: string }) => {
+				sent.push(value.sessionKey);
+			},
+		});
+		for (let index = 0; index <= limit; index++) {
+			await plugin.event({
+				event: {
+					type: 'session.updated',
+					properties: {
+						sessionID: `child-${index}`,
+						info: { id: `child-${index}`, parentID: 'root' },
+					},
+				},
+			});
+		}
+		await plugin.event({ event: { type: 'session.idle', properties: { sessionID: 'child-0' } } });
+		await plugin.event({
+			event: { type: 'session.idle', properties: { sessionID: `child-${limit}` } },
+		});
+		await vi.waitFor(() => expect(sent).toEqual(['child-0']));
+		await plugin.dispose();
+	});
 });
 
 describe('Agent observation adapter resources', () => {
@@ -1039,6 +1108,60 @@ describe('Agent observation adapter resources', () => {
 			event: 'turn-started',
 			sessionKey: 'session-0',
 		});
+	});
+
+	it('keys Cline events by the root session id that setup reports', async () => {
+		const cline = await import(clineUrl);
+		const observations: unknown[] = [];
+		const plugin = cline.createClinePlugin(captureObservations(observations));
+		plugin.setup({}, { session: { sessionId: '1730000000000_abc12' } });
+		plugin.hooks.onEvent(clineStart('cline-conversation', 'run-1'));
+
+		expect(observations).toEqual([
+			expect.objectContaining({ sessionKey: '1730000000000_abc12', turnKey: 'run-1' }),
+		]);
+	});
+
+	it('falls back to the Cline conversation id without one consistent setup session id', async () => {
+		const cline = await import(clineUrl);
+		const observations: unknown[] = [];
+		const withoutSetup = cline.createClinePlugin(captureObservations(observations));
+		withoutSetup.hooks.onEvent(clineStart('cline-conversation', 'run-1'));
+		const conflicting = cline.createClinePlugin(captureObservations(observations));
+		conflicting.setup({}, { session: { sessionId: '1730000000000_abc12' } });
+		conflicting.setup({}, { session: { sessionId: '1730000000001_def34' } });
+		conflicting.hooks.onEvent(clineStart('cline-conversation', 'run-2'));
+
+		expect(observations).toEqual([
+			expect.objectContaining({ sessionKey: 'cline-conversation', turnKey: 'run-1' }),
+			expect.objectContaining({ sessionKey: 'cline-conversation', turnKey: 'run-2' }),
+		]);
+	});
+
+	it('drops Cline subagent runs that name a parent Agent', async () => {
+		const cline = await import(clineUrl);
+		const observations: unknown[] = [];
+		const plugin = cline.createClinePlugin(captureObservations(observations));
+		plugin.setup({}, { session: { sessionId: '1730000000000_abc12' } });
+		const subagent = {
+			conversationId: 'cline-subagent',
+			parentAgentId: 'agent-root',
+			runId: 'run-2',
+		};
+		plugin.hooks.onEvent({ snapshot: subagent, type: 'run-started' });
+		plugin.hooks.onEvent({
+			snapshot: subagent,
+			toolCall: { toolCallId: 'cline-subagent-tool', toolName: 'bash' },
+			type: 'tool-started',
+		});
+		plugin.hooks.onEvent({
+			snapshot: { conversationId: 'cline-conversation', parentAgentId: null, runId: 'run-1' },
+			type: 'run-started',
+		});
+
+		expect(observations).toEqual([
+			expect.objectContaining({ sessionKey: '1730000000000_abc12', turnKey: 'run-1' }),
+		]);
 	});
 
 	it('maps OpenCode event objects without retaining questions, permissions, or tool data', async () => {

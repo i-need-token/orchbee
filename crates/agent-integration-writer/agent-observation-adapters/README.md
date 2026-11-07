@@ -200,14 +200,20 @@ An adapter emits only evidence its upstream surface actually provides. OpenCode,
 settlement becomes affirmative `Ready` without inventing a successful outcome, so it emits no
 success notification. Copilot enters attention only for its actual `permission_prompt` or
 `elicitation_dialog` notifications. Qwen starts a user Turn only when `submitted_prompt` proves user
-provenance; its continuation callbacks are ignored. Cline intentionally claims no session,
-approval, or subagent capability because its plugin runtime does not prove those facts. Exact
-errors remain failures where available. Cline records a completion before delivery and suppresses
-later events for that exact conversation and run while its tombstone remains retained. The bounded
-cache keeps the 64 newest completed runs for each of at most 128 tracked conversations. Run
-tombstones use completion-order FIFO eviction, and a new completion refreshes its conversation
-before the least recently completed conversation is evicted. Either eviction permits an older
-identity to be observed again rather than retaining unbounded plugin state.
+provenance; its continuation callbacks are ignored. Cline intentionally claims no session
+lifecycle, approval, or subagent capability because its plugin runtime does not prove those facts.
+Exact errors remain failures where available. Cline keys every event by the root session id its
+plugin `setup` context reports (`ctx.session.sessionId`), which is the id `cline --id` resumes.
+Each sandboxed plugin instance serves one root session; if `setup` is absent, reports no valid id,
+or reports a different id later, the adapter falls back for good to the run snapshot's
+`conversationId`, which no resume accepts. Events whose snapshot names a non-empty
+`parentAgentId` are subagent runs and are dropped, so they never appear as extra root sessions.
+Cline records a completion before delivery and suppresses later events for that exact session and
+run while its tombstone remains retained. The bounded cache keeps the 64 newest completed runs for
+each of at most 128 tracked sessions. Run tombstones use completion-order FIFO eviction, and a new
+completion refreshes its session before the least recently completed session is evicted. Either
+eviction permits an older identity to be observed again rather than retaining unbounded plugin
+state.
 `ClineObservationOrdering` checks completion-before-start, duplicate completion, activity, session
 isolation, and bounded eviction with two conversations and a two-run retention bound. Grok
 cancellation is scoped by `promptId`, preventing a delayed cancellation report from ending a newer
@@ -279,7 +285,7 @@ The capsule keeps Grok's command-only hook contract with a fixed base64-encoded 
 
 ## OpenCode-family Windows onboarding
 
-The capsule adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../apps/orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence.
+The capsule adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. A `session.created` or `session.updated` event whose `info` carries a valid `id` and a non-empty `parentID` marks a child (subagent) session; the factory remembers at most 256 child ids, first in, first out, and drops every observation for them, including the child's own session start. A child created before the plugin loaded stays unknown and reads as a second root session. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../apps/orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence.
 
 ## Gemini and Qwen command roots
 
