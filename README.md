@@ -4,7 +4,7 @@
 
 # Orchbee
 
-**A modern terminal for running and orchestrating AI agents — across desktop, web, and mobile.**
+**A modern terminal for running and coordinating AI agents.**
 
 [![License](https://img.shields.io/badge/License-TBD-blue?style=flat-square)]() [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Electron](https://img.shields.io/badge/Electron-47848C?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org) [![Node.js](https://img.shields.io/badge/Node.js->=22-3c873a?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 
@@ -20,9 +20,7 @@
 
 Orchbee is a terminal-native environment built for the age of AI agents. It lets you run CLI agents such as Claude Code, Codex, OpenCode, and Pi without changing how you already use them, while giving them something they lack on their own: **the ability to work together**.
 
-Orchbee turns isolated terminal panes into a command center for an entire fleet of AI agents. Through a native interop CLI, agents can prompt other agents, spawn new ones on demand, delegate tasks, and coordinate their work.
-
-Sessions remain active, with state synchronized across desktop, web, and mobile. Switch from your desktop to your phone and continue controlling the same agents without starting over.
+Orchbee turns isolated terminal panes into a command center for your AI agents. Through the native `orchbee` CLI, agents can start other agents, prompt them, read their output, and send commands to any terminal.
 
 The name combines **orch**estrator with **bee**—independent workers coordinating as one.
 
@@ -39,34 +37,16 @@ Orchbee keeps PTY and Ghostty VT emulation authoritative in the lightweight nati
 
 ### Agent-to-Agent Collaboration
 
-<!-- TODO: Add a GIF showing one agent spawning another, delegating a task, and receiving the result -->
+<!-- TODO: Add a GIF showing one agent starting another, prompting it, and reading the result -->
 
-Stop managing agents one terminal at a time. Agents can prompt and spawn other agents, read each other's output, send commands across terminals, delegate tasks, and coordinate work—while you stay in control from one place.
+Stop watching isolated terminals one at a time. Agents can start and prompt other agents, read another terminal's output, wait until an agent finishes, and send commands across terminals, while you keep the whole picture in one place.
 
 Current development focuses on the native Rust CLI/TUI and its local Server/Worker/Terminal Host chain. The retired Desktop-bundled TypeScript CLI, Browser access, and POSIX SSH Environment chain are no longer runtime entry points. See the [native Orchbee application](apps/orchbee/README.md) for delivered commands and development boundaries.
-
-### Control Agents from Any Device
-
-<!-- TODO: Add a GIF showing a running session moving from desktop to web to mobile without interruption -->
-
-Start agents on your desktop, monitor them from the web, and take control from your phone. Sessions keep running and stay synchronized across devices, and two desktops can connect directly without a cloud relay.
-
-### Cluster Computing
-
-<!-- TODO: Add a visual showing a Primary node extended by multiple Worker nodes -->
-
-When local resources are not enough, register additional machines as Worker nodes to extend the compute, storage, and execution environments available to your agent cluster. Workers act as an extension of the local machine, while agents use them without changing their workflow.
-
-### Give Agents a Browser
-
-<!-- TODO: Add a GIF showing an agent launching a browser, inspecting a page, and verifying a UI change -->
-
-Agents can launch and control browsers directly from the terminal, inspect pages, take screenshots, and verify UI changes—without browser extensions or manual CDP setup.
 
 ## Install
 
 > [!IMPORTANT]
-> Orchbee is in active early development. Pre-built applications are not yet available; the source checkout is currently intended for contributors.
+> Orchbee is in active early development. Pre-built applications are not yet available; the source checkout is currently intended for contributors. Windows is the primary platform; macOS and Linux support is deferred.
 
 <details>
 <summary>Build and verify from source</summary>
@@ -74,7 +54,7 @@ Agents can launch and control browsers directly from the terminal, inspect pages
 **Prerequisites:** Node.js >=22, Java >=17, Rust 1.97.0 through rustup, Zig 0.16.0, Corepack, Git
 
 ```bash
-git clone https://github.com/orchbee/orchbee.git
+git clone https://github.com/i-need-token/orchbee.git
 cd orchbee
 corepack enable
 pnpm install
@@ -107,4 +87,4 @@ pnpm desktop
 ## Community
 
 - [Discord](https://discord.gg/orchbee) — product discussion and community support
-- [GitHub Issues](https://github.com/orchbee/orchbee/issues) — bug reports and feature requests
+- [GitHub Issues](https://github.com/i-need-token/orchbee/issues) — bug reports and feature requests

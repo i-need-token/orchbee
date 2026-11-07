@@ -4,7 +4,7 @@
 
 # Orchbee
 
-**一个运行和编排 AI Agent 的现代终端——跨桌面端、Web 端和移动端。**
+**一个运行和协调 AI Agent 的现代终端。**
 
 [![License](https://img.shields.io/badge/License-TBD-blue?style=flat-square)]() [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Electron](https://img.shields.io/badge/Electron-47848C?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org) [![Node.js](https://img.shields.io/badge/Node.js->=22-3c873a?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 
@@ -20,9 +20,7 @@
 
 Orchbee 是为 AI Agent 时代打造的终端原生环境。它支持以你熟悉的方式运行 Claude Code、Codex、OpenCode、Pi 等 CLI Agent，并赋予它们一项自身不具备的能力：**协同工作**。
 
-Orchbee 将彼此孤立的终端面板变成管理整个 AI Agent 军团的指挥中心。借助原生互操作 CLI，Agent 可以 prompt 其他 Agent、按需拉起新的 Agent、分派任务并协调工作。
-
-会话持续运行，状态在桌面端、Web 端和移动端之间保持同步。从电脑切换到手机后，你仍可继续控制同一批 Agent，无需重新开始。
+Orchbee 将彼此孤立的终端面板变成管理 AI Agent 的指挥中心。借助原生 `orchbee` CLI，Agent 可以拉起其他 Agent、prompt 它们、读取它们的输出，并向任意终端发送命令。
 
 名字由 **orch**estrator（编排者）和 **bee**（蜜蜂）组合而来，寓意独立个体协同如一。
 
@@ -39,34 +37,16 @@ Orchbee 将 PTY 与 Ghostty VT 模拟的权威保留在轻量原生 Terminal Hos
 
 ### Agent 间协作
 
-<!-- TODO: 添加 GIF，展示一个 Agent 拉起另一个 Agent、分派任务并接收结果 -->
+<!-- TODO: 添加 GIF，展示一个 Agent 拉起另一个 Agent、prompt 它并读取结果 -->
 
-不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。
+不再逐个盯着彼此孤立的终端。Agent 可以拉起和 prompt 其他 Agent、读取其他终端的输出、等待 Agent 结束，并跨终端发送命令；你只需在一个地方掌握全局。
 
 当前开发重点是原生 Rust CLI/TUI 及其本地 Server/Worker/Terminal Host 链路。已退役的 Desktop 内嵌 TypeScript CLI、浏览器接入与 POSIX SSH Environment 链路不再是运行入口。已交付命令与开发边界见 [原生 Orchbee 应用](apps/orchbee/README.md)。
-
-### 从任意设备控制 Agent
-
-<!-- TODO: 添加 GIF，展示运行中的会话在桌面端、Web 端和移动端之间无中断切换 -->
-
-在桌面端启动 Agent，通过 Web 查看进度，再用手机随时接管。会话持续运行并在设备间保持同步；两台桌面客户端还可直接连接，无需云端中转。
-
-### 集群计算
-
-<!-- TODO: 添加示意图，展示 Primary 节点通过多个 Worker 节点扩展能力 -->
-
-当本机资源不足时，可将额外的机器注册为 Worker 节点，为 Agent 集群扩展算力、存储和运行环境。Worker 作为本机能力的延伸，Agent 无需改变原有使用方式。
-
-### 让 Agent 直接使用浏览器
-
-<!-- TODO: 添加 GIF，展示 Agent 启动浏览器、检查页面并验证 UI 变更 -->
-
-Agent 可以直接从终端启动和控制浏览器、检查页面、截图并验证 UI 变更，无需安装浏览器扩展或手动配置 CDP。
 
 ## 安装
 
 > [!IMPORTANT]
-> Orchbee 正处于积极开发的早期阶段，暂未提供预编译应用；当前源码主要面向贡献者。
+> Orchbee 正处于积极开发的早期阶段，暂未提供预编译应用；当前源码主要面向贡献者。Windows 是当前主要平台，macOS 与 Linux 支持暂缓。
 
 <details>
 <summary>从源码构建并验证</summary>
@@ -74,7 +54,7 @@ Agent 可以直接从终端启动和控制浏览器、检查页面、截图并�
 **前置条件：** Node.js >=22、Java >=17、通过 rustup 安装的 Rust 1.97.0、Zig 0.16.0、Corepack、Git
 
 ```bash
-git clone https://github.com/orchbee/orchbee.git
+git clone https://github.com/i-need-token/orchbee.git
 cd orchbee
 corepack enable
 pnpm install
@@ -107,4 +87,4 @@ pnpm desktop
 ## 社区
 
 - [Discord](https://discord.gg/orchbee) — 产品讨论与社区交流
-- [GitHub Issues](https://github.com/orchbee/orchbee/issues) — Bug 报告与功能请求
+- [GitHub Issues](https://github.com/i-need-token/orchbee/issues) — Bug 报告与功能请求
