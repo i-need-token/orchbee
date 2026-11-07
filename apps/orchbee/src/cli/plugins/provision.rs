@@ -65,14 +65,10 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         Ok(native) => native,
         Err(Unsupported) => return super::super::unsupported_platform(Some(format), locale),
     };
-    let timeout = match &command {
-        PluginCommand::Install { timeout_ms, .. } => *timeout_ms,
-        _ => 10_000,
-    };
-    let operation = if matches!(&command, PluginCommand::Install { .. }) {
-        "install"
-    } else {
-        "uninstall"
+    let (operation, timeout) = match &command {
+        PluginCommand::Install { timeout_ms, .. } => ("install", *timeout_ms),
+        PluginCommand::Update { timeout_ms, .. } => ("update", *timeout_ms),
+        _ => ("uninstall", 10_000),
     };
     let id = match query::request_id() {
         Ok(id) => id,
@@ -100,6 +96,9 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
                 source, reference, ..
             } => registry.install(source, reference, id.as_str(), &mut executor),
             PluginCommand::Uninstall(target) => registry.uninstall(&target, &mut executor),
+            PluginCommand::Update { id: target, .. } => {
+                registry.update(&target, id.as_str(), &mut executor)
+            }
             _ => unreachable!("only source provisioning commands routed here"),
         },
         Err(error) => PluginProvisionReport {
@@ -140,7 +139,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
     let document = serde_json::json!({"schema":"orchbee.plugin.provision","version":1,"source":{"kind":"local-configuration"},"operation":operation,"result":{"operationId":id,"report":report,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
-        OutputFormat::Text => render(&report, id.as_str(), locale),
+        OutputFormat::Text => render(&report, operation, id.as_str(), locale),
     };
     let mut result = match encoded {
         Ok(stdout) => Output {
@@ -160,6 +159,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
 }
 fn render(
     report: &PluginProvisionReport,
+    operation: &str,
     operation_id: &str,
     locale: Locale,
 ) -> Result<Vec<u8>, output::TooLarge> {
@@ -177,6 +177,8 @@ fn render(
         )?;
         if report.changed {
             writeln!(out, "{}", CliText::new(locale).plugin_provision_committed())?;
+        } else if operation == "update" && report.failure.is_none() {
+            writeln!(out, "{}", CliText::new(locale).plugin_provision_current())?;
         }
         if let Some(plugin) = &report.plugin {
             writeln!(

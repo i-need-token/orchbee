@@ -8,17 +8,11 @@ use orchbee_workbench_protocol::{
     SemanticOutputMatch, SemanticOutputSource, WorkbenchClientId,
 };
 
-/// The CLI vocabulary is independent of the private event protocol's historical noun.
-pub(crate) fn public_name(kind: SemanticEventKind) -> String {
-    kind.as_str()
-        .strip_prefix("pane.")
-        .map_or_else(|| kind.as_str().to_owned(), |tail| format!("panel.{tail}"))
-}
 fn public_kind(name: &str) -> Option<SemanticEventKind> {
     SemanticEventKind::ALL
         .iter()
         .copied()
-        .find(|kind| public_name(*kind) == name)
+        .find(|kind| kind.public_name() == name)
 }
 
 #[derive(Default)]

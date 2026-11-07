@@ -206,10 +206,7 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
             for locale in [Locale::EnUs, Locale::ZhCn] {
                 let line = text::record("event", &reply.outcome, "23:14:02Z", locale);
                 assert!(
-                    line.starts_with(&format!(
-                        "23:14:02Z  {}  ",
-                        crate::invocation::events::public_name(event.event)
-                    )),
+                    line.starts_with(&format!("23:14:02Z  {}  ", event.event.public_name())),
                     "{line}"
                 );
                 assert_eq!(line.lines().count(), 1, "{line}");
@@ -237,11 +234,7 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
             .events_help(crate::invocation::CommandPath::EventsSubscribe)
             .notes;
         for kind in Kind::ALL {
-            assert!(
-                help.contains(&crate::invocation::events::public_name(*kind)),
-                "{}",
-                kind.as_str()
-            );
+            assert!(help.contains(&kind.public_name()), "{}", kind.as_str());
         }
         assert_ne!(
             CliText::new(locale).events_subscribe_status(7),

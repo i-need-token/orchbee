@@ -106,7 +106,7 @@ fn receipt(output: std::process::Output, status: i32) -> Value {
     value
 }
 #[test]
-fn plugin_install_real_cli_fetches_builds_lists_provenance_and_uninstalls_offline() {
+fn plugin_install_real_cli_fetches_builds_lists_provenance_updates_and_uninstalls_offline() {
     let fixture = Fixture::new();
     let source = Source::new(&fixture, "echo built>artifact.txt");
     let installed = receipt(
@@ -148,6 +148,41 @@ fn plugin_install_real_cli_fetches_builds_lists_provenance_and_uninstalls_offlin
     assert_eq!(
         &listed["result"]["catalog"]["plugins"][0]["source"],
         source_info
+    );
+    // Update fetches the recorded ref again, so a new commit on it replaces the generation.
+    fs::write(source.0.join("notes.txt"), "next").unwrap();
+    source.git(&["add", "."]);
+    source.git(&[
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "-m",
+        "next",
+    ]);
+    let update = ["plugin", "update", "local.tools", "--yes", "--format=json"];
+    let updated = receipt(source.invoke(&fixture, &update), 0);
+    assert_eq!(updated["operation"], "update");
+    assert_eq!(updated["result"]["report"]["changed"], true);
+    let updated_source = &updated["result"]["report"]["plugin"]["source"];
+    assert_eq!(updated_source["requestedRef"], "main");
+    assert_ne!(
+        updated_source["resolvedCommit"],
+        source_info["resolvedCommit"]
+    );
+    assert!(!root.exists());
+    let root = PathBuf::from(
+        updated["result"]["report"]["plugin"]["pluginRoot"]
+            .as_str()
+            .unwrap(),
+    );
+    assert!(root.join("notes.txt").exists());
+    let current = receipt(source.invoke(&fixture, &update), 0);
+    assert_eq!(current["result"]["report"]["changed"], false);
+    assert_eq!(
+        current["result"]["report"]["plugin"]["source"],
+        *updated_source
     );
     receipt(
         fixture.run(&["plugin", "uninstall", "fixture/tools", "--format=json"]),
@@ -203,6 +238,8 @@ fn plugin_provision_invalid_grammar_has_no_effects_or_terminal_prompt() {
         vec!["plugin", "install", "fixture/tools/..", "--yes"],
         vec!["plugin", "install", "fixture/tools", "--yes", "--ref=--bad"],
         vec!["plugin", "uninstall", "tools", "--yes"],
+        vec!["plugin", "update", "tools"],
+        vec!["plugin", "update", "fixture/tools", "--yes"],
         vec!["plugin", "install", "fixture/tools", "--yes", "--timeout=0"],
     ] {
         let output = fixture.run(&args);
@@ -222,4 +259,29 @@ fn plugin_provision_invalid_grammar_has_no_effects_or_terminal_prompt() {
         let text = String::from_utf8(output.stdout).unwrap();
         assert!(text.contains("--yes") && text.contains("--ref") && text.contains("600000"));
     }
+    let linked = fixture.0.join("linked");
+    fs::create_dir(&linked).unwrap();
+    fs::write(
+        linked.join("orchbee-plugin.toml"),
+        "id='local.tools'
+name='Local tools'
+version='1'
+",
+    )
+    .unwrap();
+    assert!(
+        fixture
+            .run(&["plugin", "link", linked.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let refused = receipt(
+        fixture.run(&["plugin", "update", "local.tools", "--yes", "--format=json"]),
+        1,
+    );
+    assert_eq!(
+        refused["result"]["report"]["failure"]["kind"],
+        "source-unrecorded"
+    );
+    assert_eq!(refused["result"]["report"]["changed"], false);
 }

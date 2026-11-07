@@ -1,4 +1,4 @@
-//! One serialized offline install/uninstall workflow with atomic catalog commitment.
+//! One serialized offline install/update/uninstall workflow with atomic catalog commitment.
 use super::{
     Catalog, Error, FILE, MAX_REVISION, PluginRegistry, PluginRegistryEntry, REGISTRY_LIMIT,
     decode, load, storage,
@@ -32,6 +32,10 @@ pub enum PluginProvisionFailure {
     Command(CommandFailure),
     ManifestChanged,
     LinkedConflict,
+    /// An update target has no recorded managed source, such as a locally linked plugin.
+    SourceUnrecorded,
+    /// The updated source declares a different plugin ID than the one being updated.
+    IdentityChanged,
     CleanupIncomplete,
     PhysicalUnknown,
 }
@@ -84,6 +88,11 @@ impl PluginProvisionReport {
         }
     }
 }
+/// The managed provenance an update replaces: its plugin ID and the commit it was built from.
+struct Recorded {
+    id: String,
+    commit: String,
+}
 struct Provision<'a> {
     registry: &'a PluginRegistry,
     store: PrivateCache,
@@ -118,7 +127,33 @@ impl PluginRegistry {
             Ok(owner) => owner,
             Err(error) => return failed(error),
         };
-        let result = owner.install(source, reference, id, executor);
+        let result = owner.install(source, reference, id, None, executor);
+        owner.finish(result, executor)
+    }
+    /// Re-installs a managed plugin from its recorded source and requested reference. Enabled
+    /// state and user directories are retained; a fetched commit equal to the recorded one
+    /// commits nothing. Consent belongs to the caller, as for `install`.
+    pub fn update(
+        &self,
+        target: &str,
+        id: &str,
+        executor: &mut impl PluginProvisionExecutor,
+    ) -> PluginProvisionReport {
+        let target = match super::super::plugin_identifier(target) {
+            Ok(target) => target,
+            Err(error) => return failed(error.into()),
+        };
+        if !super::super::source::installation_id(id) {
+            return failed(Error::InvalidPath.into());
+        }
+        if let Err(reason) = executor.checkpoint() {
+            return failed(PluginProvisionFailure::Command(reason));
+        }
+        let mut owner = match Provision::open(self) {
+            Ok(owner) => owner,
+            Err(error) => return failed(error),
+        };
+        let result = owner.update(&target, id, executor);
         owner.finish(result, executor)
     }
     /// Unlinks a local source without deleting it; removes only explicitly managed source trees.
@@ -191,11 +226,39 @@ impl<'a> Provision<'a> {
         }
         Ok(())
     }
+    fn update(
+        &mut self,
+        target: &str,
+        id: &str,
+        executor: &mut impl PluginProvisionExecutor,
+    ) -> Result<(), PluginProvisionFailure> {
+        let source = self
+            .catalog
+            .plugins
+            .iter()
+            .find(|p| p.manifest.id == target)
+            .ok_or(Error::PluginNotFound)?
+            .source
+            .clone()
+            .ok_or(PluginProvisionFailure::SourceUnrecorded)?;
+        let recorded = Recorded {
+            id: target.into(),
+            commit: source.resolved_commit,
+        };
+        self.install(
+            source.github,
+            source.requested_ref,
+            id,
+            Some(&recorded),
+            executor,
+        )
+    }
     fn install(
         &mut self,
         source: PluginGithubSource,
         reference: Option<String>,
         id: &str,
+        update: Option<&Recorded>,
         executor: &mut impl PluginProvisionExecutor,
     ) -> Result<(), PluginProvisionFailure> {
         self.report.stage = PluginProvisionStage::Cleanup;
@@ -241,12 +304,27 @@ impl<'a> Provision<'a> {
             .map_err(|_| Error::InvalidManifest)?
             .trim()
             .to_owned();
+        if let Some(update) = update
+            && update.commit == resolved_commit
+        {
+            // Already current: the staged generation stays queued, so finishing removes it.
+            self.report.plugin = self
+                .catalog
+                .plugins
+                .iter()
+                .find(|p| p.manifest.id == update.id)
+                .cloned();
+            return Ok(());
+        }
         self.report.stage = PluginProvisionStage::Inspect;
         let root = source
             .subdir
             .as_ref()
             .map_or_else(|| checkout.clone(), |subdir| checkout.join(subdir));
         let before = load(&root, true)?;
+        if update.is_some_and(|update| update.id != before.manifest.id) {
+            return Err(PluginProvisionFailure::IdentityChanged);
+        }
         let canonical_checkout = checkout.canonicalize().map_err(storage)?;
         if !Path::new(&before.plugin_root).starts_with(&canonical_checkout) {
             return Err(Error::InvalidPath.into());

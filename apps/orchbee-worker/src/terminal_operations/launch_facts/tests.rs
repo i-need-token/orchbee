@@ -186,6 +186,8 @@ fn plugin_launch_environment_removes_inherited_display_keys_and_keeps_routing_ow
             "ORCHBEE_PLUGIN_ACTION_ID",
             "ORCHBEE_PLUGIN_CLICKED_URL",
             "ORCHBEE_PLUGIN_LINK_HANDLER_ID",
+            "ORCHBEE_PLUGIN_EVENT",
+            "ORCHBEE_PLUGIN_EVENT_JSON",
         ] {
             assert!(
                 result

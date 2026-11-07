@@ -138,18 +138,23 @@ impl super::CliText {
         let (usage, english, chinese) = match path {
             C::PluginInstall => (
                 "orchbee plugin install <owner/repo[/subdir]> --yes [--ref <ref>] [--timeout <ms>] [--format text|json]",
-                "Download plugin source from GitHub and run its Windows build steps. Git must be available in PATH. --yes is required because the downloaded code will run.\n\nThe work deadline defaults to 600000 ms (maximum 3600000), with up to five additional seconds to settle an active build. A failed build preserves the previous registration. Incomplete cleanup is reported for the next explicit install or uninstall. This command does not start a session.",
-                "从 GitHub 下载插件源码并执行其 Windows 构建步骤。PATH 中必须有 Git；必须指定 --yes，以允许执行下载的代码。\n\n工作时限默认 600000 毫秒，最大 3600000 毫秒；结束正在运行的构建最多再等待五秒。构建失败时保留原注册；未完成的清理会报告给下一次显式安装或卸载。本命令不启动会话。",
+                "Download plugin source from GitHub and run its Windows build steps. Git must be available in PATH. --yes is required because the downloaded code will run, including the plugin's startup and event commands, which run automatically in later sessions while it is enabled.\n\nThe work deadline defaults to 600000 ms (maximum 3600000), with up to five additional seconds to settle an active build. A failed build preserves the previous registration. Incomplete cleanup is reported for the next explicit install, update or uninstall. This command does not start a session.",
+                "从 GitHub 下载插件源码并执行其 Windows 构建步骤。PATH 中必须有 Git；必须指定 --yes，以允许执行下载的代码，包括插件的启动命令和事件命令：插件启用期间，它们会在之后的会话中自动运行。\n\n工作时限默认 600000 毫秒，最大 3600000 毫秒；结束正在运行的构建最多再等待五秒。构建失败时保留原注册；未完成的清理会报告给下一次显式安装、更新或卸载。本命令不启动会话。",
             ),
             C::PluginUninstall => (
                 "orchbee plugin uninstall <plugin-id|owner/repo[/subdir]> [--format text|json]",
-                "Remove managed plugin source and its registration. User configuration and state remain. Incomplete cleanup is reported for the next explicit install or uninstall. This command does not start a session.",
-                "移除托管的插件源码及其注册，保留用户配置和状态。未完成的清理会报告给下一次显式安装或卸载。本命令不启动会话。",
+                "Remove managed plugin source and its registration. User configuration and state remain. Incomplete cleanup is reported for the next explicit install, update or uninstall. This command does not start a session.",
+                "移除托管的插件源码及其注册，保留用户配置和状态。未完成的清理会报告给下一次显式安装、更新或卸载。本命令不启动会话。",
+            ),
+            C::PluginUpdate => (
+                "orchbee plugin update <plugin-id> --yes [--timeout <ms>] [--format text|json]",
+                "Download an installed plugin again from its recorded GitHub source and ref, then run its Windows build steps. --yes is required because the downloaded code will run. Enabled state, configuration and state are kept, and nothing changes when the source commit is the same. A linked plugin has no recorded source and is refused.\n\nThe work deadline defaults to 600000 ms (maximum 3600000), with up to five additional seconds to settle an active build. A failed build preserves the previous registration. Startup commands of the updated plugin run from the next session start. This command does not start a session.",
+                "按记录的 GitHub 来源和 ref 重新下载已安装的插件，并执行其 Windows 构建步骤。必须指定 --yes，以允许执行下载的代码。保留启用状态、配置和状态；源码提交未变化时不做任何改动。链接的插件没有记录来源，会被拒绝。\n\n工作时限默认 600000 毫秒，最大 3600000 毫秒；结束正在运行的构建最多再等待五秒。构建失败时保留原注册。更新后插件的启动命令从下一次会话启动时运行。本命令不启动会话。",
             ),
             C::PluginLink => (
                 "orchbee plugin link <path> [--enabled|--disabled] [--format text|json]",
-                "Register a local manifest file or a directory containing orchbee-plugin.toml. Registration does not run plugin commands or start a session.",
-                "注册本地清单文件，或包含 orchbee-plugin.toml 的目录。注册不运行插件命令，也不启动会话。",
+                "Register a local manifest file or a directory containing orchbee-plugin.toml. Registration does not run plugin commands or start a session; while the plugin is enabled, its startup and event commands run automatically in later sessions.",
+                "注册本地清单文件，或包含 orchbee-plugin.toml 的目录。注册不运行插件命令，也不启动会话；插件启用期间，其启动命令和事件命令会在之后的会话中自动运行。",
             ),
             C::PluginUnlink => (
                 "orchbee plugin unlink <plugin-id> [--format text|json]",
@@ -392,6 +397,13 @@ impl super::CliText {
         }
     }
 
+    pub(crate) const fn plugin_provision_current(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => "Plugin is already up to date.",
+            Locale::ZhCn => "插件已是最新。",
+        }
+    }
+
     pub(crate) const fn plugin_cleanup_pending(self) -> &'static str {
         match self.locale {
             Locale::EnUs => "Source cleanup pending",
@@ -407,8 +419,8 @@ impl super::CliText {
         match error {
             F::Registry(error) => self.plugin_error(*error),
             F::Command(C::Timeout) => match self.locale {
-                Locale::EnUs => "Plugin installation reached its time limit.",
-                Locale::ZhCn => "插件安装达到执行期限。",
+                Locale::EnUs => "The plugin source operation reached its time limit.",
+                Locale::ZhCn => "插件源操作达到执行期限。",
             },
             F::Command(reason) => self.plugin_command_failure(match reason {
                 C::ExitFailure => orchbee_workbench_protocol::PluginCommandFailure::ExitFailure,
@@ -423,10 +435,8 @@ impl super::CliText {
                 }
             }),
             F::ManifestChanged => match self.locale {
-                Locale::EnUs => {
-                    "Build changed the plugin manifest; installation was not committed."
-                }
-                Locale::ZhCn => "构建修改了插件清单；未提交安装。",
+                Locale::EnUs => "Build changed the plugin manifest; the change was not committed.",
+                Locale::ZhCn => "构建修改了插件清单；未提交变更。",
             },
             F::LinkedConflict => match self.locale {
                 Locale::EnUs => {
@@ -434,12 +444,24 @@ impl super::CliText {
                 }
                 Locale::ZhCn => "此插件 ID 已链接本地源，请先解除链接再安装。",
             },
+            F::SourceUnrecorded => match self.locale {
+                Locale::EnUs => {
+                    "This plugin is linked from a local source and has no recorded install source; update the local source directly."
+                }
+                Locale::ZhCn => "此插件链接自本地源，没有记录的安装来源；请直接更新本地源。",
+            },
+            F::IdentityChanged => match self.locale {
+                Locale::EnUs => {
+                    "The updated source declares a different plugin ID; the update was not committed."
+                }
+                Locale::ZhCn => "更新后的源码声明了不同的插件 ID；未提交更新。",
+            },
             F::CleanupIncomplete => match self.locale {
                 Locale::EnUs => {
-                    "Managed source cleanup is incomplete. Close processes using the listed paths before the next install/uninstall."
+                    "Managed source cleanup is incomplete. Close processes using the listed paths before the next install/update/uninstall."
                 }
                 Locale::ZhCn => {
-                    "托管源文件清理未完成。请关闭占用所列路径的进程，再执行 install/uninstall。"
+                    "托管源文件清理未完成。请关闭占用所列路径的进程，再执行 install/update/uninstall。"
                 }
             },
             F::PhysicalUnknown => match self.locale {

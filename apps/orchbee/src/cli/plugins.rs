@@ -30,7 +30,9 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         }
         PluginCommand::PaneManage(command) => return panes::manage(&command, format, locale),
         PluginCommand::PaneOpen(command) => return panes::open(*command, format, locale),
-        command @ (PluginCommand::Install { .. } | PluginCommand::Uninstall(_)) => {
+        command @ (PluginCommand::Install { .. }
+        | PluginCommand::Uninstall(_)
+        | PluginCommand::Update { .. }) => {
             return provision::run(command, format, locale);
         }
         command @ (PluginCommand::Invoke { .. } | PluginCommand::Logs { .. }) => {

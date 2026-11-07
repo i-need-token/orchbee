@@ -21,6 +21,10 @@ pub(crate) enum PluginCommand {
         timeout_ms: u32,
     },
     Uninstall(String),
+    Update {
+        id: String,
+        timeout_ms: u32,
+    },
     Mutate(PluginCatalogMutation),
     List(Option<String>),
     Actions(Option<String>),
@@ -130,6 +134,7 @@ pub(super) fn parse(
     let context = UsageContext::Path(match verb {
         "install" => "plugin install",
         "uninstall" => "plugin uninstall",
+        "update" => "plugin update",
         "link" => "plugin link",
         "unlink" => "plugin unlink",
         "enable" => "plugin enable",
@@ -186,6 +191,15 @@ pub(super) fn parse(
             envelope,
         )
     };
+    // Provisioning downloads and builds code, so it waits up to ten minutes by default.
+    let provision_timeout = || match options.timeout.as_deref() {
+        None => Ok(600_000),
+        Some(value) => value
+            .parse::<u32>()
+            .ok()
+            .filter(|n| (1..=3_600_000).contains(n))
+            .ok_or_else(|| invalid("--timeout", value, ExpectedValue::WaitTimeout)),
+    };
     let command = if verb == "install" {
         let value = args
             .first()
@@ -204,18 +218,10 @@ pub(super) fn parse(
                 ExpectedValue::PluginGitReference,
             ));
         }
-        let timeout_ms = match options.timeout.as_deref() {
-            None => 600_000,
-            Some(value) => value
-                .parse::<u32>()
-                .ok()
-                .filter(|n| (1..=3_600_000).contains(n))
-                .ok_or_else(|| invalid("--timeout", value, ExpectedValue::WaitTimeout))?,
-        };
         PluginCommand::Install {
             source,
             reference: options.plugin_ref.clone(),
-            timeout_ms,
+            timeout_ms: provision_timeout()?,
         }
     } else if verb == "uninstall" {
         let value = args
@@ -227,6 +233,18 @@ pub(super) fn parse(
             id(value)?
         };
         PluginCommand::Uninstall(target)
+    } else if verb == "update" {
+        let value = args
+            .first()
+            .ok_or_else(|| missing_required(context, "<plugin-id>", envelope))?;
+        let id = id(value)?;
+        if !options.plugin_yes {
+            return Err(missing_required(context, "--yes", envelope));
+        }
+        PluginCommand::Update {
+            id,
+            timeout_ms: provision_timeout()?,
+        }
     } else if verb == "action invoke" {
         let action_id = args
             .first()

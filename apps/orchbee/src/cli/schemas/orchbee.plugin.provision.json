@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.plugin.provision",
-	"title": "Windows native plugin source installation and removal receipts",
+	"title": "Windows native plugin source installation, update and removal receipts",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["schema", "version", "source", "operation", "result"],
@@ -23,7 +23,7 @@
 			}
 		},
 		"operation": {
-			"enum": ["install", "uninstall"]
+			"enum": ["install", "update", "uninstall"]
 		},
 		"result": {
 			"type": "object",
@@ -491,6 +491,8 @@
 							"enum": [
 								"manifest-changed",
 								"linked-conflict",
+								"source-unrecorded",
+								"identity-changed",
 								"cleanup-incomplete",
 								"physical-unknown"
 							]

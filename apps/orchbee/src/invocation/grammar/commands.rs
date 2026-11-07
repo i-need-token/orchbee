@@ -179,6 +179,7 @@ commands! {
     PluginLogList => ["plugin", "log", "list"], 1, Operand, Windows, true, true, false;
     PluginInstall => ["plugin", "install"], 1, Operand, Windows, true, false, false;
     PluginUninstall => ["plugin", "uninstall"], 1, Operand, Windows, true, false, false;
+    PluginUpdate => ["plugin", "update"], 1, Operand, Windows, true, false, false;
     PluginLink => ["plugin", "link"], 1, Operand, Windows, true, true, false;
     PluginUnlink => ["plugin", "unlink"], 1, Operand, Windows, true, true, false;
     PluginEnable => ["plugin", "enable"], 1, Operand, Windows, true, true, false;

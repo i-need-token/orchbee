@@ -4,12 +4,16 @@ use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
 };
 use orchbee_capability_node_protocol as node;
-use orchbee_local_runtime::PluginRegistry;
+use orchbee_local_runtime::{PluginRegistry, PluginRegistryEntry};
 use orchbee_workbench_protocol::{
     PluginAction, PluginCommandLog, PluginFailure as Failure, PluginInvocationContext,
     PluginLogCursor, PluginOutcome as Outcome, PluginRequest, PluginResult, PluginWorker,
     ProtocolVersion, WorkbenchRevision, WorkerId,
 };
+#[cfg(windows)]
+mod hooks;
+#[cfg(windows)]
+pub(super) use hooks::PluginHooks;
 mod observation;
 impl LocalTerminalService {
     pub(crate) fn execute_plugin(&self, request: PluginRequest) -> PluginResult {
@@ -128,26 +132,19 @@ impl LocalTerminalService {
                 (id, action)
             }
         };
-        let dispatch = node::PluginJobRequest {
-            operation_id,
-            worker_id: node::WorkerId::from_bytes(handle.worker_id().as_bytes())
-                .map_err(|_| Failure::Unavailable)?,
-            worker_generation: node::WorkerGeneration::new(handle.generation()),
-            action,
-        };
-        let result = match handle.request(WorkerOperationRequest::PluginJob(dispatch.clone())) {
-            Ok(WorkerOperationResult::PluginJob(result)) if result.answers(&dispatch) => result,
-            Err(WorkerRequestError::Backpressure) => return Err(Failure::Busy),
-            Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) | Ok(_) => {
+        let outcome = match request_plugin_job(&handle, operation_id, action) {
+            Ok(outcome) => outcome,
+            Err(JobRequestError::Busy) => return Err(Failure::Busy),
+            Err(JobRequestError::Unknown) => {
                 return if request.action.mutating() {
                     Ok(Outcome::Unknown { worker })
                 } else {
                     Err(Failure::Unavailable)
                 };
             }
-            Err(_) => return Err(Failure::Unavailable),
+            Err(JobRequestError::Unavailable) => return Err(Failure::Unavailable),
         };
-        Ok(match result.outcome {
+        Ok(match outcome {
             node::PluginJobOutcome::ConfiguredStarted { .. } => return Err(Failure::InvalidIntent),
             node::PluginJobOutcome::Started { log, existing } => Outcome::Started {
                 worker,
@@ -185,6 +182,37 @@ impl LocalTerminalService {
                 },
             },
         })
+    }
+}
+/// A Worker plugin-job exchange without a correlated answer.
+enum JobRequestError {
+    Busy,
+    /// The request may have been delivered; it is never resubmitted.
+    Unknown,
+    Unavailable,
+}
+/// One exact-Worker plugin-job exchange, answered only by its own correlated result.
+fn request_plugin_job(
+    handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
+    operation_id: node::OperationId,
+    action: node::PluginJobAction,
+) -> Result<node::PluginJobOutcome, JobRequestError> {
+    let dispatch = node::PluginJobRequest {
+        operation_id,
+        worker_id: node::WorkerId::from_bytes(handle.worker_id().as_bytes())
+            .map_err(|_| JobRequestError::Unavailable)?,
+        worker_generation: node::WorkerGeneration::new(handle.generation()),
+        action,
+    };
+    match handle.request(WorkerOperationRequest::PluginJob(dispatch.clone())) {
+        Ok(WorkerOperationResult::PluginJob(result)) if result.answers(&dispatch) => {
+            Ok(result.outcome)
+        }
+        Err(WorkerRequestError::Backpressure) => Err(JobRequestError::Busy),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) | Ok(_) => {
+            Err(JobRequestError::Unknown)
+        }
+        Err(_) => Err(JobRequestError::Unavailable),
     }
 }
 fn identity(value: &str) -> Result<node::OperationId, Failure> {
@@ -245,6 +273,26 @@ fn resolve(
     if !entry.manifest.supports_windows(&action.platforms) {
         return Err(Failure::Unsupported);
     }
+    let mut environment = command_environment(registry, entry, context)?;
+    environment.push(("ORCHBEE_PLUGIN_ACTION_ID".into(), action.id.clone()));
+    let intent = node::PluginCommandIntent {
+        plugin_id: entry.manifest.id.clone(),
+        command_id: action.id.clone(),
+        directory: entry.plugin_root.clone(),
+        argv: action.command.clone(),
+        environment,
+    };
+    intent.validate().map_err(|_| Failure::InvalidIntent)?;
+    Ok(intent)
+}
+
+/// The environment every plugin command receives: identity, root, private directories, frozen
+/// context and the CLI path. Each caller adds its own invocation fields.
+fn command_environment(
+    registry: &PluginRegistry,
+    entry: &PluginRegistryEntry,
+    context: &PluginInvocationContext,
+) -> Result<Vec<(String, String)>, Failure> {
     let (config, state) = registry
         .user_directories(&entry.manifest.id)
         .map_err(|_| Failure::SourceUnavailable)?;
@@ -255,7 +303,6 @@ fn resolve(
         ("ORCHBEE_PLUGIN_ROOT".into(), entry.process_root()),
         ("ORCHBEE_PLUGIN_CONFIG_DIR".into(), path(&config)?),
         ("ORCHBEE_PLUGIN_STATE_DIR".into(), path(&state)?),
-        ("ORCHBEE_PLUGIN_ACTION_ID".into(), action.id.clone()),
         (
             "ORCHBEE_PLUGIN_CONTEXT_JSON".into(),
             serde_json::to_string(context).map_err(|_| Failure::InvalidIntent)?,
@@ -273,15 +320,7 @@ fn resolve(
             environment.push((name.into(), value.clone()));
         }
     }
-    let intent = node::PluginCommandIntent {
-        plugin_id: entry.manifest.id.clone(),
-        command_id: action.id.clone(),
-        directory: entry.plugin_root.clone(),
-        argv: action.command.clone(),
-        environment,
-    };
-    intent.validate().map_err(|_| Failure::InvalidIntent)?;
-    Ok(intent)
+    Ok(environment)
 }
 
 fn verify_link_selection(

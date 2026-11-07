@@ -162,11 +162,13 @@ fn launch_environment(
                 value,
             });
         }
-        // Action/link invocations can be ancestors of a newly started Session too.
+        // Action, link and hook invocations can be ancestors of a newly started Session too.
         for name in [
             "ORCHBEE_PLUGIN_ACTION_ID",
             "ORCHBEE_PLUGIN_CLICKED_URL",
             "ORCHBEE_PLUGIN_LINK_HANDLER_ID",
+            "ORCHBEE_PLUGIN_EVENT",
+            "ORCHBEE_PLUGIN_EVENT_JSON",
         ] {
             entries.push(LaunchEnvironmentEntry {
                 name: name.into(),

@@ -97,6 +97,8 @@ pub(super) fn run(
         Ok(clients) => clients,
         Err(error) => return Err(abort_startup(owners, error)),
     };
+    // Plugin startup commands may call back into the Session, so they run once it admits Clients.
+    owners.terminals.start_plugin_hooks();
     let mut worker_completed = false;
     loop {
         let attempt = next_attempt(&mut owners, &shutdown);
@@ -171,6 +173,12 @@ fn settle(
             io::ErrorKind::TimedOut.into(),
         ));
     }
+    // Hooks submit Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs
+    // end with the Worker's own shutdown.
+    owners
+        .terminals
+        .stop_plugin_hooks_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     // A resume types through the Worker and reads through the observer, so it stops first; one
     // not yet attempted stays pending for the final capture.
     owners

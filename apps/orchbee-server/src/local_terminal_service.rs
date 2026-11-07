@@ -96,6 +96,8 @@ pub(crate) struct LocalTerminalService {
     close_maintenance: close_maintenance::CloseMaintenance,
     #[cfg(windows)]
     agent_resume: agent_resume::AgentResume,
+    #[cfg(windows)]
+    plugin_hooks: plugins::PluginHooks,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
@@ -143,6 +145,8 @@ impl LocalTerminalService {
             process_observer: process_observer::ProcessObserver::default(),
             #[cfg(windows)]
             agent_resume: agent_resume::AgentResume::default(),
+            #[cfg(windows)]
+            plugin_hooks: plugins::PluginHooks::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(
                 "orchbee-worktree-operations",
                 Self::worktree_turn,

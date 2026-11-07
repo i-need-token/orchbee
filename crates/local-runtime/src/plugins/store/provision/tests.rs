@@ -41,6 +41,9 @@ struct Executor {
     failure: Option<CommandFailure>,
     mutate: bool,
     called: usize,
+    commit: Option<char>,
+    manifest: Option<String>,
+    fetched: Vec<String>,
 }
 impl PluginProvisionExecutor for Executor {
     fn checkpoint(&mut self) -> Result<(), CommandFailure> {
@@ -56,11 +59,23 @@ impl PluginProvisionExecutor for Executor {
             stdout_truncated: false,
             stderr_truncated: false,
         };
+        if command.argv.iter().any(|a| a == "fetch") {
+            self.fetched.push(command.argv.last().unwrap().clone());
+        }
         if command.argv.iter().any(|a| a == "checkout") {
-            fs::write(command.directory.join("orchbee-plugin.toml"), MANIFEST).unwrap();
+            fs::write(
+                command.directory.join("orchbee-plugin.toml"),
+                self.manifest.as_deref().unwrap_or(MANIFEST),
+            )
+            .unwrap();
         }
         if command.argv.iter().any(|a| a == "rev-parse") {
-            output.stdout = "a".repeat(40).into_bytes();
+            output.stdout = self
+                .commit
+                .unwrap_or('a')
+                .to_string()
+                .repeat(40)
+                .into_bytes();
         }
         if command.stage == PluginProvisionStage::Build {
             assert_eq!(command.argv, vec!["build.exe", "literal & value"]);
@@ -126,6 +141,102 @@ fn plugin_managed_install_replace_and_uninstall_preserve_user_directories() {
     assert!(registry.list(None).unwrap().plugins.is_empty());
     assert!(!Path::new(&second.plugin.unwrap().plugin_root).exists());
     assert_eq!(fs::read(config.join("user.txt")).unwrap(), b"keep");
+}
+#[test]
+fn plugin_managed_update_reuses_recorded_source_and_skips_an_unchanged_commit() {
+    let fixture = Fixture::new();
+    let registry = fixture.registry();
+    let original = install(&registry, 1, &mut Executor::default())
+        .plugin
+        .unwrap();
+    let config = registry.config_dir("tools").unwrap();
+    fs::write(config.join("user.txt"), "keep").unwrap();
+    registry
+        .mutate(crate::PluginRegistryMutation::SetEnabled {
+            id: "tools".into(),
+            enabled: false,
+        })
+        .unwrap();
+    let mut executor = Executor {
+        commit: Some('b'),
+        ..Executor::default()
+    };
+    let updated = registry.update("tools", &format!("{:032x}", 2), &mut executor);
+    assert_eq!(updated.failure, None);
+    assert!(updated.changed);
+    assert_eq!(executor.fetched, ["main"]);
+    let entry = updated.plugin.unwrap();
+    assert!(!entry.enabled);
+    let source = entry.source.as_ref().unwrap();
+    assert_eq!(source.resolved_commit, "b".repeat(40));
+    assert_eq!(source.requested_ref.as_deref(), Some("main"));
+    assert!(!Path::new(&original.plugin_root).exists());
+    assert_eq!(fs::read(config.join("user.txt")).unwrap(), b"keep");
+    let current = registry.list(None).unwrap();
+    let unchanged = registry.update(
+        "tools",
+        &format!("{:032x}", 3),
+        &mut Executor {
+            commit: Some('b'),
+            ..Executor::default()
+        },
+    );
+    assert_eq!(unchanged.failure, None);
+    assert!(!unchanged.changed);
+    assert_eq!(unchanged.stage, PluginProvisionStage::Done);
+    assert!(unchanged.cleanup_pending.is_empty());
+    assert_eq!(registry.list(None).unwrap(), current);
+    let renamed = registry.update(
+        "tools",
+        &format!("{:032x}", 4),
+        &mut Executor {
+            commit: Some('c'),
+            manifest: Some(MANIFEST.replace("id='tools'", "id='other'")),
+            ..Executor::default()
+        },
+    );
+    assert_eq!(
+        renamed.failure,
+        Some(PluginProvisionFailure::IdentityChanged)
+    );
+    assert_eq!(registry.list(None).unwrap(), current);
+    for n in [3, 4] {
+        assert!(
+            !registry
+                .root
+                .join("managed")
+                .join(format!("i-{n:032x}"))
+                .exists()
+        );
+    }
+    assert_eq!(
+        registry
+            .update("absent", &format!("{:032x}", 5), &mut Executor::default())
+            .failure,
+        Some(PluginProvisionFailure::Registry(Error::PluginNotFound))
+    );
+}
+#[test]
+fn plugin_update_refuses_a_linked_plugin_without_running_commands() {
+    let fixture = Fixture::new();
+    let registry = fixture.registry();
+    fs::write(fixture.0.join("orchbee-plugin.toml"), MANIFEST).unwrap();
+    registry
+        .mutate(crate::PluginRegistryMutation::Link {
+            path: fixture.0.clone(),
+            enabled: true,
+        })
+        .unwrap();
+    let before = registry.list(None).unwrap();
+    let mut executor = Executor::default();
+    let refused = registry.update("tools", &format!("{:032x}", 1), &mut executor);
+    assert_eq!(
+        refused.failure,
+        Some(PluginProvisionFailure::SourceUnrecorded)
+    );
+    assert!(!refused.changed);
+    assert_eq!(executor.called, 0);
+    assert_eq!(registry.list(None).unwrap(), before);
 }
 #[test]
 fn plugin_managed_failed_or_changed_build_keeps_previous_catalog() {

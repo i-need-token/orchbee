@@ -264,6 +264,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::PluginLogList => &["--plugin", "example.plugin", "--limit", "20"],
         CommandPath::PluginInstall => &["owner/plugin", "--yes"],
         CommandPath::PluginUninstall => &["owner/plugin"],
+        CommandPath::PluginUpdate => &["example.plugin", "--yes"],
         CommandPath::PluginLink => &["./plugin"],
         CommandPath::PluginUnlink => &["example.plugin"],
         CommandPath::PluginEnable => &["example.plugin"],

@@ -202,6 +202,7 @@ impl super::CliText {
             CommandPath::PluginLogList => &[Argument::Plugin],
             CommandPath::PluginInstall => &[Argument::Repository],
             CommandPath::PluginUninstall => &[Argument::InstalledRepository],
+            CommandPath::PluginUpdate => &[Argument::Plugin],
             CommandPath::PluginLink => &[Argument::Path],
             CommandPath::PluginUnlink => &[Argument::Plugin],
             CommandPath::PluginEnable => &[Argument::Plugin],

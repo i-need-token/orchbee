@@ -1114,6 +1114,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PluginInstall,
         #[cfg(windows)]
         CommandPath::PluginUninstall,
+        #[cfg(windows)]
+        CommandPath::PluginUpdate,
         CommandPath::TerminalTitleSet,
         CommandPath::TerminalTitleClear,
         CommandPath::ServerReloadAgentManifests,
@@ -1231,6 +1233,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "show",
         "install",
         "uninstall",
+        "update",
         "link",
         "unlink",
         "enable",

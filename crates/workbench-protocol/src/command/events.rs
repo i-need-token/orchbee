@@ -38,6 +38,16 @@ event_kinds! {
     PaneOutputChanged => "pane.output_changed", PaneOutputMatched => "pane.output_matched",
     PaneScrollChanged => "pane.scroll_changed", LayoutUpdated => "layout.updated",
 }
+impl SemanticEventKind {
+    /// The public name scripts and plugin manifests use. It is independent of this protocol's
+    /// historical `pane.` noun, which reads `panel.` publicly.
+    #[must_use]
+    pub fn public_name(self) -> String {
+        self.as_str()
+            .strip_prefix("pane.")
+            .map_or_else(|| self.as_str().to_owned(), |tail| format!("panel.{tail}"))
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

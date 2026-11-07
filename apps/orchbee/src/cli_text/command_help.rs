@@ -116,7 +116,8 @@ impl super::CliText {
                 | CommandPath::PluginPaneOpen
                 | CommandPath::PluginLogList
                 | CommandPath::PluginInstall
-                | CommandPath::PluginUninstall,
+                | CommandPath::PluginUninstall
+                | CommandPath::PluginUpdate,
             ) => self.plugin_help(path),
             (_, CommandPath::NotificationShow) => self.notification_help(),
             (_, CommandPath::ServerConfig | CommandPath::ServerReloadConfig) => {

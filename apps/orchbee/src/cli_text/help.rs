@@ -719,6 +719,9 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::PluginUninstall) => {
                 ("Uninstall a plugin.", "卸载插件。")
             }
+            HelpTopic::Command(CommandPath::PluginUpdate) => {
+                ("Update an installed plugin.", "更新已安装的插件。")
+            }
             HelpTopic::Command(CommandPath::PluginLink) => {
                 ("Use a local plugin directory.", "使用本地插件目录。")
             }
