@@ -15,6 +15,15 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
+/* Closed, the list keeps its strip mounted for the Tab Actions, out of sight and reach. */
+.root:not([data-open]) {
+	visibility: hidden;
+}
+
+.root:focus {
+	outline: none;
+}
+
 /* `Tabs 8` keeps the bar's place at the top end. */
 .band {
 	display: flex;
@@ -28,6 +37,11 @@
 .root[data-touch] .band {
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 	padding-inline: var(--ob-ref-space-0);
+}
+
+/* Empty unless a desktop window's controls stand at the top end. */
+.trailing {
+	flex: none;
 }
 
 .actions {

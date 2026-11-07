@@ -128,10 +128,11 @@ button.statusNoticeText {
 	background: var(--ob-sys-color-surface-raised);
 }
 
-/* Touch sizes (D19): the sidebar button's 36 px fill stands 4 px from the 44 px row's edges. */
+/* Touch sizes (D19): the sidebar button's 44 px target fills the row's corner, so its 36 px fill
+   stands 4 px from the 44 px row's edges. */
 .root[data-workbench-touch] .sidebarToggle {
-	inset-block-start: var(--ob-ref-space-1);
-	inset-inline-start: var(--ob-ref-space-1);
+	inset-block-start: var(--ob-ref-space-0);
+	inset-inline-start: var(--ob-ref-space-0);
 }
 
 .root[data-workbench-touch] .noWorkspaceChrome,

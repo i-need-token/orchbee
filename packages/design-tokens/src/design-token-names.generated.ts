@@ -109,6 +109,7 @@ export const designTokenNames = [
 	'--ob-comp-workbench-sidebar-overlay-inline-size',
 	'--ob-comp-workbench-sidebar-thumb-size',
 	'--ob-comp-workbench-sidebar-thumb-start',
+	'--ob-comp-workbench-window-inline-size',
 	'--ob-ref-animation-bounce',
 	'--ob-ref-animation-ping',
 	'--ob-ref-animation-pulse',

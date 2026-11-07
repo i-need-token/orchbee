@@ -90,6 +90,7 @@ import type {
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
+import { useWorkbenchMobileFocusRouter } from './useWorkbenchMobileFocusRouter';
 import { useWorkbenchSidebarPresentation } from './useWorkbenchSidebarPresentation';
 import {
 	createSharedTab,
@@ -399,15 +400,21 @@ export function useWorkbench({
 	);
 	const focusRouting = useWorkbenchFocusRouting({
 		isSidebarVisible,
+		isTabStripVisible: !sidebar.mobile || sidebar.tabListOpen,
 		resolveTerminalTarget: resolveTerminalFocusTarget,
+	});
+	const layoutFocusRouter = useWorkbenchMobileFocusRouter({
+		focusRouting,
+		hasTabs: tabModel !== undefined,
+		sidebar,
 	});
 	const focusRouter = React.useMemo(
 		() => ({
 			beginTerminalHandover: focusRouting.beginTerminalHandover,
-			focus: focusRouting.focus,
-			getResolution: focusRouting.getResolution,
+			focus: layoutFocusRouter.focus,
+			getResolution: layoutFocusRouter.getResolution,
 		}),
-		[focusRouting.beginTerminalHandover, focusRouting.focus, focusRouting.getResolution],
+		[focusRouting.beginTerminalHandover, layoutFocusRouter.focus, layoutFocusRouter.getResolution],
 	);
 	const [tabStripOrientation, setTabStripOrientationState] = React.useState<TabStripOrientation>(
 		() => readWorkbenchTabStripOrientation(storage),

@@ -21,9 +21,12 @@ type WorkbenchFocusOwner = WorkbenchFocusRegion | 'exclusive' | null;
 
 export function useWorkbenchFocusRouting({
 	isSidebarVisible,
+	isTabStripVisible = true,
 	resolveTerminalTarget,
 }: {
 	readonly isSidebarVisible: boolean;
+	/** False while the mobile layout's Tab list, which holds its strip, is closed. */
+	readonly isTabStripVisible?: boolean | undefined;
 	readonly resolveTerminalTarget: () => string | null;
 }): WorkbenchFocusRouting {
 	const initialOwner: WorkbenchFocusOwner = resolveTerminalTarget() === null ? null : 'terminal';
@@ -42,7 +45,7 @@ export function useWorkbenchFocusRouting({
 	});
 	const availableRegions = useMemoizedFn((): readonly WorkbenchFocusRegion[] => [
 		...(resolveTerminalTarget() === null ? [] : (['terminal'] as const)),
-		'tab-strip',
+		...(isTabStripVisible ? (['tab-strip'] as const) : []),
 		...(isSidebarVisible ? (['sidebar'] as const) : []),
 	]);
 	const requestTerminalFocus = useMemoizedFn((): boolean => {

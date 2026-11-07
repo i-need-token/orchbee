@@ -264,7 +264,8 @@
 }
 
 /* Touch sizes (D18): a Workspace grows by the same 16 px as a one-line row, to 54 px = 12 + 18 + 12
-   + 12, its lines centered in the fill; the end area and the tools follow the name line. */
+   + 12, its lines centered in the fill; the end area and the tools follow the name line. Without a
+   second line the name line alone is centered: line 2's 12 px goes to the padding, 18 + 18 + 18. */
 :global([data-workbench-touch]) .row {
 	padding-block: calc(var(--ob-ref-space-1) + var(--ob-ref-space-2));
 }
@@ -272,4 +273,17 @@
 :global([data-workbench-touch]) .endInfo,
 :global([data-workbench-touch]) .tools {
 	top: calc(var(--ob-ref-space-1) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .line2:empty {
+	display: none;
+}
+
+:global([data-workbench-touch]) .row:has(> .line2:empty) {
+	padding-block: calc(var(--ob-ref-space-1) + var(--ob-ref-space-2) + var(--ob-ref-space-3) / 2);
+}
+
+:global([data-workbench-touch]) .row:has(> .line2:empty) .endInfo,
+:global([data-workbench-touch]) .row:has(> .line2:empty) .tools {
+	top: calc(var(--ob-ref-space-1) + var(--ob-ref-space-2) + var(--ob-ref-space-3) / 2);
 }

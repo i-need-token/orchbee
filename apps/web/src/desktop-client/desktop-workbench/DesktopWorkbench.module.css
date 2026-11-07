@@ -36,6 +36,7 @@
 }
 
 .root[data-window-controls='leading'] :global([data-slot='workbench-tab-bar-leading-actions']),
+.root[data-window-controls='leading'] :global([data-slot='workbench-mobile-bar-start']),
 .root[data-window-controls='leading'] :global([data-slot='workbench-mobile-bar-leading']) {
 	width: calc(
 		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-sm) +
@@ -44,11 +45,22 @@
 }
 
 .root[data-window-controls='leading']
+	:global([data-slot='workbench-mobile-bar'][data-touch] [data-slot='workbench-mobile-bar-start']),
+.root[data-window-controls='leading']
 	:global(
 		[data-slot='workbench-mobile-bar'][data-touch] [data-slot='workbench-mobile-bar-leading']
 	) {
 	width: calc(
 		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-lg) +
 			var(--ob-ref-space-2)
+	);
+}
+
+/* Windows draws its caption buttons over the page's top end: the mobile bar and the Tab list keep
+   clear what the window leaves past its title-bar area. */
+.root[data-window-controls='trailing'] :global([data-slot='workbench-mobile-bar-trailing']),
+.root[data-window-controls='trailing'] :global([data-slot='workbench-tab-list-trailing']) {
+	width: calc(
+		var(--ob-comp-workbench-window-inline-size) - env(titlebar-area-x) - env(titlebar-area-width)
 	);
 }

@@ -1,12 +1,11 @@
-/* Both sides take the wider side's width, so the current Tab stays centered on the whole bar while
-   it fits and then keeps 16 px from each button, its name ending in … (D20). The bar's own click
-   opens the Tab list, so a tap anywhere between the buttons does. It paints the Tab strip's track,
-   which the current Tab joins to the content below. */
+/* The current Tab stays centered on the whole bar while it fits and then keeps 16 px from each
+   button, its name ending in … (D20). The bar's own click opens the Tab list, so a tap anywhere
+   between the buttons does. It paints the Tab strip's track, which the current Tab joins to the
+   content below. */
 .root {
-	display: grid;
+	display: flex;
 	box-sizing: border-box;
 	flex: none;
-	grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
 	column-gap: var(--ob-ref-space-3);
 	height: var(--ob-comp-workbench-horizontal-chrome-height);
 	padding-inline: var(--ob-ref-space-1);
@@ -25,39 +24,60 @@
 	padding-inline: var(--ob-ref-space-0);
 }
 
+/* Both sides hold both sides' contents, one of them hidden, so they start at the same width and
+   grow alike. A window too narrow for that first narrows the current Tab to 96 px; then the start
+   gives up the hidden copy, down to the sidebar button's place, so nothing leaves the bar. The
+   Tab's shrink weight dwarfs the start's, so the start's share before then stays under a pixel. */
 .start,
 .end {
 	display: grid;
-	align-self: stretch;
+	flex: 1 0 content;
+}
+
+.start > *,
+.end > * {
+	grid-area: 1 / 1;
 }
 
 .start {
-	grid-area: 1 / 1;
-	justify-self: start;
-}
-
-.start > * {
-	grid-area: 1 / 1;
+	flex-shrink: 1;
+	justify-items: start;
 }
 
 .end {
-	grid-area: 1 / 3;
-	justify-self: end;
+	justify-items: end;
 }
 
-/* The sidebar button's place: its fill and 4 px on each side. */
+.endGroup {
+	display: flex;
+	align-self: stretch;
+}
+
+.endGroup[aria-hidden='true'] {
+	visibility: hidden;
+}
+
+/* Empty unless a desktop window's controls stand at the top end. */
+.trailing {
+	flex: none;
+}
+
+/* The sidebar button's place: its fill and 4 px on each side. As the start's width, it is also
+   the start's floor, because a flex item's automatic minimum never exceeds its own width. */
+.start,
 .leading {
 	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-2));
 }
 
+.root[data-touch] .start,
 .root[data-touch] .leading {
 	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
 .middle {
 	display: flex;
-	grid-area: 1 / 2;
-	min-width: var(--ob-ref-space-0);
+	flex: 0 10000 auto;
+	min-width: var(--ob-ref-space-24);
 	align-items: flex-end;
 	align-self: stretch;
 	justify-content: center;
@@ -94,13 +114,6 @@
 
 .middle:focus-visible .tab {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
-}
-
-.icon {
-	display: inline-flex;
-	flex: none;
-	align-items: center;
-	color: var(--ob-sys-color-icon-secondary);
 }
 
 /* Text beside icons sits on the icons' center line (G19); the padding keeps ascenders and

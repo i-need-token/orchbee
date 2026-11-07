@@ -7,15 +7,26 @@
 	color: var(--ob-sys-color-icon-hover);
 }
 
-/* Touch sizes (D19): a 36 px fill that owns a 44 px target, 4 px past it on every side. */
+/* Touch sizes (D19): the button owns a 44 px target and paints its 36 px fill 4 px inside it, so a
+   tap on that ring still hits it. The transparent 4 px border holds the ring, the fill stays in the
+   padding box, and the radius grows by the ring so the fill keeps the button's corners. */
 .trigger[data-touch] {
 	position: relative;
-	width: var(--ob-ref-size-control-lg);
-	height: var(--ob-ref-size-control-lg);
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	border-width: var(--ob-ref-space-1);
+	border-color: transparent;
+	border-radius: calc(var(--ob-ref-radius-ui-md) + var(--ob-ref-space-1));
 }
 
+/* The rounded corners would leave the target's corners out of it; the square keeps them in. */
 .trigger[data-touch]::after {
 	position: absolute;
 	inset: calc(var(--ob-ref-space-1) * -1);
 	content: '';
+}
+
+/* The focus ring stays on the fill, inside the ring of the target. */
+.trigger[data-touch]:focus-visible {
+	border-color: transparent;
 }

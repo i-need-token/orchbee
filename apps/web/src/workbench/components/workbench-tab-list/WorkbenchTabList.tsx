@@ -18,8 +18,17 @@ import {
 	type TabStripSelectCallback,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
-import { Button, Kbd, ProductIcon } from '@orchbee/ui/components';
-import { type KeyboardEvent, type ReactNode, useSyncExternalStore } from 'react';
+import {
+	Button,
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuShortcut,
+	ContextMenuTrigger,
+	Kbd,
+	ProductIcon,
+} from '@orchbee/ui/components';
+import { type KeyboardEvent, type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import { WorkbenchTabBar } from '../workbench-tab-bar/WorkbenchTabBar';
 import { WorkbenchTabsButton } from '../workbench-tabs-button/WorkbenchTabsButton';
@@ -42,6 +51,8 @@ interface WorkbenchTabListProps {
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
 	readonly onTabsChange: TabStripChangeCallback | undefined;
+	/** Closed, the list stays mounted, hidden and inert, because the Tab Actions resolve through its strip. */
+	readonly open: boolean;
 	readonly parentActionScope: ActionScope;
 	readonly statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
 	readonly tabModel: TabModel;
@@ -52,9 +63,10 @@ interface WorkbenchTabListProps {
 }
 
 /**
- * The mobile layout's Tab list (D21): New Tab first, as in the TUI, then the Workspace's vertical
- * Tab strip at the window's full width, with its order, pins, groups, menus and drags. `Tabs 8`
- * stays at the top end, pressed, and closes the list; choosing a row or Esc closes it too.
+ * The mobile layout's Tab list (D21): New Tab first, as in the TUI, with the strip's New Tab menu,
+ * then the Workspace's vertical Tab strip at the window's full width, with its order, pins, groups,
+ * menus and drags. `Tabs 8` stays at the top end, pressed, and closes the list; choosing a row,
+ * the current one included, or Esc closes it too.
  */
 export function WorkbenchTabList({
 	actionRuntime,
@@ -71,6 +83,7 @@ export function WorkbenchTabList({
 	onSelectTab,
 	onSetTabTitle,
 	onTabsChange,
+	open,
 	parentActionScope,
 	statusAdornments,
 	tabModel,
@@ -84,22 +97,44 @@ export function WorkbenchTabList({
 		() => tabModel.getSnapshot().tabs.length,
 		() => tabModel.getSnapshot().tabs.length,
 	);
-	const choice = useWorkbenchTabListChoice({ onChoose: onClose, selectTab: onSelectTab });
+	const choice = useWorkbenchTabListChoice({ onChoose: onClose, open, selectTab: onSelectTab });
+	const [newTabMenuOpen, setNewTabMenuOpen] = useState(false);
 	const newTabAvailable =
 		onNewTab !== undefined &&
 		getTabCreationAvailability({ groupId: null, kind: 'new-tab' }).kind === 'enabled';
+	const newTabMenuAvailable = newTabAvailable && (newTabChoices?.length ?? 0) > 0;
 	const title = intl.formatMessage(workbenchMessages.mobileTabs);
+	const onListKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+		onKeyDown(event);
+		// Enter on the current row chooses it as a click does; the strip selects only another row.
+		if (
+			event.key !== 'Enter' ||
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.shiftKey ||
+			!(event.target instanceof Element)
+		) {
+			return;
+		}
+		const row = event.target.closest<HTMLElement>('[data-tab-id]');
+		if (row !== null && row.dataset['tabId'] === tabModel.getSnapshot().activeTabId) onClose();
+	};
 	return (
 		// A labelled section rather than a dialog: like the sidebar list, it keeps the Workbench's
 		// keyboard regions, so its strip takes focus and Esc returns it to the terminal.
 		<section
 			aria-label={title}
 			className={styles['root']}
+			data-open={open || undefined}
 			data-slot='workbench-tab-list'
 			data-touch={touch || undefined}
-			onKeyDown={onKeyDown}
+			inert={!open}
+			// A click on empty space keeps the keyboard in the list, where Esc closes it.
+			tabIndex={-1}
+			onKeyDown={onListKeyDown}
 		>
-			<div className={styles['band']}>
+			<div className={styles['band']} data-slot='workbench-tab-list-band'>
 				<WorkbenchTabsButton
 					count={count}
 					label={intl.formatMessage(workbenchMessages.mobileTabsLabel, { count })}
@@ -108,29 +143,58 @@ export function WorkbenchTabList({
 					touch={touch}
 					word={title}
 				/>
+				{/* A desktop window's own controls at the top end, where they draw over the page. */}
+				<span className={styles['trailing']} data-slot='workbench-tab-list-trailing' />
 			</div>
-			<div className={styles['actions']}>
-				<Button
-					aria-disabled={!newTabAvailable}
-					className={styles['action']}
-					data-slot='workbench-tab-list-new-tab'
-					size='sm'
-					variant='ghost'
-					onClick={() => {
-						if (!newTabAvailable) return;
-						onNewTab({ groupId: null, source: 'button' });
-						onClose();
-					}}
-				>
-					<span className={styles['icon']}>
-						<ProductIcon name='add' />
-					</span>
-					<span className={styles['label']}>{intl.formatMessage(workbenchTabMessages.newTab)}</span>
-					{newTabShortcutLabel === undefined ? null : (
-						<Kbd className={styles['shortcut']}>{newTabShortcutLabel}</Kbd>
-					)}
-				</Button>
-			</div>
+			{/* Right click or a long press offers the strip's New Tab menu: how the Tab starts. */}
+			<ContextMenu
+				disabled={!newTabMenuAvailable}
+				open={newTabMenuOpen}
+				onOpenChange={setNewTabMenuOpen}
+			>
+				<ContextMenuTrigger className={styles['actions']}>
+					<Button
+						aria-disabled={!newTabAvailable}
+						className={styles['action']}
+						data-slot='workbench-tab-list-new-tab'
+						size='sm'
+						variant='ghost'
+						onClick={() => {
+							// The release that ends a long press opens the menu, not a Tab.
+							if (!newTabAvailable || newTabMenuOpen) return;
+							onNewTab({ groupId: null, source: 'button' });
+							onClose();
+						}}
+					>
+						<span className={styles['icon']}>
+							<ProductIcon name='add' />
+						</span>
+						<span className={styles['label']}>
+							{intl.formatMessage(workbenchTabMessages.newTab)}
+						</span>
+						{newTabShortcutLabel === undefined ? null : (
+							<Kbd className={styles['shortcut']}>{newTabShortcutLabel}</Kbd>
+						)}
+					</Button>
+				</ContextMenuTrigger>
+				<ContextMenuContent aria-label={tabStripMessages.newTabMenu}>
+					{newTabChoices?.map((newTabChoice) => (
+						<ContextMenuItem
+							key={newTabChoice.id}
+							onClick={() => {
+								newTabChoice.select();
+								onClose();
+							}}
+						>
+							<ProductIcon name={newTabChoice.icon} size='menu-leading' />
+							{newTabChoice.label}
+							{newTabChoice.note === undefined ? null : (
+								<ContextMenuShortcut>{newTabChoice.note}</ContextMenuShortcut>
+							)}
+						</ContextMenuItem>
+					))}
+				</ContextMenuContent>
+			</ContextMenu>
 			<div
 				className={styles['list']}
 				onPointerCancelCapture={choice.onPointerCancelCapture}

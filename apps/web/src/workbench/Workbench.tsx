@@ -304,6 +304,7 @@ export function Workbench({
 			/>
 		);
 
+	const tabListShown = view.tabListOpen && terminalContext !== null;
 	// No Workspace has no Tab Strip, so its row keeps the toggle's place and the window's drag. The
 	// mobile layout's bar takes the strip's place.
 	let tabChrome: React.ReactNode;
@@ -318,13 +319,14 @@ export function Workbench({
 	} else if (view.mobileLayout) {
 		tabChrome = (
 			<WorkbenchMobileBar
+				covered={tabListShown || view.sidebarPresentation === 'fill'}
 				identityIcons={agentPresentation.tabIdentityIcons}
 				onOpenTabList={view.toggleTabList}
 				statusAdornments={agentPresentation.tabStatusAdornments}
 				tabListOpen={view.tabListOpen}
 				tabModel={terminalContext.tabModel}
 				touch={view.touchSizes}
-				untitledTabTitle={tabStripMessages.newTabTitle}
+				tabStripMessages={tabStripMessages}
 			/>
 		);
 	} else {
@@ -422,12 +424,14 @@ export function Workbench({
 				</div>
 			) : null}
 			{/* The Tab list covers the sidebar button, as it covers the bar. */}
-			{view.tabListOpen ? null : (
+			{tabListShown ? null : (
 				<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 					{sidebarToggle}
 				</div>
 			)}
-			{view.tabListOpen && terminalContext !== null ? (
+			{/* The list's strip stays mounted through the mobile layout, hidden and inert while the list
+			    is closed, because the Tab Actions and their shortcuts resolve through it. */}
+			{view.mobileLayout && terminalContext !== null ? (
 				<WorkbenchTabList
 					actionRuntime={actionRuntime}
 					closeResume={view.closeResume}
@@ -443,6 +447,7 @@ export function Workbench({
 					onSelectTab={navigation?.selectTab}
 					onSetTabTitle={view.setTabTitle}
 					onTabsChange={view.onTabsChange}
+					open={tabListShown}
 					parentActionScope={view.actionScope}
 					statusAdornments={agentPresentation.tabStatusAdornments}
 					tabModel={terminalContext.tabModel}

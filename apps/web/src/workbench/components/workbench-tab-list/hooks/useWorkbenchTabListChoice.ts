@@ -7,29 +7,34 @@ const LONG_PRESS_MS = 500;
 
 interface Press {
 	readonly at: number;
-	dragged: boolean;
+	/** A drag or a long press: the release reorders or opens the Tab menu, never chooses. */
+	cancelled: boolean;
 	readonly primary: boolean;
+	readonly touch: boolean;
 }
 
 export interface WorkbenchTabListChoice {
 	readonly onDraggingChange: (dragging: boolean) => void;
 	readonly onPointerCancelCapture: () => void;
-	readonly onPointerDownCapture: (event: React.PointerEvent<HTMLDivElement>) => void;
-	readonly onPointerUpCapture: (event: React.PointerEvent<HTMLDivElement>) => void;
+	readonly onPointerDownCapture: (event: React.PointerEvent<HTMLElement>) => void;
+	readonly onPointerUpCapture: (event: React.PointerEvent<HTMLElement>) => void;
 	/** Absent without a host selection callback; the strip then selects on its own and stays open. */
 	readonly onSelectTab: TabStripSelectCallback | undefined;
 }
 
 /**
- * Choosing a row closes the Tab list once the selection settles and the press ends: a tap, a
- * click, or Enter. A drag, a long press, a right click, or a modified click leaves it open, so
- * reordering and the Tab menu work as in the strip.
+ * Choosing a row closes the open Tab list once the selection settles and the press ends: a tap, a
+ * click, Enter, or a Tab shortcut. A drag, a long press, a right click, or a modified click leaves
+ * it open, so reordering and the Tab menu work as in the strip. While the list is closed its
+ * strip still serves the Tab shortcuts, which then choose nothing.
  */
 export function useWorkbenchTabListChoice({
 	onChoose,
+	open,
 	selectTab,
 }: {
 	readonly onChoose: () => void;
+	readonly open: boolean;
 	readonly selectTab: TabStripSelectCallback | undefined;
 }): WorkbenchTabListChoice {
 	const press = React.useRef<Press | null>(null);
@@ -42,21 +47,25 @@ export function useWorkbenchTabListChoice({
 	});
 	const onSelectTab: TabStripSelectCallback = useMemoizedFn((context, input) => {
 		const currentPress = press.current;
-		const chosen = input.mode === 'replace' && (currentPress === null || currentPress.primary);
+		const chosen =
+			open &&
+			input.mode === 'replace' &&
+			(currentPress === null || (currentPress.primary && !currentPress.cancelled));
 		const choice = chosen ? { settled: false } : null;
 		if (chosen) pending.current = choice;
 		const result = selectTab?.(context, input) ?? { kind: 'unchanged' as const };
-		void Promise.resolve(result).finally(() => {
+		const settle = () => {
 			if (choice === null || pending.current !== choice) return;
 			choice.settled = true;
 			finish();
-		});
+		};
+		void Promise.resolve(result).then(settle, settle);
 		return result;
 	});
 	return {
 		onDraggingChange: (dragging) => {
 			if (!dragging) return;
-			if (press.current !== null) press.current.dragged = true;
+			if (press.current !== null) press.current.cancelled = true;
 			pending.current = null;
 		},
 		// A scroll that takes the touch chooses nothing.
@@ -65,12 +74,20 @@ export function useWorkbenchTabListChoice({
 			pending.current = null;
 		},
 		onPointerDownCapture: (event) => {
-			press.current = { at: event.timeStamp, dragged: false, primary: event.button === 0 };
+			press.current = {
+				at: event.timeStamp,
+				cancelled: false,
+				primary: event.button === 0,
+				touch: event.pointerType === 'touch',
+			};
 		},
 		onPointerUpCapture: (event) => {
 			const ended = press.current;
 			if (ended === null) return;
-			if (ended.dragged || event.timeStamp - ended.at >= LONG_PRESS_MS) pending.current = null;
+			if (ended.cancelled || (ended.touch && event.timeStamp - ended.at >= LONG_PRESS_MS)) {
+				ended.cancelled = true;
+				pending.current = null;
+			}
 			// The strip chooses on release too; let its handlers run before the press ends.
 			window.setTimeout(() => {
 				if (press.current === ended) press.current = null;
