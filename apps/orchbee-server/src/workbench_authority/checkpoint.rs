@@ -146,6 +146,9 @@ struct Checkpoint {
     /// Always written; an omitted list reads as no references, while a present list is strict.
     #[serde(default)]
     agent_sessions: Vec<agent_sessions::StoredAgentSession>,
+    /// Always written; an omitted list reads as no lineage, while a present list is strict.
+    #[serde(default)]
+    layout_lineage: Vec<layout_history::StoredLineage>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -219,6 +222,7 @@ impl WorkbenchAuthority {
             profiles,
             terminal_directories,
             agent_sessions,
+            layout_lineage: self.layout_lineage.capture(projection.snapshot()),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -279,6 +283,7 @@ impl WorkbenchCheckpoint {
             .map(|r| (r.presentation_id, r.path))
             .collect();
         authority.restart_agent_sessions = parts.agent_sessions;
+        authority.layout_lineage = parts.layout_lineage;
         Ok(authority)
     }
 }
@@ -316,6 +321,7 @@ struct CheckpointParts {
     projection: WorkbenchProjectionStore,
     catalog: Vec<LaunchProfileEntry>,
     agent_sessions: BTreeMap<TerminalPresentationId, RetainedAgentSession>,
+    layout_lineage: LayoutLineage,
 }
 
 fn checkpoint_parts(
@@ -367,10 +373,16 @@ fn checkpoint_parts(
         projection.snapshot(),
         &checkpoint.terminal_directories,
     )?;
+    let layout_lineage = LayoutLineage::restore(
+        &checkpoint.layout_lineage,
+        projection.snapshot(),
+        checkpoint.last_identity.0,
+    )?;
     Ok(CheckpointParts {
         projection,
         catalog,
         agent_sessions,
+        layout_lineage,
     })
 }
 fn enforce_encoded_limit(encoded: &[u8]) -> Result<(), WorkbenchCheckpointError> {

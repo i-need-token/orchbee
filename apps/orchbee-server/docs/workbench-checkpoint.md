@@ -42,7 +42,8 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 The writer and reader use only `orchbee.workbench.checkpoint` with numeric `version: 1`.
 All retained fields are required, including `terminalDirectories`,
-`projectOrder` and `workspaceOrder`; the one exception is `agentSessions`, described below. `checkpoint/navigation.rs` has one DTO: identity-sorted global
+`projectOrder` and `workspaceOrder`; the exceptions are `agentSessions` and `layoutLineage`,
+described below. `checkpoint/navigation.rs` has one DTO: identity-sorted global
 `directories`, `projects` and `workspaces` arrays. Project rows contain `projectId` and `label`;
 Workspace `projectId` is required-nullable. Directory rows contain `directoryId` and `path`, with
 fresh Worker ownership supplied during reconstruction. Workspace order is a complete permutation;
@@ -240,14 +241,7 @@ defines files and atomicity.
 counts and how many of them are not open now (`read` permission). `reopen` names an entry by save
 time (navigation and terminal-create permission). In one commit it adds only the Workspaces and
 Tabs that are not open now, with their saved split layout and labels; nothing open is closed, moved
-or relabeled. Product identities are never reused, because Close keeps tombstones that fence a
-closed identity, so reopened structure takes fresh identities. The Server records the lineage of
-each reopened Workspace and Tab, the saved identity it stands in for, and both the listing and
-`reopen` count an item as open when it or a reopened item of the same lineage is open. Reopening
-the same entry again, or any entry that names the same Workspaces or Tabs, therefore answers
-`nothing-to-reopen`. The lineage lives with the running Server and keeps the newest 4096 reopened
-identities; after a Server restart an entry saved before a reopen counts those items as not open
-again.
+or relabeled:
 
 - a missing Workspace comes back whole at the end of the Workspace order, reusing an existing
   Directory with the same path, inside its Project when that Project still admits it, otherwise
@@ -257,6 +251,22 @@ again.
   answers `unavailable/busy`;
 - a result that would exceed the Workbench bounds is `rejected/resource-limit` and opens nothing;
   an entry with nothing missing answers `nothing-to-reopen`.
+
+Product identities are never reused, because Close keeps tombstones that fence a
+closed identity, so reopened structure takes fresh identities. The Server records the lineage of
+each reopened Workspace and Tab, the saved identity it stands in for, and both the listing and
+`reopen` count an item as open when it or a reopened item of the same lineage is open. Reopening
+the same entry again, or any entry that names the same Workspaces or Tabs, therefore answers
+`nothing-to-reopen`. The authority keeps the newest 4096 reopened identities.
+
+The checkpoint retains the lineage as `layoutLineage`, a list of `reopened` and `saved` rows in
+recording order, both canonical identity strings. Capture writes only the rows whose reopened
+Workspace or Tab is still open, so closed ones are dropped at save time and the list never outgrows
+what is open. Reconstruction loads it, so the listing and `reopen` give the same answer after a
+Server restart. A row whose reopened identity is not an open Workspace or Tab, exceeds
+`lastIdentity`, repeats, or equals its saved identity, or a list longer than 4096, rejects the
+entire document. Like `agentSessions`, the writer always emits the list and an omitted list reads as
+no lineage. The lineage never enters the Client-facing Snapshot or the wire.
 
 Each reopened Presentation keeps its saved directory as restart intent. After the commit the Server
 probes those directories outside every gate; a missing one gets the [held restore](#held-restore)

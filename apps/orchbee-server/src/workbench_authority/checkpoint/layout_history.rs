@@ -6,9 +6,12 @@
 //! Product identities are never reused: Close keeps tombstones that fence a closed identity, so a
 //! reopened Workspace or Tab comes back under a fresh identity. Its lineage records the saved
 //! identity it stands in for, so every kept layout that names either counts it as open and a second
-//! reopen finds nothing missing.
+//! reopen finds nothing missing. The checkpoint keeps the lineage of what is still open, so the
+//! answer survives a Server restart.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use serde::{Deserialize, Serialize};
 
 use orchbee_workbench_protocol::{
     ContractError, Directory, MAXIMUM_DIRECTORIES, MAXIMUM_PANEL_NODES_PER_CONTEXT,
@@ -21,7 +24,7 @@ use orchbee_workbench_protocol::{
 };
 
 use super::super::{PlanFailure, WorkbenchAuthority, allocate, identity, workspace_organization};
-use super::WorkbenchCheckpoint;
+use super::{Counter, WorkbenchCheckpoint, WorkbenchCheckpointError};
 
 /// The layout of a checkpoint: Workspaces in display order, their Tabs in strip order and each
 /// Tab's Panels in tree order, by identity and label. Focus, scroll and geometry are not part of
@@ -115,7 +118,7 @@ impl From<PlanFailure> for LayoutReopenError {
 const MAXIMUM_LINEAGE: usize = 4096;
 
 /// Each reopened Workspace's and Tab's fresh identity, with the earliest saved identity it stands
-/// in for. It lives with this Server; a restart forgets it.
+/// in for, oldest first. The checkpoint keeps the rows whose reopened identity is still open.
 #[derive(Debug, Default)]
 pub(in crate::workbench_authority) struct LayoutLineage {
     origins: BTreeMap<String, String>,
@@ -129,6 +132,11 @@ impl LayoutLineage {
 
     fn record(&mut self, fresh: String, saved: &str) {
         let origin = self.origin(saved).to_owned();
+        // A Workbench whose allocation began after this history was kept may hand out a saved
+        // identity again; that item already counts as itself.
+        if fresh == origin {
+            return;
+        }
         if self.order.len() >= MAXIMUM_LINEAGE
             && let Some(oldest) = self.order.pop_front()
         {
@@ -137,6 +145,76 @@ impl LayoutLineage {
         self.order.push_back(fresh.clone());
         self.origins.insert(fresh, origin);
     }
+
+    /// The rows a checkpoint keeps: those whose reopened Workspace or Tab is still open, oldest
+    /// first. Closed ones are dropped here, so the list stays within what is open.
+    pub(super) fn capture(&self, snapshot: &Snapshot) -> Vec<StoredLineage> {
+        let open = open_structure(snapshot);
+        self.order
+            .iter()
+            .filter(|reopened| open.contains(reopened.as_str()))
+            .filter_map(|reopened| {
+                Some(StoredLineage {
+                    reopened: Counter::parse(reopened).ok()?,
+                    saved: Counter::parse(self.origins.get(reopened)?).ok()?,
+                })
+            })
+            .collect()
+    }
+
+    /// Admits a checkpoint's rows. Each names a distinct open Workspace or Tab, no later than
+    /// `last_identity`, and a different saved identity. The saved identity may come from history
+    /// kept before this Workbench's allocation began, so it is not ordered against the reopened one.
+    pub(super) fn restore(
+        rows: &[StoredLineage],
+        snapshot: &Snapshot,
+        last_identity: u128,
+    ) -> Result<Self, WorkbenchCheckpointError> {
+        if rows.len() > MAXIMUM_LINEAGE {
+            return Err(WorkbenchCheckpointError::InvalidIdentity);
+        }
+        let open = open_structure(snapshot);
+        let mut lineage = Self::default();
+        for row in rows {
+            let reopened = identity(row.reopened.0);
+            if row.saved.0 == row.reopened.0
+                || row.reopened.0 > last_identity
+                || !open.contains(reopened.as_str())
+                || lineage.origins.contains_key(&reopened)
+            {
+                return Err(WorkbenchCheckpointError::InvalidIdentity);
+            }
+            lineage.order.push_back(reopened.clone());
+            lineage.origins.insert(reopened, identity(row.saved.0));
+        }
+        Ok(lineage)
+    }
+}
+
+/// One retained lineage row: a reopened Workspace's or Tab's identity and the saved identity it
+/// stands in for.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct StoredLineage {
+    reopened: Counter,
+    saved: Counter,
+}
+
+/// Every open Workspace and Tab identity.
+fn open_structure(snapshot: &Snapshot) -> BTreeSet<&str> {
+    snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.as_str())
+        .chain(
+            snapshot
+                .terminal_contexts
+                .iter()
+                .flat_map(|context| &context.tabs)
+                .map(|tab| tab.tab_id.as_str()),
+        )
+        .collect()
 }
 
 /// The Workspaces and Tabs open now, by the origin of their identity, for comparing kept layouts.

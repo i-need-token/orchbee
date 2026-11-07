@@ -85,8 +85,7 @@ fn reopen_adds_only_missing_items_and_holds_a_missing_directory() {
     assert_eq!(after.navigation.directories.len(), 1);
     assert_eq!(tabs(&after), 2);
 
-    // The reopened items stand in for the saved ones under fresh identities, so a second reopen
-    // finds nothing missing, and so does a later entry that names the reopened identities.
+    // A second reopen finds nothing missing, and so does a later entry that names what reopened.
     let (again, targets) = coordinator.reopen_layout(&entry, &worker()).unwrap();
     assert_eq!(
         (again.revision, again.workspaces, again.tabs, targets.len()),
@@ -107,4 +106,40 @@ fn reopen_adds_only_missing_items_and_holds_a_missing_directory() {
         let summary = kept.layout().unwrap().summary(&open);
         assert_eq!((summary.workspaces_not_open, summary.tabs_not_open), (0, 0));
     }
+
+    // Restored from a checkpoint whose allocation is already past the entry's identities, as a
+    // real Workbench's is, the reopened Tab takes a fresh identity. Its lineage counts it as the
+    // saved Tab, and the checkpoint keeps that lineage, so the answer survives a Server restart.
+    let mut document: serde_json::Value = serde_json::from_slice(&one_tab).unwrap();
+    document["lastIdentity"] = serde_json::Value::from(format!("{:032x}", 0x400));
+    let bumped = serde_json::to_vec(&document).unwrap();
+    let session = SessionId::parse(&format!("{:032x}", 1000)).unwrap();
+    let mut coordinator = SessionCoordinator::new(Some(
+        WorkbenchAuthority::from_checkpoint(&bumped, session.clone(), &worker()).unwrap(),
+    ));
+    let (reopened, _) = coordinator.reopen_layout(&entry, &worker()).unwrap();
+    let (_, tab) = reopened.first_tab.unwrap();
+    assert!(
+        earlier.snapshot().terminal_contexts[0]
+            .tabs
+            .iter()
+            .all(|saved| saved.tab_id != tab)
+    );
+    let (again, _) = coordinator.reopen_layout(&entry, &worker()).unwrap();
+    assert_eq!(again.revision, None);
+    let saved = coordinator
+        .workbench
+        .as_ref()
+        .unwrap()
+        .checkpoint(&worker())
+        .unwrap();
+    assert!(String::from_utf8_lossy(&saved).contains("\"layoutLineage\":[{\"reopened\":"));
+    let mut coordinator = SessionCoordinator::new(Some(
+        WorkbenchAuthority::from_checkpoint(&saved, session, &worker()).unwrap(),
+    ));
+    let workbench = coordinator.workbench.as_ref().unwrap();
+    let summary = entry.layout().unwrap().summary(&workbench.open_layout());
+    assert_eq!((summary.workspaces_not_open, summary.tabs_not_open), (0, 0));
+    let (again, _) = coordinator.reopen_layout(&entry, &worker()).unwrap();
+    assert_eq!(again.revision, None);
 }
