@@ -97,6 +97,9 @@ fn single_hook_configuration(id: &str, home: &Path) -> Option<PathBuf> {
 pub struct OpenCodeEntries {
     pub current: PathBuf,
     pub(crate) obsolete: PathBuf,
+    /// The OpenCode 2.x plugin directory whose TUI entry reports the Agent's
+    /// session from the process that owns its console.
+    pub(crate) client: PathBuf,
 }
 
 pub fn opencode_entries(home: &Path) -> Option<OpenCodeEntries> {
@@ -114,6 +117,7 @@ pub fn opencode_entries(home: &Path) -> Option<OpenCodeEntries> {
     Some(OpenCodeEntries {
         current: root.join("orchbee-agent-observation.js"),
         obsolete: root.join("orchbee-agent-observation.mjs"),
+        client: root.join("orchbee-agent-observation-tui"),
     })
 }
 

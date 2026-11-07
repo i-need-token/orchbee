@@ -1225,6 +1225,14 @@ fn enable_vector(
             if !matches!(outcome, Attempt::Attempted) {
                 return outcome;
             }
+            let outcome = companion_guarded(id, context, |companion| {
+                guarded_enable(
+                    id, companion, context, &options, initial, attempted, residuals, effect,
+                )
+            });
+            if !matches!(outcome, Attempt::Attempted) {
+                return outcome;
+            }
             remove_obsolete_guarded(id, context, &options, attempted, effect)
         }
     }
@@ -1486,6 +1494,12 @@ fn disable_vector(
             if !matches!(outcome, Attempt::Attempted) {
                 return outcome;
             }
+            let outcome = companion_guarded(id, context, |companion| {
+                guarded_disable(id, companion, context, &options, attempted, effect)
+            });
+            if !matches!(outcome, Attempt::Attempted) {
+                return outcome;
+            }
             remove_obsolete_guarded(id, context, &options, attempted, effect)
         }
     }
@@ -1569,7 +1583,7 @@ fn guarded_enable(
     // still carry the deterministic bootstrap bytes (extension directories
     // re-verify inside `stage_entry`). A mismatch is verification-failed —
     // undetermined — and the container stays named residue.
-    if spec.kind != BootstrapKind::ExtensionDirectory {
+    if !spec.kind.is_directory() {
         #[cfg(all(any(test, feature = "test-support"), unix))]
         super::test_support::fault_injection::boundary("digest-verify", &entry_path);
         let expected = inspect::module_bootstrap(spec.kind, id, &source_path);
@@ -1747,7 +1761,7 @@ fn guarded_enable(
             residuals.push(backup_path);
             return Attempt::Conflict;
         }
-        let is_dir = spec.kind == BootstrapKind::ExtensionDirectory;
+        let is_dir = spec.kind.is_directory();
         match files::remove_owned(&backup_path, is_dir) {
             FsStep::Done => {
                 attempted.push(AttemptedStep {
@@ -1780,9 +1794,10 @@ fn guarded_enable(
     Attempt::Attempted
 }
 
-/// Build the staged entry: the module bootstrap file or the extension
-/// directory (source copy + runtime scripts + marker + canonical
-/// re-verification of the staged tree).
+/// Build the staged entry: the module bootstrap file, the OpenCode client
+/// directory (its bootstraps, each read back) or the extension directory
+/// (source copy + runtime scripts + marker + canonical re-verification of the
+/// staged tree).
 fn stage_entry(
     spec: &providers::GuardedSpec,
     id: IntegrationId,
@@ -1790,6 +1805,21 @@ fn stage_entry(
     runtime_source: Option<&Path>,
     entry_path: &Path,
 ) -> bool {
+    #[cfg(windows)]
+    if spec.kind == BootstrapKind::OpencodeClient {
+        let body = inspect::module_bootstrap(spec.kind, id, source_path);
+        // The entry is created inside this vector's own fresh stage container.
+        if std::fs::create_dir(entry_path).is_err() {
+            return false;
+        }
+        return inspect::OPENCODE_CLIENT_FILES.iter().all(|name| {
+            let file = entry_path.join(name);
+            files::write_file_exclusive(&file, body.as_bytes()).is_ok()
+                && std::fs::read(&file)
+                    .map(|bytes| bytes == body.as_bytes())
+                    .unwrap_or(false)
+        });
+    }
     if spec.kind == BootstrapKind::ExtensionDirectory {
         let Some(runtime) = runtime_source else {
             return false;
@@ -1846,6 +1876,24 @@ fn stage_entry(
     }
 }
 
+/// Run one direction's step on the provider's companion entry, if it has one.
+fn companion_guarded(
+    id: IntegrationId,
+    context: &ProviderContext,
+    step: impl FnOnce(providers::GuardedSpec) -> Attempt,
+) -> Attempt {
+    let Some(companion) = providers::companion_guarded_spec(id) else {
+        return Attempt::Attempted;
+    };
+    if cancelled(context) {
+        return Attempt::Cancelled;
+    }
+    if now() >= context.deadline {
+        return Attempt::Failed(FailureCode::TimedOut);
+    }
+    step(companion)
+}
+
 fn remove_obsolete_guarded(
     id: IntegrationId,
     context: &ProviderContext,
@@ -1891,9 +1939,9 @@ fn guarded_disable(
         TargetState::Conflict => return Attempt::Conflict,
         _ => return Attempt::Failed(FailureCode::OperationFailed),
     }
-    // Owned removal only: module entries unlink; an
-    // extension directory removes through the no-follow walk.
-    let is_directory = spec.kind == BootstrapKind::ExtensionDirectory;
+    // Owned removal only: module entries unlink; a directory entry removes
+    // through the no-follow walk.
+    let is_directory = spec.kind.is_directory();
     #[cfg(all(any(test, feature = "test-support"), unix))]
     super::test_support::fault_injection::boundary(
         if is_directory {
@@ -2236,6 +2284,13 @@ pub(crate) fn plan_enable(
                 )
             {
                 steps.push(PlannedStep::GuardedWrite { target });
+                // The combined state cannot say which entry is stale, so the
+                // plan names both; a current one is left as it is.
+                if let Some(companion) = providers::companion_guarded_spec(id)
+                    && let Some(target) = providers::guarded_target(id, companion, context.home)
+                {
+                    steps.push(PlannedStep::GuardedWrite { target });
+                }
             }
             if let providers::InspectionDetail::Guarded {
                 obsolete_target_state: Some(state),

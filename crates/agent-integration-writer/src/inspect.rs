@@ -39,6 +39,10 @@ const REQUIRED_RUNTIME_FILES: [&str; 3] = [
     "hook-sanitizers.mjs",
     "observation-transport.mjs",
 ];
+/// The OpenCode 2.x client directory's only entries: the server and TUI
+/// entrypoints its loader resolves, each the same client bootstrap.
+#[cfg(windows)]
+pub(crate) const OPENCODE_CLIENT_FILES: [&str; 2] = ["server.js", "tui.js"];
 
 /// What a resource root means relative to this build's managed root.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -865,7 +869,8 @@ fn file_url(path: &Path) -> String {
 /// accept: OpenCode 1.3.4+ and Kilo call `server`, OpenCode 2.x validates
 /// `{ id, setup }`. Each entry delegates to the same entry of the capsule's
 /// `orchbeeAgentObservationPlugin`, so later capsules change behavior without a
-/// new bootstrap.
+/// new bootstrap. The OpenCode 2.x client body is a `{ id, setup }` definition
+/// whose setup delegates to the capsule's `orchbeeAgentObservationClientPlugin`.
 pub(crate) fn module_bootstrap(
     kind: BootstrapKind,
     integration_id: IntegrationId,
@@ -875,6 +880,10 @@ pub(crate) fn module_bootstrap(
     match kind {
         BootstrapKind::Opencode => format!(
             "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nconst orchbeeAgentObservationCall = async (name, arguments_, fallback) => {{\n\ttry {{\n\t\tconst definition = (await import(orchbeeAgentObservationModuleUrl)).orchbeeAgentObservationPlugin;\n\t\treturn typeof definition?.[name] === 'function'\n\t\t\t? await definition[name](...arguments_)\n\t\t\t: fallback;\n\t}} catch {{\n\t\treturn fallback;\n\t}}\n}};\nexport default {{\n\tid: 'orchbee-agent-observation',\n\tserver: (...arguments_) => orchbeeAgentObservationCall('server', arguments_, {{}}),\n\tsetup: (...arguments_) => orchbeeAgentObservationCall('setup', arguments_, undefined),\n}};\n"
+        ),
+        #[cfg(windows)]
+        BootstrapKind::OpencodeClient => format!(
+            "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nconst orchbeeAgentObservationCall = async (name, arguments_, fallback) => {{\n\ttry {{\n\t\tconst definition = (await import(orchbeeAgentObservationModuleUrl)).orchbeeAgentObservationClientPlugin;\n\t\treturn typeof definition?.[name] === 'function'\n\t\t\t? await definition[name](...arguments_)\n\t\t\t: fallback;\n\t}} catch {{\n\t\treturn fallback;\n\t}}\n}};\nexport default {{\n\tid: 'orchbee-agent-observation-tui',\n\tsetup: (...arguments_) => orchbeeAgentObservationCall('setup', arguments_, undefined),\n}};\n"
         ),
         _ => format!(
             "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nmodule.exports = async function orchbeeAgentObservation(api) {{\n\ttry {{\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {{\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}}\n\t}} catch {{}}\n}};\n"
@@ -910,11 +919,28 @@ pub(crate) enum BootstrapKind {
     ExtensionDirectory,
     Omp,
     Opencode,
+    /// The Windows OpenCode 2.x plugin directory holding the client bootstrap
+    /// as both of its entrypoints.
+    #[cfg(windows)]
+    OpencodeClient,
     Pi,
 }
 
-/// The guarded target inspection for module-file providers (opencode/pi/omp)
-/// and extension-directory providers (gemini/qwen-code).
+impl BootstrapKind {
+    /// Whether the managed entry is a directory rather than one module file.
+    pub(crate) fn is_directory(self) -> bool {
+        match self {
+            Self::ExtensionDirectory => true,
+            #[cfg(windows)]
+            Self::OpencodeClient => true,
+            Self::Omp | Self::Opencode | Self::Pi => false,
+        }
+    }
+}
+
+/// The guarded target inspection for module-file providers (opencode/pi/omp),
+/// extension-directory providers (gemini/qwen-code) and the OpenCode 2.x client
+/// directory.
 pub(crate) fn inspect_guarded_target(
     target: &Path,
     kind: BootstrapKind,
@@ -942,9 +968,78 @@ pub(crate) fn inspect_guarded_target(
         #[cfg(unix)]
         return state;
     }
+    #[cfg(windows)]
+    if kind == BootstrapKind::OpencodeClient {
+        if !metadata.is_dir() {
+            return TargetState::Conflict;
+        }
+        return inspect_client_directory(target, integration_id, source_relative, options);
+    }
     if !metadata.is_file() {
         return TargetState::Conflict;
     }
+    inspect_module_file(target, kind, integration_id, source_relative, options)
+}
+
+/// The OpenCode 2.x client directory holds nothing but the owned client
+/// bootstraps. Any other entry is foreign; a missing bootstrap, or an empty
+/// directory, is repairable.
+#[cfg(windows)]
+fn inspect_client_directory(
+    target: &Path,
+    integration_id: IntegrationId,
+    source_relative: &Path,
+    options: &ResourceOptions,
+) -> TargetState {
+    let Ok(_pins) = super::files::pin_tree(target, false) else {
+        return TargetState::Unknown;
+    };
+    let Ok(entries) = fs::read_dir(target) else {
+        return TargetState::Unknown;
+    };
+    let mut present = 0;
+    let mut state = TargetState::Current;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return TargetState::Unknown;
+        };
+        let name = entry.file_name();
+        if !OPENCODE_CLIENT_FILES.iter().any(|file| name == *file) {
+            return TargetState::Conflict;
+        }
+        match entry.file_type() {
+            Ok(file_type) if file_type.is_file() => {}
+            Ok(_) => return TargetState::Conflict,
+            Err(_) => return TargetState::Unknown,
+        }
+        present += 1;
+        match inspect_module_file(
+            &entry.path(),
+            BootstrapKind::OpencodeClient,
+            integration_id,
+            source_relative,
+            options,
+        ) {
+            TargetState::Current => {}
+            TargetState::UpdateRequired => state = TargetState::UpdateRequired,
+            other => return other,
+        }
+    }
+    if present < OPENCODE_CLIENT_FILES.len() {
+        TargetState::UpdateRequired
+    } else {
+        state
+    }
+}
+
+/// One module bootstrap file: the exact template under a classified root.
+fn inspect_module_file(
+    target: &Path,
+    kind: BootstrapKind,
+    integration_id: IntegrationId,
+    source_relative: &Path,
+    options: &ResourceOptions,
+) -> TargetState {
     let bytes = match bounded_file(target, 16 * 1024) {
         Ok(Some(bytes)) => bytes,
         Err(_) => return TargetState::Unknown,

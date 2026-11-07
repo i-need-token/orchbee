@@ -7,12 +7,13 @@
 //!
 //! A stub takes a fresh session id in its provider's shape, or the id its resume arguments carry,
 //! and reports that session the way the provider's adapter does: a command-hook payload through
-//! the shipped `forward-hook.mjs`, or the shipped module driven as the provider drives it (OpenCode
-//! and Kilo plugin events with one child session, Cline's plugin setup and a run, Pi and OMP
-//! extension events). A row whose provider stays silent after a resume reports nothing then. Every
-//! run records its arguments, directory and session in the fixture root and stays alive like an
-//! interactive Agent until it reads `q`. Every wait reads the Agent list, as a Client showing it
-//! does: a hook report joins its Panel only when a Client's Agent read drains it within 10 s.
+//! the shipped `forward-hook.mjs`, or the shipped module driven as the provider drives it (Kilo
+//! plugin events with one child session, an OpenCode 2.x TUI showing a child session of its root
+//! beside another Panel's root, Cline's plugin setup and a run, Pi and OMP extension events). A
+//! row whose provider stays silent after a resume reports nothing then. Every run records its
+//! arguments, directory and session in the fixture root and stays alive like an interactive Agent
+//! until it reads `q`. Every wait reads the Agent list, as a Client showing it does: a hook report
+//! joins its Panel only when a Client's Agent read drains it within 10 s.
 //!
 //! The table restates the Server's argument rule as typed text, so the screen and the recorded
 //! arguments are the only oracle; nothing imports Server internals. The flow captures every row,
@@ -145,11 +146,15 @@ const TABLE: [Row; 20] = [
         resume: &["--session={id}"],
         key: "{id}",
         report: "async (session) => {
-            const hooks = await openCodePlugin('opencode/orchbee-agent-observation.mjs');
-            await hooks.event({ event: { type: 'session.created', properties: { info: { id: session } } } });
-            await hooks.event({ event: { type: 'session.created', properties: { info: { id: `ses_${hex(12)}${alnum(14)}`, parentID: session } } } });
+            const child = `ses_${hex(12)}${alnum(14)}`;
+            const other = `ses_${hex(12)}${alnum(14)}`;
+            const sessions = new Map([[session, { id: session }], [child, { id: child, parentID: session }], [other, { id: other }]]);
+            await openCodeClient('opencode/orchbee-agent-observation.mjs', {
+                ui: { router: { current: () => ({ type: 'session', sessionID: child }) } },
+                data: { session: { get: (id) => sessions.get(id), root: (id) => sessions.get(id)?.parentID ?? id, status: () => 'idle' } },
+            });
         }",
-        reports_on_resume: false,
+        reports_on_resume: true,
     },
     Row {
         label: "kilo",
@@ -371,8 +376,10 @@ const TABLE: [Row; 20] = [
 /// plugin definition, which the installed bootstrap default-exports, must pass both loader
 /// generations: OpenCode 2.x decodes it as a plain object with a string id and a setup function,
 /// then awaits setup; OpenCode 1.3.4+ and Kilo admit it as a server plugin and report through the
-/// hooks its server returns. Written as one async
-/// function with dynamic imports, so the same source runs as CommonJS and as a module.
+/// hooks its server returns. OpenCode 2.x also loads the client definition twice: as a server
+/// plugin, whose setup observes nothing, and as a TUI plugin, whose setup reads the TUI's route and
+/// session data and reports the displayed root. Written as one async function with dynamic
+/// imports, so the same source runs as CommonJS and as a module.
 const STUB: &str = r"
 (async () => {
   const { spawn } = await import('node:child_process');
@@ -388,6 +395,12 @@ const STUB: &str = r"
     await definition.setup({ id: definition.id, options: {}, event: { subscribe: () => ({ async *[Symbol.asyncIterator]() {} }) } });
     if (typeof definition.server !== 'function' || definition.tui !== undefined) throw new Error('OpenCode 1.x rejects the module');
     return definition.server({}, undefined);
+  };
+  const openCodeClient = async (relative, tui) => {
+    const definition = (await bundle(relative)).orchbeeAgentObservationClientPlugin;
+    if (typeof definition !== 'object' || definition === null || Array.isArray(definition) || typeof definition.id !== 'string' || typeof definition.setup !== 'function') throw new Error('OpenCode 2.x rejects the client module');
+    if (await definition.setup({ id: definition.id, options: {}, event: { subscribe: () => ({ async *[Symbol.asyncIterator]() {} }) } }) !== undefined) throw new Error('the client observes from the server');
+    if (typeof await definition.setup({ options: {}, ...tui }) !== 'function') throw new Error('the client ignores the TUI');
   };
   const hook = (adapter, payload) => new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(BUNDLE, 'scripts', 'forward-hook.mjs'), adapter], { stdio: ['pipe', 'ignore', 'ignore'] });

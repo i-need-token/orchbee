@@ -44,39 +44,52 @@ own directory changes the outcome; the retained-directory gate applies to every 
 "Re-reports" says when a resumed run reports its session again; until then
 [carry-forward](#carry-forward) keeps the delivered reference.
 
-| Provider id      | Program        | Typed arguments (cmd)                                                       | Valid id, max length                                             | Directory          | Wrong or stale id                           | Re-reports      | Evidence   |
-| ---------------- | -------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ | ------------------------------------------- | --------------- | ---------- |
-| `claude-code`    | `claude`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | yes             | S, witness |
-| `codex`          | `codex`        | `resume <id>`                                                               | U, 36                                                            | gate               | error, exits                                | yes             | S, witness |
-| `grok`           | `grok`         | `--resume=<id>`                                                             | U, 36                                                            | no                 | error; UUIDs never match titles             | yes             | S          |
-| `opencode`       | `opencode`     | `--session=<id>`                                                            | `^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`, 30                          | yes on 1.1.25      | 1.x exits 1; 2.x empty session with that id | on first prompt | S          |
-| `kilo`           | `kilo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | no                 | error, exits                                | on first prompt | S          |
-| `cursor`         | `cursor-agent` | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new chat                           | probably no     | D, H       |
-| `qodercli`       | `qodercli`     | `--resume=<id>`                                                             | U, 36                                                            | yes                | error or new session                        | yes             | D, bundle  |
-| `antigravity`    | `agy`          | `--conversation <id>`                                                       | U, 36                                                            | undocumented       | error or new conversation                   | on first prompt | D          |
-| `droid`          | `droid`        | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new session                        | yes             | D, H       |
-| `kimi`           | `kimi`         | `--session=<id>`                                                            | `session_` and a version 4 U, 44                                 | strict spelling    | error, exits                                | yes             | S          |
-| `letta`          | `letta`        | `--conversation <id>`; `default:<a>` → `--conversation default --agent <a>` | `^(?:local-)?conv-U$`, `^default:agent-(?:local-)?U$`, 56        | no                 | error or new conversation                   | yes             | S          |
-| `devin`          | `devin`        | `--resume <id>`                                                             | `^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){0,7}$`, 64 (provisional)         | yes (else prompts) | error or new session                        | unknown         | D, H       |
-| `hermes`         | `hermes`       | `--resume <id>`                                                             | `^[0-9]{8}_[0-9]{6}_[0-9a-f]{6,12}$`, `^local-[0-9a-f]{64}$`, 70 | no                 | error, exits                                | yes             | S          |
-| `pi`             | `pi`           | `--session <id>`                                                            | U, 36                                                            | yes (else forks)   | error, exits                                | yes             | S          |
-| `omp`            | `omp`          | `--resume <id>`                                                             | U, 36                                                            | no                 | error, exits                                | yes             | S          |
-| `gemini`         | `gemini`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | yes             | S          |
-| `github-copilot` | `copilot`      | `--resume=<id>`                                                             | U, 36                                                            | no                 | new empty session with that id              | unknown         | D          |
-| `qwen-code`      | `qwen`         | `--resume=<id>`                                                             | U, 36 (arena `-agent-…` ids fail closed)                         | yes                | "No saved session found", exits 1           | yes             | S          |
-| `cline`          | `cline`        | `--id <id>`                                                                 | `^[0-9]{13}_[0-9a-z]{5}$`, 19                                    | no                 | empty session with that id, or error        | on first run    | S          |
+| Provider id      | Program        | Typed arguments (cmd)                                                       | Valid id, max length                                             | Directory          | Wrong or stale id                           | Re-reports                   | Evidence   |
+| ---------------- | -------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ | ------------------------------------------- | ---------------------------- | ---------- |
+| `claude-code`    | `claude`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | yes                          | S, witness |
+| `codex`          | `codex`        | `resume <id>`                                                               | U, 36                                                            | gate               | error, exits                                | yes                          | S, witness |
+| `grok`           | `grok`         | `--resume=<id>`                                                             | U, 36                                                            | no                 | error; UUIDs never match titles             | yes                          | S          |
+| `opencode`       | `opencode`     | `--session=<id>`                                                            | `^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`, 30                          | 1.1.25 yes; 2.x no | 1.x exits 1; 2.x empty session with that id | 1.x on first prompt; 2.x yes | S          |
+| `kilo`           | `kilo`         | `--session=<id>`                                                            | as OpenCode, 30                                                  | no                 | error, exits                                | on first prompt              | S          |
+| `cursor`         | `cursor-agent` | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new chat                           | probably no                  | D, H       |
+| `qodercli`       | `qodercli`     | `--resume=<id>`                                                             | U, 36                                                            | yes                | error or new session                        | yes                          | D, bundle  |
+| `antigravity`    | `agy`          | `--conversation <id>`                                                       | U, 36                                                            | undocumented       | error or new conversation                   | on first prompt              | D          |
+| `droid`          | `droid`        | `--resume=<id>`                                                             | U, 36                                                            | probably           | error or new session                        | yes                          | D, H       |
+| `kimi`           | `kimi`         | `--session=<id>`                                                            | `session_` and a version 4 U, 44                                 | strict spelling    | error, exits                                | yes                          | S          |
+| `letta`          | `letta`        | `--conversation <id>`; `default:<a>` → `--conversation default --agent <a>` | `^(?:local-)?conv-U$`, `^default:agent-(?:local-)?U$`, 56        | no                 | error or new conversation                   | yes                          | S          |
+| `devin`          | `devin`        | `--resume <id>`                                                             | `^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){0,7}$`, 64 (provisional)         | yes (else prompts) | error or new session                        | unknown                      | D, H       |
+| `hermes`         | `hermes`       | `--resume <id>`                                                             | `^[0-9]{8}_[0-9]{6}_[0-9a-f]{6,12}$`, `^local-[0-9a-f]{64}$`, 70 | no                 | error, exits                                | yes                          | S          |
+| `pi`             | `pi`           | `--session <id>`                                                            | U, 36                                                            | yes (else forks)   | error, exits                                | yes                          | S          |
+| `omp`            | `omp`          | `--resume <id>`                                                             | U, 36                                                            | no                 | error, exits                                | yes                          | S          |
+| `gemini`         | `gemini`       | `--resume=<id>`                                                             | U, 36                                                            | yes                | error, exits                                | yes                          | S          |
+| `github-copilot` | `copilot`      | `--resume=<id>`                                                             | U, 36                                                            | no                 | new empty session with that id              | unknown                      | D          |
+| `qwen-code`      | `qwen`         | `--resume=<id>`                                                             | U, 36 (arena `-agent-…` ids fail closed)                         | yes                | "No saved session found", exits 1           | yes                          | S          |
+| `cline`          | `cline`        | `--id <id>`                                                                 | `^[0-9]{13}_[0-9a-z]{5}$`, 19                                    | no                 | empty session with that id, or error        | on first run                 | S          |
 
 Where a wrong id creates a new or empty session under that same id (Copilot, OpenCode 2.x, Cline),
 that session reports the id again, so the reference stays stable and harmless. Cline's adapter keys
 each session by the core session id its plugin setup receives, the id `cline --id` resumes, and
 drops subagent runs.
 
-OpenCode 1.3.4 through 1.18.30 and Kilo report their sessions. OpenCode 2.x loads Orchbee's
-plugin but reports nothing: it runs plugins in a server process that never shares the
-Agent's console, so the hook's correlation cannot reach its Panel, as the
+OpenCode 1.3.4 through 1.18.30 and Kilo report their sessions from Orchbee's server plugin.
+OpenCode 2.x runs server plugins in a process that never shares the Agent's console, so on Windows
+it reports through Orchbee's TUI plugin instead, which runs in the TUI process that owns the
+console, as the
 [Windows integration model](../../orchbee/docs/windows-agent-integrations.md#opencode-automatic-discovery)
-describes. An OpenCode 2.x Agent therefore has no reference to deliver and is not resumed; its row
-keeps the 2.x stale-id outcome for when a 2.x transport exists.
+describes. Every OpenCode client shares one session service, so the TUI plugin reads only its own
+TUI's route and session data and reports the root of the session that TUI displays, never another
+Panel's session:
+
+- a newly displayed root ends the root reported before it and starts itself;
+- returning to a root the TUI already left ends the current one and reports nothing, because the
+  Server never reopens an ended session;
+- the home screen, a plugin page, or a session whose data has not loaded changes nothing;
+- busy and idle follow the displayed root's status.
+
+A 2.x Panel therefore holds the exact id of the root it shows, or no reference at all. An existing
+2.x session opens in its own recorded directory whatever the current one is. The typed form stays
+`--session=<id>`: `--continue` opens the most recently updated root session of the directory
+across every client of the shared session store, which may be another Panel's.
 
 Not in the table:
 
@@ -211,8 +224,8 @@ Stale ids stay harmless:
 - If the Agent exits and a new session starts without a report, the anchor is gone, so the
   reference drops.
 - If the conversation switches inside the process with no report at all (Cursor `/new` without
-  `sessionStart`, or an untouched switch in Antigravity or OpenCode), the next restart reopens an
-  older conversation that still exists. That is never a prompt.
+  `sessionStart`, or an untouched switch in Antigravity or OpenCode 1.x), the next restart reopens
+  an older conversation that still exists. That is never a prompt.
 - A later report drops the reference at the next capture, at most 30 seconds away. A report that
   appears and ends between two captures can leave the old id, which is stale but harmless.
 
@@ -374,14 +387,19 @@ one Session, with one Panel per [table](#rows) row: every provider, and Letta's 
 default forms, 20 rows. Each row's stub is a Node script at a path process identity recognises as
 that provider, and it reports its session as the provider's adapter does: a command-hook payload
 through the shipped hook script, or the shipped OpenCode, Kilo, Cline, Pi or OMP module driven as
-its provider drives it. The OpenCode and Kilo stubs first admit the module's plugin definition,
-the one the installed bootstrap default-exports, as the OpenCode 2.2.5 loader does: a plain object
-with a string id and a setup function whose setup resolves. They then admit it as OpenCode 1.3.4+
-and Kilo do and report through the hooks its `server` returns. A row the table marks as
+its provider drives it. The Kilo stub first admits the module's plugin definition, the one the
+installed bootstrap default-exports, as the OpenCode 2.2.5 loader does: a plain object with a
+string id and a setup function whose setup resolves. It then admits it as OpenCode 1.3.4+ and Kilo
+do and reports through the hooks its `server` returns. The OpenCode stub plays a 2.2.5 TUI: it
+admits the client definition the same way as a server plugin whose setup observes nothing, then
+sets it up with a TUI context, typed as the 2.2.5 TUI plugin API types it, whose route shows a
+child session of the stub's root beside another root, and the client reports that root. A row the
+table marks as
 re-reporting only "on first prompt" or "on first run", "probably no" or "unknown" stays silent after
 a resume. Per row, the witness proves:
 
-- capture of the fresh session, the OpenCode and Kilo child sessions included without ambiguity;
+- capture of the fresh session without ambiguity, with Kilo's child session and the OpenCode
+  TUI's displayed child session and other root present;
 - after a restart, the exact cmd line on screen and the exact recorded argument tokens, Claude
   Code's `--resume=<id>` and Letta's split `default:<agent>` key included, in the retained
   directory;
@@ -409,8 +427,9 @@ It does not prove:
   where it looks up a session. Same-id and directory evidence rests on the table's sources, and
   where that is documentation only (Cursor, Droid, Devin, Copilot and Antigravity) a resume may
   fail until a real run confirms the id;
-- that a real OpenCode 2.x loads the plugin without a plugin error: the stub checks the 2.2.5
-  loader's admission rule, and a real 2.2.5 run is still pending;
+- that a real OpenCode 2.x loads both plugins without a plugin error, or that its TUI context
+  behaves as the 2.2.5 TUI plugin API types it: the stub follows those sources, and a real 2.2.5
+  run is still pending;
 - native provider images, which identity classifies by pure rule in its matrix, nor Hermes's
   Python plugin, whose payload a Node stub sends through the same hook script;
 - the Server's diagnostic lines, which go to standard error rather than to a file the witness can

@@ -317,11 +317,30 @@ pub(crate) fn obsolete_guarded_spec(id: IntegrationId) -> Option<GuardedSpec> {
     None
 }
 
+/// The Windows OpenCode client directory that OpenCode 2.x loads beside the
+/// module file: its TUI entry runs in the process that owns the Agent's
+/// console. Enable and disable manage it with the module file, and their
+/// inspection reads as one entry.
+pub(crate) fn companion_guarded_spec(id: IntegrationId) -> Option<GuardedSpec> {
+    #[cfg(windows)]
+    if id == IntegrationId::Opencode {
+        return Some(GuardedSpec {
+            kind: BootstrapKind::OpencodeClient,
+            target_relative: ".config/opencode/plugins/orchbee-agent-observation-tui",
+            ..guarded_spec(id)?
+        });
+    }
+    let _ = id;
+    None
+}
+
 pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) -> Option<PathBuf> {
     #[cfg(windows)]
     if id == IntegrationId::Opencode {
         let paths = crate::configuration_windows::opencode_entries(home)?;
-        let target = if spec.target_relative.ends_with(".mjs") {
+        let target = if spec.kind == BootstrapKind::OpencodeClient {
+            paths.client
+        } else if spec.target_relative.ends_with(".mjs") {
             paths.obsolete
         } else {
             paths.current
@@ -358,6 +377,22 @@ fn inspect_guarded_spec(
         Path::new(spec.source_relative),
         options,
     )
+}
+
+/// The module file and its companion directory read as one entry: current only
+/// when both are, absent only when both are.
+fn combine_companion_target(primary: TargetState, companion: Option<TargetState>) -> TargetState {
+    use TargetState::*;
+    let Some(companion) = companion else {
+        return primary;
+    };
+    match (primary, companion) {
+        (Conflict, _) | (_, Conflict) => Conflict,
+        (Unknown, _) | (_, Unknown) => Unknown,
+        (Missing, Missing) => Missing,
+        (Current, Current) => Current,
+        _ => UpdateRequired,
+    }
 }
 
 fn combine_guarded_targets(current: TargetState, obsolete: Option<TargetState>) -> TargetState {
@@ -612,7 +647,11 @@ pub(crate) fn inspect_full(
                 guarded.kind,
                 runtime_source.as_deref(),
             );
-            let target_state = inspect_guarded_spec(id, guarded, context, &options);
+            let target_state = combine_companion_target(
+                inspect_guarded_spec(id, guarded, context, &options),
+                companion_guarded_spec(id)
+                    .map(|companion| inspect_guarded_spec(id, companion, context, &options)),
+            );
             let obsolete_target_state = obsolete_guarded_spec(id)
                 .map(|old| inspect_guarded_spec(id, old, context, &options));
             let combined_target_state =

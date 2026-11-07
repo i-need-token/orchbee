@@ -2,13 +2,18 @@ import { forwardSanitizedObservation } from './observation-transport.mjs';
 
 // Child sessions (subagent tasks) remembered so their events never read as root sessions.
 export const OPENCODE_CHILD_SESSION_LIMIT = 256;
+// Root sessions an OpenCode 2.x TUI left, remembered so a return never re-reports one.
+export const OPENCODE_LEFT_SESSION_LIMIT = 256;
+// How often the OpenCode 2.x TUI client reads the session it displays.
+export const OPENCODE_CLIENT_POLL_MS = 1000;
 
 // The plugin definition both loader generations accept once the installed
 // bootstrap default-exports it. OpenCode 1.3.4+ and Kilo read `{ id, server }`
 // and call `server`; OpenCode 2.x validates `{ id, setup }`. A 2.x plugin runs
 // in a server process that never shares the Agent's console (a detached
 // service, or a hidden child with its own console), so a private APC
-// correlation cannot reach the Agent's terminal: setup registers nothing.
+// correlation cannot reach the Agent's terminal: setup registers nothing, and
+// the client definition below observes 2.x instead.
 export function openCodeFamilyPlugin(adapterId) {
 	return {
 		id: 'orchbee-agent-observation',
@@ -17,12 +22,22 @@ export function openCodeFamilyPlugin(adapterId) {
 	};
 }
 
-// Both provider entries delegate normalization and bounded best-effort delivery
-// to this owner. Only normalized observations are retained between callbacks.
-export function createOpenCodeObservation(adapterId, { send = forwardSanitizedObservation } = {}) {
-	if (adapterId !== 'opencode' && adapterId !== 'kilo') throw new Error('Unknown adapter');
+// The OpenCode 2.x client definition. 2.x loads it twice from one plugin
+// directory: as a server plugin, where setup does nothing, and as a TUI plugin
+// in the TUI process, which owns the Agent's console, where setup reports the
+// root session the TUI displays.
+export function openCodeClientPlugin() {
+	return {
+		id: 'orchbee-agent-observation-tui',
+		setup: async (context) => createOpenCodeClientObservation(context),
+	};
+}
+
+// Serial, bounded, best-effort delivery shared by every OpenCode-family owner.
+// At 64 outstanding observations it stops admission until reload and discards
+// the queued suffix; an in-flight send may finish.
+function deliveryQueue(adapterId, send) {
 	const pending = [];
-	const childSessions = new Set();
 	let running = false;
 	let stopped = false;
 	const stop = () => {
@@ -44,16 +59,34 @@ export function createOpenCodeObservation(adapterId, { send = forwardSanitizedOb
 			running = false;
 		}
 	};
+	return {
+		get stopped() {
+			return stopped;
+		},
+		push(normalized) {
+			if (stopped) return;
+			if (pending.length + Number(running) >= 64) {
+				stop();
+				return;
+			}
+			pending.push(normalized);
+			if (!running) void drain();
+		},
+		stop,
+	};
+}
+
+// Both provider entries delegate normalization and bounded best-effort delivery
+// to this owner. Only normalized observations are retained between callbacks.
+export function createOpenCodeObservation(adapterId, { send = forwardSanitizedObservation } = {}) {
+	if (adapterId !== 'opencode' && adapterId !== 'kilo') throw new Error('Unknown adapter');
+	const queue = deliveryQueue(adapterId, send);
+	const childSessions = new Set();
 	const accept = (event) => {
-		if (stopped) return;
+		if (queue.stopped) return;
 		const normalized = sanitizeOpenCodeFamilyEvent(adapterId, event);
 		if (normalized === null || childSessions.has(normalized.sessionKey)) return;
-		if (pending.length + Number(running) >= 64) {
-			stop();
-			return;
-		}
-		pending.push(normalized);
-		if (!running) void drain();
+		queue.push(normalized);
 	};
 	return {
 		event: async (input) => {
@@ -66,7 +99,7 @@ export function createOpenCodeObservation(adapterId, { send = forwardSanitizedOb
 			accept({ type: 'tool.execute.before', properties: input }),
 		'tool.execute.after': async (input) =>
 			accept({ type: 'tool.execute.after', properties: input }),
-		dispose: async () => stop(),
+		dispose: async () => queue.stop(),
 	};
 }
 
@@ -77,13 +110,111 @@ function rememberChildSession(childSessions, event) {
 		return;
 	}
 	const info = isRecord(event.properties) ? event.properties.info : null;
-	if (!isRecord(info) || typeof info.parentID !== 'string' || info.parentID === '') return;
+	if (!isRecord(info) || !hasParent(info)) return;
 	const childId = identity(info.id);
 	if (childId === null || childSessions.has(childId)) return;
-	if (childSessions.size >= OPENCODE_CHILD_SESSION_LIMIT) {
-		childSessions.delete(childSessions.values().next().value);
-	}
-	childSessions.add(childId);
+	remember(childSessions, childId, OPENCODE_CHILD_SESSION_LIMIT);
+}
+
+// The OpenCode 2.x TUI shares one session service with every other OpenCode
+// client, so its events cover sessions other Panels show. The client reports
+// only the root session its own route displays, read from the TUI plugin
+// context (`ui.router`, `data.session`) once at setup and then on a timer:
+//
+// - a newly displayed root ends the root reported before it and starts itself;
+// - returning to a root it left ends the current one and reports nothing, since
+//   the Server never reopens an ended session;
+// - home, a plugin page or a session whose info has not loaded changes nothing;
+// - busy and idle follow the displayed root's status.
+//
+// At most one root is live per TUI, so the Panel's resume reference is exact or
+// absent. Any other context, such as the server's, registers nothing.
+export function createOpenCodeClientObservation(
+	context,
+	{ send = forwardSanitizedObservation, schedule = setInterval, unschedule = clearInterval } = {},
+) {
+	if (!isClientContext(context)) return undefined;
+	const queue = deliveryQueue('opencode', send);
+	const left = new Set();
+	let shown = null;
+	let busy = false;
+	const tick = () => {
+		if (queue.stopped) return;
+		let root;
+		let running;
+		try {
+			root = displayedRoot(context);
+			if (root !== null && root !== shown) {
+				if (shown !== null) {
+					queue.push(observation(shown, 'session-ended'));
+					remember(left, shown, OPENCODE_LEFT_SESSION_LIMIT);
+				}
+				shown = left.has(root) ? null : root;
+				busy = false;
+				if (shown !== null) queue.push(observation(shown, 'session-started'));
+			}
+			if (shown === null) return;
+			running = context.data.session.status(shown) === 'running';
+		} catch {
+			// An unreadable TUI state reports nothing.
+			return;
+		}
+		if (running === busy) return;
+		busy = running;
+		queue.push(
+			running
+				? observation(shown, 'turn-started', { activity: 'thinking' })
+				: observation(shown, 'session-idle'),
+		);
+	};
+	tick();
+	const timer = schedule(tick, OPENCODE_CLIENT_POLL_MS);
+	timer?.unref?.();
+	return () => {
+		unschedule(timer);
+		queue.stop();
+	};
+}
+
+function isClientContext(context) {
+	return (
+		isRecord(context) &&
+		isRecord(context.ui) &&
+		isRecord(context.ui.router) &&
+		typeof context.ui.router.current === 'function' &&
+		isRecord(context.data) &&
+		isRecord(context.data.session) &&
+		typeof context.data.session.get === 'function' &&
+		typeof context.data.session.root === 'function' &&
+		typeof context.data.session.status === 'function'
+	);
+}
+
+// The root of the session the route displays, once its info and its root's
+// info have loaded; `null` otherwise.
+function displayedRoot(context) {
+	const route = context.ui.router.current();
+	if (!isRecord(route) || route.type !== 'session') return null;
+	const id = identity(route.sessionID);
+	if (id === null) return null;
+	const info = context.data.session.get(id);
+	if (!isRecord(info)) return null;
+	const rootId = hasParent(info) ? identity(context.data.session.root(id)) : id;
+	if (rootId === null) return null;
+	const root = rootId === id ? info : context.data.session.get(rootId);
+	if (!isRecord(root) || root.id !== rootId || hasParent(root)) return null;
+	return rootId;
+}
+
+function hasParent(info) {
+	return typeof info.parentID === 'string' && info.parentID !== '';
+}
+
+// A first-in, first-out bounded set.
+function remember(set, value, limit) {
+	if (set.has(value)) return;
+	if (set.size >= limit) set.delete(set.values().next().value);
+	set.add(value);
 }
 
 function sessionIdentity(properties, event) {

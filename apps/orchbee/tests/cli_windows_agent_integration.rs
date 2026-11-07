@@ -1999,6 +1999,55 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
         let events: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(events["events"], 4);
         assert_eq!(events["provider"], provider);
+        if provider == "opencode" {
+            // OpenCode 2.x loads the client directory beside the module file:
+            // its server entry stays silent and its TUI entry reports the
+            // displayed root session from the process that owns the console.
+            let client = target.with_file_name("orchbee-agent-observation-tui");
+            let body = fs::read(client.join("tui.js")).unwrap();
+            assert_eq!(fs::read(client.join("server.js")).unwrap(), body);
+            let output = Command::new(&node)
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("tests/fixtures/windows-integration-module.mjs"),
+                )
+                .arg("opencode-client")
+                .arg(&client)
+                .env("USERPROFILE", fixture.home())
+                .stdin(Stdio::null())
+                .creation_flags(0x0800_0000)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "opencode-client: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let events: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(events["events"], 4);
+            // The two entries read as one: a missing client directory is
+            // repairable, and a foreign file inside it blocks both directions.
+            fs::remove_dir_all(&client).unwrap();
+            assert_eq!(
+                fixture.provider_document("explain", provider, 0)["result"]["state"],
+                "update-required"
+            );
+            fixture.provider_document("enable", provider, 0);
+            assert_eq!(fs::read(client.join("tui.js")).unwrap(), body);
+            fs::write(client.join("index.js"), b"// user module").unwrap();
+            assert_eq!(
+                fixture.provider_document("explain", provider, 0)["result"]["state"],
+                "conflict"
+            );
+            fixture.provider_document("enable", provider, 3);
+            fixture.provider_document("disable", provider, 3);
+            assert_eq!(fs::read(&target).unwrap(), original);
+            assert_eq!(
+                fs::read(client.join("index.js")).unwrap(),
+                b"// user module"
+            );
+            fs::remove_file(client.join("index.js")).unwrap();
+        }
         let doctor_hook = || {
             let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
                 .args([
@@ -2079,6 +2128,11 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
         fs::write(&target, &original).unwrap();
         fixture.provider_document("disable", provider, 0);
         assert!(!target.exists());
+        assert!(
+            !target
+                .with_file_name("orchbee-agent-observation-tui")
+                .exists()
+        );
         fixture.provider_document("disable", provider, 0);
         assert_eq!(
             fixture.provider_document("list", provider, 0)["result"]["integrations"][0]["state"],
