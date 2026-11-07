@@ -247,6 +247,10 @@ export const terminalSettingsMessages = defineMessages({
 	shellIntegrationResetDescription: message('terminal.settings.shellIntegration.reset.description'),
 	shellIntegrationTitle: message('terminal.settings.shellIntegration.title'),
 	searchPlaceholder: message('terminal.settings.search.placeholder'),
+	resumeAgentsOnRestoreDescription: message(
+		'terminal.settings.terminal.resumeAgentsOnRestore.description',
+	),
+	resumeAgentsOnRestoreLabel: message('terminal.settings.terminal.resumeAgentsOnRestore.label'),
 	scrollbackBytesControlUnavailableWarning: message(
 		'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning',
 	),

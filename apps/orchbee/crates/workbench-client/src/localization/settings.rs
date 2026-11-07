@@ -88,6 +88,7 @@ impl Locale {
                 "Hide empty space below Agent output",
                 "收起智能体输出底部空白",
             ),
+            Row::ResumeAgents => ("Resume Agents after restart", "重启后恢复智能体"),
             Row::Reminders => ("Agent status notifications", "智能体状态通知"),
             Row::CompletionReminders => ("Completion reminders", "命令完成提醒"),
             Row::CompletionThreshold => {
@@ -203,6 +204,10 @@ impl Locale {
             Row::TrimAgents => self.setting(
                 "Trim blank agent rows after Save; preserves active history and selection.",
                 "保存后裁剪智能体空白行；保留正在操作的历史和选区。",
+            ),
+            Row::ResumeAgents => self.setting(
+                "Resume Claude Code and Codex Agent sessions in their Panels after a restart.",
+                "重启后在原面板中恢复 Claude Code 和 Codex 智能体会话。",
             ),
             Row::Scrollback => self.setting(
                 "History capacity for new terminals: 0–1000 MB; 1 MB = 1,000,000 bytes.",
@@ -518,6 +523,10 @@ impl Locale {
             SettingsDetailKind::TrimAgentsAfterSave => self.setting(
                 "After Save: existing detected agents; active selection and history stay put.",
                 "保存后用于现有已检测智能体；保留正在操作的选区和历史视图。",
+            ),
+            SettingsDetailKind::ResumeAgentsAfterSave => self.setting(
+                "After Save: applies at the next restart; Off also stops saving Agent session IDs.",
+                "保存后于下次重启生效；关闭后也不再保存智能体会话 ID。",
             ),
             SettingsDetailKind::AgentNotificationsAfterSave => self.setting(
                 "After Save: future hidden-agent events; host delivery and per-agent mute apply.",

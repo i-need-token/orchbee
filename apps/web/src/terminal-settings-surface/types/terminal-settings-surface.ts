@@ -147,6 +147,8 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly remoteDevelopmentResultDescription: string;
 	readonly remoteDevelopmentTitle: string;
 	readonly searchPlaceholder: string;
+	readonly resumeAgentsOnRestoreDescription: string;
+	readonly resumeAgentsOnRestoreLabel: string;
 	readonly scrollbackBytesControlUnavailableWarning: string;
 	readonly scrollbackBytesDescription: string;
 	readonly scrollbackBytesFutureNotice: string;
@@ -257,6 +259,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly onTerminalPaddingBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onTerminalPaddingChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onTerminalPaddingKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	readonly onResumeAgentsOnRestoreChange: (checked: boolean) => void;
 	readonly onTrimTrailingBlankRowsForAgentsChange: (checked: boolean) => void;
 	readonly open: boolean;
 	readonly opacityVisible: boolean;
@@ -266,6 +269,8 @@ export interface TerminalSettingsSurfaceView {
 	readonly pageTitle: string;
 	readonly query: string;
 	readonly resetVisible: boolean;
+	readonly resumeAgentsOnRestore: boolean;
+	readonly resumeAgentsOnRestoreVisible: boolean;
 	readonly searchActive: boolean;
 	readonly searchResults: readonly TerminalSettingsSearchResultView[];
 	readonly searchResultsId: string;

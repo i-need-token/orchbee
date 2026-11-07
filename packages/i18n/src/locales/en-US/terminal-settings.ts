@@ -220,6 +220,9 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.sections.terminalLayout': 'Terminal layout',
 	'terminal.settings.sections.terminalTextShaping': 'Text shaping',
 	'terminal.settings.sections.terminalTypography': 'Terminal typography',
+	'terminal.settings.terminal.resumeAgentsOnRestore.description':
+		'Resume Claude Code and Codex Agent sessions in their Panels after a restart.',
+	'terminal.settings.terminal.resumeAgentsOnRestore.label': 'Resume Agents after restart',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Scrollback settings are unavailable until the Desktop control connection is restored.',
 	'terminal.settings.terminal.scrollbackBytes.description':

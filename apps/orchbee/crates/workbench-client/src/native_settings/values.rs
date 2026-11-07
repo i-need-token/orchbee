@@ -110,6 +110,7 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
         Row::TrimAgents => {
             values.trim_trailing_blank_rows_for_agents = !values.trim_trailing_blank_rows_for_agents
         }
+        Row::ResumeAgents => values.resume_agents_on_restore = !values.resume_agents_on_restore,
         Row::Sound => values.sound_enabled = !values.sound_enabled,
         Row::Profile => {
             let count = values.launch_profiles.profiles.len();

@@ -1,5 +1,6 @@
 import { formatKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
 import { useOrchbeeIntl } from '@orchbee/i18n';
+import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
 import {
@@ -66,6 +67,11 @@ export function useTerminalSettingsSurface({
 		terminalDefaultSettingsSource.subscribe,
 		terminalDefaultSettingsSource.getSnapshot,
 		terminalDefaultSettingsSource.getSnapshot,
+	);
+	const userPreferencesState = React.useSyncExternalStore(
+		controller.userPreferences.subscribe,
+		controller.userPreferences.getSnapshot,
+		controller.userPreferences.getSnapshot,
 	);
 	const keyboardShortcutSnapshot = useKeyboardShortcutSettings(keyboardShortcutController);
 	const availableCategories = new Set<TerminalSettingsCategory>([
@@ -199,6 +205,7 @@ export function useTerminalSettingsSurface({
 	const copyOnSelectVisible = terminalInteractionSettingsController !== undefined;
 	const trimTrailingBlankRowsForAgentsVisible = terminalInteractionSettingsController !== undefined;
 	const scrollbackBytesVisible = terminalDefaultSettingsControl !== undefined;
+	const resumeAgentsOnRestoreVisible = true;
 	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
 		id: group.id,
 		items: group.categories
@@ -480,7 +487,11 @@ export function useTerminalSettingsSurface({
 				'customBackground',
 				'copyOnSelect',
 				'trimTrailingBlankRowsForAgents',
+				'resumeAgentsOnRestore',
 			]);
+		},
+		onResumeAgentsOnRestoreChange: (checked): void => {
+			void controller.userPreferences.update({ resumeAgentsOnRestore: checked });
 		},
 		onSearchChange: (event): void => {
 			setQuery(event.currentTarget.value);
@@ -553,6 +564,10 @@ export function useTerminalSettingsSurface({
 		pageTitle: intl.formatMessage(pageDefinition.title),
 		query,
 		resetVisible,
+		resumeAgentsOnRestore:
+			userPreferencesState.snapshot?.values.resumeAgentsOnRestore ??
+			DEFAULT_USER_PREFERENCES.resumeAgentsOnRestore,
+		resumeAgentsOnRestoreVisible,
 		searchActive,
 		searchResults,
 		searchResultsId: TERMINAL_SETTINGS_SEARCH_RESULTS_ID,

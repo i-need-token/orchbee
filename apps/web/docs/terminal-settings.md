@@ -81,6 +81,7 @@ The complete product default is:
 | Background opacity     | `100`                                                              |
 | Copy on select         | `false`                                                            |
 | Trim Agent tail blanks | `true`                                                             |
+| Resume Agents          | `true`                                                             |
 
 ### CLI Agent trailing-blank-row preference
 
@@ -102,6 +103,15 @@ arrives. Reset restores both interaction defaults. Deterministic controller test
 reset and publication of confirmed changes. Derived-source
 tests cover Agent start, end, replacement, missing capability, preference disablement, and disposal;
 projected-terminal evidence owns the row-classification and Host-window boundaries.
+
+### Agent resume preference
+
+The Terminal History setting also exposes “Resume Agents after restart”, the shared
+`resumeAgentsOnRestore` preference. The row reads and writes it through the shared user-preference
+client, not the interaction controller, because no installed presentation consumes it. The Server
+reads it at its next restart and before each checkpoint capture; the row has no capability gate.
+The [Server contract](../../orchbee-server/docs/agent-session-resume.md) owns what it records and
+resumes.
 
 Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
 Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the
@@ -261,7 +271,7 @@ failure retains every mounted terminal and the application surface at their prev
 complete presentation without rolling back the preference.
 
 Reset restores the host leaves through this algorithm and sends null for the six common
-appearance keys and the two interaction keys in one shared reset:
+appearance keys, the two interaction keys and `resumeAgentsOnRestore` in one shared reset:
 
 - Different host leaves become the product default, write once, and publish at most one terminal
   presentation snapshot when terminal-derived values changed.

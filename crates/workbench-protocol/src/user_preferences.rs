@@ -87,6 +87,7 @@ pub enum PreferenceKey {
     CustomBackground,
     CopyOnSelect,
     TrimTrailingBlankRowsForAgents,
+    ResumeAgentsOnRestore,
     AgentNotificationMode,
     CompletionReminderMode,
     CompletionReminderMinimumSeconds,
@@ -96,7 +97,7 @@ pub enum PreferenceKey {
 }
 impl PreferenceKey {
     /// Complete closed inventory; adapters cannot silently omit an admitted common value.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::Locale,
         Self::ApplicationTheme,
         Self::LightTheme,
@@ -107,6 +108,7 @@ impl PreferenceKey {
         Self::CustomBackground,
         Self::CopyOnSelect,
         Self::TrimTrailingBlankRowsForAgents,
+        Self::ResumeAgentsOnRestore,
         Self::AgentNotificationMode,
         Self::CompletionReminderMode,
         Self::CompletionReminderMinimumSeconds,
@@ -127,6 +129,7 @@ impl PreferenceKey {
             Self::CustomBackground => "customBackground",
             Self::CopyOnSelect => "copyOnSelect",
             Self::TrimTrailingBlankRowsForAgents => "trimTrailingBlankRowsForAgents",
+            Self::ResumeAgentsOnRestore => "resumeAgentsOnRestore",
             Self::AgentNotificationMode => "agentNotificationMode",
             Self::CompletionReminderMode => "completionReminderMode",
             Self::CompletionReminderMinimumSeconds => "completionReminderMinimumSeconds",
@@ -162,6 +165,10 @@ pub struct UserPreferencesValues {
     pub custom_background: String,
     pub copy_on_select: bool,
     pub trim_trailing_blank_rows_for_agents: bool,
+    /// Whether the Server records supported Agent sessions in its checkpoint and resumes them in
+    /// their Panels after a restart. A record that omits it reads as `true`.
+    #[serde(default = "default_resume_agents_on_restore")]
+    pub resume_agents_on_restore: bool,
     pub agent_notification_mode: AgentReminderMode,
     pub completion_reminder_mode: CompletionReminderMode,
     #[serde(deserialize_with = "minimum_seconds")]
@@ -184,6 +191,7 @@ impl Default for UserPreferencesValues {
             custom_background: "#fcfcfc".into(),
             copy_on_select: false,
             trim_trailing_blank_rows_for_agents: true,
+            resume_agents_on_restore: true,
             agent_notification_mode: AgentReminderMode::Never,
             completion_reminder_mode: CompletionReminderMode::Never,
             completion_reminder_minimum_seconds: 5,
@@ -405,6 +413,9 @@ fn default_light_theme() -> String {
 }
 fn default_dark_theme() -> String {
     "orchbee-dark".into()
+}
+fn default_resume_agents_on_restore() -> bool {
+    true
 }
 fn color_theme_id<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
     let value = String::deserialize(deserializer)?;

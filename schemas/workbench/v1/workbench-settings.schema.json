@@ -105,6 +105,7 @@
 													"customBackground",
 													"copyOnSelect",
 													"trimTrailingBlankRowsForAgents",
+													"resumeAgentsOnRestore",
 													"agentNotificationMode",
 													"completionReminderMode",
 													"completionReminderMinimumSeconds",
@@ -141,6 +142,9 @@
 														"type": "null"
 													},
 													"trimTrailingBlankRowsForAgents": {
+														"type": "null"
+													},
+													"resumeAgentsOnRestore": {
 														"type": "null"
 													},
 													"agentNotificationMode": {

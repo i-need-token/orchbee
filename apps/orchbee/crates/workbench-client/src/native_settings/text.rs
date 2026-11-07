@@ -23,6 +23,7 @@ impl From<Row> for SettingsRow {
             Row::Background => Self::Background,
             Row::CopyOnSelect => Self::CopyOnSelect,
             Row::TrimAgents => Self::TrimAgents,
+            Row::ResumeAgents => Self::ResumeAgents,
             Row::Reminders => Self::Reminders,
             Row::CompletionReminders => Self::CompletionReminders,
             Row::CompletionThreshold => Self::CompletionThreshold,
@@ -166,6 +167,7 @@ fn detail_kind(draft: DraftView<'_>) -> SettingsDetailKind {
         | Row::Background => SettingsDetailKind::LocalPreview,
         Row::CopyOnSelect => SettingsDetailKind::CopyAfterSave,
         Row::TrimAgents => SettingsDetailKind::TrimAgentsAfterSave,
+        Row::ResumeAgents => SettingsDetailKind::ResumeAgentsAfterSave,
         Row::Reminders => SettingsDetailKind::AgentNotificationsAfterSave,
         Row::CompletionReminders | Row::CompletionThreshold => {
             SettingsDetailKind::CompletionAfterSave
@@ -234,6 +236,7 @@ impl<'a> From<(DraftView<'a>, Row)> for SettingsValue<'a> {
             Row::Background => Self::Text(&values.custom_background),
             Row::CopyOnSelect => Self::Toggle(values.copy_on_select),
             Row::TrimAgents => Self::Toggle(values.trim_trailing_blank_rows_for_agents),
+            Row::ResumeAgents => Self::Toggle(values.resume_agents_on_restore),
             Row::Reminders => Self::Choice(SettingsChoice::AgentReminders(
                 values.agent_notification_mode,
             )),

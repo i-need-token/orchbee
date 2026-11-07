@@ -63,6 +63,9 @@
 				"trimTrailingBlankRowsForAgents": {
 					"type": "boolean"
 				},
+				"resumeAgentsOnRestore": {
+					"type": "boolean"
+				},
 				"agentNotificationMode": {
 					"type": "string",
 					"enum": ["never", "hidden"]
@@ -99,6 +102,7 @@
 				"customBackground",
 				"copyOnSelect",
 				"trimTrailingBlankRowsForAgents",
+				"resumeAgentsOnRestore",
 				"agentNotificationMode",
 				"completionReminderMode",
 				"completionReminderMinimumSeconds",
@@ -117,6 +121,7 @@
 				"customBackground": "#fcfcfc",
 				"copyOnSelect": false,
 				"trimTrailingBlankRowsForAgents": true,
+				"resumeAgentsOnRestore": true,
 				"agentNotificationMode": "never",
 				"completionReminderMode": "never",
 				"completionReminderMinimumSeconds": 5,
@@ -242,6 +247,16 @@
 						}
 					]
 				},
+				"resumeAgentsOnRestore": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/values/properties/resumeAgentsOnRestore"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
 				"agentNotificationMode": {
 					"anyOf": [
 						{
@@ -331,6 +346,7 @@
 							"customBackground",
 							"copyOnSelect",
 							"trimTrailingBlankRowsForAgents",
+							"resumeAgentsOnRestore",
 							"agentNotificationMode",
 							"completionReminderMode",
 							"completionReminderMinimumSeconds",
@@ -339,7 +355,7 @@
 							"launchProfiles"
 						]
 					},
-					"maxItems": 16,
+					"maxItems": 17,
 					"uniqueItems": true
 				}
 			},
@@ -403,6 +419,7 @@
 											"customBackground",
 											"copyOnSelect",
 											"trimTrailingBlankRowsForAgents",
+											"resumeAgentsOnRestore",
 											"agentNotificationMode",
 											"completionReminderMode",
 											"completionReminderMinimumSeconds",
@@ -439,6 +456,9 @@
 												"type": "null"
 											},
 											"trimTrailingBlankRowsForAgents": {
+												"type": "null"
+											},
+											"resumeAgentsOnRestore": {
 												"type": "null"
 											},
 											"agentNotificationMode": {

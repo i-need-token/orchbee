@@ -57,6 +57,8 @@ pub(crate) enum SettingEffect {
     FutureNotification,
     NewTerminal,
     NewDefaultLaunch,
+    /// Applies when the Server next restarts from its checkpoint.
+    NextRestart,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -70,7 +72,7 @@ pub(crate) struct SettingMetadata {
     pub(crate) effect: SettingEffect,
 }
 
-pub(crate) static SETTINGS: [SettingMetadata; 16] = [
+pub(crate) static SETTINGS: [SettingMetadata; 17] = [
     SettingMetadata {
         key: PreferenceKey::Locale,
         row: Row::Language,
@@ -150,6 +152,14 @@ pub(crate) static SETTINGS: [SettingMetadata; 16] = [
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::ExistingAgentPresentation,
+    },
+    SettingMetadata {
+        key: PreferenceKey::ResumeAgentsOnRestore,
+        row: Row::ResumeAgents,
+        category: SettingCategory::Terminal,
+        control: SettingControl::Boolean,
+        availability: SettingAvailability::Always,
+        effect: SettingEffect::NextRestart,
     },
     SettingMetadata {
         key: PreferenceKey::AgentNotificationMode,

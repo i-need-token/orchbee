@@ -107,6 +107,11 @@ function applyPatch(
 			current.trimTrailingBlankRowsForAgents,
 			DEFAULT_USER_PREFERENCES.trimTrailingBlankRowsForAgents,
 		),
+		resumeAgentsOnRestore: choose(
+			changes.resumeAgentsOnRestore,
+			current.resumeAgentsOnRestore,
+			DEFAULT_USER_PREFERENCES.resumeAgentsOnRestore,
+		),
 		agentNotificationMode: choose(
 			changes.agentNotificationMode,
 			current.agentNotificationMode,

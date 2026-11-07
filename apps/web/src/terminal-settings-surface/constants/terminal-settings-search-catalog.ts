@@ -79,6 +79,15 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		targetId: 'terminal.trimTrailingBlankRowsForAgents',
 	},
 	{
+		category: 'terminal',
+		description: terminalSettingsMessages.resumeAgentsOnRestoreDescription,
+		id: 'terminal.resumeAgentsOnRestore',
+		keywords: ['Agent', 'Claude', 'Codex', 'resume', 'restart', 'restore', 'session'],
+		label: terminalSettingsMessages.resumeAgentsOnRestoreLabel,
+		section: terminalSettingsMessages.terminalHistorySection,
+		targetId: 'terminal.resumeAgentsOnRestore',
+	},
+	{
 		category: 'appearance',
 		description: terminalSettingsMessages.applicationThemeDescription,
 		id: 'appearance.application-theme',

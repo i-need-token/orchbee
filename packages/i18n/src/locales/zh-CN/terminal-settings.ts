@@ -202,6 +202,9 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.sections.terminalLayout': '终端布局',
 	'terminal.settings.sections.terminalTextShaping': '文本塑形',
 	'terminal.settings.sections.terminalTypography': '终端字体',
+	'terminal.settings.terminal.resumeAgentsOnRestore.description':
+		'重启后在原面板中恢复 Claude Code 和 Codex 智能体会话。',
+	'terminal.settings.terminal.resumeAgentsOnRestore.label': '重启后恢复智能体',
 	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
 		'Desktop 控制连接恢复前，无法更改回滚缓冲区设置。',
 	'terminal.settings.terminal.scrollbackBytes.description':
