@@ -1,6 +1,7 @@
-// Load an installed bootstrap through a real Node module boundary and observe
-// its production Windows transport. Refused ACKs keep this pipe-only witness
-// from writing correlation hints to the invoking developer's console.
+// Load an installed bootstrap through a real Node module boundary, admitting it
+// as each supported loader generation does, and observe its production Windows
+// transport. Refused ACKs keep this pipe-only witness from writing correlation
+// hints to the invoking developer's console.
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
@@ -54,7 +55,24 @@ const timer = setTimeout(() => delivered.reject(new Error('module events timed o
 try {
 	const loaded = await import(pathToFileURL(entry).href);
 	if (provider === 'opencode' || provider === 'kilo') {
-		const plugin = await loaded.OrchbeeAgentObservation();
+		// OpenCode 2.x decodes `default` as a plain object with a string id and
+		// a setup function, then awaits setup(context) and keeps its cleanup.
+		const definition = loaded.default;
+		assert.ok(typeof definition === 'object' && definition !== null && !Array.isArray(definition));
+		assert.equal(typeof definition.id, 'string');
+		assert.equal(typeof definition.setup, 'function');
+		const empty = { async *[Symbol.asyncIterator]() {} };
+		const cleanup = await definition.setup({
+			id: definition.id,
+			options: {},
+			event: { subscribe: () => empty },
+		});
+		assert.ok(cleanup === undefined || typeof cleanup === 'function');
+		// OpenCode 1.3.4+ and Kilo admit the same default as a server plugin:
+		// a server function and no tui, and an id for a file plugin.
+		assert.equal(typeof definition.server, 'function');
+		assert.equal(definition.tui, undefined);
+		const plugin = await definition.server({}, undefined);
 		for (const event of [
 			{ type: 'session.created', properties: { info: { id: 'module-session' } } },
 			{

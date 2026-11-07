@@ -860,21 +860,49 @@ fn file_url(path: &Path) -> String {
 }
 
 /// opencode/pi/omp module bootstrap bodies — verbatim canonical templates.
+///
+/// The OpenCode-family body is one default definition both loader generations
+/// accept: OpenCode 1.3.4+ and Kilo call `server`, OpenCode 2.x validates
+/// `{ id, setup }`. Each entry delegates to the same entry of the capsule's
+/// `orchbeeAgentObservationPlugin`, so later capsules change behavior without a
+/// new bootstrap.
 pub(crate) fn module_bootstrap(
     kind: BootstrapKind,
     integration_id: IntegrationId,
     source_path: &Path,
 ) -> String {
-    let module_url = serde_json::to_string(&file_url(source_path)).unwrap_or_default();
-    let marker = format!("{BOOTSTRAP_MARKER_PREFIX}{}\n", integration_id.as_str());
+    let (marker, module_url) = bootstrap_head(integration_id, source_path);
     match kind {
         BootstrapKind::Opencode => format!(
-            "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nexport async function OrchbeeAgentObservation(...arguments_) {{\n\ttry {{\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {{}};\n\t}} catch {{\n\t\treturn {{}};\n\t}}\n}}\n"
+            "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nconst orchbeeAgentObservationCall = async (name, arguments_, fallback) => {{\n\ttry {{\n\t\tconst definition = (await import(orchbeeAgentObservationModuleUrl)).orchbeeAgentObservationPlugin;\n\t\treturn typeof definition?.[name] === 'function'\n\t\t\t? await definition[name](...arguments_)\n\t\t\t: fallback;\n\t}} catch {{\n\t\treturn fallback;\n\t}}\n}};\nexport default {{\n\tid: 'orchbee-agent-observation',\n\tserver: (...arguments_) => orchbeeAgentObservationCall('server', arguments_, {{}}),\n\tsetup: (...arguments_) => orchbeeAgentObservationCall('setup', arguments_, undefined),\n}};\n"
         ),
         _ => format!(
             "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nmodule.exports = async function orchbeeAgentObservation(api) {{\n\ttry {{\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {{\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}}\n\t}} catch {{}}\n}};\n"
         ),
     }
+}
+
+/// The OpenCode-family body earlier releases wrote: a named export only, which
+/// OpenCode 2.x rejects for lacking a default definition. Inspection still
+/// recognizes it byte for byte, so it reads as owned and repairable.
+fn superseded_opencode_bootstrap(integration_id: IntegrationId, source_path: &Path) -> String {
+    let (marker, module_url) = bootstrap_head(integration_id, source_path);
+    format!(
+        "{marker}const orchbeeAgentObservationModuleUrl = {module_url};\nexport async function OrchbeeAgentObservation(...arguments_) {{\n\ttry {{\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {{}};\n\t}} catch {{\n\t\treturn {{}};\n\t}}\n}}\n"
+    )
+}
+
+fn bootstrap_head(integration_id: IntegrationId, source_path: &Path) -> (String, String) {
+    let module_url = serde_json::to_string(&file_url(source_path)).unwrap_or_default();
+    let marker = format!("{BOOTSTRAP_MARKER_PREFIX}{}\n", integration_id.as_str());
+    (marker, module_url)
+}
+
+/// Which template an owned module bootstrap carries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BootstrapTemplate {
+    Current,
+    Superseded,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -922,20 +950,27 @@ pub(crate) fn inspect_guarded_target(
         Err(_) => return TargetState::Unknown,
         _ => return TargetState::Conflict,
     };
-    let Some(source) = module_source(&bytes, kind, integration_id) else {
+    let Some((source, template)) = module_source(&bytes, kind, integration_id) else {
         return TargetState::Conflict;
     };
     let Some(root) = resource_root_for_source(&source, source_relative) else {
         return TargetState::Conflict;
     };
-    match classify_resource_root(&root.to_string_lossy(), options) {
-        ResourceOwnership::Current => TargetState::Current,
-        ResourceOwnership::Outdated => TargetState::UpdateRequired,
-        ResourceOwnership::Foreign => TargetState::Conflict,
+    match (
+        classify_resource_root(&root.to_string_lossy(), options),
+        template,
+    ) {
+        (ResourceOwnership::Foreign, _) => TargetState::Conflict,
+        (ResourceOwnership::Current, BootstrapTemplate::Current) => TargetState::Current,
+        _ => TargetState::UpdateRequired,
     }
 }
 
-fn module_source(bytes: &[u8], kind: BootstrapKind, id: IntegrationId) -> Option<PathBuf> {
+fn module_source(
+    bytes: &[u8],
+    kind: BootstrapKind,
+    id: IntegrationId,
+) -> Option<(PathBuf, BootstrapTemplate)> {
     let text = std::str::from_utf8(bytes).ok()?;
     let rest = text.strip_prefix(&format!("{BOOTSTRAP_MARKER_PREFIX}{}\n", id.as_str()))?;
     let assignment = rest
@@ -970,7 +1005,12 @@ fn module_source(bytes: &[u8], kind: BootstrapKind, id: IntegrationId) -> Option
     }
     // Round-trip validates canonical URL spelling and every executable byte,
     // rather than accepting an edited body that happens to carry our marker.
-    (module_bootstrap(kind, id, &source).as_bytes() == bytes).then_some(source)
+    if module_bootstrap(kind, id, &source).as_bytes() == bytes {
+        return Some((source, BootstrapTemplate::Current));
+    }
+    (kind == BootstrapKind::Opencode
+        && superseded_opencode_bootstrap(id, &source).as_bytes() == bytes)
+        .then_some((source, BootstrapTemplate::Superseded))
 }
 
 /// `<source dir>` minus its path inside the resource root → the root the

@@ -145,7 +145,7 @@ const TABLE: [Row; 20] = [
         resume: &["--session={id}"],
         key: "{id}",
         report: "async (session) => {
-            const hooks = await (await bundle('opencode/orchbee-agent-observation.mjs')).OrchbeeAgentObservation({});
+            const hooks = await openCodePlugin('opencode/orchbee-agent-observation.mjs');
             await hooks.event({ event: { type: 'session.created', properties: { info: { id: session } } } });
             await hooks.event({ event: { type: 'session.created', properties: { info: { id: `ses_${hex(12)}${alnum(14)}`, parentID: session } } } });
         }",
@@ -161,7 +161,7 @@ const TABLE: [Row; 20] = [
         resume: &["--session={id}"],
         key: "{id}",
         report: "async (session) => {
-            const hooks = await (await bundle('kilo/orchbee-agent-observation.mjs')).OrchbeeAgentObservation({});
+            const hooks = await openCodePlugin('kilo/orchbee-agent-observation.mjs');
             await hooks.event({ event: { type: 'session.created', properties: { info: { id: session } } } });
             await hooks.event({ event: { type: 'session.created', properties: { info: { id: `ses_${hex(12)}${alnum(14)}`, parentID: session } } } });
         }",
@@ -367,7 +367,11 @@ const TABLE: [Row; 20] = [
 
 /// A fresh run takes a new id and a resumed one keeps its own. A command hook runs as the provider
 /// runs one: a child with the payload on standard input, inheriting the environment and console. A
-/// module adapter runs in the stub's own process, as in the provider's. Written as one async
+/// module adapter runs in the stub's own process, as in the provider's. An OpenCode-family module's
+/// plugin definition, which the installed bootstrap default-exports, must pass both loader
+/// generations: OpenCode 2.x decodes it as a plain object with a string id and a setup function,
+/// then awaits setup; OpenCode 1.3.4+ and Kilo admit it as a server plugin and report through the
+/// hooks its server returns. Written as one async
 /// function with dynamic imports, so the same source runs as CommonJS and as a module.
 const STUB: &str = r"
 (async () => {
@@ -378,6 +382,13 @@ const STUB: &str = r"
   const { pathToFileURL } = await import('node:url');
   const argv = process.argv.slice(2);
   const bundle = (relative) => import(pathToFileURL(path.join(BUNDLE, relative)).href);
+  const openCodePlugin = async (relative) => {
+    const definition = (await bundle(relative)).orchbeeAgentObservationPlugin;
+    if (typeof definition !== 'object' || definition === null || Array.isArray(definition) || typeof definition.id !== 'string' || typeof definition.setup !== 'function') throw new Error('OpenCode 2.x rejects the module');
+    await definition.setup({ id: definition.id, options: {}, event: { subscribe: () => ({ async *[Symbol.asyncIterator]() {} }) } });
+    if (typeof definition.server !== 'function' || definition.tui !== undefined) throw new Error('OpenCode 1.x rejects the module');
+    return definition.server({}, undefined);
+  };
   const hook = (adapter, payload) => new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(BUNDLE, 'scripts', 'forward-hook.mjs'), adapter], { stdio: ['pipe', 'ignore', 'ignore'] });
     child.on('error', resolve);

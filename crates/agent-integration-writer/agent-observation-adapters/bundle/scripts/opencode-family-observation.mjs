@@ -3,6 +3,20 @@ import { forwardSanitizedObservation } from './observation-transport.mjs';
 // Child sessions (subagent tasks) remembered so their events never read as root sessions.
 export const OPENCODE_CHILD_SESSION_LIMIT = 256;
 
+// The plugin definition both loader generations accept once the installed
+// bootstrap default-exports it. OpenCode 1.3.4+ and Kilo read `{ id, server }`
+// and call `server`; OpenCode 2.x validates `{ id, setup }`. A 2.x plugin runs
+// in a server process that never shares the Agent's console (a detached
+// service, or a hidden child with its own console), so a private APC
+// correlation cannot reach the Agent's terminal: setup registers nothing.
+export function openCodeFamilyPlugin(adapterId) {
+	return {
+		id: 'orchbee-agent-observation',
+		server: async () => createOpenCodeObservation(adapterId),
+		setup: async () => undefined,
+	};
+}
+
 // Both provider entries delegate normalization and bounded best-effort delivery
 // to this owner. Only normalized observations are retained between callbacks.
 export function createOpenCodeObservation(adapterId, { send = forwardSanitizedObservation } = {}) {

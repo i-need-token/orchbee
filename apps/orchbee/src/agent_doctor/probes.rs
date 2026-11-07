@@ -53,6 +53,8 @@ pub(crate) enum ProbeKind {
 pub(crate) struct BootstrapShape {
     pub(crate) suffix: &'static str,
     pub(crate) body: &'static [u8],
+    /// The tail an earlier release wrote, still owned and repairable.
+    pub(crate) superseded: Option<&'static [u8]>,
 }
 
 /// One provider's offline binding: canonical id, divergent executable name,
@@ -71,7 +73,10 @@ pub(crate) struct Provider {
     pub(crate) manual_command: Option<&'static str>,
 }
 
-const OPENCODE_BODY: &[u8] = b"export async function OrchbeeAgentObservation(...arguments_) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {};\n\t} catch {\n\t\treturn {};\n\t}\n}\n";
+const OPENCODE_BODY: &[u8] = b"const orchbeeAgentObservationCall = async (name, arguments_, fallback) => {\n\ttry {\n\t\tconst definition = (await import(orchbeeAgentObservationModuleUrl)).orchbeeAgentObservationPlugin;\n\t\treturn typeof definition?.[name] === 'function'\n\t\t\t? await definition[name](...arguments_)\n\t\t\t: fallback;\n\t} catch {\n\t\treturn fallback;\n\t}\n};\nexport default {\n\tid: 'orchbee-agent-observation',\n\tserver: (...arguments_) => orchbeeAgentObservationCall('server', arguments_, {}),\n\tsetup: (...arguments_) => orchbeeAgentObservationCall('setup', arguments_, undefined),\n};\n";
+
+/// The named-export-only tail OpenCode 2.x rejects for lacking a default definition.
+const SUPERSEDED_OPENCODE_BODY: &[u8] = b"export async function OrchbeeAgentObservation(...arguments_) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {};\n\t} catch {\n\t\treturn {};\n\t}\n}\n";
 
 const CJS_BODY: &[u8] = b"module.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n";
 
@@ -152,6 +157,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
                 "/opencode/orchbee-agent-observation.mjs"
             },
             body: OPENCODE_BODY,
+            superseded: Some(SUPERSEDED_OPENCODE_BODY),
         }),
         manual_command: None,
     },
@@ -164,6 +170,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         bootstrap: Some(BootstrapShape {
             suffix: "/bundle/kilo/orchbee-agent-observation.mjs",
             body: OPENCODE_BODY,
+            superseded: Some(SUPERSEDED_OPENCODE_BODY),
         }),
         manual_command: None,
     },
@@ -261,6 +268,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
                 "/pi/orchbee-agent-observation.cjs"
             },
             body: CJS_BODY,
+            superseded: None,
         }),
         manual_command: None,
     },
@@ -277,6 +285,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
                 "/omp/orchbee-agent-observation.cjs"
             },
             body: CJS_BODY,
+            superseded: None,
         }),
         manual_command: None,
     },
@@ -823,6 +832,9 @@ pub(crate) enum BootstrapVerdict {
     NameMismatch,
     /// The marker is ours but the body differs from the derived template.
     TemplateMismatch,
+    /// Marker and body equal a template an earlier release wrote: owned, but
+    /// due for repair.
+    Superseded,
 }
 
 /// The bootstrap scan result: the verdict plus the embedded `moduleUrl`
@@ -886,14 +898,17 @@ pub(crate) fn scan_bootstrap(
             module_url,
         };
     };
-    if body != shape.body || module_url.is_none() {
-        return BootstrapScan {
-            verdict: BootstrapVerdict::TemplateMismatch,
-            module_url,
-        };
-    }
+    let verdict = if module_url.is_none() {
+        BootstrapVerdict::TemplateMismatch
+    } else if body == shape.body {
+        BootstrapVerdict::Present
+    } else if shape.superseded == Some(body) {
+        BootstrapVerdict::Superseded
+    } else {
+        BootstrapVerdict::TemplateMismatch
+    };
     BootstrapScan {
-        verdict: BootstrapVerdict::Present,
+        verdict,
         module_url,
     }
 }

@@ -1938,6 +1938,10 @@ fn claude_repairs_outdated_identities_and_preserves_foreign_sources() {
     }
 }
 
+/// The OpenCode-family bootstrap tail through ORC-363 P2a, as a real install
+/// wrote it.
+const SUPERSEDED_OPENCODE_BODY: &str = "export async function OrchbeeAgentObservation(...arguments_) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {};\n\t} catch {\n\t\treturn {};\n\t}\n}\n";
+
 #[test]
 fn javascript_modules_load_and_deliver_ordered_windows_observations() {
     use std::os::windows::process::CommandExt;
@@ -1995,37 +1999,62 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
         let events: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(events["events"], 4);
         assert_eq!(events["provider"], provider);
-        let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
-            .args([
-                "agent",
-                "doctor",
-                "--provider",
-                provider,
-                "--format",
-                "json",
-            ])
-            .env("USERPROFILE", fixture.home())
-            .env_remove("XDG_CONFIG_HOME")
-            .env_remove("KILO_CONFIG_DIR")
-            .env_remove("GEMINI_CLI_HOME")
-            .env_remove("QWEN_HOME")
-            .env_remove("QODER_CONFIG_DIR")
-            .env_remove("CURSOR_CONFIG_DIR")
-            .env_remove("KIMI_CODE_HOME")
-            .env(
-                "PATH",
-                std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
+        let doctor_hook = || {
+            let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+                .args([
+                    "agent",
+                    "doctor",
+                    "--provider",
+                    provider,
+                    "--format",
+                    "json",
+                ])
+                .env("USERPROFILE", fixture.home())
+                .env_remove("XDG_CONFIG_HOME")
+                .env_remove("KILO_CONFIG_DIR")
+                .env_remove("GEMINI_CLI_HOME")
+                .env_remove("QWEN_HOME")
+                .env_remove("QODER_CONFIG_DIR")
+                .env_remove("CURSOR_CONFIG_DIR")
+                .env_remove("KIMI_CODE_HOME")
+                .env(
+                    "PATH",
+                    std::env::join_paths([
+                        fixture.0.join("bin"),
+                        node.parent().unwrap().to_path_buf(),
+                    ])
                     .unwrap(),
+                )
+                .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
+                .stdin(Stdio::null())
+                .output()
+                .unwrap();
+            let inspection: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+            inspection["result"]["providers"][0]["hook"].clone()
+        };
+        let hook = doctor_hook();
+        assert_eq!(hook["state"], "present", "{hook}");
+        if matches!(provider, "opencode" | "kilo") {
+            // The named-export-only body earlier releases wrote, which OpenCode
+            // 2.x rejects for lacking a default definition, stays owned: both
+            // inspections read it as repairable, and enable restores the
+            // current bootstrap.
+            let text = String::from_utf8(original.clone()).unwrap();
+            let head = text.match_indices('\n').nth(1).unwrap().0 + 1;
+            fs::write(
+                &target,
+                format!("{}{SUPERSEDED_OPENCODE_BODY}", &text[..head]),
             )
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
-            .stdin(Stdio::null())
-            .output()
             .unwrap();
-        let inspection: Value = serde_json::from_slice(&doctor.stdout).unwrap();
-        assert_eq!(
-            inspection["result"]["providers"][0]["hook"]["state"], "present",
-            "{inspection}"
-        );
+            assert_eq!(
+                fixture.provider_document("explain", provider, 0)["result"]["state"],
+                "update-required"
+            );
+            let hook = doctor_hook();
+            assert_eq!(hook["state"], "update-required", "{hook}");
+            fixture.provider_document("enable", provider, 0);
+            assert_eq!(fs::read(&target).unwrap(), original);
+        }
 
         let old = String::from_utf8(original.clone()).unwrap().replace(
             &format!("/{}/", fixture.payload_identity()),

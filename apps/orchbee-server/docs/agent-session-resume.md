@@ -71,6 +71,13 @@ that session reports the id again, so the reference stays stable and harmless. C
 each session by the core session id its plugin setup receives, the id `cline --id` resumes, and
 drops subagent runs.
 
+OpenCode 1.3.4 through 1.18.30 and Kilo report their sessions. OpenCode 2.x loads Orchbee's
+plugin but reports nothing: it runs plugins in a server process that never shares the
+Agent's console, so the hook's correlation cannot reach its Panel, as the
+[Windows integration model](../../orchbee/docs/windows-agent-integrations.md#opencode-automatic-discovery)
+describes. An OpenCode 2.x Agent therefore has no reference to deliver and is not resumed; its row
+keeps the 2.x stale-id outcome for when a 2.x transport exists.
+
 Not in the table:
 
 - **Mastracode.** Below 0.45.0, `mastracode resume <id>` runs a headless model turn whose prompt is
@@ -367,8 +374,12 @@ one Session, with one Panel per [table](#rows) row: every provider, and Letta's 
 default forms, 20 rows. Each row's stub is a Node script at a path process identity recognises as
 that provider, and it reports its session as the provider's adapter does: a command-hook payload
 through the shipped hook script, or the shipped OpenCode, Kilo, Cline, Pi or OMP module driven as
-its provider drives it. A row the table marks as re-reporting only "on first prompt" or "on first
-run", "probably no" or "unknown" stays silent after a resume. Per row, the witness proves:
+its provider drives it. The OpenCode and Kilo stubs first admit the module's plugin definition,
+the one the installed bootstrap default-exports, as the OpenCode 2.2.5 loader does: a plain object
+with a string id and a setup function whose setup resolves. They then admit it as OpenCode 1.3.4+
+and Kilo do and report through the hooks its `server` returns. A row the table marks as
+re-reporting only "on first prompt" or "on first run", "probably no" or "unknown" stays silent after
+a resume. Per row, the witness proves:
 
 - capture of the fresh session, the OpenCode and Kilo child sessions included without ambiguity;
 - after a restart, the exact cmd line on screen and the exact recorded argument tokens, Claude
@@ -398,6 +409,8 @@ It does not prove:
   where it looks up a session. Same-id and directory evidence rests on the table's sources, and
   where that is documentation only (Cursor, Droid, Devin, Copilot and Antigravity) a resume may
   fail until a real run confirms the id;
+- that a real OpenCode 2.x loads the plugin without a plugin error: the stub checks the 2.2.5
+  loader's admission rule, and a real 2.2.5 run is still pending;
 - native provider images, which identity classifies by pure rule in its matrix, nor Hermes's
   Python plugin, whose payload a Node stub sends through the same hook script;
 - the Server's diagnostic lines, which go to standard error rather than to a file the witness can

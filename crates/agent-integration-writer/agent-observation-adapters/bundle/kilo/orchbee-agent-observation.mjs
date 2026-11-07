@@ -1,3 +1,3 @@
-import { createOpenCodeObservation } from '../scripts/opencode-family-observation.mjs';
+import { openCodeFamilyPlugin } from '../scripts/opencode-family-observation.mjs';
 
-export const OrchbeeAgentObservation = async () => createOpenCodeObservation('kilo');
+export const orchbeeAgentObservationPlugin = openCodeFamilyPlugin('kilo');

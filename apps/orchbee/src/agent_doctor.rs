@@ -808,7 +808,7 @@ fn probe_bootstrap(
         BootstrapVerdict::TemplateMismatch => {
             final_verdict(HookState::Conflict, HookReason::TemplateMismatch)
         }
-        BootstrapVerdict::Present => {
+        verdict @ (BootstrapVerdict::Present | BootstrapVerdict::Superseded) => {
             let url = scan.module_url.as_deref().unwrap_or_default();
             match probes::derive_module_root(url, shape.suffix, fs::PATH_STYLE) {
                 ModuleUrlRoot::Root(_) => HookProbe::AwaitsRoot {
@@ -817,8 +817,14 @@ fn probe_bootstrap(
                     root_index: recorded.iter().rposition(|root| {
                         root.provider == provider.id && root.field == "moduleUrl"
                     }),
-                    consistent: ConsistentOutcome::Present {
-                        reason: HookReason::BootstrapMarkerConsistent,
+                    // An earlier release's exact template stays owned: the
+                    // root guards still apply, then it reads as repairable.
+                    consistent: if verdict == BootstrapVerdict::Superseded {
+                        ConsistentOutcome::Incomplete
+                    } else {
+                        ConsistentOutcome::Present {
+                            reason: HookReason::BootstrapMarkerConsistent,
+                        }
                     },
                     detail: Map::new(),
                 },
