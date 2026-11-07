@@ -975,10 +975,6 @@ impl ClientView {
     pub fn workspace_navigation_unavailable(&mut self) {
         self.notice = Some(Notice::WorkspaceNavigationUnavailable);
     }
-    /// A notification's Agent target failed revalidation; nothing moved.
-    pub(crate) fn notification_target_unavailable(&mut self) {
-        self.notice = Some(Notice::NotificationTargetUnavailable);
-    }
     pub fn clear_workspace_navigation_notice(&mut self) {
         if self.notice == Some(Notice::WorkspaceNavigationUnavailable) {
             self.notice = None;

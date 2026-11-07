@@ -2511,8 +2511,9 @@ impl InputDispatcher {
         Ok(DispatchOutcome::Continue)
     }
 
-    /// Opens the visible Agent card's target through the revalidating port entry. Returns
-    /// whether the navigation was admitted, which may change the painted layout.
+    /// Opens the visible Agent card's target through the revalidating port entry, which reports
+    /// a held, busy, or unavailable outcome itself. Returns whether the navigation was admitted,
+    /// which may change the painted layout.
     fn open_notification_target(
         &mut self,
         view: &mut ClientView,
@@ -2526,16 +2527,14 @@ impl InputDispatcher {
         let target = target.clone();
         let opening = port.open_notification_target(&target);
         if opening == TargetOpening::Busy {
-            // Another navigation is settling; the card stays for the next attempt.
+            // The busy notice answers; the card stays for the next attempt.
             return false;
         }
+        // Opened, held, or refused as stale, the request no longer needs the card. A stale target
+        // never falls through to another Panel.
         view.notifications.dismiss(token);
         // The card's cells leave the painted map with it.
         self.pointer.invalidate_map_with_port(port);
-        if opening == TargetOpening::Unavailable {
-            // A stale target never falls through to another Panel; the notice replaces the card.
-            view.notification_target_unavailable();
-        }
         opening == TargetOpening::Opened
     }
 

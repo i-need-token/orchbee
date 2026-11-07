@@ -742,6 +742,7 @@ impl<'a> WorkbenchClientView<'a> {
                 WorkbenchClientNotice::WorkspaceCloseUnavailable
             }
             ClientNotice::WorkspaceChanged => WorkbenchClientNotice::WorkspaceChanged,
+            ClientNotice::AgentUnavailable => WorkbenchClientNotice::AgentUnavailable,
             ClientNotice::NoWorkspace => WorkbenchClientNotice::NoWorkspace,
             ClientNotice::WorkspaceNotReady => WorkbenchClientNotice::WorkspaceNotReady,
             ClientNotice::ConfirmationCancelled => WorkbenchClientNotice::ConfirmationCancelled,

@@ -268,6 +268,10 @@ impl Locale {
                 Self::EnUs => "Workspace changed; try again".to_owned(),
                 Self::ZhCn => "工作区已变化，请重试".to_owned(),
             },
+            WorkbenchClientNotice::AgentUnavailable => match self {
+                Self::EnUs => "This Agent is no longer available".to_owned(),
+                Self::ZhCn => "这个智能体已不可用".to_owned(),
+            },
             WorkbenchClientNotice::NoWorkspace => self.no_current_workspace().to_owned(),
             WorkbenchClientNotice::WorkspaceNotReady => match self {
                 Self::EnUs => "Workspace not ready · no worktree action started".to_owned(),

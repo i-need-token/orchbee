@@ -19,9 +19,14 @@ pub struct CardToken(u64);
 pub enum TargetOpening {
     /// The target Panel is focused now or its navigation was admitted.
     Opened,
-    /// Another navigation is still settling; the card stays for another attempt.
+    /// The user's own switch or a background read is settling; the opening waits for it and then
+    /// runs with every fact checked again.
+    Held,
+    /// Other work keeps the Workbench from navigating; the busy notice answers and the card stays
+    /// for another attempt.
     Busy,
-    /// The target is gone, rebound, or outside the attached Session; nothing moved.
+    /// The target is gone, rebound, or outside the attached Session; the notice says so and
+    /// nothing moved.
     Unavailable,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]

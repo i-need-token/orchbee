@@ -55,6 +55,9 @@ pub(super) enum HeldIntent {
     Close(ConfirmedClose),
     /// Last Panel, whose target is chosen from the focus history once the projection settled.
     LastPanel,
+    /// A notification's Agent target, revalidated in full when it replays. Terminal input waits
+    /// with it, as it does with a held focus move.
+    AgentTarget(Box<crate::machine_agents::Target>),
 }
 
 /// The close confirmation whose `Enter` a held close replays.
@@ -192,7 +195,7 @@ impl WorkbenchClientUi {
     }
 
     /// What a held invocation waits out before it runs through its ordinary entry point.
-    fn settling_for_user_action(&self) -> bool {
+    pub(super) fn settling_for_user_action(&self) -> bool {
         self.held_intents.direct_navigation.is_some()
             || self
                 .state
@@ -312,6 +315,7 @@ impl WorkbenchClientUi {
                 held.intent,
                 HeldIntent::Context { .. }
                     | HeldIntent::LastPanel
+                    | HeldIntent::AgentTarget(_)
                     | HeldIntent::Structure(
                         StructureAction::Focus(_)
                             | StructureAction::FocusPanel(_)
@@ -450,6 +454,11 @@ impl WorkbenchClientUi {
             HeldIntent::LastPanel => {
                 let disposition = self.focus_last_panel();
                 self.held_intents.layout_replayed |= disposition.changes_layout();
+            }
+            HeldIntent::AgentTarget(target) => {
+                let opening = self.open_notification_target(&target);
+                self.held_intents.layout_replayed |=
+                    opening == crate::client_view::notifications::TargetOpening::Opened;
             }
         }
         true

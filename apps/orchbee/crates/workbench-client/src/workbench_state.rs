@@ -681,6 +681,9 @@ pub(crate) enum ClientNotice {
     WorkspaceCloseUnavailable,
     /// A conditional Workspace Close reply no longer matched its target; nothing was closed.
     WorkspaceChanged,
+    /// The Agent a notification announced is gone, rebound, or outside the attached Session;
+    /// nothing moved.
+    AgentUnavailable,
     NoWorkspace,
     /// The current Workspace has no settled view to start a Worktree action from.
     WorkspaceNotReady,

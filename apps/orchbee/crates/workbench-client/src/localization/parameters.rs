@@ -42,8 +42,6 @@ pub enum BackendAction {
 pub enum Notice {
     OnboardingSaveFailed,
     WorkspaceNavigationUnavailable,
-    /// The Agent a notification announced is gone, rebound, or outside the attached Session.
-    NotificationTargetUnavailable,
     NavigatorChanged,
     NavigatorTooSmall,
     ResizeBusy,

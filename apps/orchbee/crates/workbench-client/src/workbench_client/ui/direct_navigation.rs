@@ -139,12 +139,15 @@ impl WorkbenchClientUi {
 
     /// Opens the Agent a notification card announced through the same revalidating navigation as
     /// a sidebar Agent row, never another target. An admitted opening marks that Agent's current
-    /// attention read, as explicit focus does.
+    /// attention read, as explicit focus does. The user's own landing switch or a background read
+    /// holds the opening, which then replays through here; a stale target reports the Agent
+    /// unavailable.
     pub(in crate::workbench_client) fn open_notification_target(
         &mut self,
         target: &crate::machine_agents::Target,
     ) -> crate::client_view::notifications::TargetOpening {
         use crate::client_view::notifications::TargetOpening;
+        use crate::workbench_state::ClientNotice;
 
         match self.navigate_agent(target) {
             Admission::Current | Admission::Admitted => {
@@ -153,8 +156,24 @@ impl WorkbenchClientUi {
                 );
                 TargetOpening::Opened
             }
-            Admission::Busy => TargetOpening::Busy,
-            Admission::Unavailable => TargetOpening::Unavailable,
+            Admission::Busy if self.settling_for_user_action() => {
+                self.hold_intent(super::held_intent::HeldIntent::AgentTarget(Box::new(
+                    target.clone(),
+                )));
+                TargetOpening::Held
+            }
+            Admission::Busy => {
+                if let Some(state) = self.state.as_mut() {
+                    state.set_notice(ClientNotice::LocalBusy);
+                }
+                TargetOpening::Busy
+            }
+            Admission::Unavailable => {
+                if let Some(state) = self.state.as_mut() {
+                    state.set_notice(ClientNotice::AgentUnavailable);
+                }
+                TargetOpening::Unavailable
+            }
         }
     }
 }
