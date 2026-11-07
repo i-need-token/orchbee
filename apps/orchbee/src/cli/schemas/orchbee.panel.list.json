@@ -1618,6 +1618,7 @@
 							"primaryPresentationId",
 							"presentationCount",
 							"primaryTerminalId",
+							"primaryUnavailableDirectory",
 							"workspaceId",
 							"label",
 							"customLabel",
@@ -1661,6 +1662,18 @@
 								"anyOf": [
 									{
 										"$ref": "#/$defs/id"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"primaryUnavailableDirectory": {
+								"$comment": "The saved directory a restore held the unbound primary Presentation for; null otherwise.",
+								"anyOf": [
+									{
+										"type": "string",
+										"minLength": 1
 									},
 									{
 										"type": "null"

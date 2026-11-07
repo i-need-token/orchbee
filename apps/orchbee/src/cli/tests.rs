@@ -513,6 +513,7 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
         primary_presentation_id: "2".repeat(32),
         presentation_count: 1,
         primary_terminal_id: Some(ID.to_owned()),
+        primary_unavailable_directory: None,
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let output = super::success_output(

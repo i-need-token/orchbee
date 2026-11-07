@@ -1833,11 +1833,13 @@ context:{kind:"workspace",terminalContextId,
 workspaceId}}]}`; `workspaceId` is always required. `tab get` adds `root`, the
   typed `PanelNode` subtree re-encoded without losing semantic fields.
 - `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId,tabId,terminalContextId,primaryPresentationId,
-presentationCount,primaryTerminalId|null}]}` where `primaryTerminalId` reflects only
-  `primaryPresentation.binding`; `panel get` → `{panel:{panelId,tabId,context,slotPath,
+presentationCount,primaryTerminalId|null,primaryUnavailableDirectory|null}]}` where `primaryTerminalId` reflects only
+  `primaryPresentation.binding` and `primaryUnavailableDirectory` names the saved directory a
+  restore held the unbound primary for; `panel get` → `{panel:{panelId,tabId,context,slotPath,
 primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs from root to leaf
   (`[]` when the root itself is the panel) and each presentation `{presentationId,label,
-binding:{terminalId,workerId}|null}`.
+binding:{terminalId,workerId}|null,unavailableDirectory|null}`. Text output shows
+  "Directory unavailable" / "目录不可用" in the terminal column of a held member.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
 tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecycle, process, or
   Agent members. At most one of `--workspace`, `--tab` and `--panel` keeps only the terminals
@@ -2604,7 +2606,8 @@ An absent or mismatched binding fails `not-found` (exit 3); duplicate identity f
 Client observations are not atomic. The answer is bounded by their observation times.
 
 Windows current Panel uses `orchbee.panel.current` v1 with an explicit `currentPresentation`:
-primary for an explicit Panel, exact caller terminal, or the selected Client member. Agent,
+primary for an explicit Panel, exact caller terminal, or the selected Client member. Like
+`panel get`, every presentation carries `unavailableDirectory`. Agent,
 terminal title/cwd/processes, reports, metadata and scroll share this member while canonical
 primary/child structure stays intact. Explicit/caller selection stays headless. The original
 Client selection and local member token are fenced; changes fail without a partial result. The

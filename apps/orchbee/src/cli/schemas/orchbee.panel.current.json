@@ -25,9 +25,28 @@
 		},
 		"presentation": {
 			"type": "object",
-			"required": ["presentationId", "label", "binding", "customLabel", "displayLabel"],
+			"required": [
+				"presentationId",
+				"label",
+				"binding",
+				"customLabel",
+				"displayLabel",
+				"unavailableDirectory"
+			],
 			"additionalProperties": false,
 			"properties": {
+				"unavailableDirectory": {
+					"$comment": "The saved directory a restore held this unbound Presentation for; null otherwise.",
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
 				"displayLabel": {
 					"type": "string"
 				},
@@ -1644,9 +1663,29 @@
 		},
 		"currentPresentation": {
 			"type": "object",
-			"required": ["presentationId", "label", "binding", "customLabel", "displayLabel", "source"],
+			"required": [
+				"presentationId",
+				"label",
+				"binding",
+				"customLabel",
+				"displayLabel",
+				"unavailableDirectory",
+				"source"
+			],
 			"additionalProperties": false,
 			"properties": {
+				"unavailableDirectory": {
+					"$comment": "The saved directory a restore held this unbound Presentation for; null otherwise.",
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
 				"displayLabel": {
 					"type": "string"
 				},

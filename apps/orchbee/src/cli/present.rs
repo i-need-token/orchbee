@@ -202,13 +202,26 @@ fn context_text(context: &ContextRef) -> String {
     format!("workspace {}", context.workspace_id)
 }
 
-fn presentation_cells(row: &PresentationRow) -> Vec<String> {
+fn presentation_cells(row: &PresentationRow, text: &CliLabels) -> Vec<String> {
     vec![
         row.presentation_id.clone(),
         table_label(&row.display_label),
-        row.terminal_id.clone().unwrap_or_else(|| "-".to_owned()),
+        terminal_cell(
+            row.terminal_id.as_ref(),
+            row.unavailable_directory.as_ref(),
+            text,
+        ),
         row.worker_id.clone().unwrap_or_else(|| "-".to_owned()),
     ]
+}
+
+/// The bound terminal, or why a restore holds the Presentation without one.
+fn terminal_cell(terminal: Option<&String>, held: Option<&String>, text: &CliLabels) -> String {
+    match (terminal, held) {
+        (Some(terminal), _) => terminal.clone(),
+        (None, Some(_)) => text.directory_unavailable.to_owned(),
+        (None, None) => "-".to_owned(),
+    }
 }
 
 /// The human terminal table: location handles and the path are never cut;
@@ -719,9 +732,11 @@ pub(crate) fn render(
                 row.terminal_context_id.clone(),
                 row.primary_presentation_id.clone(),
                 row.presentation_count.to_string(),
-                row.primary_terminal_id
-                    .clone()
-                    .unwrap_or_else(|| "-".to_owned()),
+                terminal_cell(
+                    row.primary_terminal_id.as_ref(),
+                    row.primary_unavailable_directory.as_ref(),
+                    text,
+                ),
                 row.right_click.as_str().to_owned(),
             ]
         }),
@@ -1355,14 +1370,14 @@ fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), 
         out,
         &text.presentation_headers,
         std::slice::from_ref(&doc.primary_presentation),
-        presentation_cells,
+        |row| presentation_cells(row, text),
     )?;
     out.write(format_args!("{}\n", text.child_presentations))?;
     table(
         out,
         &text.presentation_headers,
         &doc.child_presentations,
-        presentation_cells,
+        |row| presentation_cells(row, text),
     )
 }
 

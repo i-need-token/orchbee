@@ -218,6 +218,8 @@ pub(crate) struct PanelRow {
     pub(crate) primary_presentation_id: String,
     pub(crate) presentation_count: usize,
     pub(crate) primary_terminal_id: Option<String>,
+    /// The saved directory a restore held the unbound primary Presentation for.
+    pub(crate) primary_unavailable_directory: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -237,6 +239,8 @@ pub(crate) struct PresentationRow {
     pub(crate) label: String,
     pub(crate) terminal_id: Option<String>,
     pub(crate) worker_id: Option<String>,
+    /// The saved directory a restore held this unbound Presentation for.
+    pub(crate) unavailable_directory: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -1522,6 +1526,7 @@ impl Projection {
                             "primaryPresentationId": row.primary_presentation_id,
                             "presentationCount": row.presentation_count,
                             "primaryTerminalId": row.primary_terminal_id,
+                            "primaryUnavailableDirectory": row.primary_unavailable_directory,
                         })
                     })
                     .collect::<Vec<_>>(),
@@ -1943,6 +1948,7 @@ pub(super) fn presentation_json(row: &PresentationRow) -> Value {
             }),
             _ => Value::Null,
         },
+        "unavailableDirectory": row.unavailable_directory,
     })
 }
 
@@ -2633,7 +2639,16 @@ fn presentation_row(presentation: &Presentation) -> PresentationRow {
             .binding
             .as_ref()
             .map(|binding| binding.worker_id.as_str().to_owned()),
+        unavailable_directory: unavailable_directory(presentation),
     }
+}
+
+fn unavailable_directory(presentation: &Presentation) -> Option<String> {
+    presentation
+        .launch_failure
+        .as_ref()?
+        .unavailable_directory()
+        .map(|directory| directory.as_str().to_owned())
 }
 
 fn collect_panel_nodes<'a>(
@@ -2698,6 +2713,7 @@ fn collect_panels<'a>(
                     .binding
                     .as_ref()
                     .map(|binding| binding.terminal_id.as_str().to_owned()),
+                primary_unavailable_directory: unavailable_directory(primary_presentation),
             },
             path,
         ),

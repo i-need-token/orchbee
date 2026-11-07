@@ -57,6 +57,8 @@ pub(crate) struct CliLabels {
     pub(crate) tab_headers: [&'static str; 4],
     pub(crate) panel_headers: [&'static str; 9],
     pub(crate) presentation_headers: [&'static str; 4],
+    /// The terminal cell of a Presentation a restore holds for an unavailable directory.
+    pub(crate) directory_unavailable: &'static str,
     pub(crate) terminal_headers: [&'static str; 6],
     pub(crate) terminal_list_headers: [&'static str; 7],
     // Agent read field labels and column headers.
@@ -164,6 +166,7 @@ const EN_US_LABELS: CliLabels = CliLabels {
         "RIGHT CLICK",
     ],
     presentation_headers: ["ID", "LABEL", "TERMINAL", "WORKER"],
+    directory_unavailable: "Directory unavailable",
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "CONTEXT"],
     terminal_list_headers: [
         "HANDLE",
@@ -273,6 +276,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
         "右键",
     ],
     presentation_headers: ["ID", "LABEL", "终端", "WORKER"],
+    directory_unavailable: "目录不可用",
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "上下文"],
     terminal_list_headers: ["句柄", "标题", "Agent", "状态", "工作区", "面板", "目录"],
     agent_session: "会话",
