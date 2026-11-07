@@ -51,6 +51,12 @@ cleared. During the episode, raw Idle and Done are presented as Error and never 
 `awaiting-input`; Blocked is not overridden. After the episode ends, a Working turn that reaches Idle
 publishes `awaiting-input` again.
 
+When a new turn ends an error episode while an explicit Idle or Done is still current, that stale
+status stands in for the turn: it is presented as Idle and publishes no `awaiting-input` until the
+turn signals completion. The signal is an Idle or Done report that arrives after the turn began, or a
+fallback that turns Idle. A signal that a blocker masks completes the turn once the status is visibly
+Idle. The stale status reappearing when a blocker clears is not a signal.
+
 Only accepted keys, text or paste **after** `awaiting-input` acknowledge it. Focus, read/unread
 acknowledgements, viewport visibility and mouse reports never do. Semantic Focus/Mouse records are
 excluded explicitly. Raw controller input skips complete focus and mouse reports, including

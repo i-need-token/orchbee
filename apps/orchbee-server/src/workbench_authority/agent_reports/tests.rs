@@ -461,6 +461,17 @@ fn error_episode_keeps_errored_turn_red_until_a_new_turn() {
     use orchbee_workbench_protocol::AgentCompletion as Completion;
     let report = |status, n| state("custom", "codex", status, seq(n));
     let observed = |status| process(Some(Provider::Codex), status, false);
+    let blocker = |status, visible_blocker| {
+        Event::Process(Process {
+            observed_at: u64::MAX,
+            agent: Some(Provider::Codex),
+            fallback: Some(Fallback {
+                status,
+                visible_blocker,
+            }),
+            exited: false,
+        })
+    };
     let cases = vec![
         (
             "working, error, idle",
@@ -574,6 +585,101 @@ fn error_episode_keeps_errored_turn_red_until_a_new_turn() {
                 (report(Working, 1), Working, Completion::None),
                 (report(Error, 2), Error, Completion::None),
                 (state("custom", "pi", Idle, seq(3)), Idle, Completion::None),
+            ],
+        ),
+        (
+            "stale idle stays neutral while a new turn runs, then completes",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (observed(Idle), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "stale done shows idle while a new turn runs, then completes",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Done, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (observed(Idle), Done, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a fresh report completes a turn that started under a stale idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (report(Working, 4), Working, Completion::None),
+                (report(Idle, 5), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a stale idle holds the turn through a blocker that clears",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (blocker(Blocked, true), Blocked, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (observed(Idle), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a stale done holds the turn through a blocker that clears",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Done, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (blocker(Blocked, true), Blocked, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (observed(Idle), Done, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a fresh idle report completes a turn that started under a stale idle",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (report(Idle, 4), Idle, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a fresh done report completes a turn that started under a stale done",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Done, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (report(Done, 4), Done, Completion::AwaitingInput),
+            ],
+        ),
+        (
+            "a completion hidden by an explicit blocker is published once it clears",
+            vec![
+                (report(Working, 1), Working, Completion::None),
+                (report(Error, 2), Error, Completion::None),
+                (report(Idle, 3), Error, Completion::None),
+                (observed(Working), Idle, Completion::None),
+                (report(Blocked, 4), Blocked, Completion::None),
+                (observed(Idle), Blocked, Completion::None),
+                (
+                    Event::Clear {
+                        source: None,
+                        sequence: seq(5),
+                    },
+                    Idle,
+                    Completion::AwaitingInput,
+                ),
             ],
         ),
     ];

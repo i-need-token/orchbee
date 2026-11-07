@@ -91,6 +91,18 @@ pub(super) struct Transition {
     pub(super) released: bool,
     pub(super) metadata_exit: Option<MetadataExit>,
 }
+/// Whether an explicit Idle or Done that was current when a new turn began still stands in for it.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+enum HiddenTurn {
+    /// The current status describes the turn.
+    #[default]
+    Visible,
+    /// A stale Idle or Done stands in for the turn, and no completion signal of the turn has arrived.
+    Stale,
+    /// A completion signal of the turn arrived; awaiting-input publishes once the status is visibly Idle.
+    Signaled,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 pub(super) struct Reports {
     authority: Option<Authority>,
@@ -104,6 +116,8 @@ pub(super) struct Reports {
     worked: bool,
     completion: orchbee_workbench_protocol::AgentCompletion,
     error_episode: bool,
+    /// Whether a stale explicit Idle or Done stands in for the turn that a new turn began.
+    hidden_turn: HiddenTurn,
 }
 impl Reports {
     pub(super) fn transition(&self, event: Event, at: u64) -> Transition {
@@ -138,7 +152,16 @@ impl Reports {
             }
         };
         let before = self.effective();
+        let authority_changed = next.authority != self.authority;
+        let fallback_changed = next.fallback != self.fallback;
         let resumed = next.advance_error_episode(self, released);
+        if resumed {
+            // The explicit authority decides, not the masked view, so a visible blocker cannot hide it.
+            next.hidden_turn = match next.authority.as_ref().map(|a| a.status) {
+                Some(Status::Idle | Status::Done) => HiddenTurn::Stale,
+                _ => HiddenTurn::Visible,
+            };
+        }
         let after = next.effective();
         if before.agent != after.agent || after.agent.is_none() {
             next.worked = false;
@@ -147,14 +170,33 @@ impl Reports {
         if resumed {
             next.worked = true;
         }
+        // A completion needs its own signal: an Idle or Done report, a fallback that just turned Idle,
+        // or an effective status that just became Idle. The end of an episode is none of these.
+        let signaled = (authority_changed
+            && next
+                .authority
+                .as_ref()
+                .is_some_and(|a| matches!(a.status, Status::Idle | Status::Done)))
+            || (fallback_changed && next.fallback == Status::Idle);
+        if signaled && next.hidden_turn == HiddenTurn::Stale {
+            next.hidden_turn = HiddenTurn::Signaled;
+        }
+        // A hidden turn completes only on its own signal, which a blocker may mask until it clears.
+        let completed = match next.hidden_turn {
+            HiddenTurn::Visible => before.status != Status::Idle || signaled,
+            HiddenTurn::Stale => false,
+            HiddenTurn::Signaled => true,
+        };
         match after.status {
             Status::Working if after.agent.is_some() => {
                 next.worked = true;
                 next.completion = orchbee_workbench_protocol::AgentCompletion::None;
+                next.hidden_turn = HiddenTurn::Visible;
             }
-            Status::Idle if next.worked => {
+            Status::Idle if next.worked && completed => {
                 next.worked = false;
                 next.completion = orchbee_workbench_protocol::AgentCompletion::AwaitingInput;
+                next.hidden_turn = HiddenTurn::Visible;
             }
             Status::Done
                 if after.agent.is_some()
@@ -164,6 +206,9 @@ impl Reports {
                 next.completion = orchbee_workbench_protocol::AgentCompletion::AwaitingInput;
             }
             _ => {}
+        }
+        if !next.worked {
+            next.hidden_turn = HiddenTurn::Visible;
         }
         Transition {
             changed: next != *self,
@@ -354,6 +399,8 @@ impl Reports {
         let mut effective = self.reported();
         if self.error_episode && matches!(effective.status, Status::Idle | Status::Done) {
             effective.status = Status::Error;
+        } else if self.hidden_turn != HiddenTurn::Visible && effective.status == Status::Done {
+            effective.status = Status::Idle;
         }
         effective
     }
