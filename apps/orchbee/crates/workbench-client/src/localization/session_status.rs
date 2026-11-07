@@ -368,6 +368,7 @@ impl Locale {
                 Self::EnUs => "Terminal not started".into(),
                 Self::ZhCn => "终端未启动".into(),
             },
+            WorkbenchClientNotice::EarlierLayout(notice) => self.earlier_layout_notice(notice),
             WorkbenchClientNotice::LinkOpened => match self {
                 Self::EnUs => "Link opened".into(),
                 Self::ZhCn => "链接已打开".into(),

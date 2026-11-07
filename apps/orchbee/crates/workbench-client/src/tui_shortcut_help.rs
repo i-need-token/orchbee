@@ -507,6 +507,7 @@ fn requires_session(action: &PrefixAction) -> bool {
                 | A::RequestRenamePanel
                 | A::ClearTerminal
                 | A::EditScrollback
+                | A::RequestEarlierLayouts
         ) | PrefixAction::SelectTabDigit
     )
 }

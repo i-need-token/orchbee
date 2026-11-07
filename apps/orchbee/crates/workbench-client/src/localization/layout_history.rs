@@ -84,92 +84,81 @@ impl Locale {
     /// The notice for a reopen outcome. A listing has no notice and returns `None`.
     #[must_use]
     pub fn earlier_layout_outcome(self, outcome: &LayoutHistoryOutcome) -> Option<String> {
-        let text = match (self, outcome) {
-            (_, LayoutHistoryOutcome::Listed { .. }) => return None,
+        EarlierLayoutNotice::from_outcome(outcome).map(|notice| self.earlier_layout_notice(notice))
+    }
+
+    /// The short notice an interactive Client shows for an earlier-layout request.
+    #[must_use]
+    pub fn earlier_layout_notice(self, notice: EarlierLayoutNotice) -> String {
+        use EarlierLayoutNotice as N;
+        match (self, notice) {
             (
                 Self::EnUs,
-                LayoutHistoryOutcome::Reopened {
+                N::Reopened {
                     workspaces: 0,
                     tabs,
-                    ..
                 },
             ) => {
-                format!("Reopened {}", tab_count(self, *tabs))
+                format!("Reopened {}", tab_count(self, tabs))
             }
             (
                 Self::ZhCn,
-                LayoutHistoryOutcome::Reopened {
+                N::Reopened {
                     workspaces: 0,
                     tabs,
-                    ..
                 },
             ) => {
-                format!("已重新打开 {}", tab_count(self, *tabs))
+                format!("已重新打开 {}", tab_count(self, tabs))
             }
             (
                 Self::EnUs,
-                LayoutHistoryOutcome::Reopened {
-                    workspaces, tabs, ..
+                N::Reopened {
+                    workspaces,
+                    tabs: 0,
                 },
-            ) => format!(
+            ) => {
+                format!("Reopened {}", workspace_count(self, workspaces))
+            }
+            (
+                Self::ZhCn,
+                N::Reopened {
+                    workspaces,
+                    tabs: 0,
+                },
+            ) => {
+                format!("已重新打开 {}", workspace_count(self, workspaces))
+            }
+            (Self::EnUs, N::Reopened { workspaces, tabs }) => format!(
                 "Reopened {}, {}",
-                workspace_count(self, *workspaces),
-                tab_count(self, *tabs)
+                workspace_count(self, workspaces),
+                tab_count(self, tabs)
             ),
-            (
-                Self::ZhCn,
-                LayoutHistoryOutcome::Reopened {
-                    workspaces, tabs, ..
-                },
-            ) => format!(
+            (Self::ZhCn, N::Reopened { workspaces, tabs }) => format!(
                 "已重新打开 {}、{}",
-                workspace_count(self, *workspaces),
-                tab_count(self, *tabs)
+                workspace_count(self, workspaces),
+                tab_count(self, tabs)
             ),
-            (Self::EnUs, LayoutHistoryOutcome::NothingToReopen {}) => {
+            (Self::EnUs, N::NothingToReopen) => {
                 "Nothing to reopen: everything in that layout is open now".to_owned()
             }
-            (Self::ZhCn, LayoutHistoryOutcome::NothingToReopen {}) => {
-                "无需重新打开：该布局中的内容都已打开".to_owned()
+            (Self::ZhCn, N::NothingToReopen) => "无需重新打开：该布局中的内容都已打开".to_owned(),
+            (Self::EnUs, N::NotFound) => "That earlier layout is no longer kept".to_owned(),
+            (Self::ZhCn, N::NotFound) => "该早先布局已不再保留".to_owned(),
+            (Self::EnUs, N::ResourceLimit) => {
+                "Not reopened: it would exceed the Workspace or Tab limit".to_owned()
             }
-            (Self::EnUs, LayoutHistoryOutcome::NotFound {}) => {
-                "That earlier layout is no longer kept".to_owned()
-            }
-            (Self::ZhCn, LayoutHistoryOutcome::NotFound {}) => "该早先布局已不再保留".to_owned(),
-            (
-                Self::EnUs,
-                LayoutHistoryOutcome::Rejected {
-                    reason: LayoutHistoryRejection::ResourceLimit,
-                },
-            ) => "Not reopened: it would exceed the Workspace or Tab limit".to_owned(),
-            (
-                Self::ZhCn,
-                LayoutHistoryOutcome::Rejected {
-                    reason: LayoutHistoryRejection::ResourceLimit,
-                },
-            ) => "未重新打开：会超出工作区或标签页上限".to_owned(),
-            (
-                Self::EnUs,
-                LayoutHistoryOutcome::Unavailable {
-                    reason: LayoutHistoryUnavailable::Busy,
-                },
-            ) => "Not reopened: a Workspace is closing; try again".to_owned(),
-            (
-                Self::ZhCn,
-                LayoutHistoryOutcome::Unavailable {
-                    reason: LayoutHistoryUnavailable::Busy,
-                },
-            ) => "未重新打开：有工作区正在关闭，请重试".to_owned(),
-            (Self::EnUs, LayoutHistoryOutcome::Denied {}) => {
-                "Not reopened: this Client may not open Tabs".to_owned()
-            }
-            (Self::ZhCn, LayoutHistoryOutcome::Denied {}) => {
-                "未重新打开：此客户端无权打开标签页".to_owned()
-            }
-            (Self::EnUs, _) => "Earlier layouts are unavailable right now".to_owned(),
-            (Self::ZhCn, _) => "早先的布局暂不可用".to_owned(),
-        };
-        Some(text)
+            (Self::ZhCn, N::ResourceLimit) => "未重新打开：会超出工作区或标签页上限".to_owned(),
+            (Self::EnUs, N::Busy) => "Not reopened: a Workspace is closing; try again".to_owned(),
+            (Self::ZhCn, N::Busy) => "未重新打开：有工作区正在关闭，请重试".to_owned(),
+            (Self::EnUs, N::Denied) => "Not reopened: this Client may not open Tabs".to_owned(),
+            (Self::ZhCn, N::Denied) => "未重新打开：此客户端无权打开标签页".to_owned(),
+            (Self::EnUs, N::Empty) => "No earlier layouts yet".to_owned(),
+            (Self::ZhCn, N::Empty) => "还没有早先的布局".to_owned(),
+            (Self::EnUs, N::Unknown) => "Reopen outcome unknown · not retried".to_owned(),
+            (Self::ZhCn, N::Unknown) => "重新打开的结果未知 · 未重试".to_owned(),
+            (Self::EnUs, N::Unavailable) => "Earlier layouts are unavailable right now".to_owned(),
+            (Self::ZhCn, N::Unavailable) => "早先的布局暂不可用".to_owned(),
+        }
     }
 
     /// A reopen whose outcome could not be confirmed. It may have opened items; do not repeat it.
@@ -178,6 +167,56 @@ impl Locale {
             Self::EnUs => "Reopen outcome unknown. Check the open Tabs before trying again.",
             Self::ZhCn => "重新打开的结果未知。请先查看已打开的标签页再重试。",
         }
+    }
+}
+
+/// What an interactive Client reports after an earlier-layout request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EarlierLayoutNotice {
+    Reopened {
+        workspaces: u32,
+        tabs: u32,
+    },
+    NothingToReopen,
+    NotFound,
+    ResourceLimit,
+    Busy,
+    Denied,
+    /// The listing is empty, so no picker opens.
+    Empty,
+    /// The request was handed off but its outcome never arrived; it is not repeated.
+    Unknown,
+    Unavailable,
+}
+
+impl EarlierLayoutNotice {
+    /// The notice for a Server outcome; a listing has none.
+    #[must_use]
+    pub const fn from_outcome(outcome: &LayoutHistoryOutcome) -> Option<Self> {
+        Some(match outcome {
+            LayoutHistoryOutcome::Listed { .. } => return None,
+            LayoutHistoryOutcome::Reopened {
+                workspaces, tabs, ..
+            } => Self::Reopened {
+                workspaces: *workspaces,
+                tabs: *tabs,
+            },
+            LayoutHistoryOutcome::NothingToReopen {} => Self::NothingToReopen,
+            LayoutHistoryOutcome::NotFound {} => Self::NotFound,
+            LayoutHistoryOutcome::Rejected {
+                reason: LayoutHistoryRejection::ResourceLimit,
+            } => Self::ResourceLimit,
+            LayoutHistoryOutcome::Unavailable {
+                reason: LayoutHistoryUnavailable::Busy,
+            } => Self::Busy,
+            LayoutHistoryOutcome::Denied {} => Self::Denied,
+            LayoutHistoryOutcome::Rejected {
+                reason: LayoutHistoryRejection::SessionMismatch,
+            }
+            | LayoutHistoryOutcome::Unavailable {
+                reason: LayoutHistoryUnavailable::ServiceUnavailable,
+            } => Self::Unavailable,
+        })
     }
 }
 

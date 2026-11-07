@@ -38,6 +38,8 @@ pub enum MenuTarget {
     WorkspaceWorktrees(crate::workbench_projection::ClientContextLocation),
     /// One Project's New Workspace submenu: a new Worktree, its folders and its Git Worktrees.
     WorkspaceCreation(orchbee_workbench_protocol::WorkbenchProjectId),
+    /// The earlier-layout picker over the listing the Server last answered.
+    EarlierLayouts,
     /// An object entry must still belong to the exact Session snapshot that painted it.
     Drawn {
         source: DrawnMenuSource,
@@ -49,7 +51,7 @@ impl MenuTarget {
     /// Object and creation menus retain context chrome even when entered with the keyboard.
     pub(crate) fn context_menu(&self) -> bool {
         match self {
-            Self::Global => false,
+            Self::Global | Self::EarlierLayouts => false,
             Self::Drawn { target, .. } => target.context_menu(),
             _ => true,
         }
@@ -168,6 +170,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::WorkspaceAtDirectory,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
+    MenuAction::EarlierLayouts,
     MenuAction::Detach,
     MenuAction::Reload,
     MenuAction::Settings,
@@ -216,6 +219,7 @@ pub(crate) fn menu_binding_action(
         (T::Global, M::LastPanel) => PrefixAction::Client(A::FocusLastPanel),
         (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
         (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
+        (T::Global, M::EarlierLayouts) => PrefixAction::Client(A::RequestEarlierLayouts),
         (T::Global, M::Reload) => PrefixAction::Client(A::ReloadConfiguration),
         (T::Global, M::Settings) => PrefixAction::Client(A::OpenSettings),
         (T::Global, M::Machines) => PrefixAction::Client(A::OpenMachines),
@@ -449,7 +453,8 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         MenuAction::NewWorkspace
         | MenuAction::WorkspaceAtDirectory
         | MenuAction::NewWorktree
-        | MenuAction::OpenWorktree => GlobalMenuGroup::Workspace,
+        | MenuAction::OpenWorktree
+        | MenuAction::EarlierLayouts => GlobalMenuGroup::Workspace,
         MenuAction::Detach => GlobalMenuGroup::Client,
         _ => GlobalMenuGroup::Other,
     }
@@ -812,7 +817,10 @@ impl ActionMenu {
         let Some(token) = self.allocate() else {
             return false;
         };
-        let searchable = matches!(&source, MenuTarget::Global | MenuTarget::TabCreate(_));
+        let searchable = matches!(
+            &source,
+            MenuTarget::Global | MenuTarget::TabCreate(_) | MenuTarget::EarlierLayouts
+        );
         let result_actions = (0..actions.len()).collect();
         self.menu = Some(Menu {
             source,

@@ -47,6 +47,7 @@ export const WORKBENCH_ACTION_IDS = {
 	focusPreviousRegion: 'workbench.focus.previous-region',
 	focusSidebar: 'workbench.focus.sidebar',
 	focusTabStrip: 'workbench.focus.tab-strip',
+	reopenEarlierLayout: 'workbench.layout.reopen-earlier',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openAgentBoard: 'workbench.agent-board.open',
 	openSearch: 'workbench.search.open',

@@ -201,7 +201,7 @@
 							"keyOverrides": {
 								"type": "integer",
 								"minimum": 0,
-								"maximum": 44
+								"maximum": 45
 							},
 							"windowTitle": {
 								"type": "string",

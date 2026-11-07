@@ -107,6 +107,8 @@ pub(crate) enum WorkbenchClientNotice {
     RestoreAgentNotResumed,
     /// A held restore's terminal did not start for another reason.
     RestoreNotStarted,
+    /// What an earlier-layout list or reopen did.
+    EarlierLayout(super::super::EarlierLayoutNotice),
     LinkOpened,
     LinkHandled,
     LinkNoLink,

@@ -22,6 +22,7 @@ pub(super) const ACTIONS: &[&str] = &[
     "open_worktree",
     "rename_workspace",
     "close_workspace",
+    "earlier_layouts",
     "workspace_picker",
     "detach",
     "previous_workspace",

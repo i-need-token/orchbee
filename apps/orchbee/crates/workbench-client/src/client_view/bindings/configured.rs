@@ -63,6 +63,7 @@ impl Default for Bindings {
                 "rename_pane",
                 "clear_terminal",
                 "edit_scrollback",
+                "earlier_layouts",
             ] {
                 let (action, desc, shell) = action(name);
                 entries.push(Entry {
@@ -526,6 +527,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "open_worktree" => (A::RequestWorktreeOpen, D::WorktreeOpen),
         "rename_workspace" => (A::RequestWorkspaceRename, D::WorkspaceRename),
         "close_workspace" => (A::RequestWorkspaceClose, D::WorkspaceClose),
+        "earlier_layouts" => (A::RequestEarlierLayouts, D::EarlierLayouts),
         "previous_workspace" => (A::SelectPreviousContext, D::SelectContext),
         "next_workspace" => (A::SelectNextContext, D::SelectContext),
         "previous_agent" => (A::PreviousAgent, D::AgentCycle),

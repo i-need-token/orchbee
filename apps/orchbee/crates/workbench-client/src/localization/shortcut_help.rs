@@ -484,6 +484,8 @@ impl Locale {
             (Self::ZhCn, A::Mouse) => "鼠标指针",
             (Self::EnUs, A::Detach) => "detach",
             (Self::ZhCn, A::Detach) => "分离",
+            (Self::EnUs, A::History) => "history restore",
+            (Self::ZhCn, A::History) => "历史 恢复",
         }
     }
 }

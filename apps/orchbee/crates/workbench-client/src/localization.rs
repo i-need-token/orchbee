@@ -12,6 +12,7 @@ mod control_takeover;
 pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
 mod layout_history;
+pub(crate) use layout_history::EarlierLayoutNotice;
 mod machines;
 pub(crate) use machines::SidebarActionLabel;
 pub(crate) use machines::{MachineControlLabel, SidebarPlacementLabel};

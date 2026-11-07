@@ -6,6 +6,7 @@
 mod action_menus;
 mod agent_attention;
 mod captured_actions;
+mod earlier_layouts;
 mod held_restore;
 mod last_panel;
 mod launch_profiles;
@@ -1467,6 +1468,8 @@ pub(super) struct WorkbenchClientUi {
     settings: settings::Coordinator,
     duplication: tab_duplication::Duplication,
     held_restore: held_restore::HeldRestore,
+    /// The earlier-layout listing, picker rows and reopen in flight.
+    earlier_layouts: earlier_layouts::EarlierLayouts,
     launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
@@ -1583,6 +1586,7 @@ impl WorkbenchClientUi {
             .chain(pending)
             .chain(self.duplication.wake())
             .chain(self.held_restore.wake())
+            .chain(self.earlier_layouts.wake())
             .chain(self.held_intent_wake())
             .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
@@ -1632,6 +1636,7 @@ impl WorkbenchClientUi {
             settings: settings::Coordinator::new(capabilities.login_shell),
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),
+            earlier_layouts: earlier_layouts::EarlierLayouts::default(),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             workspace_closed_timer: Default::default(),
@@ -2116,6 +2121,7 @@ impl WorkbenchClientUi {
             changed |= self.drive_settings();
             changed |= self.drive_duplication();
             changed |= self.drive_held_restore();
+            changed |= self.drive_earlier_layouts();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
             {
@@ -3211,6 +3217,8 @@ impl WorkbenchClientUi {
             ClientAction::ClearTerminal => self.request_terminal_clear(),
             ClientAction::EditScrollback => self.request_scrollback_editor(),
             ClientAction::FocusLastPanel => self.request_last_panel(),
+            ClientAction::RequestEarlierLayouts => self.request_earlier_layouts(),
+            ClientAction::ReopenEarlierLayout(saved_at) => self.reopen_earlier_layout(saved_at),
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::RequestWorkspaceCloseAt(workspace) => {
