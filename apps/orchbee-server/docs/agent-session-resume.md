@@ -360,16 +360,45 @@ the provider drop; a living bound run is written; an unbound reference is kept b
 and the delivery readiness table (a running command, another program, unsupported roots, every
 undecidable sample, each shell at its prompt, silence for marked and unmarked shells, and directory
 equality). Candidate joining, lock order, the gate, ordering, spacing, the observer lane, saver
-wiring and carry-forward's record, bind and prune wiring are not claimed by unit tests;
-`apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts,
-with stub providers reporting through the managed hook path: capture, the bare cmd line in the
-retained directory, a second resume, a missing directory, Client input during the settle, and the
-preference off at startup. It runs only on request, with the pinned ConPTY that carries the hook's
-correlation. Its shell is cmd: a restored terminal's `PATH` comes from the registry, where the
-user's real provider may sit, and only cmd resolves a command from its current directory first,
-where the stubs sit. The managed PowerShell line therefore has no end-to-end witness that keeps a
-real provider out of reach. The witness covers Claude Code, typed `--resume=<id>`, and Codex, which
-both re-report on resume, so carry-forward's binding and its capture of a silent provider rest on
-the decision table and have no end-to-end witness yet. For the other providers,
-same-id and directory evidence rests on the table's sources, and where that is documentation only
-(Cursor, Droid, Devin, Copilot and Antigravity) a resume may fail until a real run confirms the id.
+wiring and carry-forward's record, bind and prune wiring are not claimed by unit tests.
+
+`apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts in
+one Session, with one Panel per [table](#rows) row: every provider, and Letta's conversation and
+default forms, 20 rows. Each row's stub is a Node script at a path process identity recognises as
+that provider, and it reports its session as the provider's adapter does: a command-hook payload
+through the shipped hook script, or the shipped OpenCode, Kilo, Cline, Pi or OMP module driven as
+its provider drives it. A row the table marks as re-reporting only "on first prompt" or "on first
+run", "probably no" or "unknown" stays silent after a resume. Per row, the witness proves:
+
+- capture of the fresh session, the OpenCode and Kilo child sessions included without ambiguity;
+- after a restart, the exact cmd line on screen and the exact recorded argument tokens, Claude
+  Code's `--resume=<id>` and Letta's split `default:<agent>` key included, in the retained
+  directory;
+- exactly one delivery per Panel per Server lifetime, across two restarts;
+- capture after a resume: from the report where the provider re-reports, and from the carried
+  reference bound to its run where it stays silent, which then survives the second restart;
+- a silent Agent that exits drops its carried reference from the next checkpoint;
+- with the preference off at startup, nothing is typed and the next capture writes no row.
+
+It also keeps the earlier cases: a missing directory restores a plain shell in home, Client input
+during the settle refutes the delivery, every run is a stub under the fixture root, and no session
+id appears in any file the runtime writes other than checkpoint frames.
+
+Waits read the Agent list as a Client showing it does, because a hook report joins its Panel only
+when a Client's Agent read drains it within 10 seconds. The witness runs only on request, with the
+pinned ConPTY that carries the hook's correlation, in about 90 seconds. Its shell is cmd: a
+restored terminal's `PATH` comes from the registry, where the user's real provider may sit, and
+only cmd resolves a command from its current directory first, where every provider's stub sits.
+
+It does not prove:
+
+- the managed PowerShell line, which has no end-to-end witness that keeps a real provider out of
+  reach;
+- any real provider: that its hook key is the id it resumes, that it parses the typed form, or
+  where it looks up a session. Same-id and directory evidence rests on the table's sources, and
+  where that is documentation only (Cursor, Droid, Devin, Copilot and Antigravity) a resume may
+  fail until a real run confirms the id;
+- native provider images, which identity classifies by pure rule in its matrix, nor Hermes's
+  Python plugin, whose payload a Node stub sends through the same hook script;
+- the Server's diagnostic lines, which go to standard error rather than to a file the witness can
+  read.
