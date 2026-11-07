@@ -18,6 +18,7 @@ pub struct SessionStore {
 }
 
 use super::{CheckpointLoad, CheckpointRestoreNotice};
+mod layout_history;
 
 impl SessionStore {
     /// `local_app_data` is an existing private absolute directory. The admitted runtime identity

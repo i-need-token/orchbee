@@ -164,7 +164,7 @@ pub(super) fn prepare(
     }))
 }
 
-fn encode(bytes: &[u8], generation: NonZeroU64) -> Vec<u8> {
+pub(super) fn encode(bytes: &[u8], generation: NonZeroU64) -> Vec<u8> {
     let mut encoded = Vec::with_capacity(HEADER_BYTES + bytes.len());
     encoded.extend_from_slice(MAGIC);
     encoded.extend_from_slice(&generation.get().to_le_bytes());

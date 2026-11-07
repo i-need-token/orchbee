@@ -72,6 +72,21 @@ separately authorized repair removes them. They are not execution logs and must 
 garbage-collected. Deletion recognizes only the fixed store files and the exact owned corrupt-name
 grammar; unknown files, linked entries and living owners retain the existing refusal boundary.
 
+## Earlier layouts
+
+A private `layout-history` folder beside the slots keeps earlier layouts for manual reopening.
+Each entry is one complete checkpoint payload framed like a slot, in a file named
+`layout-<16 lowercase hex>.json` after its save time in Unix milliseconds; the frame generation
+must equal that time, so a renamed file is unreadable. A write flushes one private
+`layout.pending` file, atomically renames it to the entry name and then removes the oldest entries
+beyond the kept count the caller names. A failed write leaves earlier entries intact. Reads list
+entries newest first and report an unreadable entry without its payload, so it still counts toward
+the kept total until newer entries displace it. The store owns only these storage rules; the
+[Server checkpoint contract](../../../apps/orchbee-server/docs/workbench-checkpoint.md#earlier-layouts)
+owns when an entry is written and what reopening does. Session delete removes the folder with the
+other owned checkpoint files; inside it, deletion recognizes only the entry and pending names and
+refuses anything else.
+
 ## Restore notices
 
 The Server publishes a bounded private restore notice before making its managed Client endpoint

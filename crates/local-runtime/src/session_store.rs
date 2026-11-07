@@ -6,6 +6,14 @@ pub enum CheckpointRestoreNotice {
     Empty,
 }
 
+/// One kept earlier layout: its save time in Unix milliseconds and its payload, or `None` when the
+/// file is unreadable or its frame does not match its name.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LayoutHistoryEntry {
+    pub saved_at: u64,
+    pub payload: Option<Vec<u8>>,
+}
+
 pub struct CheckpointLoad<T> {
     pub checkpoint: Option<T>,
     pub notice: Option<CheckpointRestoreNotice>,

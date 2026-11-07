@@ -1,5 +1,5 @@
 //! Checkpoint storage is explicitly unavailable without its admitted platform implementation.
-use super::{CheckpointLoad, CheckpointRestoreNotice};
+use super::{CheckpointLoad, CheckpointRestoreNotice, LayoutHistoryEntry};
 use crate::{ModeCheckedLocalSessionRendezvous, RetainedSessionRecord};
 use std::{io, path::Path};
 pub enum SessionStore {}
@@ -34,6 +34,20 @@ impl SessionStore {
         &self,
         _record: &RetainedSessionRecord,
         _notice: Option<CheckpointRestoreNotice>,
+    ) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn read_layout_history(&self) -> io::Result<Vec<LayoutHistoryEntry>> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn read_layout_history_entry(&self, _saved_at: u64) -> io::Result<Option<Vec<u8>>> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    pub fn record_layout_history(
+        &mut self,
+        _saved_at: u64,
+        _payload: &[u8],
+        _keep: usize,
     ) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }

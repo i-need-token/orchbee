@@ -378,3 +378,33 @@ fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
     assert!(result.is_err());
     assert_eq!(fs::read_dir(target).unwrap().count(), 0);
 }
+
+#[test]
+fn layout_history_keeps_the_newest_entries_and_refuses_a_renamed_frame() {
+    let fixture = Fixture::new();
+    let session = fixture.open("layout-history");
+    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    assert!(store.read_layout_history().unwrap().is_empty());
+    for saved_at in 1..=5_u64 {
+        store
+            .record_layout_history(saved_at * 1000, format!("layout {saved_at}").as_bytes(), 3)
+            .unwrap();
+    }
+    let kept = store.read_layout_history().unwrap();
+    assert_eq!(
+        kept.iter().map(|entry| entry.saved_at).collect::<Vec<_>>(),
+        [5000, 4000, 3000]
+    );
+    assert_eq!(kept[0].payload.as_deref(), Some(b"layout 5".as_slice()));
+    assert_eq!(store.read_layout_history_entry(1000).unwrap(), None);
+    // A frame carries its own save time, so a file moved to another entry name is unreadable.
+    let history = directory(&fixture, &session).join("layout-history");
+    fs::rename(
+        history.join(format!("layout-{:016x}.json", 3000)),
+        history.join(format!("layout-{:016x}.json", 3500)),
+    )
+    .unwrap();
+    assert_eq!(store.read_layout_history_entry(3500).unwrap(), None);
+    // The slots are untouched by history writes.
+    assert_eq!(store.read().unwrap(), None);
+}

@@ -63,6 +63,8 @@ pub use durable_sessions::RetainedSessionRecord;
 mod checkpoint_restore_notice;
 #[cfg(windows)]
 mod checkpoint_rotation;
+#[cfg(windows)]
+mod layout_history;
 mod rendezvous;
 mod rendezvous_types;
 mod retained_child;
@@ -76,7 +78,9 @@ pub use session_catalog::{
 };
 pub use session_name::SessionName;
 pub mod private_filesystem;
-pub use session_store::{CheckpointLoad, CheckpointRestoreNotice, SessionStore};
+pub use session_store::{
+    CheckpointLoad, CheckpointRestoreNotice, LayoutHistoryEntry, SessionStore,
+};
 #[cfg(all(test, windows))]
 mod tests;
 
