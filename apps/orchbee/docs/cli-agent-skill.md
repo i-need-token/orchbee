@@ -117,7 +117,7 @@ Popup placement requires a current ready Client and focus. Remove `--no-focus`, 
 
 Destructive commands require their declared `--confirm`. Workspace close does not delete its Git checkout or branch. Use close-status/close-resume or worktree status/resume with the retained request ID and generation when a receipt requires recovery. Do not start a second operation as an implicit retry.
 
-`server stop --confirm` or `session stop <name> --confirm` ends the Session after its final checkpoint. Startup restores eligible layout and launch facts, not live screen history or active Agent state. A failed/cancelled CLI wait can leave the stop in progress; query its retained identity.
+Stop a Server or Session only when the user asks for that stop in the current conversation; never add `--confirm` to a stop on your own. `server stop --confirm` or `session stop <name> --confirm` ends the Session after its final checkpoint. Startup restores eligible layout and launch facts, not live screen history or active Agent state. A failed/cancelled CLI wait can leave the stop in progress; query its retained identity.
 
 `session delete <name> --confirm` removes only proven stopped, unused owned state. It refuses the default Session and live or uncertain ownership, and does not delete project directories. Repeat an interrupted delete only after resolving its reported cause.
 

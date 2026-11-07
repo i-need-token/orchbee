@@ -40,6 +40,7 @@
 		"test:rust-modules": "node --test scripts/rust-module-graph.test.mjs",
 		"test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
 		"test:dependency-scope": "node --test scripts/dependency-scope.test.mjs",
+		"test:process-guard": "node --test scripts/process-guard.test.mjs",
 		"test:ghostty-source": "node scripts/run-checks.mjs test:ghostty-source",
 		"test:style-contract": "vitest run --config scripts/style-contract/vitest.config.ts",
 		"test:storage-contract": "vitest run --config scripts/storage-contract/vitest.config.ts",

@@ -117,7 +117,7 @@ Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，�
 
 破坏性命令要求其声明的 `--confirm`。关闭 Workspace 不删除 Git 检出或分支。回执要求恢复时，使用 close-status/close-resume 或 worktree status/resume，并保留请求 ID 与 generation。不要通过创建第二个操作隐式重试。
 
-`server stop --confirm` 或 `session stop <name> --confirm` 在最终检查点写入后结束 Session。启动会恢复符合条件的布局和启动事实，不恢复实时屏幕历史或活跃 Agent 状态。CLI 等待失败／取消后，停止操作可能仍在进行；应查询保留的请求身份。
+仅当用户在当前对话中要求停止时，才停止 Server 或 Session；不要自行添加 `--confirm`。`server stop --confirm` 或 `session stop <name> --confirm` 在最终检查点写入后结束 Session。启动会恢复符合条件的布局和启动事实，不恢复实时屏幕历史或活跃 Agent 状态。CLI 等待失败／取消后，停止操作可能仍在进行；应查询保留的请求身份。
 
 `session delete <name> --confirm` 仅删除已证明停止且无使用者的自有状态。它拒绝默认 Session、存活或所有权不确定的状态，不删除项目目录。中断删除必须先解决报告的原因，再重复该操作。
 
