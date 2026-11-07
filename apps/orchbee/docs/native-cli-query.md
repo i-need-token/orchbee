@@ -1838,8 +1838,10 @@ presentationCount,primaryTerminalId|null,primaryUnavailableDirectory|null}]}` wh
   restore held the unbound primary for; `panel get` → `{panel:{panelId,tabId,context,slotPath,
 primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs from root to leaf
   (`[]` when the root itself is the panel) and each presentation `{presentationId,label,
-binding:{terminalId,workerId}|null,unavailableDirectory|null}`. Text output shows
-  "Directory unavailable" / "目录不可用" in the terminal column of a held member.
+binding:{terminalId,workerId}|null,unavailableDirectory|null}`. `panel get` text output shows
+  "Directory unavailable" / "目录不可用" in the terminal column of a held member. `panel list`
+  text output is the compact Agent table, which has no terminal column; a held Panel shows `-` in
+  its directory column there, and `--format json` carries `primaryUnavailableDirectory`.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
 tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecycle, process, or
   Agent members. At most one of `--workspace`, `--tab` and `--panel` keeps only the terminals
