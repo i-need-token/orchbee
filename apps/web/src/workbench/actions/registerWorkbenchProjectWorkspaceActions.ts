@@ -23,6 +23,7 @@ import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import { resolveFocusedPanel } from '../utils/resolveFocusedPanel';
+import { closeReturningToTerminal } from './closeReturningToTerminal';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -139,30 +140,11 @@ export function registerWorkbenchProjectWorkspaceActions({
 		return created;
 	};
 	/** What closed was what the person acted from, so the keyboard goes to the terminal still shown. */
-	const closeAndReturnToTerminal = async (
+	const closeAndReturnToTerminal = (
 		context: ActionExecutionContext,
 		closure: WorkbenchAuthorityClosure,
-	): Promise<ActionResult<void>> => {
-		const handover = beginTerminalHandover?.();
-		let returned = false;
-		// As the TUI attaches the neighbour before the close settles, the keyboard goes to the terminal
-		// left shown once the closed Workspaces leave, at the Server's acceptance.
-		const returnKeyboard = (): void => {
-			if (returned) return;
-			returned = true;
-			handover?.complete();
-		};
-		const result = await authority.close(
-			{
-				markCommitted: () => context.markCommitted(),
-				markLeft: returnKeyboard,
-				signal: context.signal,
-			},
-			closure,
-		);
-		if (result.kind === 'completed') returnKeyboard();
-		return result;
-	};
+	): Promise<ActionResult<void>> =>
+		closeReturningToTerminal(authority, context, closure, beginTerminalHandover?.());
 	const workspaceCloseConfirmation = (input: WorkbenchWorkspaceInput) => ({
 		cancelLabel: workbenchMessages.panelCancel,
 		confirmLabel: workbenchMessages.panelClose,

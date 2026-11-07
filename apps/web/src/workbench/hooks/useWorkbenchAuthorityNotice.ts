@@ -42,6 +42,11 @@ export interface WorkbenchAuthorityNoticeView {
 const TIMED_NOTICE_MILLISECONDS = 4_000;
 /** A close that settles faster than this reads as immediate, so it never says it is closing. */
 const CLOSING_NOTICE_DELAY_MILLISECONDS = 200;
+/**
+ * As in the TUI, one Tab's close stays off the status line for this long after it began, since its
+ * Tab leaving the strip already shows it, so only a slow close says Closing.
+ */
+const SLOW_TAB_CLOSE_MILLISECONDS = 1_000;
 
 function closesActiveLocation(
 	closure: WorkbenchAuthorityClosure,
@@ -103,9 +108,10 @@ function reportingWorktrees(
 /**
  * Reports what the authority decided without taking the person from what they are doing: only a
  * refusal or an unknown outcome needs words, because a committed change shows in the Workbench.
- * Closing ends terminals for every Client, so it also says how it is going and how it ended, a
- * Workspace or Project close saying Closed once its Workspaces leave at the Server's acceptance, and
- * dissolving a Project says that its Workspaces remain.
+ * Closing ends terminals for every Client, so it also says how it is going and how it ended: a
+ * Workspace or Project close says Closed once its Workspaces leave at the Server's acceptance, and
+ * one Tab's close says Closing only while it runs slow after its Tab left. Dissolving a Project
+ * says that its Workspaces remain.
  */
 export function useWorkbenchAuthorityNotice(
 	authority: WorkbenchAuthority,
@@ -162,38 +168,50 @@ export function useWorkbenchAuthorityNotice(
 						origin,
 						projectWorkspaceRuntime.getSnapshot().activeLocation,
 					);
+				// One Tab's close says Closing only once its Tab has left the strip and it still runs a
+				// second after it began, as the TUI's does, and its end says nothing.
+				const tab = subject.kind === 'tab';
 				let progress: WorkbenchAuthorityNotice | null = null;
 				let closingShown = false;
 				let left = false;
+				let closedSaid = false;
 				const showProgress = (): void => {
-					if (!closingShown || left) return;
+					if (!closingShown || closedSaid || (tab && !left)) return;
 					progress = workbenchCloseProgressNotice(subject, projectWorkspaceRuntime);
 					setNotice(progress);
 				};
 				setNotice(null);
-				const closingDelay = setTimeout(() => {
-					closingShown = true;
-					showProgress();
-				}, CLOSING_NOTICE_DELAY_MILLISECONDS);
+				const closingDelay = setTimeout(
+					() => {
+						closingShown = true;
+						showProgress();
+					},
+					tab ? SLOW_TAB_CLOSE_MILLISECONDS : CLOSING_NOTICE_DELAY_MILLISECONDS,
+				);
 				const stopWatching = projectWorkspaceRuntime.subscribe(showProgress);
 				// As in the TUI, a close whose Workspaces have left reads as closed while it settles, so
 				// Closed shows with the landing and only a later failure or lost outcome replaces it.
+				const sayClosed = (): void => {
+					closedSaid = true;
+					clearTimeout(closingDelay);
+					const closed = workbenchCloseResultNotice(
+						subject,
+						{ kind: 'completed' },
+						projectWorkspaceRuntime,
+						authority,
+						sawClosed(),
+					);
+					const shown = progress;
+					setNotice((current) => {
+						if (closed === null) return current === shown ? null : current;
+						return current?.lifetime === 'until-press' ? current : closed;
+					});
+				};
 				const markLeft = (): void => {
 					if (!left) {
 						left = true;
-						clearTimeout(closingDelay);
-						const closed = workbenchCloseResultNotice(
-							subject,
-							{ kind: 'completed' },
-							projectWorkspaceRuntime,
-							authority,
-							sawClosed(),
-						);
-						const shown = progress;
-						setNotice((current) => {
-							if (closed === null) return current === shown ? null : current;
-							return current?.lifetime === 'until-press' ? current : closed;
-						});
+						if (tab) showProgress();
+						else sayClosed();
 					}
 					context.markLeft?.();
 				};
@@ -203,7 +221,7 @@ export function useWorkbenchAuthorityNotice(
 						closure,
 					);
 					// Closed has already been said, and its time runs from then.
-					if (left && result.kind === 'completed') return result;
+					if (closedSaid && result.kind === 'completed') return result;
 					const next = workbenchCloseResultNotice(
 						subject,
 						result,

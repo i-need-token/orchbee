@@ -241,7 +241,6 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.close.cancelled': '关闭确认已取消',
 	'workbench.tabs.close.cleanupBlocked': '{label} · 关闭清理受阻',
 	'workbench.tabs.close.cleanupBlockedResumable': '{label} · 关闭清理受阻 · 可以重试关闭',
-	'workbench.tabs.close.closed': '{label} · 已关闭',
 	'workbench.tabs.close.closing': '{label} · 正在关闭',
 	'workbench.close.warning':
 		'{impact, select, running {将结束 {running} 个终端。} ended {将丢弃 {ended} 个已结束终端的输出。} mixed {将结束 {running} 个终端，并丢弃 {ended} 个已结束终端的输出。} other {将结束其中的终端。}}',

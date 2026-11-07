@@ -268,7 +268,10 @@ export type WorkbenchAuthorityContext = Pick<ActionExecutionContext, 'markCommit
 /**
  * What a close takes besides cancellation and the commit point. A Workspace or Project close calls
  * `markLeft` once, when the Server accepts it and its Workspaces leave this Client's view, before
- * the close settles; a later failure or lost outcome shows them again with its result.
+ * the close settles; a later failure or lost outcome shows them again with its result. The close of
+ * one Tab, its last Panel's, or its Resume calls it as the Tab leaves the strip: at the acceptance,
+ * or, for a close that joins one that stopped, once a read finds it on its way again. A set of Tabs
+ * and a Panel of several never call it.
  */
 export interface WorkbenchAuthorityCloseContext extends WorkbenchAuthorityContext {
 	readonly markLeft?: (() => void) | undefined;

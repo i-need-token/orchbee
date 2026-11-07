@@ -385,15 +385,11 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Status notice when cleanup stopped a Tab from closing, and Resume closing this Tab may continue its close.',
 	},
-	tabCloseClosed: {
-		id: 'workbench.tabs.close.closed',
-		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.closed'],
-		description: 'Status notice after one Tab closed.',
-	},
 	tabCloseClosing: {
 		id: 'workbench.tabs.close.closing',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.close.closing'],
-		description: 'Status notice while one Tab closes.',
+		description:
+			'Status notice while the close of one Tab is still running a second after it began.',
 	},
 	tabCloseDescription: {
 		id: 'workbench.tabs.close.description',

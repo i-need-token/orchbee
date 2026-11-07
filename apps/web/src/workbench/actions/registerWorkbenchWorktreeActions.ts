@@ -224,6 +224,8 @@ export function registerWorkbenchWorktreeActions({
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
 					confirmLabel: workbenchMessages.worktreeRemoveConfirm,
+					// Remove holds the focus, so Enter removes, as the TUI's confirmation does.
+					defaultAnswer: 'confirm',
 					description: {
 						...workbenchMessages.worktreeRemoveDescription,
 						values: {
@@ -262,6 +264,8 @@ export function registerWorkbenchWorktreeActions({
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
 					confirmLabel: workbenchMessages.worktreeResume,
+					// Resume Removal holds the focus, so Enter resumes, as the TUI's stopped removal does.
+					defaultAnswer: 'confirm',
 					description: workbenchWorktreeFailureDescriptor('remove', input.cause),
 					risk: 'destructive',
 					title: workbenchMessages.worktreeStoppedTitle,

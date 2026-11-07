@@ -3,7 +3,6 @@ import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityCloseContext,
 	WorkbenchAuthorityClosure,
-	WorkbenchAuthorityContext,
 	WorkbenchTabCloseStop,
 } from '../../workbench';
 import {
@@ -360,15 +359,18 @@ async function submitShownClose(
 	}
 }
 
-/** Leaves one member out once, and shows it again once, through `leave`. */
+/** Leaves one member out once, and shows it again once, through `leave`; `onLeft` hears the leave. */
 function memberLeaving(
 	leave: ServerLeave,
 	member: ServerLeavingMember,
+	onLeft: (() => void) | undefined,
 ): { readonly leave: () => void; readonly stay: () => void } {
 	let stay: (() => void) | undefined;
 	return {
 		leave: () => {
-			stay ??= leave.leave([member]);
+			if (stay !== undefined) return;
+			stay = leave.leave([member]);
+			onLeft?.();
 		},
 		stay: () => {
 			stay?.();
@@ -382,7 +384,7 @@ function memberLeaving(
  * by then, and any other end shows it again with its report, keeping a stop Resume may continue.
  * A Close of a Tab whose close ended unsettled joins that close while the Server holds it open, so,
  * as the TUI keeps that close's last status, the Tab leaves only once a read finds the close on its
- * way again; until then it stays and reports the same stop.
+ * way again; until then it stays and reports the same stop. `markLeft` hears the Tab leave.
  */
 async function followTabClose(
 	session: CloseSession,
@@ -390,9 +392,10 @@ async function followTabClose(
 	target: TabTarget,
 	closeRequestId: CloseOperationResult['operationId'],
 	deadline: number,
+	markLeft: (() => void) | undefined,
 ): Promise<ActionResult<void>> {
 	const { tabId, terminalContextId } = target;
-	const leaving = memberLeaving(follow.leave, { kind: 'tab', tabId, terminalContextId });
+	const leaving = memberLeaving(follow.leave, { kind: 'tab', tabId, terminalContextId }, markLeft);
 	const joined = follow.unsettled(terminalContextId, tabId)?.closeRequestId === closeRequestId;
 	if (!joined) leaving.leave();
 	try {
@@ -476,6 +479,7 @@ async function closeTabs(
 		{ tabId, terminalContextId },
 		outcome.closeRequestId,
 		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+		context.markLeft,
 	);
 }
 
@@ -686,6 +690,7 @@ async function closeTabIfIdle(
 		target,
 		outcome.closeRequestId,
 		performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+		context.markLeft,
 	);
 }
 
@@ -707,7 +712,7 @@ function resumeRefused(
  */
 async function resumeTabClose(
 	session: CloseSession,
-	context: WorkbenchAuthorityContext,
+	context: WorkbenchAuthorityCloseContext,
 	stopped: StoppedTabClose | null,
 	follow: TabCloseFollow,
 ): Promise<ActionResult<void>> {
@@ -741,14 +746,9 @@ async function resumeTabClose(
 		return resumeRefused(outcome);
 	}
 	follow.keep(target.terminalContextId, target.tabId, null);
-	return followTabClose(session, follow, target, closeRequestId, deadline);
+	return followTabClose(session, follow, target, closeRequestId, deadline, context.markLeft);
 }
 
-/**
- * A Panel settles when the Server accepts its close, and leaves with a later publication. A Tab's
- * last Panel takes the Tab with it, so that close is followed as a Tab's close is, keeping a stop
- * for Resume. As in the TUI, only a Tab's own close takes it out of the strip early.
- */
 /**
  * Follows the accepted close of one Panel of several. The Server removes such a Panel only as its
  * close completes, so the window leaves it out from the acceptance until the close settles: a
@@ -817,6 +817,7 @@ async function closePanel(
 			closure,
 			outcome.closeRequestId,
 			performance.now() + OBSERVATION_BUDGET_MILLISECONDS,
+			context.markLeft,
 		);
 	}
 	return followPanelClose(session, follow.leave, closure, outcome.closeRequestId);

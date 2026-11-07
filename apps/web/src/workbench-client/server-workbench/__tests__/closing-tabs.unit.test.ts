@@ -235,11 +235,22 @@ function closingWindow(
 	};
 
 	const closes = createServerWorkbenchClose(session, leaving);
+	/** The Tabs the strip showed each time a close said that its Tab had left. */
+	const lefts: (readonly string[])[] = [];
 	const run = (closure: WorkbenchAuthorityClosure) =>
-		closes.close({ markCommitted: () => undefined, signal: new AbortController().signal }, closure);
+		closes.close(
+			{
+				markCommitted: () => undefined,
+				markLeft: () => lefts.push(view().shown),
+				signal: new AbortController().signal,
+			},
+			closure,
+		);
 	return {
 		close: (...sequences: number[]) =>
 			run({ tabIds: sequences.map(fixtureTabId), terminalContextId: CONTEXT, type: 'tabs-close' }),
+		/** What the strip showed at each leave a close has said since the last call. */
+		lefts: () => lefts.splice(0),
 		resume: (sequence: number) =>
 			run({ tabId: fixtureTabId(sequence), terminalContextId: CONTEXT, type: 'tab-close-resume' }),
 		view,
@@ -323,6 +334,7 @@ describe('closing several Tabs', () => {
 
 describe('closing a Tab whose close stopped', () => {
 	it('leaves the strip only once a read finds the close on its way, while a Resume leaves at once', async () => {
+		// A close says its Tab left, for the slow Closing notice and the keyboard, once and only once it has.
 		const strip = closingWindow(
 			2,
 			1,
@@ -335,16 +347,21 @@ describe('closing a Tab whose close stopped', () => {
 			strip.viewsAt(sequence, answer).map(({ shown }) => shown.includes(fixtureTabId(sequence)));
 
 		await strip.close(1);
+		expect(strip.lefts()).toEqual([[fixtureTabId(2)]]);
 		await expect(strip.close(1)).resolves.toMatchObject({ kind: 'failed' });
+		expect(strip.lefts()).toEqual([]);
 		// A new close leaves at once; the Close that joins the stopped one stays while it is still stopped.
 		expect(shownAt(1, 'blocked')).toEqual([false, true]);
 
 		await expect(strip.close(1)).resolves.toEqual({ kind: 'completed' });
 		expect(shownAt(1, 'closing')).toEqual([true]);
 		expect(shownAt(1, 'closed')).toEqual([false]);
+		expect(strip.lefts()).toEqual([[fixtureTabId(2)]]);
 
 		await strip.close(2);
+		expect(strip.lefts()).toEqual([[]]);
 		await expect(strip.resume(2)).resolves.toEqual({ kind: 'completed' });
 		expect(shownAt(2, 'closing')).toEqual([false]);
+		expect(strip.lefts()).toEqual([[]]);
 	});
 });

@@ -264,7 +264,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.close.cleanupBlocked': '{label} · Close cleanup blocked',
 	'workbench.tabs.close.cleanupBlockedResumable':
 		'{label} · Close cleanup blocked · Close can be retried',
-	'workbench.tabs.close.closed': '{label} · Closed',
 	'workbench.tabs.close.closing': '{label} · Closing',
 	'workbench.close.warning':
 		'{impact, select, running {Ends {running, plural, one {# terminal} other {# terminals}}.} ended {Discards the output of {ended, plural, one {# ended terminal} other {# ended terminals}}.} mixed {Ends {running, plural, one {# terminal} other {# terminals}} and discards the output of {ended, plural, one {# ended one} other {# ended ones}}.} other {Ends its terminals.}}',

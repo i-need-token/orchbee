@@ -178,11 +178,12 @@ and notices use the Dialog shell in
 [`frontend/dialogs-and-forms.md`](frontend/dialogs-and-forms.md#compact-desktop-dialog-shell). Both
 Clients use the same wording for titles, targets, labels, help, errors, and buttons, end the footer
 with the primary action, and give the close control, `Esc`, the cancel action, and an admitted
-outside press the same no-commit outcome. A close confirmation opens with focus on its Close action
-in both Clients, so Enter closes and Escape cancels. Three details follow each Client's own
-standard: a GUI Alert Dialog has no header close control and, outside close confirmations, focuses
-its least destructive action when a mistake would be costly, and a GUI form validates on submission
-instead of disabling its primary action.
+outside press the same no-commit outcome. A close confirmation and a Worktree removal confirmation,
+including the question to resume a stopped removal, open with focus on their primary action in both
+Clients, so Enter performs it and Escape cancels. Three details follow each Client's own standard: a
+GUI Alert Dialog has no header close control and, outside those confirmations, focuses its least
+destructive action when a mistake would be costly, and a GUI form validates on submission instead
+of disabling its primary action.
 
 Product terminology is stable within each locale. Short TUI labels are documented variants of the
 same term; they must not rename an entity or operation. Localized copy uses the existing catalog

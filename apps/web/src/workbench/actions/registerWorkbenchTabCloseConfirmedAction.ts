@@ -10,6 +10,7 @@ import type { TerminalCloseImpact } from '../model/terminal-close-impact';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
+import { closeReturningToTerminal } from './closeReturningToTerminal';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -107,10 +108,12 @@ export function registerWorkbenchTabCloseConfirmedAction({
 				execute: async (context, input) => {
 					const tabs = shownTabs(input);
 					if (tabs === null) return { code: 'scope-changed', kind: 'blocked' };
-					const handover = beginTerminalHandover();
-					const result = await authority.close(context, closureFor(tabs));
-					if (result.kind === 'completed') handover.complete();
-					return result;
+					return closeReturningToTerminal(
+						authority,
+						context,
+						closureFor(tabs),
+						beginTerminalHandover(),
+					);
 				},
 			},
 			id: WORKBENCH_ACTION_IDS.closeTabConfirmed,

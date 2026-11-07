@@ -103,6 +103,7 @@ import {
 	createSharedPanelTerminal,
 	type WorkbenchSharedPanelTerminalCreate,
 } from '../actions/createSharedPanelTerminal';
+import { closeReturningToTerminal } from '../actions/closeReturningToTerminal';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import type { WorkbenchConfiguredCommand } from '../types/workbench-configured-commands';
 import { workbenchConfiguredCommandActionId } from '../actions/workbench-configured-command-action-id';
@@ -632,9 +633,12 @@ export function useWorkbench({
 		const activeContext = projectWorkspaceRuntime.getActiveTerminalContext();
 		if (activeContext === null) return ACTIVE_TAB_UNAVAILABLE;
 		const closure = sharedTabsClosure(activeContext, tabIds);
-		const handover = focusRouting.beginTerminalHandover();
-		const result = await decider.close(context, closure);
-		if (result.kind === 'completed') handover.complete();
+		const result = await closeReturningToTerminal(
+			decider,
+			context,
+			closure,
+			focusRouting.beginTerminalHandover(),
+		);
 		if (result.kind !== 'blocked' || result.code !== 'confirmation-required') return result;
 		// The question is its own Action, because this one has already asked the authority.
 		actions.invoke(

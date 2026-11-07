@@ -260,6 +260,7 @@ function refusedOrChanged(
 /**
  * What a finished close says. A request for confirmation says nothing, because the question follows
  * it. `sawClosed` is false when the person has since gone elsewhere, where Closed would interrupt.
+ * A closed Tab says nothing, as in the TUI: the Tab leaving the strip already showed it.
  */
 export function workbenchCloseResultNotice(
 	subject: WorkbenchCloseSubject,
@@ -308,10 +309,8 @@ export function workbenchCloseResultNotice(
 				: { descriptor: workbenchMessages.projectCloseStopped, lifetime: 'until-press', values };
 		}
 		case 'tab': {
+			if (result.kind === 'completed') return null;
 			const values = { label: subject.label };
-			if (result.kind === 'completed') {
-				return { descriptor: workbenchMessages.tabCloseClosed, lifetime: 'timed', values };
-			}
 			return result.kind === 'blocked'
 				? { descriptor: workbenchMessages.tabCloseNotApplied, lifetime: 'timed' }
 				: {

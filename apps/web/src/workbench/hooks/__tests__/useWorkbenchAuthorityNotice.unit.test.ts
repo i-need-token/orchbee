@@ -8,9 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthority';
 import {
+	activeTerminalContext,
 	createSnapshotRuntime,
 	FIXTURE_INTL,
+	fixtureContextId,
 	fixtureDirectoryId,
+	fixtureTabId,
 	fixtureWorkspaceId,
 	publishSnapshot,
 	snapshotContext,
@@ -22,6 +25,7 @@ import {
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityCloseContext,
+	WorkbenchAuthorityClosure,
 } from '../../types/workbench-authority';
 import { useWorkbenchAuthorityNotice } from '../useWorkbenchAuthorityNotice';
 
@@ -54,10 +58,16 @@ function workspacesSnapshot(revision: number, sequences: readonly number[]) {
 }
 
 /**
- * The window shows Workspace 1 of 1 and 2 and closes it through an authority the test drives: `leave`
- * takes Workspace 1 out as an accepted close does, and `settle` ends the close.
+ * The window shows Workspace 1 of 1 and 2 and closes `closure` through an authority the test drives:
+ * `leave` takes Workspace 1 out as its accepted close does, or for a Tab close only says the Tab
+ * left, and `settle` ends the close.
  */
-function closeShownWorkspace() {
+function closeShown(
+	closure: WorkbenchAuthorityClosure = {
+		type: 'workspace-close',
+		workspaceId: fixtureWorkspaceId(1),
+	},
+) {
 	let markLeft: (() => void) | undefined;
 	let settle: ((result: ActionResult<void>) => void) | undefined;
 	const authority = inertWorkbenchAuthority({
@@ -78,18 +88,18 @@ function closeShownWorkspace() {
 	} satisfies WorkbenchAuthorityCloseContext;
 	let closing: Promise<ActionResult<void>> | undefined;
 	act(() => {
-		closing = rendered.result.current.authority.close(context, {
-			type: 'workspace-close',
-			workspaceId: fixtureWorkspaceId(1),
-		});
+		closing = rendered.result.current.authority.close(context, closure);
 	});
 	return {
 		context,
 		leave: () =>
 			act(() => {
-				publishSnapshot(runtime, workspacesSnapshot(2, [2]));
+				if (closure.type === 'workspace-close')
+					publishSnapshot(runtime, workspacesSnapshot(2, [2]));
 				markLeft?.();
 			}),
+		/** The title the window gave the first Tab of Workspace 1. */
+		tabLabel: activeTerminalContext(runtime).tabModel.getSnapshot().tabs[0]?.title ?? '',
 		notice: () => rendered.result.current.notice,
 		publishAgain: () =>
 			act(() => {
@@ -114,7 +124,7 @@ afterEach(() => {
 
 describe('useWorkbenchAuthorityNotice', () => {
 	it('says Closed once the closing Workspace leaves, never Closing after it, and only once', async () => {
-		const close = closeShownWorkspace();
+		const close = closeShown();
 		act(() => vi.advanceTimersByTime(250));
 		expect(close.notice()).toEqual({ message: CLOSING, persistent: false });
 
@@ -134,11 +144,60 @@ describe('useWorkbenchAuthorityNotice', () => {
 	});
 
 	it('replaces Closed with the report once a close whose Workspace left stops', async () => {
-		const close = closeShownWorkspace();
+		const close = closeShown();
 		close.leave();
 		expect(close.notice()).toEqual({ message: CLOSED, persistent: false });
 
 		await close.settle({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
 		expect(close.notice()).toEqual({ message: STOPPED, persistent: true });
+	});
+
+	it('keeps one Tab close off the status line unless it still runs a second after it began', async () => {
+		const closeTab = () =>
+			closeShown({
+				tabIds: [fixtureTabId(1)],
+				terminalContextId: fixtureContextId(1),
+				type: 'tabs-close',
+			});
+		const quick = closeTab();
+		act(() => vi.advanceTimersByTime(20));
+		quick.leave();
+		act(() => vi.advanceTimersByTime(700));
+		expect(quick.notice()).toBeNull();
+		await quick.settle({ kind: 'completed' });
+		act(() => vi.advanceTimersByTime(10_000));
+		expect(quick.notice()).toBeNull();
+		cleanup();
+
+		const slow = closeTab();
+		const closing = {
+			message: FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseClosing, {
+				label: slow.tabLabel,
+			}),
+			persistent: false,
+		};
+		act(() => vi.advanceTimersByTime(20));
+		slow.leave();
+		act(() => vi.advanceTimersByTime(979));
+		expect(slow.notice()).toBeNull();
+		act(() => vi.advanceTimersByTime(1));
+		expect(slow.notice()).toEqual(closing);
+		await slow.settle({ kind: 'completed' });
+		expect(slow.notice()).toBeNull();
+		cleanup();
+
+		// A Tab still in the strip, such as one whose stopped close a new Close joined, says nothing yet.
+		const held = closeTab();
+		act(() => vi.advanceTimersByTime(1_500));
+		expect(held.notice()).toBeNull();
+		held.leave();
+		expect(held.notice()).toEqual(closing);
+		await held.settle({ failure: { code: 'cleanup-blocked' }, kind: 'failed' });
+		expect(held.notice()).toEqual({
+			message: FIXTURE_INTL.formatMessage(workbenchMessages.tabCloseCleanupBlocked, {
+				label: held.tabLabel,
+			}),
+			persistent: true,
+		});
 	});
 });

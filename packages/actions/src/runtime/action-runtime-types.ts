@@ -102,8 +102,9 @@ export interface ActionConfirmation {
 	readonly cancelLabel?: ActionMessageDescriptor | undefined;
 	readonly confirmLabel: ActionMessageDescriptor;
 	/**
-	 * The answer that holds the initial focus, so unmodified Enter gives it. A close confirmation
-	 * answers `confirm`, so Enter closes in every Client; omitted, the cancel answer holds it.
+	 * The answer that holds the initial focus, so unmodified Enter gives it. A confirmation whose TUI
+	 * counterpart focuses its primary button, such as a close or a Worktree removal, answers
+	 * `confirm`, so Enter gives the same answer in every Client; omitted, the cancel answer holds it.
 	 */
 	readonly defaultAnswer?: 'cancel' | 'confirm' | undefined;
 	readonly description: ActionMessageDescriptor;
