@@ -41,6 +41,15 @@ struct SessionBinding {
     adapter: AdapterDefinition,
     child_sessions: SeqMap<String>,
     execution_location_id: String,
+    /// The provider's native session key, verbatim as the admitted envelope carried it.
+    #[cfg_attr(
+        not(windows),
+        expect(
+            dead_code,
+            reason = "only the managed Windows checkpoint captures resume references until POSIX restore exists"
+        )
+    )]
+    native_key: String,
     requests: SeqMap<String>,
     /// The first run token this session's hooks carried; once set it never changes.
     run_token: Option<AgentRunToken>,
@@ -82,6 +91,22 @@ enum SessionEventInput {
         presentation_id: String,
     },
     SessionEnded,
+}
+
+/// One root hook session joined to its native key. The key is private provider state: it may feed
+/// a checkpoint reference, never the wire, logs or notices.
+#[cfg_attr(
+    not(windows),
+    expect(
+        dead_code,
+        reason = "only the managed Windows checkpoint captures resume references until POSIX restore exists"
+    )
+)]
+pub struct NativeSessionRef<'a> {
+    pub session_id: &'a str,
+    pub provider_id: &'a str,
+    pub native_key: &'a str,
+    pub run_token: Option<&'a AgentRunToken>,
 }
 
 pub struct AgentHookObservationIngress {
@@ -228,6 +253,24 @@ impl AgentHookObservationIngress {
                 .run_token
                 .as_ref()
                 .map(|token| (binding.session_id.as_str(), token))
+        })
+    }
+
+    /// Every root hook session with its canonical identity, provider, native key and first run
+    /// token; bounded by the session cap. Child sessions have no entry.
+    #[cfg_attr(
+        not(windows),
+        expect(
+            dead_code,
+            reason = "only the managed Windows checkpoint captures resume references until POSIX restore exists"
+        )
+    )]
+    pub fn native_session_refs(&self) -> impl Iterator<Item = NativeSessionRef<'_>> {
+        self.sessions.iter().map(|(_, binding)| NativeSessionRef {
+            session_id: &binding.session_id,
+            provider_id: &binding.adapter.provider_id,
+            native_key: &binding.native_key,
+            run_token: binding.run_token.as_ref(),
         })
     }
 
@@ -602,6 +645,7 @@ impl AgentHookObservationIngress {
                 adapter: adapter.clone(),
                 child_sessions: SeqMap::new(),
                 execution_location_id,
+                native_key: session_key.to_owned(),
                 requests: SeqMap::new(),
                 run_token: None,
                 session_id,

@@ -40,6 +40,7 @@ impl LocalTerminalService {
         &self,
         worker: &WorkerId,
     ) -> io::Result<(orchbee_workbench_protocol::WorkbenchRevision, Vec<u8>)> {
+        let resume = self.agent_resume_enabled();
         let workers = self
             .workers
             .lock()
@@ -57,7 +58,9 @@ impl LocalTerminalService {
             return Err(io::Error::other("checkpoint Worker changed"));
         }
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let bytes = coordinator.checkpoint_with_observations(worker, &directories, None)?;
+        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
+        let bytes =
+            coordinator.checkpoint_with_observations(worker, &directories, agents.as_deref())?;
         Ok((revision, bytes))
     }
 
@@ -158,6 +161,7 @@ impl LocalTerminalService {
     }
 
     pub(crate) fn checkpoint(&self, worker: &WorkerId, deadline: Instant) -> io::Result<Vec<u8>> {
+        let resume = self.agent_resume_enabled();
         let (revision, targets) = self
             .coordinator
             .lock()
@@ -188,10 +192,11 @@ impl LocalTerminalService {
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?;
-        if coordinator.checkpoint_observation_targets()? != (revision, targets) {
+        if coordinator.checkpoint_observation_targets()? != (revision, targets.clone()) {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
-        coordinator.checkpoint_with_observations(worker, &directories, None)
+        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
+        coordinator.checkpoint_with_observations(worker, &directories, agents.as_deref())
     }
 
     /// The final checkpoint once the Worker has exited. Nothing can sample a directory any more, so
@@ -200,14 +205,17 @@ impl LocalTerminalService {
     /// samples name is the one that exited. Unreadable membership keeps only restart directories
     /// rather than leaving the Session unable to stop.
     pub(crate) fn checkpoint_without_worker(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
+        let resume = self.agent_resume_enabled();
         let coordinator = self
             .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?;
-        let directories = coordinator
+        let targets = coordinator
             .checkpoint_observation_targets()
-            .map(|(_, targets)| coordinator.cached_checkpoint_directories(&targets))
+            .map(|(_, targets)| targets)
             .unwrap_or_default();
-        coordinator.checkpoint_with_observations(worker, &directories, None)
+        let directories = coordinator.cached_checkpoint_directories(&targets);
+        let agents = resume.then(|| coordinator.checkpoint_agent_sessions(&targets));
+        coordinator.checkpoint_with_observations(worker, &directories, agents.as_deref())
     }
 }

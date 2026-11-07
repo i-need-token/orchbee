@@ -53,6 +53,18 @@ impl LocalTerminalService {
         LaunchCapture::new(capture(explicit), capture(intent))
     }
 
+    /// Whether this Session records and resumes Agent sessions, read from the frozen store before
+    /// the caller takes any lock. A refused record reads as the built-in default, on; a missing
+    /// store reads as off.
+    #[cfg(windows)]
+    pub(crate) fn agent_resume_enabled(&self) -> bool {
+        self.preferences.get().is_some_and(|store| {
+            store
+                .read()
+                .map_or(true, |snapshot| snapshot.values.resume_agents_on_restore)
+        })
+    }
+
     pub(crate) fn execute_settings(&self, request: SettingsRequest) -> SettingsResult {
         let outcome = match self.workbench_session_matches(&request.session_id) {
             None => Outcome::Refused {

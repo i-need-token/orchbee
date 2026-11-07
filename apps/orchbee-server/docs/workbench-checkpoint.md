@@ -105,6 +105,7 @@ same checkpoint has that Presentation's directory row. The first member keeps a 
 `(provider, sessionId)`; later duplicates are dropped. Observed bindings must belong to the local
 Worker and to current members, one per terminal. When recording is off the runtime supplies no
 observation set and capture writes no rows, pending ones included. Removed members disappear.
+[Agent session resume](agent-session-resume.md) owns which live reference the runtime supplies.
 
 The encoded checkpoint limit is 2 MiB. The reconstructed Snapshot must pass the existing complete
 graph validator and 1 MiB wire bound; the catalog keeps its 64-entry and 256 KiB bounds. All owned

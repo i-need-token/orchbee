@@ -148,6 +148,17 @@ impl SessionCoordinator {
             .and_then(|observed| observed.command)
             .filter(|command| !command.completed)
     }
+    /// The latest shell-echoed command of this exact Terminal generation, open or completed.
+    #[cfg(windows)]
+    pub(super) fn latest_command(
+        &self,
+        physical: &orchbee_server::TerminalAgentBinding,
+    ) -> Option<orchbee_terminal_protocol::TerminalObservedCommand> {
+        self.terminal_observations
+            .values()
+            .find(|observed| observed.physical == *physical)
+            .and_then(|observed| observed.command)
+    }
     /// The latest shell-echoed command per current Host Terminal, for launch receipts.
     pub(crate) fn observed_commands(&self) -> Vec<crate::agent_service::ObservedCommand> {
         self.terminal_observations

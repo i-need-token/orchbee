@@ -38,6 +38,8 @@ valid snapshots and excludes terminal screens. Startup restores the newest valid
 unreadable copies are retained and reported to the Client, including an explicit empty-workspace
 notice if every copy is invalid. The [checkpoint contract](docs/workbench-checkpoint.md) owns
 capture, physical-directory fences and restoration; Session-owner admission remains a runtime decision.
+Each capture also retains supported Agent session references under the
+[Agent session resume contract](docs/agent-session-resume.md).
 
 One stop identity owns the remaining managed Server lifetime. Accepting it atomically closes new
 application-record admission; existing admitted operations and result writes settle before cleanup.

@@ -47,6 +47,8 @@ mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
 mod agent_names;
 mod agent_registration;
+#[cfg(any(windows, test))]
+mod agent_resume;
 mod directory_label;
 mod pane_graphics;
 mod process_observation;
@@ -63,7 +65,8 @@ pub(crate) struct SessionCoordinator {
     process_samples: process_observation::Samples,
     followed_directories: directory_label::FollowedDirectories,
     terminal_observations: semantic_events::Observations,
-    agent_names: Option<std::sync::Weak<crate::agent_service::AgentService>>,
+    /// The one Agent cell, shared by managed names and resume capture.
+    agents: Option<std::sync::Weak<crate::agent_service::AgentService>>,
 }
 
 #[cfg(test)]
@@ -77,7 +80,7 @@ impl SessionCoordinator {
             process_samples: process_observation::Samples::new(),
             followed_directories: directory_label::FollowedDirectories::new(),
             terminal_observations: semantic_events::Observations::new(),
-            agent_names: None,
+            agents: None,
         }
     }
 

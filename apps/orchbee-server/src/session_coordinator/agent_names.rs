@@ -12,12 +12,12 @@ use std::{
 
 impl SessionCoordinator {
     pub(crate) fn bind_agent_names(&mut self, agents: &Arc<AgentService>) -> io::Result<()> {
-        if let Some(existing) = &self.agent_names {
+        if let Some(existing) = &self.agents {
             if !Weak::ptr_eq(existing, &Arc::downgrade(agents)) {
                 return Err(io::Error::other("Names owner already bound"));
             }
         } else {
-            self.agent_names = Some(Arc::downgrade(agents));
+            self.agents = Some(Arc::downgrade(agents));
         }
         Ok(())
     }
@@ -61,7 +61,7 @@ impl SessionCoordinator {
         target: &orchbee_workbench_protocol::PresentationBinding,
         released: bool,
     ) {
-        let Some(agents) = self.agent_names.as_ref().and_then(Weak::upgrade) else {
+        let Some(agents) = self.agents.as_ref().and_then(Weak::upgrade) else {
             return;
         };
         // Select the affected physical target before reading reports or locking the

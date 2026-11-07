@@ -1,0 +1,154 @@
+use super::{CommandEvidence, select};
+use crate::agent_service::AgentResumeCandidate;
+use orchbee_agent_observation_protocol::{
+    AgentIdentityGrade, AgentIdentityUnknownReason, AgentIdentityUnsupportedReason,
+    AgentProcessIdentity, AgentReportProvider, AgentRunToken,
+};
+use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
+use orchbee_workbench_protocol::TerminalPresentationId;
+
+const CLAUDE: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
+const CODEX: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+const STALE: &str = "a3bb189e-8bf9-3888-9912-ace4e6543002";
+const RUN: u128 = 0x1111_2222_3333_4444_5555_6666_7777_8888;
+const OTHER_RUN: u128 = 0x9999_aaaa_bbbb_cccc_dddd_eeee_ffff_0001;
+
+fn candidate(
+    provider: AgentResumeProvider,
+    key: &str,
+    token: Option<u128>,
+) -> AgentResumeCandidate {
+    AgentResumeCandidate {
+        presentation: TerminalPresentationId::parse(&format!("{:032x}", 11)).unwrap(),
+        provider,
+        native_key: key.to_owned(),
+        run_token: token.map(|t| AgentRunToken::parse(&format!("{t:032x}")).unwrap()),
+    }
+}
+
+fn claude(token: Option<u128>) -> AgentResumeCandidate {
+    candidate(AgentResumeProvider::ClaudeCode, CLAUDE, token)
+}
+
+fn codex(token: Option<u128>) -> AgentResumeCandidate {
+    candidate(AgentResumeProvider::Codex, CODEX, token)
+}
+
+fn reference(provider: AgentResumeProvider, key: &str) -> Option<RetainedAgentSession> {
+    RetainedAgentSession::new(provider, key)
+}
+
+fn agent(provider: AgentReportProvider) -> AgentProcessIdentity {
+    AgentProcessIdentity::Agent {
+        provider,
+        grade: AgentIdentityGrade::Recognized,
+    }
+}
+
+const OPEN: CommandEvidence = CommandEvidence::Open(RUN.to_be_bytes());
+const UNKNOWN: AgentProcessIdentity =
+    AgentProcessIdentity::Unknown(AgentIdentityUnknownReason::Settling);
+
+#[test]
+fn command_evidence_keeps_the_open_run_else_tokenless_and_refutes_ended_runs() {
+    let claude_ref = reference(AgentResumeProvider::ClaudeCode, CLAUDE);
+    let codex_ref = reference(AgentResumeProvider::Codex, CODEX);
+    // The open command's token names its run over a tokenless one and over other tokens.
+    assert_eq!(
+        select(&[claude(Some(RUN)), codex(None)], OPEN, &UNKNOWN),
+        claude_ref
+    );
+    assert_eq!(
+        select(&[claude(Some(OTHER_RUN)), codex(Some(RUN))], OPEN, &UNKNOWN),
+        codex_ref
+    );
+    // No token matches: only tokenless candidates remain.
+    assert_eq!(
+        select(&[claude(Some(OTHER_RUN)), codex(None)], OPEN, &UNKNOWN),
+        codex_ref
+    );
+    assert_eq!(select(&[claude(Some(OTHER_RUN))], OPEN, &UNKNOWN), None);
+    // A completed command ends every tokened run.
+    assert_eq!(
+        select(
+            &[claude(Some(RUN)), codex(None)],
+            CommandEvidence::Closed,
+            &UNKNOWN
+        ),
+        codex_ref
+    );
+    assert_eq!(
+        select(&[claude(Some(RUN))], CommandEvidence::Closed, &UNKNOWN),
+        None
+    );
+    // An unmarked shell refutes nothing.
+    assert_eq!(
+        select(&[claude(Some(RUN))], CommandEvidence::Unmarked, &UNKNOWN),
+        claude_ref
+    );
+    assert_eq!(select(&[], CommandEvidence::Unmarked, &UNKNOWN), None);
+}
+
+#[test]
+fn process_identity_keeps_its_provider_and_none_drops_every_candidate() {
+    let both = [claude(None), codex(None)];
+    let unmarked = CommandEvidence::Unmarked;
+    assert_eq!(
+        select(&both, unmarked, &agent(AgentReportProvider::Claude)),
+        reference(AgentResumeProvider::ClaudeCode, CLAUDE)
+    );
+    assert_eq!(
+        select(&both, unmarked, &agent(AgentReportProvider::Codex)),
+        reference(AgentResumeProvider::Codex, CODEX)
+    );
+    assert_eq!(
+        select(
+            &[claude(None)],
+            unmarked,
+            &agent(AgentReportProvider::Codex)
+        ),
+        None
+    );
+    assert_eq!(
+        select(
+            &[claude(None)],
+            unmarked,
+            &agent(AgentReportProvider::Gemini)
+        ),
+        None
+    );
+    assert_eq!(
+        select(&[claude(None)], unmarked, &AgentProcessIdentity::None),
+        None
+    );
+    let unsupported = AgentProcessIdentity::Unsupported(AgentIdentityUnsupportedReason::Platform);
+    assert_eq!(
+        select(&[claude(None)], unmarked, &unsupported),
+        reference(AgentResumeProvider::ClaudeCode, CLAUDE)
+    );
+    // Neither refutation leaves both: ambiguity gives no reference.
+    assert_eq!(select(&both, unmarked, &UNKNOWN), None);
+}
+
+#[test]
+fn only_one_distinct_valid_reference_is_admitted() {
+    let unmarked = CommandEvidence::Unmarked;
+    // One key seen twice is still one reference.
+    assert_eq!(
+        select(&[claude(None), claude(Some(RUN))], unmarked, &UNKNOWN),
+        reference(AgentResumeProvider::ClaudeCode, CLAUDE)
+    );
+    // Two keys of one provider, or one key under two providers, are ambiguous.
+    let stale = candidate(AgentResumeProvider::ClaudeCode, STALE, None);
+    assert_eq!(select(&[claude(None), stale], unmarked, &UNKNOWN), None);
+    let shared = candidate(AgentResumeProvider::Codex, CLAUDE, None);
+    assert_eq!(select(&[claude(None), shared], unmarked, &UNKNOWN), None);
+    // A sole key that is not a hyphenated UUID gives none, as does an option-like one.
+    for key in ["session-1", "-f8fad5b-d9cb-469f-a165-70867728950e", ""] {
+        let invalid = candidate(AgentResumeProvider::ClaudeCode, key, None);
+        assert_eq!(select(&[invalid], unmarked, &UNKNOWN), None, "{key}");
+    }
+    // An invalid key still makes a valid one ambiguous.
+    let invalid = candidate(AgentResumeProvider::ClaudeCode, "session-1", None);
+    assert_eq!(select(&[claude(None), invalid], unmarked, &UNKNOWN), None);
+}
