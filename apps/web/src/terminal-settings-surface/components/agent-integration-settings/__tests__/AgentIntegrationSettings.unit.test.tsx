@@ -134,6 +134,7 @@ function createTestControl(
 	autoPublish = true,
 ): TestControl {
 	let snapshot: AgentIntegrationManagementClientSnapshot = {
+		diagnosis: null,
 		failureCode: null,
 		failureIntegrationId: null,
 		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
@@ -164,6 +165,9 @@ function createTestControl(
 			control.updateIntegration(integrationId, { state: 'enabled' });
 			return { kind: 'completed', snapshot };
 		},
+		explain: async (): Promise<AgentIntegrationManagementClientOperationResult> => ({
+			kind: 'unavailable',
+		}),
 		getSnapshot: () => snapshot,
 		refresh: async (): Promise<AgentIntegrationManagementClientOperationResult> => ({
 			kind: 'completed',

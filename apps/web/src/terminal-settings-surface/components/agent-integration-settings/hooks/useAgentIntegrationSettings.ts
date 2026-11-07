@@ -1,12 +1,14 @@
-import { agentIntegrationMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { agentIntegrationMessages, type MessageDescriptor, useOrchbeeIntl } from '@orchbee/i18n';
 
 import * as React from 'react';
 
 import {
 	AGENT_INTEGRATION_NAME_MESSAGES,
+	type AgentIntegrationId,
 	type AgentIntegrationManagementControl,
 } from '../../../../agent-integration-management';
 import {
+	resolveAgentIntegrationDiagnosisView,
 	resolveAgentIntegrationFailureMessage,
 	resolveAgentIntegrationStatusView,
 	type AgentIntegrationSettingsRowView,
@@ -22,6 +24,15 @@ export function useAgentIntegrationSettings(
 		control.getSnapshot,
 		control.getSnapshot,
 	);
+	// Which Agent's diagnosis this mount shows; the diagnosis itself belongs to the control.
+	const [shownDiagnosis, setShownDiagnosis] = React.useState<AgentIntegrationId | null>(null);
+	const format = (
+		descriptor: MessageDescriptor,
+		values?: Readonly<Record<string, string>>,
+	): string => intl.formatMessage(descriptor, values);
+	const formatList = (items: readonly string[]): string =>
+		intl.formatList(items, { type: 'conjunction' });
+	const { diagnosis } = snapshot;
 	const rows = snapshot.integrations.map((integration): AgentIntegrationSettingsRowView => {
 		const agentName = intl.formatMessage(
 			AGENT_INTEGRATION_NAME_MESSAGES[integration.integrationId],
@@ -45,19 +56,38 @@ export function useAgentIntegrationSettings(
 			: resolveAgentIntegrationStatusView(integration, (descriptor) =>
 					intl.formatMessage(descriptor),
 				);
+		const shown =
+			shownDiagnosis === integration.integrationId &&
+			diagnosis?.integrationId === integration.integrationId
+				? diagnosis
+				: null;
 		return {
 			agentName,
 			checked: enabled,
 			description: intl.formatMessage(agentIntegrationMessages.providerDescription, {
 				agent: agentName,
 			}),
+			diagnosis:
+				shown === null ? null : resolveAgentIntegrationDiagnosisView(shown, format, formatList),
+			diagnosisTitle: intl.formatMessage(agentIntegrationMessages.diagnosisTitle, {
+				agent: agentName,
+			}),
 			disabled,
+			explainDisabled: snapshot.pending,
+			explainLabel: intl.formatMessage(agentIntegrationMessages.explainLabel, {
+				agent: agentName,
+			}),
 			integrationId: integration.integrationId,
 			onCheckedChange: (checked): void => {
 				if (disabled || checked === enabled) return;
 				void (checked
 					? control.enable(integration.integrationId)
 					: control.disable(integration.integrationId));
+			},
+			onExplain: (): void => {
+				if (snapshot.pending) return;
+				setShownDiagnosis(integration.integrationId);
+				void control.explain(integration.integrationId);
 			},
 			pending,
 			settingId: `agent-integrations.${integration.integrationId}`,
@@ -68,12 +98,15 @@ export function useAgentIntegrationSettings(
 		};
 	});
 	return {
+		closeDiagnosisLabel: intl.formatMessage(agentIntegrationMessages.diagnosisClose),
 		disclosure: intl.formatMessage(agentIntegrationMessages.disclosure),
+		explainText: intl.formatMessage(agentIntegrationMessages.actionExplain),
 		failure:
 			snapshot.failureCode === null
 				? null
 				: intl.formatMessage(resolveAgentIntegrationFailureMessage(snapshot.failureCode)),
 		localSection: intl.formatMessage(agentIntegrationMessages.localSection),
+		onCloseDiagnosis: (): void => setShownDiagnosis(null),
 		onRefresh: (): void => {
 			if (!snapshot.pending) void control.refresh();
 		},

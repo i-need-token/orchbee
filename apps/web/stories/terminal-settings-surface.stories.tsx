@@ -325,6 +325,32 @@ function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl
 	return {
 		disable: (integrationId) => update(integrationId, false),
 		enable: (integrationId) => update(integrationId, true),
+		explain: (integrationId) => {
+			const item = snapshot.integrations.find(
+				(integration) => integration.integrationId === integrationId,
+			);
+			if (item === undefined) return Promise.resolve({ kind: 'unavailable' as const });
+			snapshot = {
+				...snapshot,
+				diagnosis: {
+					explanation: {
+						adapter: 'ready',
+						detail: { entry: 'missing', kind: 'guarded', sourceReady: true },
+						item,
+						plan: [{ kind: 'publish-adapter' }, { kind: 'write-entry' }],
+						timedOut: false,
+					},
+					integrationId,
+					kind: 'explained',
+				},
+				revision: snapshot.revision + 1,
+			};
+			for (const listener of listeners) listener();
+			return Promise.resolve({
+				kind: 'completed' as const,
+				snapshot: { integrations: snapshot.integrations, revision: snapshot.revision },
+			});
+		},
 		getSnapshot: () => snapshot,
 		refresh: () =>
 			Promise.resolve({
@@ -351,6 +377,7 @@ function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClient
 		opencode: { availability: 'available', state: 'enabled' },
 	};
 	return {
+		diagnosis: null,
 		failureCode: null,
 		failureIntegrationId: null,
 		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({

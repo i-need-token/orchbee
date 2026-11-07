@@ -7,6 +7,8 @@ import {
 
 import {
 	AGENT_INTEGRATION_IDS,
+	type AgentIntegrationDiagnosis,
+	type AgentIntegrationExplanation,
 	type AgentIntegrationId,
 	type AgentIntegrationManagementClientOperationResult,
 	type AgentIntegrationManagementClientSnapshot,
@@ -35,6 +37,7 @@ type JobOutcome = Extract<
 type Job = Extract<JobOutcome, { readonly kind: 'accepted' }>['job'];
 type Report = Extract<JobOutcome, { readonly kind: 'completed' }>['report'];
 type ReportedItem = Extract<Report, { readonly kind: 'list' }>['items'][number];
+type ExplainReport = Extract<Report, { readonly kind: 'explain' }>;
 type MutationReport = Extract<Report, { readonly kind: 'mutation' }>['report'];
 type Verdict = MutationReport['verdict'];
 type Rows = AgentIntegrationManagementClientSnapshot['integrations'];
@@ -44,6 +47,12 @@ interface Mutation {
 	readonly direction: 'disable' | 'enable';
 	readonly integrationId: AgentIntegrationId;
 }
+
+/** One explicit action; each runs as exactly one Worker job. */
+type Operation =
+	| { readonly kind: 'change'; readonly mutation: Mutation }
+	| { readonly integrationId: AgentIntegrationId; readonly kind: 'explain' }
+	| { readonly kind: 'refresh' };
 
 /** How a job ended for this window, as the CLI's job driver reports it. */
 type JobEnd =
@@ -65,6 +74,8 @@ type Exchanged =
 
 interface Settlement {
 	readonly code: FailureCode | null;
+	/** Present only for an explain job, whose failure belongs to its diagnosis. */
+	readonly diagnosis?: AgentIntegrationDiagnosis;
 	readonly integrations: Rows;
 }
 
@@ -86,6 +97,7 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	#disposed = false;
 	#operating = false;
 	#snapshot: AgentIntegrationManagementClientSnapshot = {
+		diagnosis: null,
 		failureCode: null,
 		failureIntegrationId: null,
 		integrations: AGENT_INTEGRATION_IDS.map((integrationId) => ({
@@ -114,19 +126,25 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	};
 
 	refresh(): Promise<AgentIntegrationManagementClientOperationResult> {
-		return this.#operate(null);
+		return this.#operate({ kind: 'refresh' });
+	}
+
+	explain(
+		integrationId: AgentIntegrationId,
+	): Promise<AgentIntegrationManagementClientOperationResult> {
+		return this.#operate({ integrationId, kind: 'explain' });
 	}
 
 	enable(
 		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult> {
-		return this.#operate({ direction: 'enable', integrationId });
+		return this.#operate({ kind: 'change', mutation: { direction: 'enable', integrationId } });
 	}
 
 	disable(
 		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult> {
-		return this.#operate({ direction: 'disable', integrationId });
+		return this.#operate({ kind: 'change', mutation: { direction: 'disable', integrationId } });
 	}
 
 	/** A job already started keeps running on the Worker; only this window stops waiting for it. */
@@ -135,35 +153,34 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 		this.#listeners.clear();
 	}
 
-	async #operate(
-		mutation: Mutation | null,
-	): Promise<AgentIntegrationManagementClientOperationResult> {
+	async #operate(operation: Operation): Promise<AgentIntegrationManagementClientOperationResult> {
 		if (this.#disposed) return { kind: 'unavailable' };
-		const integrationId = mutation?.integrationId ?? null;
+		const integrationId = operationTarget(operation);
 		if (this.#operating) {
 			return { code: 'busy', integrationId, kind: 'failed', snapshot: this.#protocolSnapshot() };
 		}
 		this.#operating = true;
 		this.#publish({
+			...(operation.kind === 'explain'
+				? { diagnosis: { integrationId: operation.integrationId, kind: 'pending' } }
+				: {}),
 			failureCode: null,
 			failureIntegrationId: null,
 			pending: true,
 			pendingIntegrationId: integrationId,
 		});
-		const end = await this.#runJob(
-			mutation === null ? { kind: 'list' } : mutationOperation(mutation),
-		);
+		const end = await this.#runJob(jobOperation(operation));
 		this.#operating = false;
 		if (this.#disposed || end.kind === 'disposed') return { kind: 'unavailable' };
-		const { integrations } = this.#snapshot;
-		const { code, integrations: settled } =
-			mutation === null
-				? settleRefresh(end, integrations)
-				: settleMutation(end, mutation, integrations);
+		const settlement = settle(end, operation, this.#snapshot.integrations);
+		const { code, diagnosis } = settlement;
+		// An explain failure is the diagnosis's own result, not a page failure.
+		const pageFailure = diagnosis === undefined ? code : null;
 		this.#publish({
-			failureCode: code,
-			failureIntegrationId: code === null ? null : integrationId,
-			integrations: settled,
+			...(diagnosis === undefined ? {} : { diagnosis }),
+			failureCode: pageFailure,
+			failureIntegrationId: pageFailure === null ? null : integrationId,
+			integrations: settlement.integrations,
 			pending: false,
 			pendingIntegrationId: null,
 		});
@@ -291,6 +308,39 @@ export class ServerAgentIntegrationClient implements AgentIntegrationManagementC
 	}
 }
 
+function operationTarget(operation: Operation): AgentIntegrationId | null {
+	switch (operation.kind) {
+		case 'change':
+			return operation.mutation.integrationId;
+		case 'explain':
+			return operation.integrationId;
+		case 'refresh':
+			return null;
+	}
+}
+
+function jobOperation(operation: Operation): JobOperation {
+	switch (operation.kind) {
+		case 'change':
+			return mutationOperation(operation.mutation);
+		case 'explain':
+			return { kind: 'explain', provider: operation.integrationId };
+		case 'refresh':
+			return { kind: 'list' };
+	}
+}
+
+function settle(end: SettledEnd, operation: Operation, rows: Rows): Settlement {
+	switch (operation.kind) {
+		case 'change':
+			return settleMutation(end, operation.mutation, rows);
+		case 'explain':
+			return settleExplain(end, operation.integrationId, rows);
+		case 'refresh':
+			return settleRefresh(end, rows);
+	}
+}
+
 // One literal per direction: a combined `kind` over every provider exceeds the compiler's
 // discriminated-union expansion limit.
 function mutationOperation(mutation: Mutation): JobOperation {
@@ -337,13 +387,100 @@ function settleRefresh(end: SettledEnd, rows: Rows): Settlement {
 	if (end.kind === 'completed' && end.report.kind === 'list') {
 		return { code: null, integrations: listedRows(end.report.items, rows) };
 	}
-	let code: FailureCode = 'control-unavailable';
+	return { code: readFailure(end), integrations: rows };
+}
+
+/** A diagnosis also refreshes its Agent's row; one that did not finish leaves the rows as they were. */
+function settleExplain(end: SettledEnd, integrationId: AgentIntegrationId, rows: Rows): Settlement {
+	if (
+		end.kind === 'completed' &&
+		end.report.kind === 'explain' &&
+		end.report.item.integrationId === integrationId
+	) {
+		const { item } = end.report;
+		return {
+			code: null,
+			diagnosis: {
+				explanation: explanation(end.report, integrationId),
+				integrationId,
+				kind: 'explained',
+			},
+			integrations: rows.map((row) =>
+				row.integrationId === integrationId ? reportedRow(item, integrationId) : row,
+			),
+		};
+	}
+	const code = readFailure(end);
+	return { code, diagnosis: { code, integrationId, kind: 'failed' }, integrations: rows };
+}
+
+/** A read changes nothing, so a read that did not finish is a definite failure, never unverified. */
+function readFailure(end: SettledEnd): FailureCode {
 	// A Worker without a home directory, or one that ran out of time, read nothing.
-	if (end.kind === 'deadline') code = 'operation-failed';
-	else if (end.kind === 'completed' && end.report.kind === 'home-unavailable') {
-		code = 'operation-failed';
-	} else if (end.kind === 'failed' && end.reason === 'busy' && !end.started) code = 'busy';
-	return { code, integrations: rows };
+	if (end.kind === 'deadline') return 'operation-failed';
+	if (end.kind === 'completed' && end.report.kind === 'home-unavailable') return 'operation-failed';
+	if (end.kind === 'failed' && end.reason === 'busy' && !end.started) return 'busy';
+	return 'control-unavailable';
+}
+
+/** Keeps the facts a person can act on; paths and command arguments stay out of the snapshot. */
+function explanation(
+	report: ExplainReport,
+	integrationId: AgentIntegrationId,
+): AgentIntegrationExplanation {
+	const { capsule, detail, item, plan } = report;
+	let adapter: AgentIntegrationExplanation['adapter'] = 'not-ready';
+	if (capsule.bindingFailure) adapter = 'binding-failed';
+	else if (capsule.ready) adapter = 'ready';
+	else if (capsule.sourceKind === 'absent') adapter = 'source-absent';
+	return {
+		adapter,
+		detail: inspectionDetail(detail),
+		item: reportedRow(item, integrationId),
+		plan: plan.map((step): AgentIntegrationExplanation['plan'][number] => {
+			switch (step.kind) {
+				case 'capsule-publish':
+					return { kind: 'publish-adapter' };
+				case 'command':
+					return { command: commandName(step.executable), kind: 'command' };
+				case 'guarded-write':
+					return { kind: 'write-entry' };
+				case 'guarded-remove':
+					return { kind: 'remove-entry' };
+			}
+		}),
+		timedOut: item.timedOut,
+	};
+}
+
+function inspectionDetail(detail: ExplainReport['detail']): AgentIntegrationExplanation['detail'] {
+	switch (detail.kind) {
+		case 'cli':
+			return {
+				kind: 'cli',
+				marketplace: detail.marketplace ?? null,
+				pluginPresent: detail.pluginPresent ?? null,
+			};
+		case 'codex':
+			return {
+				kind: 'codex',
+				marketplace: detail.marketplace,
+				pluginPresent: detail.pluginPresent,
+			};
+		case 'guarded':
+			return { entry: detail.targetState, kind: 'guarded', sourceReady: detail.sourceReady };
+		case 'plain':
+			return { kind: 'plain' };
+	}
+}
+
+/** The executable's file name, as the CLI's explain output names the command. */
+function commandName(executable: string): string {
+	const name = executable
+		.split(/[\\/]/u)
+		.filter((part) => part !== '')
+		.pop();
+	return name ?? executable;
 }
 
 /** A change that may have begun is never reported as refused; its row waits for a Refresh. */

@@ -455,6 +455,19 @@ report reads as unverified, marks its row unknown, and is never repeated. Remote
 as manual-only and the renderer never writes terminal input or attempts remote setup. The
 [writer](../../../crates/agent-integration-writer/README.md) is authoritative for these effects.
 
+Each row's Explain button runs one read-only `explain` job for that Agent, under the same one-job
+rule, and opens its diagnosis beneath the row until Close. The headline separates a definite
+finding (Ready, Manual setup, "Definitely missing: the Agent", "Definitely missing: the
+integration", Turned off, Update needed, Blocked by a conflict) from "Result unknown", which a
+timed-out, unreadable or undetermined inspection and an unfinished job produce. The facts follow
+`orchbee agent integration explain`: Agent presence, integration status, any issue, the Orchbee
+adapter, the provider's marketplace and plugin or guarded entry and adapter source, and what
+turning it on would do, naming a command by its executable file name only. The control drops paths
+and command arguments before publishing the diagnosis; a report also refreshes that Agent's row,
+and an explain failure stays in the diagnosis rather than the page alert. The TUI's
+[Agent integrations page](../../orchbee/docs/native-settings.md#agent-integrations) offers the same
+operations and copy.
+
 Neither Client offers an integration reminder when an Agent launches. A future reminder would be
 designed for both Clients together.
 

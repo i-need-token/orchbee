@@ -47,6 +47,62 @@
 	color: var(--ob-sys-color-status-danger-text);
 }
 
+.controls {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.diagnosis {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+	margin-block-end: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
+}
+
+.diagnosisHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-4);
+}
+
+.diagnosisTitle {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-heading);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.diagnosisText {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.diagnosis > .status {
+	margin: var(--ob-ref-space-0);
+}
+
+.facts {
+	display: grid;
+	grid-template-columns: max-content minmax(var(--ob-ref-space-0), 1fr);
+	gap: var(--ob-ref-space-1) var(--ob-ref-space-4);
+	margin: var(--ob-ref-space-0);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.factLabel {
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.factValue {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-primary);
+}
+
 .remote {
 	padding: var(--ob-ref-space-4);
 	border-radius: var(--ob-ref-radius-ui-lg);
@@ -67,5 +123,9 @@
 	.toolbar {
 		align-items: stretch;
 		flex-direction: column;
+	}
+
+	.facts {
+		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
 	}
 }

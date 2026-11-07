@@ -1,12 +1,27 @@
 import type { AgentIntegrationMessageId } from '../en-US';
 
 export const zhCNAgentIntegrationMessages = {
+	'agent.integrations.actions.explain': '诊断',
 	'agent.integrations.actions.refresh': '刷新状态',
 	'agent.integrations.actions.working': '处理中…',
 	'agent.integrations.category': '智能体集成',
 	'agent.integrations.description': '管理可选的本地适配器，让 Orchbee 能显示更丰富的智能体状态。',
+	'agent.integrations.diagnosis.close': '关闭',
+	'agent.integrations.diagnosis.pending': '正在检查本设备上的此集成…',
+	'agent.integrations.diagnosis.readOnly': '只读检查；未做任何更改。',
+	'agent.integrations.diagnosis.title': '{agent} 诊断',
 	'agent.integrations.disclosure':
 		'只有你切换开关后，Orchbee 才会更改相应集成；适配器永远不会自动安装。',
+	'agent.integrations.explain.label': '诊断 {agent} 集成',
+	'agent.integrations.fact.adapter': 'Orchbee 适配器',
+	'agent.integrations.fact.adapterSource': '适配器来源',
+	'agent.integrations.fact.agent': '本设备上的智能体',
+	'agent.integrations.fact.entry': '集成条目',
+	'agent.integrations.fact.integration': '集成',
+	'agent.integrations.fact.issue': '问题',
+	'agent.integrations.fact.marketplace': '插件市场',
+	'agent.integrations.fact.plan': '开启将会',
+	'agent.integrations.fact.plugin': '插件',
 	'agent.integrations.failure.agentUnavailable':
 		'在本地设备上未找到此智能体。请先安装智能体，然后刷新。',
 	'agent.integrations.failure.busy': '请等待当前集成操作完成。',
@@ -17,7 +32,36 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.failure.operationFailed': '集成命令未能完成；下面显示的是重新检测到的状态。',
 	'agent.integrations.failure.verificationFailed':
 		'Orchbee 无法验证请求的状态。请检查智能体配置后刷新。',
+	'agent.integrations.finding.agentMissing': '确定缺失：智能体',
+	'agent.integrations.finding.conflict': '存在冲突',
+	'agent.integrations.finding.disabled': '已关闭',
+	'agent.integrations.finding.manualSetup': '手动设置',
+	'agent.integrations.finding.notInstalled': '确定缺失：集成',
+	'agent.integrations.finding.ready': '可用',
+	'agent.integrations.finding.unknown': '结果未知',
+	'agent.integrations.finding.updateRequired': '需要更新',
+	'agent.integrations.findingDetail.disabled': '集成已安装但处于关闭状态。开启后即可使用。',
+	'agent.integrations.findingDetail.inspectionFailed':
+		'Orchbee 无法读取此集成，因此状态未知，并非确定缺失。请检查智能体配置后刷新。',
+	'agent.integrations.findingDetail.manualSetup':
+		'Orchbee 不在此管理该集成；请在智能体中手动设置。',
+	'agent.integrations.findingDetail.notInstalled':
+		'已找到智能体，但其集成尚未安装。开启后即可安装。',
+	'agent.integrations.findingDetail.ready': '集成已开启，Orchbee 可以显示此智能体的状态。',
+	'agent.integrations.findingDetail.timedOut':
+		'检查超时，因此状态未知，并非确定缺失。请刷新后再检查。',
+	'agent.integrations.findingDetail.undetermined':
+		'Orchbee 无法确定状态，因此状态未知，并非确定缺失。请刷新后再检查。',
+	'agent.integrations.findingDetail.updateRequired': '已安装的集成版本过旧。开启后即可更新。',
+	'agent.integrations.issue.manualActionRequired': '需要在智能体中手动审阅',
+	'agent.integrations.issue.unsupportedPlatform': '此平台不支持',
+	'agent.integrations.issue.unsupportedVersion': '不支持此智能体版本',
 	'agent.integrations.localSection': '本地智能体状态适配器',
+	'agent.integrations.plan.command': '运行 {command}',
+	'agent.integrations.plan.none': '不做任何更改',
+	'agent.integrations.plan.publishAdapter': '发布 Orchbee 适配器',
+	'agent.integrations.plan.removeEntry': '移除过时条目',
+	'agent.integrations.plan.writeEntry': '写入集成条目',
 	'agent.integrations.providerDescription':
 		'让 Orchbee 观察 {agent} 状态，但不会读取提示词、终端输出或工具内容。',
 	'agent.integrations.remoteDescription':
@@ -30,8 +74,22 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.status.manualOnly': '手动设置',
 	'agent.integrations.status.notFound': '未找到智能体',
 	'agent.integrations.status.notInstalled': '未开启',
-	'agent.integrations.status.updateRequired': '集成需要更新',
 	'agent.integrations.status.unknown': '未知',
+	'agent.integrations.status.updateRequired': '集成需要更新',
 	'agent.integrations.title': '智能体集成',
 	'agent.integrations.toggle.label': '{agent} 集成',
+	'agent.integrations.value.adapterBindingFailed': '与此 Orchbee 版本不匹配',
+	'agent.integrations.value.adapterNotReady': '未就绪',
+	'agent.integrations.value.adapterReady': '就绪',
+	'agent.integrations.value.adapterSourceAbsent': '此安装未包含',
+	'agent.integrations.value.conflict': '存在冲突',
+	'agent.integrations.value.current': '最新',
+	'agent.integrations.value.found': '已找到',
+	'agent.integrations.value.installed': '已安装',
+	'agent.integrations.value.missing': '缺失',
+	'agent.integrations.value.notAdded': '未添加',
+	'agent.integrations.value.notFound': '未找到',
+	'agent.integrations.value.notInstalled': '未安装',
+	'agent.integrations.value.unknown': '未知',
+	'agent.integrations.value.updateNeeded': '需要更新',
 } as const satisfies Readonly<Record<AgentIntegrationMessageId, string>>;

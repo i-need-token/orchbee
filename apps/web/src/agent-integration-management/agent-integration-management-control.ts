@@ -80,7 +80,64 @@ export type AgentIntegrationManagementSnapshot = z.infer<
 >;
 export type AgentIntegrationSnapshotItem = z.infer<typeof AgentIntegrationSnapshotItemSchema>;
 
+export type AgentIntegrationMarketplace = 'absent' | 'current' | 'update-required';
+
+export type AgentIntegrationEntryState =
+	| 'conflict'
+	| 'current'
+	| 'missing'
+	| 'unknown'
+	| 'update-required';
+
+/** The provider-specific facts an explain report establishes, without paths. */
+export type AgentIntegrationInspectionDetail =
+	| {
+			readonly kind: 'cli';
+			readonly marketplace: AgentIntegrationMarketplace | null;
+			readonly pluginPresent: boolean | null;
+	  }
+	| {
+			readonly kind: 'codex';
+			readonly marketplace: AgentIntegrationMarketplace;
+			readonly pluginPresent: boolean;
+	  }
+	| {
+			readonly entry: AgentIntegrationEntryState;
+			readonly kind: 'guarded';
+			readonly sourceReady: boolean;
+	  }
+	| { readonly kind: 'plain' };
+
+/** One step turning the integration on would take; a command is named by its file name only. */
+export type AgentIntegrationPlanStep =
+	| { readonly command: string; readonly kind: 'command' }
+	| { readonly kind: 'publish-adapter' | 'remove-entry' | 'write-entry' };
+
+/** What one read-only explain job established about one Agent, without paths or command lines. */
+export interface AgentIntegrationExplanation {
+	readonly adapter: 'binding-failed' | 'not-ready' | 'ready' | 'source-absent';
+	readonly detail: AgentIntegrationInspectionDetail;
+	readonly item: AgentIntegrationSnapshotItem;
+	readonly plan: readonly AgentIntegrationPlanStep[];
+	readonly timedOut: boolean;
+}
+
+/** The latest diagnosis: waiting for its explain job, explained, or not answered. */
+export type AgentIntegrationDiagnosis =
+	| { readonly integrationId: AgentIntegrationId; readonly kind: 'pending' }
+	| {
+			readonly explanation: AgentIntegrationExplanation;
+			readonly integrationId: AgentIntegrationId;
+			readonly kind: 'explained';
+	  }
+	| {
+			readonly code: AgentIntegrationManagementFailureCode;
+			readonly integrationId: AgentIntegrationId;
+			readonly kind: 'failed';
+	  };
+
 export interface AgentIntegrationManagementClientSnapshot extends AgentIntegrationManagementSnapshot {
+	readonly diagnosis: AgentIntegrationDiagnosis | null;
 	readonly failureCode: AgentIntegrationManagementFailureCode | null;
 	readonly failureIntegrationId: AgentIntegrationId | null;
 	readonly pending: boolean;
@@ -96,6 +153,10 @@ export interface AgentIntegrationManagementControl {
 		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult>;
 	enable(
+		integrationId: AgentIntegrationId,
+	): Promise<AgentIntegrationManagementClientOperationResult>;
+	/** Runs the read-only diagnosis for one Agent; it changes nothing. */
+	explain(
 		integrationId: AgentIntegrationId,
 	): Promise<AgentIntegrationManagementClientOperationResult>;
 	getSnapshot(): AgentIntegrationManagementClientSnapshot;

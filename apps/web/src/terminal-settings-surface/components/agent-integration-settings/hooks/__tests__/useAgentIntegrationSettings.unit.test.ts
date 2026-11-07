@@ -34,6 +34,7 @@ describe('useAgentIntegrationSettings', () => {
 		const enable = vi.fn<AgentIntegrationManagementControl['enable']>();
 		const clientSnapshot = {
 			...protocolSnapshot,
+			diagnosis: null,
 			failureCode: null,
 			failureIntegrationId: null,
 			pending: false,
@@ -42,6 +43,7 @@ describe('useAgentIntegrationSettings', () => {
 		const control: AgentIntegrationManagementControl = {
 			disable: vi.fn<AgentIntegrationManagementControl['disable']>(),
 			enable,
+			explain: vi.fn<AgentIntegrationManagementControl['explain']>(),
 			getSnapshot: () => clientSnapshot,
 			refresh: vi.fn<AgentIntegrationManagementControl['refresh']>(),
 			subscribe: () => () => undefined,
