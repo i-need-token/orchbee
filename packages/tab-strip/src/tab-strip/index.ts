@@ -21,3 +21,6 @@ export type {
 export { TabStripOrientation } from './types/tab-strip-types';
 export { TabModel, type TabData } from './model/tab-model';
 export { getTabCloseTargets } from './model/tab-close-targets';
+// A host that draws one Tab outside the strip draws its icon and title as the strip does.
+export { TabIcon } from './components/tab-strip-view/components/tab-button/components/tab-icon/TabIcon';
+export { getVisibleTabTitle } from './components/tab-strip-view/components/tab-button/utils/getVisibleTabTitle';

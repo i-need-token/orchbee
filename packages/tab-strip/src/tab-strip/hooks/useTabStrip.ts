@@ -186,7 +186,7 @@ export function useTabStrip(
 			previousRovingIndex === null || previousRovingIndex === -1 ? null : previousRovingIndex,
 	});
 	const rovingFocusWithinRef = useRef(false);
-	const lastFocusRequestRef = useRef(0);
+	const lastFocusRequestRef = useRef(focusRequest);
 	const focusRovingItem = useMemoizedFn((key: TabStripRovingItem['key']): boolean => {
 		const root = stripRef.current;
 		if (root === null) return false;
@@ -1347,7 +1347,16 @@ export function useTabStrip(
 		// selection portion of OnMousePressed: selection happens before the drag
 		// controller is asked to start.
 		const restoreState = model.captureDragRestoreState();
-		selectFromPointer(event, tab);
+		// A strip that fills the window scrolls under the finger, so a plain touch chooses its Tab
+		// on release, and a pan that takes the touch chooses nothing.
+		const selectOnRelease =
+			touchPointer &&
+			verticalFill &&
+			!horizontal &&
+			!event.shiftKey &&
+			!event.metaKey &&
+			!event.ctrlKey;
+		if (!selectOnRelease) selectFromPointer(event, tab);
 		const pointerSnapshot = model.getSnapshot();
 		if (
 			(event.metaKey || event.ctrlKey) &&
