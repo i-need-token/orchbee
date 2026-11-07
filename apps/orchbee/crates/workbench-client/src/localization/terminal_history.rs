@@ -3,22 +3,6 @@
 use super::Locale;
 
 impl Locale {
-    pub(crate) const fn terminal_back_to_live(self) -> &'static str {
-        match self {
-            Self::EnUs => "Back to live",
-            Self::ZhCn => "返回实时画面",
-        }
-    }
-
-    /// The right-edge badge a pane carries while its retained-history core
-    /// owns the leaf.
-    pub(crate) const fn terminal_history_badge(self) -> &'static str {
-        match self {
-            Self::EnUs => "HISTORY",
-            Self::ZhCn => "历史",
-        }
-    }
-
     /// The loading indicator while entry or a row window is still in
     /// flight — no retained content may show yet.
     pub(crate) const fn terminal_history_loading(self) -> &'static str {
@@ -49,14 +33,6 @@ impl Locale {
         match self {
             Self::EnUs => "Crop: scroll up",
             Self::ZhCn => "裁切：向上滚动",
-        }
-    }
-
-    /// Short action label paired with the effective history-entry binding.
-    pub(crate) const fn terminal_view_history(self) -> &'static str {
-        match self {
-            Self::EnUs => "History",
-            Self::ZhCn => "历史",
         }
     }
 }

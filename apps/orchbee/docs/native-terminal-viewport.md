@@ -31,10 +31,8 @@ copy/export, and ordinary Help's nonmodal input behavior remain unchanged. The c
 [Workbench navigator](native-context-selection.md#capturing-navigator) consumes these
 keys for local row paging while it owns input.
 
-Retained history keeps content through the bottom row. Its localized HISTORY badge offers a
-hover tooltip with the Esc return-to-live action in English and Chinese; no persistent navigation
-footer occupies terminal rows. The tooltip belongs to that exact pane and badge, including a
-restored retained image, and yields to copy mode and covering surfaces.
+Retained history keeps content through the bottom row and paints no chrome over it. `Esc` returns
+to live output; no persistent navigation footer or hover tooltip occupies terminal rows.
 
 ## Smaller live viewers
 
@@ -46,9 +44,10 @@ projected terminal crops by the same rule, which
 [Server takeover](../../orchbee-server/docs/terminal-controller-takeover.md#sizing-across-clients)
 states for every Client.
 
-A clipped pane keeps a localized live-crop indicator above its cells, with the effective history
-entry binding when it fits and a complete scroll-up instruction at narrow widths. Minimal hides the
-global Actions pointer button, leaving the indicator's full row to the live-crop hint. Full and
+A clipped pane keeps a localized live-crop indicator above its cells. It shows the complete
+scroll-up instruction on the primary screen without mouse tracking when that fits, and the bare
+label otherwise. Minimal hides the global Actions pointer button, leaving the indicator's full row
+to the live-crop label. Full and
 Compact place the button in the separate top strip, outside the crop header. The last local
 row remains available to the shell's status overlay, so read-only/control feedback cannot cover
 the current prompt. These local viewing rows never resize the physical terminal. Selection and
@@ -78,8 +77,8 @@ Automatic entry keeps projection demand `Active`: in-place text, selection, colo
 changes must continue delivering live frames while the retained-row lease exists. Every new live
 frame invalidates an older crop until an exact current window has been acknowledged.
 
-Automatic tail owns a retained-row lease but does not consume ordinary terminal keys or display a
-manual-history badge. Explicit scrolling, copy mode or admitted selection transfers the core to
+Automatic tail owns a retained-row lease but does not consume ordinary terminal keys or display
+manual-history chrome. Explicit scrolling, copy mode or admitted selection transfers the core to
 manual history. Active selection and export fence automatic navigation. Disabling the preference
 or losing eligibility recovers through the existing demand owner. No PTY resize or history deletion
 occurs. The core model covers demand/read/ack/recovery; target admission and cursor/copy coordinates
@@ -296,8 +295,9 @@ navigation; Esc and typing keep their recover-before-input behavior. No old atta
 pending command, grant or selection is replayed.
 
 A bookmark also keeps a text image of the committed window last painted at it, counted against
-the same 16 MiB budget; it keeps no program image pixels. From a return until restoration installs a window or recovery begins, the pane
-paints that image under the history badge instead of the live tail, retained live pixels or the
+the same 16 MiB budget; it keeps no program image pixels. From a return until restoration installs
+a window or recovery begins, the pane paints that image instead of the live tail, retained live
+pixels or the
 loading indicator, so a return shows the last reading screen first. Before the returning viewer's
 first live frame, the image needs only the saved reading choice and, once attached, the same Host
 terminal; a failed or retiring viewer shows its failure instead. The first live frame then applies
@@ -383,12 +383,12 @@ Style attributes and wide/spacer cells retain live-painter behavior; controls ar
 and a clipped wide cell paints blank. History never shows a cursor. Graphics resources are fully
 validated at decode but not displayed; this does not complete graphics history. Old-generation or old-column data never paints: the surface accessor re-validates the
 installed window's generation and columns against current facts on every draw. `Entering` keeps
-the last verified live frame under a history badge; `Viewing` without a current window clears to
-the badge; `Recovering` clears to a recovering indicator. The mode badge is the only history chrome over terminal rows; the last row remains retained
-content. `Esc` returns to live output. The badge rectangle resets underlying cells before painting
-its semantic style, so child colors and hidden/reversed attributes cannot leak into chrome.
-A wide glyph crossing the badge's left edge is blanked rather
-than painting half a glyph across the label.
+the last verified live frame under its loading indicator; `Viewing` without a current window clears
+to that indicator; `Recovering` clears to a recovering indicator. A retained window paints no
+chrome over its rows, so the last row remains retained content. `Esc` returns to live output. The
+indicator rectangle resets underlying cells before painting its semantic style, so child colors and
+hidden/reversed attributes cannot leak into chrome. A wide glyph crossing the indicator's left edge
+is blanked rather than painting half a glyph across the label.
 
 ## Scrollbar interaction
 

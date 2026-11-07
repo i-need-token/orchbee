@@ -470,112 +470,8 @@ fn evicted_witness_retains_a_visible_fallback_instead_of_reusing_coordinates() {
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-fn painted(ui: &WorkbenchClientUi) -> String {
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 30)).unwrap();
-    let view = crate::client_view::ClientView::new(80);
-    let mut hits = crate::tui_hit_map::HitMapBuilder::new();
-    terminal
-        .draw(|frame| {
-            crate::tui_render::render_terminal_shell(
-                frame,
-                &view,
-                crate::localization::Locale::EnUs,
-                Some(ui.view()),
-                &crate::tui_theme::Theme::terminal_native(),
-                &mut hits,
-            );
-        })
-        .unwrap();
-    terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
-}
-
 #[test]
-fn retained_history_exposes_its_return_key_on_badge_hover_in_both_locales() {
-    use crate::{
-        localization::Locale,
-        tui_hit_map::{HitMapBuilder, TooltipContent},
-        tui_theme::Theme,
-    };
-    use ratatui::{Terminal, backend::TestBackend};
-    let (ui, _, _) = reading_ui();
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let view = crate::client_view::ClientView::new(120);
-        let mut hits = HitMapBuilder::new();
-        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
-        terminal
-            .draw(|frame| {
-                crate::tui_render::render_terminal_shell(
-                    frame,
-                    &view,
-                    locale,
-                    Some(ui.view()),
-                    &Theme::terminal_native(),
-                    &mut hits,
-                );
-            })
-            .unwrap();
-        let (x, y) = (0..40)
-            .find_map(|y| {
-                let mut row = String::new();
-                let mut x = 0;
-                while x < 120 {
-                    let cell = &terminal.backend().buffer()[(x, y)];
-                    row.push_str(cell.symbol());
-                    x += ratatui::buffer::CellWidth::cell_width(cell).max(1);
-                }
-                let prefix = &row[..row.find(locale.terminal_history_badge())?];
-                Some((
-                    u16::try_from(crate::terminal_text::display_width(prefix)).unwrap(),
-                    y,
-                ))
-            })
-            .expect("history badge is painted");
-        assert!(
-            matches!(hits.tooltip_content_at(x, y), Some(
-            TooltipContent::Action { label, key: Some(key) }) if !label.is_empty() && key == "Esc"),
-            "history must expose the return-to-live action without a persistent footer"
-        );
-        let key = hits.finish().tooltip_at(x, y).unwrap();
-        let projection = crate::tui_hit_map::PointerProjection::default().with_tooltip(Some(
-            crate::tui_hit_map::tooltip::Shown {
-                key,
-                pointer: (x, y),
-            },
-        ));
-        let mut hits = HitMapBuilder::with_pointer(projection);
-        terminal
-            .draw(|frame| {
-                crate::tui_render::render_terminal_shell(
-                    frame,
-                    &view,
-                    locale,
-                    Some(ui.view()),
-                    &Theme::terminal_native(),
-                    &mut hits,
-                );
-            })
-            .unwrap();
-        let text: String = terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .flat_map(|cell| cell.symbol().chars())
-            .filter(|character| !character.is_whitespace())
-            .collect();
-        assert!(text.contains("Esc"));
-        assert!(text.contains(&locale.terminal_back_to_live().replace(' ', "")));
-    }
-}
-
-#[test]
-fn returning_bookmark_paints_its_last_window_instead_of_the_live_tail() {
+fn returning_bookmark_image_stays_until_the_restored_window_replaces_it() {
     let (mut ui, mailbox, _) = reading_ui();
     ui.clear_projections();
     let key = install_projection(&mut ui, Some((400, false, 24)), 0);
@@ -585,27 +481,18 @@ fn returning_bookmark_paints_its_last_window_instead_of_the_live_tail() {
             .pane_history_stand_in(&panel)
             .map(|window| window.route.start_row)
     };
-    let history = |ui: &WorkbenchClientUi| {
-        let screen = painted(ui);
-        let locale = crate::localization::Locale::EnUs;
-        screen.contains(locale.terminal_history_badge())
-            && !screen.contains(locale.terminal_history_loading())
-    };
-    assert!(history(&ui), "the first live frame shows the bookmark");
     assert_eq!(stand_in(&ui), Some(100));
     assert!(ui.view().painted_link_source(&panel).is_none());
     assert!(ui.drive_history_positions());
     let lease = mailbox.try_recv().unwrap().unwrap();
     mailbox.finish_lease(lease).unwrap();
     assert_eq!(stand_in(&ui), Some(100), "entry without a window keeps it");
-    assert!(history(&ui));
     settle_viewing(&mut ui, &mailbox, &key, 1);
     assert_eq!(
         stand_in(&ui),
         None,
         "the restored window replaces the image"
     );
-    assert!(history(&ui));
     ui.remember_history_positions();
     assert!(ui.history_positions.restoring_image(&key).is_none());
 }
@@ -613,7 +500,7 @@ fn returning_bookmark_paints_its_last_window_instead_of_the_live_tail() {
 /// O-8 step 7: typing right after the return breaks the navigation hold, so a frame is drawn
 /// while the returning viewer is still connecting. It shows the reading screen, not the live tail.
 #[test]
-fn a_return_before_the_first_live_frame_paints_the_bookmark_instead_of_live_pixels() {
+fn a_return_before_the_first_live_frame_keeps_the_bookmark_image() {
     let (mut ui, _mailbox, key) = reading_ui();
     ui.clear_projections();
     let panel = key.pane().panel().clone();
@@ -622,17 +509,9 @@ fn a_return_before_the_first_live_frame_paints_the_bookmark_instead_of_live_pixe
             .pane_history_stand_in(&panel)
             .map(|window| window.route.start_row)
     };
-    let history = |ui: &WorkbenchClientUi| {
-        painted(ui).contains(crate::localization::Locale::EnUs.terminal_history_badge())
-    };
     assert_eq!(stand_in(&ui), Some(100), "the viewer is still connecting");
-    assert!(
-        history(&ui),
-        "the reading screen paints instead of the live tail"
-    );
     install_projection(&mut ui, None, 0);
     assert_eq!(stand_in(&ui), Some(100), "attached, before its first frame");
-    assert!(history(&ui));
 }
 
 #[test]

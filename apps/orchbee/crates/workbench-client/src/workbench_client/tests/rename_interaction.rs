@@ -103,7 +103,7 @@ fn actual_localized_draw_and_exact_token_enter_submit_one_unicode_rename() -> Te
         let rendered = draw(&mut workbench_client, &view, locale, 120, 32)?;
         // TestBackend's wide-cell continuation slots contain spaces between Chinese glyphs.
         assert!(
-            rendered.replace(' ', "").contains("[initial_workspace]"),
+            rendered.replace(' ', "").contains("initial_workspace"),
             "locale={locale:?}\n{rendered}"
         );
         assert_eq!(
@@ -731,7 +731,7 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
         Some(&mut dispatcher),
     )?;
     assert!(
-        rendered.replace(' ', "").contains("[initial_workspace]"),
+        rendered.replace(' ', "").contains("initial_workspace"),
         "{rendered}"
     );
     assert_eq!(

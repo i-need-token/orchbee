@@ -1238,9 +1238,9 @@ fn render_viewport(
     buffer_rows(&terminal, width, height)
 }
 
-// History preserves retained content through the bottom row while keeping its mode visible.
+// History preserves retained content through the bottom row.
 #[test]
-fn history_window_preserves_rows_with_its_mode_badge() {
+fn history_window_preserves_rows_through_the_bottom_row() {
     let window = history_window(
         &["row-one", "row-two", "3", "4", "5", "6", "7", "last-row"],
         40,
@@ -1253,14 +1253,10 @@ fn history_window_preserves_rows_with_its_mode_badge() {
         Locale::EnUs,
     );
     assert!(rows[0].contains("row-one"), "{rows:?}");
-    assert!(
-        rows[0].contains("HISTORY"),
-        "badge on the first row: {rows:?}"
-    );
     assert!(rows[1].contains("row-two"), "{rows:?}");
     assert!(
         rows[7].contains("last-row"),
-        "history chrome must not cover content: {rows:?}"
+        "history must keep content through the bottom row: {rows:?}"
     );
 }
 
@@ -1372,53 +1368,6 @@ fn history_entering_keeps_the_live_frame() {
         "live frame preserved: {rows:?}"
     );
     assert!(joined.contains("Loading history…"), "{rows:?}");
-}
-
-#[test]
-fn history_chrome_clears_child_styles_text_and_crossing_wide_cells() {
-    use ratatui::style::Modifier;
-    let line = "X".repeat(40);
-    let mut window = history_window(&[&line, &line, &line], 40);
-    for row in &mut window.rows {
-        for cell in &mut row.cells {
-            cell.style.flags = 1 | 2 | 16 | 32 | 64;
-            cell.style.underline = 1;
-            cell.style.background = 0x123456;
-        }
-    }
-    // The nine-column English badge begins at31, inside this wide glyph.
-    window.rows[0].cells[30].text = "界".into();
-    window.rows[0].cells[30].width = 1;
-    window.rows[0].cells[31].text = "".into();
-    window.rows[0].cells[31].width = 2;
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 3)));
-    infallible(terminal.draw(|frame| {
-        super::viewport::render(
-            frame,
-            Rect::new(0, 0, 40, 3),
-            ViewportSurface::Window { window: &window },
-            None,
-            false,
-            Locale::EnUs,
-            &theme,
-        );
-    }));
-    let buffer = terminal.backend().buffer();
-    assert!(buffer[(0, 0)].modifier.contains(Modifier::HIDDEN));
-    assert!(buffer[(0, 1)].modifier.contains(Modifier::HIDDEN));
-    assert_eq!(buffer[(30, 0)].symbol(), " ");
-    let leaked = Modifier::BOLD
-        | Modifier::ITALIC
-        | Modifier::REVERSED
-        | Modifier::HIDDEN
-        | Modifier::CROSSED_OUT
-        | Modifier::UNDERLINED;
-    for x in 31..40 {
-        assert!(!buffer[(x, 0)].modifier.intersects(leaked));
-    }
-    let rows = buffer_rows(&terminal, 40, 3);
-    assert!(rows[0].contains("HISTORY"));
 }
 
 #[test]

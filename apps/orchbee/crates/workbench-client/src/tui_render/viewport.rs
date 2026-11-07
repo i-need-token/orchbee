@@ -1,4 +1,4 @@
-//! Styled retained rows reuse the live cell painter, with fenced history chrome.
+//! Styled retained rows reuse the live cell painter; pending history states show an indicator.
 use orchbee_terminal_protocol::TerminalTextFrame;
 
 use ratatui::{
@@ -17,10 +17,7 @@ use crate::{
     workbench_client::ViewportSurface,
 };
 
-use super::{
-    controls::{KeyHint, measure_key_hints, render_key_hints},
-    terminal_cells,
-};
+use super::terminal_cells;
 
 /// A local live crop reserves its own first row, so the indicator never hides the prompt.
 #[expect(clippy::too_many_arguments)]
@@ -30,32 +27,20 @@ pub(super) fn render_live(
     terminal: &TerminalTextFrame,
     view: LiveView,
     show_cursor: bool,
-    history_key: Option<&str>,
     occupied_header: Option<Rect>,
     locale: Locale,
     theme: &Theme,
 ) -> Option<Position> {
     let cursor = terminal_cells::render_live(frame, area, terminal, view, show_cursor, theme);
-    render_live_header(
-        frame,
-        area,
-        terminal,
-        view,
-        history_key,
-        occupied_header,
-        locale,
-        theme,
-    );
+    render_live_header(frame, area, terminal, view, occupied_header, locale, theme);
     cursor
 }
 
-#[expect(clippy::too_many_arguments)]
 fn render_live_header(
     frame: &mut Frame<'_>,
     area: Rect,
     terminal: &TerminalTextFrame,
     view: LiveView,
-    history_key: Option<&str>,
     occupied_header: Option<Rect>,
     locale: Locale,
     theme: &Theme,
@@ -78,30 +63,6 @@ fn render_live_header(
     frame
         .buffer_mut()
         .set_style(header, theme.style(Role::SurfaceChrome));
-    let label = locale.terminal_live_crop();
-    if let Some(key) = history_key.filter(|_| !terminal.alternate_screen) {
-        let hints = [KeyHint::new(key, locale.terminal_view_history())];
-        if let Some(width) = measure_key_hints(&hints, theme)
-            && display_width(label).saturating_add(width).saturating_add(2)
-                <= usize::from(header.width)
-        {
-            frame.buffer_mut().set_string(
-                header.x,
-                header.y,
-                label,
-                theme.style(Role::TextSecondary),
-            );
-            // The complete hint was measured against this u16 rectangle.
-            let width = u16::try_from(width).expect("hint fits the pane");
-            let _ = render_key_hints(
-                frame,
-                Rect::new(header.right() - width, header.y, width, 1),
-                &hints,
-                theme,
-            );
-            return;
-        }
-    }
     let compact = locale.terminal_live_crop_compact();
     let text = if !terminal.alternate_screen
         && terminal.interaction.mouse_tracking() == orchbee_terminal_protocol::MouseTracking::None
@@ -109,7 +70,7 @@ fn render_live_header(
     {
         compact
     } else {
-        label
+        locale.terminal_live_crop()
     };
     if display_width(text) <= usize::from(header.width) {
         frame
@@ -119,9 +80,9 @@ fn render_live_header(
 }
 
 /// One non-Live surface paint. `Entering` keeps the last verified live
-/// frame beneath the badge; `Window` replaces the leaf with retained rows;
-/// `AwaitingWindow`/`Recovering` clear the leaf so no stale content can
-/// linger under their indicators.
+/// frame beneath its loading indicator; `Window` replaces the leaf with
+/// retained rows; `AwaitingWindow`/`Recovering` clear the leaf so no stale
+/// content can linger under their indicators.
 #[cfg(test)]
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -200,9 +161,6 @@ fn render_content(
                 selected,
                 theme.style(Role::SurfaceSelection),
             );
-            if chrome {
-                badge(frame, area, locale.terminal_history_badge(), theme);
-            }
         }
         ViewportSurface::Entering => {
             if let Some(terminal) = live_frame {
@@ -231,36 +189,12 @@ fn render_content(
     cursor
 }
 
-/// The right-aligned mode badge on the leaf's first row — the only
-/// chrome this surface owns.
+/// The right-aligned loading or recovery indicator on the leaf's first row.
+/// Retained rows paint without chrome.
 fn badge_rect(area: Rect, label: &str) -> Option<Rect> {
     let width = u16::try_from(display_width(label).saturating_add(2)).ok()?;
     (!area.is_empty() && width <= area.width)
         .then(|| Rect::new(area.right() - width, area.y, width, 1))
-}
-
-pub(super) fn record_history_tooltip(
-    hits: &mut crate::tui_hit_map::HitMapBuilder,
-    area: Rect,
-    pane: crate::workbench_state::PaneRef,
-    locale: Locale,
-) {
-    let Some(rect) = badge_rect(area, locale.terminal_history_badge()) else {
-        return;
-    };
-    hits.record_target_part_tooltip(
-        crate::tui_hit_map::HitLayer::Foreground,
-        rect,
-        area,
-        crate::tui_hit_map::HitTarget::Pane {
-            pane,
-            content: area,
-        },
-        crate::tui_hit_map::TooltipContent::Action {
-            label: locale.terminal_back_to_live().to_owned(),
-            key: Some("Esc".to_owned()),
-        },
-    );
 }
 
 fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {

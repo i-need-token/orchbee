@@ -38,7 +38,10 @@ fn effective_action_labels_apply_glyph_fallback_to_all_complete_overridden_chord
         bindings.action_labels_with_glyphs(action.clone(), KeyLabelGlyphs::Ascii),
         ["Ctrl+a Left", "Ctrl+Right"]
     );
-    assert_eq!(bindings.action_labels(action), ["Ctrl+a ←", "Ctrl+→"]);
+    assert_eq!(
+        bindings.action_labels_with_glyphs(action, KeyLabelGlyphs::Unicode),
+        ["Ctrl+a ←", "Ctrl+→"]
+    );
 }
 
 #[test]

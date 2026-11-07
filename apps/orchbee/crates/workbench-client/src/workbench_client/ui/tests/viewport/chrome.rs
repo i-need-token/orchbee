@@ -10,7 +10,7 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 #[test]
-fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() {
+fn read_only_crop_keeps_actions_out_of_the_strip_and_prompt_above_status() {
     for (width, height) in [(80, 24), (40, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let (mut ui, mailbox, _, _) = ready_ui();
@@ -52,15 +52,6 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
                     .collect()
             };
             let row_text = |row| cells_text(row, 0..width);
-            let expected_header = match locale {
-                Locale::EnUs => "LivecropCtrl+bPageUpHistory",
-                Locale::ZhCn => "实时裁切Ctrl+bPageUp历史",
-            };
-            assert_eq!(
-                cells_text(pane.y, pane.x..pane.right()),
-                expected_header,
-                "{width} {locale:?}"
-            );
             let action_row = if areas.tabs.is_empty() {
                 areas.workbench.y
             } else {

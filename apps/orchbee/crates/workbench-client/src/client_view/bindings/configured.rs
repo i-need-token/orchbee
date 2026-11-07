@@ -181,10 +181,6 @@ impl Bindings {
             .collect()
     }
 
-    pub(crate) fn action_labels(&self, action: PrefixAction) -> Vec<String> {
-        self.action_labels_with_glyphs(action, super::super::KeyLabelGlyphs::Unicode)
-    }
-
     pub(crate) fn action_labels_with_glyphs(
         &self,
         action: PrefixAction,

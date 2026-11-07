@@ -23,9 +23,6 @@ impl<'a> RenameDraftView<'a> {
     pub(crate) fn is_panel(&self) -> bool {
         self.0.panel().is_some()
     }
-    pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
-        self.0.tab_id()
-    }
     pub(crate) fn token(&self) -> RenameDraftToken {
         RenameDraftToken(self.0.token())
     }
@@ -53,9 +50,11 @@ impl<'a> RenameDraftView<'a> {
     pub(crate) fn field_window(&self, field_width: usize) -> Option<FieldWindow<'a>> {
         self.0.field_window(field_width)
     }
+    #[cfg(test)]
     pub(crate) fn input_fault(&self) -> bool {
         self.0.input_fault()
     }
+    #[cfg(test)]
     pub(crate) fn label_valid(&self) -> bool {
         self.0.label_valid()
     }

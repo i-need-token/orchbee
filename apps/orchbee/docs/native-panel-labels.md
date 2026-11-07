@@ -16,7 +16,7 @@ help explains that leaving it empty restores the original name. Editing and Esca
 effect. Submit rechecks the exact captured Panel and snapshot and uses the same canonical
 set/clear request as the CLI. A visible child terminal does not change the primary target.
 The dialog uses the shared rename draw, input-capture, suspension, single-submission and unknown
-outcome recovery owners; only Tab renames use the inline Tab editor.
+outcome recovery owners, which Tab renames share in their modal Rename Tab dialog.
 
 The Server owns the shared override. `Presentation.label` remains the immutable creation fallback,
 and required `Presentation.customLabel` holds a nonempty, trimmed override or explicit `null`.

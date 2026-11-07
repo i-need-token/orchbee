@@ -58,13 +58,10 @@ impl<'a> RenameDraftView<'a> {
     pub(crate) fn panel(&self) -> Option<&'a WorkbenchPanelId> {
         self.draft.panel.as_ref()
     }
-    pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
-        self.draft.target.tab_id()
-    }
     pub(crate) const fn token(&self) -> DraftToken {
         self.draft.token
     }
-    /// The draft's exact raw text — what a submit sends and a cancel discards.
+    /// The draft's exact raw text: a submit sends it, but padding alone never renames a fixed Tab.
     pub(crate) fn text(&self) -> &'a str {
         self.draft.editor.text()
     }
@@ -109,7 +106,7 @@ impl<'a> RenameDraftView<'a> {
     /// The field's current error, exposed or not; a rejected insertion reports the limit.
     pub(crate) fn field_error(&self) -> Option<crate::localization::FieldError> {
         use crate::localization::FieldError;
-        if self.draft.input_fault {
+        if self.input_fault() {
             Some(FieldError::NameTooLong)
         } else if self.label_valid() {
             None
@@ -393,7 +390,21 @@ impl WorkbenchClientState {
                     panel: panel.clone(),
                     label: PanelLabelUpdate::parse(Some(draft.editor.text())).ok()?,
                 },
-                None => RenameUpdate::Tab(WorkbenchLabel::parse(draft.editor.text()).ok()?),
+                None => {
+                    let tab = &draft.baseline.tabs()[draft.target_index];
+                    let raw = draft.editor.text();
+                    let trimmed = raw.trim();
+                    // Padding alone never renames a fixed Tab: a padded copy of its name submits
+                    // that name, which the Server answers as unchanged, as the GUI commit does.
+                    let text = if !tab.automatic_label()
+                        && trimmed == tab.display_label(draft.target_index)
+                    {
+                        trimmed
+                    } else {
+                        raw
+                    };
+                    RenameUpdate::Tab(WorkbenchLabel::parse(text).ok()?)
+                }
             },
         })
     }

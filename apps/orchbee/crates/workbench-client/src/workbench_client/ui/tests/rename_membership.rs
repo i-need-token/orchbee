@@ -23,8 +23,7 @@ fn rename_modal_localizes_automatic_names_as_empty_field_placeholders_and_keeps_
         let rendered = render_rename_draft(&draft, locale);
         let compact = rendered.replace(' ', "");
         let expected = expected.replace(' ', "");
-        // The automatic name appears only as the field's placeholder; the dialog has no context line.
-        assert_eq!(compact.matches(&expected).count(), 1, "{rendered}");
+        assert!(compact.contains(&expected), "{rendered}");
         assert!(
             !rendered.contains(locale.field_error(crate::localization::FieldError::NameRequired)),
             "an empty automatic-name placeholder is not an input error\n{rendered}"
@@ -38,8 +37,7 @@ fn rename_modal_localizes_automatic_names_as_empty_field_placeholders_and_keeps_
     let draft = ui.view().rename_draft().unwrap();
     assert_eq!(draft.text(), "Build Shell");
     let rendered = render_rename_draft(&draft, Locale::EnUs);
-    // The name appears only in its field; the dialog has no context line.
-    assert_eq!(rendered.matches("Build Shell").count(), 1, "{rendered}");
+    assert!(rendered.contains("Build Shell"), "{rendered}");
 }
 
 fn render_rename_draft(

@@ -663,24 +663,7 @@ pub fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.rename_draft()
         {
-            let inline_area = hits
-                .tab_area(draft.tab_id())
-                .filter(|_| !draft.is_panel())
-                .map(|area| {
-                    Rect::new(
-                        area.x,
-                        area.y,
-                        area.width
-                            .max(24)
-                            .min(frame.area().right().saturating_sub(area.x)),
-                        1,
-                    )
-                });
-            let (area, token) = if let Some(area) = inline_area.filter(|area| area.width >= 8) {
-                tab_rename::render_inline(frame, locale, &draft, area, theme, hits)
-            } else {
-                tab_rename::render(frame, locale, &draft, theme, hits)
-            };
+            let (area, token) = tab_rename::render(frame, locale, &draft, theme, hits);
 
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
@@ -1408,11 +1391,6 @@ fn render_native_workbench(
             .shell_bindings(shell_text.binding_unbound),
     );
     let text = bound_text.text();
-    let history_key = client_view
-        .bindings()
-        .action_labels(crate::client_view::PrefixAction::HelpPagePrevious)
-        .into_iter()
-        .next();
     let pane_focused = !native.capture_claims().exclusive_any();
     let pane_focused = pane_focused
         && !client_view.navigator_active()
@@ -1571,7 +1549,6 @@ fn render_native_workbench(
                 cursor_visible,
                 phase_status,
                 locale,
-                history_key.as_deref(),
                 native,
                 client_view,
                 theme,
@@ -1621,15 +1598,6 @@ fn render_native_workbench(
                         HitTarget::Pane { content, .. } => *content,
                         _ => leaf.leaf,
                     };
-                    if let HitTarget::Pane { pane, .. } = &target
-                        && (matches!(
-                            native.pane_viewport(panel.panel_id()),
-                            Some(crate::workbench_client::ViewportSurface::Window { .. })
-                        ) || native.pane_history_stand_in(panel.panel_id()).is_some())
-                        && native.copy_mode().is_none()
-                    {
-                        viewport::record_history_tooltip(hits, body, pane.clone(), locale);
-                    }
                     hits.record(HitLayer::Foreground, body, target);
                 }
                 scrollbar::render(
@@ -1747,17 +1715,10 @@ fn render_native_workbench(
                     HitLayer::Foreground,
                     content_area,
                     HitTarget::Pane {
-                        pane: pane.clone(),
+                        pane,
                         content: content_area,
                     },
                 );
-                if matches!(
-                    surface,
-                    crate::workbench_client::ViewportSurface::Window { .. }
-                ) && native.copy_mode().is_none()
-                {
-                    viewport::record_history_tooltip(hits, content_area, pane, locale);
-                }
                 if let Some(source) = native
                     .focus_panel_id()
                     .and_then(|panel| native.painted_link_source(panel))
@@ -1798,7 +1759,6 @@ fn render_native_workbench(
                     terminal,
                     crop,
                     show_cursor,
-                    history_key.as_deref(),
                     global_action,
                     locale,
                     theme,
@@ -2227,7 +2187,6 @@ fn render_leaf(
     cursor_visible: bool,
     phase_status: &str,
     locale: Locale,
-    history_key: Option<&str>,
     native: &WorkbenchClientView<'_>,
     client_view: &ClientView,
     theme: &Theme,
@@ -2309,7 +2268,6 @@ fn render_leaf(
                 terminal,
                 crop,
                 show_cursor,
-                history_key,
                 None,
                 locale,
                 theme,

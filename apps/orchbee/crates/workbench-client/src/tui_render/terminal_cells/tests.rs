@@ -225,7 +225,6 @@ fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() 
                         &source,
                         crop,
                         true,
-                        Some("Ctrl+b PageUp"),
                         Some(occupied),
                         locale,
                         &Theme::terminal_native(),
@@ -238,17 +237,6 @@ fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() 
             for column in occupied.x..occupied.right() {
                 assert_eq!(buffer[(column, 0)].symbol(), "#");
             }
-            let header: String = (0..occupied.x)
-                .map(|column| buffer[(column, 0)].symbol())
-                .flat_map(str::chars)
-                .filter(|character| !character.is_whitespace())
-                .collect();
-            let expected = match (columns, locale) {
-                (40, Locale::EnUs) => "Crop:scrollup",
-                (_, Locale::EnUs) => "LivecropCtrl+bPageUpHistory",
-                (_, Locale::ZhCn) => "实时裁切Ctrl+bPageUp历史",
-            };
-            assert_eq!(header, expected, "{columns} {locale:?}");
             let prompt_y = crop.content(area).y + source.cursor.row - crop.row;
             assert_eq!(buffer[(0, prompt_y)].symbol(), ">");
             assert_eq!(
@@ -298,7 +286,6 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
                             &source,
                             crop,
                             true,
-                            Some("Ctrl+B PgUp"),
                             None,
                             locale,
                             &theme,

@@ -79,10 +79,10 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
         Some(ClientAction::ReloadConfiguration)
     );
     assert_eq!(
-        view.bindings()
-            .action_labels(crate::client_view::PrefixAction::Client(
-                ClientAction::ReloadConfiguration
-            )),
+        view.bindings().action_labels_with_glyphs(
+            crate::client_view::PrefixAction::Client(ClientAction::ReloadConfiguration),
+            crate::client_view::KeyLabelGlyphs::Unicode,
+        ),
         ["Ctrl+a F6"],
         "discovery uses the effective configured action"
     );

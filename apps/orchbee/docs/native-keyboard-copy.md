@@ -49,8 +49,8 @@ cursor moved within the painted surface, including by a pointer press or drag, k
 Search submission and keyboard or toolbar repetition reveal the matching served text and cursor
 together; the cursor never substitutes a footer cell for an obscured result. This display does not
 resize the physical terminal, move a committed history bookmark or change ordinary input-method
-coordinates. The mouse toolbar replaces the Tab strip outside Minimal layout. Copy omits the ordinary
-history badge and bottom line inside the pane; the outer status area shows the persistent mode
+coordinates. The mouse toolbar replaces the Tab strip outside Minimal layout. Copy omits the
+loading and recovery indicators inside the pane; the outer status area shows the persistent mode
 indicator, search draft or notice, and owner-ordered keyboard hints. Dispatch, footer keys and
 labels derive from the same local binding definitions. The footer keeps the longest ordered prefix
 of complete key-and-label items that fits, with the local exit route first; it never clips an item
