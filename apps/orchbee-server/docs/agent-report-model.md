@@ -39,7 +39,9 @@ authority source and message. Clearing reports does not end a canonical Agent Se
 ## Completion remains Done until later typing
 
 The Session retains completion for the exact terminal generation. A Working turn that reaches Idle
-publishes `awaiting-input`; Clients present green Done while preserving raw Idle for Agent rules.
+publishes `awaiting-input`; Clients present green Done while preserving raw Idle for Agent rules. An
+explicit Done publishes `awaiting-input` when its Agent was not already shown Done, even with no
+Working turn before it.
 Input accepted during Working cannot consume the future completion, including typing ahead of an
 Idle observation. A transient Unknown does not lose that turn. The next Working observation starts
 a new turn and clears the previous completion.

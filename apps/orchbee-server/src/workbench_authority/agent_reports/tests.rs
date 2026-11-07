@@ -693,7 +693,7 @@ fn error_episode_keeps_errored_turn_red_until_a_new_turn() {
             ],
         ),
         (
-            "a done from another agent completes a turn that started under a stale idle",
+            "a done from another agent ends the stand-in and publishes awaiting-input",
             vec![
                 (report(Working, 1), Working, Completion::None),
                 (report(Error, 2), Error, Completion::None),
