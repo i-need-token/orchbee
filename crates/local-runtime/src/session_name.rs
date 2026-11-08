@@ -54,6 +54,8 @@ impl PartialEq for SessionName {
 impl Eq for SessionName {}
 
 /// Whether `name` is a Session name, which is also a valid Session folder name.
+/// Cross-language contract: search for `session-name-grammar` before changing this rule, then
+/// update every occurrence together.
 pub(crate) fn valid(name: &str) -> bool {
     let stem = name.split('.').next().unwrap_or(name);
     !name.is_empty()

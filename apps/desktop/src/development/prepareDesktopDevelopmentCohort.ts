@@ -21,8 +21,15 @@ import {
 } from './development-session-reuse';
 
 const COHORT_DIRECTORY_PATTERN = /^cohort-[0-9a-f]{16}$/u;
-/** The CLI's Session name grammar, which also keeps a name inside the store as a file name. */
-const SESSION_NAME_PATTERN = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,64}$/u;
+/**
+ * The CLI's Session name grammar, which also keeps a name inside the store as a file name: 1–64
+ * ASCII letters, digits, `.`, `_` and `-`, neither starting nor ending with `.`, and no Windows
+ * device name with or without an extension. Letter case never distinguishes two Sessions.
+ */
+// Cross-language contract: search for `session-name-grammar` before changing this rule, then
+// update every occurrence together.
+const SESSION_NAME_PATTERN =
+	/^(?!\.)(?!.*\.$)(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$))[A-Za-z0-9._-]{1,64}$/iu;
 const SESSION_MARKER_SUFFIX = '.session.json';
 /** `running` is null while the Session starts, deletes, or cannot be read. */
 const SessionListSchema = z.object({
@@ -133,7 +140,7 @@ export async function prepareDesktopDevelopmentCohort(input: {
 	const session =
 		input.environment['ORCHBEE_DESKTOP_SESSION'] ?? resolveDesktopSessionName(profile);
 	if (session === undefined || !SESSION_NAME_PATTERN.test(session)) return executable;
-	const markerPath = path.join(store, `${session}${SESSION_MARKER_SUFFIX}`);
+	const markerPath = path.join(store, `${session.toLowerCase()}${SESSION_MARKER_SUFFIX}`);
 	const marker = await readSessionMarker(markerPath);
 	let next: DevelopmentSessionMarker = { client: cohortName, cohort: cohortName };
 	let removesUnnamedCohorts = true;
@@ -228,7 +235,9 @@ function readSessionObservation(stdout: string, session: string): DevelopmentSes
 	try {
 		const parsed = SessionListSchema.safeParse(JSON.parse(stdout));
 		if (!parsed.success) return { kind: 'unknown' };
-		const entry = parsed.data.result.sessions.find((candidate) => candidate.name === session);
+		const entry = parsed.data.result.sessions.find(
+			(candidate) => candidate.name.toLowerCase() === session.toLowerCase(),
+		);
 		if (entry === undefined || entry.running === false) return { kind: 'stopped' };
 		return entry.running === true && entry.pid !== null
 			? { kind: 'running', pid: entry.pid }
