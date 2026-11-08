@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -33,53 +33,37 @@ impl Fixture {
         self.0.as_ref().unwrap().runtime_directory()
     }
 
+    /// The runtime folder doubles as the data root, so every file stays inside the fixture.
+    fn root(&self) -> DataRoot {
+        DataRoot::at(self.local().to_owned())
+    }
+
     fn start(&self) -> ModeCheckedLocalSessionRendezvous {
         let name = SessionName::parse("migration").unwrap();
-        let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid().unwrap());
-        let catalog = SessionCatalog::try_lock(self.local(), self.local()).unwrap();
-        catalog
-            .prepare_activation(
-                &scope,
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5),
-            )
-            .unwrap();
+        let catalog = SessionCatalog::try_lock(self.local(), &self.root()).unwrap();
+        catalog.prepare_activation(&name).unwrap();
         let session = ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
             self.local(),
-            SessionScope::parse(&scope).unwrap(),
+            SessionScope::parse(name.as_str()).unwrap(),
         )
         .unwrap();
-        let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap()
+        let LockAttempt::Acquired(_activation) = session.try_acquire_activation_lock().unwrap()
         else {
             panic!("activation owner")
         };
-        session.register_session_name(&activation, &name).unwrap();
         catalog.begin_activation(&session, [1; 16]).unwrap();
         session.commit_activation().unwrap();
         session
     }
 
     fn state(&self, session: &ModeCheckedLocalSessionRendezvous) -> PathBuf {
-        self.local().join("native-sessions").join(
-            ModeCheckedLocalSessionRendezvous::host_endpoint_id(session.runtime_directory()),
-        )
+        self.local()
+            .join("sessions")
+            .join(session.runtime_directory().file_name().unwrap())
     }
 
     fn catalog(&self, session: &ModeCheckedLocalSessionRendezvous) -> PathBuf {
-        self.local()
-            .join("session-catalog")
-            .join(ModeCheckedLocalSessionRendezvous::host_endpoint_id(
-                self.local(),
-            ))
-            .join(format!(
-                "{}.json",
-                session
-                    .runtime_directory()
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-            ))
+        self.state(session).join("session.json")
     }
 }
 
@@ -126,7 +110,7 @@ fn incompatible_checkpoint_loads_a_fallback_or_visible_empty_without_rewriting_c
         let fixture = Fixture::new();
         let session = fixture.start();
         let mut store = SessionStore::open(
-            fixture.local(),
+            &fixture.root(),
             &session,
             MAXIMUM_WORKBENCH_CHECKPOINT_BYTES,
         )
@@ -142,11 +126,11 @@ fn incompatible_checkpoint_loads_a_fallback_or_visible_empty_without_rewriting_c
         drop(store);
         let before = retained_files(&fixture.state(&session));
         let (store, checkpoint, _record, suppressed) =
-            load_from(fixture.local(), &session).unwrap();
+            load_from(&fixture.root(), &session).unwrap();
         assert_eq!(checkpoint.is_some(), healthy);
         assert_eq!(suppressed, !healthy);
         assert_eq!(
-            session.checkpoint_restore_notice(fixture.local()).unwrap(),
+            session.checkpoint_restore_notice(&fixture.root()).unwrap(),
             Some(if healthy {
                 CheckpointRestoreNotice::Recovered
             } else {
@@ -165,7 +149,7 @@ fn unsupported_catalog_is_rejected_before_pending_store_cleanup() {
     let fixture = Fixture::new();
     let session = fixture.start();
     let mut store = SessionStore::open(
-        fixture.local(),
+        &fixture.root(),
         &session,
         MAXIMUM_WORKBENCH_CHECKPOINT_BYTES,
     )
@@ -185,7 +169,7 @@ fn unsupported_catalog_is_rejected_before_pending_store_cleanup() {
     let record = serde_json::to_vec(&record).unwrap();
     fs::write(&catalog_path, &record).unwrap();
     let before = retained_files(&state);
-    assert!(load_from(fixture.local(), &session).is_err());
+    assert!(load_from(&fixture.root(), &session).is_err());
     assert_eq!(retained_files(&state), before);
     assert_eq!(fs::read(catalog_path).unwrap(), record);
 }

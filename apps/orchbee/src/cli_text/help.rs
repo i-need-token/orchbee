@@ -836,8 +836,8 @@ impl super::CliText {
     pub(crate) const fn cli_help_text(self, text: HelpText) -> &'static str {
         let (english, chinese) = match text {
             HelpText::SessionRules => (
-                "Windows: --session <name> selects a local session (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen; . and .. are invalid. Explicit --session overrides inherited routing and ORCHBEE_SESSION.",
-                "Windows：--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符；不能是 . 或 ..。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
+                "Windows: --session <name> selects a local session (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen, neither start nor end with a dot, and are no Windows device name such as con or nul. Letter case does not tell sessions apart. Explicit --session overrides inherited routing and ORCHBEE_SESSION.",
+                "Windows：--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符，不以点开头或结尾，也不能是 con、nul 等 Windows 设备名。只差大小写的名称指同一会话。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
             ),
             HelpText::MachineRules => (
                 "Use orchbee --machine <name-or-id> <command> for a saved SSH machine. Duplicate names and disabled profiles are refused. --file/--stdin read locally; --cwd names a remote path. TUI and terminal streams are not routed. Removing or disabling a profile leaves remote sessions running.",

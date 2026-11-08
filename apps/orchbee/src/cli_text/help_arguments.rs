@@ -246,7 +246,7 @@ impl super::CliText {
                 Argument::Channel => (if crate::invocation::grammar::withholds_unreleased() { "<stable>" } else { "<stable|preview>" }, "Release channel to save and install.", "要保存并安装的发布频道。"),
                 Argument::Profile => ("<selector>", "Launch profile ID or an unambiguous saved name.", "启动配置 ID 或无歧义的保存名称。"),
                 Argument::Schema => ("[<schema-id>]", "Optional schema ID; omit to print the schema dictionary.", "可选 Schema ID；省略时输出结构字典。"),
-                Argument::Session => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),
+                Argument::Session => ("<name>", "Local session name; letter case does not tell sessions apart. An explicit --session must match.", "本地会话名称，只差大小写的名称指同一会话；显式 --session 必须与其一致。"),
                 Argument::Title => ("<title>", "Display title as one argument.", "作为一个参数传入的显示标题。"),
                 Argument::ConfiguredCommand => ("<command-id>", "Exact ID returned by orchbee command list; starts with cmd_.", "orchbee command list 返回的精确 ID，以 cmd_ 开头。"),
                 Argument::Pane => ("<pane-id>", "Exact pane ID belonging to a plugin.", "属于插件的精确面板 ID。"),

@@ -89,11 +89,11 @@ impl super::CliText {
         match (self.locale, path) {
             (Locale::EnUs, CommandPath::SessionList) => crate::cli_text::HelpDetails::new(
                 "orchbee session list [--format text|json]",
-                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\nJSON emits orchbee.session.list v1.",
+                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then names in order ignoring letter case, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory is the data root's session folders.\nJSON emits orchbee.session.list v1.",
             ),
             (Locale::ZhCn, CommandPath::SessionList) => crate::cli_text::HelpDetails::new(
                 "orchbee session list [--format text|json]",
-                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：登记完整且全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单属于所选运行时基目录。\nJSON 输出 orchbee.session.list v1。",
+                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按名称排序且不区分大小写，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：登记完整且全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单来自数据根目录中的会话文件夹。\nJSON 输出 orchbee.session.list v1。",
             ),
             (Locale::EnUs, CommandPath::SessionAttach) => crate::cli_text::HelpDetails::new(
                 "orchbee session attach <name> [--mouse on|off]",
@@ -113,11 +113,11 @@ impl super::CliText {
             ),
             (Locale::EnUs, CommandPath::SessionDelete) => crate::cli_text::HelpDetails::new(
                 "orchbee session delete <name> --confirm [--format text|json]",
-                "Delete only the selected stopped/unused named session's owned runtime and checkpoint files, including owned checkpoint.corrupt-*.raw archives.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-session raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion fences restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\nDevelopment and test builds require --confirm; the Windows release build refuses it and runs only in an interactive console after the person types the Session name.",
+                "Delete only the selected stopped/unused named session's folder and runtime files: checkpoints, owned checkpoint.corrupt-*.raw archives, earlier layouts, kept terminal output and the TUI position.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-session raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion fences restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\nDevelopment and test builds require --confirm; the Windows release build refuses it and runs only in an interactive console after the person types the Session name.",
             ),
             (Locale::ZhCn, CommandPath::SessionDelete) => crate::cli_text::HelpDetails::new(
                 "orchbee session delete <name> --confirm [--format text|json]",
-                "只删除所选已停止或未使用命名会话拥有的运行时与 checkpoint 文件，包括自有 checkpoint.corrupt-*.raw 归档。拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default 会话的 raw 归档需要另行授权的修复。流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n开发版和测试版必须提供 --confirm；Windows 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
+                "只删除所选已停止或未使用命名会话的文件夹与运行时文件：checkpoint、自有 checkpoint.corrupt-*.raw 归档、早先布局、保留的终端输出和 TUI 位置。拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default 会话的 raw 归档需要另行授权的修复。流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n开发版和测试版必须提供 --confirm；Windows 正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行。",
             ),
             _ => unreachable!("session help ownership"),
         }

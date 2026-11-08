@@ -110,44 +110,39 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
         )
     })?;
     #[cfg(windows)]
-    let mut selection = windows_selection::location().map_err(runtime_location_failure)?;
-    // A development or test environment's default base lives in its data root, which may not
-    // exist yet; an explicit `ORCHBEE_RUNTIME_BASE` must already exist, as before.
+    let selection = windows_selection::location().map_err(runtime_location_failure)?;
+    // The default base lives in the data root, which may not exist yet; an explicit
+    // `ORCHBEE_RUNTIME_BASE` must already exist, as before.
     #[cfg(windows)]
     if selection.default_base {
         orchbee_local_runtime::prepare_default_runtime_base(|name| std::env::var_os(name))
             .map_err(runtime_location_failure)?;
     }
     #[cfg(windows)]
-    let (base, scope_text) = (selection.base.clone(), selection.scope.clone());
+    let (base, scope_text) = (selection.base.clone(), selection.scope().to_owned());
     #[cfg(not(windows))]
     let (base, scope_text) = runtime_location().map_err(runtime_location_failure)?;
     let scope = SessionScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
+    // Every Windows Session is one catalog entry, named by its folders.
     #[cfg(windows)]
-    let _named_catalog = if orchbee_local_runtime::SessionCatalog::supports_scope(&scope_text)
-        .map_err(runtime_location_failure)?
-    {
-        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
-            .ok_or_else(|| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
-        loop {
+    let catalog = {
+        let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+            .map_err(|_| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
+        let catalog = loop {
             check_deadline(deadline)?;
-            match orchbee_local_runtime::SessionCatalog::try_lock(&base, &local) {
-                Ok(owner) => break Some(owner),
+            match orchbee_local_runtime::SessionCatalog::try_lock(&base, &root) {
+                Ok(owner) => break owner,
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
                 Err(error) => return Err(runtime_location_failure(error)),
             }
-        }
-    } else {
-        None
-    };
-    #[cfg(windows)]
-    if let Some(catalog) = &_named_catalog {
-        selection.name = catalog
-            .prepare_activation(&scope_text, selection.name.as_ref(), deadline)
+        };
+        catalog
+            .prepare_activation(&selection.name)
             .map_err(recovery_failure)?;
-    }
+        catalog
+    };
     let session =
         ModeCheckedLocalSessionRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
             ActivationFailure::caused(
@@ -164,34 +159,12 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
     {
         return Err(ActivationFailure::bare(StartupFailure::SocketPathTooLong));
     }
-    #[cfg(windows)]
-    if let Some(name) = selection.name {
-        loop {
-            check_deadline(deadline)?;
-            match session
-                .try_acquire_activation_lock()
-                .map_err(lock_failure)?
-            {
-                LockAttempt::Acquired(lock) => {
-                    session
-                        .register_session_name(&lock, &name)
-                        .map_err(runtime_failure)?;
-                    break;
-                }
-                LockAttempt::Contended => pause(deadline)?,
-            }
-        }
-    } else {
-        // An inherited route names an already registered runtime, never an implicit new name.
-        ModeCheckedLocalSessionRendezvous::from_runtime_directory(session.runtime_directory())
-            .map_err(lock_failure)?;
-    }
     let (client, spawned) = connect_or_activate(
         &session,
         &cohort,
         deadline,
         #[cfg(windows)]
-        _named_catalog.as_ref(),
+        &catalog,
     )?;
     let restore_notice = match restore_feedback::read(&session) {
         Ok(notice) => notice.map_err(runtime_failure)?,
@@ -211,7 +184,7 @@ fn connect_or_activate(
     session: &ModeCheckedLocalSessionRendezvous,
     cohort: &Cohort,
     deadline: Instant,
-    #[cfg(windows)] catalog: Option<&orchbee_local_runtime::SessionCatalog>,
+    #[cfg(windows)] catalog: &orchbee_local_runtime::SessionCatalog,
 ) -> Result<(LocalClient, bool), ActivationFailure> {
     loop {
         check_deadline(deadline)?;
@@ -237,11 +210,9 @@ fn connect_or_activate(
         {
             LockAttempt::Acquired(lifetime) => {
                 #[cfg(windows)]
-                if let Some(catalog) = catalog {
-                    catalog
-                        .recover_inactive(session, &_activation, &lifetime)
-                        .map_err(recovery_failure)?;
-                }
+                catalog
+                    .recover_inactive(session, &_activation, &lifetime)
+                    .map_err(recovery_failure)?;
                 let marker = session.activation_started().map_err(runtime_failure)?;
                 if marker
                     || session.client_socket_exists().map_err(runtime_failure)?
@@ -276,7 +247,7 @@ fn connect_or_activate(
                     ));
                 }
                 #[cfg(windows)]
-                if let Some(catalog) = catalog {
+                {
                     let mut activation_id = [0; 16];
                     getrandom::fill(&mut activation_id)
                         .map_err(|error| runtime_failure(io::Error::other(error.to_string())))?;
@@ -306,16 +277,8 @@ fn connect_or_activate(
                     std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
                 ];
                 #[cfg(windows)]
-                let child = match catalog {
-                    Some(catalog) => catalog.spawn_server(
-                        session,
-                        &_activation,
-                        &executable,
-                        &arguments,
-                        deadline,
-                    ),
-                    None => orchbee_local_runtime::spawn_retained(&executable, &arguments),
-                };
+                let child =
+                    catalog.spawn_server(session, &_activation, &executable, &arguments, deadline);
                 #[cfg(not(windows))]
                 let child = orchbee_local_runtime::spawn_retained(&executable, &arguments);
                 Some(child.map_err(|_| {
@@ -495,16 +458,14 @@ fn failure(kind: io::ErrorKind, fallback: StartupFailure) -> StartupFailure {
     }
 }
 
-/// Whether the runtime base is a development or test environment's default and nothing has created
-/// it yet; activation creates it. Read-only commands then report an unstarted environment instead of
-/// failing. An explicit base never qualifies, and neither does release's default, the temporary
-/// directory, which activation never creates.
+/// Whether the runtime base is this environment's default, `internal/runtime` in its data root, and
+/// nothing has created it yet; activation creates it. Read-only commands then report an unstarted
+/// environment instead of failing. An explicit base never qualifies.
 pub fn runtime_base_unstarted() -> io::Result<bool> {
     #[cfg(windows)]
     {
         let location = windows_selection::location()?;
-        Ok(!orchbee_local_runtime::is_release()
-            && location.default_base
+        Ok(location.default_base
             && matches!(
                 std::fs::symlink_metadata(&location.base),
                 Err(error) if error.kind() == io::ErrorKind::NotFound
@@ -520,7 +481,8 @@ pub fn runtime_location() -> io::Result<(PathBuf, String)> {
     #[cfg(windows)]
     {
         let location = windows_selection::location()?;
-        Ok((location.base, location.scope))
+        let scope = location.scope().to_owned();
+        Ok((location.base, scope))
     }
     #[cfg(unix)]
     {

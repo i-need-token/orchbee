@@ -25,17 +25,17 @@ pub struct NamedSessionDeleteFailure {
 /// The retained object that holds a record the selected Session cannot admit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnrecognizedRecordKind {
-    RuntimeDirectory,
+    /// A Session folder's `session.json`, or the folder itself.
     CatalogRecord,
-    DeletionIntent,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnrecognizedRecordReason {
-    /// Its identity names the selected Session, but another derivation stored it elsewhere.
-    ObsoleteIdentity,
-    /// It occupies the selected Session's location but cannot be admitted for that Session.
+    /// It occupies the selected Session's folder but cannot be admitted for that Session.
     Unreadable,
+    /// Another folder spells the selected Session's name in different letter case, which only a
+    /// case-sensitive directory can hold; both folders refuse the Session.
+    LetterCase,
 }
 
 /// A read-only fact: the record is retained as found and is never migrated or repaired.
@@ -52,7 +52,5 @@ mod unsupported;
 mod windows;
 #[cfg(not(windows))]
 pub use unsupported::{NamedSessionEntry, SessionCatalog};
-#[cfg(windows)]
-pub(crate) use windows::require_not_deleting;
 #[cfg(windows)]
 pub use windows::{NamedSessionEntry, SessionCatalog};

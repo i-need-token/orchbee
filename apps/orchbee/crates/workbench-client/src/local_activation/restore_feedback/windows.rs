@@ -5,8 +5,8 @@ use std::io;
 
 pub(in crate::local_activation) fn read(session: &ModeCheckedLocalSessionRendezvous) -> Read {
     Ok((|| {
-        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
-            .ok_or(io::ErrorKind::NotFound)?;
-        session.checkpoint_restore_notice(&local)
+        let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+            .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?;
+        session.checkpoint_restore_notice(&root)
     })())
 }

@@ -91,7 +91,6 @@ allocating a generation; and offline Client/help/schema/completion.
 Review is performed by the implementation author. This workflow uses implementation tests, and neither
 independent review nor unexecuted formal proof is claimed.
 
-The Server status scope accepts both the default `orchbee-native-` identity
-(32 hex digits) and the named Windows `orchbee-session-` identity (47 hex digits),
-as produced by `SessionName::scope_for_user`. This observation does not
-activate a missing named Session. The version-1 schema admits both existing forms.
+On Windows the Server status scope is the Session name, the name of its runtime folder, so the
+version-1 schema admits the Session name grammar. This observation does not activate a missing
+named Session.

@@ -5,6 +5,7 @@
 #[cfg(unix)]
 use nix::sys::stat::SFlag;
 use std::{error::Error, fmt, path::PathBuf};
+#[cfg(not(windows))]
 const MAX_SESSION_SCOPE_BYTES: usize = 63;
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
 const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
@@ -12,12 +13,18 @@ const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
 pub struct SessionScope(String);
 
 impl SessionScope {
+    /// On Windows a scope is the runtime folder of one Session, named by the Session, so it takes
+    /// the Session name grammar. Other platforms keep their lowercase hyphenated grammar until
+    /// ORC-328 moves their runtimes into the data root.
     pub fn parse(value: &str) -> Result<Self, RendezvousError> {
-        if value.is_empty()
-            || value.len() > MAX_SESSION_SCOPE_BYTES
-            || !value.is_ascii()
-            || !valid_scope_segment(value)
-        {
+        #[cfg(windows)]
+        let valid = crate::session_name::valid(value);
+        #[cfg(not(windows))]
+        let valid = !value.is_empty()
+            && value.len() <= MAX_SESSION_SCOPE_BYTES
+            && value.is_ascii()
+            && valid_scope_segment(value);
+        if !valid {
             return Err(RendezvousError::InvalidSessionScope);
         }
         Ok(Self(value.to_owned()))
@@ -222,6 +229,7 @@ impl Error for RendezvousError {
     }
 }
 
+#[cfg(not(windows))]
 fn valid_scope_segment(value: &str) -> bool {
     let mut segments = value.split('-');
     let Some(first) = segments.next() else {
@@ -243,5 +251,6 @@ fn valid_scope_segment(value: &str) -> bool {
     })
 }
 
-#[cfg(test)]
+// Windows scopes take the Session name grammar, which the Session name tests cover.
+#[cfg(all(test, not(windows)))]
 mod tests;

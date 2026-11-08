@@ -12,7 +12,7 @@ use std::{
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{create_private_directory, local_state_root, prepare_default_runtime_base};
+pub use windows::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub(crate) use windows::{create_state_directory, open_state_root};
 
@@ -20,6 +20,9 @@ pub(crate) use windows::{create_state_directory, open_state_root};
 pub const HOME_VARIABLE: &str = "ORCHBEE_HOME";
 const CONFIG_FILE: &str = "config.toml";
 const INTERNAL: &str = "internal";
+/// The record name of the TUI position a Session keeps in its folder: `tui-position.json`, beside
+/// its `tui-position.lock` and `tui-position.pending`.
+pub const TUI_POSITION_RECORD: &str = "tui-position";
 
 /// One environment's data root.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -203,6 +206,19 @@ impl DataRoot {
         self.path.join("agent-detection")
     }
 
+    /// One folder per Session, named by the Session in the spelling it was created with. Letter
+    /// case does not distinguish Sessions, so the catalog finds a Session's folder whatever the
+    /// spelling it is asked for.
+    pub fn sessions(&self) -> PathBuf {
+        self.path.join("sessions")
+    }
+
+    /// The lock that serializes starting and deleting this root's Sessions, kept out of the top
+    /// level as the settings file's lock is.
+    pub fn sessions_lock(&self) -> PathBuf {
+        self.internal().join("sessions.lock")
+    }
+
     /// Logs and destructive-command records.
     pub fn logs(&self) -> PathBuf {
         self.path.join("logs")
@@ -254,25 +270,20 @@ impl DataRoot {
         self.integrations().join("agent-observation")
     }
 
-    /// The default runtime base of a development or test environment.
+    /// The default runtime base: one runtime folder per Session, named by the Session. An
+    /// explicit `ORCHBEE_RUNTIME_BASE` replaces it.
     pub fn runtime(&self) -> PathBuf {
         self.internal().join("runtime")
     }
 }
 
-/// The local state root. POSIX keeps the `LOCALAPPDATA` lookup its callers used before ORC-382
-/// until ORC-328 defines its state locations; its Session catalog is unsupported until then.
-#[cfg(not(windows))]
-pub fn local_state_root(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    env("LOCALAPPDATA").map(PathBuf::from)
-}
-
-/// The runtime base this environment uses when `ORCHBEE_RUNTIME_BASE` does not name one. Absent
-/// only when a non-release environment cannot resolve its home directory.
+/// The runtime base this environment uses when `ORCHBEE_RUNTIME_BASE` does not name one: the data
+/// root's `internal/runtime` on Windows, absent only when the data root cannot be resolved. POSIX
+/// keeps its temporary directory until ORC-328.
 pub fn default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
     #[cfg(windows)]
     {
-        windows::default_runtime_base(&env)
+        DataRoot::resolve(env).ok().map(|root| root.runtime())
     }
     #[cfg(not(windows))]
     {

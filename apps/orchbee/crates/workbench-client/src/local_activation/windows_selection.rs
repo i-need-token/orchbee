@@ -24,46 +24,34 @@ pub(super) struct Location {
     pub(super) base: PathBuf,
     /// The base is this environment's default rather than `ORCHBEE_RUNTIME_BASE`.
     pub(super) default_base: bool,
-    pub(super) scope: String,
-    pub(super) name: Option<SessionName>,
+    /// The selected Session, which also names its runtime folder.
+    pub(super) name: SessionName,
 }
 
+impl Location {
+    pub(super) fn scope(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+/// The selected Session, spelled as its existing folder is, so `work` reaches the Session created
+/// as `Work` through the same runtime folder.
 pub(super) fn location() -> io::Result<Location> {
-    resolve(
+    let mut location = resolve(
         SELECTED.get().and_then(Option::as_ref),
         routed_environment(),
-        &orchbee_local_ipc::current_user_sid()?,
         default_base()?,
-    )
+    )?;
+    let root = orchbee_local_runtime::DataRoot::resolve(|key| std::env::var_os(key))
+        .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?;
+    location.name = orchbee_local_runtime::SessionCatalog::spelling(&root, &location.name)?;
+    Ok(location)
 }
 
-/// The name of the Session this invocation targets, when it can be known: the selected or
-/// inherited name, `default` for its scope, or the name recorded in an inherited named scope's
-/// runtime directory. Absent when the location is invalid or the scope's record is unreadable.
+/// The name of the Session this invocation targets, when it can be known: the selected, inherited
+/// or default name, spelled as the Session's folder is. Absent when the location is invalid.
 pub fn target_session_name() -> Option<SessionName> {
-    let sid = orchbee_local_ipc::current_user_sid().ok()?;
-    let location = resolve(
-        SELECTED.get().and_then(Option::as_ref),
-        routed_environment(),
-        &sid,
-        default_base().ok()?,
-    )
-    .ok()?;
-    if let Some(name) = location.name {
-        return Some(name);
-    }
-    let default = SessionName::parse("default").ok()?;
-    if default.scope_for_user(&sid) == location.scope {
-        return Some(default);
-    }
-    let scope = SessionScope::parse(&location.scope).ok()?;
-    orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::validate_mode_checked(
-        &location.base,
-        scope,
-    )
-    .ok()?
-    .session_name()
-    .ok()
+    location().ok().map(|location| location.name)
 }
 
 /// Same-Session nested TUIs would be able to select their own hosting terminal.
@@ -72,7 +60,6 @@ pub fn inside_selected_session() -> io::Result<bool> {
     inside_session(
         SELECTED.get().and_then(Option::as_ref),
         routed_environment(),
-        &orchbee_local_ipc::current_user_sid()?,
         default_base()?,
     )
 }
@@ -94,7 +81,6 @@ fn default_base() -> io::Result<PathBuf> {
 fn inside_session(
     selected: Option<&SessionName>,
     environment: impl Fn(&str) -> Option<OsString>,
-    sid: &str,
     fallback: PathBuf,
 ) -> io::Result<bool> {
     let Some(scope) = environment("ORCHBEE_RUNTIME_SCOPE") else {
@@ -117,18 +103,18 @@ fn inside_session(
     if !hosted {
         return Ok(false);
     }
-    Ok(scope.to_str()
-        == Some(
-            resolve(selected, environment, sid, fallback)?
-                .scope
-                .as_str(),
-        ))
+    let hosting = scope
+        .to_str()
+        .and_then(|scope| SessionName::parse(scope).ok());
+    Ok(hosting == Some(resolve(selected, environment, fallback)?.name))
 }
 
+/// Selection precedence: explicit `--session`, the managed terminal's `ORCHBEE_RUNTIME_SCOPE`,
+/// `ORCHBEE_SESSION`, then `default`. A scope names its Session's runtime folder, so it is that
+/// Session's name.
 fn resolve(
     selected: Option<&SessionName>,
     environment: impl Fn(&str) -> Option<OsString>,
-    sid: &str,
     fallback: PathBuf,
 ) -> io::Result<Location> {
     let explicit = environment("ORCHBEE_RUNTIME_BASE").map(PathBuf::from);
@@ -141,12 +127,7 @@ fn resolve(
             .to_str()
             .ok_or_else(|| invalid("ORCHBEE_RUNTIME_SCOPE"))?;
         SessionScope::parse(text).map_err(|_| invalid("ORCHBEE_RUNTIME_SCOPE"))?;
-        return Ok(Location {
-            base,
-            default_base,
-            scope: text.to_owned(),
-            name: None,
-        });
+        SessionName::parse(text).map_err(|_| invalid("ORCHBEE_RUNTIME_SCOPE"))?
     } else {
         let value = environment("ORCHBEE_SESSION").unwrap_or_else(|| OsString::from("default"));
         let text = value.to_str().ok_or_else(|| invalid("ORCHBEE_SESSION"))?;
@@ -155,8 +136,7 @@ fn resolve(
     Ok(Location {
         base,
         default_base,
-        scope: name.scope_for_user(sid),
-        name: Some(name),
+        name,
     })
 }
 

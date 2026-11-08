@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn named_session_diagnosis_uses_the_shared_schema() {
-    let scope = format!("orchbee-session-{}", "a".repeat(47));
+    let scope = "work".to_owned();
     let mut document = collect_at(
         Path::new("never-created-relative-path"),
         false,
@@ -17,8 +17,11 @@ fn named_session_diagnosis_uses_the_shared_schema() {
     let validator = jsonschema::validator_for(&schema).unwrap();
     validator.validate(&document).unwrap();
     assert_eq!(document["version"], 1);
-    document["result"]["scope"] = json!(format!("orchbee-native-{}", "a".repeat(32)));
+    document["result"]["scope"] = json!("a".repeat(64));
     assert!(validator.is_valid(&document));
+    // A Windows scope is its Session's name, so one no Session name spells is refused.
+    document["result"]["scope"] = json!("a".repeat(65));
+    assert!(!validator.is_valid(&document));
 }
 
 #[test]
@@ -45,7 +48,7 @@ fn spent_budget_and_namespace_limit_do_not_manufacture_absence() {
         Path::new("never-created-relative-path"),
         false,
         None,
-        "orchbee-native-00000000000000000000000000000000",
+        "default",
         Instant::now(),
     )
     .unwrap();

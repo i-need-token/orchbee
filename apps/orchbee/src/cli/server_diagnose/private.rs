@@ -1,7 +1,7 @@
 //! Private-runtime report workflow over admitted file and unauthenticated endpoint-name facts.
 use super::{DiagnoseDocument, Failure, FailureKind};
 use orchbee_local_runtime::{
-    ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
+    ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
     SessionCatalog, SessionLifetimeObservation, SessionScope, UnrecognizedRecord,
     UnrecognizedRecordKind, UnrecognizedRecordReason,
 };
@@ -68,8 +68,8 @@ pub(super) fn collect() -> Result<DiagnoseDocument, Failure> {
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let unstarted = crate::local_activation::runtime_base_unstarted()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name));
-    collect_at(&base, unstarted, local.as_deref(), &scope, deadline)
+    let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name)).ok();
+    collect_at(&base, unstarted, root.as_ref(), &scope, deadline)
 }
 
 /// One retained record as found: what holds it, why this Session cannot admit it, and where.
@@ -78,16 +78,14 @@ fn record_row(record: &UnrecognizedRecord) -> Row {
         (
             "record".to_owned(),
             json!(match record.kind {
-                UnrecognizedRecordKind::RuntimeDirectory => "runtime-directory",
                 UnrecognizedRecordKind::CatalogRecord => "catalog-record",
-                UnrecognizedRecordKind::DeletionIntent => "deletion-intent",
             }),
         ),
         (
             "reason".to_owned(),
             json!(match record.reason {
-                UnrecognizedRecordReason::ObsoleteIdentity => "obsolete-identity",
                 UnrecognizedRecordReason::Unreadable => "unreadable",
+                UnrecognizedRecordReason::LetterCase => "letter-case",
             }),
         ),
     ]);
@@ -97,15 +95,10 @@ fn record_row(record: &UnrecognizedRecord) -> Row {
 }
 
 /// Records that refuse this Session, read without admitting, migrating, or moving any of them.
-fn unrecognized(
-    base: &Path,
-    local: Option<&Path>,
-    scope: &str,
-    deadline: Instant,
-) -> (Row, Vec<Row>) {
-    let observed = local
+fn unrecognized(root: Option<&DataRoot>, scope: &str, deadline: Instant) -> (Row, Vec<Row>) {
+    let observed = root
         .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
-        .and_then(|local| SessionCatalog::unrecognized_records(base, local, scope, deadline));
+        .and_then(|root| SessionCatalog::unrecognized_records(root, scope, deadline));
     match observed {
         Ok(records) => (row("known", None), records.iter().map(record_row).collect()),
         Err(error) => (
@@ -125,7 +118,7 @@ fn unrecognized(
 fn collect_at(
     base: &Path,
     unstarted: bool,
-    local: Option<&Path>,
+    root: Option<&DataRoot>,
     scope: &str,
     deadline: Instant,
 ) -> Result<DiagnoseDocument, Failure> {
@@ -274,7 +267,7 @@ fn collect_at(
         let (summary, observed) = if unstarted {
             (row("known", None), Vec::new())
         } else {
-            unrecognized(base, local, scope, deadline)
+            unrecognized(root, scope, deadline)
         };
         records = observed;
         summary

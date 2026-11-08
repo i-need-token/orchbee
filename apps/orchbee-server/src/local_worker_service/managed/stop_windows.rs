@@ -39,7 +39,7 @@ pub(super) struct Owners {
     pub(super) checkpoint_store: Arc<Mutex<SessionStore>>,
     pub(super) checkpoint_saver: Option<super::checkpoint_windows::autosave::Saver>,
     pub(super) suppress_initial_empty: bool,
-    pub(super) session_record: Option<RetainedSessionRecord>,
+    pub(super) session_record: RetainedSessionRecord,
 }
 
 struct Failure {
@@ -173,9 +173,7 @@ pub(super) fn run(
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
         }
-        if let Some(record) = &mut owners.session_record {
-            record.complete(attempt.id.bytes())?;
-        }
+        owners.session_record.complete(attempt.id.bytes())?;
         owners.record.complete(attempt.id.bytes())?;
         drop(owners.lifetime);
         drop(activation);
@@ -506,10 +504,7 @@ fn settle_for_exit(
 
 /// Only an exact observation that the Host is gone, or that it never started, counts.
 fn host_absent(owners: &Owners) -> bool {
-    owners
-        .session_record
-        .as_ref()
-        .is_some_and(|record| matches!(record.host_absent(), Ok(true)))
+    matches!(owners.session_record.host_absent(), Ok(true))
 }
 
 fn own_stop_id() -> Option<StopId> {

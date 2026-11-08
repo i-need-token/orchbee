@@ -1,33 +1,37 @@
-//! Cooperating native Windows activators and stopped-session deletion share one namespace owner.
+//! Cooperating native Windows activators and stopped-session deletion share one namespace owner,
+//! `internal/sessions.lock`. Each Session keeps its records in `sessions/<session>/` and its
+//! runtime in `<base>/<session>/`, both folders named by the Session.
 use crate::{
-    ActivationState, LockAttempt, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
-    SessionScope,
-    durable_sessions::{
-        self as durable, CatalogRecord, Directory, Lifecycle, Record, checkpoint_path,
-    },
+    ActivationState, DataRoot, LockAttempt, ModeCheckedLocalSessionRendezvous as Rendezvous,
+    SessionName,
+    durable_sessions::{self as durable, CatalogRecord, Directory, Lifecycle, Record},
     private_filesystem as permissions,
     process_observation::ProcessSnapshot,
     process_registration::RecoveryVerdict,
-    session_name,
 };
-use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fs::{self, File, TryLockError},
-    io::{self, Read, Write},
+    io,
     path::{Path, PathBuf},
     time::Instant,
 };
 
+use super::{
+    NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
+    UnrecognizedRecord, UnrecognizedRecordKind as RecordKind,
+    UnrecognizedRecordReason as RecordReason,
+};
+
 const MAXIMUM_SESSIONS: usize = 256;
-const INTENT_SUFFIX: &str = ".deleting";
 const RUNTIME_FILES: &[&str] = &[
-    "session-name.json",
     "activation.started",
     "activation.lock",
     "session-lifetime.lock",
 ];
-const CHECKPOINT_FILES: &[&str] = &[
+/// The files a Session folder holds beside its catalog record, its corrupt checkpoint originals
+/// and its owned folders.
+const SESSION_FILES: &[&str] = &[
     "checkpoint.json",
     "checkpoint.previous-1.json",
     "checkpoint.previous-2.json",
@@ -35,11 +39,15 @@ const CHECKPOINT_FILES: &[&str] = &[
     "state.lock",
     crate::checkpoint_restore_notice::FILE,
     crate::checkpoint_restore_notice::PENDING,
+    // The TUI position record, `data_root::TUI_POSITION_RECORD`, with its lock and staging file.
+    "tui-position.json",
+    TUI_POSITION_LOCK,
+    "tui-position.pending",
 ];
+const TUI_POSITION_LOCK: &str = "tui-position.lock";
 
 pub struct SessionCatalog {
     base: PathBuf,
-    local: PathBuf,
     durable: Directory,
     _lock: File,
     _directories: Vec<File>,
@@ -48,218 +56,36 @@ pub struct SessionCatalog {
 #[derive(Debug)]
 pub struct NamedSessionEntry {
     pub name: SessionName,
+    /// The runtime folder the Session's record names, or the folder this base gives it.
     pub runtime: PathBuf,
     pub deleting: bool,
-    /// The catalog identity is known, but its retained record cannot be admitted.
+    /// The Session folder holds a record that cannot be admitted.
     pub unreadable: bool,
-    /// A record stored outside the current location names this Session; activation and
-    /// deletion refuse while it remains.
+    /// Two Session folders spell this name in different letter case; activation and deletion
+    /// refuse while both remain.
     pub conflicted: bool,
     retained: Option<ActivationState>,
     checkpoint: PathBuf,
-    local: PathBuf,
-}
-
-use super::{
-    NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
-    UnrecognizedRecord, UnrecognizedRecordKind as RecordKind,
-    UnrecognizedRecordReason as RecordReason,
-};
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Intent {
-    version: u8,
-    name: String,
-    stopped_request_id: Option<[u8; 16]>,
-}
-
-fn scope_matches(scope: &str) -> bool {
-    scope.len() == 63
-        && scope
-            .strip_prefix(session_name::NAMED_PREFIX)
-            .is_some_and(|hash| {
-                hash.bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            })
-}
-
-fn intent_path(base: &Path, scope: &str) -> PathBuf {
-    base.join(format!("{scope}{INTENT_SUFFIX}"))
-}
-
-fn read_intent(base: &Path, scope: &str) -> io::Result<Option<Intent>> {
-    let file = match permissions::open_file(&intent_path(base, scope), false, false) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let mut bytes = Vec::new();
-    file.take(1025).read_to_end(&mut bytes)?;
-    let intent: Intent = serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
-    let name = SessionName::parse(&intent.name).map_err(|_| io::ErrorKind::InvalidData)?;
-    if bytes.len() > 1024
-        || intent.version != 1
-        || name.as_str() == "default"
-        || intent.stopped_request_id == Some([0; 16])
-        || name.scope_for_user(&orchbee_local_ipc::current_user_sid()?) != scope
-    {
-        return Err(io::ErrorKind::InvalidData.into());
-    }
-    Ok(Some(intent))
-}
-
-pub(crate) fn require_not_deleting(base: &Path, scope: &str) -> io::Result<()> {
-    if scope_matches(scope) && read_intent(base, scope)?.is_some() {
-        return Err(io::Error::new(
-            io::ErrorKind::WouldBlock,
-            "named session deletion is pending",
-        ));
-    }
-    Ok(())
-}
-
-/// Identity metadata of a deletion intent, without admitting its version or location.
-fn intent_name(base: &Path, scope: &str) -> io::Result<Option<SessionName>> {
-    #[derive(Deserialize)]
-    struct Identity {
-        name: String,
-    }
-    let file = match permissions::open_file(&intent_path(base, scope), false, false) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let mut bytes = Vec::new();
-    file.take(1025).read_to_end(&mut bytes)?;
-    if bytes.len() > 1024 {
-        return Err(io::ErrorKind::InvalidData.into());
-    }
-    let identity: Identity =
-        serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
-    SessionName::parse(&identity.name)
-        .map(Some)
-        .map_err(|_| io::ErrorKind::InvalidData.into())
-}
-
-/// Current admission first. Only a readable name that derives another location becomes an
-/// obsolete claim; every other failure keeps its existing meaning.
-fn intent_identity(base: &Path, scope: &str, sid: &str) -> io::Result<Option<(SessionName, bool)>> {
-    match read_intent(base, scope) {
-        Ok(Some(intent)) => Ok(Some((SessionName::parse(&intent.name)?, true))),
-        Ok(None) => Ok(None),
-        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-            match intent_name(base, scope) {
-                Ok(Some(name)) if name.scope_for_user(sid) != scope => Ok(Some((name, false))),
-                _ => Err(error),
-            }
-        }
-        Err(error) => Err(error),
-    }
-}
-
-fn runtime_identity(runtime: &Path, location: &str, sid: &str) -> io::Result<(SessionName, bool)> {
-    match session_name::read(runtime) {
-        Ok(name) => Ok((name, true)),
-        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-            match session_name::claimed(runtime) {
-                Ok(name) if name.scope_for_user(sid) != location => Ok((name, false)),
-                _ => Err(error),
-            }
-        }
-        Err(error) => Err(error),
-    }
-}
-
-/// One retained namespace object, attributed only by the identity metadata it records itself.
-struct Claim {
-    kind: RecordKind,
-    location: String,
-    path: PathBuf,
-    identity: Option<SessionName>,
-}
-
-impl Claim {
-    /// A readable identity that derives `scope` while stored elsewhere still names that Session.
-    fn names_elsewhere(&self, scope: &str, sid: &str) -> bool {
-        self.location != scope
-            && self
-                .identity
-                .as_ref()
-                .is_some_and(|name| name.scope_for_user(sid) == scope)
-    }
-}
-
-/// Inventory catalog records and named runtime objects without admitting any of them. An object
-/// whose identity cannot be read keeps only its location; the bounds and deadline fail closed.
-fn claims(base: &Path, durable: Option<&Directory>, deadline: Instant) -> io::Result<Vec<Claim>> {
-    let mut claims = Vec::new();
-    if let Some(durable) = durable {
-        for (scope, record) in durable.list(deadline)? {
-            let identity = match record {
-                CatalogRecord::Readable(record) => SessionName::parse(&record.name).ok(),
-                CatalogRecord::Unreadable(name) => Some(name),
-                CatalogRecord::Unrecognized(name) => name,
-            };
-            claims.push(Claim {
-                kind: RecordKind::CatalogRecord,
-                path: durable.record_file(&scope)?,
-                location: scope,
-                identity,
-            });
-        }
-    }
-    let mut scopes = BTreeSet::new();
-    for entry in fs::read_dir(base)? {
-        check_deadline(deadline)?;
-        let entry = entry?;
-        let Some(leaf) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
-        let (scope, kind) = match leaf.strip_suffix(INTENT_SUFFIX) {
-            Some(scope) => (scope, RecordKind::DeletionIntent),
-            None => (leaf.as_str(), RecordKind::RuntimeDirectory),
-        };
-        if !scope_matches(scope) {
-            continue;
-        }
-        scopes.insert(scope.to_owned());
-        if scopes.len() > MAXIMUM_SESSIONS {
-            return Err(io::ErrorKind::FileTooLarge.into());
-        }
-        let identity = if kind == RecordKind::DeletionIntent {
-            intent_name(base, scope).ok().flatten()
-        } else {
-            permissions::open_tree(&entry.path())
-                .and_then(|_pins| session_name::claimed(&entry.path()))
-                .ok()
-        };
-        claims.push(Claim {
-            kind,
-            location: scope.to_owned(),
-            path: entry.path(),
-            identity,
-        });
-    }
-    Ok(claims)
+    root: DataRoot,
 }
 
 #[derive(Default)]
 struct Listed {
+    spelling: String,
     deleting: bool,
     retained: Option<ActivationState>,
+    runtime: Option<PathBuf>,
     unreadable: bool,
     conflicted: bool,
 }
 
 impl SessionCatalog {
     /// Only declared activation/deletion effects acquire this owner. Reads use `list` instead.
-    pub fn try_lock(base: &Path, local: &Path) -> io::Result<Self> {
-        let directories = permissions::open_tree(base)?;
+    pub fn try_lock(base: &Path, root: &DataRoot) -> io::Result<Self> {
+        let mut directories = permissions::open_tree(base)?;
         let base = base.canonicalize()?;
-        let user =
-            SessionName::parse("default")?.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
-        let path = base.join(format!("{user}.sessions.lock"));
+        directories.extend(crate::data_root::create_state_directory(&root.internal())?);
+        let path = root.sessions_lock();
         let lock = match permissions::open_file(&path, true, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -268,60 +94,50 @@ impl SessionCatalog {
             Err(error) => return Err(error),
         };
         match lock.try_lock() {
-            Ok(()) => {
-                let durable = Directory::create(local, &base)?;
-                Ok(Self {
-                    durable,
-                    local: local.canonicalize()?,
-                    base,
-                    _lock: lock,
-                    _directories: directories,
-                })
-            }
+            Ok(()) => Ok(Self {
+                durable: Directory::create(root)?,
+                base,
+                _lock: lock,
+                _directories: directories,
+            }),
             Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
             Err(TryLockError::Error(error)) => Err(error),
         }
     }
 
-    pub fn supports_scope(scope: &str) -> io::Result<bool> {
-        Ok(durable::supports_scope(
-            scope,
-            &orchbee_local_ipc::current_user_sid()?,
-        ))
+    /// The Session `name` spelled as its existing folder is, or as given when it has none. Two
+    /// folders that spell it in different letter case refuse it. Reading creates nothing.
+    pub fn spelling(root: &DataRoot, name: &SessionName) -> io::Result<SessionName> {
+        let Some(directory) = Directory::open(root)? else {
+            return Ok(name.clone());
+        };
+        match directory.spelling(name)? {
+            Some(spelling) => SessionName::parse(&spelling),
+            None => Ok(name.clone()),
+        }
     }
 
-    /// Validate recovery before creating a missing runtime. This owner already holds the namespace gate.
-    pub fn prepare_activation(
-        &self,
-        scope: &str,
-        explicit: Option<&SessionName>,
-        deadline: Instant,
-    ) -> io::Result<Option<SessionName>> {
-        if !Self::supports_scope(scope)? {
-            return Ok(None);
-        }
-        self.require_unclaimed(scope, deadline)?;
+    /// Validate recovery before creating a missing runtime. This owner already holds the namespace
+    /// gate. A Session whose record names another runtime folder starts here only once stopped.
+    pub fn prepare_activation(&self, name: &SessionName) -> io::Result<()> {
+        let scope = name.as_str();
+        // Two folders that spell this name in different letter case refuse it.
+        self.durable.spelling(name)?;
         let record = self.durable.read(scope)?;
         if record.as_ref().is_some_and(Record::is_deleting) {
             return Err(io::ErrorKind::WouldBlock.into());
         }
         let runtime = self.base.join(scope);
-        let name = match explicit {
-            Some(name) => name.clone(),
-            None => match &record {
-                Some(record) => SessionName::parse(&record.name)?,
-                None if scope.starts_with(session_name::NAMED_PREFIX) => {
-                    session_name::read(&runtime)?
-                }
-                None => SessionName::parse("default")?,
-            },
-        };
-        session_name::validate_scope(&runtime, &name)?;
+        if record.as_ref().is_some_and(|record| {
+            !record.uses_runtime(&runtime) && !matches!(record.lifecycle, Lifecycle::Stopped { .. })
+        }) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
         match permissions::open_tree(&runtime) {
             Ok(_) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 no_endpoints(&runtime)?;
-                let checkpoint = checkpoint_path(&self.local, &runtime);
+                let checkpoint = self.durable.folder(scope);
                 let storage = storage_guard(&checkpoint)?;
                 match record.as_ref().and_then(Record::activation) {
                     Some(ActivationState::Stopped { .. }) => {
@@ -345,22 +161,18 @@ impl SessionCatalog {
             }
             Err(error) => return Err(error),
         }
-        Ok(Some(name))
+        Ok(())
     }
 
-    fn require_unclaimed(&self, scope: &str, deadline: Instant) -> io::Result<()> {
-        // A changed derivation must not turn this Session's retained records into apparent
-        // absence. Only a record whose own identity derives this scope while stored elsewhere
-        // refuses it; other Sessions' records and unattributable objects stay with their own
-        // location's admission. Nothing is migrated or replaced.
-        let sid = orchbee_local_ipc::current_user_sid()?;
-        if claims(&self.base, Some(&self.durable), deadline)?
-            .iter()
-            .any(|claim| claim.names_elsewhere(scope, &sid))
-        {
-            return Err(io::ErrorKind::InvalidData.into());
+    /// The admitted runtime's Session folder name. The runtime must sit in this catalog's base.
+    fn scope_of<'a>(&self, runtime: &'a Path) -> io::Result<&'a str> {
+        if runtime.parent() != Some(self.base.as_path()) {
+            return Err(io::ErrorKind::InvalidInput.into());
         }
-        Ok(())
+        runtime
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| io::ErrorKind::InvalidInput.into())
     }
 
     /// Proved-dead recovery uses the same namespace and exact runtime guards as new activation.
@@ -373,13 +185,7 @@ impl SessionCatalog {
         session.require_lock(activation, crate::LockKind::Activation)?;
         session.require_lock(lifetime, crate::LockKind::SessionLifetime)?;
         let runtime = session.runtime_directory();
-        if runtime.parent() != Some(self.base.as_path()) {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        let scope = runtime
-            .file_name()
-            .and_then(|value| value.to_str())
-            .ok_or(io::ErrorKind::InvalidInput)?;
+        let scope = self.scope_of(runtime)?;
         let _writer = self.durable.try_writer(scope)?;
         let Some(mut record) = self.durable.read(scope)? else {
             return Ok(false);
@@ -387,7 +193,9 @@ impl SessionCatalog {
         if matches!(record.lifecycle, Lifecycle::Stopped { .. }) {
             return Ok(false);
         }
-        if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed) {
+        if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed)
+            || !record.uses_runtime(runtime)
+        {
             return Err(io::ErrorKind::InvalidData.into());
         }
         let processes = &record.processes;
@@ -400,7 +208,7 @@ impl SessionCatalog {
         // so its complete predecessor receipt can survive interrupted marker commit.
         let allow_previous_receipt = processes.is_unstarted();
         no_endpoints(runtime)?;
-        let _storage = storage_guard(&checkpoint_path(&self.local, runtime))?;
+        let _storage = storage_guard(&self.durable.folder(scope))?;
         let retry = record.lifecycle == Lifecycle::Crashed;
         if !retry {
             match session.activation_state()? {
@@ -433,13 +241,7 @@ impl SessionCatalog {
             return Err(io::ErrorKind::InvalidInput.into());
         }
         let runtime = session.runtime_directory();
-        if runtime.parent() != Some(self.base.as_path()) {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        let scope = runtime
-            .file_name()
-            .and_then(|value| value.to_str())
-            .ok_or(io::ErrorKind::InvalidInput)?;
+        let scope = self.scope_of(runtime)?;
         let _writer = self.durable.try_writer(scope)?;
         let previous = self.durable.read(scope)?;
         if previous.as_ref().is_some_and(|record| {
@@ -447,6 +249,7 @@ impl SessionCatalog {
                 record.lifecycle,
                 Lifecycle::Stopped { .. } | Lifecycle::Crashed
             ) || record.activation_id == Some(activation_id)
+                || (record.lifecycle == Lifecycle::Crashed && !record.uses_runtime(runtime))
         }) {
             return Err(io::ErrorKind::InvalidData.into());
         }
@@ -457,7 +260,7 @@ impl SessionCatalog {
             return Err(io::ErrorKind::InvalidData.into());
         }
         no_endpoints(runtime)?;
-        let checkpoint = checkpoint_path(&self.local, runtime);
+        let checkpoint = self.durable.folder(scope);
         idle_storage(&checkpoint)?;
         if let Some(previous) = &previous {
             if let ActivationState::Stopped { request_id } = marker
@@ -475,12 +278,12 @@ impl SessionCatalog {
                 stopped_checkpoint_evidence(&checkpoint)?;
             }
         }
-        let name = if scope.starts_with(session_name::NAMED_PREFIX) {
-            session_name::read(runtime)?
-        } else {
-            SessionName::parse("default")?
+        // A Session keeps the spelling it was created with.
+        let name = match &previous {
+            Some(previous) => SessionName::parse(&previous.name)?,
+            None => SessionName::parse(scope)?,
         };
-        let active = Record::registered(&self.base, &name, activation_id)?;
+        let active = Record::registered(runtime, &name, activation_id)?;
         self.durable.publish(scope, &active)
     }
 
@@ -494,14 +297,7 @@ impl SessionCatalog {
         deadline: Instant,
     ) -> io::Result<crate::RetainedChild> {
         session.require_lock(activation, crate::LockKind::Activation)?;
-        let runtime = session.runtime_directory();
-        if runtime.parent() != Some(self.base.as_path()) {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        let scope = runtime
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or(io::ErrorKind::InvalidInput)?;
+        let scope = self.scope_of(session.runtime_directory())?;
         crate::registered_child::spawn_registered(
             &self.durable,
             scope,
@@ -512,121 +308,55 @@ impl SessionCatalog {
         )
     }
 
+    /// Every Session of `root`, `default` first and the rest by name without letter case. A
+    /// Session's runtime is the folder its record names; one without a record gets `base`'s.
     pub fn list(
         base: &Path,
-        local: &Path,
+        root: &DataRoot,
         deadline: Instant,
     ) -> io::Result<Vec<NamedSessionEntry>> {
         let _directories = permissions::open_tree(base)?;
         let base = base.canonicalize()?;
-        let sid = orchbee_local_ipc::current_user_sid()?;
         let mut names: BTreeMap<String, Listed> = BTreeMap::new();
-        // A location that holds both a current identity and a record naming another Session
-        // cannot be attributed to either one, so that inventory still fails explicitly.
-        let mut current = BTreeSet::new();
-        let mut obsolete = BTreeSet::new();
-        if let Some(directory) = Directory::open(local, &base)? {
+        if let Some(directory) = Directory::open(root)? {
             for (scope, record) in directory.list(deadline)? {
+                let key = scope.to_ascii_lowercase();
+                if let Some(listed) = names.get_mut(&key) {
+                    listed.conflicted = true;
+                    continue;
+                }
+                let mut listed = Listed {
+                    spelling: scope,
+                    ..Listed::default()
+                };
                 match record {
                     CatalogRecord::Readable(record) => {
-                        let listed = names.entry(record.name.clone()).or_default();
                         listed.deleting = record.is_deleting();
                         listed.retained = record.activation();
-                        current.insert(scope);
+                        listed.runtime = Some(record.runtime().to_owned());
                     }
-                    CatalogRecord::Unreadable(name) => {
-                        names
-                            .entry(name.as_str().to_owned())
-                            .or_default()
-                            .unreadable = true;
-                        current.insert(scope);
-                    }
-                    // Another derivation's record still names its Session; nothing else is read.
-                    CatalogRecord::Unrecognized(Some(name)) => {
-                        names
-                            .entry(name.as_str().to_owned())
-                            .or_default()
-                            .conflicted = true;
-                        obsolete.insert(scope);
-                    }
-                    CatalogRecord::Unrecognized(None) => {
-                        return Err(io::ErrorKind::InvalidData.into());
-                    }
+                    CatalogRecord::Unreadable => listed.unreadable = true,
+                    CatalogRecord::Missing => {}
                 }
+                names.insert(key, listed);
             }
-        }
-        for entry in fs::read_dir(&base)? {
-            check_deadline(deadline)?;
-            let entry = entry?;
-            let Some(leaf) = entry.file_name().to_str().map(str::to_owned) else {
-                continue;
-            };
-            let (location, name, deleting, admitted) = if scope_matches(&leaf) {
-                let _pins = permissions::open_tree(&entry.path())?;
-                let (name, deleting, admitted) = match intent_identity(&base, &leaf, &sid)? {
-                    Some((name, true)) => (name, true, true),
-                    Some((name, false)) => {
-                        // A current identity in this leaf contradicts an intent naming another
-                        // Session, so the location is attributed to both and fails below.
-                        if session_name::read(&entry.path()).is_ok() {
-                            current.insert(leaf.clone());
-                        }
-                        (name, false, false)
-                    }
-                    None => {
-                        let pending = names.iter().find(|(name, listed)| {
-                            listed.deleting
-                                && SessionName::parse(name)
-                                    .is_ok_and(|name| name.scope_for_user(&sid) == leaf)
-                        });
-                        match pending {
-                            Some((name, _)) => (SessionName::parse(name)?, true, true),
-                            None => {
-                                let (name, admitted) =
-                                    runtime_identity(&entry.path(), &leaf, &sid)?;
-                                (name, false, admitted)
-                            }
-                        }
-                    }
-                };
-                (leaf.clone(), name, deleting, admitted)
-            } else if let Some(scope) = leaf
-                .strip_suffix(INTENT_SUFFIX)
-                .filter(|scope| scope_matches(scope))
-            {
-                let (name, admitted) =
-                    intent_identity(&base, scope, &sid)?.ok_or(io::ErrorKind::NotFound)?;
-                (scope.to_owned(), name, admitted, admitted)
-            } else {
-                continue;
-            };
-            let listed = names.entry(name.as_str().to_owned()).or_default();
-            listed.deleting |= deleting;
-            listed.conflicted |= !admitted;
-            if admitted {
-                current.insert(location);
-            } else {
-                obsolete.insert(location);
-            }
-            if names.len() + usize::from(!names.contains_key("default")) > MAXIMUM_SESSIONS {
-                return Err(io::ErrorKind::FileTooLarge.into());
-            }
-        }
-        if !obsolete.is_disjoint(&current) {
-            return Err(io::ErrorKind::InvalidData.into());
         }
         let default = names.remove("default").unwrap_or_default();
         if names.len() >= MAXIMUM_SESSIONS {
             return Err(io::ErrorKind::FileTooLarge.into());
         }
         let mut result = Vec::with_capacity(names.len() + 1);
-        for (text, listed) in std::iter::once(("default".to_owned(), default)).chain(names) {
-            let name = SessionName::parse(&text)?;
-            let runtime = base.join(name.scope_for_user(&sid));
+        for (_, listed) in std::iter::once((String::new(), default)).chain(names) {
+            check_deadline(deadline)?;
+            let name = if listed.spelling.is_empty() {
+                SessionName::default_session()
+            } else {
+                SessionName::parse(&listed.spelling)?
+            };
             result.push(NamedSessionEntry {
-                local: local.to_owned(),
-                checkpoint: checkpoint_path(local, &runtime),
-                runtime,
+                checkpoint: root.sessions().join(name.as_str()),
+                runtime: listed.runtime.unwrap_or_else(|| base.join(name.as_str())),
+                root: root.clone(),
                 name,
                 deleting: listed.deleting,
                 retained: listed.retained,
@@ -637,58 +367,39 @@ impl SessionCatalog {
         Ok(result)
     }
 
-    /// Read-only diagnosis of the records that refuse `scope`: records naming its Session from
-    /// another location, and records at its own location that its admission cannot accept.
-    /// Paths keep the caller's spelling of `base` and `local` so people can act on them.
+    /// Read-only diagnosis of the records that refuse the Session `scope`: a record its admission
+    /// rejects, and other folders that spell its name in different letter case.
     pub fn unrecognized_records(
-        base: &Path,
-        local: &Path,
+        root: &DataRoot,
         scope: &str,
         deadline: Instant,
     ) -> io::Result<Vec<UnrecognizedRecord>> {
-        let sid = orchbee_local_ipc::current_user_sid()?;
-        if !durable::supports_scope(scope, &sid) {
+        let name = SessionName::parse(scope)?;
+        let Some(directory) = Directory::open(root)? else {
             return Ok(Vec::new());
-        }
-        let _directories = permissions::open_tree(base)?;
-        let directory = Directory::open(local, &base.canonicalize()?)?;
-        let mut records: Vec<_> = claims(base, directory.as_ref(), deadline)?
-            .into_iter()
-            .filter(|claim| claim.names_elsewhere(scope, &sid))
-            .map(|claim| UnrecognizedRecord {
-                kind: claim.kind,
-                reason: RecordReason::ObsoleteIdentity,
-                path: claim.path,
-            })
-            .collect();
-        let unreadable = |kind, path| UnrecognizedRecord {
-            kind,
-            reason: RecordReason::Unreadable,
-            path,
         };
-        if let Some(directory) = &directory
-            && directory.read(scope).is_err()
-        {
-            records.push(unreadable(
-                RecordKind::CatalogRecord,
-                directory.record_file(scope)?,
-            ));
-        }
-        if scope_matches(scope) {
-            if read_intent(base, scope).is_err() {
-                records.push(unreadable(
-                    RecordKind::DeletionIntent,
-                    intent_path(base, scope),
-                ));
+        let mut records = Vec::new();
+        let mut folders = Vec::new();
+        for (folder, record) in directory.list(deadline)? {
+            if !folder.eq_ignore_ascii_case(name.as_str()) {
+                continue;
             }
-            // A missing identity is registered by the next activation; an unsafe runtime is a
-            // runtime-directory fact rather than a record.
-            let runtime = base.join(scope);
-            if let Ok(_pins) = permissions::open_tree(&runtime)
-                && session_name::read(&runtime)
-                    .is_err_and(|error| error.kind() != io::ErrorKind::NotFound)
-            {
-                records.push(unreadable(RecordKind::RuntimeDirectory, runtime));
+            if matches!(record, CatalogRecord::Unreadable) {
+                records.push(UnrecognizedRecord {
+                    kind: RecordKind::CatalogRecord,
+                    reason: RecordReason::Unreadable,
+                    path: directory.record_file(&folder)?,
+                });
+            }
+            folders.push(folder);
+        }
+        if folders.len() > 1 {
+            for folder in folders {
+                records.push(UnrecognizedRecord {
+                    kind: RecordKind::CatalogRecord,
+                    reason: RecordReason::LetterCase,
+                    path: directory.folder(&folder),
+                });
             }
         }
         Ok(records)
@@ -697,13 +408,12 @@ impl SessionCatalog {
     pub fn delete(
         &self,
         name: &SessionName,
-        local: &Path,
         deadline: Instant,
         mut interrupted: impl FnMut() -> io::Result<bool>,
     ) -> Result<NamedSessionDeleteOutcome, NamedSessionDeleteFailure> {
         use NamedSessionDeleteReason as Reason;
         let failure = |reason, pending| NamedSessionDeleteFailure { reason, pending };
-        if name.as_str() == "default" {
+        if name.is_default() {
             return Err(failure(Reason::DefaultSession, false));
         }
         let mut check = || {
@@ -716,36 +426,25 @@ impl SessionCatalog {
         let mut pending = false;
         let mut refused = None;
         let result = (|| -> io::Result<NamedSessionDeleteOutcome> {
-            let sid = orchbee_local_ipc::current_user_sid()?;
-            let scope = name.scope_for_user(&sid);
-            let runtime = self.base.join(&scope);
-            let previous = read_intent(&self.base, &scope)?;
+            let scope = match self.durable.spelling(name) {
+                Ok(spelling) => spelling.unwrap_or_else(|| name.as_str().to_owned()),
+                Err(error) => {
+                    refused = Some(Reason::RecoveryRequired);
+                    return Err(error);
+                }
+            };
             let (durable, unreadable) = match self.durable.read(&scope) {
                 Ok(record) => (record, false),
                 Err(error) if error.kind() == io::ErrorKind::InvalidData => (None, true),
                 Err(error) => return Err(error),
             };
-            pending = previous.is_some() || durable.as_ref().is_some_and(Record::is_deleting);
-            // A record naming this Session from elsewhere is neither removable here nor absence.
-            if !pending
-                && claims(&self.base, Some(&self.durable), deadline)?
-                    .iter()
-                    .any(|claim| claim.names_elsewhere(&scope, &sid))
-            {
-                refused = Some(Reason::RecoveryRequired);
-                return Err(io::ErrorKind::InvalidData.into());
-            }
+            pending = durable.as_ref().is_some_and(Record::is_deleting);
             check()?;
-            let _local =
-                crate::data_root::open_state_root(local)?.ok_or(io::ErrorKind::NotFound)?;
-            if local.canonicalize()? != self.local {
-                return Err(io::ErrorKind::InvalidInput.into());
-            }
-            let mut session = match Rendezvous::for_named_deletion(
-                &self.base,
-                SessionScope::parse(&scope).map_err(io::Error::other)?,
-                pending,
-            ) {
+            let runtime = durable.as_ref().map_or_else(
+                || self.base.join(&scope),
+                |record| record.runtime().to_owned(),
+            );
+            let mut session = match Rendezvous::from_runtime_directory(&runtime) {
                 Ok(session) => Some(session),
                 Err(crate::RendezvousError::System { source, .. })
                     if source.kind() == io::ErrorKind::NotFound =>
@@ -756,10 +455,7 @@ impl SessionCatalog {
             };
             let mut activation = None;
             let mut lifetime = None;
-            let mut stopped = previous
-                .as_ref()
-                .and_then(|intent| intent.stopped_request_id)
-                .or_else(|| durable.as_ref().and_then(Record::stopped_id));
+            let mut stopped = durable.as_ref().and_then(Record::stopped_id);
             if let Some(session) = &session {
                 activation = match session
                     .try_acquire_activation_lock()
@@ -802,35 +498,37 @@ impl SessionCatalog {
             }
             if durable.as_ref().is_some_and(|record| {
                 matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed)
-                    || previous
-                        .as_ref()
-                        .is_some_and(|intent| intent.stopped_request_id != record.stopped_id())
             }) {
                 refused = Some(Reason::RecoveryRequired);
                 return Err(io::ErrorKind::InvalidData.into());
             }
-            for endpoint in Rendezvous::socket_budget_paths(&runtime)
-                .into_iter()
-                .chain([Rendezvous::observation_endpoint_path(&runtime)])
-            {
-                if orchbee_local_ipc::endpoint_exists(&endpoint)? {
+            match no_endpoints(&runtime) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                     refused = Some(Reason::InUse);
-                    return Err(io::ErrorKind::WouldBlock.into());
+                    return Err(error);
                 }
+                Err(error) => return Err(error),
             }
-            let state_path = checkpoint_path(local, &runtime);
-            let state = OwnedDirectory::open_optional(&state_path, CHECKPOINT_FILES, false)?;
-            let runtime_directory = OwnedDirectory::open_optional(&runtime, RUNTIME_FILES, true)?;
+            let folder = self.durable.folder(&scope);
+            let state = OwnedDirectory::open_optional(&folder, Kind::Session)?;
+            let runtime_directory = OwnedDirectory::open_optional(&runtime, Kind::Runtime)?;
             if session.is_none() && runtime_directory.is_some() && !pending {
                 return Err(io::ErrorKind::InvalidData.into());
             }
+            let holds_data = state.as_ref().is_some_and(|state| state.holds_data);
             if session.is_none()
-                && state.is_none()
+                && !holds_data
                 && runtime_directory.is_none()
                 && durable.is_none()
                 && !unreadable
-                && !pending
             {
+                // An interrupted activation or deletion can leave the record's lock alone.
+                if let Some(state) = state {
+                    drop(state);
+                    drop(self.durable.try_writer(&scope)?);
+                    self.durable.remove(&scope)?;
+                }
                 return Ok(NamedSessionDeleteOutcome::Absent);
             }
             if session.is_none()
@@ -843,9 +541,12 @@ impl SessionCatalog {
                 refused = Some(Reason::RecoveryRequired);
                 return Err(io::ErrorKind::InvalidData.into());
             }
-            let state_lock = match &state {
-                Some(state) => state.try_existing_lock("state.lock")?,
-                None => None,
+            let state_locks = match &state {
+                Some(state) => (
+                    state.try_existing_lock("state.lock")?,
+                    state.try_existing_lock(TUI_POSITION_LOCK)?,
+                ),
+                None => (None, None),
             };
             check()?;
             let writer = self.durable.try_writer(&scope)?;
@@ -858,8 +559,8 @@ impl SessionCatalog {
                         record
                     }
                     None => Record::new(
-                        &self.base,
-                        name,
+                        &runtime,
+                        &SessionName::parse(&scope)?,
                         None,
                         Lifecycle::Deleting {
                             stopped_request_id: stopped,
@@ -870,45 +571,16 @@ impl SessionCatalog {
                 pending = true;
             }
             check()?;
-            if previous.is_none() {
-                let intent = Intent {
-                    version: 1,
-                    name: name.as_str().to_owned(),
-                    stopped_request_id: stopped,
-                };
-                let bytes = serde_json::to_vec(&intent).map_err(io::Error::other)?;
-                let staging = self.base.join(format!("{scope}.deleting.pending"));
-                remove_private_file_if_present(&staging)?;
-                let mut file = permissions::open_file(&staging, true, true)?;
-                let written = file.write_all(&bytes).and_then(|()| file.sync_all());
-                drop(file);
-                if let Err(error) = written {
-                    remove_private_file_if_present(&staging)?;
-                    return Err(error);
-                }
-                let target = intent_path(&self.base, &scope);
-                if let Err(error) = winsafe::MoveFileEx(
-                    staging.to_str().ok_or(io::ErrorKind::InvalidInput)?,
-                    Some(target.to_str().ok_or(io::ErrorKind::InvalidInput)?),
-                    winsafe::co::MOVEFILE::REPLACE_EXISTING,
-                ) {
-                    remove_private_file_if_present(&staging)?;
-                    return Err(io::Error::other(error));
-                }
-                pending = true;
-            }
-            drop(state_lock);
+            drop(state_locks);
             if let Some(state) = state {
-                state.remove(CHECKPOINT_FILES, false, &mut check)?;
+                state.remove(&mut check)?;
             }
             drop(lifetime.take());
             drop(activation.take());
             drop(session.take());
             if let Some(runtime_directory) = runtime_directory {
-                runtime_directory.remove(RUNTIME_FILES, true, &mut check)?;
+                runtime_directory.remove(&mut check)?;
             }
-            check()?;
-            remove_private_file_if_present(&intent_path(&self.base, &scope))?;
             check()?;
             drop(writer);
             self.durable.remove(&scope)?;
@@ -945,17 +617,11 @@ impl NamedSessionEntry {
                 Err(error) if error.kind() == io::ErrorKind::NotFound => None,
                 Err(error) => return Err(error),
             };
-            let sid = orchbee_local_ipc::current_user_sid()?;
-            let user = SessionName::parse("default")?.scope_for_user(&sid);
-            let _namespace = existing_lock(&base.join(format!("{user}.sessions.lock")), true)?;
+            let _namespace = existing_lock(&self.root.sessions_lock(), true)?;
             let _activation = existing_lock(&self.runtime.join("activation.lock"), false)?;
             let _lifetime = existing_lock(&self.runtime.join("session-lifetime.lock"), false)?;
-            let scope = self
-                .runtime
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or(io::ErrorKind::InvalidInput)?;
-            let Some(directory) = Directory::open(&self.local, base)? else {
+            let scope = self.name.as_str();
+            let Some(directory) = Directory::open(&self.root)? else {
                 return Ok(false);
             };
             let _writer = directory
@@ -964,7 +630,9 @@ impl NamedSessionEntry {
             let Some(record) = directory.read(scope)? else {
                 return Ok(false);
             };
-            if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed) {
+            if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed)
+                || !record.uses_runtime(&self.runtime)
+            {
                 return Ok(false);
             }
             let processes = &record.processes;
@@ -1115,6 +783,7 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
     Ok(())
 }
 struct IdleStorage {
+    /// The Session folder holds checkpoint storage: its lock, a slot or a corrupt original.
     exists: bool,
     _pins: Vec<File>,
     _lock: Option<File>,
@@ -1134,8 +803,13 @@ fn storage_guard(path: &Path) -> io::Result<IdleStorage> {
     let file = match permissions::open_file(&path.join("state.lock"), false, true) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let exists = match stopped_checkpoint_evidence(path) {
+                Ok(()) => true,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+                Err(error) => return Err(error),
+            };
             return Ok(IdleStorage {
-                exists: true,
+                exists,
                 _pins: pins,
                 _lock: None,
             });
@@ -1164,21 +838,10 @@ fn check_deadline(deadline: Instant) -> io::Result<()> {
     }
 }
 
-fn remove_private_file_if_present(path: &Path) -> io::Result<()> {
-    match permissions::open_file(path, false, false) {
-        Ok(file) => {
-            drop(file);
-            fs::remove_file(path)
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
 /// Whether a leaf name belongs in one owned folder.
 type OwnsName = fn(&str) -> bool;
-/// Folders beside the checkpoint slots, each with the names it may hold.
-const OWNED_CHECKPOINT_FOLDERS: [(&str, OwnsName); 2] = [
+/// Folders a Session folder holds beside its files, each with the names it may hold.
+const OWNED_SESSION_FOLDERS: [(&str, OwnsName); 2] = [
     (
         crate::layout_history::DIRECTORY,
         crate::layout_history::is_owned_name,
@@ -1190,56 +853,77 @@ const OWNED_CHECKPOINT_FOLDERS: [(&str, OwnsName); 2] = [
 ];
 
 fn owned_folder(name: &str) -> Option<OwnsName> {
-    OWNED_CHECKPOINT_FOLDERS
+    OWNED_SESSION_FOLDERS
         .iter()
         .find(|(folder, _)| *folder == name)
         .map(|(_, owns)| *owns)
 }
 
+/// What a deletion removes: a Session folder's contents other than its catalog record, which the
+/// catalog removes last, or a runtime folder with everything in it.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Kind {
+    Session,
+    Runtime,
+}
+
 struct OwnedDirectory {
     path: PathBuf,
+    kind: Kind,
+    /// The folder holds more than its catalog record's lock and staging file.
+    holds_data: bool,
     pins: Vec<File>,
 }
 impl OwnedDirectory {
-    fn open_optional(path: &Path, files: &[&str], host: bool) -> io::Result<Option<Self>> {
+    /// Admits every entry before anything is removed; an entry the folder does not own refuses.
+    fn open_optional(path: &Path, kind: Kind) -> io::Result<Option<Self>> {
         let pins = match permissions::open_tree(path) {
             Ok(pins) => pins,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
+        let mut holds_data = false;
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let leaf = entry.file_name();
             let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
-            if files.contains(&name)
-                || (files == CHECKPOINT_FILES
-                    && crate::checkpoint_rotation::is_corrupt_original(name))
-            {
-                permissions::open_file(&entry.path(), false, false)?;
-            } else if let Some(owns) = (files == CHECKPOINT_FILES)
-                .then(|| owned_folder(name))
-                .flatten()
-            {
-                let _pins = permissions::open_tree(&entry.path())?;
-                for owned in fs::read_dir(entry.path())? {
-                    let owned = owned?;
-                    let leaf = owned.file_name();
-                    if !leaf.to_str().is_some_and(owns) {
+            holds_data |= !durable::is_record_guard(name);
+            match kind {
+                Kind::Session
+                    if SESSION_FILES.contains(&name)
+                        || durable::RECORD_FILES.contains(&name)
+                        || crate::checkpoint_rotation::is_corrupt_original(name) =>
+                {
+                    permissions::open_file(&entry.path(), false, false)?;
+                }
+                Kind::Session if owned_folder(name).is_some() => {
+                    let owns = owned_folder(name).ok_or(io::ErrorKind::InvalidData)?;
+                    let _pins = permissions::open_tree(&entry.path())?;
+                    for owned in fs::read_dir(entry.path())? {
+                        let owned = owned?;
+                        let leaf = owned.file_name();
+                        if !leaf.to_str().is_some_and(owns) {
+                            return Err(io::ErrorKind::InvalidData.into());
+                        }
+                        permissions::open_file(&owned.path(), false, false)?;
+                    }
+                }
+                Kind::Runtime if RUNTIME_FILES.contains(&name) => {
+                    permissions::open_file(&entry.path(), false, false)?;
+                }
+                Kind::Runtime if name == "host" => {
+                    let _pins = permissions::open_tree(&entry.path())?;
+                    if fs::read_dir(entry.path())?.next().is_some() {
                         return Err(io::ErrorKind::InvalidData.into());
                     }
-                    permissions::open_file(&owned.path(), false, false)?;
                 }
-            } else if host && name == "host" {
-                let _pins = permissions::open_tree(&entry.path())?;
-                if fs::read_dir(entry.path())?.next().is_some() {
-                    return Err(io::ErrorKind::InvalidData.into());
-                }
-            } else {
-                return Err(io::ErrorKind::InvalidData.into());
+                _ => return Err(io::ErrorKind::InvalidData.into()),
             }
         }
         Ok(Some(Self {
             path: path.to_owned(),
+            kind,
+            holds_data,
             pins,
         }))
     }
@@ -1257,14 +941,13 @@ impl OwnedDirectory {
         }
     }
 
-    fn remove(
-        mut self,
-        files: &[&str],
-        host: bool,
-        check: &mut dyn FnMut() -> io::Result<()>,
-    ) -> io::Result<()> {
+    fn remove(mut self, check: &mut dyn FnMut() -> io::Result<()>) -> io::Result<()> {
+        let files = match self.kind {
+            Kind::Session => SESSION_FILES,
+            Kind::Runtime => RUNTIME_FILES,
+        };
         let mut names: Vec<String> = files.iter().map(|name| (*name).to_owned()).collect();
-        if files == CHECKPOINT_FILES {
+        if self.kind == Kind::Session {
             for entry in fs::read_dir(&self.path)? {
                 let entry = entry?;
                 let leaf = entry.file_name();
@@ -1287,41 +970,40 @@ impl OwnedDirectory {
                 Err(error) => return Err(error),
             }
         }
-        for (folder, owns) in OWNED_CHECKPOINT_FOLDERS
-            .iter()
-            .filter(|_| files == CHECKPOINT_FILES)
-        {
-            let path = self.path.join(folder);
-            match permissions::open_tree(&path) {
-                Ok(pins) => {
-                    for owned in fs::read_dir(&path)? {
-                        let owned = owned?;
-                        let leaf = owned.file_name();
-                        let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
-                        if !owns(name) {
-                            return Err(io::ErrorKind::InvalidData.into());
+        if self.kind == Kind::Session {
+            for (folder, owns) in OWNED_SESSION_FOLDERS {
+                let path = self.path.join(folder);
+                match permissions::open_tree(&path) {
+                    Ok(pins) => {
+                        for owned in fs::read_dir(&path)? {
+                            let owned = owned?;
+                            let leaf = owned.file_name();
+                            let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
+                            if !owns(name) {
+                                return Err(io::ErrorKind::InvalidData.into());
+                            }
+                            check()?;
+                            permissions::open_file(&owned.path(), false, false)?;
+                            fs::remove_file(owned.path())?;
                         }
-                        check()?;
-                        permissions::open_file(&owned.path(), false, false)?;
-                        fs::remove_file(owned.path())?;
+                        drop(pins);
+                        fs::remove_dir(path)?;
                     }
-                    drop(pins);
-                    fs::remove_dir(path)?;
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(error),
                 }
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error),
             }
+            // The catalog removes its record and then the folder.
+            return Ok(());
         }
-        if host {
-            let path = self.path.join("host");
-            match permissions::open_tree(&path) {
-                Ok(pins) => {
-                    drop(pins);
-                    fs::remove_dir(path)?;
-                }
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error),
+        let path = self.path.join("host");
+        match permissions::open_tree(&path) {
+            Ok(pins) => {
+                drop(pins);
+                fs::remove_dir(path)?;
             }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
         }
         check()?;
         self.pins.pop();

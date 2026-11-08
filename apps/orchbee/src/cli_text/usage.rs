@@ -331,10 +331,10 @@ impl super::CliText {
                 "不含密码的 SSH 别名、[user@]host 或 ssh://[user@]host[:port]"
             }
             (Locale::EnUs, ExpectedValue::SessionName) => {
-                "1–64 ASCII letters, digits, '.', '_' or '-'; excluding '.' and '..'"
+                "1–64 ASCII letters, digits, '.', '_' or '-', neither starting nor ending with '.', and no Windows device name"
             }
             (Locale::ZhCn, ExpectedValue::SessionName) => {
-                "1–64 个 ASCII 字母、数字、'.'、'_' 或 '-'；排除 '.' 和 '..'"
+                "1–64 个 ASCII 字母、数字、'.'、'_' 或 '-'，不以 '.' 开头或结尾，且不是 Windows 设备名"
             }
             (Locale::EnUs, ExpectedValue::MouseMode) => "'off' or 'on'",
             (Locale::ZhCn, ExpectedValue::MouseMode) => "'off' 或 'on'",

@@ -4,7 +4,6 @@ use orchbee_local_runtime::{
     LockAttempt, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionScope,
 };
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::PathBuf,
@@ -43,13 +42,9 @@ impl Fixture {
             .output()
             .unwrap()
     }
+    /// The default Session's runtime folder, which takes the Session's name.
     fn session(&self) -> Rendezvous {
-        let scope = format!(
-            "orchbee-native-{:x}",
-            Sha256::digest(orchbee_local_ipc::current_user_sid().unwrap().as_bytes())
-        )[..47]
-            .to_owned();
-        Rendezvous::prepare_mode_checked(&self.runtime(), SessionScope::parse(&scope).unwrap())
+        Rendezvous::prepare_mode_checked(&self.runtime(), SessionScope::parse("default").unwrap())
             .unwrap()
     }
     fn query(&self) -> Value {

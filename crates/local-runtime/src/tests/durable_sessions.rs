@@ -9,65 +9,51 @@ use std::{io, path::Path};
 fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(5)
 }
-fn scope(name: &SessionName) -> String {
-    name.scope_for_user(&orchbee_local_ipc::current_user_sid().unwrap())
+fn state_path(local: &Fixture, name: &SessionName) -> PathBuf {
+    local.0.join("sessions").join(name.as_str())
 }
-fn record_path(base: &Fixture, local: &Fixture, name: &SessionName) -> PathBuf {
-    local
-        .0
-        .join("session-catalog")
-        .join(Rendezvous::host_endpoint_id(
-            &base.0.canonicalize().unwrap(),
-        ))
-        .join(format!("{}.json", scope(name)))
+fn record_path(local: &Fixture, name: &SessionName) -> PathBuf {
+    state_path(local, name).join("session.json")
 }
-fn record_version(base: &Fixture, local: &Fixture, name: &SessionName) -> u64 {
+fn record_version(local: &Fixture, name: &SessionName) -> u64 {
     let value: serde_json::Value =
-        serde_json::from_slice(&fs::read(record_path(base, local, name)).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(record_path(local, name)).unwrap()).unwrap();
     value["version"].as_u64().unwrap()
 }
-fn rewrite_record_version(base: &Fixture, local: &Fixture, name: &SessionName, version: u8) {
-    let path = record_path(base, local, name);
+fn rewrite_record_version(local: &Fixture, name: &SessionName, version: u8) {
+    let path = record_path(local, name);
     let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     value["version"] = serde_json::json!(version);
     fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
 }
+/// Starts `text` the way activation does: spelled as its existing folder is.
 fn start(
     base: &Fixture,
     local: &Fixture,
     text: &str,
     generation: u8,
 ) -> (SessionName, Rendezvous, Retained) {
-    let name = SessionName::parse(text).unwrap();
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-    assert_eq!(
-        catalog
-            .prepare_activation(
-                &scope(&name),
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5)
-            )
-            .unwrap(),
-        Some(name.clone())
-    );
-    let session = base.open(&scope(&name));
-    let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap() else {
+    let root = local.root();
+    let name = Catalog::spelling(&root, &SessionName::parse(text).unwrap()).unwrap();
+    let catalog = Catalog::try_lock(&base.0, &root).unwrap();
+    catalog.prepare_activation(&name).unwrap();
+    let session = base.open(name.as_str());
+    let LockAttempt::Acquired(_activation) = session.try_acquire_activation_lock().unwrap() else {
         panic!("activation")
     };
     let LockAttempt::Acquired(_lifetime) = session.try_acquire_session_lifetime_lock().unwrap()
     else {
         panic!("lifetime")
     };
-    session.register_session_name(&activation, &name).unwrap();
     catalog
         .begin_activation(&session, [generation; 16])
         .unwrap();
     session.commit_activation().unwrap();
-    let mut store = SessionStore::open(&local.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&root, &session, 64).unwrap();
     if store.read().unwrap().is_none() {
         store.publish(text.as_bytes()).unwrap();
     }
-    let owner = Retained::retain(&local.0, &session).unwrap().unwrap();
+    let owner = Retained::retain(&root, &session).unwrap();
     (name, session, owner)
 }
 fn stop(session: &Rendezvous, owner: &mut Retained, id: u8) {
@@ -85,7 +71,6 @@ fn remove_runtime(base: &Fixture, runtime: &Path) {
     );
     // This helper only removes exact fixture-owned leaves after all runtime handles end.
     for leaf in [
-        "session-name.json",
         "activation.started",
         "activation.lock",
         "session-lifetime.lock",
@@ -101,124 +86,54 @@ fn remove_runtime(base: &Fixture, runtime: &Path) {
 }
 
 #[test]
-fn obsolete_named_identity_refuses_only_its_own_name() {
+fn unreadable_record_refuses_only_its_own_name() {
     use crate::{UnrecognizedRecord, UnrecognizedRecordKind as Kind, UnrecognizedRecordReason};
-    use std::io::Write;
-    let other = SessionName::parse("other").unwrap();
-    for kind in [
-        Kind::CatalogRecord,
-        Kind::RuntimeDirectory,
-        Kind::DeletionIntent,
-    ] {
-        let base = Fixture::new();
-        let local = Fixture::new();
-        let name = SessionName::parse("work").unwrap();
-        let sid = orchbee_local_ipc::current_user_sid().unwrap();
-        let mut hash = Sha256::new();
-        hash.update(b"orchbee.windows.site-name.v1\0");
-        hash.update(sid.as_bytes());
-        hash.update(b"\0work");
-        let old_scope = format!("orchbee-session-{:x}", hash.finalize())[..63].to_owned();
-        assert_ne!(old_scope, scope(&name));
-        let old_runtime = base.0.canonicalize().unwrap().join(&old_scope);
-        let write = |path: &Path, bytes: &[u8]| {
-            let mut file = permissions::open_file(path, true, true).unwrap();
-            file.write_all(bytes).unwrap();
-            file.sync_all().unwrap();
-        };
-
-        let (retained, evidence, bytes) = match kind {
-            Kind::CatalogRecord => {
-                let (_, session, owner) = start(&base, &local, name.as_str(), 1);
-                let runtime = session.runtime_directory().to_path_buf();
-                drop(owner);
-                drop(session);
-                remove_runtime(&base, &runtime);
-                let current = record_path(&base, &local, &name);
-                let mut value: serde_json::Value =
-                    serde_json::from_slice(&fs::read(&current).unwrap()).unwrap();
-                value["runtime"] = serde_json::json!(old_runtime.to_str().unwrap());
-                let bytes = serde_json::to_vec(&value).unwrap();
-                fs::write(&current, &bytes).unwrap();
-                let old = current.with_file_name(format!("{old_scope}.json"));
-                fs::rename(&current, &old).unwrap();
-                (old.clone(), old, bytes)
-            }
-            Kind::RuntimeDirectory => {
-                drop(base.open(&old_scope));
-                let path = old_runtime.join("session-name.json");
-                let bytes = br#"{"version":1,"name":"work"}"#.to_vec();
-                write(&path, &bytes);
-                (base.0.join(&old_scope), path, bytes)
-            }
-            Kind::DeletionIntent => {
-                let path = base.0.join(format!("{old_scope}.deleting"));
-                let bytes = br#"{"version":1,"name":"work","stopped_request_id":null}"#.to_vec();
-                write(&path, &bytes);
-                (path.clone(), path, bytes)
-            }
-        };
-        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-        assert_eq!(
-            catalog
-                .prepare_activation(&scope(&name), Some(&name), deadline())
-                .unwrap_err()
-                .kind(),
-            io::ErrorKind::InvalidData
-        );
-        assert!(!base.0.join(scope(&name)).exists());
-        // The claimed name is neither removable here nor reported absent.
-        let refused = catalog
-            .delete(&name, &local.0, deadline(), || Ok(false))
-            .unwrap_err();
-        assert_eq!(
-            (refused.reason, refused.pending),
-            (Reason::RecoveryRequired, false)
-        );
-        assert_eq!(
-            catalog
-                .prepare_activation(&scope(&other), Some(&other), deadline())
-                .unwrap(),
-            Some(other.clone())
-        );
-        drop(catalog);
-        let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
-        assert_eq!(
-            entries
-                .iter()
-                .map(|entry| (entry.name.as_str(), entry.conflicted))
-                .collect::<Vec<_>>(),
-            [("default", false), ("work", true)]
-        );
-        assert_eq!(
-            Catalog::unrecognized_records(&base.0, &local.0, &scope(&name), deadline()).unwrap(),
-            [UnrecognizedRecord {
-                kind,
-                reason: UnrecognizedRecordReason::ObsoleteIdentity,
-                path: retained,
-            }]
-        );
-        assert!(
-            Catalog::unrecognized_records(&base.0, &local.0, &scope(&other), deadline())
-                .unwrap()
-                .is_empty()
-        );
-        assert_eq!(fs::read(evidence).unwrap(), bytes);
-    }
-    // An object without readable identity keeps only its location; it refuses no other name,
-    // and the inventory that cannot attribute it still fails explicitly.
     let base = Fixture::new();
     let local = Fixture::new();
-    drop(base.open(&format!("orchbee-session-{}", "0".repeat(47))));
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    let other = SessionName::parse("other").unwrap();
+    let (name, session, mut owner) = start(&base, &local, "work", 1);
+    stop(&session, &mut owner, 9);
+    let runtime = session.runtime_directory().to_path_buf();
+    drop(owner);
+    drop(session);
+    remove_runtime(&base, &runtime);
+    let path = record_path(&local, &name);
+    let bytes = br#"{"version":1,"name":"work""#.to_vec();
+    fs::write(&path, &bytes).unwrap();
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     assert_eq!(
-        catalog
-            .prepare_activation(&scope(&other), Some(&other), deadline())
-            .unwrap(),
-        Some(other.clone())
+        catalog.prepare_activation(&name).unwrap_err().kind(),
+        io::ErrorKind::InvalidData
     );
+    assert!(!runtime.exists());
+    catalog.prepare_activation(&other).unwrap();
     drop(catalog);
-    assert!(Catalog::list(&base.0, &local.0, deadline()).is_err());
+    let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| (entry.name.as_str(), entry.unreadable))
+            .collect::<Vec<_>>(),
+        [("default", false), ("work", true)]
+    );
+    // Diagnosis finds the record by any letter case of its name, and only for that name.
+    assert_eq!(
+        Catalog::unrecognized_records(&local.root(), "WORK", deadline()).unwrap(),
+        [UnrecognizedRecord {
+            kind: Kind::CatalogRecord,
+            reason: UnrecognizedRecordReason::Unreadable,
+            path: path.clone(),
+        }]
+    );
+    assert!(
+        Catalog::unrecognized_records(&local.root(), other.as_str(), deadline())
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+    // A folder in `sessions/` whose name is no Session name fails the inventory explicitly.
+    fs::create_dir(local.0.join("sessions").join("not a name")).unwrap();
+    assert!(Catalog::list(&base.0, &local.root(), deadline()).is_err());
 }
 
 #[test]
@@ -228,9 +143,9 @@ fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_gen
     let local = Fixture::new();
     for name in ["default", "notice-test"] {
         let (_, session, owner) = start(&base, &local, name, 1);
-        let store = SessionStore::open(&local.0, &session, 64).unwrap();
+        let store = SessionStore::open(&local.root(), &session, 64).unwrap();
         assert_eq!(
-            SessionStore::open(&local.0, &session, 64)
+            SessionStore::open(&local.root(), &session, 64)
                 .err()
                 .unwrap()
                 .kind(),
@@ -238,18 +153,24 @@ fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_gen
         );
         for notice in [Some(Notice::Empty), Some(Notice::Recovered), None] {
             store.publish_restore_notice(&owner, notice).unwrap();
-            assert_eq!(session.checkpoint_restore_notice(&local.0).unwrap(), notice);
+            assert_eq!(
+                session.checkpoint_restore_notice(&local.root()).unwrap(),
+                notice
+            );
         }
         let path = store.directory.join(crate::checkpoint_restore_notice::FILE);
         let stale = b"orchbee-checkpoint-restore-v1:02020202020202020202020202020202:E";
         fs::write(&path, stale).unwrap();
-        assert_eq!(session.checkpoint_restore_notice(&local.0).unwrap(), None);
+        assert_eq!(
+            session.checkpoint_restore_notice(&local.root()).unwrap(),
+            None
+        );
         assert_eq!(fs::read(&path).unwrap(), stale);
         let invalid = [b'X'; 128];
         fs::write(&path, invalid).unwrap();
         assert_eq!(
             session
-                .checkpoint_restore_notice(&local.0)
+                .checkpoint_restore_notice(&local.root())
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::InvalidData
@@ -259,7 +180,7 @@ fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_gen
             .publish_restore_notice(&owner, Some(Notice::Recovered))
             .unwrap();
         assert_eq!(
-            session.checkpoint_restore_notice(&local.0).unwrap(),
+            session.checkpoint_restore_notice(&local.root()).unwrap(),
             Some(Notice::Recovered)
         );
     }
@@ -271,7 +192,7 @@ fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() 
     let base = Fixture::new();
     let local = Fixture::new();
     let (_, session, owner) = start(&base, &local, "notice-blocked", 1);
-    let store = SessionStore::open(&local.0, &session, 64).unwrap();
+    let store = SessionStore::open(&local.root(), &session, 64).unwrap();
     store
         .publish_restore_notice(&owner, Some(Notice::Empty))
         .unwrap();
@@ -288,14 +209,17 @@ fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() 
     );
     drop(consumer);
     store.publish_restore_notice(&owner, None).unwrap();
-    assert_eq!(session.checkpoint_restore_notice(&local.0).unwrap(), None);
+    assert_eq!(
+        session.checkpoint_restore_notice(&local.root()).unwrap(),
+        None
+    );
 }
 
 #[test]
-fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() {
+fn sessions_remain_discoverable_and_restart_by_any_letter_case_after_runtime_loss() {
     let base = Fixture::new();
     let local = Fixture::new();
-    for text in ["default", "work", "Work"] {
+    for text in ["default", "Work"] {
         let (_, session, mut owner) = start(&base, &local, text, 1);
         stop(&session, &mut owner, 9);
         let runtime = session.runtime_directory().to_owned();
@@ -303,13 +227,13 @@ fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() 
         remove_runtime(&base, &runtime);
     }
     let before = fs::read_dir(&base.0).unwrap().count();
-    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
     assert_eq!(
         entries
             .iter()
             .map(|entry| entry.name.as_str())
             .collect::<Vec<_>>(),
-        ["default", "Work", "work"]
+        ["default", "Work"]
     );
     for entry in &entries {
         assert!(!entry.runtime.exists());
@@ -321,13 +245,21 @@ fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() 
         );
     }
     assert_eq!(fs::read_dir(&base.0).unwrap().count(), before);
-    for text in ["default", "work", "Work"] {
-        let (_, session, mut owner) = start(&base, &local, text, 2);
-        let store = SessionStore::open(&local.0, &session, 64).unwrap();
-        assert_eq!(store.read().unwrap().unwrap(), text.as_bytes());
+    // `work` is the Session created as `Work`, which keeps its creation spelling.
+    for (text, spelling, saved) in [("DEFAULT", "default", "default"), ("work", "Work", "Work")] {
+        let (name, session, mut owner) = start(&base, &local, text, 2);
+        assert_eq!(name.as_str(), spelling);
+        let store = SessionStore::open(&local.root(), &session, 64).unwrap();
+        assert_eq!(store.read().unwrap().unwrap(), saved.as_bytes());
         drop(store);
         stop(&session, &mut owner, 8);
     }
+    let mut folders = fs::read_dir(local.0.join("sessions"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    folders.sort();
+    assert_eq!(folders, ["Work", "default"]);
 }
 
 #[test]
@@ -336,19 +268,10 @@ fn begin_activation_publishes_current_record_before_checkpoint_storage_can_write
         let base = Fixture::new();
         let local = Fixture::new();
         let name = SessionName::parse(text).unwrap();
-        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-        assert_eq!(
-            catalog
-                .prepare_activation(
-                    &scope(&name),
-                    Some(&name),
-                    std::time::Instant::now() + std::time::Duration::from_secs(5)
-                )
-                .unwrap(),
-            Some(name.clone())
-        );
-        let session = base.open(&scope(&name));
-        let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap()
+        let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
+        catalog.prepare_activation(&name).unwrap();
+        let session = base.open(name.as_str());
+        let LockAttempt::Acquired(_activation) = session.try_acquire_activation_lock().unwrap()
         else {
             panic!("activation")
         };
@@ -356,17 +279,14 @@ fn begin_activation_publishes_current_record_before_checkpoint_storage_can_write
         else {
             panic!("lifetime")
         };
-        session.register_session_name(&activation, &name).unwrap();
-        let state = local
-            .0
-            .join("native-sessions")
-            .join(Rendezvous::host_endpoint_id(session.runtime_directory()));
+        let state = state_path(&local, &name);
         assert!(!state.exists());
 
         catalog.begin_activation(&session, [1; 16]).unwrap();
 
-        assert_eq!(record_version(&base, &local, &name), 1);
-        assert!(!state.exists());
+        assert_eq!(record_version(&local, &name), 1);
+        assert!(!state.join("state.lock").exists());
+        assert!(!state.join("checkpoint.json").exists());
     }
 }
 
@@ -380,25 +300,13 @@ fn unsupported_catalog_refuses_activation_and_recovery_without_changing_retained
             if stopped {
                 stop(&session, &mut owner, 9);
             }
-            rewrite_record_version(&base, &local, &name, 6);
-            let record = record_path(&base, &local, &name);
+            rewrite_record_version(&local, &name, 6);
+            let record = record_path(&local, &name);
             let marker = session.runtime_directory().join("activation.started");
-            let checkpoint = local
-                .0
-                .join("native-sessions")
-                .join(Rendezvous::host_endpoint_id(session.runtime_directory()))
-                .join("checkpoint.json");
+            let checkpoint = state_path(&local, &name).join("checkpoint.json");
             let retained = [&record, &marker, &checkpoint].map(|path| fs::read(path).unwrap());
-            let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-            assert!(
-                catalog
-                    .prepare_activation(
-                        &scope(&name),
-                        Some(&name),
-                        std::time::Instant::now() + std::time::Duration::from_secs(5)
-                    )
-                    .is_err()
-            );
+            let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
+            assert!(catalog.prepare_activation(&name).is_err());
             assert!(catalog.begin_activation(&session, [2; 16]).is_err());
             let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap()
             else {
@@ -427,16 +335,13 @@ fn assert_framed_stopped_checkpoint_evidence(leaf: &str, text: &str) {
     let (name, session, mut owner) = start(&base, &local, text, 1);
     stop(&session, &mut owner, 9);
     let runtime = session.runtime_directory().to_owned();
-    let state = local
-        .0
-        .join("native-sessions")
-        .join(Rendezvous::host_endpoint_id(&runtime));
+    let state = state_path(&local, &name);
     drop(session);
     remove_runtime(&base, &runtime);
     fs::rename(state.join("checkpoint.json"), state.join(leaf)).unwrap();
     let evidence = fs::read(state.join(leaf)).unwrap();
 
-    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
     let entry = entries
         .iter()
         .find(|entry| entry.name == name)
@@ -448,28 +353,18 @@ fn assert_framed_stopped_checkpoint_evidence(leaf: &str, text: &str) {
         })
     );
 
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-    assert_eq!(
-        catalog
-            .prepare_activation(
-                &scope(&name),
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5)
-            )
-            .unwrap(),
-        Some(name.clone())
-    );
-    let session = base.open(&scope(&name));
-    let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap() else {
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
+    catalog.prepare_activation(&name).unwrap();
+    let session = base.open(name.as_str());
+    let LockAttempt::Acquired(_activation) = session.try_acquire_activation_lock().unwrap() else {
         panic!("activation")
     };
     let LockAttempt::Acquired(_lifetime) = session.try_acquire_session_lifetime_lock().unwrap()
     else {
         panic!("lifetime")
     };
-    session.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&session, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 1);
+    assert_eq!(record_version(&local, &name), 1);
     assert_eq!(fs::read(state.join(leaf)).unwrap(), evidence);
 }
 
@@ -481,40 +376,57 @@ fn framed_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
 #[test]
 fn framed_stopped_recovery_accepts_raw_only_checkpoint_evidence() {
     assert_framed_stopped_checkpoint_evidence(
-        "checkpoint.corrupt-00000000000000000000000000000001.raw",
+        "checkpoint.corrupt-2026-11-08T10-00-00Z.raw",
         "raw-evidence",
     );
 }
 
 #[test]
-fn stopped_runtime_loss_allows_delete_and_preserves_the_other_base() {
+fn a_record_naming_another_runtime_folder_starts_here_only_once_stopped() {
     let first = Fixture::new();
     let second = Fixture::new();
     let local = Fixture::new();
     let (name, session, mut owner) = start(&first, &local, "work", 1);
+    let catalog = Catalog::try_lock(&second.0, &local.root()).unwrap();
+    assert_eq!(
+        catalog.prepare_activation(&name).unwrap_err().kind(),
+        io::ErrorKind::InvalidData
+    );
+    assert!(!second.0.join("work").exists());
+    drop(catalog);
     stop(&session, &mut owner, 4);
     let runtime = session.runtime_directory().to_owned();
+    drop(owner);
     drop(session);
     remove_runtime(&first, &runtime);
-    let (_, peer, mut peer_owner) = start(&second, &local, "work", 1);
-    stop(&peer, &mut peer_owner, 5);
-    let peer_bytes = fs::read(record_path(&second, &local, &name)).unwrap();
-    let catalog = Catalog::try_lock(&first.0, &local.0).unwrap();
+    let (_, peer, mut peer_owner) = start(&second, &local, "work", 2);
     assert_eq!(
-        catalog.delete(&name, &local.0, deadline(), || Ok(false)),
+        SessionStore::open(&local.root(), &peer, 64)
+            .unwrap()
+            .read()
+            .unwrap()
+            .unwrap(),
+        b"work"
+    );
+    stop(&peer, &mut peer_owner, 5);
+    let listed = Catalog::list(&first.0, &local.root(), deadline()).unwrap();
+    assert_eq!(listed[1].runtime, peer.runtime_directory());
+    let catalog = Catalog::try_lock(&second.0, &local.root()).unwrap();
+    drop(peer_owner);
+    drop(peer);
+    assert_eq!(
+        catalog.delete(&name, deadline(), || Ok(false)),
         Ok(Outcome::Deleted)
     );
-    assert!(!record_path(&first, &local, &name).exists());
+    assert!(!state_path(&local, &name).exists());
     assert_eq!(
-        fs::read(record_path(&second, &local, &name)).unwrap(),
-        peer_bytes
-    );
-    assert_eq!(
-        catalog.delete(&name, &local.0, deadline(), || Ok(false)),
+        catalog.delete(&name, deadline(), || Ok(false)),
         Ok(Outcome::Absent)
     );
     assert_eq!(
-        Catalog::list(&first.0, &local.0, deadline()).unwrap().len(),
+        Catalog::list(&first.0, &local.root(), deadline())
+            .unwrap()
+            .len(),
         1
     );
 }
@@ -527,13 +439,13 @@ fn old_stop_owner_cannot_settle_a_new_generation_or_reuse_its_nonce() {
     stop(&session, &mut old, 4);
     assert!(old.complete([4; 16]).is_ok());
     assert!(old.complete([5; 16]).is_err());
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     assert!(catalog.begin_activation(&session, [1; 16]).is_err());
     assert!(catalog.begin_activation(&session, [0; 16]).is_err());
     drop(catalog);
     drop(session);
     let (_, session, mut current) = start(&base, &local, "generation", 2);
-    let path = record_path(&base, &local, &name);
+    let path = record_path(&local, &name);
     let active = fs::read(&path).unwrap();
     assert!(old.complete([4; 16]).is_err());
     assert_eq!(fs::read(&path).unwrap(), active);
@@ -545,7 +457,7 @@ fn failed_stop_publication_preserves_active_bytes_and_can_be_retried() {
     let base = Fixture::new();
     let local = Fixture::new();
     let (name, session, mut owner) = start(&base, &local, "publication", 1);
-    let path = record_path(&base, &local, &name);
+    let path = record_path(&local, &name);
     let active = fs::read(&path).unwrap();
     let held = permissions::open_file(&path, false, false).unwrap();
     assert!(owner.complete([2; 16]).is_err());
@@ -557,82 +469,57 @@ fn failed_stop_publication_preserves_active_bytes_and_can_be_retried() {
 }
 
 #[test]
-fn deletion_survives_loss_of_temporary_intent_and_runtime() {
+fn deletion_survives_loss_of_runtime() {
     let base = Fixture::new();
     let local = Fixture::new();
     let (name, session, mut owner) = start(&base, &local, "delete", 1);
     stop(&session, &mut owner, 3);
     let runtime = session.runtime_directory().to_owned();
     drop(session);
-    let path = record_path(&base, &local, &name);
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    let path = record_path(&local, &name);
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     let failure = catalog
-        .delete(&name, &local.0, deadline(), || {
+        .delete(&name, deadline(), || {
             let value: serde_json::Value = serde_json::from_slice(&fs::read(&path)?).unwrap();
             Ok(value["lifecycle"]["state"] == "deleting")
         })
         .unwrap_err();
     assert_eq!(failure.reason, Reason::Interrupted);
     assert!(failure.pending);
-    let ephemeral = base.0.join(format!("{}.deleting", scope(&name)));
-    assert!(
-        !ephemeral.exists(),
-        "interrupted between durable and ephemeral intent"
-    );
     remove_runtime(&base, &runtime);
-    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
     assert!(entries[1].deleting);
-    assert!(
-        catalog
-            .prepare_activation(
-                &scope(&name),
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5)
-            )
-            .is_err()
-    );
+    assert!(catalog.prepare_activation(&name).is_err());
     assert_eq!(
-        catalog.delete(&name, &local.0, deadline(), || Ok(false)),
+        catalog.delete(&name, deadline(), || Ok(false)),
         Ok(Outcome::Deleted)
     );
     assert!(!path.exists());
-    assert!(!ephemeral.exists());
+    assert!(!state_path(&local, &name).exists());
 }
 
 #[test]
-fn checkpoint_locks_endpoints_and_foreign_storage_roots_cannot_bypass_admission() {
+fn checkpoint_locks_and_endpoints_cannot_bypass_admission() {
     let base = Fixture::new();
     let local = Fixture::new();
-    let foreign = Fixture::new();
     let (name, session, mut owner) = start(&base, &local, "admission", 1);
     stop(&session, &mut owner, 3);
     let runtime = session.runtime_directory().to_owned();
-    let state_path = local
-        .0
-        .join("native-sessions")
-        .join(Rendezvous::host_endpoint_id(&runtime));
+    let state_path = state_path(&local, &name);
     drop(session);
     remove_runtime(&base, &runtime);
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     let held = permissions::open_file(&state_path.join("state.lock"), false, true).unwrap();
     held.try_lock().unwrap();
-    assert!(
-        catalog
-            .prepare_activation(
-                &scope(&name),
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5)
-            )
-            .is_err()
-    );
-    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    assert!(catalog.prepare_activation(&name).is_err());
+    let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
     assert_eq!(
         entries[1].absent_runtime_state().unwrap(),
         Some(ActivationState::Active)
     );
     assert_eq!(
         catalog
-            .delete(&name, &local.0, deadline(), || Ok(false))
+            .delete(&name, deadline(), || Ok(false))
             .unwrap_err()
             .reason,
         Reason::InUse
@@ -640,38 +527,14 @@ fn checkpoint_locks_endpoints_and_foreign_storage_roots_cannot_bypass_admission(
     drop(held);
     let listener =
         orchbee_local_ipc::LocalListener::bind(&Rendezvous::socket_paths(&runtime)[0]).unwrap();
-    assert!(
-        catalog
-            .prepare_activation(
-                &scope(&name),
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5)
-            )
-            .is_err()
-    );
+    assert!(catalog.prepare_activation(&name).is_err());
     assert_eq!(
         entries[1].absent_runtime_state().unwrap(),
         Some(ActivationState::Active)
     );
     drop(listener);
-    let before = fs::read(record_path(&base, &local, &name)).unwrap();
-    assert!(
-        catalog
-            .delete(&name, &foreign.0, deadline(), || Ok(false))
-            .is_err()
-    );
-    assert_eq!(fs::read(record_path(&base, &local, &name)).unwrap(), before);
     assert!(state_path.join("checkpoint.json").exists());
-    assert_eq!(fs::read_dir(&foreign.0).unwrap().count(), 0);
-    assert!(
-        catalog
-            .prepare_activation(
-                &scope(&name),
-                Some(&name),
-                std::time::Instant::now() + std::time::Duration::from_secs(5)
-            )
-            .is_ok()
-    );
+    assert!(catalog.prepare_activation(&name).is_ok());
 }
 
 #[test]
@@ -680,7 +543,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     let local = Fixture::new();
     let (name, session, mut owner) = start(&base, &local, "strict", 1);
     stop(&session, &mut owner, 3);
-    let path = record_path(&base, &local, &name);
+    let path = record_path(&local, &name);
     let original = fs::read(&path).unwrap();
     let value: serde_json::Value = serde_json::from_slice(&original).unwrap();
     let mut cases = vec![vec![b' '; 8193], br#"{"version":1,"version":1}"#.to_vec()];
@@ -695,11 +558,9 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
         corrupt[field] = replacement;
         cases.push(serde_json::to_vec(&corrupt).unwrap());
     }
-    let directory = Directory::open(&local.0, &base.0.canonicalize().unwrap())
-        .unwrap()
-        .unwrap();
+    let directory = Directory::open(&local.root()).unwrap().unwrap();
     let valid = Record::new(
-        &base.0.canonicalize().unwrap(),
+        &base.0.canonicalize().unwrap().join(name.as_str()),
         &name,
         Some([2; 16]),
         Lifecycle::Active,
@@ -707,7 +568,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     .unwrap();
     for bytes in cases {
         fs::write(&path, &bytes).unwrap();
-        if let Ok(entries) = Catalog::list(&base.0, &local.0, deadline()) {
+        if let Ok(entries) = Catalog::list(&base.0, &local.root(), deadline()) {
             assert!(
                 entries
                     .iter()
@@ -716,18 +577,18 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
                     .unreadable
             );
         }
-        assert!(directory.read(&scope(&name)).is_err());
-        assert!(directory.publish(&scope(&name), &valid).is_err());
+        assert!(directory.read(name.as_str()).is_err());
+        assert!(directory.publish(name.as_str(), &valid).is_err());
         assert_eq!(fs::read(&path).unwrap(), bytes);
     }
     fs::write(&path, &original).unwrap();
     let alias = local.0.join("foreign-link");
     fs::hard_link(&path, &alias).unwrap();
-    assert!(directory.read(&scope(&name)).is_err());
-    assert!(directory.publish(&scope(&name), &valid).is_err());
+    assert!(directory.read(name.as_str()).is_err());
+    assert!(directory.publish(name.as_str(), &valid).is_err());
     assert_eq!(fs::read(&alias).unwrap(), original);
     fs::remove_file(alias).unwrap();
-    assert!(directory.read(&scope(&name)).is_ok());
+    assert!(directory.read(name.as_str()).is_ok());
 }
 
 #[test]
@@ -736,7 +597,7 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
         let base = Fixture::new();
         let local = Fixture::new();
         let (name, session, mut owner) = start(&base, &local, "unreadable", 1);
-        let path = record_path(&base, &local, &name);
+        let path = record_path(&local, &name);
         stop(&session, &mut owner, 3);
         let mut record: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
@@ -747,28 +608,20 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
         }
         let bytes = serde_json::to_vec(&record).unwrap();
         fs::write(&path, &bytes).unwrap();
-        let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+        let entries = Catalog::list(&base.0, &local.root(), deadline()).unwrap();
         let entry = entries.iter().find(|entry| entry.name == name).unwrap();
         assert!(entry.unreadable);
         assert!(!entry.cold_recoverable().unwrap());
         assert_eq!(fs::read(&path).unwrap(), bytes);
-        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-        assert!(
-            catalog
-                .prepare_activation(
-                    &scope(&name),
-                    Some(&name),
-                    std::time::Instant::now() + std::time::Duration::from_secs(5)
-                )
-                .is_err()
-        );
+        let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
+        assert!(catalog.prepare_activation(&name).is_err());
         let LockAttempt::Acquired(lifetime) = session.try_acquire_session_lifetime_lock().unwrap()
         else {
             panic!("lifetime")
         };
         assert_eq!(
             catalog
-                .delete(&name, &local.0, deadline(), || Ok(false))
+                .delete(&name, deadline(), || Ok(false))
                 .unwrap_err()
                 .reason,
             Reason::InUse
@@ -778,9 +631,7 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
         drop(owner);
         drop(session);
         assert_eq!(
-            catalog
-                .delete(&name, &local.0, deadline(), || Ok(false))
-                .unwrap(),
+            catalog.delete(&name, deadline(), || Ok(false)).unwrap(),
             Outcome::Deleted
         );
         assert!(!path.exists());

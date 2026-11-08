@@ -1,8 +1,9 @@
 //! Keeps each terminal's recent output beside the checkpoint so a restart can show it again. It
-//! owns the payload format, the line and byte caps, the content token a checkpoint names, and an
-//! in-memory index of what it last wrote per terminal, so a save rewrites a file only when the
-//! content changed. Storage effects go through the narrow store port; capture and launch belong to
-//! the terminal service.
+//! owns the payload format, the line and byte caps, the file number a checkpoint names, and an
+//! in-memory index of what it last wrote per terminal, so a save writes a file only when the
+//! content changed. Numbers count up from the highest kept one, so a file name never carries a
+//! digest. Storage effects go through the narrow store port; capture and launch belong to the
+//! terminal service.
 
 use orchbee_workbench_protocol::{PresentationBinding, TerminalPresentationId};
 use std::{
@@ -18,7 +19,7 @@ pub(crate) const LINES: u16 = 2000;
 pub(crate) const MAXIMUM_OUTPUT_BYTES: usize = 1024 * 1024 - 1024;
 const MAGIC: &[u8] = b"orchbee.terminal-output 1\n";
 
-/// Where kept output persists: complete payloads named by a nonzero token.
+/// Where kept output persists: complete payloads named by a nonzero number.
 pub(crate) trait TerminalOutputStore: Send + Sync {
     fn tokens(&self) -> io::Result<Vec<u64>>;
     fn read(&self, token: u64) -> io::Result<Option<Vec<u8>>>;
@@ -57,6 +58,15 @@ struct Kept {
     /// The terminal content generation and revision the file reflects.
     version: (u64, u64),
     token: u64,
+    /// The written Presentation and content, compared to skip an unchanged rewrite.
+    fingerprint: u64,
+}
+
+/// Every live terminal's last write, and the next free file number once one was needed.
+#[derive(Default)]
+struct Index {
+    kept: BTreeMap<(String, String), Kept>,
+    next: Option<u64>,
 }
 
 #[cfg(test)]
@@ -64,7 +74,7 @@ mod tests;
 
 pub(crate) struct TerminalOutput {
     store: Arc<dyn TerminalOutputStore>,
-    kept: Mutex<BTreeMap<(String, String), Kept>>,
+    index: Mutex<Index>,
 }
 
 fn key(binding: &PresentationBinding) -> (String, String) {
@@ -78,20 +88,40 @@ impl TerminalOutput {
     pub(crate) fn new(store: Arc<dyn TerminalOutputStore>) -> Self {
         Self {
             store,
-            kept: Mutex::new(BTreeMap::new()),
+            index: Mutex::new(Index::default()),
         }
     }
 
-    fn kept(&self) -> io::Result<std::sync::MutexGuard<'_, BTreeMap<(String, String), Kept>>> {
-        self.kept
+    fn index(&self) -> io::Result<std::sync::MutexGuard<'_, Index>> {
+        self.index
             .lock()
             .map_err(|_| io::Error::other("terminal output index failed"))
     }
 
+    /// A number no kept file and no earlier write in this Session uses.
+    fn next_number(&self) -> io::Result<u64> {
+        let mut index = self.index()?;
+        let number = match index.next {
+            Some(next) => next,
+            // The first write continues after the highest number a kept file uses.
+            None => self
+                .store
+                .tokens()?
+                .into_iter()
+                .max()
+                .unwrap_or(0)
+                .checked_add(1)
+                .ok_or(io::ErrorKind::InvalidData)?,
+        };
+        index.next = Some(number.checked_add(1).ok_or(io::ErrorKind::InvalidData)?);
+        Ok(number)
+    }
+
     /// The content version last written for `binding`, so an unchanged terminal is not reread.
     pub(crate) fn known(&self, binding: &PresentationBinding) -> Option<(u64, u64)> {
-        self.kept()
+        self.index()
             .ok()?
+            .kept
             .get(&key(binding))
             .filter(|kept| &kept.binding == binding)
             .map(|kept| kept.version)
@@ -109,24 +139,32 @@ impl TerminalOutput {
         saved_at: u64,
     ) -> io::Result<()> {
         let Some(content) = content(lines) else {
-            self.kept()?.remove(&key(binding));
+            self.index()?.kept.remove(&key(binding));
             return Ok(());
         };
-        let token = token(presentation, &content);
+        let fingerprint = fingerprint(presentation, &content);
         let unchanged = self
-            .kept()?
+            .index()?
+            .kept
             .get(&key(binding))
-            .is_some_and(|kept| &kept.binding == binding && kept.token == token);
-        if !unchanged {
-            self.store
-                .write(token, &encode(presentation, saved_at, &content))?;
-        }
-        self.kept()?.insert(
+            .filter(|kept| &kept.binding == binding && kept.fingerprint == fingerprint)
+            .map(|kept| kept.token);
+        let token = match unchanged {
+            Some(token) => token,
+            None => {
+                let token = self.next_number()?;
+                self.store
+                    .write(token, &encode(presentation, saved_at, &content))?;
+                token
+            }
+        };
+        self.index()?.kept.insert(
             key(binding),
             Kept {
                 binding: binding.clone(),
                 version,
                 token,
+                fingerprint,
             },
         );
         Ok(())
@@ -137,13 +175,16 @@ impl TerminalOutput {
         &self,
         bindings: &[PresentationBinding],
     ) -> Vec<(PresentationBinding, u64)> {
-        let Ok(kept) = self.kept() else {
+        let Ok(index) = self.index() else {
             return Vec::new();
         };
         bindings
             .iter()
             .filter_map(|binding| {
-                let kept = kept.get(&key(binding)).filter(|k| &k.binding == binding)?;
+                let kept = index
+                    .kept
+                    .get(&key(binding))
+                    .filter(|k| &k.binding == binding)?;
                 Some((binding.clone(), kept.token))
             })
             .collect()
@@ -152,7 +193,9 @@ impl TerminalOutput {
     /// After a committed save, removes every kept file the checkpoint does not name and forgets
     /// terminals whose output it no longer names.
     pub(crate) fn after_publish(&self, named: &[u64]) -> io::Result<()> {
-        self.kept()?.retain(|_, kept| named.contains(&kept.token));
+        self.index()?
+            .kept
+            .retain(|_, kept| named.contains(&kept.token));
         for token in self.store.tokens()? {
             if !named.contains(&token) {
                 self.store.remove(token)?;
@@ -234,8 +277,8 @@ fn visible(line: &str) -> String {
     text.trim().to_owned()
 }
 
-/// FNV-1a over the Presentation and content, never zero: equal content keeps its file name.
-fn token(presentation: &TerminalPresentationId, content: &[u8]) -> u64 {
+/// FNV-1a over the Presentation and content, kept in memory only: equal content keeps its file.
+fn fingerprint(presentation: &TerminalPresentationId, content: &[u8]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in presentation
         .as_str()
@@ -247,7 +290,7 @@ fn token(presentation: &TerminalPresentationId, content: &[u8]) -> u64 {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    hash.max(1)
+    hash
 }
 
 fn encode(presentation: &TerminalPresentationId, saved_at: u64, content: &[u8]) -> Vec<u8> {

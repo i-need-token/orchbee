@@ -192,17 +192,33 @@ fn unchanged_payload_does_not_rotate_and_exhaustion_refuses_effects() {
 }
 
 #[test]
-fn corrupt_original_grammar_only_admits_nonzero_canonical_owned_names() {
-    assert!(is_corrupt_original(
-        "checkpoint.corrupt-00000000000000000000000000000001.raw"
-    ));
+fn corrupt_original_grammar_only_admits_exact_utc_second_names() {
+    assert_eq!(
+        corrupt_original(1_762_596_000, 1),
+        "checkpoint.corrupt-2025-11-08T10-00-00Z.raw"
+    );
+    assert_eq!(
+        corrupt_original(1_762_596_000, 2),
+        "checkpoint.corrupt-2025-11-08T10-00-00Z-2.raw"
+    );
     for name in [
-        "checkpoint.corrupt-00000000000000000000000000000000.raw",
-        "checkpoint.corrupt-0000000000000000000000000000000A.raw",
-        "checkpoint.corrupt-0000000000000000000000000000001.raw",
-        "checkpoint.corrupt-00000000000000000000000000000001.raw.extra",
-        "other.corrupt-00000000000000000000000000000001.raw",
+        "checkpoint.corrupt-2025-11-08T10-00-00Z.raw",
+        "checkpoint.corrupt-2025-11-08T10-00-00Z-2.raw",
+        "checkpoint.corrupt-2024-02-29T23-59-59Z-10.raw",
     ] {
-        assert!(!is_corrupt_original(name));
+        assert!(is_corrupt_original(name), "{name}");
+    }
+    for name in [
+        "checkpoint.corrupt-2025-11-08T10-00-00Z-1.raw",
+        "checkpoint.corrupt-2025-11-08T10-00-00Z-02.raw",
+        "checkpoint.corrupt-2025-02-29T10-00-00Z.raw",
+        "checkpoint.corrupt-2025-11-08T24-00-00Z.raw",
+        "checkpoint.corrupt-2025-11-08t10-00-00z.raw",
+        "checkpoint.corrupt-1969-12-31T23-59-59Z.raw",
+        "checkpoint.corrupt-2025-11-08T10-00-00Z.raw.extra",
+        "checkpoint.corrupt-00000000000000000000000000000001.raw",
+        "other.corrupt-2025-11-08T10-00-00Z.raw",
+    ] {
+        assert!(!is_corrupt_original(name), "{name}");
     }
 }

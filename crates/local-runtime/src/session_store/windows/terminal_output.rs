@@ -1,5 +1,5 @@
-//! Kept terminal output beside the checkpoint slots: one atomically renamed file per token. The
-//! Server names the tokens its committed checkpoint uses and removes every other one.
+//! Kept terminal output in the Session folder: one atomically renamed file per number. The Server
+//! names the numbers its committed checkpoint uses and removes every other one.
 use super::{SessionStore, private_folder, publish_private, remove_if_present};
 use crate::{private_filesystem as permissions, terminal_output as output};
 use std::{

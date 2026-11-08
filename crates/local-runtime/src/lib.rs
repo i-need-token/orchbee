@@ -58,7 +58,7 @@ mod activation_record;
 mod cohort;
 mod data_root;
 pub use data_root::{
-    DataRoot, DataRootError, HOME_VARIABLE, StateRecord, default_runtime_base, local_state_root,
+    DataRoot, DataRootError, HOME_VARIABLE, StateRecord, TUI_POSITION_RECORD, default_runtime_base,
 };
 mod environment;
 pub use environment::{
@@ -105,6 +105,8 @@ mod session_name;
 mod session_store;
 #[cfg(windows)]
 mod terminal_output;
+#[cfg(windows)]
+mod time_name;
 pub use session_catalog::{
     NamedSessionDeleteFailure, NamedSessionDeleteOutcome, NamedSessionDeleteReason,
     NamedSessionEntry, SessionCatalog, UnrecognizedRecord, UnrecognizedRecordKind,

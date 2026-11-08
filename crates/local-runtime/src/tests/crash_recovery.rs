@@ -8,42 +8,23 @@ use crate::{
 use std::io;
 
 fn setup(base: &Fixture, local: &Fixture, text: &str) -> (Catalog, Rendezvous, String) {
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     let name = SessionName::parse(text).unwrap();
-    let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid().unwrap());
-    catalog
-        .prepare_activation(
-            &scope,
-            Some(&name),
-            std::time::Instant::now() + std::time::Duration::from_secs(5),
-        )
-        .unwrap();
-    let session = base.open(&scope);
-    let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap() else {
+    catalog.prepare_activation(&name).unwrap();
+    let session = base.open(name.as_str());
+    let LockAttempt::Acquired(_activation) = session.try_acquire_activation_lock().unwrap() else {
         panic!("activation");
     };
-    session.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&session, [1; 16]).unwrap();
     session.commit_activation().unwrap();
-    (catalog, session, scope)
+    (catalog, session, name.as_str().to_owned())
 }
-fn directory(base: &Fixture, local: &Fixture) -> Directory {
-    Directory::open(&local.0, &base.0.canonicalize().unwrap())
-        .unwrap()
-        .unwrap()
+fn directory(local: &Fixture) -> Directory {
+    Directory::open(&local.root()).unwrap().unwrap()
 }
-fn record_path(base: &Fixture, local: &Fixture, scope: &str) -> std::path::PathBuf {
-    local
-        .0
-        .join("session-catalog")
-        .join(Rendezvous::host_endpoint_id(
-            &base.0.canonicalize().unwrap(),
-        ))
-        .join(format!("{scope}.json"))
-}
-fn record_version(base: &Fixture, local: &Fixture, scope: &str) -> u64 {
-    let value: serde_json::Value =
-        serde_json::from_slice(&fs::read(record_path(base, local, scope)).unwrap()).unwrap();
+fn record_version(local: &Fixture, scope: &str) -> u64 {
+    let path = local.0.join("sessions").join(scope).join("session.json");
+    let value: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     value["version"].as_u64().unwrap()
 }
 fn guards(session: &Rendezvous) -> (crate::ModeCheckedSessionLock, crate::ModeCheckedSessionLock) {
@@ -65,9 +46,9 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                 let base = Fixture::new();
                 let local = Fixture::new();
                 let (catalog, session, scope) = setup(&base, &local, text);
-                assert_eq!(record_version(&base, &local, &scope), 1);
+                assert_eq!(record_version(&local, &scope), 1);
                 if saved {
-                    let mut store = SessionStore::open(&local.0, &session, 64).unwrap();
+                    let mut store = SessionStore::open(&local.root(), &session, 64).unwrap();
                     store.publish(b"last valid workbench").unwrap();
                 }
                 let (activation, lifetime) = guards(&session);
@@ -83,11 +64,7 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                     }
                 );
                 assert_eq!(
-                    directory(&base, &local)
-                        .read(&scope)
-                        .unwrap()
-                        .unwrap()
-                        .lifecycle,
+                    directory(&local).read(&scope).unwrap().unwrap().lifecycle,
                     Lifecycle::Crashed
                 );
                 // A repeated reconciler retains the committed old generation.
@@ -99,12 +76,12 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                 assert!(catalog.begin_activation(&session, [1; 16]).is_err());
                 catalog.begin_activation(&session, [2; 16]).unwrap();
                 session.commit_activation().unwrap();
-                assert_eq!(record_version(&base, &local, &scope), 1);
-                let record = directory(&base, &local).read(&scope).unwrap().unwrap();
+                assert_eq!(record_version(&local, &scope), 1);
+                let record = directory(&local).read(&scope).unwrap().unwrap();
                 assert_eq!(record.activation_id, Some([2; 16]));
                 assert_eq!(record.lifecycle, Lifecycle::Active);
                 assert_eq!(session.activation_state().unwrap(), ActivationState::Active);
-                let store = SessionStore::open(&local.0, &session, 64).unwrap();
+                let store = SessionStore::open(&local.root(), &session, 64).unwrap();
                 assert_eq!(
                     store.read().unwrap(),
                     saved.then(|| b"last valid workbench".to_vec())
@@ -122,18 +99,17 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
             let local = Fixture::new();
             let (catalog, session, scope) = setup(&base, &local, text);
             {
-                let mut store = SessionStore::open(&local.0, &session, 64).unwrap();
+                let mut store = SessionStore::open(&local.root(), &session, 64).unwrap();
                 store.publish(b"retained workbench").unwrap();
             }
-            let directory = directory(&base, &local);
+            let directory = directory(&local);
             let (activation, lifetime) = guards(&session);
             if receipt == "crashed" {
                 catalog
                     .recover_inactive(&session, &activation, &lifetime)
                     .unwrap();
             } else {
-                Retained::retain(&local.0, &session)
-                    .unwrap()
+                Retained::retain(&local.root(), &session)
                     .unwrap()
                     .complete([7; 16])
                     .unwrap();
@@ -180,7 +156,7 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
                 }
             );
             assert_eq!(
-                SessionStore::open(&local.0, &session, 64)
+                SessionStore::open(&local.root(), &session, 64)
                     .unwrap()
                     .read()
                     .unwrap(),
@@ -225,7 +201,7 @@ fn incomplete_unknown_and_exact_live_registration_refuse_without_publication() {
         let base = Fixture::new();
         let local = Fixture::new();
         let (catalog, session, scope) = setup(&base, &local, "refused");
-        let directory = directory(&base, &local);
+        let directory = directory(&local);
         let mut record = directory.read(&scope).unwrap().unwrap();
         {
             let processes = &mut record.processes;
@@ -282,7 +258,7 @@ fn endpoint_checkpoint_writer_and_record_writer_obstruction_refuse() {
     let base = Fixture::new();
     let local = Fixture::new();
     let (catalog, session, scope) = setup(&base, &local, "obstructed");
-    let directory = directory(&base, &local);
+    let directory = directory(&local);
     let original = directory.read(&scope).unwrap().unwrap();
     let (activation, lifetime) = guards(&session);
     let writer = directory.try_writer(&scope).unwrap();
@@ -294,7 +270,7 @@ fn endpoint_checkpoint_writer_and_record_writer_obstruction_refuse() {
         io::ErrorKind::WouldBlock
     );
     drop(writer);
-    let store = SessionStore::open(&local.0, &session, 64).unwrap();
+    let store = SessionStore::open(&local.root(), &session, 64).unwrap();
     assert_eq!(
         catalog
             .recover_inactive(&session, &activation, &lifetime)
@@ -333,7 +309,7 @@ fn committed_crash_publication_retries_only_its_matching_interrupted_marker() {
         let base = Fixture::new();
         let local = Fixture::new();
         let (catalog, session, scope) = setup(&base, &local, "partial");
-        let directory = directory(&base, &local);
+        let directory = directory(&local);
         let mut record = directory.read(&scope).unwrap().unwrap();
         record.lifecycle = Lifecycle::Crashed;
         directory.publish(&scope, &record).unwrap();
@@ -377,8 +353,8 @@ fn clean_stop_preserves_children_registered_after_the_server_retained_its_genera
     let base = Fixture::new();
     let local = Fixture::new();
     let (_catalog, session, scope) = setup(&base, &local, "later-host");
-    let mut retained = Retained::retain(&local.0, &session).unwrap().unwrap();
-    let directory = directory(&base, &local);
+    let mut retained = Retained::retain(&local.root(), &session).unwrap();
+    let directory = directory(&local);
     let mut record = directory.read(&scope).unwrap().unwrap();
     let processes = &mut record.processes;
     for (role, creator, identity) in [
@@ -425,7 +401,6 @@ fn registered_dead_runtime_loss_remains_discoverable_and_recreates_the_same_rout
             Some(base.0.canonicalize().unwrap().as_path())
         );
         for leaf in [
-            "session-name.json",
             "activation.started",
             "activation.lock",
             "session-lifetime.lock",
@@ -438,31 +413,26 @@ fn registered_dead_runtime_loss_remains_discoverable_and_recreates_the_same_rout
         }
         fs::remove_dir(&runtime).unwrap();
         drop(catalog);
-        let entry = Catalog::list(&base.0, &local.0, Instant::now() + Duration::from_secs(5))
-            .unwrap()
-            .into_iter()
-            .find(|entry| entry.name.as_str() == text)
-            .unwrap();
+        let entry = Catalog::list(
+            &base.0,
+            &local.root(),
+            Instant::now() + Duration::from_secs(5),
+        )
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.name.as_str() == text)
+        .unwrap();
         assert!(entry.cold_recoverable().unwrap());
         assert!(
             !runtime.exists(),
             "listing creates no runtime or record lock"
         );
-        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-        let name = SessionName::parse(text).unwrap();
-        assert_eq!(
-            catalog
-                .prepare_activation(
-                    &scope,
-                    Some(&name),
-                    std::time::Instant::now() + std::time::Duration::from_secs(5)
-                )
-                .unwrap(),
-            Some(name.clone())
-        );
+        let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
+        catalog
+            .prepare_activation(&SessionName::parse(text).unwrap())
+            .unwrap();
         let session = base.open(&scope);
         let (activation, lifetime) = guards(&session);
-        session.register_session_name(&activation, &name).unwrap();
         assert!(
             catalog
                 .recover_inactive(&session, &activation, &lifetime)

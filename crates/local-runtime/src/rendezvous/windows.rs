@@ -55,27 +55,10 @@ impl ModeCheckedLocalSessionRendezvous {
     ) -> Result<Self, RendezvousError> {
         Self::open(base, scope, false)
     }
+    /// The runtime folder of the Session `scope` names. A pending deletion is the Session record's
+    /// fact, which activation and the Server check; the runtime folder records no identity.
     fn open(base: &Path, scope: SessionScope, create: bool) -> Result<Self, RendezvousError> {
-        Self::open_with_deletion(base, scope, create, false)
-    }
-    pub(crate) fn for_named_deletion(
-        base: &Path,
-        scope: SessionScope,
-        pending: bool,
-    ) -> Result<Self, RendezvousError> {
-        Self::open_with_deletion(base, scope, false, pending)
-    }
-    fn open_with_deletion(
-        base: &Path,
-        scope: SessionScope,
-        create: bool,
-        deleting: bool,
-    ) -> Result<Self, RendezvousError> {
         let mut directories = permissions::open_tree(base).map_err(|error| failure(base, error))?;
-        if !deleting {
-            crate::session_catalog::require_not_deleting(base, scope.as_str())
-                .map_err(|error| failure(base, error))?;
-        }
         let runtime = base.join(scope.as_str());
         let created = if create {
             match std::fs::create_dir(&runtime) {
@@ -104,16 +87,6 @@ impl ModeCheckedLocalSessionRendezvous {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(failure(&obsolete_lock, error)),
         }
-        if scope
-            .as_str()
-            .starts_with(crate::session_name::NAMED_PREFIX)
-        {
-            match crate::session_name::read(&runtime) {
-                Ok(_) => {}
-                Err(error) if (create || deleting) && error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(failure(&runtime, error)),
-            }
-        }
         let [client, worker] = Self::socket_paths(&runtime);
         Ok(Self {
             runtime,
@@ -133,10 +106,13 @@ impl ModeCheckedLocalSessionRendezvous {
     pub fn runtime_directory(&self) -> &Path {
         &self.runtime
     }
-    /// The exact name recorded for a named scope, which admission already verified. The default
-    /// scope keeps no name record, so it reads as absent.
+    /// The Session this runtime folder belongs to, spelled as the folder is.
     pub fn session_name(&self) -> io::Result<crate::SessionName> {
-        crate::session_name::read(&self.runtime)
+        self.runtime
+            .file_name()
+            .and_then(|leaf| leaf.to_str())
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))
+            .and_then(crate::SessionName::parse)
     }
     pub fn client_socket_path(&self) -> &Path {
         &self.client
@@ -181,17 +157,6 @@ impl ModeCheckedLocalSessionRendezvous {
     }
     pub fn try_acquire_activation_lock(&self) -> Result<LockAttempt, RendezvousError> {
         self.try_acquire(LockKind::Activation)
-    }
-    /// Only the matching activation owner can publish the immutable name before startup.
-    pub fn register_session_name(
-        &self,
-        lock: &ModeCheckedSessionLock,
-        name: &crate::SessionName,
-    ) -> io::Result<()> {
-        if lock.runtime != self.runtime || lock.kind != LockKind::Activation {
-            return Err(io::ErrorKind::PermissionDenied.into());
-        }
-        crate::session_name::register(&self.runtime, name)
     }
     pub fn try_acquire_session_lifetime_lock(&self) -> Result<LockAttempt, RendezvousError> {
         self.try_acquire(LockKind::SessionLifetime)

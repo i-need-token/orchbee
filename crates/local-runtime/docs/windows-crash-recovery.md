@@ -7,15 +7,17 @@ Host respectively. Workbench checkpoint interpretation remains owned by Server.
 
 ## State and inputs
 
-A catalog generation has a nonzero activation identity and one registration for each of Server,
+A Session's catalog record, `sessions/<session>/session.json` in the data root, holds its current
+generation. A generation has a nonzero activation identity and one registration for each of Server,
 Worker and Host. Registration is `NotStarted`, `Spawning`, or `Identified` with a nonzero Windows
 PID and nonzero creation FILETIME. A PID alone is never identity. Windows process observation
 returns exact identity alive, exact identity gone, or unknown. A reused PID means the old identity
 is gone; it provides no termination authority over the replacement process.
 
-The private record writer lock serializes generation, child registration and recovery publication.
-Activation additionally holds the namespace, activation and Session lifetime guards. Effects derive
-paths from admitted scope and current-user inputs, never from serialized paths. Checkpoint storage
+The private record writer lock, `session.lock` beside the record, serializes generation, child registration and recovery publication.
+Activation additionally holds the namespace (`internal/sessions.lock`), activation and Session
+lifetime guards. Effects derive paths from the admitted Session name and runtime folder, never from
+serialized paths. Checkpoint storage
 must be idle and all Client, Worker, Host and observation endpoints absent before cold recovery.
 
 ## Registration transitions
@@ -74,24 +76,24 @@ the same guarded reconciliation can retry without inventing a clean-stop result.
 
 Only current version 1 records with all fields and the exact process registry are admitted.
 Other versions and shapes are InvalidData; reads never migrate or delete them. Existing records
-from the preceding version 5 writer are also incompatible. Named records with a valid, scope-matched
-name remain visible as `unreadable`; explicit confirmed deletion retains all existing owner/storage
+from the preceding version 5 writer are also incompatible. Such records remain visible as
+`unreadable` under their folder's name; explicit confirmed deletion retains all existing owner/storage
 safety checks. Unsupported data grants no process authority. The
 [Windows checkpoint storage contract](windows-checkpoint-storage.md) owns stopped evidence and
 current storage framing.
 
 Private staging, flush and atomic replacement cover ordinary process crashes; filesystem/device
 power-loss durability, removal of the configured runtime base and hostile administrators are
-outside the claim. A removed runtime leaf does not erase the durable catalog or checkpoint.
+outside the claim. A removed runtime leaf does not erase the catalog record or checkpoint, which
+live in the Session folder.
 
-Before creating a missing runtime, activation inventories namespace objects within the original
-deadline and inventory bound. A runtime directory, deletion intent or catalog record whose own
-readable name derives the selected scope while it is stored at another location, as obsolete-domain
-data is, returns InvalidData for that name and retains its bytes instead of appearing as an absent
-current same-name Session. Different names never share a runtime, pipe, lock or checkpoint, so such
-records refuse no other name. Objects without a readable name affect only their own location;
-unsafe catalog entries, the inventory bound and the deadline still refuse every activation.
-Diagnosis reports each refusing record with its kind, reason and path. Rendezvous also refuses
+A Session folder takes the Session name, and names compare without letter case, so one name has
+one record, one runtime folder, one set of pipes and one store. A record names the runtime folder
+it used: after `ORCHBEE_RUNTIME_BASE` changes, a Stopped Session starts through the new folder,
+while an Active or Crashed one refuses until its own folder recovers it, so two runtime folders
+never own one Session. Two folders spelling one name, which only a case-sensitive directory can
+hold, refuse that name. A folder whose name is no Session name, the inventory bound and the deadline
+refuse every activation. Diagnosis reports each refusing record with its kind, reason and path. Rendezvous also refuses
 directories containing `site-lifetime.lock`, preventing a new
 `session-lifetime.lock` from bypassing an existing owner. Neither boundary dual-reads, repairs
 or migrates; identity replacement belongs to a recovery workflow that owns the old data and processes.
@@ -106,7 +108,7 @@ or migrates; identity replacement belongs to a recovery workflow that owns the o
 | PID reuse does not grant termination authority                        | Pure identity comparison and native identity observation; recovery exposes no termination operation |
 | Recovery interruption preserves generation and checkpoint             | Publication-boundary tests and isolated process-loss restart traces                                 |
 | Default and named Sessions share policy                               | Native Windows integration cases for both routes                                                    |
-| Retained records refuse only the Session they name or occupy          | Windows catalog regression cases for runtime-directory, deletion-intent and catalog-record kinds    |
+| A record refuses only the Session it names                            | Windows catalog regression cases for unreadable and other-runtime records; letter-case is untested  |
 
 The abstract model retains physical processes across generation changes instead of forgetting old
 owners. Suspended creation, identity publication and resume are separate actions; parent loss can

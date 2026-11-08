@@ -101,7 +101,9 @@
   `internal/cache/agent-detection/catalog.json`. Both are internal; delete neither while Orchbee
   runs.
 - `config.toml` keeps the top level clean: its writer lock is `internal/config.lock`, and its staging
-  file `config.pending` exists beside it only while a write runs.
+  file `config.pending` exists beside it only while a write runs. `sessions/` does the same: the lock
+  that serializes Session activation and deletion is `internal/sessions.lock`, while each Session's
+  `session.lock` and `session.pending` sit beside its `session.json`.
 - A Session folder takes the Session name. Session names stay 1–64 ASCII letters, digits, `.`, `_`,
   and `-`, and additionally neither start nor end with `.` nor equal a Windows device name in any
   letter case (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`, with or without an

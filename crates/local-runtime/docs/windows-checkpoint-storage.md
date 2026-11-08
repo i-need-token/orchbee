@@ -18,13 +18,14 @@ there is no older-activator fence or version-dependent recovery. The repository
 A stopped Session may use any fixed slot or exactly named owned corrupt archive as storage evidence.
 Every fresh default or named activation publishes its current Active record before marker commitment,
 Server spawn or storage effects. Unsupported/malformed records are `InvalidData` and remain intact;
-named records with an admitted name appear as `unreadable` in `session list`. Explicit
+they appear as `unreadable` in `session list`. Explicit
 `session delete <name> --confirm` can remove them only under the existing idle-owner, endpoint,
 private-path and storage-lock guards. The Server independently validates checkpoint contents.
 
 ## State and publication
 
-The existing private directory and exclusive `state.lock` remain the sole writer authority.
+The Session folder, `<data root>/sessions/<session>`, holds the store beside the Session's
+`session.json`, and its exclusive `state.lock` remains the sole writer authority.
 Three fixed slots are `checkpoint.json`, `checkpoint.previous-1.json` and
 `checkpoint.previous-2.json`. Their names do not establish recency. A framed file contains the
 five-byte magic consisting of `OBCK` followed by byte `1`, an eight-byte little-endian nonzero
@@ -51,12 +52,12 @@ originals require an explicit empty-restoration notice; complete absence means a
 
 Publication follows these transitions under the retained state lock:
 
-| Transition        | Guard                                                                | Effect                                                                                                                                               |
-| ----------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prepare           | Payload is validated and bounded; generation can advance             | Choose a missing slot, otherwise an invalid slot, otherwise the oldest valid slot. Write and flush one private pending file.                         |
-| Preserve invalid  | Chosen existing slot is invalid                                      | Move its complete original file to a fresh private `checkpoint.corrupt-<32 lowercase hex>.raw` name; never overwrite or truncate the original bytes. |
-| Commit            | Pending file is complete; any displaced invalid original is retained | Atomically replace the chosen slot. This replacement is the sole publication point.                                                                  |
-| Fail or interrupt | Commit has not occurred                                              | Keep the preceding valid slots. Any already moved invalid original remains retained. Discard uncommitted pending bytes on the next store open.       |
+| Transition        | Guard                                                                | Effect                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prepare           | Payload is validated and bounded; generation can advance             | Choose a missing slot, otherwise an invalid slot, otherwise the oldest valid slot. Write and flush one private pending file.                   |
+| Preserve invalid  | Chosen existing slot is invalid                                      | Move its complete original file to a fresh private `checkpoint.corrupt-<UTC second>.raw` name; never overwrite or truncate the original bytes. |
+| Commit            | Pending file is complete; any displaced invalid original is retained | Atomically replace the chosen slot. This replacement is the sole publication point.                                                            |
+| Fail or interrupt | Commit has not occurred                                              | Keep the preceding valid slots. Any already moved invalid original remains retained. Discard uncommitted pending bytes on the next store open. |
 
 A successful replacement retains at most three valid slots. Replacing the oldest valid slot
 cannot destroy the newest preceding valid snapshot. Failure to preserve invalid bytes prevents
@@ -65,7 +66,8 @@ newest framed payload needs no new publication; periodic sampling does not consu
 identical copies.
 
 Corrupt originals are user recovery data, outside the three-valid-copy budget. They stay in this
-Session's private state directory. For a stopped named Session,
+Session's folder, named `checkpoint.corrupt-YYYY-MM-DDTHH-MM-SSZ.raw` after the UTC second they were
+preserved, with `-2`, `-3` and on when that name is taken. For a stopped named Session,
 `orchbee session delete <name> --confirm` removes its owned corrupt raw archives with its other
 owned checkpoint files. The default Session has no delete command; its raw archives remain until a
 separately authorized repair removes them. They are not execution logs and must not be silently
@@ -74,10 +76,12 @@ grammar; unknown files, linked entries and living owners retain the existing ref
 
 ## Earlier layouts
 
-A private `layout-history` folder beside the slots keeps earlier layouts for manual reopening.
-Each entry is one complete checkpoint payload framed like a slot, in a file named
-`layout-<16 lowercase hex>.json` after its save time in Unix milliseconds; the frame generation
-must equal that time, so a renamed file is unreadable. A write flushes one private
+A private `layouts` folder beside the slots keeps earlier layouts for manual reopening. Each entry
+is one complete checkpoint payload framed like a slot, in a file named
+`YYYY-MM-DDTHH-MM-SSZ.json` after the UTC second it was saved, `-2`, `-3` and on when an entry with
+other content already holds that second. The frame generation is the save time in Unix
+milliseconds and must fall in the second the name carries, so a file renamed to another second is
+unreadable. A write flushes one private
 `layout.pending` file, atomically renames it to the entry name and then removes the oldest entries
 beyond the kept count the caller names. A failed write leaves earlier entries intact. Reads list
 entries newest first and report an unreadable entry without its payload, so it still counts toward
@@ -90,13 +94,13 @@ refuses anything else.
 ## Kept terminal output
 
 A private `terminal-output` folder beside the slots keeps terminal output for replay after a
-restart. Each file is one opaque payload framed like a slot and named `output-<16 lowercase
-hex>.bin` after a nonzero token the caller chooses; the frame generation must equal that token, so
-a renamed file is unreadable and reads as absent. A write flushes one private `output.pending` file
+restart. Each file is one opaque payload framed like a slot and named `<number>.bin` after a nonzero
+sequence number the caller chooses, in decimal without leading zeros; the frame generation must
+equal that number, so a renamed file is unreadable and reads as absent. A write flushes one private `output.pending` file
 and atomically renames it to the entry name; a failed write leaves every kept file unchanged. The
-store lists tokens, reads, writes and removes one file; the
+store lists numbers, reads, writes and removes one file; the
 [Server checkpoint contract](../../../apps/orchbee-server/docs/workbench-checkpoint.md#terminal-output-replay)
-owns the payload, which tokens a checkpoint names and when files are removed. Session delete removes
+owns the payload, which numbers a checkpoint names and when files are removed. Session delete removes
 the folder with the other owned checkpoint files; inside it, deletion recognizes only the entry and
 pending names and refuses anything else.
 

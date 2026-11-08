@@ -1,11 +1,11 @@
 //! Checkpoint storage is explicitly unavailable without its admitted platform implementation.
 use super::{CheckpointLoad, CheckpointRestoreNotice, LayoutHistoryEntry};
-use crate::{ModeCheckedLocalSessionRendezvous, RetainedSessionRecord};
-use std::{io, path::Path};
+use crate::{DataRoot, ModeCheckedLocalSessionRendezvous, RetainedSessionRecord};
+use std::io;
 pub enum SessionStore {}
 impl SessionStore {
     pub fn open(
-        _local: &Path,
+        _root: &DataRoot,
         _session: &ModeCheckedLocalSessionRendezvous,
         _maximum_bytes: usize,
     ) -> io::Result<Self> {

@@ -39,15 +39,17 @@ fn server_body_observes_its_durable_identity_before_execution_and_replay_cannot_
     };
     let base = child.base.as_ref().unwrap().0.clone();
     let local = child.local.as_ref().unwrap().0.clone();
-    let name = SessionName::parse("registered-body").unwrap();
-    let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid().unwrap());
-    let catalog = Catalog::try_lock(&base, &local).unwrap();
+    let root = crate::DataRoot::at(local.clone());
+    let scope = SessionName::parse("registered-body")
+        .unwrap()
+        .as_str()
+        .to_owned();
+    let catalog = Catalog::try_lock(&base, &root).unwrap();
     let session =
         Rendezvous::prepare_mode_checked(&base, SessionScope::parse(&scope).unwrap()).unwrap();
     let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap() else {
         panic!("activation");
     };
-    session.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&session, [1; 16]).unwrap();
     session.commit_activation().unwrap();
     let marker = base.join("executed.json");
@@ -83,9 +85,7 @@ fn server_body_observes_its_durable_identity_before_execution_and_replay_cannot_
         std::thread::sleep(Duration::from_millis(10));
     };
     let observed: ProcessIdentity = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
-    let directory = Directory::open(&local, &base.canonicalize().unwrap())
-        .unwrap()
-        .unwrap();
+    let directory = Directory::open(&root).unwrap().unwrap();
     let record = directory.read(&scope).unwrap().unwrap();
     assert_eq!(
         record
@@ -113,28 +113,18 @@ fn server_body_observes_its_durable_identity_before_execution_and_replay_cannot_
 fn wrong_direct_parent_and_failed_initial_publication_have_no_process_effect() {
     let base = Fixture::new();
     let local = Fixture::new();
-    let name = SessionName::parse("no-child").unwrap();
-    let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid().unwrap());
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    let scope = SessionName::parse("no-child").unwrap().as_str().to_owned();
+    let catalog = Catalog::try_lock(&base.0, &local.root()).unwrap();
     let session = base.open(&scope);
     let LockAttempt::Acquired(activation) = session.try_acquire_activation_lock().unwrap() else {
         panic!("activation");
     };
-    session.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&session, [1; 16]).unwrap();
     session.commit_activation().unwrap();
-    let directory = Directory::open(&local.0, &base.0.canonicalize().unwrap())
-        .unwrap()
-        .unwrap();
+    let directory = Directory::open(&local.root()).unwrap().unwrap();
     let original = directory.read(&scope).unwrap().unwrap();
     let executable = std::env::current_exe().unwrap();
-    let record_path = local
-        .0
-        .join("session-catalog")
-        .join(Rendezvous::host_endpoint_id(
-            &base.0.canonicalize().unwrap(),
-        ))
-        .join(format!("{scope}.json"));
+    let record_path = local.0.join("sessions").join(&scope).join("session.json");
     let pin = permissions::open_file(&record_path, false, false).unwrap();
     assert!(
         catalog
@@ -159,7 +149,7 @@ fn wrong_direct_parent_and_failed_initial_publication_have_no_process_effect() {
         .unwrap();
     directory.publish(&scope, &record).unwrap();
     let error = crate::spawn_session_child(
-        &local.0,
+        &local.root(),
         session.runtime_directory(),
         SessionChild::Worker,
         &executable,
@@ -177,7 +167,7 @@ fn child_fixture() {
     let local = PathBuf::from(&arguments[arguments.len() - 5]);
     let runtime = PathBuf::from(&arguments[arguments.len() - 3]);
     let marker = PathBuf::from(&arguments[arguments.len() - 1]);
-    let directory = Directory::open(&local, runtime.parent().unwrap())
+    let directory = Directory::open(&crate::DataRoot::at(local))
         .unwrap()
         .unwrap();
     let scope = runtime.file_name().unwrap().to_str().unwrap();

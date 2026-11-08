@@ -7,7 +7,6 @@ use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_mess
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::{ModeCheckedLocalSessionRendezvous, SessionScope};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs,
@@ -146,11 +145,10 @@ impl Fixture {
     pub(super) fn rendezvous(&self) -> ModeCheckedLocalSessionRendezvous {
         let base = self.0.join("runtime");
         fs::create_dir_all(&base).unwrap();
-        let sid = orchbee_local_ipc::current_user_sid().unwrap();
-        let scope = format!("orchbee-native-{:x}", Sha256::digest(sid.as_bytes()))[..47].to_owned();
+        // The default Session's runtime folder takes the Session's name.
         ModeCheckedLocalSessionRendezvous::prepare_mode_checked(
             &base,
-            SessionScope::parse(&scope).unwrap(),
+            SessionScope::parse("default").unwrap(),
         )
         .unwrap()
     }

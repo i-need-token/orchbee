@@ -1,12 +1,12 @@
 //! Durable registration and completion effects have no implementation on this host.
-use crate::ModeCheckedLocalSessionRendezvous;
-use std::{io, path::Path};
+use crate::{DataRoot, ModeCheckedLocalSessionRendezvous};
+use std::io;
 pub enum RetainedSessionRecord {}
 impl RetainedSessionRecord {
     pub fn retain(
-        _local: &Path,
+        _root: &DataRoot,
         _session: &ModeCheckedLocalSessionRendezvous,
-    ) -> io::Result<Option<Self>> {
+    ) -> io::Result<Self> {
         Err(io::ErrorKind::Unsupported.into())
     }
     pub fn complete(&mut self, _request_id: [u8; 16]) -> io::Result<()> {

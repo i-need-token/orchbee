@@ -1,6 +1,6 @@
-//! Windows state locations beside the data root. Release keeps Session state in
-//! `%LOCALAPPDATA%\Orchbee` and runtimes in the temporary directory until they move into the data
-//! root by Session name; a development or test environment keeps both under `internal/`.
+//! Windows effects inside the data root: private folders created on first write, the layout
+//! record, and the default runtime base, `internal/runtime`, which every environment creates before
+//! admitting it.
 use super::DataRoot;
 use crate::private_filesystem as permissions;
 use std::{
@@ -10,38 +10,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const RELEASE_STATE_DIRECTORY: &str = "Orchbee";
-
-fn release() -> bool {
-    crate::is_release()
-}
-
-/// The directory that holds this environment's Session catalogs and checkpoints until they move
-/// into the data root by Session name: `%LOCALAPPDATA%\Orchbee` for release, `internal` in the data
-/// root otherwise. Storage owners create it on first write; nothing here touches the filesystem.
-pub fn local_state_root(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    if release() {
-        env("LOCALAPPDATA").map(|value| PathBuf::from(value).join(RELEASE_STATE_DIRECTORY))
-    } else {
-        DataRoot::resolve(env).ok().map(|root| root.internal())
-    }
-}
-
-pub(super) fn default_runtime_base(env: &impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    if release() {
-        Some(std::env::temp_dir())
-    } else {
-        DataRoot::resolve(env).ok().map(|root| root.runtime())
-    }
-}
-
-/// Creates a development or test environment's default runtime base as a private directory below
-/// its data root, so activation can admit it like any existing base. Release uses the existing
-/// temporary directory and creates nothing.
+/// Creates this environment's default runtime base as a private directory below its data root, so
+/// activation can admit it like any existing base.
 pub fn prepare_default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> io::Result<()> {
-    if release() {
-        return Ok(());
-    }
     let base = DataRoot::resolve(env)
         .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?
         .runtime();
@@ -56,21 +27,16 @@ pub fn create_private_directory(path: &Path) -> io::Result<Vec<File>> {
 }
 
 /// Creates `path` and every missing directory above it as private directories and pins them all.
-/// A state root, whose parent may be a home directory that other ACL entries share, is created
-/// below that parent without admitting it: this environment's data root and, while release Session
-/// state stays there, `%LOCALAPPDATA%\Orchbee`. Any other existing ancestor must already be
-/// private. A directory inside the data root also gets `internal/version.json`, so a root holding
-/// anything Orchbee wrote records its layout.
+/// The data root, whose parent may be a home directory that other ACL entries share, is created
+/// below that parent without admitting it; any other existing ancestor must already be private. A
+/// directory inside the data root also gets `internal/version.json`, so a root holding anything
+/// Orchbee wrote records its layout.
 pub(crate) fn create_state_directory(path: &Path) -> io::Result<Vec<File>> {
-    let env = |name: &str| std::env::var_os(name);
-    let data_root = DataRoot::resolve(env).ok();
-    let mut roots: Vec<PathBuf> = data_root
+    let data_root = DataRoot::resolve(|name: &str| std::env::var_os(name)).ok();
+    let roots: Vec<PathBuf> = data_root
         .iter()
         .map(|root| root.path().to_owned())
         .collect();
-    if release() {
-        roots.extend(local_state_root(env));
-    }
     let pins = create_below_roots(path, &roots)?;
     if let Some(root) = data_root.filter(|root| path.starts_with(root.path())) {
         write_version_record(&root, &roots)?;

@@ -4,8 +4,8 @@ use super::{
     UnrecognizedRecord,
 };
 use crate::{
-    ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock,
-    RetainedChild, SessionName,
+    ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous,
+    ModeCheckedSessionLock, RetainedChild, SessionName,
 };
 use std::{
     convert::Infallible,
@@ -25,18 +25,13 @@ pub struct NamedSessionEntry {
     unavailable: Infallible,
 }
 impl SessionCatalog {
-    pub fn try_lock(_base: &Path, _local: &Path) -> io::Result<Self> {
+    pub fn try_lock(_base: &Path, _root: &DataRoot) -> io::Result<Self> {
         Err(io::ErrorKind::Unsupported.into())
     }
-    pub fn supports_scope(_scope: &str) -> io::Result<bool> {
+    pub fn spelling(_root: &DataRoot, _name: &SessionName) -> io::Result<SessionName> {
         Err(io::ErrorKind::Unsupported.into())
     }
-    pub fn prepare_activation(
-        &self,
-        _scope: &str,
-        _explicit: Option<&SessionName>,
-        _deadline: Instant,
-    ) -> io::Result<Option<SessionName>> {
+    pub fn prepare_activation(&self, _name: &SessionName) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
     pub fn recover_inactive(
@@ -66,14 +61,13 @@ impl SessionCatalog {
     }
     pub fn list(
         _base: &Path,
-        _local: &Path,
+        _root: &DataRoot,
         _deadline: Instant,
     ) -> io::Result<Vec<NamedSessionEntry>> {
         Err(io::ErrorKind::Unsupported.into())
     }
     pub fn unrecognized_records(
-        _base: &Path,
-        _local: &Path,
+        _root: &DataRoot,
         _scope: &str,
         _deadline: Instant,
     ) -> io::Result<Vec<UnrecognizedRecord>> {
@@ -82,7 +76,6 @@ impl SessionCatalog {
     pub fn delete(
         &self,
         _name: &SessionName,
-        _local: &Path,
         _deadline: Instant,
         _interrupted: impl FnMut() -> io::Result<bool>,
     ) -> Result<NamedSessionDeleteOutcome, NamedSessionDeleteFailure> {

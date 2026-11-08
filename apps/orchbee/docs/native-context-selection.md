@@ -151,8 +151,8 @@ Workspace applies.
 Bare local Windows startup remembers the last successfully displayed location, Tab, Panel and
 presentation for the current Windows user and local Session runtime. This is Client-owned navigation
 advice, separate from Server checkpoints and terminal lifetime. Its versioned, bounded JSON record
-lives under the private `tui-position/<runtime-key>` cache in the Session state root, `LOCALAPPDATA/Orchbee` for release and `internal/` in a development or test data root; the key includes
-the user-scoped runtime directory and runtime base. Only schema `orchbee.tui.position`, version 1, with required position/location/member fields is
+is the Session folder's `tui-position.json`, `sessions/<session>/tui-position.json` in the data root, and is removed with
+its Session. Only schema `orchbee.tui.position`, version 1, with required position/location/member fields is
 readable; member is explicitly nullable. Workspace/context identity excludes mutable Project membership.
 Old shapes, the preceding version 2 record and any other unreadable or oversized record count as no
 saved record, and the next published position replaces them, so a format change never retires

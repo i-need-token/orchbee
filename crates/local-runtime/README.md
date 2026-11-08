@@ -109,11 +109,13 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | Path                                                 | Owner and use                                                                                                                                |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config.toml`                                        | Default settings file; `ORCHBEE_CONFIG_FILE` moves only this file                                                                            |
+| `sessions/<session>/`                                | One Session's folder, named by the Session: its catalog record, checkpoints, earlier layouts, kept output and TUI position                   |
 | `agent-detection/<provider>.toml`                    | Detection rule overrides a person writes                                                                                                     |
 | `logs/<YYYY-MM-DD>.jsonl`                            | Daily diagnostic log of every process, named by local date                                                                                   |
 | `logs/destructive-commands.jsonl`                    | Destructive request log and its `.1` generation                                                                                              |
 | `internal/version.json`                              | Layout record, written once by the writer that creates the root                                                                              |
 | `internal/config.lock`                               | Writer lock of the default settings file                                                                                                     |
+| `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
 | `internal/state/<record>.json`                       | `StateRecord`: preferences, onboarding, and the machine catalog                                                                              |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
 | `internal/backups/<date>-reset-keys/`                | Copy of the settings file taken by `config reset-keys`                                                                                       |
@@ -121,17 +123,18 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
 | `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |
 | `internal/integrations/agent-observation/<version>/` | Agent observation Capsules the [integration writer](../agent-integration-writer/README.md#capsule-location-and-ownership) installs and names |
-| `internal/runtime/`                                  | Default runtime base of a development or test environment                                                                                    |
+| `internal/runtime/<session>/`                        | A Session's runtime folder in every environment, unless `ORCHBEE_RUNTIME_BASE` names another base                                            |
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
 Orchbee wrote records its layout; nothing raises `newestVersion` yet. The record is
 `{"layout":1,"newestVersion":"<version>"}`, and Desktop Main writes the same shape; search for
-`data-root-version-record` before changing it. Release Session catalogs, checkpoints and the TUI
-position stay in `%LOCALAPPDATA%\Orchbee` until Sessions move into the root by name; a development
-or test environment keeps them under `internal/`. Nothing migrates or removes what an earlier build
-left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee\audit`, or the top level of a data root, nor
-the earlier plugin store layout (`internal/plugins/config/p-<digest>`, `state/p-<digest>`, and
+`data-root-version-record` before changing it. Nothing migrates or removes what an earlier build
+left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee` (its Session catalogs, checkpoints, TUI
+positions and audit log), `internal/session-catalog/`, `internal/native-sessions/` and
+`internal/tui-position/` of a development or test root, the `%TEMP%\orchbee-native-*` and
+`%TEMP%\orchbee-session-*` runtime folders, or the top level of a data root, nor the earlier plugin
+store layout (`internal/plugins/config/p-<digest>`, `state/p-<digest>`, and
 `managed/`); a registry written in that layout reads as invalid until it is deleted, after which
 plugins are linked or installed again. `PluginStorePaths` places everything in the plugin store;
 the store chooses the folder and version names.
@@ -175,20 +178,19 @@ state location from it, so applications never spell a state directory or choose 
 themselves. On every platform the data root is `<home>/.orchbee` for release and `<home>/.<stem>`
 otherwise; the Windows locations are:
 
-| Location             | Release                  | Development or test            |
-| -------------------- | ------------------------ | ------------------------------ |
-| Data root            | `<home>\.orchbee`        | `<home>\.<stem>`               |
-| Session state root   | `%LOCALAPPDATA%\Orchbee` | `<data root>\internal`         |
-| Default runtime base | `std::env::temp_dir()`   | `<data root>\internal\runtime` |
+| Location             | Release                        | Development or test            |
+| -------------------- | ------------------------------ | ------------------------------ |
+| Data root            | `<home>\.orchbee`              | `<home>\.<stem>`               |
+| Session folders      | `<data root>\sessions`         | `<data root>\sessions`         |
+| Default runtime base | `<data root>\internal\runtime` | `<data root>\internal\runtime` |
 
-Resolving a location touches no file. Storage owners take the data root or the Session state root,
-pin its ancestors and require the root itself to be private, creating it private on first write;
+Resolving a location touches no file. Storage owners take the data root, pin its ancestors and require the root itself to be private, creating it private on first write;
 its parent may be a home directory whose ACL other principals share. `PrivateCache` applies the
 same rule when it creates a missing root whose parent exists, in every environment; a root whose
 parent is missing is created by the private recursive creation used for any other directory.
-Activation creates a
-non-release default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must
-already exist. Until then, read-only `session list`, `server diagnose` and `config check` report
+Activation creates the
+default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must already
+exist. Until then, read-only `session list`, `server diagnose` and `config check` report
 nothing started.
 Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
 its own endpoint id. Data written under earlier non-release locations is not migrated.
@@ -199,34 +201,41 @@ reader rule: when the tag names another environment, both route variables read a
 Client uses its own defaults, without error. Without the tag they keep their explicit meaning, and
 `ORCHBEE_SESSION` and `--session` are never filtered.
 
-`SessionName` validates exact case-sensitive names of 1–64 ASCII letters, digits,
-dot, underscore or hyphen, excluding `.` and `..`. `default` retains the existing SID-derived
-scope. Other names derive a bounded hashed scope from a domain separator, SID and exact name.
-The private `session-name.json` contains a strict version-1 name record, capped at 256 bytes.
-Only registration under the matching activation lock may create it; existing bytes are read
-and verified, never overwritten or repaired. A partial first write remains a visible failure.
-Read-only rendezvous admission requires a valid record for named scopes and verifies its
-current-user scope derivation. Runtime aliases, unknown fields, duplicate fields and mismatched
-names are rejected. This identity does not grant process control or authorize state deletion.
+`SessionName` admits 1–64 ASCII letters, digits, `.`, `_` and `-` that neither start nor end with
+`.` and are no Windows device name (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`) in any
+letter case, with or without an extension, so one name is one folder on every file system. Names
+compare without letter case: `Work` and `work` are one Session, which keeps the spelling it was
+created with, and any spelling of `default` is `default`. On Windows a Session's runtime folder and
+its Session folder both take its name, so `SessionScope` admits exactly the Session name grammar
+there, and `SessionCatalog::spelling` gives the spelling of an existing folder. The endpoint id
+lowercases the runtime path before hashing, so two spellings of one Session reach the same pipes.
+Nothing in the runtime folder records the name; the catalog record is the Session's identity.
 
-Current named scopes use the `orchbee.session-name.v1\0` domain separator. Before creating a runtime, activation inventories runtime directories, deletion intents and catalog records within the original deadline and inventory bound. A record whose own readable name derives the selected scope while it is stored at another location, as obsolete derived records and directories are, returns InvalidData and retains its bytes instead of letting that name appear as an absent Session. Such a record refuses only the Session it names: other names, and objects without a readable name, keep their own location's admission, so a runtime base holding obsolete records still starts new named Sessions. Unsafe catalog entries, the inventory bound and the deadline still refuse every activation. `SessionCatalog::unrecognized_records` reports, read-only, each record that refuses one scope with its kind, reason and path. POSIX and Windows rendezvous also refuse runtimes containing the obsolete `site-lifetime.lock`, never creating a parallel `session-lifetime.lock`. There is no old-name alias, dual reader or automatic migration.
+`SessionCatalog::unrecognized_records` reports, read-only, what refuses one Session: a catalog
+record its admission rejects (`unreadable`), and each folder when two folders spell the name in
+different letter case (`letter-case`), which only a case-sensitive directory can hold. POSIX and
+Windows rendezvous refuse runtimes containing the obsolete `site-lifetime.lock`, never creating a
+parallel `session-lifetime.lock`. There is no old-name alias, dual reader or automatic migration.
 
 ## Windows durable session catalog
 
-Native Windows named and default Sessions retain bounded private lifecycle records under
-`<local state root>/session-catalog/<runtime-base-digest>`, with checkpoints under
-`<local state root>/native-sessions/<runtime-digest>`. Each record binds the exact name,
-current-user scope and canonical runtime path to Active, Crashed, Stopped with a nonzero stop identity,
-or Deleting. Only current numeric version 1 with all fields, including the Server/Worker/Host
-PID and creation-FILETIME registry, is admitted. Other versions or shapes return InvalidData;
-reads never migrate records. Effect paths derive from admitted inputs, never serialized paths.
+Native Windows named and default Sessions keep one bounded private lifecycle record each,
+`sessions/<session>/session.json`, with its writer lock `session.lock` and staging file
+`session.pending` beside it and the Session's checkpoints in the same folder. Each record binds the
+name, which matches its folder without letter case, and the runtime folder in use to Active,
+Crashed, Stopped with a nonzero stop identity, or Deleting. Only current numeric version 1 with all
+fields, including the Server/Worker/Host PID and creation-FILETIME registry, is admitted. Other
+versions or shapes return InvalidData; reads never migrate records. Effect paths derive from
+admitted inputs, never serialized paths.
 
 The configured runtime base must still exist; removing a stopped runtime leaf does not remove its
-catalog entry or checkpoint. Reads merge runtime and durable entries without creating or migrating
-files. Unsupported or malformed records with an admitted name are listed as unreadable without repair.
-Mismatched identities, linked or redirected files still fail admission. A record whose readable name
-derives another scope is listed as a conflict of that name; a record without a readable name fails
-enumeration and refuses only its own location's activation.
+record or checkpoint. Reads list Session folders without creating or migrating files, and report a
+Session's runtime as the folder its record names. Unsupported or malformed records are listed as
+unreadable without repair. Linked or redirected files still fail admission. Two folders that spell
+one name in different letter case list that name as conflicted, and activation and deletion refuse
+it; a folder in `sessions/` whose name is no Session name fails enumeration. A folder that holds only
+a record's lock or staging file, which an interrupted activation or deletion can leave, is no
+Session, and deletion removes it.
 
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
@@ -234,14 +243,16 @@ route. Stopped records may use any fixed slot or exactly named owned corrupt ori
 recovery requires all exact registered identities gone, complete registration, free guards and absent
 endpoints. Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
 Live/unknown identity, incomplete registration, pending deletion and orphan storage refuse recovery.
+A record that names another runtime folder, after `ORCHBEE_RUNTIME_BASE` changed, starts through the
+new folder only once Stopped; Active and Crashed refuse until their own folder recovers them.
 Activation atomically publishes the current Active record before marker, Server or storage effects.
 
 Each activation carries a fresh nonzero 128-bit identity. The Server retains that exact generation before Worker effects and publishes Stopped after confirmed shutdown,
 before the runtime stopped receipt and lifetime release. Failed publication never proves a clean stop.
 
-Deletion publishes durable Deleting before the ephemeral intent or any data removal. It removes
-checkpoint/runtime data and the ephemeral intent before removing the durable record last; interrupted
-cleanup remains discoverable even if temporary runtime metadata disappears. Publication uses bounded
+Deletion publishes durable Deleting before any data removal. It removes the Session folder's data and
+the runtime folder before removing the record last; interrupted cleanup remains discoverable even if
+the runtime folder disappears. Publication uses bounded
 private staging, flush and atomic replacement. This is ordinary process/failure recovery, not a
 power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
 clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
@@ -261,25 +272,23 @@ node scripts/tla/run-models.mjs --models session-crash-recovery
 ## Windows named session lifecycle
 
 `SessionCatalog` serializes default/named activation and named deletion with one private per-user
-namespace lock in the admitted runtime base. Activation holds it from before runtime creation
-through readiness. Read-only enumeration creates nothing, includes default, sorts exact names
-and rejects unsafe, corrupt or unattributable entries instead of hiding them. A name claimed by a
-record stored at another location is listed as conflicted; a location holding both a current
-identity and a record naming another Session fails enumeration. Inventory is limited to 256 sessions.
+namespace lock, `internal/sessions.lock`. Activation holds it from before runtime creation through
+readiness. Read-only enumeration creates nothing, includes default, sorts names without letter case
+and rejects unsafe or corrupt entries instead of hiding them. Inventory is limited to 256 sessions.
 
 The cleanup owner checks the original deadline and its caller's interruption predicate between filesystem phases. Interruption reports whether a published intent remains; completed removals are not rolled back.
 
-Deletion refuses default, live or uncertain processes, unsafe files and unknown directory content.
-A name claimed by a record stored at another location is refused as RecoveryRequired, never
-reported absent, unless its own deletion is already pending.
-An admitted stopped receipt (or never-activated runtime), free lifetime and absent endpoints are
-required before publishing a bounded, flushed sibling deletion intent. The intent fences normal
-rendezvous admission and survives partial cleanup. The owner removes only known checkpoint and
-runtime files, releases their exact handles before removal, retains ancestor pins and removes the
-ephemeral intent before the durable record last. Retrying resumes that deletion; absent state succeeds. It never recursively deletes
-arbitrary trees or stops a process. The shared namespace lock intentionally outlives individual
-sessions. This covers cooperating current-user invocations and ordinary process interruption;
-power-loss durability and inventory recovery after external removal of the runtime base are unclaimed.
+Deletion refuses default, live or uncertain processes, unsafe files and unknown directory content,
+and a name two folders spell. Any spelling of a name deletes the Session created with it. An
+admitted stopped receipt (or never-activated runtime), free lifetime, checkpoint and TUI position
+locks, and absent endpoints are required before publishing the durable Deleting record, which fences
+activation and survives partial cleanup. The owner removes only known Session and runtime files,
+including `layouts/` and `terminal-output/` entries, releases their exact handles before removal,
+retains ancestor pins and removes the record and the emptied Session folder last. Retrying resumes
+that deletion; absent state succeeds. It never recursively deletes arbitrary trees or stops a
+process. The shared namespace lock intentionally outlives individual sessions. This covers
+cooperating current-user invocations and ordinary process interruption; power-loss durability and
+inventory recovery after external removal of the runtime base are unclaimed.
 
 ## Windows diagnostic log
 
@@ -571,10 +580,10 @@ Dropping `RetainedChild` continues to release observation ownership without term
 `RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in
 the handshake's `query` reply.
 
-`SessionStore` retains bounded checkpoint bytes under
-`<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`. Its caller supplies
-the LocalAppData directory and admitted Session; the Server owns checkpoint validation and recovery.
-Different runtime bases and named scopes have separate stores. Private ancestor handles, protected
+`SessionStore` retains bounded checkpoint bytes in the Session folder,
+`<data root>/sessions/<session>`, named by the admitted Session's runtime folder. Its caller supplies
+the data root and admitted Session; the Server owns checkpoint validation and recovery. Each Session
+has its own store. Private ancestor handles, protected
 new-directory ACLs, no-reparse admission and single-link file checks apply. A private `state.lock`
 is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
 
@@ -587,7 +596,7 @@ formats each use version 1 and reject preceding numeric versions without migrati
 [Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
 
 Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid
-original under a fresh owned raw filename, then atomically replaces a slot in the same directory
+original as `checkpoint.corrupt-<UTC second>.raw`, with `-2`, `-3` and on when that name is taken, then atomically replaces a slot in the same directory
 with `MoveFileEx(REPLACE_EXISTING)`. Pending bytes never supply recovery authority; failure keeps
 prior valid slots and reports any unconfirmed staging cleanup. Unchanged payloads do not consume
 history. Raw originals are user recovery data retained until explicit Session deletion or authorized

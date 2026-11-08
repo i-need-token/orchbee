@@ -176,16 +176,22 @@ pub(super) fn encode(bytes: &[u8], generation: NonZeroU64) -> Vec<u8> {
     encoded
 }
 
+const CORRUPT_PREFIX: &str = "checkpoint.corrupt-";
+const CORRUPT_SUFFIX: &str = ".raw";
+
+/// The name an invalid original keeps once moved aside at UTC `seconds`; `number` 1 is the plain
+/// time and a later original moved aside in the same second takes the next.
+pub(super) fn corrupt_original(seconds: u64, number: u32) -> String {
+    format!(
+        "{CORRUPT_PREFIX}{}{CORRUPT_SUFFIX}",
+        crate::time_name::format(seconds, number)
+    )
+}
+
 pub(super) fn is_corrupt_original(name: &str) -> bool {
-    name.strip_prefix("checkpoint.corrupt-")
-        .and_then(|name| name.strip_suffix(".raw"))
-        .is_some_and(|nonce| {
-            nonce.len() == 32
-                && nonce
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-                && nonce.bytes().any(|byte| byte != b'0')
-        })
+    name.strip_prefix(CORRUPT_PREFIX)
+        .and_then(|name| name.strip_suffix(CORRUPT_SUFFIX))
+        .is_some_and(|time| crate::time_name::parse(time).is_some())
 }
 
 #[cfg(test)]

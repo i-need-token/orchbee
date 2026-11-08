@@ -3,13 +3,11 @@
 //! topology or claim that a pathname or pipe disappearance proves process exit.
 
 use orchbee_local_runtime::{
-    ModeCheckedLocalSessionRendezvous, RetainedChild, RetainedSessionRecord, SessionStore,
+    DataRoot, ModeCheckedLocalSessionRendezvous, RetainedChild, RetainedSessionRecord, SessionStore,
 };
 use orchbee_server::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpoint};
 use std::{
-    io,
-    path::Path,
-    thread,
+    io, thread,
     time::{Duration, Instant},
 };
 pub(super) mod autosave;
@@ -19,38 +17,31 @@ pub(super) fn load(
 ) -> io::Result<(
     SessionStore,
     Option<WorkbenchCheckpoint>,
-    Option<RetainedSessionRecord>,
+    RetainedSessionRecord,
     bool,
 )> {
-    let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
-        .ok_or_else(|| io::Error::other("the local state root is unavailable"))?;
-    load_from(&local, session)
+    let root = DataRoot::resolve(|name| std::env::var_os(name))
+        .map_err(|_| io::Error::other("the data root is unavailable"))?;
+    load_from(&root, session)
 }
 
 fn load_from(
-    local: &Path,
+    root: &DataRoot,
     session: &ModeCheckedLocalSessionRendezvous,
 ) -> io::Result<(
     SessionStore,
     Option<WorkbenchCheckpoint>,
-    Option<RetainedSessionRecord>,
+    RetainedSessionRecord,
     bool,
 )> {
     // Direct Server entry must also refuse unsupported catalog versions before store effects.
-    let record = RetainedSessionRecord::retain(local, session)?;
-    let store = SessionStore::open(local, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
+    let record = RetainedSessionRecord::retain(root, session)?;
+    let store = SessionStore::open(root, session, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
     let loaded = store.read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())?;
     let suppress_initial_empty = loaded.checkpoint.is_none()
         && loaded.notice == Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty);
     let checkpoint = loaded.checkpoint;
-    if let Some(record) = &record {
-        store.publish_restore_notice(record, loaded.notice)?;
-    } else if loaded.notice.is_some() {
-        // Unmanaged development scopes have no durable generation to authenticate a warning.
-        return Err(io::Error::other(
-            "checkpoint restore needs a managed Session generation",
-        ));
-    }
+    store.publish_restore_notice(&record, loaded.notice)?;
     Ok((store, checkpoint, record, suppress_initial_empty))
 }
 

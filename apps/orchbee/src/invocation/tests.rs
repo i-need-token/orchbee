@@ -7231,7 +7231,7 @@ fn named_session_selection_preserves_complete_grammar_and_value_ownership() {
     }
     let failure = parse(&["--session=..", "status", "--format=json"]).unwrap_err();
     assert_eq!(failure.envelope, super::FailureEnvelope::Json);
-    let offline = parse(&["--session", "CON", "--help"]).unwrap();
+    let offline = parse(&["--session", "Work", "--help"]).unwrap();
     assert_eq!(offline.request, super::Request::RootHelp);
     let launch = parse(&[
         "tab",

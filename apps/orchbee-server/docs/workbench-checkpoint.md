@@ -73,8 +73,9 @@ first terminal is process-local and is not retained; see
 ### Per-terminal directory restoration
 
 The required `terminalDirectories` list stores stable `presentationId` and validated `path` pairs.
-A row may also name the Presentation's kept output with an optional `output` token, 16 lowercase
-hex digits and never zero (see [Terminal output replay](#terminal-output-replay)).
+A row may also name the Presentation's kept output with an optional `output` token, the file's
+number written as 16 lowercase hex digits and never zero (see
+[Terminal output replay](#terminal-output-replay)).
 Primary and child Presentations remain independent. Null lists, duplicate/foreign members and
 invalid paths reject the entire document; the 2 MiB limit remains.
 
@@ -168,7 +169,8 @@ Preparation creates no process and replays no command. The managed coordinator p
 
 ## Managed Windows startup and clean stop
 
-Managed startup opens the exclusive `SessionStore` below `LOCALAPPDATA` and parses its
+Managed startup opens the exclusive `SessionStore` in the Session folder,
+`<data root>/sessions/<session>`, and parses its
 committed copies before spawning a Worker. The storage owner selects the latest completely validated
 payload from three slots. Invalid copies are retained and produce a visible restore notice; if all
 copies are invalid, startup explicitly reports an empty restoration. Missing data means a new Workbench.
@@ -211,7 +213,7 @@ Fresh physical creation establishes terminal bindings. Client and history recove
 The managed Windows Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
 Every 30 seconds it also captures cached directories. Agent session rows come from the same
 capture. No terminal screen, history, Agent conversation or live controller state enters the payload;
-kept terminal output lives in its own files, which the payload names only by token.
+kept terminal output lives in its own files, which the payload names only by number.
 The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
 memory and does not publish that baseline. A later layout or cached directory
@@ -231,7 +233,7 @@ completion rather than allowing two storage writers.
 
 The `restoreTerminalOutput` preference (off by default) keeps each terminal's recent output on this
 computer and shows it again after a full Server restart. `terminal_output.rs` owns the payload, the
-caps, the content token and an in-memory index of what each live terminal last kept;
+caps, the file numbers and an in-memory index of what each live terminal last kept;
 `local_terminal_service/terminal_output.rs` connects it to capture, saves and restore. The Server
 reads the preference at every save and restore, so a change from any writer applies at the next
 save.
@@ -246,8 +248,9 @@ save.
   viewer cleanup rules and spends at most half the stop's remaining budget. A busy observer, a failed
   capture or a missed deadline keeps that terminal's previous file and writes a diagnostic.
 - **Files.** One file per Presentation in the private `terminal-output` folder beside the checkpoint
-  slots, written atomically and named by a token: an FNV-1a digest of the Presentation id and the
-  content, so unchanged output is never rewritten. The payload begins with the owning Presentation
+  slots, written atomically and named `<number>.bin`. Numbers count up from the highest kept file,
+  and the index remembers a digest of the Presentation id and content it wrote, in memory only, so
+  unchanged output is never rewritten. The payload begins with the owning Presentation
   id and the time it was kept. A bound terminal names only output captured from it; a restored
   Presentation that is still unbound (held) keeps naming the output it was restored with.
 - **Deletion.** After every committed save the Server removes each file the checkpoint does not name,

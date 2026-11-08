@@ -79,7 +79,7 @@ fn invalid_lifecycle_grammar_fails_before_selection_or_runtime_effects() {
         vec!["session", "delete", "work", "extra", "--confirm"],
         vec!["session", "delete", "work", "--confirm", "--timeout=1"],
         vec!["session", "stop", "work", "--confirm", "--retry"],
-        vec!["--session=Work", "session", "delete", "work", "--confirm"],
+        vec!["--session=other", "session", "delete", "work", "--confirm"],
     ] {
         assert!(selected(&words).is_err(), "{words:?}");
     }

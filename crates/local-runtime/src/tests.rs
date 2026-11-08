@@ -84,6 +84,10 @@ impl Fixture {
     fn open(&self, scope: &str) -> Rendezvous {
         Rendezvous::prepare_mode_checked(&self.0, SessionScope::parse(scope).unwrap()).unwrap()
     }
+    /// This folder as a data root, whose `sessions/` holds every Session folder.
+    fn root(&self) -> crate::DataRoot {
+        crate::DataRoot::at(self.0.clone())
+    }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {

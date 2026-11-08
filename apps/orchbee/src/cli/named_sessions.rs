@@ -105,11 +105,10 @@ fn delete(
         signals.check_before(deadline)?;
         let (base, _) = crate::local_activation::runtime_location()
             .map_err(|error| local_error_at(error, "runtime-base"))?;
-        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
-            .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
-        let catalog = Catalog::try_lock(&base, &local)
+        let root = data_root()?;
+        let catalog = Catalog::try_lock(&base, &root)
             .map_err(|error| local_error_at(error, "runtime-base"))?;
-        Ok::<_, Failure>(catalog.delete(name, &local, deadline, || {
+        Ok::<_, Failure>(catalog.delete(name, deadline, || {
             signals.take().map(|signal| signal.is_some())
         }))
     })();
@@ -146,6 +145,10 @@ fn failed(failure: Failure, format: OutputFormat, locale: Locale) -> Output {
         locale,
     )
 }
+fn data_root() -> Result<orchbee_local_runtime::DataRoot, Failure> {
+    orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+        .map_err(|_| local_error(io::ErrorKind::NotFound.into()))
+}
 fn local_error(error: io::Error) -> Failure {
     local_error_at(error, "runtime-directory")
 }
@@ -168,12 +171,11 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
             .map_err(|error| local_error_at(error, "runtime-base"))?;
         let unstarted = crate::local_activation::runtime_base_unstarted()
             .map_err(|error| local_error_at(error, "runtime-base"))?;
-        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
-            .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
+        let root = data_root()?;
         let entries = if unstarted {
             Vec::new()
         } else {
-            Catalog::list(&base, &local, deadline)
+            Catalog::list(&base, &root, deadline)
                 .map_err(|error| local_error_at(error, "runtime-base"))?
         };
         let mut documents = Vec::new();
@@ -249,7 +251,7 @@ fn observe(
     if entry.unreadable {
         return Ok((SessionState::Unreadable, None));
     }
-    // Activation and deletion refuse this name while another derivation's record names it.
+    // Activation and deletion refuse this name while two folders spell it.
     if entry.conflicted {
         return Ok((SessionState::RecoveryRequired, None));
     }

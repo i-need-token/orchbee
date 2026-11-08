@@ -6,15 +6,15 @@ use std::io;
 fn directory(fixture: &Fixture, session: &Rendezvous) -> std::path::PathBuf {
     fixture
         .0
-        .join("native-sessions")
-        .join(Rendezvous::host_endpoint_id(session.runtime_directory()))
+        .join("sessions")
+        .join(session.runtime_directory().file_name().unwrap())
 }
 
 #[test]
 fn retains_three_latest_valid_payloads_and_reopens_the_latest_slot() {
     let fixture = Fixture::new();
     let session = fixture.open("three-checkpoints");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     for payload in [b"first".as_slice(), b"second", b"third", b"fourth"] {
         store.publish(payload).unwrap();
     }
@@ -36,7 +36,7 @@ fn retains_three_latest_valid_payloads_and_reopens_the_latest_slot() {
     );
     assert_eq!(store.read().unwrap(), Some(b"fourth".to_vec()));
     drop(store);
-    let reopened = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let reopened = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     assert_eq!(reopened.read().unwrap(), Some(b"fourth".to_vec()));
 }
 
@@ -44,7 +44,7 @@ fn retains_three_latest_valid_payloads_and_reopens_the_latest_slot() {
 fn invalid_latest_digest_falls_back_without_modifying_the_invalid_original() {
     let fixture = Fixture::new();
     let session = fixture.open("invalid-latest");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     for payload in [b"first".as_slice(), b"second", b"third"] {
         store.publish(payload).unwrap();
     }
@@ -65,7 +65,14 @@ fn invalid_latest_digest_falls_back_without_modifying_the_invalid_original() {
                 .unwrap()
                 .starts_with("checkpoint.corrupt-")
         })
-        .map(|entry| fs::read(entry.path()).unwrap())
+        .map(|entry| {
+            // A preserved original is named by the UTC second it was set aside.
+            let name = entry.file_name();
+            assert!(crate::checkpoint_rotation::is_corrupt_original(
+                name.to_str().unwrap()
+            ));
+            fs::read(entry.path()).unwrap()
+        })
         .collect();
     assert_eq!(originals, vec![invalid]);
     assert_eq!(store.read().unwrap(), Some(b"fourth".to_vec()));
@@ -76,8 +83,8 @@ fn preserves_committed_bytes_across_reopen_and_isolates_sessions() {
     let fixture = Fixture::new();
     let first_session = fixture.open("first");
     let second_session = fixture.open("second");
-    let mut first = SessionStore::open(&fixture.0, &first_session, 64).unwrap();
-    let mut second = SessionStore::open(&fixture.0, &second_session, 64).unwrap();
+    let mut first = SessionStore::open(&fixture.root(), &first_session, 64).unwrap();
+    let mut second = SessionStore::open(&fixture.root(), &second_session, 64).unwrap();
     assert_eq!(first.read().unwrap(), None);
     first.publish("first 中文".as_bytes()).unwrap();
     second.publish(b"second").unwrap();
@@ -85,7 +92,7 @@ fn preserves_committed_bytes_across_reopen_and_isolates_sessions() {
     assert_eq!(first.read().unwrap().unwrap(), b"replacement");
     assert_eq!(second.read().unwrap().unwrap(), b"second");
     drop(first);
-    let reopened = SessionStore::open(&fixture.0, &first_session, 64).unwrap();
+    let reopened = SessionStore::open(&fixture.root(), &first_session, 64).unwrap();
     assert_eq!(reopened.read().unwrap().unwrap(), b"replacement");
     assert!(
         !directory(&fixture, &first_session)
@@ -98,19 +105,21 @@ fn preserves_committed_bytes_across_reopen_and_isolates_sessions() {
 fn another_owner_cannot_publish_until_the_store_lock_is_released() {
     let fixture = Fixture::new();
     let session = fixture.open("locked");
-    let owner = SessionStore::open(&fixture.0, &session, 64).unwrap();
-    let denied = SessionStore::open(&fixture.0, &session, 64).err().unwrap();
+    let owner = SessionStore::open(&fixture.root(), &session, 64).unwrap();
+    let denied = SessionStore::open(&fixture.root(), &session, 64)
+        .err()
+        .unwrap();
     assert_eq!(denied.kind(), io::ErrorKind::WouldBlock);
     drop(owner);
-    assert!(SessionStore::open(&fixture.0, &session, 64).is_ok());
+    assert!(SessionStore::open(&fixture.root(), &session, 64).is_ok());
 }
 
 #[test]
 fn missing_empty_exact_limit_and_oversized_files_remain_distinct() {
     let fixture = Fixture::new();
     let session = fixture.open("bounds");
-    assert!(SessionStore::open(&fixture.0, &session, 0).is_err());
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    assert!(SessionStore::open(&fixture.root(), &session, 0).is_err());
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     let path = directory(&fixture, &session).join("checkpoint.json");
     assert_eq!(store.read().unwrap(), None);
     assert_eq!(
@@ -158,7 +167,7 @@ fn missing_empty_exact_limit_and_oversized_files_remain_distinct() {
 fn failed_replacement_keeps_the_prior_checkpoint_and_reclaims_staging() {
     let fixture = Fixture::new();
     let session = fixture.open("blocked-publish");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     store.publish(b"old").unwrap();
     store.publish(b"middle").unwrap();
     store.publish(b"latest").unwrap();
@@ -195,7 +204,7 @@ fn failed_replacement_keeps_the_prior_checkpoint_and_reclaims_staging() {
 fn domain_invalid_copies_require_visible_empty_recovery_and_preserve_all_originals() {
     let fixture = Fixture::new();
     let session = fixture.open("invalid-domain");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     for payload in [b"invalid-1".as_slice(), b"invalid-2", b"invalid-3"] {
         store.publish(payload).unwrap();
     }
@@ -242,7 +251,7 @@ fn domain_invalid_copies_require_visible_empty_recovery_and_preserve_all_origina
 fn explicit_empty_final_after_all_invalid_preserves_the_displaced_original() {
     let fixture = Fixture::new();
     let session = fixture.open("empty-final-after-invalid");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     for payload in [b"invalid-1".as_slice(), b"invalid-2", b"invalid-3"] {
         store.publish(payload).unwrap();
     }
@@ -285,11 +294,11 @@ fn explicit_empty_final_after_all_invalid_preserves_the_displaced_original() {
 fn interrupt_after_preserving_invalid_originals_never_recovers_a_complete_pending_file() {
     let fixture = Fixture::new();
     let session = fixture.open("preserve-before-commit");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     store.publish(b"invalid-domain").unwrap();
     let state = directory(&fixture, &session);
     let original = fs::read(state.join("checkpoint.json")).unwrap();
-    let archive = state.join("checkpoint.corrupt-00000000000000000000000000000001.raw");
+    let archive = state.join("checkpoint.corrupt-2026-11-08T10-00-00Z.raw");
     fs::rename(state.join("checkpoint.json"), &archive).unwrap();
     // A complete, valid higher-generation envelope is still uncommitted in the pending path.
     let mut pending = original.clone();
@@ -300,7 +309,7 @@ fn interrupt_after_preserving_invalid_originals_never_recovers_a_complete_pendin
     pending[13..45].copy_from_slice(&digest.finalize());
     fs::write(state.join("checkpoint.pending"), pending).unwrap();
     drop(store);
-    let reopened = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let reopened = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     let loaded = reopened
         .read_validated(|bytes| Some(bytes.to_vec()))
         .unwrap();
@@ -314,12 +323,12 @@ fn interrupt_after_preserving_invalid_originals_never_recovers_a_complete_pendin
 fn a_crashed_pending_file_is_reclaimed_without_becoming_committed_data() {
     let fixture = Fixture::new();
     let session = fixture.open("pending");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     store.publish(b"committed").unwrap();
     let pending = directory(&fixture, &session).join("checkpoint.pending");
     fs::write(&pending, b"uncommitted").unwrap();
     drop(store);
-    let reopened = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let reopened = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     assert!(!pending.exists());
     assert_eq!(reopened.read().unwrap().unwrap(), b"committed");
 }
@@ -328,7 +337,7 @@ fn a_crashed_pending_file_is_reclaimed_without_becoming_committed_data() {
 fn linked_checkpoint_and_pending_files_are_refused_without_touching_their_targets() {
     let fixture = Fixture::new();
     let session = fixture.open("linked");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     let state = directory(&fixture, &session);
     let target = fixture.0.join("outside-data");
     fs::write(&target, b"preserve me").unwrap();
@@ -339,7 +348,7 @@ fn linked_checkpoint_and_pending_files_are_refused_without_touching_their_target
     fs::remove_file(state.join("checkpoint.json")).unwrap();
     fs::hard_link(&target, state.join("checkpoint.pending")).unwrap();
     drop(store);
-    assert!(SessionStore::open(&fixture.0, &session, 64).is_err());
+    assert!(SessionStore::open(&fixture.root(), &session, 64).is_err());
     assert_eq!(fs::read(&target).unwrap(), b"preserve me");
     assert!(state.join("checkpoint.pending").exists());
 }
@@ -348,12 +357,12 @@ fn linked_checkpoint_and_pending_files_are_refused_without_touching_their_target
 fn private_ancestor_handles_fence_rename_until_the_store_is_dropped() {
     let fixture = Fixture::new();
     let session = fixture.open("pinned-path");
-    let store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     let state = directory(&fixture, &session);
     assert!(fs::rename(&state, state.with_extension("moved")).is_err());
     drop(store);
     fs::rename(&state, state.with_extension("moved")).unwrap();
-    assert!(SessionStore::open(&fixture.0.join("."), &session, 64).is_err());
+    assert!(SessionStore::open(&crate::DataRoot::at(fixture.0.join(".")), &session, 64).is_err());
 }
 
 #[test]
@@ -362,7 +371,7 @@ fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
     let fixture = Fixture::new();
     let session = fixture.open("redirected");
     let target = fixture.0.join("elsewhere");
-    let link = fixture.0.join("native-sessions");
+    let link = fixture.0.join("sessions");
     fs::create_dir(&target).unwrap();
     let status = std::process::Command::new("powershell.exe")
         .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
@@ -372,7 +381,7 @@ fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
         .creation_flags(0x0800_0000)
         .status().unwrap();
     assert!(status.success());
-    let result = SessionStore::open(&fixture.0, &session, 64);
+    let result = SessionStore::open(&fixture.root(), &session, 64);
     // Remove the link itself before the fixture's recursive cleanup, including on test failure.
     fs::remove_dir(&link).unwrap();
     assert!(result.is_err());
@@ -383,7 +392,7 @@ fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
 fn layout_history_keeps_the_newest_entries_and_refuses_a_renamed_frame() {
     let fixture = Fixture::new();
     let session = fixture.open("layout-history");
-    let mut store = SessionStore::open(&fixture.0, &session, 64).unwrap();
+    let mut store = SessionStore::open(&fixture.root(), &session, 64).unwrap();
     assert!(store.read_layout_history().unwrap().is_empty());
     for saved_at in 1..=5_u64 {
         store
@@ -397,14 +406,39 @@ fn layout_history_keeps_the_newest_entries_and_refuses_a_renamed_frame() {
     );
     assert_eq!(kept[0].payload.as_deref(), Some(b"layout 5".as_slice()));
     assert_eq!(store.read_layout_history_entry(1000).unwrap(), None);
+    // Entries are named by their UTC save second; another save in the same second takes `-2`.
+    let history = directory(&fixture, &session).join("layouts");
+    store.record_layout_history(5500, b"layout 5b", 3).unwrap();
+    let mut names: Vec<_> = fs::read_dir(&history)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            "1970-01-01T00-00-04Z.json",
+            "1970-01-01T00-00-05Z-2.json",
+            "1970-01-01T00-00-05Z.json"
+        ]
+    );
+    assert_eq!(
+        store
+            .read_layout_history()
+            .unwrap()
+            .iter()
+            .map(|entry| entry.saved_at)
+            .collect::<Vec<_>>(),
+        [5500, 5000, 4000]
+    );
     // A frame carries its own save time, so a file moved to another entry name is unreadable.
-    let history = directory(&fixture, &session).join("layout-history");
     fs::rename(
-        history.join(format!("layout-{:016x}.json", 3000)),
-        history.join(format!("layout-{:016x}.json", 3500)),
+        history.join("1970-01-01T00-00-04Z.json"),
+        history.join("1970-01-01T00-00-07Z.json"),
     )
     .unwrap();
-    assert_eq!(store.read_layout_history_entry(3500).unwrap(), None);
+    assert_eq!(store.read_layout_history_entry(7000).unwrap(), None);
+    assert_eq!(store.read_layout_history_entry(4000).unwrap(), None);
     // The slots are untouched by history writes.
     assert_eq!(store.read().unwrap(), None);
 }

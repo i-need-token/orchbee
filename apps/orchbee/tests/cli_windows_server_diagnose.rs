@@ -6,7 +6,6 @@ use orchbee_local_runtime::{
     LockAttempt, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionScope,
 };
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::PathBuf,
@@ -31,9 +30,9 @@ impl Fixture {
         self.0.join("runtime")
     }
 
+    /// The default Session's runtime folder, which takes the Session's name.
     fn scope(&self) -> String {
-        let sid = orchbee_local_ipc::current_user_sid().unwrap();
-        format!("orchbee-native-{:x}", Sha256::digest(sid.as_bytes()))[..47].to_owned()
+        "default".to_owned()
     }
 
     fn run(&self, format: &str, locale: &str) -> Output {
@@ -207,22 +206,18 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
 }
 
 #[test]
-fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
+fn unreadable_session_records_are_reported_only_for_the_session_they_name() {
     let fixture = Fixture::new();
-    let (base, local) = (fixture.0.join("base"), fixture.0.join("local"));
+    let (base, home) = (fixture.0.join("base"), fixture.0.join("home"));
     fs::create_dir(&base).unwrap();
-    fs::create_dir(&local).unwrap();
-    // An earlier derivation's runtime leaf for "work", exactly as that build left it.
-    let sid = orchbee_local_ipc::current_user_sid().unwrap();
-    let mut hash = Sha256::new();
-    hash.update(b"orchbee.windows.site-name.v1\0");
-    hash.update(sid.as_bytes());
-    hash.update(b"\0work");
-    let old = format!("orchbee-session-{:x}", hash.finalize())[..63].to_owned();
-    let leaf = Rendezvous::prepare_mode_checked(&base, SessionScope::parse(&old).unwrap()).unwrap();
-    let identity = leaf.runtime_directory().join("session-name.json");
-    drop(leaf);
-    fs::write(&identity, br#"{"version":1,"name":"work"}"#).unwrap();
+    fs::create_dir(&home).unwrap();
+    // A record its admission rejects, in the Session folder of "work".
+    let folder = orchbee_local_runtime::DataRoot::under_home(&home)
+        .sessions()
+        .join("work");
+    fs::create_dir_all(&folder).unwrap();
+    let record = folder.join("session.json");
+    fs::write(&record, br#"{"version":1,"name":"work""#).unwrap();
     let entries = fs::read_dir(&base).unwrap().count();
     let run = |session: &str, format: &str, locale: &str| {
         crate::staged_client::isolated()
@@ -235,12 +230,9 @@ fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
                 format,
             ])
             .env("ORCHBEE_RUNTIME_BASE", &base)
-            .env("LOCALAPPDATA", &local)
-            // A development or test build keeps its catalog under the profile.
-            .env("USERPROFILE", &local)
+            // A development or test build keeps its Session folders under the profile.
+            .env("USERPROFILE", &home)
             .env("LC_ALL", locale)
-            .env_remove("ORCHBEE_SESSION")
-            .env_remove("ORCHBEE_RUNTIME_SCOPE")
             .stdin(Stdio::null())
             .output()
             .unwrap()
@@ -252,13 +244,14 @@ fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
         validator().validate(&document).unwrap();
         document
     };
-    let work = document("work");
+    // The Session is found by any letter case of its name.
+    let work = document("WORK");
     assert_eq!(
         work["result"]["unrecognizedRecords"],
         serde_json::json!({"state": "known", "reason": null, "records": [{
-            "record": "runtime-directory",
-            "reason": "obsolete-identity",
-            "path": base.join(&old).to_str().unwrap(),
+            "record": "catalog-record",
+            "reason": "unreadable",
+            "path": record.to_str().unwrap(),
             "pathUtf16": null,
         }]})
     );
@@ -276,13 +269,10 @@ fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
     assert!(text.status.success());
     let text = String::from_utf8(text.stdout).unwrap();
     assert!(text.contains("unrecognizedRecords.1"), "{text}");
-    assert!(text.contains("obsolete-identity"), "{text}");
+    assert!(text.contains("unreadable"), "{text}");
     assert!(text.contains("所列记录"), "{text}");
-    // Diagnosis reads only: the old record keeps its bytes and nothing is created for either name.
-    assert_eq!(
-        fs::read(&identity).unwrap(),
-        br#"{"version":1,"name":"work"}"#
-    );
+    // Diagnosis reads only: the record keeps its bytes and nothing is created for either name.
+    assert_eq!(fs::read(&record).unwrap(), br#"{"version":1,"name":"work""#);
     assert_eq!(fs::read_dir(&base).unwrap().count(), entries);
-    assert_eq!(fs::read_dir(&local).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(&folder).unwrap().count(), 1);
 }

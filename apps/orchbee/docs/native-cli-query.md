@@ -539,8 +539,11 @@ observations are not an atomic snapshot. Windows Panel list/get and retained vie
 
 The global `--session <name>` / `--session=<name>` selects the local Windows Session for the entire
 invocation, including `server start`, `server stop`, queries and `tui`. It does not change the
-Agent `--agent-session` selector. Names are case-sensitive, contain 1–64 ASCII letters, digits,
-`.` / `_` / `-`, and cannot be `.` or `..`. `default` selects the existing default Session.
+Agent `--agent-session` selector. Names contain 1–64 ASCII letters, digits, `.` / `_` / `-`,
+neither start nor end with `.`, and are no Windows device name (`con`, `nul`, `com1`, and so on) in
+any letter case, with or without an extension. Letter case does not tell Sessions apart: `Work` and
+`work` select one Session, which keeps the spelling it was created with. `default` in any letter
+case selects the default Session.
 The complete argument grammar is validated before selection; offline help, completion,
 version and schema operations do not discover a runtime because a name was supplied.
 
@@ -551,18 +554,17 @@ commands keep their owning Session even if a different name was inherited by the
 An explicit `--session default` overrides that inherited scope. Invalid selected environment
 values fail discovery; they never silently select the default Session.
 
-Named runtime leaves hash the current SID and exact name; names are never filesystem path
-components. Activation registers a bounded private identity under its existing activation
-lock before committing the startup marker. Read-only discovery validates that identity
-without creating it. Checkpoint storage is already isolated by the admitted runtime path.
-`session list [--format text|json]` lists default followed by exact named sessions in the
-selected runtime base. It reads at most 256 sessions under one five-second deadline, creates
+A Session's folder in the data root, `sessions/<name>/`, and its runtime folder,
+`internal/runtime/<name>/` unless `ORCHBEE_RUNTIME_BASE` names another base, both take its name.
+The folder holds its catalog record, checkpoints, earlier layouts, kept terminal output and TUI
+position. `session list [--format text|json]` lists default followed by the named sessions, sorted
+without letter case. It reads at most 256 sessions under one five-second deadline, creates
 no runtime state and reports running, stopping, stopped, absent, starting, deleting, recoverable or recovery-required
-from authenticated metadata and admitted lifecycle facts. A name that a retained record still names
-from another location, such as an earlier build's runtime leaf or catalog record, is listed as
-recovery-required while other names list and start normally. Unknown/unsafe inventory, including an
-object whose name cannot be read, fails explicitly. On Windows, a development or test build's default
-runtime base that does not exist yet lists no sessions, `server diagnose` reports it `absent` with
+from authenticated metadata and admitted lifecycle facts. A name two folders spell in different
+letter case is listed as recovery-required while other names list and start normally.
+Unknown/unsafe inventory, including a folder whose name is no Session name, fails explicitly. Data
+an earlier build kept in `%LOCALAPPDATA%\Orchbee` or `%TEMP%` is neither read nor removed. On
+Windows, a default runtime base that does not exist yet lists no sessions, `server diagnose` reports it `absent` with
 no unrecognized records, and `config check` reports it `not-applicable` with reason `not-started`; a
 missing explicit `ORCHBEE_RUNTIME_BASE` still fails.
 
@@ -580,17 +582,20 @@ line saying how to create the first entry; the launch-profile catalog revision i
 and its existing result schema. `session delete <name> --confirm` removes only that stopped
 named session's retained checkpoint and owned runtime files; it refuses default, running or
 uncertain state and never deletes Project/worktree/user directories. A name operand and explicit
-`--session` must agree. Delete is idempotent when absent; a name that a retained record still
-names from another location is refused as recovery-required instead. A partial removal remains fenced by a
-deletion intent and an explicit failure; repeat delete to finish, never start to repair it.
-Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption. Completed removals are not rolled back; a pending intent remains resumable. The `interrupted` result reports whether an intent remains, including cancellation after cleanup completed.
+`--session` must agree, without regard to letter case. Delete is idempotent when absent; a name two
+folders spell is refused as recovery-required instead. A partial removal remains fenced by the
+Session record's Deleting state and an explicit failure; repeat delete to finish, never start to
+repair it. Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption.
+Completed removals are not rolled back; a pending deletion remains resumable. The `interrupted`
+result reports whether the Deleting record remains, including cancellation after cleanup completed.
 
 List emits `orchbee.session.list` v1. `recoverable` means
 a guarded observation found complete current registration, all exact identities gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
 `orchbee.session.delete` v1. The embedded schema catalog is v1.
 
-The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
+The Session record in `sessions/<name>/session.json` preserves default/named identities and
+stopped receipts.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
 runtime leaf is removed; `session attach`/`server start` recreates its route and restores the checkpoint.
 `server start` and TUI startup automatically recover a complete, proved-dead current Active generation,

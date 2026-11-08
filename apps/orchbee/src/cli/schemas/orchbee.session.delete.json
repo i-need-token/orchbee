@@ -29,7 +29,7 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]{1,64}$"
+					"pattern": "^(?!\\.)(?!.*\\.$)[A-Za-z0-9._-]{1,64}$"
 				},
 				"outcome": {
 					"enum": ["deleted", "absent", "refused", "incomplete", "interrupted"]

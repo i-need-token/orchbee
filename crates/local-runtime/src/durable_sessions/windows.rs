@@ -1,9 +1,9 @@
-//! Private lifecycle records outlive the runtime leaf. Effects derive their paths from admission.
+//! Private lifecycle records, one `session.json` in each Session's folder, outlive the runtime
+//! folder. Effects derive their paths from admission.
 use crate::{
-    ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
+    ActivationState, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
     private_filesystem as permissions,
     process_registration::{ProcessRole, SessionProcesses},
-    session_name,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -14,6 +14,7 @@ use std::{
 };
 
 const MAXIMUM_BYTES: usize = 8192;
+const MAXIMUM_SESSIONS: usize = 256;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "kebab-case", deny_unknown_fields)]
@@ -50,14 +51,14 @@ impl Record {
             && self.version == other.version
             && self.activation_id == other.activation_id
     }
+    /// A record for the Session `name` whose runtime folder is `runtime`, the admitted canonical
+    /// folder named by the Session.
     pub(crate) fn new(
-        base: &Path,
+        runtime: &Path,
         name: &SessionName,
         activation_id: Option<[u8; 16]>,
         lifecycle: Lifecycle,
     ) -> io::Result<Self> {
-        let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
-        let runtime = base.join(scope);
         Ok(Self {
             version: 1,
             name: name.as_str().to_owned(),
@@ -71,11 +72,20 @@ impl Record {
         })
     }
     pub(crate) fn registered(
-        base: &Path,
+        runtime: &Path,
         name: &SessionName,
         activation_id: [u8; 16],
     ) -> io::Result<Self> {
-        Self::new(base, name, Some(activation_id), Lifecycle::Active)
+        Self::new(runtime, name, Some(activation_id), Lifecycle::Active)
+    }
+    /// The runtime folder this record's generation uses.
+    pub(crate) fn runtime(&self) -> &Path {
+        Path::new(&self.runtime)
+    }
+    /// Whether the generation uses `runtime`. Folder spellings are compared as Windows compares
+    /// them, through the endpoint identity that names the Session's pipes.
+    pub(crate) fn uses_runtime(&self, runtime: &Path) -> bool {
+        Rendezvous::host_endpoint_id(self.runtime()) == Rendezvous::host_endpoint_id(runtime)
     }
     pub(crate) fn activation(&self) -> Option<ActivationState> {
         match self.lifecycle {
@@ -99,101 +109,91 @@ impl Record {
     }
 }
 
-pub(crate) fn supports_scope(scope: &str, sid: &str) -> bool {
-    scope
-        == SessionName::parse("default")
-            .expect("fixed name")
-            .scope_for_user(sid)
-        || (scope.len() == 63
-            && scope
-                .strip_prefix(session_name::NAMED_PREFIX)
-                .is_some_and(|tail| {
-                    tail.bytes()
-                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-                }))
-}
-
+/// One Session folder's catalog record as listed.
 pub(crate) enum CatalogRecord {
     Readable(Record),
-    /// Its identity names the Session derived for this scope, but the record is not admitted.
-    Unreadable(SessionName),
-    /// Its identity names a Session derived elsewhere, or cannot be read. Only the scope is known.
-    Unrecognized(Option<SessionName>),
+    /// The folder holds a record this build cannot admit for the Session the folder names.
+    Unreadable,
+    /// The folder holds no record: checkpoint data or a TUI position without its lifecycle.
+    Missing,
 }
 
-/// The checkpoint directory a runtime derives below the environment's local state root.
-pub(crate) fn checkpoint_path(local: &Path, runtime: &Path) -> PathBuf {
-    local
-        .join(CHECKPOINT_DIRECTORY)
-        .join(Rendezvous::host_endpoint_id(runtime))
-}
-pub(crate) const CHECKPOINT_DIRECTORY: &str = "native-sessions";
-const CATALOG_DIRECTORY: &str = "session-catalog";
+/// The catalog record's name: `session.json`, beside `session.lock` and `session.pending`.
+const RECORD_FILE: &str = "session.json";
+const RECORD_LOCK: &str = "session.lock";
+const RECORD_PENDING: &str = "session.pending";
+/// The files the catalog record owns in a Session folder.
+pub(crate) const RECORD_FILES: [&str; 3] = [RECORD_FILE, RECORD_LOCK, RECORD_PENDING];
 
-/// `local` is the environment's local state root throughout; the layout below it is fixed.
+/// Whether `name` is the record's writer lock or staging file, which alone hold no Session data:
+/// an interrupted activation or deletion can leave them in an otherwise empty folder.
+pub(crate) fn is_record_guard(name: &str) -> bool {
+    name == RECORD_LOCK || name == RECORD_PENDING
+}
+
+/// The `sessions/` folder of one data root. A scope is the spelling of one Session's folder name;
+/// [`Directory::spelling`] finds the folder whatever letter case the Session is asked for in.
 pub(crate) struct Directory {
     path: PathBuf,
-    local: PathBuf,
-    base: PathBuf,
-    sid: String,
     _pins: Vec<File>,
 }
 
 impl Directory {
-    fn path(local: &Path, base: &Path) -> PathBuf {
-        local
-            .join(CATALOG_DIRECTORY)
-            .join(Rendezvous::host_endpoint_id(base))
-    }
-    pub(crate) fn open(local: &Path, base: &Path) -> io::Result<Option<Self>> {
-        let Some(_local) = crate::data_root::open_state_root(local)? else {
+    /// The existing folder, or `None` when the data root or its `sessions/` folder is absent.
+    /// Opening creates nothing.
+    pub(crate) fn open(root: &DataRoot) -> io::Result<Option<Self>> {
+        let Some(mut pins) = crate::data_root::open_state_root(root.path())? else {
             return Ok(None);
         };
-        let path = Self::path(local, base);
-        let pins = match permissions::open_tree(&path) {
-            Ok(pins) => pins,
+        let path = root.sessions();
+        match permissions::open_tree(&path) {
+            Ok(tree) => pins.extend(tree),
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
-        };
-        Ok(Some(Self {
-            path,
-            local: local.to_owned(),
-            base: base.to_owned(),
-            sid: orchbee_local_ipc::current_user_sid()?,
-            _pins: pins,
-        }))
-    }
-    pub(crate) fn create(local: &Path, base: &Path) -> io::Result<Self> {
-        let mut pins = crate::data_root::create_state_directory(local)?;
-        let mut path = local.to_owned();
-        for component in [CATALOG_DIRECTORY, &Rendezvous::host_endpoint_id(base)] {
-            path.push(component);
-            let created = match fs::create_dir(&path) {
-                Ok(()) => true,
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
-                Err(error) => return Err(error),
-            };
-            let mut pin = permissions::open_directory(&path, created)?;
-            if created {
-                permissions::protect_new(&mut pin)?;
-            } else {
-                permissions::require_private(&pin)?;
-            }
-            pins.push(pin);
         }
-        Ok(Self {
-            path,
-            local: local.to_owned(),
-            base: base.to_owned(),
-            sid: orchbee_local_ipc::current_user_sid()?,
-            _pins: pins,
-        })
+        Ok(Some(Self { path, _pins: pins }))
     }
+    pub(crate) fn create(root: &DataRoot) -> io::Result<Self> {
+        let path = root.sessions();
+        let pins = crate::data_root::create_state_directory(&path)?;
+        Ok(Self { path, _pins: pins })
+    }
+    /// One Session's folder.
+    pub(crate) fn folder(&self, scope: &str) -> PathBuf {
+        self.path.join(scope)
+    }
+    /// The spelling of the existing folder of the Session `name`, compared without letter case,
+    /// or `None` when it has none. Two folders that differ only in letter case, which only a
+    /// case-sensitive directory can hold, are one Session spelled twice and refuse it.
+    pub(crate) fn spelling(&self, name: &SessionName) -> io::Result<Option<String>> {
+        let mut found = None;
+        for entry in fs::read_dir(&self.path)? {
+            let leaf = entry?.file_name();
+            let Some(leaf) = leaf.to_str() else {
+                continue;
+            };
+            if leaf.eq_ignore_ascii_case(name.as_str()) {
+                if found.is_some() {
+                    return Err(io::ErrorKind::InvalidData.into());
+                }
+                found = Some(leaf.to_owned());
+            }
+        }
+        Ok(found)
+    }
+    /// A record belongs to the folder that names its Session, whatever the letter case, and its
+    /// runtime folder takes the same name.
     fn validate(&self, scope: &str, record: &Record) -> io::Result<()> {
         let name = SessionName::parse(&record.name).map_err(|_| io::ErrorKind::InvalidData)?;
+        let runtime = record.runtime();
         if record.version != 1
-            || name.scope_for_user(&self.sid) != scope
-            || Path::new(&record.runtime) != self.base.join(scope)
+            || name.as_str() != record.name
+            || !record.name.eq_ignore_ascii_case(scope)
+            || !runtime.is_absolute()
+            || !runtime
+                .file_name()
+                .and_then(|leaf| leaf.to_str())
+                .is_some_and(|leaf| leaf.eq_ignore_ascii_case(scope))
             || record.activation_id == Some([0; 16])
             || (!record.is_deleting() && record.activation_id.is_none())
             || record.stopped_id() == Some([0; 16])
@@ -202,17 +202,15 @@ impl Directory {
         }
         Ok(())
     }
-    fn record_path(&self, scope: &str, pending: bool) -> io::Result<PathBuf> {
-        if !supports_scope(scope, &self.sid) {
+    fn record_path(&self, scope: &str, leaf: &str) -> io::Result<PathBuf> {
+        if !crate::session_name::valid(scope) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        Ok(self.path.join(format!(
-            "{scope}.{}",
-            if pending { "pending" } else { "json" }
-        )))
+        Ok(self.folder(scope).join(leaf))
     }
     fn read_bytes(&self, scope: &str) -> io::Result<Option<Vec<u8>>> {
-        let file = match permissions::open_file(&self.record_path(scope, false)?, false, false) {
+        let path = self.record_path(scope, RECORD_FILE)?;
+        let file = match permissions::open_file(&path, false, false) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
@@ -234,11 +232,10 @@ impl Directory {
         self.validate(scope, &record)?;
         Ok(Some(record))
     }
+    /// Acquires the record's writer lock, creating the Session folder and the lock on first use.
     pub(crate) fn try_writer(&self, scope: &str) -> io::Result<File> {
-        if !supports_scope(scope, &self.sid) {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        let path = self.path.join(format!("{scope}.record.lock"));
+        let path = self.record_path(scope, RECORD_LOCK)?;
+        let _folder = crate::data_root::create_state_directory(&self.folder(scope))?;
         let file = match permissions::open_file(&path, true, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -253,14 +250,8 @@ impl Directory {
         }
     }
     pub(crate) fn existing_writer(&self, scope: &str) -> io::Result<Option<File>> {
-        if !supports_scope(scope, &self.sid) {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        let file = match permissions::open_file(
-            &self.path.join(format!("{scope}.record.lock")),
-            false,
-            true,
-        ) {
+        let path = self.record_path(scope, RECORD_LOCK)?;
+        let file = match permissions::open_file(&path, false, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
@@ -271,6 +262,10 @@ impl Directory {
             Err(TryLockError::Error(error)) => Err(error),
         }
     }
+    /// Every Session folder with its record, read without admitting process facts. Each entry is a
+    /// private folder named by a valid Session name; anything else in `sessions/` fails the
+    /// inventory instead of being hidden. A folder holding at most the record's lock and staging
+    /// file, which an interrupted activation or deletion leaves, is no Session.
     pub(crate) fn list(&self, deadline: Instant) -> io::Result<Vec<(String, CatalogRecord)>> {
         let mut records = Vec::new();
         for entry in fs::read_dir(&self.path)? {
@@ -279,59 +274,38 @@ impl Directory {
             }
             let entry = entry?;
             let leaf = entry.file_name();
-            let leaf = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
-            if let Some(scope) = leaf.strip_suffix(".pending")
-                && supports_scope(scope, &self.sid)
-            {
-                continue;
-            }
-            if let Some(scope) = leaf.strip_suffix(".record.lock")
-                && supports_scope(scope, &self.sid)
-            {
-                permissions::open_file(&entry.path(), false, false)?;
-                continue;
-            }
             let scope = leaf
-                .strip_suffix(".json")
+                .to_str()
+                .filter(|leaf| crate::session_name::valid(leaf))
                 .ok_or(io::ErrorKind::InvalidData)?;
+            let _pins = permissions::open_tree(&entry.path())?;
+            let mut holds_data = false;
+            for held in fs::read_dir(entry.path())? {
+                holds_data |= held?
+                    .file_name()
+                    .to_str()
+                    .is_none_or(|name| !is_record_guard(name));
+            }
+            if !holds_data {
+                continue;
+            }
             let record = match self.read(scope) {
                 Ok(Some(record)) => CatalogRecord::Readable(record),
-                Ok(None) => return Err(io::ErrorKind::NotFound.into()),
+                Ok(None) => CatalogRecord::Missing,
                 Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-                    match self.identity(scope)? {
-                        Some(name) if name.scope_for_user(&self.sid) == scope => {
-                            CatalogRecord::Unreadable(name)
-                        }
-                        name => CatalogRecord::Unrecognized(name),
-                    }
+                    CatalogRecord::Unreadable
                 }
                 Err(error) => return Err(error),
             };
             records.push((scope.to_owned(), record));
-            if records.len() > 256 {
+            if records.len() > MAXIMUM_SESSIONS {
                 return Err(io::ErrorKind::FileTooLarge.into());
             }
         }
         Ok(records)
     }
-    // Read only identity metadata for attribution and display; this never admits lifecycle or
-    // process facts, and an older derivation's name is never translated into a current scope.
-    fn identity(&self, scope: &str) -> io::Result<Option<SessionName>> {
-        #[derive(Deserialize)]
-        struct Identity {
-            name: String,
-        }
-        let bytes = match self.read_bytes(scope) {
-            Ok(bytes) => bytes.ok_or(io::ErrorKind::NotFound)?,
-            Err(error) if error.kind() == io::ErrorKind::InvalidData => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        Ok(serde_json::from_slice::<Identity>(&bytes)
-            .ok()
-            .and_then(|identity| SessionName::parse(&identity.name).ok()))
-    }
     pub(crate) fn record_file(&self, scope: &str) -> io::Result<PathBuf> {
-        self.record_path(scope, false)
+        self.record_path(scope, RECORD_FILE)
     }
 
     /// Explicit deletion may replace an unreadable record only with its durable deletion fence.
@@ -359,12 +333,13 @@ impl Directory {
         if bytes.len() > MAXIMUM_BYTES {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        let staging = self.record_path(scope, true)?;
+        let _folder = crate::data_root::create_state_directory(&self.folder(scope))?;
+        let staging = self.record_path(scope, RECORD_PENDING)?;
         remove_private(&staging)?;
         let mut file = permissions::open_file(&staging, true, true)?;
         let written = file.write_all(&bytes).and_then(|()| file.sync_all());
         drop(file);
-        let target = self.record_path(scope, false)?;
+        let target = self.record_path(scope, RECORD_FILE)?;
         let published = written.and_then(|()| {
             winsafe::MoveFileEx(
                 staging.to_str().ok_or(io::ErrorKind::InvalidInput)?,
@@ -379,11 +354,26 @@ impl Directory {
         }
         Ok(())
     }
+    /// Removes the record and its lock and staging file, last of everything a deletion removes,
+    /// and then the Session folder, which holds nothing else by then.
     pub(crate) fn remove(&self, scope: &str) -> io::Result<()> {
         let _current = self.read(scope)?;
-        remove_private(&self.record_path(scope, true)?)?;
-        remove_private(&self.path.join(format!("{scope}.record.lock")))?;
-        remove_private(&self.record_path(scope, false)?)
+        remove_private(&self.record_path(scope, RECORD_PENDING)?)?;
+        remove_private(&self.record_path(scope, RECORD_LOCK)?)?;
+        remove_private(&self.record_path(scope, RECORD_FILE)?)?;
+        remove_empty_folder(&self.folder(scope))
+    }
+}
+
+/// Removes an empty Session folder; an absent one is already removed.
+pub(crate) fn remove_empty_folder(path: &Path) -> io::Result<()> {
+    match permissions::open_tree(path) {
+        Ok(pins) => {
+            drop(pins);
+            fs::remove_dir(path)
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
@@ -406,7 +396,7 @@ pub struct RetainedSessionRecord {
 }
 impl RetainedSessionRecord {
     pub(crate) fn checkpoint_directory(&self) -> PathBuf {
-        checkpoint_path(&self.directory.local, Path::new(&self.active.runtime))
+        self.directory.folder(&self.scope)
     }
     pub(crate) fn current_activation_id(&self) -> io::Result<[u8; 16]> {
         let current = self
@@ -420,26 +410,24 @@ impl RetainedSessionRecord {
             .activation_id
             .ok_or_else(|| io::ErrorKind::InvalidData.into())
     }
-    pub fn retain(local: &Path, session: &Rendezvous) -> io::Result<Option<Self>> {
+    /// The Active generation of the Session whose runtime folder `session` admitted. A record
+    /// whose generation uses another runtime folder is refused: that Session runs elsewhere.
+    pub fn retain(root: &DataRoot, session: &Rendezvous) -> io::Result<Self> {
         let runtime = session.runtime_directory();
         let scope = runtime
             .file_name()
             .and_then(|value| value.to_str())
             .ok_or(io::ErrorKind::InvalidInput)?;
-        if !supports_scope(scope, &orchbee_local_ipc::current_user_sid()?) {
-            return Ok(None);
-        }
-        let base = runtime.parent().ok_or(io::ErrorKind::InvalidInput)?;
-        let directory = Directory::open(local, base)?.ok_or(io::ErrorKind::NotFound)?;
+        let directory = Directory::open(root)?.ok_or(io::ErrorKind::NotFound)?;
         let active = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
-        if active.lifecycle != Lifecycle::Active {
+        if active.lifecycle != Lifecycle::Active || !active.uses_runtime(runtime) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        Ok(Some(Self {
+        Ok(Self {
             directory,
             scope: scope.to_owned(),
             active,
-        }))
+        })
     }
     /// Whether this generation's Terminal Host was never started or its exact process is gone.
     /// A reserved spawn or an unknown observation answers false. Observation grants no

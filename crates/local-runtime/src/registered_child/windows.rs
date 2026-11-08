@@ -1,6 +1,6 @@
 //! Direct creators publish durable ownership while their child's initial thread is suspended.
 use crate::{
-    RetainedChild,
+    DataRoot, RetainedChild,
     durable_sessions::{Directory, Lifecycle},
     private_filesystem as permissions, process_observation,
     process_registration::{Creator, ProcessRole},
@@ -15,8 +15,10 @@ use std::{
 
 use super::SessionChild;
 
+/// Registers `child` in the Active record of the Session whose runtime folder is `runtime`, in
+/// `root`'s `sessions/` folder. A record whose generation uses another runtime folder refuses.
 pub fn spawn_session_child(
-    local: &Path,
+    root: &DataRoot,
     runtime: &Path,
     child: SessionChild,
     executable: &Path,
@@ -28,11 +30,14 @@ pub fn spawn_session_child(
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or(io::ErrorKind::InvalidInput)?;
-    if !crate::SessionCatalog::supports_scope(scope)? {
-        return RetainedChild::spawn(executable, arguments);
+    let directory = Directory::open(root)?.ok_or(io::ErrorKind::NotFound)?;
+    if !directory
+        .read(scope)?
+        .ok_or(io::ErrorKind::NotFound)?
+        .uses_runtime(runtime)
+    {
+        return Err(io::ErrorKind::InvalidData.into());
     }
-    let base = runtime.parent().ok_or(io::ErrorKind::InvalidInput)?;
-    let directory = Directory::open(local, base)?.ok_or(io::ErrorKind::NotFound)?;
     let role = match child {
         SessionChild::Worker => ProcessRole::Worker,
         SessionChild::Host => ProcessRole::Host,

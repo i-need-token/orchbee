@@ -14,7 +14,7 @@ pub(crate) use windows::spawn_registered;
 pub use windows::spawn_session_child;
 #[cfg(not(windows))]
 pub fn spawn_session_child(
-    _local: &std::path::Path,
+    _root: &crate::DataRoot,
     _runtime: &std::path::Path,
     _child: SessionChild,
     _executable: &std::path::Path,

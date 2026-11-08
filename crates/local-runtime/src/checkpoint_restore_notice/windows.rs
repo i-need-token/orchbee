@@ -1,8 +1,8 @@
 //! Bounded, generation-bound restore feedback. Reading never takes the Server's state lock.
 use crate::{
-    CheckpointRestoreNotice as Notice, ModeCheckedLocalSessionRendezvous as Rendezvous,
+    CheckpointRestoreNotice as Notice, DataRoot, ModeCheckedLocalSessionRendezvous as Rendezvous,
     RetainedSessionRecord, SessionStore,
-    durable_sessions::{Directory, Lifecycle, checkpoint_path, supports_scope},
+    durable_sessions::{Directory, Lifecycle},
     private_filesystem as permissions,
 };
 use std::{
@@ -112,28 +112,24 @@ impl SessionStore {
     }
 }
 impl Rendezvous {
-    /// Only an admitted active catalog generation may supply feedback for this runtime.
-    pub fn checkpoint_restore_notice(&self, local: &Path) -> io::Result<Option<Notice>> {
+    /// Only an admitted active catalog generation that uses this runtime folder may supply
+    /// feedback for it.
+    pub fn checkpoint_restore_notice(&self, root: &DataRoot) -> io::Result<Option<Notice>> {
         let runtime = self.runtime_directory();
         let scope = runtime
             .file_name()
             .and_then(|s| s.to_str())
             .ok_or(io::ErrorKind::InvalidInput)?;
-        if !supports_scope(scope, &orchbee_local_ipc::current_user_sid()?) {
-            return Ok(None);
-        }
-        let Some(directory) =
-            Directory::open(local, runtime.parent().ok_or(io::ErrorKind::InvalidInput)?)?
-        else {
+        let Some(directory) = Directory::open(root)? else {
             return Ok(None);
         };
         let Some(record) = directory.read(scope)? else {
             return Ok(None);
         };
-        if record.lifecycle != Lifecycle::Active {
+        if record.lifecycle != Lifecycle::Active || !record.uses_runtime(runtime) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        let path = checkpoint_path(local, runtime);
+        let path = directory.folder(scope);
         let _pins = match permissions::open_tree(&path) {
             Ok(pins) => pins,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),

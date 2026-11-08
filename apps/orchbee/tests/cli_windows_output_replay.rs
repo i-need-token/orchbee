@@ -315,8 +315,7 @@ impl Witness {
             })
             .filter_map(|path| {
                 let name = path.file_name()?.to_str()?;
-                let hex = name.strip_prefix("output-")?.strip_suffix(".bin")?;
-                let token = u64::from_str_radix(hex, 16).ok()?;
+                let token = name.strip_suffix(".bin")?.parse::<u64>().ok()?;
                 let bytes = fs::read(&path).ok()?;
                 (bytes.len() > FRAME_HEADER && bytes.starts_with(FRAME_MAGIC)).then(|| Kept {
                     payload: bytes[FRAME_HEADER..].to_vec(),

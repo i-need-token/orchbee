@@ -1,6 +1,7 @@
-//! Private checkpoint transport; the Server owns the retained document's meaning.
+//! Private checkpoint transport in the Session folder; the Server owns the retained document's
+//! meaning.
 use crate::{
-    ModeCheckedLocalSessionRendezvous,
+    DataRoot, ModeCheckedLocalSessionRendezvous,
     checkpoint_rotation::{self as rotation, Candidate, HEADER_BYTES, SLOTS},
     private_filesystem as permissions,
 };
@@ -22,35 +23,19 @@ mod layout_history;
 mod terminal_output;
 
 impl SessionStore {
-    /// `local` is the environment's local state root, created private when missing. The admitted
-    /// runtime identity separates Sessions, including isolated development bases, without putting
-    /// data in temp files.
+    /// Opens the checkpoint storage of the Session whose runtime `session` admitted: its folder in
+    /// `root`'s `sessions/`, named by the Session and created private when missing.
     pub fn open(
-        local: &Path,
+        root: &DataRoot,
         session: &ModeCheckedLocalSessionRendezvous,
         maximum_bytes: usize,
     ) -> io::Result<Self> {
         if maximum_bytes == 0 || maximum_bytes.checked_add(HEADER_BYTES + 1).is_none() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        let mut directories = crate::data_root::create_state_directory(local)?;
-        let mut directory = local.to_owned();
-        let key = ModeCheckedLocalSessionRendezvous::host_endpoint_id(session.runtime_directory());
-        for component in [crate::durable_sessions::CHECKPOINT_DIRECTORY, key.as_str()] {
-            directory.push(component);
-            let created = match fs::create_dir(&directory) {
-                Ok(()) => true,
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
-                Err(error) => return Err(error),
-            };
-            let mut handle = permissions::open_directory(&directory, created)?;
-            if created {
-                permissions::protect_new(&mut handle)?;
-            } else {
-                permissions::require_private(&handle)?;
-            }
-            directories.push(handle);
-        }
+        let name = session.session_name()?;
+        let directory = root.sessions().join(name.as_str());
+        let directories = crate::data_root::create_state_directory(&directory)?;
         let lock_path = directory.join("state.lock");
         let lock = match permissions::open_file(&lock_path, true, true) {
             Ok(file) => file,
@@ -197,16 +182,23 @@ impl SessionStore {
         Ok(present)
     }
 
+    /// Moves an invalid original aside under the UTC second it was found, never over another one.
     fn preserve_invalid(&self, path: &Path) -> io::Result<()> {
-        let nonce = ::windows::core::GUID::new()
+        let seconds = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
             .map_err(io::Error::other)?
-            .to_u128();
-        if nonce == 0 {
-            return Err(io::ErrorKind::Other.into());
-        }
-        let target = self
-            .directory
-            .join(format!("checkpoint.corrupt-{nonce:032x}.raw"));
+            .as_secs();
+        let mut number = 1;
+        let target = loop {
+            let target = self
+                .directory
+                .join(rotation::corrupt_original(seconds, number));
+            match fs::symlink_metadata(&target) {
+                Err(error) if error.kind() == io::ErrorKind::NotFound => break target,
+                Err(error) => return Err(error),
+                Ok(_) => number = number.checked_add(1).ok_or(io::ErrorKind::InvalidData)?,
+            }
+        };
         winsafe::MoveFileEx(
             text(path)?,
             Some(text(&target)?),
