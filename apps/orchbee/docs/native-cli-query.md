@@ -561,7 +561,9 @@ no runtime state and reports running, stopping, stopped, absent, starting, delet
 from authenticated metadata and admitted lifecycle facts. A name that a retained record still names
 from another location, such as an earlier build's runtime leaf or catalog record, is listed as
 recovery-required while other names list and start normally. Unknown/unsafe inventory, including an
-object whose name cannot be read, fails explicitly.
+object whose name cannot be read, fails explicitly. On Windows, a development or test build's default
+runtime base that does not exist yet lists no sessions, and `server diagnose` reports it `absent` with
+no unrecognized records; a missing explicit `ORCHBEE_RUNTIME_BASE` still fails.
 
 Check and list text views lead with their conclusion and keep raw reason structures in JSON.
 `config check` prints a verdict line, one aligned row per check with its path, locale or failure

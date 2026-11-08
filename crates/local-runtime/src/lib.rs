@@ -57,7 +57,9 @@ pub use environment::{
     ENVIRONMENT_VARIABLE, default_runtime_base, environment_stem, session_route_environment,
 };
 #[cfg(windows)]
-pub use environment::{local_state_root, prepare_default_runtime_base, roaming_state_root};
+pub use environment::{
+    local_state_root, prepare_default_runtime_base, roaming_state_root, roaming_state_variable,
+};
 #[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]

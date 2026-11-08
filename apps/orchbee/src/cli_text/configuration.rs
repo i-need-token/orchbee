@@ -26,6 +26,20 @@ pub(super) const HELP_CONFIG_RESET_KEYS_ZH: crate::cli_text::HelpDetails =
         "备份 APPDATA/Orchbee/config.toml（或 ORCHBEE_CONFIG_FILE 指定文件），并移除自定义键位。保留其他设置及被移除表之外的注释。文件不存在或无 keys\n时成功且不写入；TOML 无效或无法安全编辑时保持不变并失败。Windows 要求私有父目录和可独占打开的普通文件。请保留回执中的备份，直到不再需要恢复配置；恢复失败时报告 recoveryRequired=true。不连接、启动或重载客户端。成功或无变更退出 0，失败退出 1，用法错误退出 2。",
     );
 
+/// Help copy names the release configuration file in both locales. A development or test build reads
+/// `config.toml` in its own data root, so its help shows that file instead; release text is unchanged.
+pub(crate) fn environment_configuration_text(text: &str) -> String {
+    if orchbee_local_runtime::CohortArtifact::has_release_names() {
+        return text.to_owned();
+    }
+    let own = format!(
+        "%USERPROFILE%\\.{}\\config.toml",
+        orchbee_local_runtime::environment_stem()
+    );
+    text.replace("%APPDATA%\\Orchbee\\config.toml", &own)
+        .replace("APPDATA/Orchbee/config.toml", &own)
+}
+
 impl super::CliText {
     /// The configuration file `config check` read, as a copyable path.
     pub(crate) fn cli_config_file_line(self, path: &str) -> String {

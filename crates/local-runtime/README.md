@@ -117,10 +117,12 @@ variable themselves:
 | Default runtime base | `std::env::temp_dir()`   | `<home>\.<stem>\runtime` |
 
 Home follows `USERPROFILE` first, as Node's `os.homedir()` does, so Desktop derives the same data
-root. Resolving a location touches no file. Storage owners take the local state root, pin its
+root. Resolving a location touches no file. Storage owners take either state root, pin its
 ancestors and require the root itself to be private, creating it private on first write; its parent
-may be a home directory whose ACL other principals share. Activation creates a non-release default
-runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must already exist.
+may be a home directory whose ACL other principals share. `PrivateCache` applies the same rule when
+it creates a missing roaming or local state root, in every environment. Activation creates a
+non-release default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must
+already exist. Until then, read-only `session list` and `server diagnose` report nothing started.
 Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
 its own endpoint id. Data written under earlier non-release locations is not migrated.
 

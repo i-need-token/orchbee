@@ -142,10 +142,16 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
     let collected = (|| {
         let (base, _) = crate::local_activation::runtime_location()
             .map_err(|error| local_error_at(error, "runtime-base"))?;
+        let unstarted = crate::local_activation::runtime_base_unstarted()
+            .map_err(|error| local_error_at(error, "runtime-base"))?;
         let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
             .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
-        let entries = Catalog::list(&base, &local, deadline)
-            .map_err(|error| local_error_at(error, "runtime-base"))?;
+        let entries = if unstarted {
+            Vec::new()
+        } else {
+            Catalog::list(&base, &local, deadline)
+                .map_err(|error| local_error_at(error, "runtime-base"))?
+        };
         let mut documents = Vec::new();
         let mut rows = Vec::new();
         let mut absent = false;

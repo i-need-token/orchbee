@@ -82,12 +82,16 @@ impl super::CliText {
                 .and_then(|details| details.get("reason"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("io-error");
-            if (field, reason) == ("APPDATA", "missing") {
+            // The variable that supplies the configuration root differs by environment.
+            if matches!(field, "APPDATA" | "USERPROFILE") && reason == "missing" {
                 return match self.locale {
-                    Locale::EnUs => "APPDATA is not set, so the local Session has no configuration location. Set APPDATA or ORCHBEE_CONFIG_FILE to an absolute path and retry.\n",
-                    Locale::ZhCn => "未设置 APPDATA，本地会话没有配置位置。请将 APPDATA 或 ORCHBEE_CONFIG_FILE 设为绝对路径后重试。\n",
-                }
-                .to_owned();
+                    Locale::EnUs => format!(
+                        "{field} is not set, so the local Session has no configuration location. Set {field} or ORCHBEE_CONFIG_FILE to an absolute path and retry.\n"
+                    ),
+                    Locale::ZhCn => format!(
+                        "未设置 {field}，本地会话没有配置位置。请将 {field} 或 ORCHBEE_CONFIG_FILE 设为绝对路径后重试。\n"
+                    ),
+                };
             }
             if reason.starts_with("source-query-") {
                 return match self.locale {

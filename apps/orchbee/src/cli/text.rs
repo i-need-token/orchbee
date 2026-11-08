@@ -112,7 +112,12 @@ fn command(path: CommandPath, locale: Locale) -> Document {
                 )
                 .to_owned(),
         )
-        .chain(details.notes.split("\n\n").map(str::to_owned))
+        .chain(
+            details
+                .notes
+                .split("\n\n")
+                .map(crate::cli_text::environment_configuration_text),
+        )
         .collect(),
     });
     Document {

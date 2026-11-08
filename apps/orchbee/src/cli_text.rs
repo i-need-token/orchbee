@@ -34,6 +34,7 @@ mod agent_prompt;
 mod agent_start;
 mod command_help;
 mod configuration;
+pub(crate) use configuration::environment_configuration_text;
 mod failure;
 mod integration;
 mod labels;

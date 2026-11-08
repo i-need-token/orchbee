@@ -266,7 +266,8 @@ fn connect_or_activate(
                     return Err(ActivationFailure::caused(
                         StartupFailure::Configuration,
                         ActivationCause::Configuration(orchbee_local_runtime::SettingsError::new(
-                            "APPDATA", "missing",
+                            orchbee_local_runtime::roaming_state_variable(),
+                            "missing",
                         )),
                     ));
                 }
@@ -452,6 +453,24 @@ fn failure(kind: io::ErrorKind, fallback: StartupFailure) -> StartupFailure {
         StartupFailure::TimedOut
     } else {
         fallback
+    }
+}
+
+/// Whether the runtime base is this environment's default and nothing has created it yet. Read-only
+/// commands then report an unstarted environment instead of failing; an explicit base never qualifies.
+pub fn runtime_base_unstarted() -> io::Result<bool> {
+    #[cfg(windows)]
+    {
+        let location = windows_selection::location()?;
+        Ok(location.default_base
+            && matches!(
+                std::fs::symlink_metadata(&location.base),
+                Err(error) if error.kind() == io::ErrorKind::NotFound
+            ))
+    }
+    #[cfg(unix)]
+    {
+        Ok(false)
     }
 }
 

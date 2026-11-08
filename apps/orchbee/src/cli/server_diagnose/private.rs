@@ -66,8 +66,10 @@ pub(super) fn collect() -> Result<DiagnoseDocument, Failure> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let (base, scope) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let unstarted = crate::local_activation::runtime_base_unstarted()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name));
-    collect_at(&base, local.as_deref(), &scope, deadline)
+    collect_at(&base, unstarted, local.as_deref(), &scope, deadline)
 }
 
 /// One retained record as found: what holds it, why this Session cannot admit it, and where.
@@ -118,8 +120,11 @@ fn unrecognized(
     }
 }
 
+/// `unstarted` marks an environment whose default runtime base was never created: nothing has
+/// started there, so the base is absent and no record can name it.
 fn collect_at(
     base: &Path,
+    unstarted: bool,
     local: Option<&Path>,
     scope: &str,
     deadline: Instant,
@@ -146,7 +151,10 @@ fn collect_at(
         },
     );
     let mut rows = vec![
-        ("runtimeBase".to_owned(), path_row(base, row("known", None))),
+        (
+            "runtimeBase".to_owned(),
+            path_row(base, row(if unstarted { "absent" } else { "known" }, None)),
+        ),
         (
             "runtimeDirectory".to_owned(),
             path_row(&base.join(scope), directory),
@@ -263,7 +271,11 @@ fn collect_at(
     ]);
     let mut records = Vec::new();
     let summary = step(deadline, &mut complete, || {
-        let (summary, observed) = unrecognized(base, local, scope, deadline);
+        let (summary, observed) = if unstarted {
+            (row("known", None), Vec::new())
+        } else {
+            unrecognized(base, local, scope, deadline)
+        };
         records = observed;
         summary
     });

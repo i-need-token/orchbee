@@ -79,7 +79,7 @@ pub fn local_state_root(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBu
 }
 
 /// The variable that supplies the roaming root, as configuration diagnostics name it.
-pub(crate) fn roaming_state_variable() -> &'static str {
+pub fn roaming_state_variable() -> &'static str {
     if release() { "APPDATA" } else { "USERPROFILE" }
 }
 
@@ -112,6 +112,16 @@ pub fn prepare_default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> i
     } else {
         permissions::require_private(&directory)
     }
+}
+
+/// Whether `path` is this environment's roaming or local state root, below which only the root
+/// itself must be private. Both roots follow the same rule in every environment.
+pub(crate) fn is_state_root(path: &Path) -> bool {
+    let env = |name: &str| std::env::var_os(name);
+    [roaming_state_root(env), local_state_root(env)]
+        .into_iter()
+        .flatten()
+        .any(|root| root == path)
 }
 
 /// Pins a state root and its ancestors and admits the root as a private directory. Only the root

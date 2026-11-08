@@ -7,9 +7,11 @@ use std::{ffi::OsString, path::PathBuf};
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub(crate) use windows::{create_state_root, open_state_root, roaming_state_variable};
+pub(crate) use windows::{create_state_root, is_state_root, open_state_root};
 #[cfg(windows)]
-pub use windows::{local_state_root, prepare_default_runtime_base, roaming_state_root};
+pub use windows::{
+    local_state_root, prepare_default_runtime_base, roaming_state_root, roaming_state_variable,
+};
 
 /// The variable through which a managed terminal names the environment whose Session it routes to.
 pub const ENVIRONMENT_VARIABLE: &str = "ORCHBEE_ENVIRONMENT";
