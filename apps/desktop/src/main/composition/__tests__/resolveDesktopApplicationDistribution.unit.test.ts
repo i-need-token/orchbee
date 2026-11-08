@@ -73,7 +73,7 @@ describe('resolveDesktopApplicationDistribution', () => {
 	it('loads a packaged local profile only from the bundle descriptor', () => {
 		const dependencies = createDependencies();
 		dependencies.readFile.mockReturnValue(
-			'{"applicationName":"Terminal","profileId":"local","schemaVersion":1}\n',
+			'{"applicationName":"Terminal","artifactStem":"ob-test-0123456789abcdef","profileId":"local","schemaVersion":1}\n',
 		);
 
 		const profile = resolveDesktopApplicationDistribution(
@@ -90,7 +90,10 @@ describe('resolveDesktopApplicationDistribution', () => {
 		);
 
 		expect(profile).toEqual(
-			resolveDesktopDistributionProfile('local', undefined, { applicationName: 'Terminal' }),
+			resolveDesktopDistributionProfile('local', undefined, {
+				applicationName: 'Terminal',
+				artifactStem: 'ob-test-0123456789abcdef',
+			}),
 		);
 		expect(dependencies.readFile).toHaveBeenCalledWith(
 			path.posix.join(

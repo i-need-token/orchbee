@@ -98,6 +98,52 @@ test('macOS staging accepts a normalized absolute output and rejects WSL routing
 	assert.throws(() => options(['--output', 'orchbee-native-dev'], 'darwin'), /absolute output/u);
 });
 
+test('artifact stems are validated at the staging boundary and only name a native Windows cohort', () => {
+	const stem = 'ob-dev-0123456789abcdef';
+	assert.deepEqual(
+		options(['--output', 'C:\\orchbee-native-dev', '--artifact-stem', stem], 'win32'),
+		{
+			'--artifact-stem': stem,
+			'--output': 'C:\\orchbee-native-dev',
+		},
+	);
+	assert.deepEqual(
+		options(
+			['--output', '/private/tmp/orchbee-native-dev', '--artifact-stem', 'orchbee'],
+			'darwin',
+		),
+		{
+			'--artifact-stem': 'orchbee',
+			'--output': '/private/tmp/orchbee-native-dev',
+		},
+	);
+	assert.throws(
+		() =>
+			options(['--output', '/private/tmp/orchbee-native-dev', '--artifact-stem', stem], 'darwin'),
+		/only by native Windows staging/u,
+	);
+	assert.throws(
+		() =>
+			options(
+				['--wsl', 'Ubuntu', '--output', '/tmp/orchbee-native-dev', '--artifact-stem', stem],
+				'win32',
+			),
+		/only by native Windows staging/u,
+	);
+	for (const invalid of [
+		'ob-dev-0123456789ABCDEF',
+		'ob-dev-0123',
+		'ob-prod-0123456789abcdef',
+		'orchbee-server',
+		'..\\orchbee',
+	]) {
+		assert.throws(
+			() => options(['--output', 'C:\\orchbee-native-dev', '--artifact-stem', invalid], 'win32'),
+			/--artifact-stem must be/u,
+		);
+	}
+});
+
 test('Windows ConPTY staging rejects missing, altered and linked bundles before publication', (t) => {
 	const parent = realpathSync(tmpdir());
 	const directory = mkdtempSync(path.join(parent, 'orchbee-conpty-verification-'));

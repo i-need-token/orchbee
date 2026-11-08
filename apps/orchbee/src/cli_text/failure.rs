@@ -574,13 +574,13 @@ impl super::CliText {
                 failure
                     .io_diagnostic
                     .as_ref()
-                    .and_then(|observed| observed.missing_artifact),
+                    .and_then(|observed| observed.missing_artifact.as_deref()),
             ),
             (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(
                 failure
                     .io_diagnostic
                     .as_ref()
-                    .and_then(|observed| observed.missing_artifact),
+                    .and_then(|observed| observed.missing_artifact.as_deref()),
             ),
             (Locale::EnUs, "platform") => {
                 let command = failure

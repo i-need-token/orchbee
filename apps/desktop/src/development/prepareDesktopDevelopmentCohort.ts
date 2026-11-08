@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import {
 	createDesktopDevelopmentScope,
+	resolveDesktopCohortArtifactStem,
 	resolveDesktopDistributionProfile,
 	resolveDesktopSessionName,
 } from '../distribution';
@@ -24,7 +25,7 @@ const SESSION_STOP_TIMEOUT_MILLISECONDS = 70_000;
 
 /**
  * Builds the checkout's native cohort and stages it once per distinct build under
- * `target/desktop-development`, returning the staged `orchbee`. A Session refuses a Client of
+ * `target/desktop-development`, returning the staged Client. A Session refuses a Client of
  * another cohort, so a development Session that an earlier cohort started is stopped by that cohort
  * first; cohorts no development Session names any more are removed.
  */
@@ -34,6 +35,12 @@ export async function prepareDesktopDevelopmentCohort(input: {
 	readonly sourceRoot: string;
 }): Promise<string> {
 	const sourceRoot = await realpath(input.sourceRoot);
+	const profile = resolveDesktopDistributionProfile(
+		'dev',
+		createDesktopDevelopmentScope(sourceRoot, process.platform),
+	);
+	// The Client, Server and Worker find their siblings by this stem, so it is compiled into them.
+	const stem = resolveDesktopCohortArtifactStem(profile, process.platform);
 	const suffix = process.platform === 'win32' ? '.exe' : '';
 	const hostRoot = path.join(sourceRoot, 'apps', 'terminal-host');
 	await run(
@@ -50,9 +57,10 @@ export async function prepareDesktopDevelopmentCohort(input: {
 			'orchbee-worker',
 		],
 		sourceRoot,
+		{ ...process.env, ORCHBEE_ARTIFACT_STEM: stem },
 	);
 	await run('zig', ['build', '-Doptimize=ReleaseSafe'], hostRoot);
-	const key = createHash('sha256');
+	const key = createHash('sha256').update(stem).update('\0');
 	for (const file of [
 		path.join(sourceRoot, 'target', 'release', `orchbee${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-server${suffix}`),
@@ -80,25 +88,25 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		await rm(cohort, { force: true, recursive: true });
 		await run(
 			process.execPath,
-			[path.join(sourceRoot, 'scripts', 'stage-local-runtime.mjs'), '--output', cohort],
+			[
+				path.join(sourceRoot, 'scripts', 'stage-local-runtime.mjs'),
+				'--output',
+				cohort,
+				'--artifact-stem',
+				stem,
+			],
 			sourceRoot,
 		);
 	}
-	const executable = path.join(cohort, `orchbee${suffix}`);
+	const executable = path.join(cohort, `${stem}${suffix}`);
 	const session =
-		input.environment['ORCHBEE_DESKTOP_SESSION'] ??
-		resolveDesktopSessionName(
-			resolveDesktopDistributionProfile(
-				'dev',
-				createDesktopDevelopmentScope(sourceRoot, process.platform),
-			),
-		);
+		input.environment['ORCHBEE_DESKTOP_SESSION'] ?? resolveDesktopSessionName(profile);
 	if (session === undefined || !SESSION_NAME_PATTERN.test(session)) return executable;
 	const markerPath = path.join(store, `${session}${SESSION_MARKER_SUFFIX}`);
 	const previous = await readSessionMarker(markerPath);
 	if (previous !== undefined && previous !== cohortName) {
-		const previousExecutable = path.join(store, previous, `orchbee${suffix}`);
-		if (await exists(previousExecutable)) {
+		const previousExecutable = await findCohortClient(path.join(store, previous), stem, suffix);
+		if (previousExecutable !== undefined) {
 			input.logger.info(`Stopping Session ${session}, which ${previous} started…`);
 			const failure = await stopSession(previousExecutable, session, input.environment);
 			if (failure !== undefined) {
@@ -193,6 +201,22 @@ async function removeUnnamedCohorts(
 	}
 }
 
+/**
+ * The Client a staged cohort holds. A cohort staged before ORC-382 holds `orchbee`, and the Session it
+ * started still has to be stopped by that Client.
+ */
+async function findCohortClient(
+	cohort: string,
+	stem: string,
+	suffix: string,
+): Promise<string | undefined> {
+	for (const name of [`${stem}${suffix}`, `orchbee${suffix}`]) {
+		const candidate = path.join(cohort, name);
+		if (await exists(candidate)) return candidate;
+	}
+	return undefined;
+}
+
 async function exists(filePath: string): Promise<boolean> {
 	try {
 		await access(filePath);
@@ -202,9 +226,19 @@ async function exists(filePath: string): Promise<boolean> {
 	}
 }
 
-function run(command: string, arguments_: readonly string[], cwd: string): Promise<void> {
+function run(
+	command: string,
+	arguments_: readonly string[],
+	cwd: string,
+	environment?: NodeJS.ProcessEnv,
+): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const child = spawn(command, [...arguments_], { cwd, stdio: 'inherit', windowsHide: true });
+		const child = spawn(command, [...arguments_], {
+			cwd,
+			env: environment,
+			stdio: 'inherit',
+			windowsHide: true,
+		});
 		child.once('error', reject);
 		child.once('exit', (code, signal) => {
 			if (code === 0) resolve();

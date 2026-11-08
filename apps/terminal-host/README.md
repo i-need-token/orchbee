@@ -171,7 +171,7 @@ Process-tree ownership follows the containment domain created at launch: a dedic
 
 ## Executable interface
 
-The installed binary is `orchbee-terminal-host` on POSIX and `orchbee-terminal-host.exe` on Windows. Its private launcher ABI is:
+The installed binary is `orchbee-terminal-host` on POSIX and `orchbee-terminal-host.exe` on Windows in the release cohort; an environment cohort names it `<stem>-terminal-host.exe`. Its private launcher ABI is:
 
 ```text
 orchbee-terminal-host serve \

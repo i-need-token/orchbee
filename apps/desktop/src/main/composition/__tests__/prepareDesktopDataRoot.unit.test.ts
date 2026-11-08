@@ -31,7 +31,9 @@ describe('prepareDesktopDataRoot', () => {
 		).toEqual({ path: '/Users/person/.orchbee', scope: { kind: 'release' } });
 		expect(
 			prepareWithoutFileSystem({
-				distribution: resolveDesktopDistributionProfile('local'),
+				distribution: resolveDesktopDistributionProfile('local', undefined, {
+					artifactStem: 'ob-test-0123456789abcdef',
+				}),
 				homeDirectory: '/Users/person',
 				platform: 'darwin',
 			}),

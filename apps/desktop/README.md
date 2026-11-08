@@ -175,6 +175,8 @@ Desktop owns exactly three explicit distribution profiles:
 
 On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Local badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
 
+Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for local (one per home directory). The packaged executable and the Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged output folder takes the stem as its name. Display names, bundle identifiers, and data roots do not change. macOS and Linux keep the `orchbee` names until their cohort naming moves (ORC-328).
+
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.
 `ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME` independently overrides the default `Orchbee Local` name
@@ -194,7 +196,7 @@ pnpm desktop:package:local
 
 `pnpm desktop` uses the `dev` identity without creating a packaged application. Packaging requires
 an explicit dev/local/release profile. Each command builds Web resources and the Main and preload
-bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: `orchbee`,
+bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: the Client,
 Server, Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime. The
 window's Session runs that cohort, so the application carries it. The cohort and the Web resources
 stay outside `app.asar` as `resources/cohort` and `resources/dist`.

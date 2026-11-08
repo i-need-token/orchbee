@@ -28,7 +28,9 @@ pub enum CohortArtifact {
     TerminalHost,
 }
 impl CohortArtifact {
-    pub const fn file_name(self) -> &'static str {
+    /// The file name this artifact has in its cohort directory. Environments ship distinct names
+    /// (ORC-382), so callers take the name from here rather than spelling one.
+    pub fn file_name(self) -> String {
         filesystem::artifact_file_name(self)
     }
 }
@@ -211,17 +213,13 @@ impl Cohort {
             if !declared_hash(expected) {
                 return Err(invalid().into());
             }
-            let mut file = open_file(
-                &descriptor,
-                artifact.file_name(),
-                true,
-                &directory.join(artifact.file_name()),
-            )
-            .map_err(|source| {
-                let missing_artifact =
-                    (source.kind() == io::ErrorKind::NotFound).then_some(artifact);
-                CohortError::new(source, missing_artifact)
-            })?;
+            let name = artifact.file_name();
+            let mut file =
+                open_file(&descriptor, &name, true, &directory.join(&name)).map_err(|source| {
+                    let missing_artifact =
+                        (source.kind() == io::ErrorKind::NotFound).then_some(artifact);
+                    CohortError::new(source, missing_artifact)
+                })?;
             let mut hash = Sha256::new();
             let mut buffer = [0_u8; 64 * 1024];
             loop {
@@ -235,7 +233,7 @@ impl Cohort {
             if format!("{:x}", hash.finalize()) != expected {
                 return Err(invalid().into());
             }
-            identity.update(artifact.file_name().as_bytes());
+            identity.update(name.as_bytes());
             identity.update([0]);
             identity.update(expected.as_bytes());
             identity.update(b"\n");

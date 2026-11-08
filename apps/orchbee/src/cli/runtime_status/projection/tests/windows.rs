@@ -21,7 +21,7 @@ fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
                 Some(CohortDiagnostic {
                     io_kind: CohortIoKind::NotFound,
                     os_error: Some(2),
-                    missing_artifact: Some("orchbee-server.exe"),
+                    missing_artifact: Some("orchbee-server.exe".to_owned()),
                 }),
             ),
             installation: crate::cli::installation::Installation::Unavailable,

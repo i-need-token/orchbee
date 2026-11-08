@@ -225,7 +225,7 @@ node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 ```
 
 The directory contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter
-capsule. Keep them together. This is a native development cohort using Windows named pipes and
+capsule. Keep them together. The file names start with the artifact stem: `orchbee` unless `--artifact-stem` names an environment (`ob-dev-<16 lowercase hex>` or `ob-test-<16 lowercase hex>`), which only native Windows staging accepts. This is a native development cohort using Windows named pipes and
 ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
 selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell.
 See [Windows configuration](docs/windows-cli-configuration.md#automatic-windows-shell)

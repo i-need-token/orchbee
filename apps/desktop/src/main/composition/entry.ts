@@ -14,7 +14,7 @@ import {
 import { app, net, protocol } from 'electron';
 
 import { DesktopDevelopmentRestartRequestSchema } from '../../development';
-import { resolveDesktopSessionName } from '../../distribution';
+import { resolveDesktopCohortArtifactStem, resolveDesktopSessionName } from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
 import {
 	DESKTOP_RENDERER_URL,
@@ -81,13 +81,14 @@ function requiredEnvironment(key: string): string {
 	return value;
 }
 
-/** The bundled cohort's `orchbee`, or in a checkout the one its development runtime staged. */
+/** The bundled cohort's Client, or in a checkout the one its development runtime staged. */
 function resolveClientExecutable(): string {
 	if (!app.isPackaged) return requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY);
+	const stem = resolveDesktopCohortArtifactStem(distribution, process.platform);
 	return path.join(
 		process.resourcesPath,
 		PACKAGED_COHORT_DIRECTORY,
-		process.platform === 'win32' ? 'orchbee.exe' : 'orchbee',
+		process.platform === 'win32' ? `${stem}.exe` : stem,
 	);
 }
 

@@ -120,8 +120,9 @@ fn freeze(
     let bin = std::env::current_exe()
         .ok()
         .and_then(|exe| {
-            exe.parent()
-                .map(|parent| parent.join(format!("orchbee{}", std::env::consts::EXE_SUFFIX)))
+            exe.parent().map(|parent| {
+                parent.join(orchbee_local_runtime::CohortArtifact::Client.file_name())
+            })
         })
         .ok_or(unavailable)?;
     let mut environment = vec![

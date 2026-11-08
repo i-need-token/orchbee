@@ -58,7 +58,7 @@ pub(in crate::cli) fn observe(
         CohortArtifact::TerminalHost,
     ] {
         if !release.files.iter().any(|file| {
-            file.path.eq_ignore_ascii_case(artifact.file_name())
+            file.path.eq_ignore_ascii_case(&artifact.file_name())
                 && file.sha256 == admitted.artifact_sha256(artifact)
         }) {
             return Err(());

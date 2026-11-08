@@ -107,7 +107,7 @@ pub(crate) struct CandidateDisplay {
 /// Artifact identity proven absent by its own open operation.
 #[derive(Debug)]
 pub(crate) struct IoDiagnostic {
-    pub(crate) missing_artifact: Option<&'static str>,
+    pub(crate) missing_artifact: Option<String>,
 }
 
 impl Failure {

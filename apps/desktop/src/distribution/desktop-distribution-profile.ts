@@ -13,7 +13,12 @@ const DEVELOPMENT_SCOPE_DIGEST_LENGTH = 16;
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION = 1;
 const DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME = 'Orchbee Dev';
-const DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME = 'Orchbee Local';
+export const DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME = 'Orchbee Local';
+// The shipped cohort names. Environment stems (ORC-382) are built beside them.
+const RELEASE_ARTIFACT_STEM = 'orchbee';
+const TEST_ARTIFACT_STEM_DIGEST_LENGTH = 16;
+const TEST_ARTIFACT_STEM_DIGEST_PURPOSE = 'orchbee-test-artifact-v1';
+const TEST_ARTIFACT_STEM_PATTERN = /^ob-test-[0-9a-f]{16}$/u;
 
 export const DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME = 'desktop-distribution-v1.json';
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
@@ -35,6 +40,7 @@ const desktopDistributionDescriptorSchema = z.discriminatedUnion('profileId', [
 	}),
 	z.strictObject({
 		applicationName: desktopApplicationNameSchema.default(DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME),
+		artifactStem: z.string().regex(TEST_ARTIFACT_STEM_PATTERN),
 		profileId: z.literal('local'),
 		schemaVersion: z.literal(DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION),
 	}),
@@ -90,12 +96,16 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 } as const satisfies Record<DesktopDistributionProfileId, DesktopDistributionProfileDefinition>;
 
 interface DesktopDistributionProfileBase extends DesktopDistributionProfileDefinition {
+	// The environment's stem for its cohort's file names; see `resolveDesktopCohortArtifactStem`.
+	readonly artifactStem: string;
 	readonly bundleIdentifier: string;
 	readonly profileId: DesktopDistributionProfileId;
 }
 
 interface DesktopDistributionProfileOptions {
 	readonly applicationName?: string;
+	// Required for `local`: the stem from `createDesktopTestArtifactStem`, or the one a descriptor records.
+	readonly artifactStem?: string;
 }
 
 export type DesktopDistributionProfile =
@@ -131,6 +141,29 @@ export function createDesktopDevelopmentScope(
 	return { digest, digestVersion: DEVELOPMENT_SCOPE_DIGEST_VERSION, sourceRoot };
 }
 
+/** The stem of this home directory's test (local) cohort, so two accounts on one machine never share names. */
+export function createDesktopTestArtifactStem(homeDirectory: string): string {
+	if (homeDirectory.length === 0) {
+		throw new Error('The test artifact stem requires the home directory.');
+	}
+	const digest = createHash('sha256')
+		.update(`${TEST_ARTIFACT_STEM_DIGEST_PURPOSE}\0${homeDirectory}`)
+		.digest('hex')
+		.slice(0, TEST_ARTIFACT_STEM_DIGEST_LENGTH);
+	return `ob-test-${digest}`;
+}
+
+/**
+ * The stem the native cohort carries on this platform. Environment stems name Windows cohorts only
+ * until the POSIX cohort names move (ORC-328); elsewhere the shipped `orchbee` names remain.
+ */
+export function resolveDesktopCohortArtifactStem(
+	profile: DesktopDistributionProfile,
+	platform: NodeJS.Platform,
+): string {
+	return platform === 'win32' ? profile.artifactStem : RELEASE_ARTIFACT_STEM;
+}
+
 export function resolveDesktopDistributionProfile(
 	profileId: DesktopDistributionProfileId,
 	developmentScope?: DesktopDevelopmentScope,
@@ -147,6 +180,7 @@ export function resolveDesktopDistributionProfile(
 				options.applicationName === undefined
 					? definition.applicationName
 					: parseDesktopApplicationName(options.applicationName, 'Desktop application name'),
+			artifactStem: `ob-dev-${developmentScope.digest}`,
 			bundleIdentifier: `${definition.baseBundleIdentifier}.d${developmentScope.digest}`,
 			dataScope: { ...developmentScope, kind: 'development' },
 			profileId,
@@ -156,8 +190,15 @@ export function resolveDesktopDistributionProfile(
 		throw new Error(`The ${profileId} Desktop distribution cannot carry a development scope.`);
 	}
 	if (profileId === 'local') {
+		if (options.artifactStem === undefined) {
+			throw new Error('The local Desktop distribution requires its test artifact stem.');
+		}
+		if (!TEST_ARTIFACT_STEM_PATTERN.test(options.artifactStem)) {
+			throw new Error('The local Desktop distribution artifact stem must be ob-test-<16 hex>.');
+		}
 		return {
 			...definition,
+			artifactStem: options.artifactStem,
 			applicationName:
 				options.applicationName === undefined
 					? definition.applicationName
@@ -169,6 +210,7 @@ export function resolveDesktopDistributionProfile(
 	}
 	return {
 		...definition,
+		artifactStem: RELEASE_ARTIFACT_STEM,
 		bundleIdentifier: definition.baseBundleIdentifier,
 		dataScope: { kind: 'release' },
 		profileId,
@@ -215,6 +257,7 @@ export function resolveDesktopDistributionDescriptor(
 	if (descriptor.profileId === 'local') {
 		return resolveDesktopDistributionProfile('local', undefined, {
 			applicationName: descriptor.applicationName,
+			artifactStem: descriptor.artifactStem,
 		});
 	}
 	const scope = createDesktopDevelopmentScope(descriptor.developmentScope.sourceRoot, platform);

@@ -14,12 +14,12 @@ pub(crate) fn open_directory(path: &Path) -> io::Result<OwnedFd> {
     validate_directory(&descriptor, path, geteuid().as_raw(), None).map_err(io::Error::other)?;
     Ok(descriptor)
 }
-pub(crate) const fn artifact_file_name(artifact: CohortArtifact) -> &'static str {
+pub(crate) fn artifact_file_name(artifact: CohortArtifact) -> String {
     match artifact {
-        CohortArtifact::Client => "orchbee",
-        CohortArtifact::Server => "orchbee-server",
-        CohortArtifact::Worker => "orchbee-worker",
-        CohortArtifact::TerminalHost => "orchbee-terminal-host",
+        CohortArtifact::Client => "orchbee".to_owned(),
+        CohortArtifact::Server => "orchbee-server".to_owned(),
+        CohortArtifact::Worker => "orchbee-worker".to_owned(),
+        CohortArtifact::TerminalHost => "orchbee-terminal-host".to_owned(),
     }
 }
 pub(crate) fn open_file(

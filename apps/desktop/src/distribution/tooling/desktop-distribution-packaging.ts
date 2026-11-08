@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { resolveDesktopApplicationNameFromEnvironment } from '../desktop-application-name.ts';
 import {
-	resolveDesktopDistributionProfile,
+	DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
 	type DesktopDistributionDescriptor,
 	type DesktopDistributionProfile,
 } from '../desktop-distribution-profile.ts';
@@ -34,7 +34,7 @@ export function resolveDesktopLocalApplicationName(
 	return resolveDesktopApplicationNameFromEnvironment(
 		environment,
 		DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY,
-		resolveDesktopDistributionProfile('local').applicationName,
+		DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
 	);
 }
 
@@ -56,6 +56,7 @@ function createDesktopDistributionDescriptor(
 	if (profile.profileId === 'local') {
 		return {
 			applicationName: profile.applicationName,
+			artifactStem: profile.artifactStem,
 			profileId: 'local',
 			schemaVersion: 1,
 		};

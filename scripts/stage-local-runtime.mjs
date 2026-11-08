@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stageWindows } from './stage-native-windows.mjs';
+import { ARTIFACT_STEM_PATTERN, stageWindows } from './stage-native-windows.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
@@ -129,9 +129,12 @@ export function verifiedCapsuleDigest(rootPath) {
 export function options(args, platform = process.platform) {
 	const result = {};
 	for (let i = 0; i < args.length; i += 2) {
-		if (!['--wsl', '--output', '--cargo-target-dir'].includes(args[i]) || !args[i + 1]) {
+		if (
+			!['--wsl', '--output', '--cargo-target-dir', '--artifact-stem'].includes(args[i]) ||
+			!args[i + 1]
+		) {
 			throw new Error(
-				'Usage: node scripts/stage-local-runtime.mjs --output ABSOLUTE_NEW_DIRECTORY [--wsl DISTRO] [--cargo-target-dir ABSOLUTE_DIRECTORY]',
+				'Usage: node scripts/stage-local-runtime.mjs --output ABSOLUTE_NEW_DIRECTORY [--wsl DISTRO] [--cargo-target-dir ABSOLUTE_DIRECTORY] [--artifact-stem STEM]',
 			);
 		}
 		if (result[args[i]] !== undefined) throw new Error('Duplicate staging option');
@@ -145,6 +148,11 @@ export function options(args, platform = process.platform) {
 		!(nativeWindows ? path.win32 : path.posix).isAbsolute(result['--output'])
 	)
 		throw new Error('An absolute output directory is required');
+	const artifactStem = result['--artifact-stem'] ?? 'orchbee';
+	if (!ARTIFACT_STEM_PATTERN.test(artifactStem))
+		throw new Error('--artifact-stem must be orchbee, ob-dev-<16 hex>, or ob-test-<16 hex>');
+	if (artifactStem !== 'orchbee' && !nativeWindows)
+		throw new Error('Environment artifact stems are staged only by native Windows staging');
 	if (!['darwin', 'linux', 'win32'].includes(platform))
 		throw new Error('Local startup staging currently supports macOS, Windows and Linux');
 	return result;
@@ -153,7 +161,13 @@ function main() {
 	const selected = options(process.argv.slice(2));
 	const distro = selected['--wsl'];
 	if (process.platform === 'win32' && !distro) {
-		stageWindows(root, selected['--output'], selected['--cargo-target-dir'], verifiedCapsuleDigest);
+		stageWindows(
+			root,
+			selected['--output'],
+			selected['--cargo-target-dir'],
+			verifiedCapsuleDigest,
+			selected['--artifact-stem'] ?? 'orchbee',
+		);
 		return;
 	}
 	const runCommand = (command, args, capture = false) => {

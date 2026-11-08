@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,6 +10,8 @@ import { packager } from '@electron/packager';
 import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
+	createDesktopTestArtifactStem,
+	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
@@ -40,10 +42,15 @@ const distributionProfile = (() => {
 	if (profileId === 'local') {
 		return resolveDesktopDistributionProfile(profileId, undefined, {
 			applicationName: resolveDesktopLocalApplicationName(process.env),
+			artifactStem: createDesktopTestArtifactStem(homedir()),
 		});
 	}
 	return resolveDesktopDistributionProfile(profileId);
 })();
+// The Client's name in the cohort and, on Windows, the packaged executable. Other platforms keep `orchbee`.
+const cohortArtifactStem = resolveDesktopCohortArtifactStem(distributionProfile, process.platform);
+const packagedExecutableName =
+	process.platform === 'win32' ? cohortArtifactStem : distributionProfile.applicationName;
 const usesDarwinApplicationIcon = process.platform === 'darwin';
 const applicationPackage = JSON.parse(
 	await readFile(path.join(applicationRoot, 'package.json'), 'utf8'),
@@ -78,11 +85,17 @@ const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-pack
 const stagingRoot = path.join(packageWorkspace, 'application');
 const cohortRoot = path.join(packageWorkspace, cohortDirectoryName);
 try {
-	// The window's Session runs this cohort, so the application carries all of it: `orchbee`, Server,
+	// The window's Session runs this cohort, so the application carries all of it: the Client, Server,
 	// Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime.
 	execFileSync(
 		process.execPath,
-		[path.join(repositoryRoot, 'scripts', 'stage-local-runtime.mjs'), '--output', cohortRoot],
+		[
+			path.join(repositoryRoot, 'scripts', 'stage-local-runtime.mjs'),
+			'--output',
+			cohortRoot,
+			'--artifact-stem',
+			cohortArtifactStem,
+		],
 		{ cwd: repositoryRoot, stdio: 'inherit' },
 	);
 	await access(path.join(cohortRoot, 'cohort.json'));
@@ -116,10 +129,15 @@ try {
 		extraResource: [rendererBuild, cohortRoot],
 		helperBundleId: `${distributionProfile.bundleIdentifier}.helper`,
 		...(usesDarwinApplicationIcon ? { icon: darwinApplicationIcon } : {}),
-		name: distributionProfile.applicationName,
+		name: packagedExecutableName,
 		out: path.join(applicationRoot, 'out', distributionProfile.outputDirectoryName),
 		overwrite: true,
 		prune: false,
+		// The file properties keep the display name while the process image carries the stem.
+		win32metadata: {
+			FileDescription: distributionProfile.applicationName,
+			ProductName: distributionProfile.applicationName,
+		},
 	});
 	for (const output of outputs) {
 		const applicationFileName = `${distributionProfile.applicationName}.app`;
@@ -135,7 +153,7 @@ try {
 				: path.join(
 						output,
 						process.platform === 'win32'
-							? `${distributionProfile.applicationName}.exe`
+							? `${cohortArtifactStem}.exe`
 							: distributionProfile.applicationName,
 					);
 		await access(executablePath);

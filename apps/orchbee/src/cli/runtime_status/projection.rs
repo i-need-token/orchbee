@@ -37,7 +37,7 @@ impl CohortIssue {
 pub(super) struct CohortDiagnostic {
     io_kind: CohortIoKind,
     os_error: Option<i32>,
-    missing_artifact: Option<&'static str>,
+    missing_artifact: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -99,7 +99,7 @@ impl CohortDiagnostic {
 
     fn json(&self) -> Value {
         let mut value = json!({"ioKind":self.io_kind.token(),"osError":self.os_error});
-        if let Some(artifact) = self.missing_artifact {
+        if let Some(artifact) = &self.missing_artifact {
             value["missingArtifact"] = json!(artifact);
         }
         value

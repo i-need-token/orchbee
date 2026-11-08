@@ -16,6 +16,10 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
+// The environment stem names the staged cohort: the shipped `orchbee` (release) or `ob-dev-` / `ob-test-`
+// plus a 16-digit lowercase hex digest (ORC-382). Mirrors the grammar in desktop-distribution-profile.ts.
+export const ARTIFACT_STEM_PATTERN = /^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})$/u;
+
 // Only the newly created, empty destination is secured. Existing installations
 // are never repaired or overwritten. No user path is interpolated into code.
 function privateDirectory(directory) {
@@ -76,7 +80,9 @@ export function assertWindowsFileSymlinkSupport(directory, createSymlink = symli
 	}
 }
 
-export function stageWindows(root, output, cargoTarget, verifyCapsule) {
+export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactStem = 'orchbee') {
+	if (!ARTIFACT_STEM_PATTERN.test(artifactStem))
+		throw new Error('Artifact stem must be orchbee, ob-dev-<16 hex>, or ob-test-<16 hex>');
 	if (
 		!/^[A-Za-z]:\\/u.test(output) ||
 		path.normalize(output) !== output ||
@@ -105,7 +111,12 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 				'-p',
 				'orchbee-worker',
 			],
-			{ cwd: root, stdio: 'inherit', windowsHide: true },
+			{
+				cwd: root,
+				env: { ...process.env, ORCHBEE_ARTIFACT_STEM: artifactStem },
+				stdio: 'inherit',
+				windowsHide: true,
+			},
 		);
 		const hostPrefix = path.join(temporary, 'host');
 		execFileSync('zig', ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix], {
@@ -122,12 +133,14 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 			'orchbee-worker',
 			'orchbee-terminal-host',
 		]) {
-			const filename = artifact + '.exe';
+			const sourceName = artifact + '.exe';
+			// Cargo and Zig name the sources; the staged cohort carries the environment stem.
+			const stagedName = artifactStem + artifact.slice('orchbee'.length) + '.exe';
 			const source =
 				artifact === 'orchbee-terminal-host'
-					? path.join(hostPrefix, 'bin', filename)
-					: path.join(target, 'release', filename);
-			const staged = path.join(prepared, filename);
+					? path.join(hostPrefix, 'bin', sourceName)
+					: path.join(target, 'release', sourceName);
+			const staged = path.join(prepared, stagedName);
 			copyFileSync(source, staged, constants.COPYFILE_EXCL);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
@@ -175,7 +188,7 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 			'Staged Windows development cohort: ' +
 				output +
 				'\nRun in Windows Terminal: ' +
-				path.join(output, 'orchbee.exe') +
+				path.join(output, artifactStem + '.exe') +
 				'\n',
 		);
 	} finally {

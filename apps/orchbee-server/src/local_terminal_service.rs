@@ -348,7 +348,7 @@ mod tests;
 
 /// The `orchbee` CLI shipped beside this Server, which configured commands and plugins invoke.
 fn cli_executable() -> Option<std::path::PathBuf> {
-    let executable = format!("orchbee{}", std::env::consts::EXE_SUFFIX);
+    let executable = orchbee_local_runtime::CohortArtifact::Client.file_name();
     std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(|parent| parent.join(executable)))
