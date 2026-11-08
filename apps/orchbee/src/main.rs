@@ -100,7 +100,7 @@ fn main() -> ExitCode {
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         diagnostic_events::tui_started();
         let outcome = local_startup::run(locale, *mouse);
-        diagnostic_events::tui_exited(outcome);
+        diagnostic_events::tui_exited(&outcome);
         return match outcome {
             Ok(()) => ExitCode::SUCCESS,
             Err(failure) => emit(cli::startup_failure(&failure, locale), locale),

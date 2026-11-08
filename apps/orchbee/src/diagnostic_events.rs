@@ -11,7 +11,7 @@ pub(crate) fn tui_started() {
     log_event(LogLevel::Info, "tui-started", &[("version", VERSION)]);
 }
 
-pub(crate) fn tui_exited(outcome: Result<(), StartupFailure>) {
+pub(crate) fn tui_exited(outcome: &Result<(), StartupFailure>) {
     let (level, outcome) = match outcome {
         Ok(()) => (LogLevel::Info, "ok"),
         Err(failure) => (LogLevel::Error, startup_failure(failure)),
@@ -43,7 +43,7 @@ pub(crate) fn activation_finished(event: &'static str, status: u8) {
     );
 }
 
-const fn startup_failure(failure: StartupFailure) -> &'static str {
+const fn startup_failure(failure: &StartupFailure) -> &'static str {
     match failure {
         StartupFailure::AlreadyInSession => "already-in-session",
         StartupFailure::Terminal => "terminal",
@@ -51,7 +51,10 @@ const fn startup_failure(failure: StartupFailure) -> &'static str {
         StartupFailure::Runtime => "runtime",
         StartupFailure::SocketPathTooLong => "socket-path-too-long",
         StartupFailure::RecoveryRequired => "recovery-required",
-        StartupFailure::Incompatible => "incompatible",
+        StartupFailure::ClientTooOld(_) => "client-too-old",
+        StartupFailure::SessionTooOld(_) => "session-too-old",
+        StartupFailure::OtherEnvironment => "other-environment",
+        StartupFailure::DevelopmentBuildMismatch => "development-build-mismatch",
         StartupFailure::Admission => "admission",
         StartupFailure::TimedOut => "timed-out",
         StartupFailure::TerminalUnavailable => "terminal-unavailable",
