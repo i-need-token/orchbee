@@ -16,10 +16,16 @@ pub fn client() -> &'static Path {
 /// shared offline profile, since a development or test build keeps all of its state under
 /// `<USERPROFILE>\.<stem>`; a test with a fixture of its own gives the CLI that fixture's profile.
 pub fn command() -> Command {
-    let mut command = Command::new(client());
     #[cfg(windows)]
-    command.env("USERPROFILE", profile());
-    command
+    {
+        let mut command = Command::new(client());
+        command.env("USERPROFILE", profile());
+        command
+    }
+    #[cfg(not(windows))]
+    {
+        Command::new(client())
+    }
 }
 
 /// A profile beside the staged copy, so an invocation without a fixture never reads or writes the

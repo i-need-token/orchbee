@@ -1,4 +1,4 @@
-use std::{error::Error, ffi::OsStr, process::Command};
+use std::{error::Error, ffi::OsStr};
 
 #[test]
 fn skill_is_offline_localized_and_describes_the_native_surface() -> Result<(), Box<dyn Error>> {
@@ -24,7 +24,7 @@ fn skill_is_offline_localized_and_describes_the_native_surface() -> Result<(), B
 #[test]
 fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error>> {
     let invoke = |arguments: &[&str], locale: &str| {
-        Command::new(crate::staged_client::client())
+        std::process::Command::new(crate::staged_client::client())
             .args(arguments)
             .env("LC_ALL", locale)
             .env("APPDATA", "relative-appdata")
@@ -432,7 +432,11 @@ fn run(
 #[cfg(windows)]
 #[test]
 fn git_bash_completion_rejects_conflicts_before_and_after_the_verb() -> Result<(), Box<dyn Error>> {
-    use std::{io::Write, path::Path, process::Stdio};
+    use std::{
+        io::Write,
+        path::Path,
+        process::{Command, Stdio},
+    };
     let git = Command::new("git").arg("--exec-path").output()?;
     assert!(git.status.success());
     let exec_path = String::from_utf8(git.stdout)?;
