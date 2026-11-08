@@ -79,6 +79,52 @@ fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
     assert!(!fixture.0.join("runtime").exists());
 }
 
+/// The release check stays in the CLI entry layer: a test build trusts the test key, yet refuses a
+/// manifest that key signed before saving a channel or creating an installation, and usage errors
+/// refuse before any effect.
+#[test]
+fn update_in_a_test_build_refuses_before_saving_or_installing() {
+    let fixture = Fixture::new();
+    let config = fixture.data_root().config_file();
+    let install = fixture.0.join("installation");
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/cli/update/tests/fixtures/release.json");
+    let env = [
+        ("ORCHBEE_UPDATE_MANIFEST", manifest.as_os_str()),
+        ("ORCHBEE_INSTALL_DIR", install.as_os_str()),
+    ];
+    for (args, operation) in [
+        (vec!["update", "--format=json"], "update"),
+        (
+            vec!["channel", "set", "preview", "--format=json"],
+            "channel-set",
+        ),
+    ] {
+        let output = fixture.run_with_env(&args, None, None, &env);
+        assert_eq!(output.status.code(), Some(1), "{args:?}");
+        let doc = document(output);
+        validate(&doc, include_str!("../src/cli/schemas/orchbee.update.json"));
+        assert_eq!(doc["operation"], operation);
+        assert_eq!(doc["result"]["error"], "non-release-build");
+        assert_eq!(doc["result"]["channelSaved"], false);
+    }
+    for args in [
+        vec!["channel", "set"],
+        vec!["channel", "set", "nightly"],
+        vec!["channel", "set", "stable", "extra"],
+        vec!["update", "extra"],
+        vec!["update", "--client", "bad"],
+    ] {
+        assert_eq!(
+            fixture.run_with_env(&args, None, None, &env).status.code(),
+            Some(2),
+            "{args:?}"
+        );
+    }
+    assert!(!config.exists() && !install.exists());
+    assert!(!fixture.0.join("runtime").exists());
+}
+
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }

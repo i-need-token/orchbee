@@ -1,6 +1,9 @@
 //! Explicit Windows cohort updates and save-then-update channel changes; never starts a Session.
+//! This entry layer owns the release-build check and reads the release environment; the engine
+//! below it receives every location, key and command as a value.
 use crate::cli_text::CliText;
 mod acquire;
+mod engine;
 mod install;
 mod installed;
 mod manifest;
@@ -10,7 +13,9 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "update/unix.rs"]
 mod platform;
+mod signature;
 mod source_path;
+mod strict_json;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish},
@@ -32,6 +37,9 @@ enum Error {
     Configuration,
     SourceUnconfigured,
     SourceInvalid,
+    SigningKeysUnavailable,
+    SignatureUntrusted,
+    SignatureInvalid,
     ManifestInvalid,
     Download,
     LocalManifestRead,
@@ -56,6 +64,9 @@ impl Error {
             Self::Configuration => "configuration",
             Self::SourceUnconfigured => "source-unconfigured",
             Self::SourceInvalid => "source-invalid",
+            Self::SigningKeysUnavailable => "signing-keys-unavailable",
+            Self::SignatureUntrusted => "signature-untrusted",
+            Self::SignatureInvalid => "signature-invalid",
             Self::ManifestInvalid => "manifest-invalid",
             Self::Download | Self::LocalManifestRead => "download",
             Self::DownloadUnavailable => "download-unavailable",
@@ -112,6 +123,8 @@ impl Context {
 }
 struct Report {
     phase: &'static str,
+    /// The effective channel once read from the settings file.
+    channel: Option<UpdateChannel>,
     channel_saved: bool,
     config_path: Option<PathBuf>,
     published: Option<PathBuf>,
@@ -120,6 +133,26 @@ struct Report {
     cleanup_pending: Option<PathBuf>,
     version: Option<String>,
     build_id: Option<String>,
+}
+
+/// The `orchbee.update` document for one run that requested `channel`, if any.
+fn document(
+    channel: Option<UpdateChannel>,
+    report: &Report,
+    error: Option<Error>,
+    interrupted: bool,
+) -> serde_json::Value {
+    json!({
+        "schema":"orchbee.update", "version":1, "source":{"kind":"local-installation"},
+        "operation": if channel.is_some() {"channel-set"} else {"update"},
+        "result":{
+            "channel":report.channel.or(channel).map(UpdateChannel::as_str),
+            "phase":report.phase, "channelSaved":report.channel_saved, "configPath":report.config_path,
+            "releasePath":report.published, "reused":report.reused, "activated":report.activated,
+            "releaseVersion":report.version, "buildId":report.build_id, "cleanupPending":report.cleanup_pending,
+            "error":error.map(Error::code), "interrupted":interrupted,
+        }
+    })
 }
 
 /// Persists an optional channel first, then attempts its complete Windows update.
@@ -149,6 +182,7 @@ pub(crate) fn run(
     };
     let mut report = Report {
         phase: "configuration",
+        channel: None,
         channel_saved: false,
         config_path: None,
         published: None,
@@ -158,36 +192,23 @@ pub(crate) fn run(
         version: None,
         build_id: None,
     };
-    let mut selected = channel;
     let result = (|| {
         context.check()?;
         // A development or test cohort must never write the release installation or its channel.
         if !CohortArtifact::has_release_names() {
             return Err(Error::NonReleaseBuild);
         }
-        if let Some(channel) = channel {
-            report.config_path =
-                Some(platform::save_channel(channel).map_err(|_| Error::Configuration)?);
-            report.channel_saved = true;
-        }
-        let selected_channel = platform::selected_channel().map_err(|_| Error::Configuration)?;
-        selected = Some(selected_channel);
-        report.phase = "source";
-        let source = acquire::Source::configured(selected_channel)?;
-        report.phase = "manifest";
-        let bytes = source.manifest(&mut context)?;
-        let release =
-            manifest::Release::parse(&bytes, selected_channel).ok_or(Error::ManifestInvalid)?;
-        report.version = Some(release.version.clone());
-        report.build_id = Some(release.build_id.clone());
-        let root = install::root()?;
-        report.phase = "download";
-        let path = install::publish(&root, &source, &release, &mut context, &mut report)?;
-        report.phase = "activate";
-        install::activate(&root, &path, &mut context)?;
-        report.activated = true;
-        report.phase = "complete";
-        Ok::<(), Error>(())
+        let environment = |name: &str| std::env::var_os(name);
+        let inputs = engine::Inputs {
+            channel,
+            state: &environment,
+            manifest_source: platform::manifest_source(),
+            keys: signature::TRUSTED_KEYS,
+            install_root: platform::install_root().map_err(|_| Error::InstallLocation),
+            probe: install::version_probe,
+            activation: install::path_activation,
+        };
+        engine::run(&inputs, &mut context, &mut report)
     })();
     let mut finalization = None;
     let mut error = result.err();
@@ -216,17 +237,7 @@ pub(crate) fn run(
             Error::status,
         )
     };
-    let document = json!({
-        "schema":"orchbee.update", "version":1, "source":{"kind":"local-installation"},
-        "operation": if channel.is_some() {"channel-set"} else {"update"},
-        "result":{
-            "channel":selected.map(UpdateChannel::as_str),
-            "phase":report.phase, "channelSaved":report.channel_saved, "configPath":report.config_path,
-            "releasePath":report.published, "reused":report.reused, "activated":report.activated,
-            "releaseVersion":report.version, "buildId":report.build_id, "cleanupPending":report.cleanup_pending,
-            "error":error.map(Error::code), "interrupted":interrupted,
-        }
-    });
+    let document = document(channel, &report, error, interrupted);
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {
@@ -273,3 +284,6 @@ pub(crate) fn run(
     answer.finalization = finalization;
     answer
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,27 +1,65 @@
-//! Complete cohort verification and immutable publication before user PATH activation.
+//! Complete cohort verification and immutable publication before user PATH activation. The
+//! commands this owner runs come from its caller, so tests stage releases without touching PATH.
 use super::{
     Context, Error, Report,
     acquire::Source,
     manifest::{Artifact, Release},
     platform,
+    signature::MANIFEST_LIMIT,
 };
 use crate::release_store::{ReleaseStore, open_release_file};
 use base64::Engine;
-use orchbee_local_runtime::Cohort;
+use orchbee_local_runtime::{Cohort, CohortArtifact};
 use sha2::{Digest, Sha256};
 use std::{
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
-pub(super) fn root() -> Result<PathBuf, Error> {
-    platform::install_root().map_err(|_| Error::InstallLocation)
+/// Builds the version check of a verified staged Client.
+pub(super) type Probe = fn(client: &Path) -> Command;
+/// Builds the user PATH activation of a published release under an installation root.
+pub(super) type Activation = fn(root: &Path, release: &Path) -> io::Result<Command>;
+
+/// The staged Client's `--version`, without an inherited settings file.
+pub(super) fn version_probe(client: &Path) -> Command {
+    let mut command = Command::new(client);
+    command.arg("--version").env_remove("ORCHBEE_CONFIG_FILE");
+    command
 }
+
+/// The system PowerShell running `activate.ps1`, which receives both paths as data.
+pub(super) fn path_activation(root: &Path, release: &Path) -> io::Result<Command> {
+    let mut command = platform::powershell_command()?;
+    command
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-EncodedCommand",
+        ])
+        .arg(
+            base64::engine::general_purpose::STANDARD.encode(
+                include_str!("activate.ps1")
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes)
+                    .collect::<Vec<_>>(),
+            ),
+        )
+        .env("ORCHBEE_INSTALL_ROOT", root)
+        .env("ORCHBEE_INSTALL_RELEASE", release)
+        .env_remove("PSModulePath");
+    Ok(command)
+}
+
+/// Verifies every file of `release` in a private stage, runs `probe` on the staged Client, and
+/// publishes the stage under the manifest digest. An existing release is verified and reused.
 pub(super) fn publish(
     root: &Path,
     source: &Source,
     release: &Release,
+    probe: Probe,
     context: &mut Context,
     report: &mut Report,
 ) -> Result<PathBuf, Error> {
@@ -40,13 +78,13 @@ pub(super) fn publish(
         let mut stored = Vec::new();
         open_release_file(&destination, "release.json")
             .map_err(|_| Error::CohortInvalid)?
-            .take(super::manifest::MANIFEST_LIMIT as u64 + 1)
+            .take(MANIFEST_LIMIT as u64 + 1)
             .read_to_end(&mut stored)
             .map_err(|_| Error::Storage)?;
         if stored != release.encoded {
             return Err(Error::CohortInvalid);
         }
-        verify(&destination, release, context)?;
+        verify(&destination, release, probe, context)?;
         report.published = Some(destination.clone());
         report.reused = true;
         return Ok(destination);
@@ -71,7 +109,7 @@ pub(super) fn publish(
                 .copy(&path, &mut file, artifact.size, context)?;
         }
         report.phase = "verify";
-        verify(stage.path(), release, context)?;
+        verify(stage.path(), release, probe, context)?;
         context.check()?;
         report.phase = "publish";
         let path = stage
@@ -85,7 +123,12 @@ pub(super) fn publish(
     }
     result
 }
-fn verify(root: &Path, release: &Release, context: &mut Context) -> Result<(), Error> {
+fn verify(
+    root: &Path,
+    release: &Release,
+    probe: Probe,
+    context: &mut Context,
+) -> Result<(), Error> {
     for artifact in &release.files {
         verify_file(root, artifact, context)?;
     }
@@ -96,9 +139,8 @@ fn verify(root: &Path, release: &Release, context: &mut Context) -> Result<(), E
     {
         return Err(Error::CohortInvalid);
     }
-    // This binary is executed only after all manifest digests and cohort checks pass.
-    let mut command = Command::new(root.join("orchbee.exe"));
-    command.arg("--version").env_remove("ORCHBEE_CONFIG_FILE");
+    // The Client is executed only after all manifest digests and cohort checks pass.
+    let command = probe(&cohort.executable(CohortArtifact::Client));
     let result = platform::execute(command, context).map_err(|_| Error::SmokeFailed)?;
     context
         .command_result(&result)
@@ -133,29 +175,17 @@ fn verify_file(root: &Path, artifact: &Artifact, context: &mut Context) -> Resul
     Ok(())
 }
 
-pub(super) fn activate(root: &Path, release: &Path, context: &mut Context) -> Result<(), Error> {
+/// Runs `activation` for a published release while holding the installation's writer lock.
+pub(super) fn activate(
+    root: &Path,
+    release: &Path,
+    activation: Activation,
+    context: &mut Context,
+) -> Result<(), Error> {
     // The root publisher lock also serializes cooperating PATH activations.
     let _store = ReleaseStore::acquire(root).map_err(|_| Error::Busy)?;
     context.check()?;
-    let mut command = platform::powershell_command().map_err(|_| Error::Activation)?;
-    command
-        .args([
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-EncodedCommand",
-        ])
-        .arg(
-            base64::engine::general_purpose::STANDARD.encode(
-                include_str!("activate.ps1")
-                    .encode_utf16()
-                    .flat_map(u16::to_le_bytes)
-                    .collect::<Vec<_>>(),
-            ),
-        )
-        .env("ORCHBEE_INSTALL_ROOT", root)
-        .env("ORCHBEE_INSTALL_RELEASE", release)
-        .env_remove("PSModulePath");
+    let command = activation(root, release).map_err(|_| Error::Activation)?;
     let result = platform::execute(command, context).map_err(|_| Error::Activation)?;
     if result.failure.is_some() {
         return Err(Error::ActivationUnknown);

@@ -23,7 +23,22 @@ impl super::CliText {
                 "Set ORCHBEE_UPDATE_MANIFEST to an Orchbee HTTPS release manifest or an absolute local manifest path, then retry orchbee update.",
                 "请将 ORCHBEE_UPDATE_MANIFEST 设置为 Orchbee HTTPS 发布清单或本地清单的绝对路径，再重试 orchbee update。",
             ),
-            "source-invalid" => ("Invalid release source.", "发布源无效。"),
+            "source-invalid" => (
+                "Invalid release source. ORCHBEE_UPDATE_MANIFEST must be an HTTPS URL without a query or an absolute local manifest path.",
+                "发布源无效。ORCHBEE_UPDATE_MANIFEST 必须是不带查询参数的 HTTPS URL，或本地清单的绝对路径。",
+            ),
+            "signing-keys-unavailable" => (
+                "This build trusts no release signing key, so it refuses every update. Nothing was changed. Install a newer Orchbee manually.",
+                "当前构建没有可信的发布签名密钥，会拒绝所有更新，未做任何改动。请手动安装更新版本的 Orchbee。",
+            ),
+            "signature-untrusted" => (
+                "The release manifest is not signed by a key this Orchbee trusts. Nothing was installed. If the signing key changed, install a newer Orchbee manually.",
+                "发布清单不是由当前 Orchbee 信任的密钥签名的，未安装任何内容。如果签名密钥已更换，请手动安装更新版本的 Orchbee。",
+            ),
+            "signature-invalid" => (
+                "The release signature (release.json.sig beside the manifest) is missing, malformed, or does not match the manifest. Nothing was installed.",
+                "发布签名（清单旁的 release.json.sig）缺失、格式错误或与清单不符，未安装任何内容。",
+            ),
             "local-manifest-read" => (
                 "Cannot read the local release manifest. Check the file path and permissions in ORCHBEE_UPDATE_MANIFEST, then retry orchbee update.",
                 "无法读取本地发布清单。请检查 ORCHBEE_UPDATE_MANIFEST 中的文件路径和读取权限，再重试 orchbee update。",
@@ -57,8 +72,8 @@ impl super::CliText {
                 "另一个更新正在使用此安装目录，请稍后重试。",
             ),
             "cohort-invalid" => (
-                "The downloaded native cohort is incompatible or damaged.",
-                "下载的原生 cohort 不兼容或已损坏。",
+                "The downloaded installation is incompatible or damaged.",
+                "下载的安装文件不兼容或已损坏。",
             ),
             "smoke-failed" => (
                 "The verified release failed its version startup check.",

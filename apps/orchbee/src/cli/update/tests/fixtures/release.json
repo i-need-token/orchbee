@@ -1,0 +1,224 @@
+{
+	"schemaVersion": 2,
+	"product": "orchbee",
+	"channel": "stable",
+	"platform": "windows-x86_64",
+	"version": "0.1.0",
+	"buildId": "fixture.1",
+	"files": [
+		{
+			"path": "agent-observation-adapters/capsule.json",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/agent-observation-adapters/capsule.json",
+			"sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+			"size": 1000
+		},
+		{
+			"path": "cohort.json",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/cohort.json",
+			"sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+			"size": 1001
+		},
+		{
+			"path": "conpty/OpenConsole.exe",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/conpty/OpenConsole.exe",
+			"sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+			"size": 1002
+		},
+		{
+			"path": "conpty/conpty.dll",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/conpty/conpty.dll",
+			"sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+			"size": 1003
+		},
+		{
+			"path": "orchbee-server.exe",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/orchbee-server.exe",
+			"sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+			"size": 1004
+		},
+		{
+			"path": "orchbee-terminal-host.exe",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/orchbee-terminal-host.exe",
+			"sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+			"size": 1005
+		},
+		{
+			"path": "orchbee-worker.exe",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/orchbee-worker.exe",
+			"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+			"size": 1006
+		},
+		{
+			"path": "orchbee.exe",
+			"url": "https://releases.example.test/orchbee/0.1.0/windows-x86_64/orchbee.exe",
+			"sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+			"size": 1007
+		}
+	],
+	"components": [
+		{
+			"id": "client",
+			"version": "0.1.0",
+			"files": ["orchbee.exe"],
+			"connections": {
+				"client-server": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obkg": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obpb": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obrw": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obtf": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"machine-route": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				}
+			}
+		},
+		{
+			"id": "server",
+			"version": "0.1.0",
+			"files": ["orchbee-server.exe"],
+			"connections": {
+				"client-server": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"agent-hook": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				}
+			},
+			"securityFloor": "0.1.0",
+			"recommendedFloor": "0.1.0"
+		},
+		{
+			"id": "worker",
+			"version": "0.1.0",
+			"files": ["orchbee-worker.exe"],
+			"connections": {
+				"worker-host": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obkg": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obpb": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obrw": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obtf": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				}
+			}
+		},
+		{
+			"id": "terminal-host",
+			"version": "0.1.0",
+			"files": ["orchbee-terminal-host.exe", "conpty/OpenConsole.exe", "conpty/conpty.dll"],
+			"connections": {
+				"worker-host": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obkg": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obpb": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obrw": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				},
+				"obtf": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				}
+			}
+		},
+		{
+			"id": "agent-observation-capsule",
+			"version": "0.1.0",
+			"files": ["agent-observation-adapters/capsule.json"],
+			"connections": {
+				"agent-hook": {
+					"generations": {
+						"lowest": 1,
+						"highest": 1
+					}
+				}
+			},
+			"extensions": {}
+		},
+		{
+			"id": "future-component",
+			"files": ["not-validated"],
+			"anything": {
+				"ignored": true
+			}
+		}
+	],
+	"extensions": {
+		"example.ignored": {
+			"note": "Readers ignore every extension."
+		}
+	}
+}

@@ -1,4 +1,5 @@
-// Produce the updater's explicit release feed from a completed staged Windows cohort.
+// Produce the updater's version 2 release manifest from a completed staged Windows cohort. Signing
+// is a separate step, `scripts/sign-release-manifest.mjs`, which writes `release.json.sig`.
 // No upload, application launch, installation or PATH mutation occurs here.
 import { createHash } from 'node:crypto';
 import {
@@ -20,6 +21,76 @@ import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty
 const peers = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
 const maximumFile = 512 * 1024 * 1024;
 const maximumTotal = 2 * 1024 * 1024 * 1024;
+// The updater reads at most 1 MiB of manifest; this bound never shrinks.
+const maximumManifest = 1024 * 1024;
+const frames = ['obkg', 'obpb', 'obrw', 'obtf'];
+// Each component names its files and every generation registry contract they encode or decode.
+const components = [
+	{
+		id: 'client',
+		files: (file) => file === 'orchbee.exe',
+		contracts: ['client-server', ...frames, 'machine-route'],
+	},
+	{
+		id: 'server',
+		files: (file) => file === 'orchbee-server.exe',
+		contracts: ['client-server', 'agent-hook'],
+	},
+	{
+		id: 'worker',
+		files: (file) => file === 'orchbee-worker.exe',
+		contracts: ['worker-host', ...frames],
+	},
+	{
+		id: 'terminal-host',
+		files: (file) => file === 'orchbee-terminal-host.exe' || file.startsWith('conpty/'),
+		contracts: ['worker-host', ...frames],
+	},
+	{
+		id: 'agent-observation-capsule',
+		files: (file) => file.startsWith('agent-observation-adapters/'),
+		contracts: ['agent-hook'],
+	},
+];
+// SemVer 2.0.0 without build metadata.
+const identifier = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const semanticVersion = new RegExp(
+	String.raw`^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-${identifier}(?:\.${identifier})*)?$`,
+	'u',
+);
+
+/** Every contract of the generation registry with its supported generations. */
+function generationRanges() {
+	const registry = JSON.parse(
+		readFileSync(new URL('../schemas/connection/v1/connections.json', import.meta.url), 'utf8'),
+	);
+	const ranges = new Map();
+	for (const group of ['negotiatedConnections', 'frameFormats', 'deliveries'])
+		for (const [name, entry] of Object.entries(registry[group]))
+			ranges.set(name, { lowest: entry.generations.lowest, highest: entry.generations.highest });
+	return ranges;
+}
+
+/** The manifest's component entries; every registry contract must belong to a component. */
+export function componentEntries(files, version) {
+	const ranges = generationRanges();
+	const listed = new Set(components.flatMap((component) => component.contracts));
+	for (const name of ranges.keys())
+		if (!listed.has(name)) throw new Error(`No component lists the registry contract ${name}`);
+	return components.map((component) => {
+		const paths = files.map((file) => file.path).filter(component.files);
+		if (paths.length === 0) throw new Error(`Component ${component.id} has no files`);
+		const connections = Object.fromEntries(
+			component.contracts.map((name) => {
+				const generations = ranges.get(name);
+				if (generations === undefined) throw new Error(`Unknown registry contract ${name}`);
+				return [name, { generations }];
+			}),
+		);
+		return { id: component.id, version, files: paths, connections };
+	});
+}
+
 function digest(filename) {
 	const fd = openSync(filename, 'r');
 	try {
@@ -59,18 +130,24 @@ export function packageWindows(cohort, channel, version, buildId) {
 	if (
 		!path.isAbsolute(cohort) ||
 		!['stable', 'preview'].includes(channel) ||
-		![version, buildId].every(
-			(value) => typeof value === 'string' && /^[A-Za-z0-9._+-]{1,96}$/u.test(value),
-		)
+		typeof version !== 'string' ||
+		version.length > 64 ||
+		!semanticVersion.test(version) ||
+		typeof buildId !== 'string' ||
+		!/^[A-Za-z0-9._+-]{1,96}$/u.test(buildId)
 	)
-		throw new Error('Expected absolute cohort, stable|preview channel, version and build identity');
+		throw new Error(
+			'Expected absolute cohort, stable|preview channel, SemVer version without build metadata, and build identity',
+		);
 	const destination = path.join(cohort, 'release.json');
-	// Never overwrite a previously published manifest or follow its symlink.
-	try {
-		lstatSync(destination);
-		throw new Error('release.json already exists');
-	} catch (error) {
-		if (error.code !== 'ENOENT') throw error;
+	// Never overwrite a previously published manifest or its signature, or follow their symlinks.
+	for (const existing of [destination, destination + '.sig']) {
+		try {
+			lstatSync(existing);
+			throw new Error(`${path.basename(existing)} already exists`);
+		} catch (error) {
+			if (error.code !== 'ENOENT') throw error;
+		}
 	}
 	const files = [];
 	const seen = new Set();
@@ -125,15 +202,16 @@ export function packageWindows(cohort, channel, version, buildId) {
 	verifyConptyBundle(path.join(cohort, 'conpty'));
 	const bytes =
 		JSON.stringify({
-			schemaVersion: 1,
+			schemaVersion: 2,
 			product: 'orchbee',
-			platform: 'windows-x86_64',
 			channel,
+			platform: 'windows-x86_64',
 			version,
 			buildId,
 			files,
+			components: componentEntries(files, version),
 		}) + '\n';
-	if (Buffer.byteLength(bytes) > 64 * 1024) throw new Error('Release manifest exceeds 64 KiB');
+	if (Buffer.byteLength(bytes) > maximumManifest) throw new Error('Release manifest exceeds 1 MiB');
 	const fd = openSync(destination, 'wx');
 	try {
 		writeFileSync(fd, bytes);

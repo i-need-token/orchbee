@@ -38,6 +38,18 @@ impl LocalPath {
         name.map(|(start, end)| (&self.0[..parent_end], &self.0[start..end]))
     }
 
+    /// The sibling named by this file's name followed by `suffix`, such as the signature document
+    /// beside a manifest. The caller supplies a fixed portable suffix.
+    pub(super) fn with_suffix(&self, suffix: &str) -> Option<Self> {
+        let (parent, name) = self.parent_and_name()?;
+        let separator = if parent.ends_with(['/', '\\']) {
+            ""
+        } else {
+            "\\"
+        };
+        Some(Self(format!("{parent}{separator}{name}{suffix}")))
+    }
+
     /// The caller admits the portable relative artifact grammar before joining.
     pub(super) fn artifact(&self, relative: &str) -> Option<Self> {
         let (parent, _) = self.parent_and_name()?;

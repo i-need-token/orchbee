@@ -95,6 +95,7 @@ export function checkSteps(task, scope, platform = process.platform) {
 						'test:storage-contract',
 						'test:experience-contract',
 						'test:stage-local-runtime',
+						'test:release-feed',
 						'test:agent-observation-adapters',
 					].map((name) => pnpmStep(name)),
 				},

@@ -1,5 +1,8 @@
 //! Offline installed release provenance, bound to an independently admitted native cohort.
-use super::manifest::{MANIFEST_LIMIT, Release};
+use super::{
+    manifest::{Release, own_platform},
+    signature::{MANIFEST_LIMIT, TrustedManifest},
+};
 use crate::release_store::open_release_file;
 use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
 use sha2::{Digest, Sha256};
@@ -41,9 +44,8 @@ pub(in crate::cli) fn observe(
     {
         return Err(());
     }
-    let Some(release) = Release::parse(&bytes, UpdateChannel::Stable)
-        .or_else(|| Release::parse(&bytes, UpdateChannel::Preview))
-    else {
+    // The directory name, checked below, binds these bytes to the verified installation.
+    let Some(release) = Release::parse(TrustedManifest::installed(&bytes), &own_platform()) else {
         return Err(());
     };
     if root.file_name().and_then(|s| s.to_str()) != Some(release.identity.as_str())

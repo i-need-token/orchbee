@@ -2,6 +2,7 @@
 use super::Context;
 use orchbee_local_runtime::{CommandOutput, UpdateChannel};
 use std::{
+    ffi::OsString,
     fs::{File, OpenOptions},
     io,
     os::windows::fs::{MetadataExt, OpenOptionsExt},
@@ -9,19 +10,26 @@ use std::{
     process::Command,
 };
 
-pub(super) fn save_channel(channel: UpdateChannel) -> io::Result<PathBuf> {
-    orchbee_local_runtime::set_update_channel(channel, |name| std::env::var_os(name))
-        .map_err(io::Error::other)
+/// Saves the channel in the settings file that `state` locates.
+pub(super) fn save_channel(
+    channel: UpdateChannel,
+    state: &dyn Fn(&str) -> Option<OsString>,
+) -> io::Result<PathBuf> {
+    orchbee_local_runtime::set_update_channel(channel, state).map_err(io::Error::other)
 }
 
-pub(super) fn selected_channel() -> io::Result<UpdateChannel> {
-    orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
+/// Reads the effective channel from the settings file that `state` locates.
+pub(super) fn selected_channel(
+    state: &dyn Fn(&str) -> Option<OsString>,
+) -> io::Result<UpdateChannel> {
+    orchbee_local_runtime::read_user_settings(state)
         .map(|settings| settings.update_channel)
         .map_err(io::Error::other)
 }
 
-pub(super) fn manifest_source() -> io::Result<String> {
-    std::env::var("ORCHBEE_UPDATE_MANIFEST").map_err(io::Error::other)
+/// `ORCHBEE_UPDATE_MANIFEST`; an absent or non-Unicode value leaves the source unconfigured.
+pub(super) fn manifest_source() -> Option<String> {
+    std::env::var("ORCHBEE_UPDATE_MANIFEST").ok()
 }
 
 pub(super) fn install_root() -> io::Result<PathBuf> {
@@ -72,6 +80,21 @@ pub(super) fn powershell_command() -> io::Result<Command> {
 pub(super) fn execute(command: Command, context: &mut Context) -> io::Result<CommandOutput> {
     Ok(orchbee_local_runtime::run_windows_command(
         command,
+        Some(context.deadline),
+        || context.interrupted(),
+    ))
+}
+
+/// Like [`execute`], but captures up to `limit` bytes of standard output instead of 64 KiB.
+pub(super) fn execute_capturing(
+    command: Command,
+    limit: usize,
+    context: &mut Context,
+) -> io::Result<CommandOutput> {
+    Ok(orchbee_local_runtime::run_windows_command_exchange(
+        command,
+        None,
+        limit,
         Some(context.deadline),
         || context.interrupted(),
     ))

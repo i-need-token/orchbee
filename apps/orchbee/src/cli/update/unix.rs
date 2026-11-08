@@ -2,22 +2,28 @@
 use super::Context;
 use orchbee_local_runtime::{CommandOutput, UpdateChannel};
 use std::{
+    ffi::OsString,
     fs::File,
     io,
     path::{Path, PathBuf},
     process::Command,
 };
 
-pub(super) fn save_channel(_channel: UpdateChannel) -> io::Result<PathBuf> {
+pub(super) fn save_channel(
+    _channel: UpdateChannel,
+    _state: &dyn Fn(&str) -> Option<OsString>,
+) -> io::Result<PathBuf> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(super) fn selected_channel() -> io::Result<UpdateChannel> {
+pub(super) fn selected_channel(
+    _state: &dyn Fn(&str) -> Option<OsString>,
+) -> io::Result<UpdateChannel> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
-pub(super) fn manifest_source() -> io::Result<String> {
-    Err(io::ErrorKind::Unsupported.into())
+pub(super) fn manifest_source() -> Option<String> {
+    None
 }
 
 pub(super) fn install_root() -> io::Result<PathBuf> {
@@ -37,6 +43,14 @@ pub(super) fn powershell_command() -> io::Result<Command> {
 }
 
 pub(super) fn execute(_command: Command, _context: &mut Context) -> io::Result<CommandOutput> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(super) fn execute_capturing(
+    _command: Command,
+    _limit: usize,
+    _context: &mut Context,
+) -> io::Result<CommandOutput> {
     Err(io::ErrorKind::Unsupported.into())
 }
 

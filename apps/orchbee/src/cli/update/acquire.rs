@@ -1,25 +1,37 @@
 //! Bounded explicit release acquisition. Every subprocess belongs to the invocation's Job.
-use super::{Context, Error, manifest, platform, source_path::LocalPath};
+use super::{
+    Context, Error, manifest, platform,
+    signature::{DOCUMENT_LIMIT, MANIFEST_LIMIT},
+    source_path::LocalPath,
+};
 use crate::release_store::open_release_file;
 use orchbee_local_runtime::UpdateChannel;
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::Path,
     process::Command,
 };
+
+/// The signature document lives beside the manifest under this suffix.
+const SIGNATURE_SUFFIX: &str = ".sig";
 
 pub(super) enum Source {
     Local(LocalPath),
     Https(String),
 }
 impl Source {
-    pub fn configured(channel: UpdateChannel) -> Result<Self, Error> {
-        let value = platform::manifest_source().map_err(|_| Error::SourceUnconfigured)?;
-        if value.trim().is_empty() {
-            return Err(Error::SourceUnconfigured);
+    /// Admits the configured manifest location after expanding `{channel}`. An HTTPS location
+    /// carries no query, so its signature document is the same URL with [`SIGNATURE_SUFFIX`].
+    pub fn configured(value: Option<&str>, channel: UpdateChannel) -> Result<Self, Error> {
+        let value = value
+            .filter(|value| !value.trim().is_empty())
+            .ok_or(Error::SourceUnconfigured)?;
+        let source = Self::parse(&value.replace("{channel}", channel.as_str()))?;
+        match &source {
+            Self::Https(url) if url.contains('?') => Err(Error::SourceInvalid),
+            _ => Ok(source),
         }
-        Self::parse(&value.replace("{channel}", channel.as_str()))
     }
     fn parse(value: &str) -> Result<Self, Error> {
         if manifest::valid_https(value) {
@@ -47,31 +59,72 @@ impl Source {
             }
         }
     }
+    /// Reads at most [`MANIFEST_LIMIT`] manifest bytes; a longer manifest is refused unread.
     pub fn manifest(&self, context: &mut Context) -> Result<Vec<u8>, Error> {
-        context.check()?;
+        self.read(None, MANIFEST_LIMIT, context)
+            .map_err(|error| match error {
+                Fetch::Failed(error) => error,
+                Fetch::Absent => Error::LocalManifestRead,
+                Fetch::Oversized => Error::ManifestInvalid,
+            })
+    }
+    /// Reads at most [`DOCUMENT_LIMIT`] bytes of the signature document beside the manifest. A
+    /// missing or oversized local document is a signature refusal, not a read failure.
+    pub fn signature(&self, context: &mut Context) -> Result<Vec<u8>, Error> {
+        self.read(Some(SIGNATURE_SUFFIX), DOCUMENT_LIMIT, context)
+            .map_err(|error| match error {
+                Fetch::Failed(error) => error,
+                Fetch::Absent | Fetch::Oversized => Error::SignatureInvalid,
+            })
+    }
+    fn read(
+        &self,
+        suffix: Option<&str>,
+        limit: usize,
+        context: &mut Context,
+    ) -> Result<Vec<u8>, Fetch> {
+        context.check().map_err(Fetch::Failed)?;
         match self {
-            Self::Local(path) => {
+            Self::Local(manifest) => {
+                let sibling;
+                let path = match suffix {
+                    Some(suffix) => {
+                        sibling = manifest
+                            .with_suffix(suffix)
+                            .ok_or(Fetch::Failed(Error::SourceInvalid))?;
+                        &sibling
+                    }
+                    None => manifest,
+                };
+                let file = match platform::open_manifest(path.as_path()) {
+                    Ok(Some(file)) => file,
+                    Ok(None) => return Err(Fetch::Failed(Error::SourceInvalid)),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        return Err(Fetch::Absent);
+                    }
+                    Err(_) => return Err(Fetch::Failed(Error::LocalManifestRead)),
+                };
                 let mut bytes = Vec::new();
-                let file = platform::open_manifest(path.as_path())
-                    .map_err(|_| Error::LocalManifestRead)?
-                    .ok_or(Error::SourceInvalid)?;
-                file.take(manifest::MANIFEST_LIMIT as u64 + 1)
+                file.take(limit as u64 + 1)
                     .read_to_end(&mut bytes)
-                    .map_err(|_| Error::LocalManifestRead)?;
-                if bytes.len() > manifest::MANIFEST_LIMIT {
-                    return Err(Error::ManifestInvalid);
+                    .map_err(|_| Fetch::Failed(Error::LocalManifestRead))?;
+                if bytes.len() > limit {
+                    return Err(Fetch::Oversized);
                 }
-                context.check()?;
+                context.check().map_err(Fetch::Failed)?;
                 Ok(bytes)
             }
             Self::Https(url) => {
-                require_curl(context)?;
-                let mut command = curl(url, manifest::MANIFEST_LIMIT as u64)?;
+                require_curl(context).map_err(Fetch::Failed)?;
+                let url = format!("{url}{}", suffix.unwrap_or(""));
+                let mut command = curl(&url, limit as u64).map_err(Fetch::Failed)?;
                 command.args(["--output", "-"]);
-                let result = platform::execute(command, context).map_err(|_| Error::Download)?;
-                context.command_result(&result)?;
-                if result.stdout_truncated {
-                    return Err(Error::ManifestInvalid);
+                // One captured byte beyond the bound proves an oversized document.
+                let result = platform::execute_capturing(command, limit + 1, context)
+                    .map_err(|_| Fetch::Failed(Error::Download))?;
+                context.command_result(&result).map_err(Fetch::Failed)?;
+                if result.stdout_truncated || result.stdout.len() > limit {
+                    return Err(Fetch::Oversized);
                 }
                 Ok(result.stdout)
             }
@@ -122,6 +175,14 @@ impl Source {
         file.sync_all().map_err(|_| Error::Storage)?;
         Ok(())
     }
+}
+/// Why a bounded document read produced no bytes.
+enum Fetch {
+    Failed(Error),
+    /// The local file does not exist.
+    Absent,
+    /// The document exceeds its bound.
+    Oversized,
 }
 fn curl(url: &str, limit: u64) -> Result<Command, Error> {
     let mut command = curl_base()?;

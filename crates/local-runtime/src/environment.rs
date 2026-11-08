@@ -25,14 +25,27 @@ const _: () = assert!(
 /// `ob-test-<digest>`. It is fixed at compile time; no runtime input changes it. Windows cohort
 /// file names derive from it, while macOS and Linux cohorts keep the shipped `orchbee` names until
 /// ORC-328, so a rule about file names asks [`CohortArtifact`](crate::CohortArtifact) instead.
-pub fn environment_stem() -> &'static str {
+pub const fn environment_stem() -> &'static str {
     ENVIRONMENT_STEM
 }
 
 /// Whether this build is the release environment, the only one that may act on the release
-/// installation or use the shipped state locations.
-pub fn is_release() -> bool {
-    environment_stem() == RELEASE_STEM
+/// installation or use the shipped state locations. It is a constant expression, so a caller can
+/// choose compiled data by environment.
+pub const fn is_release() -> bool {
+    let stem = environment_stem().as_bytes();
+    let release = RELEASE_STEM.as_bytes();
+    if stem.len() != release.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < stem.len() {
+        if stem[index] != release[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
 }
 
 /// The environment a Session route reader consults. When `ORCHBEE_ENVIRONMENT` names another

@@ -27,6 +27,9 @@ orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 ratatui.workspace = true
 # Release installation and `agent doctor` digests are canonical sha256.
 sha2.workspace = true
+# Release manifest signatures: Ed25519 verification only, without precomputed tables or zeroizing
+# key types, since the updater holds no private key.
+ed25519-dalek = { version = "2.2.0", default-features = false }
 unicode-segmentation.workspace = true
 
 # `terminal wait-output --regex`: linear-time engine compiled once at parse;
