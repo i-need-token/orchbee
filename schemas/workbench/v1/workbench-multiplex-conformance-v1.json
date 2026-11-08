@@ -135,6 +135,15 @@
 			}
 		},
 		{
+			"name": "stream-close-stopping",
+			"hex": "4f4257500001004200000009000000000000000305",
+			"message": {
+				"kind": "stream-close",
+				"streamId": "3",
+				"reason": "stopping"
+			}
+		},
+		{
 			"name": "gap",
 			"hex": "4f425750000100430000001000000000000000030000000000000009",
 			"message": {
@@ -271,7 +280,7 @@
 		},
 		{
 			"name": "stream-close-unknown-reason",
-			"hex": "4f4257500001004200000009000000000000000305"
+			"hex": "4f4257500001004200000009000000000000000306"
 		},
 		{
 			"name": "stream-close-short",

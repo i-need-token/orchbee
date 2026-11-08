@@ -1,5 +1,6 @@
 //! Client admission adapter: only the managed Windows composition supplies a lifecycle owner, which
 //! records Session stops and serves the `drain` and `exit` control requests.
+use super::application_connection::{Effect, Refusal};
 use crate::agent_service::AgentService;
 use orchbee_connection_handshake::ProcessState;
 use orchbee_local_client_protocol::{SessionStopRequest, SessionStopResult, SessionStopStatus};
@@ -88,6 +89,31 @@ impl<'a> StopControl<'a> {
         }
     }
 
+    /// Admits one application record. A `drain` refuses intents only; a Session stop or an `exit`
+    /// refuses every record.
+    pub(super) fn admit(&'a self, effect: Effect) -> Result<Lease<'a>, Refusal> {
+        #[cfg(windows)]
+        let record = match self.shutdown {
+            Some(owner) => Some(match effect {
+                Effect::Read => owner.enter_read().ok_or(Refusal::Stopping)?,
+                // The course only advances, so a refusal observed as `draining` here was a drain.
+                Effect::Intent => owner.enter().ok_or_else(|| match owner.process_state() {
+                    ProcessState::Draining => Refusal::Draining,
+                    _ => Refusal::Stopping,
+                })?,
+            }),
+            None => None,
+        };
+        #[cfg(not(windows))]
+        let _ = effect;
+        Ok(Lease {
+            #[cfg(windows)]
+            _record: record,
+            _control: self,
+        })
+    }
+
+    /// Admits a new Client connection, which a `drain` refuses like an intent.
     pub(super) fn enter(&'a self) -> Option<Lease<'a>> {
         #[cfg(windows)]
         let record = match self.shutdown {

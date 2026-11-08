@@ -42,9 +42,18 @@ owns the exchange.
 
 `drain` and `exit` are checked like `query` and served only by the managed Windows lifecycle owner;
 any other Server answers both `unsupported`. `drain` is repeatable and answers `drain-result` with
-the state. It closes new application-record and Client admission, while records already admitted
-run to their result; with no new record, the Worker receives no new work, so no separate Worker
-message drains it. `exit` closes the same admission, waits for admitted records, stops the Server's
+the state. It refuses new Clients and new intents, while records already admitted run to their
+result and existing connections keep their reads. Each application record is either a read, which
+observes the Session or keeps the requester's own observation going (queries, snapshots,
+subscriptions and their continuations, viewer attachment, demand and acknowledgements, heartbeats,
+and reading an admitted operation's result), or an intent, which asks the Session to change shared
+state, a terminal, an Agent, or user storage; every request variant states its effect in
+`application_connection/effect.rs`. A refused intent never takes effect. On a multiplexed
+connection its stream closes with `stopping` and every other stream continues. A direct connection
+has no per-record refusal, so it ends at the refused intent, as it does at any record after a
+Session stop; its Client reports the connection lost. With no new intent, the Worker receives no
+new work, so no separate Worker message drains it. A Session stop or an `exit` refuses reads too.
+`exit` closes admission, waits for admitted records, stops the Server's
 background jobs, publishes the final checkpoint, and sends the Worker a Keep shutdown that releases
 its Host connection without inventory, containment or disposal, then waits for the Worker to exit.
 With no terminal left, the Server also waits up to three seconds for the Host to end on its own.
@@ -734,7 +743,9 @@ most 64 queued records; the dispatcher executes finite requests and writes outsi
 business locks. A request that waits on a Worker job (`WorkspaceGit`, `WorktreeQuery`,
 `WorktreeListRead`) would hold every other stream behind it, so one job-read thread per connection
 runs those in arrival order and hands each finished result back to the dispatcher, the only writer.
-There are at most 64 active streams and 64 explicit lanes, plus root lane 1.
+There are at most 64 active streams and 64 explicit lanes, plus root lane 1. After a `drain`, a
+request stream carrying an intent closes with `stopping` before the intent takes effect, and the
+Client reports that request as not submitted.
 
 A Worker's `TerminalViewerRecordReady` becomes this connection's `ViewerRecordReady`. A viewer
 connection registers its attachment in `ViewerReadyRoutes` before it sends Attach, and dropping the

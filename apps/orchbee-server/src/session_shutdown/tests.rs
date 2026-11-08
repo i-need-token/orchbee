@@ -34,6 +34,8 @@ fn stop_freezes_admission_without_losing_existing_record_ownership() {
     ));
     assert!(state.stopping());
     assert!(state.enter().is_none());
+    // A Session stop keeps refusing reads as well, unlike a drain.
+    assert!(state.enter_read().is_none());
     assert!(!state.settle_records(Instant::now()));
     drop(record);
     assert!(state.settle_records(Instant::now()));
@@ -107,6 +109,8 @@ fn drain_is_repeatable_and_closes_only_new_work() {
     // An offer meets a state other than `ready`, so the handshake refuses it with `stopping`.
     assert_eq!(state.offer_state(), ProcessState::Draining);
     assert!(state.enter().is_none());
+    // Reads continue, so a waiting Client still observes its admitted operation's result.
+    drop(state.enter_read().unwrap());
     // The admitted record still runs to its result; a drain alone gives the owner no work.
     assert!(!state.settle_records(Instant::now()));
     assert_eq!(state.take_within(Duration::ZERO), None);
@@ -127,6 +131,7 @@ fn exit_follows_a_queued_stop_and_never_returns_to_serving() {
     assert_eq!(state.drain(), ProcessState::Stopping);
     assert_eq!(state.offer_state(), ProcessState::Stopping);
     assert!(state.enter().is_none());
+    assert!(state.enter_read().is_none());
     drop(reply);
 
     let state = SessionShutdown::default();

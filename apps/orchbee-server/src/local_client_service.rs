@@ -501,7 +501,7 @@ fn handle_candidate_control(
                 ))
             }
         },
-        || control.enter(),
+        |effect| control.admit(effect),
         |signal| {
             workbench_connection.watch_changes(signal);
             agents.watch_changes(signal);
@@ -518,7 +518,8 @@ fn handle_candidate_control(
     report_connection_end(connection_result, generation);
 }
 
-/// Reports a Connection that ended on a fault; Session stop and a departed peer are ordinary ends.
+/// Reports a Connection that ended on a fault; Session stop, a drain refusing an intent, and a
+/// departed peer are ordinary ends.
 fn report_connection_end(
     result: Result<(), ApplicationConnectionError>,
     generation: std::num::NonZeroU64,
@@ -536,7 +537,12 @@ fn report_connection_end(
                 | io::ErrorKind::BrokenPipe
         )
     });
-    if departed || matches!(failure, ApplicationConnectionError::Stopping) {
+    if departed
+        || matches!(
+            failure,
+            ApplicationConnectionError::Stopping | ApplicationConnectionError::Draining
+        )
+    {
         return;
     }
     diagnostic::report(

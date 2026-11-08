@@ -80,6 +80,8 @@ struct DeliveryState {
     bytes: usize,
     closed: bool,
     failure: Option<orchbee_workbench_protocol::MultiplexDisconnectReason>,
+    /// A drained Server refused this stream's request before it took effect.
+    refused: bool,
 }
 /// Runs on the connection actor or the thread cancelling the stream, so it must not block.
 struct ReadyListener(Box<dyn Fn() + Send + Sync>);
@@ -212,6 +214,9 @@ impl Delivery {
                     Disconnect(reason),
                 ));
             }
+            if state.refused {
+                return Err(io::Error::new(io::ErrorKind::ConnectionRefused, Refused));
+            }
             return Err(io::ErrorKind::BrokenPipe.into());
         }
         drop(state);
@@ -219,6 +224,13 @@ impl Delivery {
     }
     fn close(&self) {
         if let Ok(mut state) = self.state.lock() {
+            state.closed = true;
+        }
+        self.signal();
+    }
+    fn refuse(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            state.refused = true;
             state.closed = true;
         }
         self.signal();
@@ -669,6 +681,11 @@ impl Connection {
                 subscription.delivery.cancel(),
                 io::ErrorKind::ConnectionAborted.into(),
             )),
+            // The Server refused the request before it took effect, so it was never submitted.
+            Err(error) if refused(&error) => {
+                subscription.delivery.cancel();
+                Err((false, error))
+            }
             Err(error) => Err((subscription.delivery.cancel(), error)),
         }
     }
@@ -1228,9 +1245,13 @@ fn deliver(
                 return Ok(false);
             }
         }
-        MultiplexMessage::StreamClose { stream_id, .. } => {
+        MultiplexMessage::StreamClose { stream_id, reason } => {
             if let Some(item) = active.remove(&stream_id) {
-                item.delivery.close();
+                if reason == StreamCloseReason::Stopping {
+                    item.delivery.refuse();
+                } else {
+                    item.delivery.close();
+                }
             } else {
                 return Ok(false);
             }
@@ -1283,6 +1304,21 @@ impl std::fmt::Display for Disconnect {
     }
 }
 impl std::error::Error for Disconnect {}
+
+/// A drained Server refused one request before it took effect; the connection stays usable.
+#[derive(Debug)]
+struct Refused;
+impl std::fmt::Display for Refused {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the Session is stopping and accepts no new intent")
+    }
+}
+impl std::error::Error for Refused {}
+
+/// Whether the Server refused this request because it is stopping; nothing was applied.
+fn refused(error: &io::Error) -> bool {
+    error.get_ref().is_some_and(|source| source.is::<Refused>())
+}
 
 /// A typed peer rejection retires this carrier; an outer profile owner must not retry around it.
 pub fn terminal_failure(error: &io::Error) -> bool {

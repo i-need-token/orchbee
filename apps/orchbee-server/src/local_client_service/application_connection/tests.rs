@@ -44,9 +44,13 @@ fn stop_admission_closes_before_effect_and_preserves_the_previous_complete_resul
         },
         |_| panic!("Workbench"),
         |_| panic!("Agent"),
-        || {
+        |_| {
             admissions += 1;
-            (admissions == 1).then_some(())
+            if admissions == 1 {
+                Ok(())
+            } else {
+                Err(super::Refusal::Stopping)
+            }
         },
     );
     assert!(matches!(result, Err(ApplicationConnectionError::Stopping)));

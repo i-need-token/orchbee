@@ -35,7 +35,7 @@ struct Entry {
 enum Course {
     #[default]
     Serving,
-    /// Admits no new record or Client while admitted records finish.
+    /// Admits no new Client or intent record while reads continue and admitted records finish.
     Draining,
     /// The lifecycle owner is ending the Server and its Worker, leaving every terminal running.
     Exiting,
@@ -181,11 +181,23 @@ impl SessionShutdown {
         true
     }
 
-    /// A record lease is acquired after decoding and remains held through its result write. There
-    /// is none once a Session stop is recorded or a `drain` or `exit` arrived.
+    /// Admits new work: a Client connection, or an intent record. A record lease is acquired after
+    /// decoding and remains held through its result write. There is none once a Session stop is
+    /// recorded or a `drain` or `exit` arrived.
     pub(crate) fn enter(&self) -> Option<RecordLease<'_>> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some() || state.course != Course::Serving {
+            return None;
+        }
+        state.records += 1;
+        Some(RecordLease(self))
+    }
+
+    /// Admits a read record: a `drain` keeps serving reads, while a Session stop or an `exit`
+    /// admits none.
+    pub(crate) fn enter_read(&self) -> Option<RecordLease<'_>> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.entry.is_some() || state.course > Course::Draining {
             return None;
         }
         state.records += 1;

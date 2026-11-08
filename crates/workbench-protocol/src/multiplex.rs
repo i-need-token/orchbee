@@ -79,6 +79,9 @@ pub enum StreamCloseReason {
     Unsupported,
     Capacity,
     InvalidRequest,
+    /// A drained Server refuses this intent before it takes effect; the connection keeps serving
+    /// reads.
+    Stopping,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MultiplexDisconnectReason {
@@ -201,6 +204,7 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
                 StreamCloseReason::Unsupported => 2,
                 StreamCloseReason::Capacity => 3,
                 StreamCloseReason::InvalidRequest => 4,
+                StreamCloseReason::Stopping => 5,
             });
         }
         MultiplexMessage::Gap { stream_id, through } => {
@@ -327,6 +331,7 @@ fn decode(kind: u16, payload: &[u8]) -> io::Result<MultiplexMessage> {
                 2 => StreamCloseReason::Unsupported,
                 3 => StreamCloseReason::Capacity,
                 4 => StreamCloseReason::InvalidRequest,
+                5 => StreamCloseReason::Stopping,
                 _ => return Err(invalid()),
             },
         },

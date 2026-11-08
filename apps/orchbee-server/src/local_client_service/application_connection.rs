@@ -22,6 +22,27 @@ use orchbee_workbench_protocol::{
 use crate::agent_service::AgentReadFault;
 use crate::workbench_service::WorkbenchExecution;
 
+mod effect;
+pub(super) use effect::Effect;
+
+/// Why the lifecycle owner admitted no record.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Refusal {
+    /// A `drain` refuses intents; the connection keeps serving reads.
+    Draining,
+    /// A Session stop or `exit` ends the connection.
+    Stopping,
+}
+
+fn admitted<Permit>(
+    admission: Result<Permit, Refusal>,
+) -> Result<Permit, ApplicationConnectionError> {
+    admission.map_err(|refusal| match refusal {
+        Refusal::Draining => ApplicationConnectionError::Draining,
+        Refusal::Stopping => ApplicationConnectionError::Stopping,
+    })
+}
+
 #[derive(Clone)]
 pub(super) struct ApplicationRequest {
     kind: ApplicationRequestKind,
@@ -34,6 +55,13 @@ enum ApplicationRequestKind {
     Agent(AgentRequest),
 }
 impl ApplicationRequest {
+    pub(super) fn effect(&self) -> Effect {
+        match &self.kind {
+            ApplicationRequestKind::Terminal(request) => effect::terminal(request),
+            ApplicationRequestKind::Workbench(request) => effect::workbench(request),
+            ApplicationRequestKind::Agent(request) => effect::agent(request),
+        }
+    }
     pub(super) fn workbench(&self) -> Option<&WorkbenchRequest> {
         match &self.kind {
             ApplicationRequestKind::Workbench(request) => Some(request),
@@ -249,7 +277,7 @@ pub(super) fn run_network<Permit>(
     mut execute_workbench: impl FnMut(MultiplexLaneId, WorkbenchRequest) -> WorkbenchExecution,
     execute_job_read: impl Fn(WorkbenchRequest) -> WorkbenchExecution + Sync,
     mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
-    admit: impl Fn() -> Option<Permit> + Sync,
+    admit: impl Fn(Effect) -> Result<Permit, Refusal> + Sync,
     watch: impl FnOnce(&std::sync::Arc<orchbee_server::SessionChangeSignal>),
     viewer_ready: impl FnMut() -> Vec<orchbee_workbench_protocol::MultiplexViewerId>,
     mut cancel: impl FnMut(&WorkbenchRequest),
@@ -289,7 +317,7 @@ pub(super) fn run_network<Permit>(
         first,
         signal,
         |lane, request| {
-            let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+            let _permit = admitted(admit(request.effect()))?;
             let mut bytes = Vec::new();
             match &request.kind {
                 ApplicationRequestKind::Terminal(request) => {
@@ -316,7 +344,7 @@ pub(super) fn run_network<Permit>(
         },
         viewer_ready,
         |request| {
-            let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+            let _permit = admitted(admit(request.effect()))?;
             let request = request
                 .workbench()
                 .ok_or(ApplicationConnectionError::UnknownProtocol)?;
@@ -349,9 +377,13 @@ pub(super) fn run<Stream>(
 where
     Stream: Read + Write,
 {
-    run_guarded(stream, execute, execute_workbench, execute_agent, || {
-        Some(())
-    })
+    run_guarded(
+        stream,
+        execute,
+        execute_workbench,
+        execute_agent,
+        |_| Ok(()),
+    )
 }
 
 pub(super) fn run_guarded<Stream, Permit>(
@@ -359,7 +391,7 @@ pub(super) fn run_guarded<Stream, Permit>(
     mut execute: impl FnMut(ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
     mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
-    mut admit: impl FnMut() -> Option<Permit>,
+    mut admit: impl FnMut(Effect) -> Result<Permit, Refusal>,
 ) -> Result<(), ApplicationConnectionError>
 where
     Stream: Read + Write,
@@ -373,14 +405,14 @@ where
             FRAME_MAGIC | PASTE_RECORD_MAGIC | SEND_RECORD_MAGIC => {
                 let request = read_client_message(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationConnectionError::Read)?;
-                let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+                let _permit = admitted(admit(effect::terminal(&request)))?;
                 let result = execute(request);
                 write_server_message(stream, &result).map_err(ApplicationConnectionError::Write)?;
             }
             WORKBENCH_MAGIC => {
                 let request = read_workbench_request(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationConnectionError::Workbench)?;
-                let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+                let _permit = admitted(admit(effect::workbench(&request)))?;
                 let WorkbenchExecution::Response(result) = execute_workbench(request) else {
                     return Err(ApplicationConnectionError::WorkbenchOutcomeUnknown);
                 };
@@ -390,7 +422,7 @@ where
             AGENT_MAGIC => {
                 let request = read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationConnectionError::Agent)?;
-                let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+                let _permit = admitted(admit(effect::agent(&request)))?;
                 let result =
                     execute_agent(request).map_err(ApplicationConnectionError::AgentFault)?;
                 write_agent_result(stream, &result).map_err(ApplicationConnectionError::Agent)?;
@@ -403,6 +435,9 @@ where
 #[derive(Debug)]
 pub(super) enum ApplicationConnectionError {
     Stopping,
+    /// A drained Server refused an intent. A multiplexed connection closes only that stream; a
+    /// direct connection has no per-record refusal and ends.
+    Draining,
     Prefix(io::Error),
     Multiplex(io::Error),
     UnknownProtocol,
@@ -431,7 +466,7 @@ impl ApplicationConnectionError {
     /// The Connection stage that failed, as a static diagnostic identifier.
     pub(super) const fn stage(&self) -> &'static str {
         match self {
-            Self::Stopping => "admission",
+            Self::Stopping | Self::Draining => "admission",
             Self::Prefix(_) => "record-prefix",
             Self::Multiplex(_) => "multiplex",
             Self::UnknownProtocol => "protocol-select",
@@ -449,6 +484,7 @@ impl fmt::Display for ApplicationConnectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Stopping => formatter.write_str("Session is stopping"),
+            Self::Draining => formatter.write_str("Session is draining and admits no new intent"),
             Self::Prefix(error) => {
                 write!(formatter, "Application record prefix read failed: {error}")
             }
@@ -476,7 +512,7 @@ impl fmt::Display for ApplicationConnectionError {
 impl std::error::Error for ApplicationConnectionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Stopping => None,
+            Self::Stopping | Self::Draining => None,
             Self::Prefix(error) | Self::Multiplex(error) => Some(error),
             Self::UnknownProtocol | Self::WorkbenchOutcomeUnknown => None,
             Self::Workbench(error) => Some(error),

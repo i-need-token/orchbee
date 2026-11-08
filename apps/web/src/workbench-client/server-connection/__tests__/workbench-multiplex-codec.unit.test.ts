@@ -27,7 +27,14 @@ const messageSchema = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({
 		kind: z.literal('stream-close'),
-		reason: z.enum(['complete', 'cancelled', 'unsupported', 'capacity', 'invalid-request']),
+		reason: z.enum([
+			'complete',
+			'cancelled',
+			'unsupported',
+			'capacity',
+			'invalid-request',
+			'stopping',
+		]),
 		streamId: decimal,
 	}),
 	z.strictObject({ kind: z.literal('gap'), streamId: decimal, through: decimal }),

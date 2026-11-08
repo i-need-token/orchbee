@@ -25,6 +25,7 @@ const CLOSE_REASONS = [
 	'unsupported',
 	'capacity',
 	'invalid-request',
+	'stopping',
 ] as const;
 const DISCONNECT_REASONS = ['slow-consumer', 'capacity', 'invalid-stream', 'unavailable'] as const;
 

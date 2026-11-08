@@ -140,6 +140,7 @@ fn corpus() -> Vec<MultiplexMessage> {
             StreamCloseReason::Unsupported,
             StreamCloseReason::Capacity,
             StreamCloseReason::InvalidRequest,
+            StreamCloseReason::Stopping,
         ]
         .into_iter()
         .map(|reason| MultiplexMessage::StreamClose { stream_id, reason }),

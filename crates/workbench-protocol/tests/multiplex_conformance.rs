@@ -134,6 +134,7 @@ fn expected(message: &Message) -> MultiplexMessage {
                 "unsupported" => StreamCloseReason::Unsupported,
                 "capacity" => StreamCloseReason::Capacity,
                 "invalid-request" => StreamCloseReason::InvalidRequest,
+                "stopping" => StreamCloseReason::Stopping,
                 other => panic!("unknown close reason {other}"),
             },
         },

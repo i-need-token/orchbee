@@ -36,6 +36,49 @@ fn bounded_pair() -> (LocalStream, LocalStream) {
 }
 
 #[test]
+fn a_drain_refuses_one_intent_stream_while_the_connection_keeps_serving() {
+    let (mut peer, server) = bounded_pair();
+    let mut executions = 0;
+    let task = thread::spawn(move || {
+        run(
+            &server,
+            open(1, 1, StreamMode::Request),
+            Arc::default(),
+            move |_, _| {
+                executions += 1;
+                if executions == 1 {
+                    Err(ApplicationConnectionError::Draining)
+                } else {
+                    Ok(vec![2])
+                }
+            },
+            Vec::new,
+            no_job_read,
+            |_| {},
+            |_| {},
+            || Ok(None),
+        )
+    });
+    assert_eq!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamClose {
+            stream_id: MultiplexStreamId::new(1).unwrap(),
+            reason: StreamCloseReason::Stopping,
+        }
+    );
+    write_multiplex_message(&mut peer, &open(2, 1, StreamMode::Request)).unwrap();
+    let MultiplexMessage::StreamFrame {
+        stream_id, record, ..
+    } = read_multiplex_message(&mut peer).unwrap()
+    else {
+        panic!("result frame");
+    };
+    assert_eq!((stream_id.value(), record), (2, vec![2]));
+    drop(peer);
+    let _closed = task.join().unwrap();
+}
+
+#[test]
 fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
     use orchbee_workbench_protocol::{SessionId, WorkbenchWorkspaceId, WorkspaceGitRequest};
     let (mut peer, server) = bounded_pair();

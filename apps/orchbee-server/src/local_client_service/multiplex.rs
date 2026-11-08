@@ -449,7 +449,21 @@ fn dispatch(
                     // Registration precedes capture: publication during capture changes the signal
                     // revision and forces another evaluation before this connection can sleep.
                     let captured_at = stream_revision(signal, mode);
-                    let record = execute(lane_id, &parsed).map_err(io::Error::other)?;
+                    let record = match execute(lane_id, &parsed) {
+                        Ok(record) => record,
+                        // A drain refuses this intent alone; the connection keeps serving reads.
+                        Err(ApplicationConnectionError::Draining) => {
+                            write_multiplex_message(
+                                writer,
+                                &MultiplexMessage::StreamClose {
+                                    stream_id,
+                                    reason: StreamCloseReason::Stopping,
+                                },
+                            )?;
+                            continue;
+                        }
+                        Err(error) => return Err(io::Error::other(error)),
+                    };
                     // Invalidation mode carries Server commit hints only. External-file
                     // observation belongs to subscriptions that deliver semantic snapshots.
                     let next_file_sample = (mode != StreamMode::Invalidations)
