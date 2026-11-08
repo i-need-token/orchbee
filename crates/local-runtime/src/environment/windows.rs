@@ -114,14 +114,19 @@ pub fn prepare_default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> i
     }
 }
 
-/// Whether `path` is this environment's roaming or local state root, below which only the root
-/// itself must be private. Both roots follow the same rule in every environment.
-pub(crate) fn is_state_root(path: &Path) -> bool {
+/// Whether a missing `path` is created as a state root: it is this environment's roaming or local
+/// state root and its parent exists. Only such a root must be private, since its parent may be a
+/// shared home directory. Both roots follow the same rule in every environment; a root whose parent
+/// is missing keeps the caller's private recursive creation.
+pub(crate) fn creates_as_state_root(path: &Path) -> bool {
     let env = |name: &str| std::env::var_os(name);
     [roaming_state_root(env), local_state_root(env)]
         .into_iter()
         .flatten()
         .any(|root| root == path)
+        && path
+            .parent()
+            .is_some_and(|parent| fs::symlink_metadata(parent).is_ok())
 }
 
 /// Pins a state root and its ancestors and admits the root as a private directory. Only the root

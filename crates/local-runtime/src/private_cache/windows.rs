@@ -291,10 +291,9 @@ fn read_leaf(path: &Path, maximum: usize) -> io::Result<Option<Vec<u8>>> {
 fn create_tree(path: &Path) -> io::Result<Vec<File>> {
     match permissions::open_tree(path) {
         Ok(pins) => Ok(pins),
-        // Only a state root itself must be private; its parent may be a shared home directory.
         Err(error)
             if error.kind() == io::ErrorKind::NotFound
-                && crate::environment::is_state_root(path) =>
+                && crate::environment::creates_as_state_root(path) =>
         {
             crate::environment::create_state_root(path)
         }
