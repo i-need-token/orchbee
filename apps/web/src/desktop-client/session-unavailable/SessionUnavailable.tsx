@@ -11,32 +11,42 @@ export interface SessionUnavailableProps {
 	readonly refusal: DesktopSessionRefusal | null;
 }
 
+/** A command the copy names stays on one line, so it reads and copies as written. */
+function command(chunks: readonly ReactNode[]): ReactNode {
+	return <code className={styles['command']}>{chunks}</code>;
+}
+
 /** Says what the TUI and CLI say for the same refusal, with Desktop naming itself. */
 function describe(
 	intl: ReturnType<typeof useOrchbeeIntl>,
 	refusal: DesktopSessionRefusal | null,
-): string {
+): ReactNode {
 	switch (refusal?.reason) {
 		case undefined:
 			return intl.formatMessage(sessionConnectionMessages.unavailableDescription);
 		case 'recovery-required':
-			return intl.formatMessage(sessionConnectionMessages.unavailableRecoveryRequired);
+			return intl.formatMessage(sessionConnectionMessages.unavailableRecoveryRequired, {
+				command,
+			});
 		case 'desktop-too-old':
+			return intl.formatMessage(sessionConnectionMessages.unavailableDesktopTooOld, {
+				desktopVersion: refusal.desktopVersion,
+				hasSessionVersion: String(refusal.sessionVersion !== null),
+				sessionVersion: refusal.sessionVersion ?? '',
+			});
 		case 'session-too-old':
-			return intl.formatMessage(
-				refusal.reason === 'desktop-too-old'
-					? sessionConnectionMessages.unavailableDesktopTooOld
-					: sessionConnectionMessages.unavailableSessionTooOld,
-				{
-					desktopVersion: refusal.desktopVersion,
-					hasSessionVersion: String(refusal.sessionVersion !== null),
-					sessionVersion: refusal.sessionVersion ?? '',
-				},
-			);
+			return intl.formatMessage(sessionConnectionMessages.unavailableSessionTooOld, {
+				command,
+				desktopVersion: refusal.desktopVersion,
+				hasSessionVersion: String(refusal.sessionVersion !== null),
+				sessionVersion: refusal.sessionVersion ?? '',
+			});
 		case 'other-environment':
 			return intl.formatMessage(sessionConnectionMessages.unavailableOtherEnvironment);
 		case 'development-build-mismatch':
-			return intl.formatMessage(sessionConnectionMessages.unavailableDevelopmentBuildMismatch);
+			return intl.formatMessage(sessionConnectionMessages.unavailableDevelopmentBuildMismatch, {
+				command,
+			});
 	}
 }
 

@@ -30,7 +30,8 @@
 	"invariants": [
 		"Trying again is the only effect; nothing retries or recovers automatically.",
 		"Recovering or stopping the Session stays an explicit command that the surface names but never runs.",
-		"A refused version names both the Desktop and the Session version, leaving out one the Session did not state.",
+		"Each command the copy names is inline code that never wraps, so it reads and copies as written.",
+		"A refused version names both the Desktop and the Session version; a Session that states none predates version checks, and only the Orchbee that started it can stop it.",
 		"The window stays movable through a title-bar strip, because no Workbench draws one.",
 		"All user-facing copy is provided by the Orchbee localization catalog."
 	],

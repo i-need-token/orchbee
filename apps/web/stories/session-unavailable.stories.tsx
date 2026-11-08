@@ -49,7 +49,7 @@ export const DesktopTooOld: Story = { args: { refusal: desktopTooOld }, decorato
 
 export const SessionTooOld: Story = { args: { refusal: sessionTooOld }, decorators: english };
 
-/** A Session older than the handshake states no version, so the message leaves it out. */
+/** A Session older than the handshake states no version; only the Orchbee that started it stops it. */
 export const SessionTooOldWithoutVersion: Story = {
 	args: { refusal: { ...sessionTooOld, sessionVersion: null } },
 	decorators: english,
@@ -74,6 +74,11 @@ export const SimplifiedChineseDesktopTooOld: Story = {
 
 export const SimplifiedChineseSessionTooOld: Story = {
 	args: { refusal: sessionTooOld },
+	decorators: simplifiedChinese,
+};
+
+export const SimplifiedChineseSessionTooOldWithoutVersion: Story = {
+	args: { refusal: { ...sessionTooOld, sessionVersion: null } },
 	decorators: simplifiedChinese,
 };
 

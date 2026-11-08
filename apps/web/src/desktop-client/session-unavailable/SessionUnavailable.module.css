@@ -38,6 +38,11 @@
 	user-select: text;
 }
 
+.command {
+	font: var(--ob-sys-typography-code-sm);
+	white-space: nowrap;
+}
+
 .action {
 	margin-block-start: var(--ob-ref-space-2);
 }

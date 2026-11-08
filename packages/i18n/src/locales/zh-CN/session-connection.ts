@@ -9,13 +9,13 @@ export const zhCNSessionConnectionMessages = {
 	'session.connection.unavailable.desktopTooOld':
 		'Orchbee Desktop {desktopVersion} 版本过旧，无法加入{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）} other {正在运行的会话}}。请更新 Desktop 后重试。',
 	'session.connection.unavailable.developmentBuildMismatch':
-		'此开发构建无法加入正在运行的会话。请运行 orchbee server stop 停止它，然后重试。',
+		'此开发构建无法加入正在运行的会话。请运行 <command>orchbee server stop</command> 停止它，然后重试。',
 	'session.connection.unavailable.otherEnvironment':
 		'此 Orchbee Desktop 属于另一个环境，无法加入正在运行的会话。',
 	'session.connection.unavailable.recoveryRequired':
-		'该会话需要恢复后才能启动。如需检查，请在终端中运行 orchbee server diagnose。',
+		'该会话需要恢复后才能启动。如需检查，请在终端中运行 <command>orchbee server diagnose</command>。',
 	'session.connection.unavailable.sessionTooOld':
-		'{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）} other {正在运行的会话}}版本过旧，无法与 Orchbee Desktop {desktopVersion} 配合。请运行 orchbee server stop 停止它（其中的终端会随之结束），然后重试。',
+		'{hasSessionVersion, select, true {正在运行的会话（{sessionVersion}）版本过旧，无法与 Orchbee Desktop {desktopVersion} 配合。请运行 <command>orchbee server stop</command>，然后重试。} other {正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 <command>server stop</command>，然后重试。}}',
 	'session.connection.unavailable.title': 'Orchbee 会话不可用',
 	'session.connection.unavailable.tryAgain': '重试',
 } as const satisfies Readonly<Record<SessionConnectionMessageId, string>>;

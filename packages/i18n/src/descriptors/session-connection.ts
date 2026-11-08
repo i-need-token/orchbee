@@ -20,16 +20,19 @@ export const sessionConnectionMessages = defineMessages({
 	),
 	unavailableDevelopmentBuildMismatch: message(
 		'session.connection.unavailable.developmentBuildMismatch',
-		'A development build whose protocol differs from the running Session’s was refused. Matches the TUI and CLI refusal; the command is not translated.',
+		'A development build whose protocol differs from the running Session’s was refused. Matches the TUI and CLI refusal. The <command> tag holds a command, which is not translated.',
 	),
 	unavailableOtherEnvironment: message(
 		'session.connection.unavailable.otherEnvironment',
 		'The running Session belongs to another environment, such as release beside a development build. Matches the TUI and CLI refusal.',
 	),
-	unavailableRecoveryRequired: message('session.connection.unavailable.recoveryRequired'),
+	unavailableRecoveryRequired: message(
+		'session.connection.unavailable.recoveryRequired',
+		'The <command> tag holds a command, which is not translated.',
+	),
 	unavailableSessionTooOld: message(
 		'session.connection.unavailable.sessionTooOld',
-		`The running Session is too old for this Desktop. Matches the TUI and CLI refusal; the command is not translated. ${REFUSED_VERSIONS}`,
+		`The running Session is too old for this Desktop; without a version it predates version checks, and only the Orchbee that started it can stop it. Matches the TUI and CLI refusal. The <command> tag holds a command, which is not translated. ${REFUSED_VERSIONS}`,
 	),
 	unavailableTitle: message('session.connection.unavailable.title'),
 	unavailableTryAgain: message('session.connection.unavailable.tryAgain'),
