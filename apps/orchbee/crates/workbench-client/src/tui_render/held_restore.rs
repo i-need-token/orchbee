@@ -1,7 +1,9 @@
 //! The placeholder of a Panel a restore held because its saved directory was unavailable: its
 //! title, the saved directory, and the Retry, Start in home folder and Close buttons. Buttons that
 //! no longer fit beside the previous one move to the next row; a button that fits nowhere is not
-//! painted and so cannot be clicked.
+//! painted and so cannot be clicked. The focused button shows its focus only while the Panel owns
+//! keyboard input, so a sidebar, navigator or overlay that holds the keys is the only region
+//! showing focus.
 
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
@@ -36,6 +38,7 @@ pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
     held: &HeldRestoreView<'_>,
+    keyboard_focus: bool,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -73,7 +76,7 @@ pub(super) fn render(
                 },
                 ControlSurface::Canvas,
                 InteractionState::new(
-                    if held.focused == Some(action) {
+                    if keyboard_focus && held.focused == Some(action) {
                         FocusState::Focused
                     } else {
                         FocusState::Unfocused

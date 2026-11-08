@@ -1846,7 +1846,15 @@ fn render_native_workbench(
             .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
             .and_then(|panel| native.held_restore(panel))
         {
-            held_restore::render(frame, content_area, &held, locale, theme, hits);
+            held_restore::render(
+                frame,
+                content_area,
+                &held,
+                input_enabled,
+                locale,
+                theme,
+                hits,
+            );
         } else if let Some(failure) = active_tab
             .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
             .and_then(|panel| native.launch_failure(panel))
@@ -2320,7 +2328,7 @@ fn render_leaf(
             theme.style(Role::SurfaceSelection),
         );
     } else if let Some(held) = panel.and_then(|panel| native.held_restore(panel)) {
-        held_restore::render(frame, content, &held, locale, theme, hits);
+        held_restore::render(frame, content, &held, input_enabled, locale, theme, hits);
     } else if let Some(failure) = panel.and_then(|panel| native.launch_failure(panel)) {
         terminal_failure::render(frame, content, failure, client_view, locale, theme);
     } else if let Some(retained) = panel.and_then(|panel| {
