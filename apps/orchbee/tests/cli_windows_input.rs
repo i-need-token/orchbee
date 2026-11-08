@@ -11,7 +11,7 @@ use std::{
 const TERMINAL: &str = "00000000000000000000000000000001";
 
 fn invoke(source: &[&str], payload: &[u8]) -> Output {
-    let mut child = Command::new(crate::staged_client::client())
+    let mut child = crate::staged_client::command()
         .args(["terminal", "send", TERMINAL])
         .args(source)
         .args(["--format", "json"])
@@ -75,6 +75,7 @@ fn actual_powershell_pipeline_reaches_the_same_post_source_boundary() {
                 &script,
             ])
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
+            .env("USERPROFILE", crate::staged_client::profile())
             .env("LC_ALL", "en_US.UTF-8")
             .output()
         {

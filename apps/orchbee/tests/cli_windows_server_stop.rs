@@ -22,12 +22,22 @@ impl Fixture {
             u128::from_le_bytes(id)
         ));
         fs::create_dir(&root).unwrap();
+        fs::create_dir(root.join("runtime")).unwrap();
         Self(root)
+    }
+    fn runtime(&self) -> PathBuf {
+        self.0.join("runtime")
+    }
+    /// A development or test build keeps its state, including the destructive request log,
+    /// under the profile.
+    fn profile(&self) -> PathBuf {
+        self.0.join("profile")
     }
     fn run(&self, arguments: &[&str], locale: &str) -> Output {
         Command::new(crate::staged_client::client())
             .args(arguments)
-            .env("ORCHBEE_RUNTIME_BASE", &self.0)
+            .env("ORCHBEE_RUNTIME_BASE", self.runtime())
+            .env("USERPROFILE", self.profile())
             .env("LC_ALL", locale)
             .stdin(Stdio::null())
             .output()
@@ -39,7 +49,8 @@ impl Fixture {
             Sha256::digest(orchbee_local_ipc::current_user_sid().unwrap().as_bytes())
         )[..47]
             .to_owned();
-        Rendezvous::prepare_mode_checked(&self.0, SessionScope::parse(&scope).unwrap()).unwrap()
+        Rendezvous::prepare_mode_checked(&self.runtime(), SessionScope::parse(&scope).unwrap())
+            .unwrap()
     }
     fn query(&self) -> Value {
         let output = self.run(
@@ -78,13 +89,14 @@ impl Drop for Fixture {
 #[test]
 fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
     let fixture = Fixture::new();
-    let blocked_runtime = fixture.0.join("runtime-is-a-file");
+    let blocked_runtime = fixture.runtime().join("runtime-is-a-file");
     fs::write(&blocked_runtime, b"untouched").unwrap();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         let run = |arguments: &[&str]| {
             Command::new(crate::staged_client::client())
                 .args(arguments)
                 .env("ORCHBEE_RUNTIME_BASE", &blocked_runtime)
+                .env("USERPROFILE", fixture.profile())
                 .env("ORCHBEE_SESSION", "invalid/session")
                 .env("LC_ALL", locale)
                 .stdin(Stdio::null())
@@ -130,7 +142,7 @@ fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
         );
     }
     assert_eq!(fs::read(&blocked_runtime).unwrap(), b"untouched");
-    assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(fixture.runtime()).unwrap().count(), 1);
 }
 
 #[test]
@@ -146,7 +158,7 @@ fn missing_receipt_query_and_invalid_destructive_argv_have_no_runtime_effects() 
             Some(2)
         );
     }
-    assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 0);
+    assert_eq!(fs::read_dir(fixture.runtime()).unwrap().count(), 0);
 }
 
 #[test]

@@ -23,7 +23,12 @@ impl Fixture {
             u128::from_le_bytes(nonce)
         ));
         fs::create_dir(&root).unwrap();
+        fs::create_dir(root.join("runtime")).unwrap();
         Self(root)
+    }
+
+    fn runtime(&self) -> PathBuf {
+        self.0.join("runtime")
     }
 
     fn scope(&self) -> String {
@@ -34,7 +39,9 @@ impl Fixture {
     fn run(&self, format: &str, locale: &str) -> Output {
         Command::new(crate::staged_client::client())
             .args(["server", "diagnose", "--format", format])
-            .env("ORCHBEE_RUNTIME_BASE", &self.0)
+            .env("ORCHBEE_RUNTIME_BASE", self.runtime())
+            // A development or test build keeps its Session catalog under the profile.
+            .env("USERPROFILE", self.0.join("profile"))
             .env("LC_ALL", locale)
             .stdin(Stdio::null())
             .output()
@@ -97,8 +104,8 @@ fn missing_and_invalid_scope_never_creates_or_repairs_descendants() {
     assert_eq!(document["result"]["complete"], true);
     assert_eq!(document["result"]["runtimeDirectory"]["state"], "absent");
     assert_eq!(document["result"]["marker"]["reason"], "parent-unavailable");
-    assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 0);
-    let scope_path = fixture.0.join(fixture.scope());
+    assert_eq!(fs::read_dir(fixture.runtime()).unwrap().count(), 0);
+    let scope_path = fixture.runtime().join(fixture.scope());
     fs::write(&scope_path, b"user-owned obstruction").unwrap();
     let document = fixture.document();
     assert_eq!(
@@ -110,14 +117,14 @@ fn missing_and_invalid_scope_never_creates_or_repairs_descendants() {
         "parent-unavailable"
     );
     assert_eq!(fs::read(scope_path).unwrap(), b"user-owned obstruction");
-    assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(fixture.runtime()).unwrap().count(), 1);
 }
 
 #[test]
 fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     let fixture = Fixture::new();
     let session = Rendezvous::prepare_mode_checked(
-        &fixture.0,
+        &fixture.runtime(),
         SessionScope::parse(&fixture.scope()).unwrap(),
     )
     .unwrap();

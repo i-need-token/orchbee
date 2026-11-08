@@ -3,12 +3,35 @@
 //! ORC-328 and run Cargo's binary.
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::OnceLock;
 
 /// The CLI executable this test process starts.
 pub fn client() -> &'static Path {
     static CLIENT: OnceLock<PathBuf> = OnceLock::new();
     CLIENT.get_or_init(stage)
+}
+
+/// Starts the CLI under test for an invocation that owns no fixture. On Windows it receives the
+/// shared offline profile, since a development or test build keeps all of its state under
+/// `<USERPROFILE>\.<stem>`; a test with a fixture of its own gives the CLI that fixture's profile.
+pub fn command() -> Command {
+    let mut command = Command::new(client());
+    #[cfg(windows)]
+    command.env("USERPROFILE", profile());
+    command
+}
+
+/// A profile beside the staged copy, so an invocation without a fixture never reads or writes the
+/// person's own state. Such invocations share it, so none of them may leave Orchbee state there.
+#[cfg(windows)]
+pub fn profile() -> &'static Path {
+    static PROFILE: OnceLock<PathBuf> = OnceLock::new();
+    PROFILE.get_or_init(|| {
+        let profile = client().with_file_name("offline-profile");
+        std::fs::create_dir_all(&profile).unwrap();
+        profile
+    })
 }
 
 #[cfg(not(windows))]

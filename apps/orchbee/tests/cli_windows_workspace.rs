@@ -1,9 +1,9 @@
 //! Windows argv and localized help evidence for Workspace creation and group closure.
 //! Invalid runtime configuration proves invalid launch input never reaches a Session.
 #![cfg(windows)]
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 fn run(words: &[&str], locale: &str) -> Output {
-    Command::new(crate::staged_client::client())
+    crate::staged_client::command()
         .args(words)
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
         .env("LC_ALL", locale)

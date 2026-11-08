@@ -585,8 +585,12 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         fs::copy(&binary, &copy)?;
         copy
     };
+    let mut command = Command::new(binary);
+    // The Host and the terminal it starts never see the person's own profile.
+    #[cfg(windows)]
+    command.env("USERPROFILE", staged.0.join("profile"));
     let mut child = HostChild(
-        Command::new(binary)
+        command
             .args(["serve", "--runtime-directory"])
             .arg(&directory.0)
             .args(["--endpoint-id", &endpoint_id])

@@ -29,6 +29,8 @@ fn plugin_link_resolves_home_and_relative_paths_in_the_executing_process() {
         std::fs::create_dir_all(&plugin).unwrap();
         let manifest = plugin.join("orchbee-plugin.toml");
         std::fs::write(&manifest, "id='paths'\nname='Path test'\nversion='1'\n[[actions]]\nid='run'\ntitle='Declared action'\ncommand=['cmd.exe','/c','exit 99']\n").unwrap();
+        // The catalog follows explicit configuration, so only the operand reads the profile.
+        let settings = fixture.settings_file();
         let mut command = fixture.command(
             &[
                 "plugin",
@@ -39,14 +41,17 @@ fn plugin_link_resolves_home_and_relative_paths_in_the_executing_process() {
             ],
             None,
             None,
-            &[(
-                "USERPROFILE",
-                if home_operand {
-                    context.as_os_str()
-                } else {
-                    std::ffi::OsStr::new("private-invalid-home")
-                },
-            )],
+            &[
+                (
+                    "USERPROFILE",
+                    if home_operand {
+                        context.as_os_str()
+                    } else {
+                        std::ffi::OsStr::new("private-invalid-home")
+                    },
+                ),
+                ("ORCHBEE_CONFIG_FILE", settings.as_os_str()),
+            ],
         );
         command.current_dir(if home_operand { &fixture.0 } else { &context });
         let output = fixture.run_command(

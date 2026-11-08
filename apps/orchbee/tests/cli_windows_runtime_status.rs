@@ -412,6 +412,7 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
             .args(["status", "client", "--format=json"])
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
+            .env("USERPROFILE", fixture.profile())
             .output()
             .unwrap();
         assert!(output.status.success());
@@ -433,6 +434,7 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
             .args(["status", "server"])
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))
+            .env("USERPROFILE", fixture.profile())
             .output()
             .unwrap();
         handle.join().unwrap();

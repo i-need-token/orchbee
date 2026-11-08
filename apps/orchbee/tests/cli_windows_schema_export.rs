@@ -31,6 +31,7 @@ impl Fixture {
             .args(args)
             .current_dir(&self.0)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("invalid-runtime"))
+            .env("USERPROFILE", self.0.join("profile"))
             .env("LC_ALL", "en_US.UTF-8")
             .stdin(Stdio::null());
         command

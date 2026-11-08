@@ -5,10 +5,11 @@ use super::*;
 fn ordinary_and_no_focus_forms_submit_one_first_terminal_launch() {
     for explicit_cwd in [false, true] {
         for no_focus in [false, true] {
+            let fixture = Fixture::new();
             let path = if explicit_cwd {
                 "C:/repo".into()
             } else {
-                std::env::var("USERPROFILE").unwrap()
+                fixture.profile().to_str().unwrap().to_owned()
             };
             let expected = path.clone();
             let mut args = vec![
@@ -24,7 +25,7 @@ fn ordinary_and_no_focus_forms_submit_one_first_terminal_launch() {
             if no_focus {
                 args.push("--no-focus");
             }
-            let (status, doc) = run(&args, (None, None), move |mut stream| {
+            let (status, doc) = run_in(&fixture, &args, (None, None), move |mut stream| {
                 snapshot(&mut stream, state(1, false, false, 12));
                 if !explicit_cwd {
                     configuration_reply(&mut stream, "follow", None);

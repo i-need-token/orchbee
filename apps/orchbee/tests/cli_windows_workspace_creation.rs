@@ -148,10 +148,18 @@ fn run(
     caller: (Option<&str>, Option<&str>),
     script: impl FnOnce(LocalStream) + Send + 'static,
 ) -> (i32, Value) {
-    let fixture = Fixture::new();
+    run_in(&Fixture::new(), words, caller, script)
+}
+/// Runs in a fixture the caller already holds, so the script can expect its profile as home.
+fn run_in(
+    fixture: &Fixture,
+    words: &[&str],
+    caller: (Option<&str>, Option<&str>),
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> (i32, Value) {
     let rendezvous = fixture.rendezvous();
     let handler = peer(
-        &fixture,
+        fixture,
         LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
         script,
     );
@@ -326,8 +334,10 @@ fn workspace_path_context_failure_precedes_configuration_and_runtime_in_both_for
 
 #[test]
 fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() {
-    let home = std::env::var("USERPROFILE").unwrap();
-    let (status, doc) = run(
+    let fixture = Fixture::new();
+    let home = fixture.profile().to_str().unwrap().to_owned();
+    let (status, doc) = run_in(
+        &fixture,
         &["workspace", "create", "--format=json"],
         (None, None),
         move |mut stream| {

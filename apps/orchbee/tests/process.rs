@@ -3,7 +3,7 @@ use std::{error::Error, ffi::OsStr, process::Command};
 #[test]
 fn skill_is_offline_localized_and_describes_the_native_surface() -> Result<(), Box<dyn Error>> {
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
-        let output = Command::new(crate::staged_client::client())
+        let output = crate::staged_client::command()
             .arg("--skill")
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
@@ -86,7 +86,7 @@ fn help_is_localized_plain_text_and_precedes_runtime_discovery() -> Result<(), B
             ["用法:", "快速开始:", "终端与布局:", "全局选项:"],
         ),
     ] {
-        let output = Command::new(crate::staged_client::client())
+        let output = crate::staged_client::command()
             .arg("--help")
             .env("LC_ALL", locale)
             .env("COLUMNS", "not-a-number")
@@ -135,7 +135,7 @@ fn macos_agent_list_reaches_session_admission_instead_of_platform_stub()
 -> Result<(), Box<dyn Error>> {
     // The unadorned Cargo binary has no cohort sidecar, so the read must stop
     // at that real admission check rather than report unsupported-platform.
-    let output = Command::new(crate::staged_client::client())
+    let output = crate::staged_client::command()
         .args(["agent", "list", "--format=json"])
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
         .output()?;
@@ -303,7 +303,7 @@ fn help_overrides_business_operands_and_options_before_runtime_discovery()
     ] {
         let canonical = run(topic.iter().copied().chain(["--help"]), "en_US.UTF-8")?;
         assert_eq!(canonical.status.code(), Some(0));
-        let output = Command::new(crate::staged_client::client())
+        let output = crate::staged_client::command()
             .args(arguments)
             .env("LC_ALL", "en_US.UTF-8")
             .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
@@ -388,7 +388,7 @@ fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), 
         ),
     ];
     for (arguments, stderr) in cases {
-        let output = Command::new(crate::staged_client::client())
+        let output = crate::staged_client::command()
             .args(*arguments)
             .env("LC_ALL", "en_US.UTF-8")
             .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
@@ -420,7 +420,7 @@ fn run(
     arguments: impl IntoIterator<Item = impl AsRef<OsStr>>,
     locale: &str,
 ) -> Result<std::process::Output, std::io::Error> {
-    Command::new(crate::staged_client::client())
+    crate::staged_client::command()
         .args(arguments)
         .env_remove("LC_ALL")
         .env_remove("LC_MESSAGES")

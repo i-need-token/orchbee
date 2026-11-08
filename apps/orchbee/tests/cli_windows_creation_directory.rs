@@ -319,9 +319,10 @@ fn source_observation_is_exact_bounded_read_only_and_never_replays_creation() {
 #[test]
 fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_context() {
     for mode in ["workspace", "home", "current", r"C:\explicit directory"] {
+        let fixture = Fixture::new();
         let expected = match mode {
             "workspace" => None,
-            "home" => Some(std::env::var("USERPROFILE").unwrap()),
+            "home" => Some(fixture.profile().to_str().unwrap().to_owned()),
             "current" => Some(
                 std::env::current_dir()
                     .unwrap()
@@ -331,7 +332,6 @@ fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_
             ),
             _ => Some(mode.to_owned()),
         };
-        let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let expected_peer = expected.clone();
         let handler = peer(&fixture, listener, move |mut stream| {

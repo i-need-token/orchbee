@@ -2,10 +2,10 @@
 //! schemas. Invalid runtime configuration prevents any Session access.
 #![cfg(windows)]
 
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 
 fn run(arguments: &[&str], terminal: Option<&str>, worker: Option<&str>, locale: &str) -> Output {
-    let mut command = Command::new(crate::staged_client::client());
+    let mut command = crate::staged_client::command();
     command
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")

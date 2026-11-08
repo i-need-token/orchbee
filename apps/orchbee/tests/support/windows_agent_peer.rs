@@ -116,17 +116,38 @@ impl Fixture {
         self.2.executable()
     }
 
+    /// The profile the CLI under test receives as both `USERPROFILE` and `APPDATA`; a development
+    /// or test build keeps its state below it and resolves `~` to it.
+    pub(super) fn profile(&self) -> PathBuf {
+        self.0.join("appdata")
+    }
+
     /// The roaming state root the CLI under test resolves in this fixture's environment.
     #[allow(
         dead_code,
         reason = "Only configuration, machine and plugin suites seed roaming state."
     )]
     pub(super) fn roaming_root(&self) -> PathBuf {
-        let profile = self.0.join("appdata");
+        let profile = self.profile();
         orchbee_local_runtime::roaming_state_root(|name| {
             matches!(name, "APPDATA" | "USERPROFILE").then(|| profile.clone().into_os_string())
         })
         .unwrap()
+    }
+
+    /// An empty explicit configuration file outside the profile, so a test can give the CLI an
+    /// invalid profile that only home expansion sees: configuration and the machine and plugin
+    /// catalogs beside it no longer depend on that profile.
+    #[allow(
+        dead_code,
+        reason = "Only suites that pass an invalid profile need configuration outside it."
+    )]
+    pub(super) fn settings_file(&self) -> PathBuf {
+        let directory = self.0.join("settings");
+        fs::create_dir_all(&directory).unwrap();
+        let file = directory.join("config.toml");
+        fs::write(&file, b"").unwrap();
+        file
     }
 
     pub(super) fn rendezvous(&self) -> ModeCheckedLocalSessionRendezvous {
@@ -176,9 +197,9 @@ impl Fixture {
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env("LC_ALL", "en_US.UTF-8")
-            .env("APPDATA", self.0.join("appdata"))
+            .env("APPDATA", self.profile())
             // A development or test build keeps its state under the profile, not APPDATA.
-            .env("USERPROFILE", self.0.join("appdata"))
+            .env("USERPROFILE", self.profile())
             .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_RUNTIME_SCOPE")
             .env_remove("ORCHBEE_SESSION")

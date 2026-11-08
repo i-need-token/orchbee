@@ -3,7 +3,7 @@
 use std::process::{Command, Output, Stdio};
 
 fn run(words: &[&str], locale: &str) -> Output {
-    Command::new(crate::staged_client::client())
+    crate::staged_client::command()
         .args(words)
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
         .env("LC_ALL", locale)
@@ -24,7 +24,10 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
                 words.push("--format=json");
                 let output = Command::new(crate::staged_client::client())
                     .args(&words)
-                    .env("USERPROFILE", "C:/nonexistent-caller-home")
+                    .env(
+                        "USERPROFILE",
+                        crate::staged_client::profile().join("nonexistent-caller-home"),
+                    )
                     .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
                     .env("LC_ALL", locale)
                     .stdin(Stdio::null())

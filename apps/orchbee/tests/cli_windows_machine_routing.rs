@@ -57,8 +57,8 @@ fn relay_with_environment(
     };
     command
         .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))
-        .env("APPDATA", fixture.0.join("appdata"))
-        .env("USERPROFILE", fixture.0.join("appdata"))
+        .env("APPDATA", fixture.profile())
+        .env("USERPROFILE", fixture.profile())
         .env_remove("ORCHBEE_CONFIG_FILE")
         .env("ORCHBEE_TERMINAL_ID", "invalid-caller")
         .env("ORCHBEE_WORKER_ID", "invalid-caller")
@@ -73,6 +73,15 @@ fn relay_with_environment(
     assert_eq!(result.failure, None, "{result:?}");
     assert_eq!(result.exit_code, Some(0));
     serde_json::from_slice(&result.stdout).unwrap()
+}
+
+/// An invalid profile that only home expansion sees. A development or test build also finds its
+/// configuration and machine catalog below the profile, so the settings file keeps them valid.
+fn invalid_home(settings: &std::path::Path) -> [(&'static str, &std::ffi::OsStr); 2] {
+    [
+        ("USERPROFILE", std::ffi::OsStr::new("private-invalid-home")),
+        ("ORCHBEE_CONFIG_FILE", settings.as_os_str()),
+    ]
 }
 
 const HOME_PATH_COMMANDS: &[(&[&str], &str)] = &[
@@ -97,12 +106,8 @@ fn home_path_route_conflict_precedes_execution_context_resolution() {
         let mut arguments = vec!["--machine", "work", "--session", "local"];
         arguments.extend_from_slice(command);
         arguments.push("--format=json");
-        let output = fixture.run_with_env(
-            &arguments,
-            None,
-            None,
-            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
-        );
+        let settings = fixture.settings_file();
+        let output = fixture.run_with_env(&arguments, None, None, &invalid_home(&settings));
         assert_eq!(output.status.code(), Some(2));
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
@@ -128,12 +133,8 @@ fn home_path_sender_selects_the_machine_without_resolving_its_operand() {
         let mut arguments = vec!["--machine", "missing"];
         arguments.extend_from_slice(command);
         arguments.push("--format=json");
-        let output = fixture.run_with_env(
-            &arguments,
-            None,
-            None,
-            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
-        );
+        let settings = fixture.settings_file();
+        let output = fixture.run_with_env(&arguments, None, None, &invalid_home(&settings));
         assert_eq!(
             output.status.code(),
             Some(3),
@@ -162,11 +163,12 @@ fn home_path_relay_leaves_resolution_to_the_business_process() {
         let fixture = Fixture::new();
         let mut arguments = command.to_vec();
         arguments.push("--format=json");
+        let settings = fixture.settings_file();
         let reply = relay_with_environment(
             &fixture,
             &packet(&fixture, &arguments),
             false,
-            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+            &invalid_home(&settings),
         );
         assert_eq!(reply["outcome"], "completed", "{command:?}: {reply}");
         assert_eq!(reply["status"], 2);
@@ -222,7 +224,8 @@ fn relay_round_trip_runs_exact_cohort_and_keeps_success_and_failure_receipts() {
                 .is_empty()
         );
     }
-    assert!(!fixture.0.join("appdata").exists());
+    // Windows PowerShell creates folders under the profile it receives; Orchbee state stays absent.
+    assert!(!fixture.roaming_root().exists());
 }
 #[test]
 fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
