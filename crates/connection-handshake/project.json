@@ -1,0 +1,13 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "connection-handshake",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Rust binding of the permanent OBHS connection handshake: the strict frame and message codec, the acceptor's ordered admission checks, the initiator's answer checks, and the generation registry mirror with this build's development protocol fingerprints.",
+	"nonGoals": [
+		"Owning a transport, endpoint, listener, deadline timer, peer-credential check, retry, or process lifecycle.",
+		"Performing the effects of query, drain, or exit, counting connection slots, or deciding a restart tier.",
+		"Defining or decoding the records a connection carries after the answer, such as OBLC, OBWP, OBCS, OBAP, OBTP, or terminal frame formats.",
+		"Deriving the build's environment name, which crates/local-runtime owns, or localizing rejection messages."
+	]
+}

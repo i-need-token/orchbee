@@ -1,0 +1,281 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:connection:handshake",
+	"title": "OBHS handshake message",
+	"description": "One OBHS payload object in either direction. Duplicate members, nesting deeper than 32, integer spellings with a fraction or exponent, bytewise order, lowest <= highest, and message direction are decoder rules outside this schema; see schemas/connection/README.md.",
+	"oneOf": [
+		{ "$ref": "#/$defs/offer" },
+		{ "$ref": "#/$defs/request" },
+		{ "$ref": "#/$defs/unknownRequest" },
+		{ "$ref": "#/$defs/answer" },
+		{ "$ref": "#/$defs/rejection" },
+		{ "$ref": "#/$defs/queryResult" },
+		{ "$ref": "#/$defs/drainResult" },
+		{ "$ref": "#/$defs/exitResult" },
+		{ "$ref": "#/$defs/unsupported" }
+	],
+	"$defs": {
+		"name": {
+			"type": "string",
+			"pattern": "^[a-z0-9-]{1,64}$"
+		},
+		"generation": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 65535
+		},
+		"generations": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["lowest", "highest"],
+			"properties": {
+				"lowest": { "$ref": "#/$defs/generation" },
+				"highest": { "$ref": "#/$defs/generation" }
+			}
+		},
+		"capabilities": {
+			"type": "array",
+			"maxItems": 256,
+			"uniqueItems": true,
+			"items": { "$ref": "#/$defs/name" }
+		},
+		"productVersion": {
+			"type": "string",
+			"pattern": "^[!-~]{1,64}$"
+		},
+		"build": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+				"cohort": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+			}
+		},
+		"fingerprint": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$"
+		},
+		"extensions": {
+			"type": "object",
+			"propertyNames": { "$ref": "#/$defs/name" }
+		},
+		"offer": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"type",
+				"connection",
+				"generations",
+				"capabilities",
+				"productVersion",
+				"build",
+				"environment"
+			],
+			"properties": {
+				"type": { "const": "offer" },
+				"connection": { "$ref": "#/$defs/name" },
+				"generations": { "$ref": "#/$defs/generations" },
+				"capabilities": { "$ref": "#/$defs/capabilities" },
+				"productVersion": { "$ref": "#/$defs/productVersion" },
+				"build": { "$ref": "#/$defs/build" },
+				"environment": { "$ref": "#/$defs/name" },
+				"fingerprint": { "$ref": "#/$defs/fingerprint" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			},
+			"if": { "properties": { "environment": { "const": "orchbee" } } },
+			"then": { "not": { "required": ["fingerprint"] } },
+			"else": { "required": ["fingerprint"] }
+		},
+		"request": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "environment"],
+			"properties": {
+				"type": { "enum": ["query", "drain", "exit"] },
+				"environment": { "$ref": "#/$defs/name" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"unknownRequest": {
+			"description": "A request type the receiver does not know. Only type and environment are read; other members belong to the newer contract.",
+			"type": "object",
+			"required": ["type", "environment"],
+			"properties": {
+				"type": {
+					"allOf": [
+						{ "$ref": "#/$defs/name" },
+						{
+							"not": {
+								"enum": [
+									"offer",
+									"query",
+									"drain",
+									"exit",
+									"answer",
+									"rejection",
+									"query-result",
+									"drain-result",
+									"exit-result",
+									"unsupported"
+								]
+							}
+						}
+					]
+				},
+				"environment": { "$ref": "#/$defs/name" }
+			}
+		},
+		"answer": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "generation", "capabilities", "productVersion", "build"],
+			"properties": {
+				"type": { "const": "answer" },
+				"generation": { "$ref": "#/$defs/generation" },
+				"capabilities": { "$ref": "#/$defs/capabilities" },
+				"productVersion": { "$ref": "#/$defs/productVersion" },
+				"build": { "$ref": "#/$defs/build" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"rejection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "reason", "generations", "productVersion", "environment"],
+			"properties": {
+				"type": { "const": "rejection" },
+				"reason": {
+					"description": "malformed, connection-unsupported, environment-mismatch, initiator-too-old, initiator-too-new, fingerprint-mismatch, capacity, stopping, or timeout; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"generations": { "$ref": "#/$defs/generations" },
+				"productVersion": { "$ref": "#/$defs/productVersion" },
+				"environment": { "$ref": "#/$defs/name" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"processProperties": {
+			"description": "Members every query process entry carries; answeringProcess and peerProcess close them.",
+			"type": "object",
+			"required": [
+				"role",
+				"productVersion",
+				"build",
+				"environment",
+				"pid",
+				"state",
+				"terminals",
+				"connections"
+			],
+			"properties": {
+				"role": {
+					"description": "server, worker, or terminal-host; a receiver reads any other name as unknown.",
+					"$ref": "#/$defs/name"
+				},
+				"productVersion": { "$ref": "#/$defs/productVersion" },
+				"build": { "$ref": "#/$defs/build" },
+				"environment": { "$ref": "#/$defs/name" },
+				"pid": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+				"state": { "$ref": "#/$defs/state" },
+				"terminals": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+				"connections": { "type": "array", "maxItems": 64 }
+			}
+		},
+		"state": {
+			"description": "ready, draining, or stopping; a receiver reads any other name as unknown.",
+			"$ref": "#/$defs/name"
+		},
+		"answeringProcess": {
+			"$ref": "#/$defs/processProperties",
+			"unevaluatedProperties": false,
+			"properties": {
+				"connections": {
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["kind", "generations", "capabilities"],
+						"properties": {
+							"kind": { "$ref": "#/$defs/name" },
+							"generations": { "$ref": "#/$defs/generations" },
+							"capabilities": { "$ref": "#/$defs/capabilities" }
+						}
+					}
+				}
+			}
+		},
+		"peerProcess": {
+			"$ref": "#/$defs/processProperties",
+			"unevaluatedProperties": false,
+			"properties": {
+				"connections": {
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["kind", "generations"],
+						"properties": {
+							"kind": { "$ref": "#/$defs/name" },
+							"generations": { "$ref": "#/$defs/generations" }
+						}
+					}
+				}
+			}
+		},
+		"queryResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "processes"],
+			"properties": {
+				"type": { "const": "query-result" },
+				"processes": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 258,
+					"prefixItems": [{ "$ref": "#/$defs/answeringProcess" }],
+					"items": { "$ref": "#/$defs/peerProcess" }
+				},
+				"restartKeepsTerminals": { "type": "boolean" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			},
+			"if": {
+				"properties": {
+					"processes": {
+						"prefixItems": [
+							{ "required": ["role"], "properties": { "role": { "const": "server" } } }
+						]
+					}
+				}
+			},
+			"then": { "required": ["restartKeepsTerminals"] },
+			"else": { "not": { "required": ["restartKeepsTerminals"] } }
+		},
+		"drainResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "state"],
+			"properties": {
+				"type": { "const": "drain-result" },
+				"state": { "$ref": "#/$defs/state" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"exitResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type"],
+			"properties": {
+				"type": { "const": "exit-result" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
+		"unsupported": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "request"],
+			"properties": {
+				"type": { "const": "unsupported" },
+				"request": { "$ref": "#/$defs/name" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		}
+	}
+}

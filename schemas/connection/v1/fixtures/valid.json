@@ -1,0 +1,79 @@
+{
+	"cases": [
+		{
+			"name": "offer-release",
+			"direction": "initiator",
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}"
+		},
+		{
+			"name": "offer-development-with-extensions",
+			"direction": "initiator",
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[\"frame-generations\"],\"productVersion\":\"0.0.0-dev\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"extensions\":{\"trace-id\":\"abc\",\"nested-detail\":{\"list\":[1,2.5,null,true]}}}"
+		},
+		{
+			"name": "query",
+			"direction": "initiator",
+			"payload": "{\"type\":\"query\",\"environment\":\"orchbee\"}"
+		},
+		{
+			"name": "drain",
+			"direction": "initiator",
+			"payload": "{\"type\":\"drain\",\"environment\":\"orchbee\"}"
+		},
+		{
+			"name": "exit-with-extensions",
+			"direction": "initiator",
+			"payload": "{\"type\":\"exit\",\"environment\":\"ob-dev-0123456789abcdef\",\"extensions\":{\"reason\":\"update\"}}"
+		},
+		{
+			"name": "unknown-request-type",
+			"direction": "initiator",
+			"payload": "{\"type\":\"restart\",\"environment\":\"orchbee\",\"mode\":{\"soft\":true}}"
+		},
+		{
+			"name": "answer",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"answer\",\"generation\":1,\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}"
+		},
+		{
+			"name": "answer-with-capabilities",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"answer\",\"generation\":7,\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{}}"
+		},
+		{
+			"name": "rejection-initiator-too-old",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"rejection\",\"reason\":\"initiator-too-old\",\"generations\":{\"lowest\":3,\"highest\":5},\"productVersion\":\"1.6.0\",\"environment\":\"orchbee\"}"
+		},
+		{
+			"name": "rejection-unknown-reason",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"rejection\",\"reason\":\"quota-exceeded\",\"generations\":{\"lowest\":3,\"highest\":5},\"productVersion\":\"1.6.0\",\"environment\":\"orchbee\"}"
+		},
+		{
+			"name": "query-result-server",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"server\",\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\",\"pid\":4120,\"state\":\"ready\",\"terminals\":5,\"connections\":[{\"kind\":\"agent-hook\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[]},{\"kind\":\"client-server\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[]}]},{\"role\":\"worker\",\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\",\"pid\":4124,\"state\":\"ready\",\"terminals\":5,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1}}]},{\"role\":\"terminal-host\",\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"},\"environment\":\"orchbee\",\"pid\":4200,\"state\":\"ready\",\"terminals\":3,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1}}]},{\"role\":\"terminal-host\",\"productVersion\":\"1.6.0\",\"build\":{},\"environment\":\"orchbee\",\"pid\":4300,\"state\":\"draining\",\"terminals\":2,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1}}]}],\"restartKeepsTerminals\":false}"
+		},
+		{
+			"name": "query-result-host",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"terminal-host\",\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"},\"environment\":\"ob-dev-0123456789abcdef\",\"pid\":4120,\"state\":\"ready\",\"terminals\":3,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[]}]}]}"
+		},
+		{
+			"name": "drain-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"drain-result\",\"state\":\"draining\"}"
+		},
+		{
+			"name": "exit-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"exit-result\"}"
+		},
+		{
+			"name": "unsupported",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"unsupported\",\"request\":\"restart\",\"extensions\":{\"note\":\"x\"}}"
+		}
+	]
+}

@@ -929,6 +929,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-connection-handshake"
+version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "orchbee-local-client"
 version = "0.1.0"
 dependencies = [

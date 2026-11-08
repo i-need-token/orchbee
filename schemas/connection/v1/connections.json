@@ -1,0 +1,43 @@
+{
+	"negotiatedConnections": {
+		"client-server": {
+			"generations": { "lowest": 1, "highest": 1 },
+			"capabilities": [],
+			"fingerprintInputs": [
+				"crates/agent-observation-protocol/src",
+				"crates/client-server-protocol/src",
+				"crates/connection-handshake/src",
+				"crates/local-client-protocol/src",
+				"crates/terminal-protocol/src",
+				"crates/workbench-protocol/src",
+				"schemas/agent-observation",
+				"schemas/client-server",
+				"schemas/connection",
+				"schemas/terminal/v1",
+				"schemas/workbench"
+			]
+		},
+		"worker-host": {
+			"generations": { "lowest": 1, "highest": 1 },
+			"capabilities": [],
+			"fingerprintInputs": [
+				"apps/terminal-host/src/control",
+				"apps/terminal-host/src/protocol",
+				"crates/connection-handshake/src",
+				"crates/terminal-protocol/src",
+				"schemas/connection",
+				"schemas/terminal/v1"
+			]
+		}
+	},
+	"frameFormats": {
+		"obkg": { "generations": { "lowest": 1, "highest": 1 } },
+		"obpb": { "generations": { "lowest": 1, "highest": 1 } },
+		"obrw": { "generations": { "lowest": 1, "highest": 1 } },
+		"obtf": { "generations": { "lowest": 1, "highest": 1 } }
+	},
+	"deliveries": {
+		"agent-hook": { "generations": { "lowest": 1, "highest": 1 } },
+		"machine-route": { "generations": { "lowest": 1, "highest": 1 } }
+	}
+}

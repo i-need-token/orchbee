@@ -12,6 +12,7 @@ members = [
 	"crates/capability-node-protocol",
 	"crates/client-server-protocol",
 	"crates/color-themes",
+	"crates/connection-handshake",
 	"crates/local-client-protocol",
 	"crates/local-ipc",
 	"crates/local-peer-credentials",

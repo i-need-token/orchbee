@@ -1,11 +1,11 @@
 # Versioning and Upgrade
 
-| Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Accepted by the product owner on 2026-11-07 in ORC-384; ORC-393 settled the P0 details on 2026-11-08. Windows first; macOS and Linux adopt the same rules with ORC-328.                                                                                                                                                                                                                                                                             |
-| Owner             | Maintainers of `crates/local-runtime`, `apps/orchbee`, `apps/orchbee-server`, `apps/orchbee-worker`, `apps/terminal-host`, and `apps/desktop`, with the owner of each contract in [Connections](#connections)                                                                                                                                                                                                                                       |
-| Current authority | [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), the [terminal version policy](../../schemas/terminal/docs/version-history.md), the [development cohort contract](../../crates/local-runtime/README.md#development-cohort-contract), [Windows release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation), and [native runtime status](../../apps/orchbee/docs/native-runtime-status.md) |
-| Exit condition    | Delete this proposal once P0, P1, and P2 ship and their rules live in the owning standards and package references. A P3 or P4 still open then moves to its own proposal.                                                                                                                                                                                                                                                                            |
+| Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status            | Accepted by the product owner on 2026-11-07 in ORC-384; ORC-393 settled the P0 details on 2026-11-08. Windows first; macOS and Linux adopt the same rules with ORC-328.                                                                                                                                                                                                                                                                                                                                            |
+| Owner             | Maintainers of `crates/local-runtime`, `apps/orchbee`, `apps/orchbee-server`, `apps/orchbee-worker`, `apps/terminal-host`, and `apps/desktop`, with the owner of each contract in [Connections](#connections)                                                                                                                                                                                                                                                                                                      |
+| Current authority | [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries), the [connection contract](../../schemas/connection/README.md), the [terminal version policy](../../schemas/terminal/docs/version-history.md), the [development cohort contract](../../crates/local-runtime/README.md#development-cohort-contract), [Windows release installation](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation), and [native runtime status](../../apps/orchbee/docs/native-runtime-status.md) |
+| Exit condition    | Delete this proposal once P0, P1, and P2 ship and their rules live in the owning standards and package references. A P3 or P4 still open then moves to its own proposal.                                                                                                                                                                                                                                                                                                                                           |
 
 ## Outcomes
 
@@ -78,6 +78,34 @@ from 1 to 1,048,576, and that many bytes holding one UTF-8 JSON object.
   `a`–`z`, `0`–`9`, and `-`, compared bytewise.
 - `fingerprint` is 64 lowercase hex digits, present exactly when `environment` is not `orchbee`.
 
+ORC-393 phase A resolved the byte-level details this section leaves open by taking the smallest,
+strictest reading; the [connection contract](../../schemas/connection/README.md) states them
+normatively:
+
+- The payload is one RFC 8259 object with optional surrounding whitespace; a byte order mark or a
+  second value is malformed. Duplicate members are malformed at every depth, including inside
+  `extensions` values, and arrays and objects nest at most 32 deep.
+- Integer members use plain integer tokens: `1.0`, `1e0`, and `-0` are malformed. Numbers must be
+  finite binary64 values, and a lone surrogate escape is malformed.
+- `null` is malformed for every member, and absent optional members are omitted. `extensions`
+  appears only on the message object, and an empty `extensions` equals an absent one.
+- `capabilities` must arrive in strictly ascending bytewise order; a receiver never sorts.
+  "Printable ASCII" in `productVersion` excludes the space (0x21–0x7E).
+- An initiator frame whose `type` is a name but no known message type is a request of an unknown
+  type: it needs a valid `environment`, its other members are unread, and it passes the request
+  checks before getting `unsupported`. A known type sent in the wrong direction is malformed.
+- Outside `orchbee`, equal fingerprints whose ranges share no generation are a
+  `fingerprint-mismatch`; the answer selects the highest common generation in every environment.
+- A request is checked only for environment and then for a free control slot, rejected with
+  `capacity`; draining and stopping processes still answer it.
+- `query-result` lists 1 to 258 processes. `pid` is 1 to 4,294,967,295 and `terminals` 0 to
+  4,294,967,295. Each process lists at most 64 connections in strictly ascending `kind` order,
+  `capabilities` appears exactly in the answering process's entries, and `restartKeepsTerminals`
+  appears exactly when the first process is a Server. `drain-result` uses the query's state names.
+- A reader reports a foreign protocol at the first byte that differs from `OBHS`, and refuses an
+  out-of-bounds length before reading the payload. An initiator also closes on a reply that pairs
+  with neither its offer nor its request.
+
 | Message     | Sent by   | Members besides `type` and `extensions`                                                                              |
 | ----------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
 | `offer`     | Initiator | `connection`, `generations`, `capabilities`, `productVersion`, `build`, `environment`, and `fingerprint`             |
@@ -132,7 +160,9 @@ lists, for each negotiated connection (`client-server`, `worker-host`), frame fo
 generation range and the capability names with the release that added each, plus each negotiated
 connection's [fingerprint inputs](#development-builds).
 
-- Every contract starts at generation 1 with no capability names.
+- Every contract starts at generation 1 with no capability names. Only negotiated connections
+  carry capability names, as `{name, addedIn}` entries; a frame format or a delivery gains features
+  through its connection's names or its `extensions`.
 - `crates/connection-handshake` is the Rust binding and the Host's `src/handshake` the Zig binding.
   Their constants, and those of the TypeScript frame decoders, mirror the registry under a
   conformance check, as `schemas/terminal/v1/constants.json` works today.
@@ -490,7 +520,11 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
   `crates/client-server-protocol`, `crates/workbench-protocol`, `crates/agent-observation-protocol`,
   and `crates/terminal-protocol`. `worker-host` lists `schemas/connection`, `schemas/terminal/v1`,
   `crates/connection-handshake/src`, `crates/terminal-protocol/src`, and the Host's `src/handshake`,
-  `src/protocol`, and `src/control`.
+  `src/protocol`, and `src/control`. The Host's `src/handshake` joins the list in the change that
+  creates it, because every listed directory must exist. The list is strictly ascending and never
+  nests one directory in another.
+- Input files must be regular files: a symbolic link, a non-Unicode name, or another entry type
+  under an input directory fails the build rather than being skipped.
 - `crates/connection-handshake/build.rs` and the Host's `build.zig` compute fingerprints at build
   time from the registry and those files, so each build describes its own source. Frame formats need
   no fingerprint of their own, because both lists include the terminal schema and binding.

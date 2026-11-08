@@ -1,0 +1,578 @@
+{
+	"acceptors": {
+		"release": {
+			"connection": "client-server",
+			"generations": {
+				"lowest": 3,
+				"highest": 5
+			},
+			"capabilities": ["alpha", "gamma"],
+			"productVersion": "1.6.0",
+			"build": {
+				"commit": "0123456789abcdef0123456789abcdef01234567",
+				"cohort": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+			},
+			"environment": "orchbee"
+		},
+		"development": {
+			"connection": "worker-host",
+			"generations": {
+				"lowest": 1,
+				"highest": 1
+			},
+			"capabilities": [],
+			"productVersion": "0.0.0-dev",
+			"build": {},
+			"environment": "ob-dev-0123456789abcdef",
+			"fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		}
+	},
+	"cases": [
+		{
+			"name": "highest-common-generation-and-shared-names",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 4,
+				"capabilities": ["alpha"]
+			}
+		},
+		{
+			"name": "initiator-range-covers-acceptor",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":1,\"highest\":9},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 5,
+				"capabilities": []
+			}
+		},
+		{
+			"name": "initiator-highest-equals-acceptor-lowest",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":1,\"highest\":3},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 3,
+				"capabilities": []
+			}
+		},
+		{
+			"name": "initiator-lowest-equals-acceptor-highest",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":5,\"highest\":7},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 5,
+				"capabilities": []
+			}
+		},
+		{
+			"name": "too-old-before-capacity-and-stopping",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": false,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":1,\"highest\":2},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "initiator-too-old"
+			}
+		},
+		{
+			"name": "too-new-before-capacity-and-stopping",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": false,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":6,\"highest\":8},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "initiator-too-new"
+			}
+		},
+		{
+			"name": "malformed-before-connection",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":2},\"capabilities\":[],\"productVersion\":\"\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "malformed"
+			}
+		},
+		{
+			"name": "connection-before-environment",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":2},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "connection-unsupported"
+			}
+		},
+		{
+			"name": "unknown-connection",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-relay\",\"generations\":{\"lowest\":3,\"highest\":5},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "connection-unsupported"
+			}
+		},
+		{
+			"name": "environment-before-generations",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": false,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":1,\"highest\":2},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"ob-test-0123456789abcdef\",\"fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "environment-mismatch"
+			}
+		},
+		{
+			"name": "capacity-before-stopping",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": true,
+				"state": "draining"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":3,\"highest\":5},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "capacity"
+			}
+		},
+		{
+			"name": "draining-refuses-offers",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "draining"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":3,\"highest\":5},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "stopping"
+			}
+		},
+		{
+			"name": "stopping-refuses-offers",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":3,\"highest\":5},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "stopping"
+			}
+		},
+		{
+			"name": "offer-ignores-control-slots",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": false,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":3,\"highest\":5},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 5,
+				"capabilities": []
+			}
+		},
+		{
+			"name": "development-equal-fingerprint",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[],\"productVersion\":\"0.0.0-dev\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 1,
+				"capabilities": []
+			}
+		},
+		{
+			"name": "development-ignores-range-differences",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":4},\"capabilities\":[\"frame-generations\"],\"productVersion\":\"0.0.0-dev\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"decision": {
+				"kind": "accept",
+				"generation": 1,
+				"capabilities": []
+			}
+		},
+		{
+			"name": "fingerprint-before-capacity-and-stopping",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": false,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[],\"productVersion\":\"0.0.0-dev\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "fingerprint-mismatch"
+			}
+		},
+		{
+			"name": "equal-fingerprint-with-disjoint-ranges",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":2,\"highest\":3},\"capabilities\":[],\"productVersion\":\"0.0.0-dev\",\"build\":{},\"environment\":\"ob-dev-0123456789abcdef\",\"fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "fingerprint-mismatch"
+			}
+		},
+		{
+			"name": "release-offer-to-development",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"offer\",\"connection\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "environment-mismatch"
+			}
+		},
+		{
+			"name": "query-served",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"query\",\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "serve",
+				"request": "query"
+			}
+		},
+		{
+			"name": "query-served-while-stopping-with-session-slots-full",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": true,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"query\",\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "serve",
+				"request": "query"
+			}
+		},
+		{
+			"name": "drain-served",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"drain\",\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "serve",
+				"request": "drain"
+			}
+		},
+		{
+			"name": "exit-served",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"exit\",\"environment\":\"ob-dev-0123456789abcdef\"}",
+			"decision": {
+				"kind": "serve",
+				"request": "exit"
+			}
+		},
+		{
+			"name": "request-environment-before-capacity",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": false,
+				"controlSlotFree": false,
+				"state": "stopping"
+			},
+			"payload": "{\"type\":\"query\",\"environment\":\"ob-dev-0123456789abcdef\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "environment-mismatch"
+			}
+		},
+		{
+			"name": "request-capacity",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": false,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"drain\",\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "capacity"
+			}
+		},
+		{
+			"name": "request-ignores-fingerprint",
+			"acceptor": "development",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"query\",\"environment\":\"ob-dev-0123456789abcdef\"}",
+			"decision": {
+				"kind": "serve",
+				"request": "query"
+			}
+		},
+		{
+			"name": "unknown-request-unsupported",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "draining"
+			},
+			"payload": "{\"type\":\"restart\",\"environment\":\"orchbee\",\"mode\":\"soft\"}",
+			"decision": {
+				"kind": "unsupported",
+				"request": "restart"
+			}
+		},
+		{
+			"name": "unknown-request-environment",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"restart\",\"environment\":\"ob-dev-0123456789abcdef\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "environment-mismatch"
+			}
+		},
+		{
+			"name": "unknown-request-capacity",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": false,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"restart\",\"environment\":\"orchbee\"}",
+			"decision": {
+				"kind": "reject",
+				"reason": "capacity"
+			}
+		},
+		{
+			"name": "acceptor-message-from-initiator",
+			"acceptor": "release",
+			"load": {
+				"sessionSlotFree": true,
+				"controlSlotFree": true,
+				"state": "ready"
+			},
+			"payload": "{\"type\":\"answer\",\"generation\":4,\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}",
+			"decision": {
+				"kind": "reject",
+				"reason": "malformed"
+			}
+		}
+	],
+	"replies": [
+		{
+			"name": "answer-inside-offer",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"answer\",\"generation\":3,\"capabilities\":[\"alpha\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}",
+			"outcome": {
+				"kind": "accepted"
+			}
+		},
+		{
+			"name": "answer-above-offer",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"answer\",\"generation\":5,\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}",
+			"outcome": {
+				"kind": "close"
+			}
+		},
+		{
+			"name": "answer-below-offer",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"answer\",\"generation\":1,\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}",
+			"outcome": {
+				"kind": "close"
+			}
+		},
+		{
+			"name": "answer-with-unoffered-name",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"answer\",\"generation\":4,\"capabilities\":[\"alpha\",\"gamma\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}",
+			"outcome": {
+				"kind": "close"
+			}
+		},
+		{
+			"name": "rejection",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"rejection\",\"reason\":\"initiator-too-new\",\"generations\":{\"lowest\":3,\"highest\":5},\"productVersion\":\"1.6.0\",\"environment\":\"orchbee\"}",
+			"outcome": {
+				"kind": "rejected",
+				"reason": "initiator-too-new"
+			}
+		},
+		{
+			"name": "rejection-unknown-reason",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"rejection\",\"reason\":\"quota\",\"generations\":{\"lowest\":3,\"highest\":5},\"productVersion\":\"1.6.0\",\"environment\":\"orchbee\"}",
+			"outcome": {
+				"kind": "rejected",
+				"reason": "unknown"
+			}
+		},
+		{
+			"name": "request-reply-to-offer",
+			"offer": "{\"type\":\"offer\",\"connection\":\"client-server\",\"generations\":{\"lowest\":2,\"highest\":4},\"capabilities\":[\"alpha\",\"beta\"],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"cohort\":\"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\"},\"environment\":\"orchbee\"}",
+			"reply": "{\"type\":\"exit-result\"}",
+			"outcome": {
+				"kind": "close"
+			}
+		}
+	],
+	"requestReplies": [
+		{
+			"name": "query-result-to-query",
+			"request": "query",
+			"reply": "{\"type\":\"query-result\",\"processes\":[{\"role\":\"terminal-host\",\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"},\"environment\":\"ob-dev-0123456789abcdef\",\"pid\":4120,\"state\":\"ready\",\"terminals\":3,\"connections\":[{\"kind\":\"worker-host\",\"generations\":{\"lowest\":1,\"highest\":1},\"capabilities\":[]}]}]}",
+			"outcome": {
+				"kind": "reply"
+			}
+		},
+		{
+			"name": "drain-result-to-drain",
+			"request": "drain",
+			"reply": "{\"type\":\"drain-result\",\"state\":\"draining\"}",
+			"outcome": {
+				"kind": "reply"
+			}
+		},
+		{
+			"name": "exit-result-to-exit",
+			"request": "exit",
+			"reply": "{\"type\":\"exit-result\"}",
+			"outcome": {
+				"kind": "reply"
+			}
+		},
+		{
+			"name": "rejection-to-query",
+			"request": "query",
+			"reply": "{\"type\":\"rejection\",\"reason\":\"environment-mismatch\",\"generations\":{\"lowest\":3,\"highest\":5},\"productVersion\":\"1.6.0\",\"environment\":\"orchbee\"}",
+			"outcome": {
+				"kind": "rejected",
+				"reason": "environment-mismatch"
+			}
+		},
+		{
+			"name": "unsupported-to-drain",
+			"request": "drain",
+			"reply": "{\"type\":\"unsupported\",\"request\":\"drain\"}",
+			"outcome": {
+				"kind": "unsupported"
+			}
+		},
+		{
+			"name": "drain-result-to-query",
+			"request": "query",
+			"reply": "{\"type\":\"drain-result\",\"state\":\"ready\"}",
+			"outcome": {
+				"kind": "close"
+			}
+		},
+		{
+			"name": "answer-to-exit",
+			"request": "exit",
+			"reply": "{\"type\":\"answer\",\"generation\":1,\"capabilities\":[],\"productVersion\":\"1.6.0\",\"build\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\"}}",
+			"outcome": {
+				"kind": "close"
+			}
+		}
+	]
+}
