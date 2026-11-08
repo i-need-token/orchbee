@@ -4,6 +4,7 @@ mod agent_integration_job;
 mod control;
 mod cwd_validation;
 mod graphics_decode;
+mod host_query;
 mod lifecycle;
 mod plugin_terminal_environment;
 mod terminal_titles;

@@ -544,6 +544,24 @@ capture, selection or default program, argument count and environment still fit 
 There are no Project, Checkout, Worktree, Agent or Launch Profile identity fields. Cohort validation requires matching deployed binaries;
 this extension does not promise mixed-version operation.
 
+## Host query messages
+
+Kind 34 asks the Worker for the process entries of the Terminal Hosts connected to it. Its body
+after the kind is the request ID (16 bytes), Worker ID (16) and positive generation (`u64`), 40
+bytes in all. The result travels in its own `OBNH` record: the bytes `OBNH`, the bytes
+`00 01 00 00`, an unsigned big-endian body length, then the whole echoed request, a `u16` Host count
+of at most 256 and each entry. An entry is the PID (nonzero `u32`), state (`u8`: 0 unknown, 1 ready,
+2 draining, 3 stopping), terminal count (`u32`), product version and environment (each a length byte
+and at most 64 bytes, in the handshake's grammar), the source commit and the cohort identity (each a
+presence byte and 20 or 32 bytes), then a connection count of at most 64 and each connection's kind
+(a length byte and a name) with its lowest and highest nonzero `u16` generation. Every entry is a
+Terminal Host's, states no capabilities and lists its connections in strictly ascending `kind`
+order. The record admits 256 maximal entries, beyond the 40 KiB frame, and the streaming reader
+refuses an out-of-bounds length before allocating. Values are the `orchbee-connection-handshake`
+process entries, this crate's only dependency. The Server carrier checks the whole echoed request.
+The pair follows this protocol's exact-cohort rule: frame version 1 stays, and older cohorts reject
+the new tag.
+
 ## Carrier and ownership boundaries
 
 This crate owns only the closed semantic values and canonical `OBCN` frame codec. It does not open,

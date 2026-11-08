@@ -83,6 +83,7 @@ fn windows_host() -> Result<
     let (stream, peer) = UnixStream::pair()?;
     let (server, server_peer) = UnixStream::pair()?;
     let host = HostBrokerConnection {
+        endpoint: std::path::PathBuf::new(),
         host_epoch: HostEpoch::from_bytes([2; 16])?,
         negotiated_limits: NegotiatedHostLimits {
             frame_bytes: 1048576,

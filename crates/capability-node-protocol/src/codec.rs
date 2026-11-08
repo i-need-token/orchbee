@@ -28,6 +28,7 @@ mod agent_integration_job;
 mod control;
 mod cwd_validation;
 mod graphics_decode;
+mod host_query;
 mod lifecycle;
 mod plugin_job;
 mod seeded_launch;
@@ -97,6 +98,8 @@ pub enum CapabilityNodeMessage {
     AgentDrainReply(crate::AgentDrainReply),
     AgentIntegrationJobRequest(crate::AgentIntegrationJobRequest),
     AgentIntegrationJobResult(crate::AgentIntegrationJobResult),
+    HostQueryRequest(crate::HostQueryRequest),
+    HostQueryResult(crate::HostQueryResult),
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
@@ -132,6 +135,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
     if let CapabilityNodeMessage::TerminalTitlesResult(value) = message {
         return terminal_titles::encode_result(value);
     }
+    if let CapabilityNodeMessage::HostQueryResult(value) = message {
+        return host_query::encode_result(value);
+    }
     if let CapabilityNodeMessage::TerminalTitlesRequest(value) = message {
         value.validate()?;
     }
@@ -164,6 +170,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
     }
     if frame.starts_with(b"OBNT") {
         return terminal_titles::decode_result(frame);
+    }
+    if frame.starts_with(b"OBNH") {
+        return host_query::decode_result(frame);
     }
     if frame.starts_with(b"OBPJ") {
         return plugin_job::decode(frame);
@@ -203,6 +212,9 @@ pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, Rea
     }
     if header.starts_with(b"OBNT") {
         return terminal_titles::read_result(reader, header);
+    }
+    if header.starts_with(b"OBNH") {
+        return host_query::read_result(reader, header);
     }
     if header.starts_with(b"OBPJ") {
         return plugin_job::read(reader, header);
@@ -303,6 +315,8 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::AgentIntegrationJobResult(value) => {
             agent_integration_job::encode_result(value)
         }
+        CapabilityNodeMessage::HostQueryRequest(value) => host_query::encode_request(*value),
+        CapabilityNodeMessage::HostQueryResult(_) => unreachable!("Host query results use OBNH"),
     }
 }
 
@@ -394,6 +408,9 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             .map(CapabilityNodeMessage::AgentIntegrationJobRequest),
         Some(agent_integration_job::RESULT_KIND) => agent_integration_job::decode_result(payload)
             .map(CapabilityNodeMessage::AgentIntegrationJobResult),
+        Some(host_query::REQUEST_KIND) => {
+            host_query::decode_request(payload).map(CapabilityNodeMessage::HostQueryRequest)
+        }
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),
         Some(TERMINAL_LAUNCH_RESULT_KIND) => {

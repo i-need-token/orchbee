@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[dependencies]
+orchbee-connection-handshake = { path = "../connection-handshake" }
+
 [lints]
 workspace = true
 

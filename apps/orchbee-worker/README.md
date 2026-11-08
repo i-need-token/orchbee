@@ -630,6 +630,18 @@ Deterministic socket witnesses cover handoff, exact completion, mismatch, ordere
 | Ordered loss closes the right links       | `observed_host_loss_before_handoff_is_a_definite_failure`, `server_loss_before_handoff_abandons_without_sending_or_inventing_a_result`, `server_loss_interrupts_a_waiting_host_and_closes_both_links` |
 | Deadline and retained execution           | `a_silent_host_is_bounded_by_the_operation_deadline`, `real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss`                                                                  |
 
+## Host process query
+
+The Server's OBCN Host query asks for the process entry of every Host connected to this Worker. The
+Worker opens a new connection to the endpoint its Host broker connection dialed and sends one
+handshake `query` control request, which the Host answers from the facts it publishes without
+touching the broker connection. The Host is asked rather than described from the Worker's records
+because only the Host knows its state, its live terminal count and the generations it supports.
+The exchange shares a 500-millisecond budget; a Host that refuses, answers with another process, or
+has not answered by then is left out of the result rather than ending the Worker. The relayed entry
+carries no capabilities. Before the first Launch starts a Host, and for a request fenced to another
+Worker or generation, the result lists no Host.
+
 ## Integrated authorized request loop
 
 `terminal_operations` composes the accepted local-terminal milestone inside the private Worker.

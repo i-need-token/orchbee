@@ -8,13 +8,13 @@ use std::{
     cell::RefCell,
     error::Error,
     io::{self, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     rc::Rc,
     thread,
     time::{Duration, Instant},
 };
 
-use orchbee_connection_handshake::CANDIDATE_DEADLINE;
+use orchbee_connection_handshake::{CANDIDATE_DEADLINE, ProcessEntry};
 
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_terminal_protocol::{
@@ -37,6 +37,8 @@ mod controllers;
 mod exchange;
 mod host_colors;
 mod offer;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod process_query;
 mod target_cleanup;
 mod titles;
 mod viewers;
@@ -55,6 +57,8 @@ const CLIENT_ID_BYTES: [u8; 16] = *b"orchbee-worker-1";
 const HELLO_CORRELATION_BYTES: [u8; 16] = *b"worker-host-hi-1";
 
 pub(crate) struct HostBrokerConnection {
+    /// The endpoint this connection dialed, where the Host also answers control requests.
+    endpoint: PathBuf,
     host_epoch: orchbee_terminal_protocol::HostEpoch,
     negotiated_limits: NegotiatedHostLimits,
     stream: UnixStream,
@@ -103,6 +107,7 @@ impl HostBrokerConnection {
             validate_hello_accepted(&mut transport, &expected, correlation_id)?;
         transport.remaining()?;
         Ok(Self {
+            endpoint: endpoint.to_owned(),
             host_epoch,
             negotiated_limits,
             stream: transport.stream,
@@ -146,6 +151,7 @@ impl HostBrokerConnection {
         stream.set_read_timeout(None)?;
         stream.set_write_timeout(None)?;
         Ok(Self {
+            endpoint: endpoint.to_owned(),
             host_epoch,
             negotiated_limits,
             stream,
@@ -160,6 +166,15 @@ impl HostBrokerConnection {
 
     pub(crate) const fn host_epoch(&self) -> orchbee_terminal_protocol::HostEpoch {
         self.host_epoch
+    }
+
+    /// The Host's own process entry, from one `query` control request on a new connection to the
+    /// endpoint this connection dialed; `None` when the Host has not answered by `deadline`.
+    pub(crate) fn query_process(&self, deadline: Instant) -> Option<ProcessEntry> {
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        return process_query::query(&self.endpoint, deadline).ok();
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+        return None;
     }
 
     pub(crate) const fn negotiated_limits(&self) -> NegotiatedHostLimits {

@@ -43,9 +43,11 @@ or late success.
 ## Query and compatibility
 
 The request is the handshake's `query`, carrying this build's environment; the reply lists the
-Server first, then the Worker it started, each with role, product version, build, environment, PID,
-state, terminal count and connections, plus whether Restart Session keeps terminals. Hosts join the
-reply once the Worker reports them. The [local Client protocol](../../../crates/local-client-protocol/README.md#process-query)
+Server first, then the Worker it started, then each Terminal Host connected to that Worker (at most
+256), each with role, product version, build, environment, PID, state, terminal count and
+connections, plus whether Restart Session keeps terminals. Each Host states its own facts; a Host
+that has not answered by the time the reply is due is left out, never listed with guessed facts.
+The [local Client protocol](../../../crates/local-client-protocol/README.md#process-query)
 owns the exchange on every platform, and the [Server guide](../../orchbee-server/README.md) owns
 the reply. The Server answers before Client admission, after a `drain` (reporting `draining`), and
 while a Session stop or an `exit` is underway (reporting `stopping`); the request grants no
@@ -81,7 +83,8 @@ protocol/transport, timeout and cancellation failures keep their established cod
 timeout exits 7 and cancellation exits 130. Both include the closed detail
 `{stage:"runtime-status"}` in the existing v1 failure envelope; older command detail shapes are unchanged.
 
-Required evidence includes the reply's process order, versions and unknown role or state; the
+Required evidence includes the reply's process order, versions and unknown role or state; Hosts
+after the Worker, at most 256 and without capabilities, and a late Worker read as no Host; the
 Windows named-pipe request with environment refusal, an old Session's rejection, wrong replies,
 silence, expiry and cancellation; Server query with full Session capacity and while stopping without
 allocating a generation; and offline Client/help/schema/completion.

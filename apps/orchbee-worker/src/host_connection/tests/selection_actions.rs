@@ -35,6 +35,7 @@ fn host() -> TestResult<(HostBrokerConnection, UnixStream)> {
     let (stream, peer) = UnixStream::pair()?;
     Ok((
         HostBrokerConnection {
+            endpoint: std::path::PathBuf::new(),
             host_epoch: HostEpoch::from_bytes([4; 16])?,
             negotiated_limits: NegotiatedHostLimits {
                 frame_bytes: 1_048_576,

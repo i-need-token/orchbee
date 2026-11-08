@@ -122,6 +122,7 @@ fn fixture() -> Result<(HostBrokerConnection, UnixStream), Box<dyn Error>> {
     peer.set_read_timeout(Some(Duration::from_secs(2)))?;
     peer.set_write_timeout(Some(Duration::from_secs(2)))?;
     let host = HostBrokerConnection {
+        endpoint: std::path::PathBuf::new(),
         host_epoch: HostEpoch::from_bytes([4; 16])?,
         negotiated_limits: NegotiatedHostLimits {
             frame_bytes: 1_048_576,

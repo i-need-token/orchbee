@@ -30,10 +30,15 @@ answered, so the stop's status and retry exchanges reach its owner, and the foll
 gets the typed stopping rejection.
 
 A `query` request, on every platform, checks only the environment and replies with this Server
-first and then the Worker it started, each with product version, build, environment, PID, state
-(`draining` after a drain, `stopping` after a recorded stop or an exit), terminal count, and
-connections; `restartKeepsTerminals` is
-false. Hosts join once the Worker reports them. The query creates no Connection generation or
+first, then the Worker it started, then each Terminal Host connected to that Worker, each with
+product version, build, environment, PID, state (`draining` after a drain, `stopping` after a
+recorded stop or an exit), terminal count, and connections; `restartKeepsTerminals` is false. The
+Server asks its Worker for the Hosts with one OBCN Host query and waits for the answer until one
+second after accepting the connection, leaving the rest of the two-second candidate deadline for the
+reply. Each Host's entry is the one it reports for itself, listed without capabilities and at most
+256 of them. A Host that has not answered, and every Host when the Worker is absent, late, or between
+generations, is left out rather than listed with guessed facts; a Server that did not start its
+Worker lists neither. The query creates no Connection generation or
 Workbench/viewer state, acquires no shutdown record lease, and closes after one reply, including
 when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
 future availability. The [runtime status contract](../orchbee/docs/native-runtime-status.md) owns

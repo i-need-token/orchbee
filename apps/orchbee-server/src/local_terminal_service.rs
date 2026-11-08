@@ -44,6 +44,7 @@ mod checkpoint;
 #[cfg(windows)]
 pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
+mod connected_hosts;
 mod controller_connection;
 mod controller_focus;
 #[cfg(windows)]
@@ -403,6 +404,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
         // requests submitted here; it exists for the Agent drain pump.
         Ok(WorkerOperationResult::EditorCommand(_))
         | Ok(WorkerOperationResult::Titles(_))
+        | Ok(WorkerOperationResult::HostQuery(_))
         | Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Completion::Unknown,

@@ -94,6 +94,7 @@ fn reported_processes_keep_their_order_versions_and_unknown_values() {
         vec![
             entry(ProcessRole::Server, "2.0.0", 7, ProcessState::Ready),
             entry(ProcessRole::Worker, "2.0.0", 8, ProcessState::Draining),
+            entry(ProcessRole::TerminalHost, "2.1.0", 10, ProcessState::Ready),
             entry(ProcessRole::Unknown, "3.0.0", 9, ProcessState::Unknown),
         ],
         Some(false),
@@ -124,18 +125,27 @@ fn reported_processes_keep_their_order_versions_and_unknown_values() {
         [
             (json!("server"), json!("2.0.0")),
             (json!("worker"), json!("2.0.0")),
+            (json!("terminal-host"), json!("2.1.0")),
             (json!("unknown"), json!("3.0.0")),
         ]
     );
-    assert_eq!(doc["result"]["server"]["processes"][2]["state"], "unknown");
+    assert_eq!(doc["result"]["server"]["processes"][3]["state"], "unknown");
     let mut empty = doc.clone();
     empty["result"]["server"]["processes"] = json!([]);
     assert!(!validator.is_valid(&empty));
-    // Text lists one line per process in both locales.
-    for locale in [Locale::EnUs, Locale::ZhCn] {
+    // Text lists one line per process in both locales, each labelled by its role.
+    for (locale, host) in [
+        (Locale::EnUs, "Terminal Host process"),
+        (Locale::ZhCn, "Terminal Host 进程"),
+    ] {
         let text = String::from_utf8(emit(report(), OutputFormat::Text, locale).stdout).unwrap();
         assert_eq!(text.matches("2.0.0").count(), 2, "{text}");
         assert_eq!(text.matches("3.0.0").count(), 1, "{text}");
+        let host_line = text.lines().find(|line| line.contains("2.1.0")).unwrap();
+        assert!(
+            host_line.contains(host) && host_line.contains("10"),
+            "{text}"
+        );
     }
 }
 

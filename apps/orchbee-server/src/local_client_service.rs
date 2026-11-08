@@ -275,6 +275,7 @@ fn handle_candidate_control(
     workbench: &WorkbenchService,
     control: stop_control::StopControl<'_>,
 ) {
+    let accepted = std::time::Instant::now();
     let agents = control.agents;
     if let Err(error) = stream
         .set_read_timeout(Some(CANDIDATE_DEADLINE))
@@ -347,7 +348,8 @@ fn handle_candidate_control(
                 &mut stream,
                 identity,
                 control.process_state(),
-                terminals.terminal_count(),
+                terminals,
+                accepted,
             );
             return;
         }

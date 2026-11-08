@@ -66,6 +66,7 @@ pub(crate) enum WorkerOperationRequest {
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
     EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandRequest),
+    HostQuery(orchbee_capability_node_protocol::HostQueryRequest),
 }
 
 #[cfg(any(windows, test))]
@@ -111,6 +112,7 @@ impl WorkerOperationRequest {
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
             Self::EditorCommand(request) => (request.worker_id, request.worker_generation),
+            Self::HostQuery(request) => (request.worker_id, request.worker_generation),
         }
     }
 
@@ -118,7 +120,9 @@ impl WorkerOperationRequest {
         match self {
             #[cfg(any(windows, test))]
             Self::Handoff(_) => RequestLane::High,
-            Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) => RequestLane::Low,
+            Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) | Self::HostQuery(_) => {
+                RequestLane::Low
+            }
             Self::Viewer(_) | Self::GraphicsDecode(_) => RequestLane::Low,
             #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
@@ -172,6 +176,7 @@ impl WorkerOperationRequest {
             Self::EditorCommand(request) => {
                 CapabilityNodeMessage::TerminalEditorCommandRequest(*request)
             }
+            Self::HostQuery(request) => CapabilityNodeMessage::HostQueryRequest(*request),
         }
     }
 }
@@ -197,6 +202,7 @@ pub(crate) enum WorkerOperationResult {
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
     Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
     EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandResult),
+    HostQuery(orchbee_capability_node_protocol::HostQueryResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -395,6 +401,15 @@ impl WorkerRequestHandle {
         self.admit(WorkerOperationRequest::WorktreeJob(request), false)
     }
 
+    /// The handshake `query` reader waits for its Hosts only until its reply is due; the wire
+    /// owner still validates and consumes a later result. Admission never waits.
+    pub(crate) fn admit_host_query(
+        &self,
+        request: orchbee_capability_node_protocol::HostQueryRequest,
+    ) -> Result<PendingExchange, WorkerRequestError> {
+        self.admit(WorkerOperationRequest::HostQuery(request), false)
+    }
+
     /// Admit one request through the existing worker/generation fence and lane
     /// rules, returning the exchange that receives its result. Completion
     /// ownership is fixed by the admitted request kind.
@@ -522,16 +537,16 @@ enum CompletionDelivery {
 
 impl CompletionDelivery {
     /// Completion ownership is derived from the admitted request kind, never
-    /// chosen by the caller: typed AgentDrain and read-only WorktreeJob requests
-    /// get discardable completion; effects still require a live receiver.
+    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob and HostQuery
+    /// requests get discardable completion; effects still require a live receiver.
     fn for_request(
         request: &WorkerOperationRequest,
         completion: SyncSender<Result<WorkerOperationResult, WorkerRequestError>>,
     ) -> Self {
         match request {
-            WorkerOperationRequest::AgentDrain(_) | WorkerOperationRequest::WorktreeJob(_) => {
-                Self::DiscardableRead(completion)
-            }
+            WorkerOperationRequest::AgentDrain(_)
+            | WorkerOperationRequest::WorktreeJob(_)
+            | WorkerOperationRequest::HostQuery(_) => Self::DiscardableRead(completion),
             _ => Self::Required(completion),
         }
     }
@@ -1439,6 +1454,23 @@ fn validate_response(
         (_, CapabilityNodeMessage::WorkerShutdownRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
+        (
+            WorkerOperationRequest::HostQuery(expected),
+            CapabilityNodeMessage::HostQueryResult(actual),
+        ) => {
+            if actual.request.request_id != expected.request_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.request != *expected {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            Ok(WorkerOperationResult::HostQuery(actual))
+        }
+        (_, CapabilityNodeMessage::HostQueryRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::HostQueryResult(_))
+        | (WorkerOperationRequest::HostQuery(_), _) => Err(WorkerResponseFailure::WrongResultKind),
         // The exchange consumes hints before validating a result.
         (_, CapabilityNodeMessage::TerminalViewerRecordReady(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)

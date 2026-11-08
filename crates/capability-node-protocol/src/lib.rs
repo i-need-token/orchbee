@@ -12,6 +12,8 @@ pub use agent_integration_job::{
 };
 mod codec;
 mod error;
+mod host_query;
+pub use host_query::{HostQueryRequest, HostQueryResult, MAXIMUM_QUERY_HOSTS};
 mod identity;
 mod launch_preferences;
 pub use launch_preferences::{

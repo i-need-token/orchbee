@@ -121,6 +121,16 @@ pub(crate) fn run(
                 )?;
                 continue;
             }
+            if let CapabilityNodeMessage::HostQueryRequest(request) = request {
+                // No Host exists before the first Launch starts one.
+                let result = super::host_query::execute(None, request, worker_id, generation);
+                let _no_host = server_transport::send(
+                    &server,
+                    None,
+                    &CapabilityNodeMessage::HostQueryResult(result),
+                )?;
+                continue;
+            }
             #[cfg(windows)]
             if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
                 if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true)

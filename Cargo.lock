@@ -965,6 +965,9 @@ dependencies = [
 [[package]]
 name = "orchbee-capability-node-protocol"
 version = "0.1.0"
+dependencies = [
+ "orchbee-connection-handshake",
+]
 
 [[package]]
 name = "orchbee-client-server-protocol"

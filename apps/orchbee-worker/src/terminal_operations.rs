@@ -28,6 +28,7 @@ use crate::{
 };
 
 mod background_jobs;
+mod host_query;
 mod launch_facts;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod lazy;
@@ -183,6 +184,17 @@ fn run_admitted_with_handoff(
                 &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalEditorCommandResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
+        if let CapabilityNodeMessage::HostQueryRequest(request) = request {
+            let result = host_query::execute(Some(host), request, worker_id, generation);
+            if server_transport::send(
+                &server,
+                Some(host),
+                &CapabilityNodeMessage::HostQueryResult(result),
             )? {
                 return Err(peer_closed().into());
             }
@@ -470,7 +482,9 @@ fn run_admitted_with_handoff(
             | CapabilityNodeMessage::PluginJobRequest(_)
             | CapabilityNodeMessage::PluginJobResult(_)
             | CapabilityNodeMessage::AgentIntegrationJobRequest(_)
-            | CapabilityNodeMessage::AgentIntegrationJobResult(_) => {
+            | CapabilityNodeMessage::AgentIntegrationJobResult(_)
+            | CapabilityNodeMessage::HostQueryRequest(_)
+            | CapabilityNodeMessage::HostQueryResult(_) => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Server sent a Worker-to-Server result",

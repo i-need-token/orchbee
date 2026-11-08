@@ -13,11 +13,11 @@ pub(super) fn help(locale: Locale, server: bool) -> crate::cli_text::HelpDetails
         ),
         (Locale::EnUs, true) => crate::cli_text::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows: list the selected local Session's processes (Server, then its Worker)\nwith each version, PID, state and terminal count, and whether Restart Session\nkeeps terminals. Uses one read-only request, never a Client Connection: does not\nstart a session or restart anything. One five-second collection budget. No Server\nat this scope exits 0; a Session too old to answer or from another environment is\nincompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
+            "Windows: list the selected local Session's processes (Server, its Worker, then\nthe Terminal Hosts connected to it) with each version, PID, state and terminal\ncount, and whether Restart Session keeps terminals. A Host that does not answer\nin time is left out. Uses one read-only request, never a Client Connection: does\nnot start a session or restart anything. One five-second collection budget. No\nServer at this scope exits 0; a Session too old to answer or from another\nenvironment is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
         ),
         (Locale::ZhCn, true) => crate::cli_text::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows：列出选中本地会话的进程（Server 及其 Worker），包括各自的版本、PID、状态和终端数，以及重启会话是否保留终端。只发送一次只读请求，不建立客户端连接，不启动会话，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；会话版本过旧无法应答或属于另一环境时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
+            "Windows：列出选中本地会话的进程（Server、其 Worker，以及连接到该 Worker 的 Terminal Host），包括各自的版本、PID、状态和终端数，以及重启会话是否保留终端。未及时应答的 Terminal Host 不会列出。只发送一次只读请求，不建立客户端连接，不启动会话，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；会话版本过旧无法应答或属于另一环境时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
         ),
     }
 }

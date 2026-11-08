@@ -12,9 +12,10 @@ use crate::{
     workbench_service::{WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
 };
-use orchbee_connection_handshake::CohortIdentity;
+use orchbee_connection_handshake::{Build, CohortIdentity, EnvironmentName, ProductVersion};
 use std::{
     io::Read,
+    num::NonZeroU32,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -24,7 +25,7 @@ use std::{
 fn the_reply_lists_the_server_first_then_the_worker_it_started() {
     let cohort = "ab".repeat(32);
     let identity = ServerIdentity::local(Some(&cohort), Some(4242));
-    let result = result(&identity, ProcessState::Ready, 3).unwrap();
+    let result = result(&identity, ProcessState::Ready, 3, Vec::new()).unwrap();
     assert_eq!(result.restart_keeps_terminals(), Some(false));
     let [server, worker] = result.processes() else {
         panic!("expected the Server and its Worker")
@@ -74,6 +75,7 @@ fn the_reply_lists_the_server_first_then_the_worker_it_started() {
         &ServerIdentity::local(None, None),
         ProcessState::Stopping,
         0,
+        Vec::new(),
     )
     .unwrap();
     let [server] = alone.processes() else {
@@ -81,6 +83,68 @@ fn the_reply_lists_the_server_first_then_the_worker_it_started() {
     };
     assert_eq!(server.build.cohort, None);
     assert_eq!(server.state, ProcessState::Stopping);
+}
+
+#[test]
+fn hosts_follow_the_worker_in_its_order_without_capabilities_and_at_most_256() {
+    let connection = |kind: &str| ConnectionEntry {
+        kind: ContractName::new(kind).unwrap(),
+        generations: ConnectionKind::WorkerHost.supported_generations(),
+        capabilities: Some(CapabilitySet::default()),
+    };
+    // Each Host states its own facts; these arrive out of order and with capabilities.
+    let host = |pid: u32| ProcessEntry {
+        role: ProcessRole::TerminalHost,
+        product_version: ProductVersion::new("0.2.0").unwrap(),
+        build: Build::default(),
+        environment: EnvironmentName::new("ob-test-host").unwrap(),
+        pid: NonZeroU32::new(pid).unwrap(),
+        state: ProcessState::Draining,
+        terminals: pid,
+        connections: vec![connection("worker-host"), connection("frame-a")],
+    };
+    let identity = ServerIdentity::local(None, Some(4242));
+    let reply = result(
+        &identity,
+        ProcessState::Ready,
+        2,
+        (1..=300).map(host).collect(),
+    )
+    .unwrap();
+    let [server, worker, hosts @ ..] = reply.processes() else {
+        panic!("expected the Server and its Worker before the Hosts")
+    };
+    assert_eq!(
+        (server.role, worker.role),
+        (ProcessRole::Server, ProcessRole::Worker)
+    );
+    assert_eq!(hosts.len(), 256);
+    for (entry, pid) in hosts.iter().zip(1..) {
+        assert_eq!(entry.role, ProcessRole::TerminalHost);
+        assert_eq!((entry.pid.get(), entry.terminals), (pid, pid));
+        assert_eq!(entry.state, ProcessState::Draining);
+        assert_eq!(entry.product_version.as_str(), "0.2.0");
+        let kinds = entry
+            .connections
+            .iter()
+            .map(|c| c.kind.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(kinds, ["frame-a", "worker-host"]);
+        assert!(entry.connections.iter().all(|c| c.capabilities.is_none()));
+    }
+
+    let alone = result(
+        &ServerIdentity::local(None, None),
+        ProcessState::Ready,
+        0,
+        vec![host(1)],
+    )
+    .unwrap();
+    assert_eq!(
+        alone.processes().len(),
+        1,
+        "no Worker is listed, so no Host follows one"
+    );
 }
 
 #[test]
