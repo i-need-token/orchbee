@@ -241,8 +241,8 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
     // Exercise the unchanged callback for every shared case as well as the real engine. Windows
     // PowerShell 5.1 never calls native completers for a bare dash; retain that host limitation
     // as an explicit negative witness instead of silently dropping the short-alias obligations.
-    let callback = render().replacen(
-        "Register-ArgumentCompleter -Native -CommandName orchbee, orchbee.exe -ScriptBlock {",
+    let callback = render("orchbee").replacen(
+        "Register-ArgumentCompleter -Native -CommandName 'orchbee', 'orchbee.exe' -ScriptBlock {",
         "$script:OrchbeeTestCompleter = {",
         1,
     );
@@ -287,6 +287,9 @@ Write-Output ('completion-ok; callback cases='+$cases.Count+'; host boundaries='
 "#
     .replace("__ORCHBEE_TEST_CASES__", &json)
     .replace("__ORCHBEE_TEST_EXECUTABLE__", name);
+    // PowerShell writes its module analysis cache under LOCALAPPDATA, or under the working
+    // directory when that is unset, so each shell gets an absolute scratch profile of its own.
+    let profile = ScratchProfile::new();
     for shell in ["powershell.exe", "pwsh.exe"] {
         let script = format!(
             "$ErrorActionPreference='Stop'\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)\n{callback}\n{runner}"
@@ -301,6 +304,12 @@ Write-Output ('completion-ok; callback cases='+$cases.Count+'; host boundaries='
             ])
             .env("PATH", &search_path)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
+            .env("APPDATA", &profile.0)
+            .env("LOCALAPPDATA", &profile.0)
+            .env(
+                "PSModuleAnalysisCachePath",
+                profile.0.join("ModuleAnalysisCache"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -327,5 +336,24 @@ Write-Output ('completion-ok; callback cases='+$cases.Count+'; host boundaries='
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
+    }
+}
+
+/// A directory under the system temporary directory that the shells take as their profile
+/// folders; it is removed when the test ends, including on failure.
+struct ScratchProfile(std::path::PathBuf);
+
+impl ScratchProfile {
+    fn new() -> Self {
+        let path =
+            std::env::temp_dir().join(format!("ob-powershell-completion-{}", std::process::id()));
+        std::fs::create_dir_all(&path).expect("scratch profile");
+        Self(path)
+    }
+}
+
+impl Drop for ScratchProfile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
     }
 }

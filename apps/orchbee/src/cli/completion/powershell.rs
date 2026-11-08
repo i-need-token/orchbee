@@ -3,7 +3,9 @@
 #[cfg(all(test, windows))]
 mod tests;
 
-pub(super) fn render() -> String {
+/// The script for `name`, the running executable's stem, which it registers with and without
+/// `.exe`; `name` uses only the portable command spelling, so single quotes carry it unchanged.
+pub(super) fn render(name: &str) -> String {
     // Windows PowerShell 5.1 reads BOM-less scripts using the legacy code page.
     // ASCII JSON escapes preserve every declared Unicode character under either decoder.
     let mut literal = String::new();
@@ -16,5 +18,7 @@ pub(super) fn render() -> String {
             }
         }
     }
-    include_str!("powershell.ps1").replace("__ORCHBEE_GRAMMAR__", &literal)
+    include_str!("powershell.ps1")
+        .replace("__ORCHBEE_COMMAND__", name)
+        .replace("__ORCHBEE_GRAMMAR__", &literal)
 }

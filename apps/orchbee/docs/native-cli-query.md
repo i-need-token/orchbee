@@ -1165,8 +1165,11 @@ owner. `--` and terminal options stop completion; invalid scope, duplicates or c
 no viable command. Viable paths determine the next command word, unused compatible flags,
 operand budget and closed enum values; a joined value keeps its `--flag=` prefix. Freeform
 values have no candidates. The callback emits each candidate once, leaving matching and quoting
-to Elvish. It evaluates no supplied word and starts no process. Registration covers `orchbee`
-and `orchbee.exe` only, without changing profiles or other completers. The generated script is
+to Elvish. It evaluates no supplied word and starts no process. Registration covers the running
+executable's own stem with and without `.exe`, such as `orchbee` for release or
+`ob-dev-<16 lowercase hex>` for a development Client, without changing profiles or other
+completers. PowerShell registers the same two names. A stem outside ASCII letters, digits, `-`, `_`
+and `.` falls back to the cohort Client's name. The generated script is
 bounded by the shared 8 MiB output limit. A separate fixed-output test keeps every completion
 script and help body below 512 KiB (16 times under the runtime limit) to flag unexpected grammar growth. Load explicitly in interactive Elvish 0.21 with
 `eval (orchbee completion elvish | slurp)`.

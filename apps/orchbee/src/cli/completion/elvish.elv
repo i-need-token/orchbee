@@ -182,6 +182,6 @@
       if (not (has-key $emitted $candidate)) { put $candidate; set emitted[$candidate] = $true }
     }
   }
-  set edit:completion:arg-completer[orchbee] = $complete~
-  set edit:completion:arg-completer[orchbee.exe] = $complete~
+  set edit:completion:arg-completer['__ORCHBEE_COMMAND__'] = $complete~
+  set edit:completion:arg-completer['__ORCHBEE_COMMAND__.exe'] = $complete~
 }

@@ -2,7 +2,7 @@
 
 #[test]
 fn script_carries_the_shared_grammar_within_the_output_bound() {
-    let script = super::render();
+    let script = super::render("orchbee");
     assert!(script.len() < crate::cli::output::LIMIT);
     assert!(!script.contains("__ORCHBEE_GRAMMAR__"));
     let start =
@@ -43,7 +43,7 @@ fn real_elvish_completes_scoped_literal_words_without_runtime() {
         .replace('\'', "''");
     let script = format!(
         "var edit: = (ns [&completion:=(ns [&arg-completer=[&]])])\n{}\nvar cases = (print '{json}' | from-json)\nfor words $cases {{ put [($edit:completion:arg-completer[$words[0]] $@words)] | to-json }}\n",
-        super::render()
+        super::render("orchbee")
     );
     let mut child = Command::new(executable)
         .args(["-norc", "-c", "eval (slurp)"])

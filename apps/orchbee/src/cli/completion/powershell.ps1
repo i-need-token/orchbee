@@ -1,5 +1,5 @@
 # Static Orchbee native completion. Load explicitly; no profile is modified.
-Register-ArgumentCompleter -Native -CommandName orchbee, orchbee.exe -ScriptBlock {
+Register-ArgumentCompleter -Native -CommandName '__ORCHBEE_COMMAND__', '__ORCHBEE_COMMAND__.exe' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $grammar = ConvertFrom-Json @'
 __ORCHBEE_GRAMMAR__

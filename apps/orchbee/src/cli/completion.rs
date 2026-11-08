@@ -68,9 +68,29 @@ pub(crate) fn render(shell: CompletionShell) -> String {
     match shell {
         CompletionShell::Bash | CompletionShell::Zsh => posix::render(shell),
         CompletionShell::Fish => fish::render(),
-        CompletionShell::PowerShell => powershell::render(),
-        CompletionShell::Elvish => elvish::render(),
+        CompletionShell::PowerShell => powershell::render(&command_name()),
+        CompletionShell::Elvish => elvish::render(&command_name()),
     }
+}
+
+/// The name a shell invokes this executable by: the running file's own stem, so a development or
+/// test Client such as `ob-dev-<digest>.exe` completes under its name rather than release's. A
+/// stem outside the portable command spelling falls back to the cohort Client's.
+fn command_name() -> String {
+    let portable = |name: &str| {
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    };
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem()?.to_str().map(str::to_owned))
+        .filter(|name| portable(name))
+        .unwrap_or_else(|| {
+            let client = orchbee_local_runtime::CohortArtifact::Client.file_name();
+            client.strip_suffix(".exe").unwrap_or(&client).to_owned()
+        })
 }
 #[cfg(test)]
 mod tests;

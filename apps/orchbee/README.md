@@ -226,8 +226,9 @@ node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 ```
 
 Staging prints the Client path, for example `...\OrchbeeNative\ob-dev-<16 lowercase hex>.exe`; run it in
-Windows Terminal. The directory contains the four exact `.exe` siblings, a hash manifest, and the
-observation-adapter capsule. Keep them together. The file names start with the artifact stem. Native
+Windows Terminal. Development and test Clients stay off `PATH`, since staging changes no `PATH`:
+run one by the path staging prints, or let `pnpm desktop` stage and start its own. The directory
+contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter capsule. Keep them together. The file names start with the artifact stem. Native
 Windows staging defaults to this checkout's development stem, `ob-dev-<16 lowercase hex>`, the same
 one `pnpm desktop` uses, so a development cohort never shares image names with the installed release.
 `--artifact-stem orchbee` stages the release names and `ob-test-<16 lowercase hex>` a test cohort.
@@ -284,7 +285,9 @@ It is resolved from the OS system directory, never from PATH, and is terminated/
 Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load it explicitly with
 `Invoke-Expression (orchbee completion powershell | Out-String)`; no profile is changed.
 In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the static callback
-registers both `orchbee` and `orchbee.exe` without querying a Session or modifying profiles.
+registers the running executable's own name, with and without `.exe`, without querying a Session or
+modifying profiles. A development or test Client therefore registers its own `ob-dev-` or
+`ob-test-` name and never takes over the release `orchbee` completer.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
 `orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline, or its [`zh-CN` product copy](docs/cli-agent-skill.zh-CN.md) under that locale. Operating-system service
 installation, release signing, automatic application updates, and live Host adoption remain outside these commands.
