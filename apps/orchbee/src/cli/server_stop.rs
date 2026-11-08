@@ -43,7 +43,7 @@ pub(crate) fn run_command(
             locale,
         )
     {
-        return refusal;
+        return *refusal;
     }
     run(command, format, locale)
 }

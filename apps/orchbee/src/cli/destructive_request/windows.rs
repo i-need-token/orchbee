@@ -67,7 +67,7 @@ pub(super) fn prompt(text: &str) -> Typed {
         }
     }
     match signals.finish() {
-        Ok(Finish::Cancelled { finalization }) => Err(finalization),
+        Ok(Finish::Cancelled { finalization }) => Err(Box::new(finalization)),
         Ok(Finish::Clear) => Ok(line),
         Err(_) => Ok(String::new()),
     }

@@ -39,10 +39,12 @@ impl super::CliText {
             (Locale::ZhCn, "session-unknown") => format!(
                 "无法确定要停止哪个会话，未做任何改动。请在控制台运行 {hand} 并指明会话。\n"
             ),
-            (Locale::EnUs, _) => {
-                format!("The typed name does not match Session {name}. Nothing was changed.\n")
-            }
-            (Locale::ZhCn, _) => format!("输入的名称与会话 {name} 不符，未做任何改动。\n"),
+            (Locale::EnUs, _) => format!(
+                "The typed name does not match Session {name}. Nothing was changed. Run {hand} again and type the Session name exactly.\n"
+            ),
+            (Locale::ZhCn, _) => format!(
+                "输入的名称与会话 {name} 不符，未做任何改动。请重新运行 {hand}，并准确输入会话名称。\n"
+            ),
         }
     }
 }

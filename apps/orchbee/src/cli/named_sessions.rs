@@ -61,7 +61,7 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
                     locale,
                 )
             {
-                return refusal;
+                return *refusal;
             }
             super::server_stop(command, format, locale)
         }
@@ -75,7 +75,7 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
                 locale,
             ) {
                 Ok(()) => delete(name, format, locale),
-                Err(refusal) => refusal,
+                Err(refusal) => *refusal,
             }
         }
     }

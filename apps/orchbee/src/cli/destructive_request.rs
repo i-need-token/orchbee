@@ -109,13 +109,13 @@ fn decide(
 }
 
 /// The line a person typed at the prompt, or the finalization of an interrupt that cancelled it.
-type Typed = Result<String, super::SourceFinalization>;
+type Typed = Result<String, Box<super::SourceFinalization>>;
 
 /// The settled admission of one invocation.
 enum Verdict {
     Run,
     Refuse(Refusal),
-    Cancelled(super::SourceFinalization),
+    Cancelled(Box<super::SourceFinalization>),
 }
 
 impl Verdict {
@@ -140,7 +140,7 @@ pub(super) fn admit(
     target: Option<&str>,
     format: OutputFormat,
     locale: Locale,
-) -> Result<(), Output> {
+) -> Result<(), Box<Output>> {
     let release = platform::release();
     let console = platform::console();
     let resolved = match target {
@@ -173,8 +173,8 @@ pub(super) fn admit(
         Verdict::Cancelled(finalization) => {
             let mut output =
                 failure_output(Failure::new(FailureKind::Cancelled), Some(format), locale);
-            output.finalization = Some(finalization);
-            Err(output)
+            output.finalization = Some(*finalization);
+            Err(Box::new(output))
         }
         Verdict::Refuse(refusal) => {
             let details = Map::from_iter([
@@ -191,7 +191,7 @@ pub(super) fn admit(
                 &command.by_hand(target),
                 target.unwrap_or_default(),
             );
-            Err(output)
+            Err(Box::new(output))
         }
     }
 }
