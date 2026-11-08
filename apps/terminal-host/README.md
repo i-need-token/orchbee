@@ -45,8 +45,13 @@ The accepted contract requires these externally visible properties:
   closes. While the session runs, at most four further control connections are served: another
   offer is refused with `capacity`, and `query` reports this Host's version, environment, terminal
   count, and state. Control connections carry no attachment or broker authority.
+- `drain` stops the Host taking new terminals: a `CreateTerminal` that would add one fails with
+  `host-draining`, a new offer is refused with `stopping`, and retained terminals keep running. The
+  Host exits on its own once it retains no terminal, closing its Worker session first. `exit` closes
+  the Worker session and ends every terminal and the Host. Both answer only after the Host has
+  applied them, and neither can be undone.
 - A broker disconnect destroys that broker's attachments but does not terminate or dispose retained terminals.
-- A Host with retained terminals remains available for reconnect. A Host with no broker and no retained terminal may exit.
+- A Host with retained terminals remains available for reconnect, unless it was drained or told to exit. A Host with no broker and no retained terminal may exit.
 - Terminal creation is atomic and idempotent by creation identity and durable launch fingerprint
   while the terminal remains retained in one Host epoch. A separate, non-persistent environment
   overlay is applied only to that creation generation and represented in retained state by a

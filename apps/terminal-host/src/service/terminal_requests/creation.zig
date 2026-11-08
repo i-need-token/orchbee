@@ -107,6 +107,17 @@ pub fn handleCreate(
         return;
     };
     defer preparation.deinit();
+    // A drained Host still answers a replay of a retained creation, which adds no terminal.
+    if (preparation.requiresEffect() and self.context.terminal_admission == .closed) {
+        try self.context.addFailure(
+            outgoing,
+            correlation_id,
+            "host-draining",
+            "Terminal Host is draining and accepts no new terminals",
+            false,
+        );
+        return;
+    }
     const identity = preparation.identity();
     const payload = try control_encode.terminalIdentity(
         self.context.allocator,

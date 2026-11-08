@@ -1,8 +1,9 @@
 //! TH-003 control lanes: while the Worker session holds the dispatch thread, four lane threads
 //! each accept one connection at a time on the broker endpoint, answer its control request, and
 //! close it. A lane never touches `HostService`; it replies from the facts the dispatch thread
-//! publishes, and an offer it receives is rejected with `capacity` until every lane has stopped,
-//! even after the session ended, so the offer's retry reaches the dispatch thread.
+//! publishes and posts `drain` or `exit` for the dispatch thread to apply. An offer a lane receives
+//! is rejected with `capacity` until every lane has stopped, even after the session ended, so the
+//! offer's retry reaches the dispatch thread.
 
 const std = @import("std");
 
@@ -11,6 +12,7 @@ const service_boundary = @import("terminal-host-service");
 const candidate = @import("candidate.zig");
 
 const candidate_admission = service_boundary.candidate_admission;
+const host_lifecycle = service_boundary.host_lifecycle;
 
 pub const lane_count = 4;
 /// How long a lane waits for a connection before it rechecks its stop flag.
@@ -25,7 +27,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
 
         endpoint: Endpoint,
         allocator: std.mem.Allocator,
-        facts: candidate_admission.SharedFacts = .{},
+        handoff: candidate_admission.LaneHandoff = .{},
         stop: std.atomic.Value(bool) = .init(false),
         finished: [lane_count]std.atomic.Value(bool) = @splat(.init(false)),
         threads: [lane_count]?std.Thread = @splat(null),
@@ -37,7 +39,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
         /// Starts every lane that can start; a lane that cannot leaves the session running with
         /// fewer control connections.
         pub fn start(self: *Self, facts: candidate_admission.Facts) void {
-            self.facts.publish(facts);
+            self.handoff.publish(facts);
             for (&self.threads, 0..) |*thread, index| {
                 thread.* = std.Thread.spawn(.{}, run, .{ self, index }) catch |err| {
                     std.log.warn("terminal Host control lane did not start: {s}", .{@errorName(err)});
@@ -46,17 +48,25 @@ pub fn ControlLanes(comptime Endpoint: type) type {
             }
         }
 
-        pub fn publish(self: *Self, facts: candidate_admission.Facts) void {
-            self.facts.publish(facts);
+        /// Applies every request a lane posted, then publishes the facts lanes reply from. Only
+        /// the dispatch thread calls it, between two Worker requests.
+        pub fn serve(self: *Self, service: anytype) void {
+            const posted = self.handoff.take();
+            for ([_]host_lifecycle.Request{ .drain, .exit }) |request| {
+                if (posted.contains(request)) _ = service.applyControlRequest(request);
+            }
+            self.handoff.publish(service.candidateFacts());
         }
 
         /// Stops and joins every lane before the dispatch thread accepts again. `service`
-        /// keeps maintaining terminals while a lane finishes its current reply.
+        /// keeps maintaining terminals and applying posted requests while a lane finishes its
+        /// current reply, and a request a lane stopped waiting for still takes effect.
         pub fn stopAndJoin(self: *Self, service: anytype) void {
             self.stop.store(true, .release);
             for (self.threads, &self.finished) |thread, *finished| {
                 if (thread == null) continue;
                 while (!finished.load(.acquire)) {
+                    self.serve(service);
                     service.maintain();
                     monotonic.sleep(std.time.ns_per_ms);
                 }
@@ -65,6 +75,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
                 if (thread.*) |running| running.join();
                 thread.* = null;
             }
+            self.serve(service);
         }
 
         fn run(self: *Self, index: usize) void {
@@ -83,7 +94,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
                 defer lane.finish();
                 // An accepted candidate always gets its reply, so stopping waits for it.
                 _ = candidate.admit(self.allocator, lane.transport(), .{
-                    .facts = .{ .shared = &self.facts },
+                    .host = .{ .lane = &self.handoff },
                     .session_slot_free = false,
                 }) catch |err| switch (err) {
                     error.ConnectionClosed => {},
@@ -97,6 +108,6 @@ pub fn ControlLanes(comptime Endpoint: type) type {
 /// The lanes for a connection served without them, such as a test transport.
 pub const None = struct {
     pub fn start(_: *None, _: candidate_admission.Facts) void {}
-    pub fn publish(_: *None, _: candidate_admission.Facts) void {}
+    pub fn serve(_: *None, _: anytype) void {}
     pub fn stopAndJoin(_: *None, _: anytype) void {}
 };

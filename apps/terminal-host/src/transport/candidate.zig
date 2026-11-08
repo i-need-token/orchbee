@@ -10,10 +10,15 @@ const service_boundary = @import("terminal-host-service");
 const connection = @import("connection.zig");
 
 const candidate_admission = service_boundary.candidate_admission;
+const host_lifecycle = service_boundary.host_lifecycle;
 const host_service = service_boundary.service;
 
 /// How long a connection whose final reply is written waits for its peer to close.
 pub const reply_linger_ns = std.time.ns_per_s;
+/// How long a control lane waits for the dispatch thread to apply a posted `drain` or `exit`. The
+/// dispatch thread applies posted requests between two Worker requests, and reading one record and
+/// writing one reply each stop at `connection.record_read_timeout_ns`.
+pub const request_apply_deadline_ns = 2 * connection.record_read_timeout_ns;
 
 pub const Outcome = enum {
     /// The offer was answered; the connection continues as the Worker session.
@@ -24,24 +29,45 @@ pub const Outcome = enum {
     request_answered,
     /// No complete frame arrived; a best-effort rejection was sent where one applies.
     refused,
+    /// A control lane's `drain` or `exit` was not applied before its deadline. The connection
+    /// closes without a reply, and the request stays posted for the dispatch thread.
+    unanswered,
 };
 
-/// Where the reply's facts come from: the dispatch thread reads `HostService` directly, and a
-/// control lane reads the facts the dispatch thread last published.
-pub const Facts = union(enum) {
+/// How a candidate reaches the Host: the dispatch thread reads and changes `HostService`
+/// directly, and a control lane reads the facts the dispatch thread last published and posts a
+/// `drain` or `exit` for it to apply.
+pub const HostAccess = union(enum) {
     service: *host_service.HostService,
-    shared: *const candidate_admission.SharedFacts,
+    lane: *candidate_admission.LaneHandoff,
 
-    fn current(self: Facts) candidate_admission.Facts {
+    fn facts(self: HostAccess) candidate_admission.Facts {
         return switch (self) {
             .service => |service| service.candidateFacts(),
-            .shared => |shared| shared.load(),
+            .lane => |handoff| handoff.load(),
         };
+    }
+
+    /// Applies `request` and returns a state that shows it applied, or null when the dispatch
+    /// thread did not apply a lane's request before `request_apply_deadline_ns`.
+    fn perform(self: HostAccess, request: host_lifecycle.Request) ?host_lifecycle.State {
+        const handoff = switch (self) {
+            .service => |service| return service.applyControlRequest(request),
+            .lane => |handoff| handoff,
+        };
+        handoff.post(request);
+        var timer = monotonic.Timer.start() catch return null;
+        while (true) {
+            const state = handoff.load().state;
+            if (host_lifecycle.applied(state, request)) return state;
+            if (timer.read() >= request_apply_deadline_ns) return null;
+            monotonic.sleep(std.time.ns_per_ms);
+        }
     }
 };
 
 pub const Options = struct {
-    facts: Facts,
+    host: HostAccess,
     /// Only the dispatch thread, while no Worker session exists, offers the session slot.
     session_slot_free: bool,
     deadline_ns: u64 = handshake.frame.candidate_deadline_ns,
@@ -55,9 +81,9 @@ pub fn admit(allocator: std.mem.Allocator, transport: anytype, options: Options)
     var source: Source(@TypeOf(transport)) = .{
         .transport = transport,
         .deadline = &deadline,
-        .service = switch (options.facts) {
+        .service = switch (options.host) {
             .service => |service| service,
-            .shared => null,
+            .lane => null,
         },
     };
     const payload = handshake.frame.readPayload(allocator, &source) catch |err| switch (err) {
@@ -67,12 +93,21 @@ pub fn admit(allocator: std.mem.Allocator, transport: anytype, options: Options)
         else => return err,
     };
     defer allocator.free(payload);
-    const reply = try candidate_admission.respond(
+    const reply = switch (try candidate_admission.respond(
         allocator,
         payload,
-        options.facts.current(),
+        options.host.facts(),
         options.session_slot_free,
-    );
+    )) {
+        .reply => |reply| reply,
+        .perform => |request| performed: {
+            const state = options.host.perform(request) orelse {
+                std.log.warn("terminal Host {s} request was not applied before its deadline", .{@tagName(request)});
+                return .unanswered;
+            };
+            break :performed try candidate_admission.performed(allocator, request, state);
+        },
+    };
     defer allocator.free(reply.frame);
     try connection.writeOutgoing(transport, &.{reply.frame});
     if (reply.kind != .session) awaitPeerClose(transport, source.service);
@@ -86,7 +121,7 @@ pub fn admit(allocator: std.mem.Allocator, transport: anytype, options: Options)
 /// Keeps a connection open after its final reply until the peer closes it, because closing the
 /// Host's end first can discard a reply the peer has not read: a Windows pipe disconnect drops
 /// unread bytes. A peer that sends more or stays past the linger ends it.
-fn awaitPeerClose(transport: anytype, service: ?*host_service.HostService) void {
+pub fn awaitPeerClose(transport: anytype, service: ?*host_service.HostService) void {
     var timer = monotonic.Timer.start() catch return;
     var deadline = connection.Deadline.init(&timer, reply_linger_ns) catch return;
     while (!deadline.expired()) {

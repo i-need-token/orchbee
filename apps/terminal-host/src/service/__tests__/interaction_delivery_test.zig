@@ -63,6 +63,7 @@ test "interaction rejects an incompatible success codec before request parsing" 
         std.testing.allocator,
         &aggregate,
         false,
+        .open,
     );
     var outgoing = host_outgoing.Outgoing.init(std.testing.allocator);
     defer outgoing.deinit();

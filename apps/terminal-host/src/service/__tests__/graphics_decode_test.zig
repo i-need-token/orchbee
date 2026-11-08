@@ -40,7 +40,7 @@ fn dispatch(service: *HostService, connection_id: core.ConnectionId, payload: []
     const correlation = [_]u8{0x51} ** 16;
     const record = try protocol.encodeTransportEnvelope(std.testing.allocator, protocol.MessageKind.decode_graphics_png, .graphics_image, payload, correlation, service.runtime_aggregate.hostEpoch().bytes, false, false);
     defer std.testing.allocator.free(record);
-    var dispatcher = service_harness.RequestDispatcher.init(service.allocator, &service.runtime_aggregate, false);
+    var dispatcher = service_harness.RequestDispatcher.init(service.allocator, &service.runtime_aggregate, false, .open);
     try dispatcher.dispatch(protocol.messageContract(protocol.MessageKind.decode_graphics_png).?.request.?, connection_id, .{ .input_bytes = 1024, .row_window_bytes = 4096 }, try protocol.validateTransportEnvelope(record), correlation, outgoing);
 }
 test "graphics PNG decode is attachment scoped, correlated and leaves terminal text unchanged" {

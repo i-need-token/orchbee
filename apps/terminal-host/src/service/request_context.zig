@@ -3,6 +3,7 @@ const std = @import("std");
 const control_decode = @import("terminal-host-control").decode;
 const core_module = @import("terminal-host-core").state;
 const host_failure = @import("failure.zig");
+const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
@@ -63,6 +64,8 @@ pub fn classifyControlDecodeError(
 pub const Context = struct {
     allocator: std.mem.Allocator,
     runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
+    /// Whether this request may add a retained terminal; the Host's lifecycle decides it.
+    terminal_admission: host_lifecycle.TerminalAdmission,
 
     pub fn hostEpoch(self: *const Context) core_module.HostEpoch {
         return self.runtime_aggregate.hostEpoch();

@@ -6,6 +6,7 @@ const control_decode = control.decode;
 const control_encode = control.encode;
 const core_module = @import("terminal-host-core").state;
 const host_failure = @import("failure.zig");
+const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_context = @import("request_context.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
@@ -75,6 +76,7 @@ pub const Workflow = struct {
         allocator: std.mem.Allocator,
         runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
         trace_interactions: bool,
+        terminal_admission: host_lifecycle.TerminalAdmission,
         connection: *ConnectionState,
         record: []const u8,
     ) !Outgoing {
@@ -196,6 +198,7 @@ pub const Workflow = struct {
             allocator,
             runtime_aggregate,
             trace_interactions,
+            terminal_admission,
         );
         try request_dispatcher.dispatch(
             request_contract,

@@ -7,6 +7,7 @@ const control_encode = @import("terminal-host-control").encode;
 const host_connection = @import("connection_workflow.zig");
 const host_event_delivery = @import("event_delivery.zig");
 const host_failure = @import("failure.zig");
+const host_lifecycle = @import("host_lifecycle.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
@@ -35,6 +36,8 @@ pub const HostService = struct {
     connection_workflow: host_connection.Workflow = .{},
     event_delivery: host_event_delivery.Workflow = .{},
     lifecycle: ServiceLifecycle = .running,
+    /// The `drain` and `exit` lifecycle that queries report; only the dispatch thread changes it.
+    process_state: host_lifecycle.State = .ready,
     runtime_aggregate: host_runtime_aggregate.HostRuntimeAggregate,
     trace_interactions: bool,
 
@@ -107,10 +110,26 @@ pub const HostService = struct {
             .terminals = std.math.cast(u32, self.runtime_aggregate.terminalCount()) orelse
                 std.math.maxInt(u32),
             .state = switch (self.lifecycle) {
-                .running => .ready,
+                .running => self.process_state,
                 .shutting_down => .stopping,
             },
         };
+    }
+
+    /// Applies a `drain` or `exit` control request on the dispatch thread and returns the
+    /// resulting state. Leaving `ready` closes terminal admission for the rest of the process.
+    pub fn applyControlRequest(
+        self: *HostService,
+        request: host_lifecycle.Request,
+    ) host_lifecycle.State {
+        self.process_state = host_lifecycle.transition(self.process_state, request);
+        return self.process_state;
+    }
+
+    /// Whether a control request ends the Host now: `exit`, or `drain` once no terminal is
+    /// retained. Teardown then ends every terminal the Host still retains.
+    pub fn controlExitDue(self: *const HostService) bool {
+        return host_lifecycle.endsNow(self.process_state, self.runtime_aggregate.terminalCount());
     }
 
     pub fn canStopWhenIdle(self: *const HostService) bool {
@@ -144,6 +163,7 @@ pub const HostService = struct {
             self.allocator,
             &self.runtime_aggregate,
             self.trace_interactions,
+            host_lifecycle.terminalAdmission(self.process_state),
             connection,
             record,
         );

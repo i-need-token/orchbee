@@ -84,13 +84,14 @@ fn serveWithLanes(
         std.math.cast(u64, handshake_timeout_ns) orelse std.math.maxInt(u64),
     );
     switch (try candidate.admit(service.allocator, transport, .{
-        .facts = .{ .service = service },
+        .host = .{ .service = service },
         .session_slot_free = true,
         .deadline_ns = candidate_deadline_ns,
     })) {
         .session => {},
         .offer_refused => return .worker,
-        .request_answered => return .control_request,
+        // The dispatch thread applies a request itself, so it never leaves one unanswered.
+        .request_answered, .unanswered => return .control_request,
         .refused => return error.ConnectionClosed,
     }
     lanes.start(service.candidateFacts());
@@ -112,6 +113,13 @@ fn serveSession(
 
     while (true) {
         if (connection.shouldClose()) return;
+        // Control requests take effect here, between two Worker requests.
+        lanes.serve(service);
+        if (service.controlExitDue()) {
+            // The Host ends this session itself; let the Worker read what was already written.
+            candidate.awaitPeerClose(transport, service);
+            return;
+        }
         if (connection.isAwaitingHello()) {
             if (handshake_deadline.expired()) return error.ConnectionClosed;
             if (!try transport.waitReadable()) {
@@ -135,7 +143,6 @@ fn serveSession(
             continue;
         }
 
-        lanes.publish(service.candidateFacts());
         var events = try service.pollEvents(&connection);
         defer events.deinit();
         try writeOutgoing(transport, events.records());
@@ -174,6 +181,8 @@ pub fn serveUntilIdleLoop(
 ) !void {
     var completed_accept = false;
     while (true) {
+        // `drain` or `exit` can end the Host before its Worker arrives as well as after.
+        if (service.controlExitDue()) return;
         if (!completed_accept) {
             // A control request answered before the Worker arrives keeps the Host waiting.
             const served: Served = server.serveOne(service) catch |err| served: {

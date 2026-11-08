@@ -117,6 +117,10 @@ test "accept timeouts continue Host maintenance without a broker" {
         pub fn canStopWhenIdle(self: *const @This()) bool {
             return self.idle;
         }
+
+        pub fn controlExitDue(_: *const @This()) bool {
+            return false;
+        }
     };
     const TimeoutServer = struct {
         calls: usize = 0,

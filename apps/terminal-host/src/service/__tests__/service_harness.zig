@@ -562,6 +562,7 @@ pub fn testRequestWithContract(
         service.allocator,
         &service.runtime_aggregate,
         service.trace_interactions,
+        .open,
     );
     try dispatcher.dispatch(
         request_contract,
