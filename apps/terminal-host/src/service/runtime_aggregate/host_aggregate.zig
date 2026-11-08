@@ -37,6 +37,10 @@ pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct 
 pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
+    /// The folder the Worker passed for editor documents, borrowed for the
+    /// aggregate's lifetime; without one, editor creation fails before any file
+    /// effect.
+    editor_document_directory: ?[]const u8 = null,
     maintenance: host_runtime_maintenance.Maintenance = .{},
     staged_output: @import("../output_staging.zig").StagedOutput = .{},
     testing_state: HostRuntimeAggregateTestingState = .{},

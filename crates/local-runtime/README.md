@@ -124,6 +124,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |
 | `internal/integrations/agent-observation/<version>/` | Agent observation Capsules the [integration writer](../agent-integration-writer/README.md#capsule-location-and-ownership) installs and names |
 | `internal/runtime/<session>/`                        | A Session's runtime folder in every environment, unless `ORCHBEE_RUNTIME_BASE` names another base                                            |
+| `internal/tmp/`                                      | Scrollback documents the Terminal Host writes for an editor, removed a day after their last write                                            |
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
@@ -133,7 +134,8 @@ Orchbee wrote records its layout; nothing raises `newestVersion` yet. The record
 left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee` (its Session catalogs, checkpoints, TUI
 positions and audit log), `internal/session-catalog/`, `internal/native-sessions/` and
 `internal/tui-position/` of a development or test root, the `%TEMP%\orchbee-native-*` and
-`%TEMP%\orchbee-session-*` runtime folders, or the top level of a data root, nor the earlier plugin
+`%TEMP%\orchbee-session-*` runtime folders, the `%TEMP%\orchbee-scrollback-*.txt` editor
+documents, or the top level of a data root, nor the earlier plugin
 store layout (`internal/plugins/config/p-<digest>`, `state/p-<digest>`, and
 `managed/`); a registry written in that layout reads as invalid until it is deleted, after which
 plugins are linked or installed again. `PluginStorePaths` places everything in the plugin store;
@@ -289,6 +291,22 @@ that deletion; absent state succeeds. It never recursively deletes arbitrary tre
 process. The shared namespace lock intentionally outlives individual sessions. This covers
 cooperating current-user invocations and ordinary process interruption; power-loss durability and
 inventory recovery after external removal of the runtime base are unclaimed.
+
+## Windows editor documents
+
+`remove_stale_editor_documents(folder, now)` removes the scrollback documents the Terminal Host
+wrote to `DataRoot::tmp()` and last modified more than one day before `now`; one written exactly a
+day ago stays. It takes only regular files named `scrollback-<UTC time>.txt` or
+`scrollback-<UTC time>-<n>.txt`, the time spelled exactly as `time_name` writes it, so a misspelled
+time, an editor's swap file or a name of another case stays. It pins the folder and its ancestors
+first, refusing a folder that is not private or that is or lies under a link, reads at most 1,024
+entries, never follows an
+entry that is a link, never creates the folder, and returns how many documents it removed and how
+many it could not remove; a missing folder is an empty pass. The Host's
+[naming rule](../../apps/terminal-host/README.md#executable-interface) is the other half of this
+contract; search for `editor-document-name` before changing either. The
+[Worker](../../apps/orchbee-worker/README.md#windows-scrollback-editor-documents) chooses when it
+runs.
 
 ## Windows diagnostic log
 

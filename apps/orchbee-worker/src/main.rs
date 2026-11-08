@@ -11,6 +11,8 @@ mod default_interactive_launch;
 #[cfg(any(unix, windows))]
 mod diagnostic_events;
 #[cfg(windows)]
+mod editor_documents;
+#[cfg(windows)]
 mod git_repository_windows;
 #[cfg(any(unix, windows))]
 mod host_connection;

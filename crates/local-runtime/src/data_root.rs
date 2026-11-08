@@ -275,6 +275,11 @@ impl DataRoot {
     pub fn runtime(&self) -> PathBuf {
         self.internal().join("runtime")
     }
+
+    /// Scrollback documents the Terminal Host writes for an editor; nothing else lives here.
+    pub fn tmp(&self) -> PathBuf {
+        self.internal().join("tmp")
+    }
 }
 
 /// The runtime base this environment uses when `ORCHBEE_RUNTIME_BASE` does not name one: the data

@@ -41,10 +41,11 @@ Host editor creation consumes the capture: an exclusively created document must
 remain owned by the editor runtime through confirmed Job containment and thread
 joining. This capture boundary alone does not establish public editor support;
 upstream Worker authorization and live-Client overlay integration remain.
-Document reservation owns an open canonical temporary
-directory and a generated leaf name before creating a file. Materialization uses
-exclusive creation and plain UTF-8; a collision never grants ownership of the existing
-file. Reserved → writing → ready → released state distinguishes a partial write from
+Document reservation owns an open canonical handle to the folder the Worker passed
+and a time-stamped leaf name before creating a file. Materialization uses exclusive
+creation and plain UTF-8; a taken name never grants ownership of the existing file and
+moves the unwritten document to the next numbered name, which the editor argv follows.
+Reserved → writing → ready → released state distinguishes a partial write from
 a ready document, and a ready document is never rewritten. Cleanup failure retains
 the path, directory handle and ownership for retry; handoff moves the sole owner.
 No recursive deletion or transcript-selected path is permitted.

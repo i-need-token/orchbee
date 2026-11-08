@@ -27,7 +27,9 @@ pub const inspectWithOverlay = terminal_launch.inspectWithOverlay;
 // supplied without retaining a transport arena or inventing fallback cells.
 pub const RuntimePreparation = struct {
     arena: std.heap.ArenaAllocator,
-    arguments: []const []const u8,
+    /// An editor's last argument is its document path, which materialization
+    /// may move to the next free name.
+    arguments: [][]const u8,
     configuration: terminal_configuration.Configuration,
     current_directory: ?[]const u8,
     environment: []pty_process.EnvironmentDelta,
@@ -89,6 +91,9 @@ pub const RuntimePreparation = struct {
 
     pub fn materializeEditorDocument(self: *RuntimePreparation) !void {
         if (self.editor_document) |*document| {
+            // A taken name moves the document even when a later step fails, so
+            // the argv never keeps a freed path.
+            defer self.arguments[self.arguments.len - 1] = document.absolutePath().?;
             try document.materialize(self.editor_capture.?.text());
         }
     }
@@ -184,18 +189,20 @@ pub fn prepareRuntime(
 
 /// Consumes the immutable capture on both success and failure. No file is
 /// materialized until the returned preparation belongs to a retained terminal.
+/// `document_directory` is the folder the Worker passed for editor documents.
 pub fn prepareRuntimeForEditor(
     validated: Validated,
     allocator: std.mem.Allocator,
     default_configuration: terminal_configuration.Configuration,
     captured: runtime_contracts.ScrollbackTextCapture,
+    document_directory: ?[]const u8,
 ) !RuntimePreparation {
     var capture = captured;
     errdefer capture.deinit();
     if (validated.launch.geometry != null or
         validated.launch.arguments.len >= @import("terminal-protocol").Limits.launch_arguments)
         return error.InvalidEditorLaunch;
-    var document = try editor_document.Document.reserve(allocator);
+    var document = try editor_document.Document.reserve(allocator, document_directory);
     errdefer document.release() catch unreachable; // Reserved metadata has no file.
     var prepared = try prepareRuntime(validated, allocator, default_configuration);
     errdefer prepared.deinit(allocator);

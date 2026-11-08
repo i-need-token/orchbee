@@ -43,6 +43,8 @@ pub(crate) fn run(
     let mut server = server;
     #[cfg(windows)]
     let mut handoff = super::handoff::Handoff::new(Some(runtime));
+    #[cfg(windows)]
+    crate::editor_documents::remove_stale();
     server.set_nonblocking(true)?;
     // The Agent Drain queue is owned by this admitted Server connection and
     // exists before any Host: pre-Launch requests get a truthful empty page,
@@ -411,6 +413,19 @@ fn start_host(
         std::ffi::OsStr::new("--endpoint-id"),
         std::ffi::OsStr::new(&host_endpoint_id),
     ];
+    // Only a Windows Host writes editor documents; it receives the folder, which the Worker
+    // creates before the first editor launch.
+    #[cfg(windows)]
+    let editor_documents = crate::editor_documents::folder()?;
+    #[cfg(windows)]
+    let arguments = [
+        &arguments[..],
+        &[
+            std::ffi::OsStr::new("--editor-document-directory"),
+            editor_documents.as_os_str(),
+        ],
+    ]
+    .concat();
     #[cfg(windows)]
     let mut child = orchbee_local_runtime::spawn_session_child(
         &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))

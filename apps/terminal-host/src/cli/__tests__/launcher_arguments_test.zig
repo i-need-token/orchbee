@@ -79,8 +79,11 @@ test "launcher parses the private serve command into typed options" {
         "0123456789abcdef0123456789abcdef",
         "--scrollback-bytes",
         "25000000",
+        "--editor-document-directory",
+        runtime_directory,
     }));
     try std.testing.expectEqualStrings(runtime_directory, parsed.runtime_directory);
+    try std.testing.expectEqualStrings(runtime_directory, parsed.editor_document_directory.?);
     try std.testing.expectEqualStrings(
         "0123456789abcdef0123456789abcdef",
         parsed.endpoint_id,
@@ -98,6 +101,7 @@ test "launcher parses the private serve command into typed options" {
         terminal_configuration.default_scrollback_bytes,
         defaults.terminal_defaults.scrollback_bytes,
     );
+    try std.testing.expect(defaults.editor_document_directory == null);
 
     const zero = try expectServe(try subject.parse(&.{
         "serve",
@@ -180,6 +184,15 @@ test "launcher validates serve option values at the CLI boundary" {
         "relative/runtime",
         "--endpoint-id",
         "0123456789abcdef0123456789abcdef",
+    }));
+    try std.testing.expectError(error.EditorDocumentDirectoryNotAbsolute, subject.parse(&.{
+        "serve",
+        "--runtime-directory",
+        runtime_directory,
+        "--endpoint-id",
+        "0123456789abcdef0123456789abcdef",
+        "--editor-document-directory",
+        "relative/documents",
     }));
     try std.testing.expectError(error.InvalidEndpointId, subject.parse(&.{
         "serve",

@@ -17,10 +17,18 @@ const geometry = @import("terminal-host-model").geometry.Geometry{
 const Fixture = struct {
     aggregate: subject.HostRuntimeAggregate,
     source: launch.ScrollbackSource,
+    /// The folder the Worker would pass for editor documents.
+    documents: std.testing.TmpDir,
+    document_directory: [:0]u8,
     live: bool = true,
 
     fn init() !Fixture {
+        var documents = std.testing.tmpDir(.{});
+        errdefer documents.cleanup();
+        const document_directory = try documents.parent_dir.realPathFileAlloc(io, &documents.sub_path, allocator);
+        errdefer allocator.free(document_directory);
         var aggregate = subject.HostRuntimeAggregate.init(allocator);
+        aggregate.editor_document_directory = document_directory;
         errdefer aggregate.deinitChecked(false) catch @panic("fixture initialization cleanup failed");
         _ = try aggregate.connect(1, harness.testId(core.ClientId, 0x62));
         var source_launch = try harness.validatedLongRunningLaunch();
@@ -40,16 +48,23 @@ const Fixture = struct {
         const attachment_id = harness.testId(core.AttachmentId, 0x64);
         _ = try aggregate.attach(1, attachment_id, identity.terminal_id, .{ .read = true, .input = false, .resize = false }, false);
         const observed = runtime.geometry();
-        return .{ .aggregate = aggregate, .source = .{
-            .attachment_id = attachment_id,
-            .terminal_id = identity.terminal_id,
-            .generation = observed.generation,
-            .revision = observed.revision,
-        } };
+        return .{
+            .aggregate = aggregate,
+            .source = .{
+                .attachment_id = attachment_id,
+                .terminal_id = identity.terminal_id,
+                .generation = observed.generation,
+                .revision = observed.revision,
+            },
+            .documents = documents,
+            .document_directory = document_directory,
+        };
     }
 
     fn deinit(self: *Fixture) void {
         if (self.live) self.aggregate.deinitChecked(false) catch @panic("fixture aggregate cleanup failed");
+        allocator.free(self.document_directory);
+        self.documents.cleanup();
     }
 
     fn prepareEditor(self: *Fixture, identity_byte: u8) !subject.CreatePreparation {
@@ -249,21 +264,26 @@ test "editor deferred lifecycle fatal teardown exhaustion retains the document w
     try expectAbsent(path);
 }
 
-test "editor deferred lifecycle failed exclusive materialization preserves the foreign colliding document" {
+test "editor deferred lifecycle writes beside a foreign document of the same name and never removes it" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var fixture = try Fixture.init();
     defer fixture.deinit();
+    var expected = try fixture.aggregate.runtimeFor(fixture.source.terminal_id).?.captureScrollbackText(allocator, 4096);
+    defer expected.deinit();
     var preparation = try fixture.prepareEditor(0x65);
     defer preparation.deinit();
     const path = try preparedPath(&preparation);
     defer allocator.free(path);
+    try std.testing.expect(std.mem.startsWith(u8, path, fixture.document_directory));
     try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = "foreign fixture owner" });
-    defer std.Io.Dir.cwd().deleteFile(io, path) catch @panic("foreign fixture cleanup failed");
+    const next = try std.mem.concat(allocator, u8, &.{ path[0 .. path.len - ".txt".len], "-2.txt" });
+    defer allocator.free(next);
     const editor = (try fixture.aggregate.commitPreparedTerminal(&preparation)).identity();
-    var start = try fixture.aggregate.prepareStartTerminal(1, editor.terminal_id, geometry);
-    try std.testing.expectError(error.EditorDocumentMaterializationFailed, fixture.aggregate.commitPreparedTerminalStart(&start));
-    try std.testing.expectEqual(@as(usize, 1), fixture.aggregate.runtimeCount());
+    try fixture.failedStart(editor.terminal_id);
+    try expectContents(next, expected.text());
+    try expectContents(path, "foreign fixture owner");
     try std.testing.expectEqual(core.TransitionOutcome.applied, (try fixture.aggregate.disposeTerminal(1, editor.terminal_id)).transition);
+    try expectAbsent(next);
     try expectContents(path, "foreign fixture owner");
 }
 

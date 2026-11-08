@@ -53,21 +53,36 @@ test "Windows editor document reserves without effects and materializes exact im
     }
 }
 
-test "Windows editor document exclusive collision never owns or erases the existing file" {
+/// 2023-11-14T22:13:20Z, which the Worker reads back from the document name.
+const fixed_seconds: u64 = 1_700_000_000;
+
+fn materializeAfterCollision(alloc: std.mem.Allocator, directory: []const u8) !void {
+    var document = try subject.testing.reserveAtTime(alloc, directory, fixed_seconds);
+    defer document.release() catch @panic("fixture document release failed");
+    try document.materialize("second owner");
+    try std.testing.expect(std.mem.endsWith(u8, document.absolutePath().?, "\\scrollback-2023-11-14T22-13-20Z-2.txt"));
+}
+
+test "Windows editor document takes the next free name and never owns or erases a taken one" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var temporary = std.testing.tmpDir(.{});
     defer temporary.cleanup();
     const directory = try rootPath(&temporary);
     defer allocator.free(directory);
-    const identity = [_]u8{0x62} ** 16;
-    var first = try subject.testing.reserveAtIdentity(allocator, directory, identity);
+    var first = try subject.testing.reserveAtTime(allocator, directory, fixed_seconds);
     defer first.release() catch @panic("fixture document release failed");
+    try std.testing.expect(std.mem.endsWith(u8, first.absolutePath().?, "\\scrollback-2023-11-14T22-13-20Z.txt"));
     try first.materialize("existing owner");
-    var collision = try subject.testing.reserveAtIdentity(allocator, directory, identity);
-    defer collision.release() catch @panic("fixture reservation release failed");
-    try std.testing.expectError(error.PathAlreadyExists, collision.materialize("replacement"));
-    try std.testing.expectEqual(subject.Phase.reserved, collision.phase());
-    try collision.release();
+    var second = try subject.testing.reserveAtTime(allocator, directory, fixed_seconds);
+    defer second.release() catch @panic("fixture document release failed");
+    try std.testing.expectEqualStrings(first.absolutePath().?, second.absolutePath().?);
+    try second.materialize("second owner");
+    try std.testing.expect(std.mem.endsWith(u8, second.absolutePath().?, "\\scrollback-2023-11-14T22-13-20Z-2.txt"));
+    try expectContents(second.absolutePath().?, "second owner");
+    try second.release();
+    try expectContents(first.absolutePath().?, "existing owner");
+    // Moving to the next name allocates; a failure keeps a complete, releasable reservation.
+    try std.testing.checkAllAllocationFailures(allocator, materializeAfterCollision, .{directory});
     try expectContents(first.absolutePath().?, "existing owner");
 }
 
@@ -144,4 +159,6 @@ test "Windows editor document reservation rolls back all allocations and rejects
     for ([_][]const u8{ "relative", "C:relative", "C:\\root\x00suffix" }) |invalid| {
         try std.testing.expectError(error.InvalidEditorDocumentDirectory, subject.testing.reserveAt(allocator, invalid));
     }
+    // A Host started without the Worker's folder writes no document anywhere else.
+    try std.testing.expectError(error.EditorDocumentDirectoryUnavailable, subject.Document.reserve(allocator, null));
 }

@@ -44,6 +44,7 @@ fn serve(
     defer server.deinit();
     var service = host_service.HostService.initWithOptions(allocator, .{
         .terminal_defaults = options.terminal_defaults,
+        .editor_document_directory = options.editor_document_directory,
         .trace_interactions = environment.contains("ORCHBEE_TERMINAL_HOST_TRACE"),
     });
     const serve_result = server.serveUntilIdle(&service);

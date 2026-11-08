@@ -634,6 +634,12 @@ fn prepare(
                 )
                 .into());
             }
+            // A Host this Worker started writes the document to the folder it was given; an
+            // explicit-endpoint Host was given none and refuses the editor itself.
+            #[cfg(windows)]
+            if launch.editor_source().is_some() && session_runtime.is_some() {
+                crate::editor_documents::prepare_launch()?;
+            }
             // Host display mode follows the most recent Client's outer terminal, then the OS.
             let follows_host = preferences.is_none_or(|preferences| preferences.colors().is_none());
             let host_colors = if follows_host {

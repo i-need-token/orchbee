@@ -122,6 +122,7 @@ fn prepareEditorRuntime(
         self.allocator,
         self.core_state.terminalDefaults(),
         capture,
+        self.editor_document_directory,
     ) catch |err| return switch (err) {
         error.OutOfMemory => error.LaunchPreparationOutOfMemory,
         error.InvalidEditorLaunch => error.InvalidEditorLaunch,
