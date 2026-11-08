@@ -617,6 +617,14 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::ConfigResetKeys) => {
                 ("Restore default keyboard shortcuts.", "恢复默认快捷键。")
             }
+            HelpTopic::Family(Family::Diagnostics) => (
+                "Collect diagnostics to send when you ask for help.",
+                "收集诊断信息，以便在求助时发送。",
+            ),
+            HelpTopic::Command(CommandPath::DiagnosticsCreate) => (
+                "Write a diagnostic bundle to a file you choose.",
+                "将诊断包写入你选择的文件。",
+            ),
             HelpTopic::Command(CommandPath::ServerStart) => (
                 "Ensure a local terminal session is running.",
                 "确保本地终端会话已启动。",

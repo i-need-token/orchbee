@@ -87,6 +87,11 @@ impl super::CliText {
                 "Accepted with either value; successful output remains NDJSON.",
                 "两种取值均接受；成功输出始终为 NDJSON。",
             ),
+            (CommandPath::DiagnosticsCreate, "--output") => (
+                "<path>",
+                "Write the diagnostic bundle, a ZIP file, to this file.",
+                "将诊断包（ZIP 文件）写入此文件。",
+            ),
             (CommandPath::ApiSchema | CommandPath::ApiSnapshot, "--format") => (
                 "<text|json>",
                 "Success always emits JSON; select json for JSON errors too.",

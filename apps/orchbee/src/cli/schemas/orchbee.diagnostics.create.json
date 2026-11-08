@@ -1,0 +1,77 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.diagnostics.create",
+	"title": "Windows diagnostic bundle receipt",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.diagnostics.create"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["path", "bytes", "entries", "sections"],
+			"properties": {
+				"path": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				"bytes": {
+					"type": "integer",
+					"minimum": 22
+				},
+				"entries": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 16,
+					"items": {
+						"type": "string",
+						"pattern": "^(manifest|versions|system|config-check|sessions|integrations|preferences)[.]json$|^config[.]toml$|^logs/[0-9]{4}-[0-9]{2}-[0-9]{2}[.]jsonl$"
+					}
+				},
+				"sections": {
+					"type": "array",
+					"maxItems": 16,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["name", "status"],
+						"properties": {
+							"name": {
+								"enum": [
+									"versions.json",
+									"system.json",
+									"config-check.json",
+									"sessions.json",
+									"integrations.json",
+									"config.toml",
+									"preferences.json",
+									"logs"
+								]
+							},
+							"status": {
+								"enum": ["included", "absent", "unavailable"]
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

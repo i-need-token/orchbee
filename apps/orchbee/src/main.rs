@@ -8,6 +8,7 @@ mod agent_projection;
 mod cli;
 mod cli_outcome;
 mod cli_text;
+mod diagnostic_events;
 mod help;
 mod invocation;
 mod local_startup;
@@ -97,7 +98,10 @@ fn main() -> ExitCode {
     let parsed = selected.map(cli::invocation_route::prepare);
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
-        return match local_startup::run(locale, *mouse) {
+        diagnostic_events::tui_started();
+        let outcome = local_startup::run(locale, *mouse);
+        diagnostic_events::tui_exited(outcome);
+        return match outcome {
             Ok(()) => ExitCode::SUCCESS,
             Err(failure) => emit(cli::startup_failure(&failure, locale), locale),
         };
@@ -206,8 +210,18 @@ fn main() -> ExitCode {
             Ok(invocation::Request::WorkspaceCreation { command, format }) => {
                 cli::workspace_creation::run(command, format, locale)
             }
-            Ok(invocation::Request::ServerStart { format }) => cli::session_start(format, locale),
-            Ok(invocation::Request::ServerConnect) => cli::server_connect(locale),
+            Ok(invocation::Request::ServerStart { format }) => {
+                diagnostic_events::activation_started("server-start");
+                let output = cli::session_start(format, locale);
+                diagnostic_events::activation_finished("server-start-finished", output.status);
+                output
+            }
+            Ok(invocation::Request::ServerConnect) => {
+                diagnostic_events::activation_started("relay-started");
+                let output = cli::server_connect(locale);
+                diagnostic_events::activation_finished("relay-exited", output.status);
+                output
+            }
             Ok(invocation::Request::Plugin { command, format }) => {
                 cli::plugins::run(command, format, locale)
             }
@@ -241,6 +255,9 @@ fn main() -> ExitCode {
                 path,
                 format,
             }) => cli::export_schema(schema_id.as_deref(), &path, format, locale),
+            Ok(invocation::Request::DiagnosticsCreate { path, format }) => {
+                cli::create_diagnostics(&path, format, locale)
+            }
             Ok(invocation::Request::RetainedClose {
                 family,
                 operation_id,

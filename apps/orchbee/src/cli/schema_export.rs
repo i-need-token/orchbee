@@ -23,14 +23,15 @@ pub(crate) fn run(
     if let Err(failure) = super::execution::admit(super::execution::Capability::SchemaPublication) {
         return super::failure_output(failure, Some(format), locale);
     }
-    match publish(std::path::Path::new(path), &prepared.stdout) {
+    match publish(std::path::Path::new(path), &prepared.stdout, "schema") {
         Ok(()) => prepared,
         Err(error) => failure(path, error, format, locale),
     }
 }
 
+/// The publication step that failed; the diagnostic bundle shares these stages.
 #[derive(Clone, Copy)]
-enum Stage {
+pub(super) enum Stage {
     Destination,
     CreateTemporary,
     WriteTemporary,
@@ -38,7 +39,7 @@ enum Stage {
     Publish,
 }
 impl Stage {
-    const fn as_str(self) -> &'static str {
+    pub(super) const fn as_str(self) -> &'static str {
         match self {
             Self::Destination => "destination",
             Self::CreateTemporary => "create-temporary",
@@ -48,9 +49,10 @@ impl Stage {
         }
     }
 }
-struct PublishFailure {
-    stage: Stage,
-    residue: Option<String>,
+pub(super) struct PublishFailure {
+    pub(super) stage: Stage,
+    /// A temporary file that could not be removed.
+    pub(super) residue: Option<String>,
 }
 impl PublishFailure {
     const fn new(stage: Stage) -> Self {
@@ -69,7 +71,13 @@ impl PublishFailure {
     }
 }
 
-fn publish(path: &std::path::Path, bytes: &[u8]) -> Result<(), PublishFailure> {
+/// Writes `bytes` to a temporary file beside `path`, named by `kind`, and renames it over the
+/// destination, which may only be a regular file.
+pub(super) fn publish(
+    path: &std::path::Path,
+    bytes: &[u8],
+    kind: &str,
+) -> Result<(), PublishFailure> {
     use std::{fs, io::Write};
     let destination =
         std::path::absolute(path).map_err(|_| PublishFailure::new(Stage::Destination))?;
@@ -88,7 +96,7 @@ fn publish(path: &std::path::Path, bytes: &[u8]) -> Result<(), PublishFailure> {
     let mut nonce = [0; 16];
     getrandom::fill(&mut nonce).map_err(|_| PublishFailure::new(Stage::CreateTemporary))?;
     let temporary = parent.join(format!(
-        ".orchbee-schema-{:032x}.tmp",
+        ".orchbee-{kind}-{:032x}.tmp",
         u128::from_le_bytes(nonce)
     ));
     let mut file = platform::create_temporary(&temporary)

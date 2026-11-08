@@ -9,6 +9,13 @@ Client scroll/visible output use the exact read-only Client viewport. History ga
 sources and uncertain observer cleanup remain explicit. [Event ownership and acceptance](docs/windows-events.md)
 defines the lifecycle, bounds and Windows evidence; Desktop receives no new consumer here.
 
+## Windows diagnostic log
+
+The Server installs its role in the
+[daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log) at startup and,
+as a managed Session Server, records `started` with its version and `exited` with an outcome or
+closed I/O error kind. It records nothing about Clients, terminals or requests.
+
 ## Client handshake and process query
 
 Every Client connection opens with one `OBHS` frame from

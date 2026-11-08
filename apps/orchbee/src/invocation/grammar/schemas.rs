@@ -274,6 +274,14 @@ pub(crate) const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("../../cli/schemas/orchbee.cli.failure.schema-export.json"),
     ),
     (
+        "orchbee.cli.failure.diagnostics",
+        include_str!("../../cli/schemas/orchbee.cli.failure.diagnostics.json"),
+    ),
+    (
+        "orchbee.diagnostics.create",
+        include_str!("../../cli/schemas/orchbee.diagnostics.create.json"),
+    ),
+    (
         "orchbee.client.view",
         include_str!("../../cli/schemas/orchbee.client.view.json"),
     ),

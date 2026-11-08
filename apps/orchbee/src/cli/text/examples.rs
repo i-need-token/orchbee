@@ -231,6 +231,9 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ApiSchema => &["orchbee.status"],
         CommandPath::ConfigCheck => &[],
         CommandPath::ConfigResetKeys => &[],
+        CommandPath::DiagnosticsCreate => {
+            &["--output", "C:/Users/me/Desktop/orchbee-diagnostics.zip"]
+        }
         CommandPath::ServerStart => &[],
         CommandPath::ServerConnect => &[],
         CommandPath::SessionList => &[],

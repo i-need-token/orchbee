@@ -41,7 +41,14 @@ const ROOT_GROUPS: &[(HelpText, &[&str])] = &[
     ),
     (
         HelpText::Setup,
-        &["config", "channel", "update", "api", "completion"],
+        &[
+            "config",
+            "diagnostics",
+            "channel",
+            "update",
+            "api",
+            "completion",
+        ],
     ),
 ];
 

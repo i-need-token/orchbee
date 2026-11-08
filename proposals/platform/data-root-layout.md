@@ -228,6 +228,11 @@ ships, and the person removes it.
   argument, environment value, home path, and URL credential replaced by a placeholder, the Session
   list with states, integration status, and the logs of the last 7 days. It excludes checkpoints,
   layouts, terminal output, plugin data, and saved machines.
+- Phase 6 delivers this on Windows as `orchbee diagnostics create --output <path>`, a stored ZIP
+  archive. It also replaces settings values no documented option covers and URL queries, leaves
+  the destructive log out, and reports a running Session's version as whether it runs this build's
+  Server. The Desktop action sits in the Help menu and the packaged build's Jump List; the TUI has
+  no entry of its own.
 
 ## Persisted data versions and migration
 

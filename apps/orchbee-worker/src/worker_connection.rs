@@ -81,7 +81,8 @@ pub(crate) fn run(
             &system_shell,
         )?;
         let generation = server.generation();
-        return terminal_operations::run_lazy(
+        crate::diagnostic_events::started();
+        let outcome = terminal_operations::run_lazy(
             server.stream,
             server.worker_id,
             generation,
@@ -89,6 +90,8 @@ pub(crate) fn run(
             &runtime,
             &system_shell,
         );
+        crate::diagnostic_events::exited(&outcome);
+        return outcome;
     }
     let options = WorkerOptions::parse(arguments)?;
     let system_shell = SystemShell::resolve();

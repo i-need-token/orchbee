@@ -84,6 +84,7 @@ orchbee server diagnose            # read-only local Session runtime facts
 orchbee server stop --confirm      # stop the Windows Session (release: type its name instead)
 orchbee server stop-status <id>    # inspect a retained stop attempt/receipt
 orchbee config check             # local runtime inspection
+orchbee diagnostics create --output <path>  # Windows diagnostic bundle to send for help
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --help | --version
@@ -994,6 +995,42 @@ Windows process tests execute the emitted completion in Git for Windows Bash, fo
 ## Windows schema export
 
 `api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#windows-offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v68 contains 76 documents, including `orchbee.cli.failure.schema-export` v1.
+
+## Windows diagnostic bundle
+
+`diagnostics create --output <path> [--format text|json]` writes one stored ZIP archive to a literal
+path the person chooses and creates nothing in the data root; nothing is uploaded. It runs offline,
+never starts a Session, is not release-withheld, and answers the typed unsupported-platform failure
+outside Windows until ORC-328. Publication shares the
+[schema export](docs/native-cli-query.md#windows-offline-schema-export) steps with a
+`.orchbee-diagnostics-<nonce>.tmp` sibling: the parent must exist and only a regular file is
+replaced. A write failure exits `1` with `orchbee.cli.failure.diagnostics` (`write-failed`, its
+stage, the path and any temporary file left); success answers `orchbee.diagnostics.create` with the
+path, size, entries and section states.
+
+| Entry                     | Contents                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`           | `orchbee.diagnostics.bundle` v1, creation time, each section's `included`, `absent` or `unavailable` state, omitted log lines    |
+| `versions.json`           | Product version, environment stem, release flag, cohort identity and artifact digests, and whether each Session runs this Server |
+| `system.json`             | Operating system, architecture, Windows product and build, locale and the variable it came from, and a closed terminal token     |
+| `config-check.json`       | The `config check` document                                                                                                      |
+| `sessions.json`           | The `session list` document with states                                                                                          |
+| `integrations.json`       | `agent integration list` when the default Session is running, otherwise `session-not-running`                                    |
+| `config.toml`             | The settings file, redacted                                                                                                      |
+| `preferences.json`        | `internal/state/preferences.json`, redacted                                                                                      |
+| `logs/<YYYY-MM-DD>.jsonl` | Well-formed records of today's daily log and the six before it                                                                   |
+
+Every carried document passes the
+[redaction rules](../../crates/local-runtime/README.md#diagnostic-bundle-redaction): commands,
+arguments, environment values, credentials and unrecognized settings values become placeholders,
+and home paths, data-root variables, URL credentials and URL queries are scrubbed from every string.
+The bundle never reads checkpoints, layouts, terminal output, plugin data, saved machines or the
+destructive request log. The Client writes `tui-started` and `tui-exited` with a closed outcome,
+`server-start` and `server-start-finished` with the exit status, and `relay-started` and
+`relay-exited` to the
+[daily log](../../crates/local-runtime/README.md#windows-diagnostic-log); other commands write
+none. The TUI has no entry of its own: the command is one line in any terminal, and Desktop offers it
+as an Action.
 
 ## Windows Panel layout queries
 

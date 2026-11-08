@@ -181,6 +181,7 @@ impl super::CliText {
             CommandPath::ApiSchema => &[Argument::Schema],
             CommandPath::ConfigCheck => &[],
             CommandPath::ConfigResetKeys => &[],
+            CommandPath::DiagnosticsCreate => &[],
             CommandPath::ServerStart => &[],
             CommandPath::ServerConnect => &[],
             CommandPath::SessionList => &[],

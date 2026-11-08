@@ -11,6 +11,7 @@ pub(crate) use help::{HelpDetails, HelpText};
 mod config_reset;
 mod destructive_request;
 mod details;
+mod diagnostics;
 pub(crate) mod escape;
 mod layouts;
 mod named_sessions;

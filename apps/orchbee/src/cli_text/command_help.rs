@@ -396,6 +396,8 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
             (Locale::EnUs, CommandPath::ConfigResetKeys) => super::configuration::HELP_CONFIG_RESET_KEYS_EN,
             (Locale::ZhCn, CommandPath::ConfigResetKeys) => super::configuration::HELP_CONFIG_RESET_KEYS_ZH,
+            (Locale::EnUs, CommandPath::DiagnosticsCreate) => super::diagnostics::HELP_DIAGNOSTICS_CREATE_EN,
+            (Locale::ZhCn, CommandPath::DiagnosticsCreate) => super::diagnostics::HELP_DIAGNOSTICS_CREATE_ZH,
             (_, CommandPath::MachineList) => self.cli_machine_help(path),
             (_, CommandPath::MachineAdd) => self.cli_machine_help(path),
             (_, CommandPath::MachineRename) => self.cli_machine_help(path),

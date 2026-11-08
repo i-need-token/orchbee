@@ -851,7 +851,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::ApiSchema],
+        commands: &[CommandPath::ApiSchema, CommandPath::DiagnosticsCreate],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,

@@ -18,6 +18,8 @@ use std::{
 
 use orchbee_capability_node_protocol::WorkerId as CapabilityWorkerId;
 use orchbee_local_peer_credentials::require_same_effective_user;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+use orchbee_local_runtime::{LogLevel, LogValue, log_event};
 use orchbee_local_worker_protocol::{
     LocalWorkerMessage, ProtocolError, ReadMessageError, RejectionReason, read_message,
     write_message,
@@ -46,6 +48,28 @@ mod agent_observation_endpoint;
 mod configuration_windows;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+const VERSION: LogValue = LogValue::Token(env!("CARGO_PKG_VERSION"));
+
+/// Records how the managed Server ended; a failure carries only its error kind.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn log_exit(failure: Option<io::ErrorKind>) {
+    match failure {
+        None => log_event(
+            LogLevel::Info,
+            "exited",
+            &[("outcome", LogValue::Token("ok"))],
+        ),
+        Some(kind) => log_event(
+            LogLevel::Error,
+            "exited",
+            &[
+                ("outcome", LogValue::Token("failed")),
+                ("error", kind.into()),
+            ],
+        ),
+    }
+}
 
 pub(crate) fn run(
     arguments: impl Iterator<Item = OsString>,
@@ -75,11 +99,14 @@ pub(crate) fn run(
         if arguments.next().is_some() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        return managed::run(
+        log_event(LogLevel::Info, "started", &[("version", VERSION)]);
+        let outcome = managed::run(
             &runtime,
             #[cfg(windows)]
             configuration,
         );
+        log_exit(outcome.as_ref().err().map(io::Error::kind));
+        return outcome;
     }
     let endpoints = parse_endpoints(arguments)?;
     let listener = UnixListener::bind(&endpoints.worker)?;

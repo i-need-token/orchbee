@@ -287,8 +287,12 @@ pub(crate) fn run(
             let started =
                 start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host));
             let (prepared, (mut host, _child)) = match started {
-                Ok(started) => started,
+                Ok(started) => {
+                    crate::diagnostic_events::host_started();
+                    started
+                }
                 Err(error) => {
+                    crate::diagnostic_events::host_start_failed(error.as_ref());
                     kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                     let result = super::take_result(&mut kernel)?;
                     let _delivery = server_transport::send(&server, None, &result);

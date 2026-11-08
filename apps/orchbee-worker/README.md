@@ -5,6 +5,13 @@ Linux, and macOS, with explicit-endpoint POSIX support. The emitted `orchbee-wor
 the verified four-artifact cohort and participates in the root Cargo gate. Server owns activation;
 Worker owns its admitted Host connection and authorized job lifetimes.
 
+## Windows diagnostic log
+
+The managed Worker records `started` and `exited`, and its Terminal Host start as `host-started` or
+`host-start-failed` with a closed I/O error kind, in the
+[daily diagnostic log](../../crates/local-runtime/README.md#windows-diagnostic-log). These are the
+only Host diagnostics the log holds; terminal content and input never reach it.
+
 ## Windows scrollback editor selection
 
 The private editor-command query resolves a launch on the admitted Worker without

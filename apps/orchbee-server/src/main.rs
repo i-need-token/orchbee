@@ -54,6 +54,8 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     #[cfg(any(unix, windows))]
+    orchbee_local_runtime::install_diagnostic_log(orchbee_local_runtime::LogRole::Server);
+    #[cfg(any(unix, windows))]
     if local_worker_service::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
         return ExitCode::SUCCESS;
     }

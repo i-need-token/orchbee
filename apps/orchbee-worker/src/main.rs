@@ -8,6 +8,8 @@ mod agent_drain;
 mod agent_integration_jobs;
 #[cfg(any(unix, windows))]
 mod default_interactive_launch;
+#[cfg(any(unix, windows))]
+mod diagnostic_events;
 #[cfg(windows)]
 mod git_repository_windows;
 #[cfg(any(unix, windows))]
@@ -59,6 +61,8 @@ use std::env;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    #[cfg(any(unix, windows))]
+    orchbee_local_runtime::install_diagnostic_log(orchbee_local_runtime::LogRole::Worker);
     #[cfg(any(unix, windows))]
     if worker_connection::run(env::args_os().skip(1), env!("CARGO_PKG_VERSION")).is_ok() {
         return ExitCode::SUCCESS;

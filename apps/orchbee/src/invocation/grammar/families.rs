@@ -29,6 +29,7 @@ families! {
     Api => ["api"],
     Server => ["server"],
     Config => ["config"],
+    Diagnostics => ["diagnostics"],
     Channel => ["channel"],
     Machine => ["machine"],
     Completion => ["completion"],

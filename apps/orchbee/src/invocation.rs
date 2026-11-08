@@ -39,6 +39,7 @@ mod panel_relocation;
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
+mod diagnostics;
 mod schema_export;
 mod terminal_output;
 mod terminal_selection;
@@ -849,6 +850,11 @@ pub(crate) enum Request {
     },
     SchemaExport {
         schema_id: Option<String>,
+        path: String,
+        format: OutputFormat,
+    },
+    /// `diagnostics create`: one diagnostic bundle written to `path`.
+    DiagnosticsCreate {
         path: String,
         format: OutputFormat,
     },

@@ -915,6 +915,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Api,
         Family::Completion,
         Family::Config,
+        Family::Diagnostics,
         #[cfg(windows)]
         Family::Channel,
         #[cfg(windows)]
@@ -1059,6 +1060,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::Update,
         CommandPath::ConfigCheck,
         CommandPath::ConfigResetKeys,
+        CommandPath::DiagnosticsCreate,
         CommandPath::LaunchProfileCreate,
         CommandPath::LaunchProfileDelete,
         CommandPath::LaunchProfileGet,
@@ -1203,6 +1205,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "api",
         "completion",
         "config",
+        "diagnostics",
         "help",
         "launch-profile",
         "panel",

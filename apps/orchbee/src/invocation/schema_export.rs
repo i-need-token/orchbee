@@ -42,7 +42,7 @@ pub(super) fn request(
 }
 
 /// Windows publication syntax is interpreted lexically on every host.
-fn valid_path(value: &str) -> bool {
+pub(super) fn valid_path(value: &str) -> bool {
     if value.is_empty()
         || value.len() > 4096
         || value.chars().any(char::is_control)
