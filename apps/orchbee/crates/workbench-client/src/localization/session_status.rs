@@ -212,6 +212,20 @@ impl Locale {
         message
     }
 
+    /// The documented shorter form that replaces a notice too wide for the status line, for the
+    /// notices that have one.
+    pub(crate) fn native_notice_shorter(
+        self,
+        notice: crate::localization::WorkbenchClientNotice,
+    ) -> Option<String> {
+        match notice {
+            crate::localization::WorkbenchClientNotice::RecordUnusable(record, problem) => {
+                Some(self.record_status(record, problem))
+            }
+            _ => None,
+        }
+    }
+
     pub(crate) fn native_notice(
         self,
         notice: crate::localization::WorkbenchClientNotice,

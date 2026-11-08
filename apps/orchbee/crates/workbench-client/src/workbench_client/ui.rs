@@ -3108,6 +3108,7 @@ impl WorkbenchClientUi {
         if let Some(state) = self.state.as_mut() {
             state.dismiss_close_set_summary();
             state.clear_settled_setup_status();
+            state.dismiss_record_notice();
         }
         // The board and every other surface are mutually exclusive: any
         // action that is not the board's own toggle closes it first —

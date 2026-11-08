@@ -13,6 +13,8 @@ pub(crate) struct NativeStatus {
     pub(crate) persistent: Option<PersistentStatus>,
     /// The ordinary Ready and controlling fact, which the floating status leaves unsaid.
     pub(crate) ordinary: bool,
+    /// The documented shorter form that replaces `text` when only it fits.
+    pub(crate) shorter: Option<String>,
 }
 
 impl NativeStatus {
@@ -21,6 +23,7 @@ impl NativeStatus {
             text,
             persistent: None,
             ordinary: false,
+            shorter: None,
         }
     }
 }
@@ -74,6 +77,7 @@ impl WorkbenchClientView<'_> {
                 text,
                 persistent: end.map(PersistentStatus::TerminalEnded),
                 ordinary: false,
+                shorter: None,
             };
         }
         if view.notice().is_none()
@@ -121,10 +125,16 @@ impl WorkbenchClientView<'_> {
             && view.phase() == crate::localization::DisplayPhase::Ready
             && view.controller() == Some(crate::localization::DisplayController::Controlling)
             && view.active_position().is_some();
+        // A notice stated alone keeps its own shorter form; an appended fact keeps the full text.
+        let shorter = view
+            .notice()
+            .filter(|notice| text == locale.native_notice(*notice))
+            .and_then(|notice| locale.native_notice_shorter(notice));
         NativeStatus {
             text,
             persistent,
             ordinary,
+            shorter,
         }
     }
 

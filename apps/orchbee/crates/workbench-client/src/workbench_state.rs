@@ -673,7 +673,8 @@ pub(crate) enum ClientPhaseKind {
 pub(crate) enum ClientNotice {
     Unsupported(crate::tui_capabilities::Capability),
     /// A record this Session's stores cannot use: saved by a newer version, or not updated from
-    /// an earlier one. Its store works without it.
+    /// an earlier one. Its store works without it. The state lasts, so its notice is persistent:
+    /// it stays until the next Client action, and no transient notice replaces it.
     RecordUnusable(
         orchbee_local_runtime::VersionedRecord,
         orchbee_local_runtime::RecordProblem,
@@ -741,7 +742,8 @@ impl ClientNotice {
             Self::DuplicatePending
             | Self::DuplicateOutcomeUnknown
             | Self::CopyUnknown
-            | Self::BellUnknown => false,
+            | Self::BellUnknown
+            | Self::RecordUnusable(..) => false,
             Self::AgentStart(phase) => matches!(
                 phase,
                 AgentStartPhase::Started | AgentStartPhase::Failed | AgentStartPhase::Cancelled
@@ -1889,7 +1891,17 @@ impl WorkbenchClientState {
 
     pub(crate) fn set_notice(&mut self, notice: ClientNotice) {
         self.dismiss_close_set_summary();
+        if notice.transient() && matches!(self.notice, Some(ClientNotice::RecordUnusable(..))) {
+            return;
+        }
         self.notice = Some(notice);
+    }
+
+    /// A Client action is the key event that ends the persistent record notice.
+    pub(crate) fn dismiss_record_notice(&mut self) {
+        if matches!(self.notice, Some(ClientNotice::RecordUnusable(..))) {
+            self.notice = None;
+        }
     }
 
     pub(crate) fn observe_geometry(&mut self, geometry: Geometry) {

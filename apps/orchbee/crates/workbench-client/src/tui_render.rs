@@ -338,6 +338,7 @@ pub fn render_terminal_shell_with_resize<'a>(
                     let selected = native.status(locale, status_chip_area(&areas).width);
                     status_persistent = selected.persistent;
                     status_ordinary = selected.ordinary;
+                    status_shorter.extend(selected.shorter);
                     selected.text
                 }
             };
