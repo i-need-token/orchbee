@@ -71,13 +71,13 @@ impl Locale {
                 "正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。\n".into()
             }
             (Self::EnUs, StartupFailure::SessionTooOld(versions)) => format!(
-                "{} is too old for Orchbee {}. Stop it with `orchbee server stop`, which ends its terminals, then try again.\n",
+                "{} is too old for Orchbee {}. Run `orchbee server stop`, then try again.\n",
                 session(versions, "The running Session"),
                 versions.client
             )
             .into(),
             (Self::ZhCn, StartupFailure::SessionTooOld(versions)) => format!(
-                "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server stop` 停止它（其中的终端会随之结束），然后重试。\n",
+                "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server stop`，然后重试。\n",
                 session(versions, "正在运行的会话"),
                 versions.client
             )
