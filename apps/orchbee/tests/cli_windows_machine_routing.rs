@@ -2,7 +2,7 @@
 #![cfg(windows)]
 use crate::peer_support as support;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use orchbee_local_runtime::{Cohort, PrivateCache, run_windows_command_exchange};
+use orchbee_local_runtime::{PrivateCache, run_windows_command_exchange};
 use serde_json::{Value, json};
 use std::{
     process::Command,
@@ -10,13 +10,8 @@ use std::{
 };
 use support::{Fixture, validate};
 
-fn packet(fixture: &Fixture, args: &[&str]) -> Value {
-    let cohort = Cohort::load(
-        fixture.cohort_directory(),
-        Instant::now() + Duration::from_secs(15),
-    )
-    .unwrap();
-    json!({"version":1,"cohort":cohort.identity(),"session":"route-test","arguments":args,"input":null,"locale":"en_US.UTF-8"})
+fn packet(args: &[&str]) -> Value {
+    json!({"version":1,"session":"route-test","arguments":args,"input":null,"locale":"en_US.UTF-8"})
 }
 fn relay(fixture: &Fixture, packet: &Value, shell: bool) -> Value {
     relay_with_environment(fixture, packet, shell, &[])
@@ -166,7 +161,7 @@ fn home_path_relay_leaves_resolution_to_the_business_process() {
         let data_root = fixture.separate_data_root();
         let reply = relay_with_environment(
             &fixture,
-            &packet(&fixture, &arguments),
+            &packet(&arguments),
             false,
             &invalid_home(&data_root),
         );
@@ -192,12 +187,12 @@ fn home_path_relay_leaves_resolution_to_the_business_process() {
     }
 }
 #[test]
-fn relay_round_trip_runs_exact_cohort_and_keeps_success_and_failure_receipts() {
+fn relay_round_trip_runs_the_installed_client_and_keeps_success_and_failure_receipts() {
     let fixture = Fixture::new();
     for shell in [false, true] {
         let reply = relay(
             &fixture,
-            &packet(&fixture, &["status", "server", "--format=json"]),
+            &packet(&["status", "server", "--format=json"]),
             shell,
         );
         assert_eq!(reply["outcome"], "completed", "{reply}");
@@ -212,7 +207,7 @@ fn relay_round_trip_runs_exact_cohort_and_keeps_success_and_failure_receipts() {
         );
         let reply = relay(
             &fixture,
-            &packet(&fixture, &["workspace", "list", "--format=json"]),
+            &packet(&["workspace", "list", "--format=json"]),
             shell,
         );
         assert_eq!(reply["outcome"], "completed", "{reply}");
@@ -228,11 +223,13 @@ fn relay_round_trip_runs_exact_cohort_and_keeps_success_and_failure_receipts() {
     assert!(!fixture.data_root().path().exists());
 }
 #[test]
-fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
+fn relay_refuses_recursion_unread_generations_and_local_file_authority() {
     let fixture = Fixture::new();
-    let mut value = packet(&fixture, &["status", "server"]);
-    value["cohort"] = json!("0".repeat(64));
-    assert_eq!(relay(&fixture, &value, false)["outcome"], "not-submitted");
+    for (member, value) in [("cohort", json!("0".repeat(64))), ("version", json!(2))] {
+        let mut refused = packet(&["status", "server"]);
+        refused[member] = value;
+        assert_eq!(relay(&fixture, &refused, false)["outcome"], "not-submitted");
+    }
     for args in [
         vec!["--machine=x", "status"],
         vec!["--machine-relay-v1"],
@@ -242,7 +239,7 @@ fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
         vec!["tui"],
     ] {
         assert_eq!(
-            relay(&fixture, &packet(&fixture, &args), false)["outcome"],
+            relay(&fixture, &packet(&args), false)["outcome"],
             "not-submitted"
         );
     }

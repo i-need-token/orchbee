@@ -31,6 +31,7 @@ use orchbee_workbench_client::application::machine_agents;
 use orchbee_workbench_client::application::machine_discovery;
 use orchbee_workbench_client::application::machine_observation;
 use orchbee_workbench_client::application::machine_picker;
+use orchbee_workbench_client::application::machine_refusal;
 use orchbee_workbench_client::application::machine_spaces;
 use orchbee_workbench_client::application::machine_ssh;
 #[cfg(windows)]
@@ -117,8 +118,8 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
             #[cfg(windows)]
-            Ok(invocation::Request::MachineTunnel { cohort }) => cli::Output {
-                status: if machine_tunnel::serve(&cohort).is_ok() {
+            Ok(invocation::Request::MachineTunnel) => cli::Output {
+                status: if machine_tunnel::serve().is_ok() {
                     0
                 } else {
                     5
@@ -131,9 +132,7 @@ fn main() -> ExitCode {
                 cli::machines::run(&command, format, locale)
             }
             #[cfg(not(windows))]
-            Ok(invocation::Request::MachineTunnel { .. }) => {
-                cli::unsupported_platform(None, locale)
-            }
+            Ok(invocation::Request::MachineTunnel) => cli::unsupported_platform(None, locale),
             Ok(invocation::Request::Version) => {
                 cli::process_result(present(Ok(Invocation::Version), locale), locale)
             }

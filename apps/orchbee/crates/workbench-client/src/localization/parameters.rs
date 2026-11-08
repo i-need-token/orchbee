@@ -42,6 +42,8 @@ pub enum BackendAction {
 pub enum Notice {
     OnboardingSaveFailed,
     WorkspaceNavigationUnavailable,
+    /// A selected saved machine refused this Client until one side changes; nothing switched.
+    MachineRefused(crate::machine_refusal::Refusal),
     /// Open notification target found no current Agent card; nothing moved.
     NoNotificationTarget,
     NavigatorChanged,

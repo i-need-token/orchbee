@@ -72,6 +72,13 @@ pub fn session_route_environment(
     }
 }
 
+/// Whether `stem` names an environment some build can compile: `orchbee`, `ob-dev-<16 lowercase
+/// hex>`, or `ob-test-<16 lowercase hex>`. A rule about another installation's executable asks this
+/// instead of restating the grammar.
+pub const fn valid_environment_stem(stem: &str) -> bool {
+    valid_stem(stem.as_bytes())
+}
+
 /// Mirrors `ARTIFACT_STEM_PATTERN` in `scripts/stage-native-windows.mjs`.
 const fn valid_stem(stem: &[u8]) -> bool {
     let digest = match stem {

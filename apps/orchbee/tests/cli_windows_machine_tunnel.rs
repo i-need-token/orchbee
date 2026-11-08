@@ -3,9 +3,13 @@
 #[path = "../crates/workbench-client/src/machine_tunnel/program.rs"]
 mod program;
 use crate::peer_support as support;
-use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_connection_handshake::{
+    AcceptorMessage, InitiatorMessage, encode_initiator_frame, read_acceptor_message,
+};
+use orchbee_local_client_protocol::{LocalClientMessage, write_message};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader, LocalListener};
-use orchbee_local_runtime::{Cohort, CommandChild};
+use orchbee_local_runtime::CommandChild;
+use orchbee_workbench_client::test_support::local_client::handshake;
 use std::{
     io::{self, Read, Write},
     process::{Command, Stdio},
@@ -27,14 +31,11 @@ impl Drop for Peer {
         }
     }
 }
+/// Room for the Session's handshake answer ahead of the Client phase bytes.
+const ANSWER_LIMIT: usize = 4096;
 #[test]
-fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
+fn tunnel_helper_carries_the_handshake_full_duplex_binary_and_final_eof_bytes() {
     let fixture = Fixture::new();
-    let cohort = Cohort::load(
-        fixture.cohort_directory(),
-        Instant::now() + Duration::from_secs(15),
-    )
-    .unwrap();
     let session = fixture.rendezvous();
     for shell in [false, true] {
         let listener = LocalListener::bind(session.client_socket_path()).unwrap();
@@ -59,10 +60,8 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             stream
                 .set_write_timeout(Some(Duration::from_secs(20)))
                 .unwrap();
-            assert_eq!(
-                read_message(&mut stream).unwrap(),
-                LocalClientMessage::ClientHello
-            );
+            // The Session side judges an ordinary offer that crossed the helper unchanged.
+            handshake::expect_hello(&mut stream).unwrap();
             write_message(
                 &mut stream,
                 &LocalClientMessage::ClientAccepted {
@@ -80,7 +79,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
         })));
         let exe = fixture.executable();
         let mut command = if shell {
-            let remote = program::command(exe.to_str().unwrap(), "default", cohort.identity());
+            let remote = program::command(exe.to_str().unwrap(), "default");
             let mut c = Command::new(
                 std::path::PathBuf::from(winsafe::GetSystemDirectory().unwrap())
                     .join("WindowsPowerShell/v1.0/powershell.exe"),
@@ -89,7 +88,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             c
         } else {
             let mut c = Command::new(exe);
-            c.args(["--machine-tunnel-v1", "default", cohort.identity()]);
+            c.args(["--machine-tunnel-v1", "default"]);
             c
         };
         let (mut input, stdin) = ChildInputWriter::pipe().unwrap();
@@ -103,7 +102,8 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             .env("USERPROFILE", fixture.0.join("appdata"))
             .env_remove("ORCHBEE_CONFIG_FILE");
         let mut child = Owned(CommandChild::spawn(command).map_err(|e| e.error).unwrap());
-        let mut request = Vec::new();
+        let mut request =
+            encode_initiator_frame(&InitiatorMessage::Offer(handshake::offer())).unwrap();
         write_message(&mut request, &LocalClientMessage::ClientHello).unwrap();
         request.extend_from_slice(&data);
         let mut expected = Vec::new();
@@ -139,15 +139,24 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {}
                 Err(e) => panic!("stdout: {e}"),
             }
-            assert!(received.len() <= expected.len());
+            assert!(received.len() <= ANSWER_LIMIT + expected.len());
             thread::sleep(Duration::from_millis(1));
         }
+        let mut reply = io::Cursor::new(received.as_slice());
+        assert!(
+            matches!(
+                read_acceptor_message(&mut reply),
+                Ok(AcceptorMessage::Answer(_))
+            ),
+            "the Session's handshake answer must arrive first (shell={shell})"
+        );
+        let client_phase = &received[usize::try_from(reply.position()).unwrap()..];
         assert_eq!(
-            received.len(),
+            client_phase.len(),
             expected.len(),
             "truncated helper output (shell={shell})"
         );
-        assert_eq!(received, expected);
+        assert_eq!(client_phase, expected.as_slice());
         drop(input);
         let status = loop {
             if let Some(status) = child.0.try_wait().unwrap() {
@@ -161,11 +170,14 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
     }
 }
 #[test]
-fn tunnel_helper_refuses_wrong_cohort_without_activating_a_session() {
+fn tunnel_helper_without_a_session_and_its_retired_cohort_form_activate_nothing() {
     let fixture = Fixture::new();
-    let output = fixture.run(&["--machine-tunnel-v1", "default", &"0".repeat(64)]);
+    let output = fixture.run(&["--machine-tunnel-v1", "default"]);
     assert_eq!(output.status.code(), Some(5));
     assert!(output.stdout.is_empty());
     assert!(output.stderr.is_empty());
+    // The pre-handshake cohort operand is no longer this helper's grammar.
+    let output = fixture.run(&["--machine-tunnel-v1", "default", &"0".repeat(64)]);
+    assert_eq!(output.status.code(), Some(2));
     assert!(!fixture.0.join("runtime").exists());
 }

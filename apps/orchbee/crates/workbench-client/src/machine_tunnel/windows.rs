@@ -9,7 +9,7 @@ mod tests;
 use super::StartedCarrier;
 use crate::{machine_ssh, machines::Profile};
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous, SessionScope};
+use orchbee_local_runtime::{ModeCheckedLocalSessionRendezvous, SessionScope};
 use std::{
     io,
     path::PathBuf,
@@ -27,11 +27,7 @@ pub(super) fn prepare(
     admitted: &machine_ssh::Client,
 ) -> io::Result<StartedCarrier> {
     let ssh = machine_ssh::executable()?;
-    let remote = program::command(
-        &admitted.executable,
-        profile.draft.session.as_str(),
-        &admitted.cohort,
-    );
+    let remote = program::command(&admitted.executable, profile.draft.session.as_str());
     let target = profile.draft.target.clone();
     start(move || Ok(machine_ssh::command(&ssh, &target, &remote)))
 }
@@ -88,17 +84,15 @@ fn start(
         task,
     })
 }
-/// Private binary helper: only the selected existing same-user Session is admitted.
-pub fn serve(expected_cohort: &str) -> io::Result<()> {
+/// Private binary helper `--machine-tunnel-v1 <session>`: relays bytes to the selected existing
+/// same-user Session of this installation's environment. It judges no peer; the Session admits the
+/// relayed Client through the handshake.
+pub fn serve() -> io::Result<()> {
     use std::io::IsTerminal;
     if io::stdin().is_terminal() || io::stdout().is_terminal() {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     let deadline = Instant::now() + Duration::from_secs(20);
-    let cohort = Cohort::current(deadline)?;
-    if cohort.identity() != expected_cohort {
-        return Err(io::ErrorKind::PermissionDenied.into());
-    }
     let (base, scope) = crate::local_activation::runtime_location()?;
     let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(
         &base,

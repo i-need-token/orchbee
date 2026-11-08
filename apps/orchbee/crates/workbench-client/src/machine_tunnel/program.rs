@@ -1,14 +1,14 @@
-//! Encodes the literal remote executable and validated tunnel operands into a PowerShell
-//! process launch that inherits binary streams directly. It performs no SSH connection or
-//! process launch and never reparses protocol bytes as text.
+//! Encodes the literal remote executable and the validated Session name into a PowerShell
+//! process launch of `--machine-tunnel-v1 <session>` that inherits binary streams directly. It
+//! performs no SSH connection or process launch and never reparses protocol bytes as text.
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 /// ProcessStartInfo inherits binary handles directly; the PowerShell pipeline must
 /// never decode/re-encode protocol bytes as native-command text.
-pub(crate) fn command(executable: &str, session: &str, cohort: &str) -> String {
+pub(crate) fn command(executable: &str, session: &str) -> String {
     let executable = format!("'{}'", executable.replace('\'', "''"));
     let script = format!(
-        "$ErrorActionPreference='Stop';try{{$s=New-Object System.Diagnostics.ProcessStartInfo;$s.FileName={executable};$s.Arguments='--machine-tunnel-v1 {session} {cohort}';$s.UseShellExecute=$false;$p=[System.Diagnostics.Process]::Start($s);$p.WaitForExit();exit $p.ExitCode}}catch{{exit 125}}"
+        "$ErrorActionPreference='Stop';try{{$s=New-Object System.Diagnostics.ProcessStartInfo;$s.FileName={executable};$s.Arguments='--machine-tunnel-v1 {session}';$s.UseShellExecute=$false;$p=[System.Diagnostics.Process]::Start($s);$p.WaitForExit();exit $p.ExitCode}}catch{{exit 125}}"
     );
     let encoded = STANDARD.encode(
         script

@@ -44,15 +44,32 @@ Job apply. Password prompts and new host trust must first be handled through
 OpenSSH. SSH diagnostics are not copied into machine JSON or product errors.
 The Windows remote command is an encoded PowerShell program with literal data.
 
-Preparation checks the installed `orchbee.exe` Client version, platform,
-protocols, and admitted cohort before starting the selected Session. A second SSH
-invocation checks that the same cohort is still running and compatible after
-the first invocation has ended. Only then can the profile be committed. The
-receipt distinguishes `not-contacted`, `unchanged`, `possibly-started`, and
-`ready` remote state, independently of the local catalog commit. Unknown
-process settlement is reported, never retried as a successful add.
+Preparation reads the remote installed Client's status document and applies the SSH admission
+rule before starting the selected Session:
 
-Missing or incompatible remote installations fail without saving. Automated
+| Check            | Rule                                                                                                                           | Refusal                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| Platform         | `windows` on `x86_64` or `aarch64`                                                                                             | `remote-incompatible`, exit 3         |
+| Executable       | An absolute drive path whose file name, ignoring ASCII case, is a valid environment stem plus `.exe`                           | `remote-protocol`, exit 5             |
+| Environment kind | A release build admits only `orchbee.exe`; a development or test build admits any `ob-dev-<16 hex>` or `ob-test-<16 hex>` name | `remote-other-environment`, exit 6    |
+| Product version  | Any version the status document grammar admits; it is reported as `remoteVersion` and never compared                           | `remote-protocol` only when malformed |
+| Installation     | The cohort state is `available`                                                                                                | `remote-incompatible`, exit 3         |
+
+No protocol version, product version, or cohort is compared across machines: the remote Session
+admits each later tunnel connection through the handshake, and the routed command runs the remote
+Client under its own grammar. The probe resolves the remote program on the remote `PATH`. A
+release build looks for `orchbee.exe`; a development or test build first looks for its own
+`<stem>.exe` and then for `orchbee.exe`, so a remote with only the release installation reads as
+another environment rather than a missing one.
+
+A second SSH invocation, after the first has ended, requires the remote Client's
+`orchbee.status.server` document to report the Session running with a ready Server process. Only
+then can the profile be committed. The receipt distinguishes `not-contacted`, `unchanged`,
+`possibly-started`, and `ready` remote state, independently of the local catalog commit, and an
+admitted add reports the remote product version. Unknown process settlement is reported, never
+retried as a successful add.
+
+Missing, unsupported, or other-environment remote installations fail without saving. Automated
 remote installation and interactive authentication remain outside the implemented
 boundary; an enabled profile is not evidence of a live connection. No remote
 session is stopped by rename, enable, disable, or remove.
@@ -77,10 +94,15 @@ notifications, runtime configuration, manifests, and supported plugin operations
 Local management, installation, TUI, and terminal interactive streams are refused.
 
 The owner is the native CLI relay, not the local IPC transport. It first probes
-the remote Windows Client, then sends one bounded versioned request to that
-exact executable. A private relay entry point revalidates the cohort, Session,
-argument grammar and command allowlist before spawning its own executable with
-literal arguments in an owned Windows Job. The existing remote CLI remains the
+the remote Windows Client under the [SSH admission rule](#remote-preparation), then sends one
+bounded request packet to that exact executable through `--machine-relay-v1`. The packet and its
+reply are closed objects whose `version` is their `machine-route` generation in the
+[connection registry](../../../schemas/connection/v1/connections.json); each may carry an
+`extensions` object whose member names follow the capability-name grammar and whose content the
+receiver ignores. Neither carries a cohort. A private relay entry point refuses a generation it
+does not read, then revalidates the Session, argument grammar and command allowlist under its own
+grammar before spawning its own executable with literal arguments in an owned Windows Job.
+Arguments the remote grammar cannot parse are refused as not submitted. The existing remote CLI remains the
 business-operation owner. No local peer credential admission is bypassed.
 Terminal file and stdin sources are acquired on the caller once and sent as raw
 bytes; directories and executable paths are interpreted by the remote command.
@@ -125,21 +147,37 @@ must not advertise a Ready control destination or acknowledge visible drawing.
 
 The shared connection workflow admits the saved-machine capability before inspecting the
 profile or cancellation source. Unix refuses at that boundary without environment or process
-access. Windows retains enabled-profile checking, one bounded Client probe, and the cancellation
-check before passing the admitted Client facts to the native carrier port for executable lookup
-and relay creation. The shared workflow immediately adopts the real stop flag and relay task into
+access. Windows retains enabled-profile checking, one bounded Client probe under the
+[SSH admission rule](#remote-preparation), and the cancellation check before passing the admitted
+remote executable to the native carrier port for executable lookup and relay creation. The shared workflow immediately adopts the real stop flag and relay task into
 the Client's retained carrier guard, then performs native admission, the final cancellation check
 and guard attachment under the original deadline. It never repeats the probe; admission or
 cancellation failure stops and joins the retained relay.
 
 The persistent transport owner creates a private, same-user local pipe endpoint
 and a bounded SSH byte relay for each physical native Client connection. Logical lanes
-share that admitted carrier. SSH authenticates
-the remote account; the exact admitted remote executable verifies its installed
-cohort and opens only the selected existing Session's same-user pipe. Native Client
-admission and application frames pass unchanged through that stream. Neither end
-fabricates an accepted generation or bypasses Server cohort admission. Remote
-terminal input, layout, metadata and control keep their existing semantic owners.
+share that admitted carrier. SSH authenticates the remote account; the exact admitted remote
+executable runs the private helper `--machine-tunnel-v1 <session>`, whose grammar never changes
+(a change adds a new helper name), and opens only the selected existing Session's same-user pipe
+in that installation's environment. The tunnel carries an ordinary Client connection: the local
+Client sends this build's own `OBHS` offer, and the remote Session admits or refuses it exactly as
+it would a local Client, so machines with different product versions connect whenever their
+generations overlap. The helper judges no peer, and neither end fabricates an accepted generation.
+Remote terminal input, layout, metadata and control keep their existing semantic owners.
+
+A refusal that needs the user to change one side is a typed `Refusal` that discovery keeps with
+the failed endpoint, so selection names it instead of the generic failure, and automatic retry
+never repeats it:
+
+| Cause                                                                        | Picker message                                                     | Sidebar notice                        |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------- |
+| Probe: remote of another environment kind; handshake: `environment-mismatch` | Another environment; use release on both or the same checkout path | Remote is another environment         |
+| Probe: unsupported platform or unavailable installation                      | Needs Windows x64 or ARM64 and a usable Orchbee                    | Remote has no usable Orchbee          |
+| Handshake: `initiator-too-old`                                               | This Orchbee is too old; update it on this computer                | Update Orchbee on this computer       |
+| Handshake: `initiator-too-new`, or a Session before the handshake            | The remote Session is too old; update it and stop it               | Remote Session is too old             |
+| Handshake: `fingerprint-mismatch`                                            | Another development build; stop the remote Session                 | Remote runs another development build |
+
+Capacity, stopping, and timeout refusals stay transient and retry with backoff.
 
 A concrete transport guard retained by Client origins owns the relay stop flag and join handle;
 the Windows adapter creates the listener, relay task and SSH Jobs. Derived lanes and reconnects

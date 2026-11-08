@@ -7,6 +7,7 @@ mod tests;
 mod worker;
 use crate::local_client::cancellation::Cancellation;
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
+use crate::machine_refusal::Refusal;
 use crate::machines::{Profile, ProfileId};
 #[cfg(any(test, feature = "test-support"))]
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision};
@@ -58,6 +59,8 @@ struct Entry {
     policy: Policy,
     worker: Option<Worker>,
     ready: Option<Ready>,
+    /// The refusal of the latest failed attempt; a new attempt or a healthy carrier clears it.
+    refusal: Option<Refusal>,
     retiring: bool,
 }
 impl Entry {
@@ -87,14 +90,21 @@ impl Entry {
             } => {
                 self.policy.healthy(online_since);
                 self.ready = Some(ready);
+                self.refusal = None;
             }
-            Event::Failed { permanent, at } => {
+            Event::Failed {
+                permanent,
+                refusal,
+                at,
+            } => {
                 self.ready = None;
+                self.refusal = refusal;
                 self.policy.fail(permanent, at);
                 self.retiring = true;
             }
             Event::Reset => {
                 self.ready = None;
+                self.refusal = None;
                 self.policy.recovering();
             }
         }
@@ -126,6 +136,7 @@ impl Discovery {
                     policy: Policy::new(now),
                     worker: None,
                     ready: None,
+                    refusal: None,
                     retiring: false,
                 });
             }
@@ -196,6 +207,7 @@ impl Discovery {
             if entry.worker.is_none() && entry.policy.due(now) {
                 self.next = (index + 1) % count;
                 entry.policy.begin();
+                entry.refusal = None;
                 match start(entry.profile.clone(), entry.generation) {
                     Ok(worker) => {
                         entry.worker = Some(worker);
@@ -222,7 +234,15 @@ impl Discovery {
             .and_then(|e| e.ready.as_ref().map(|r| r.connection.clone()))
     }
     pub fn failed(&self, profile: &Profile) -> bool {
-        self.entries.iter().any(|e| {
+        self.failed_entry(profile).is_some()
+    }
+    /// Why the remote refused this Client in the endpoint's latest failed attempt, when it said
+    /// so; selection names this instead of a generic failure.
+    pub fn refusal(&self, profile: &Profile) -> Option<Refusal> {
+        self.failed_entry(profile).and_then(|entry| entry.refusal)
+    }
+    fn failed_entry(&self, profile: &Profile) -> Option<&Entry> {
+        self.entries.iter().find(|e| {
             same_endpoint(&e.profile, profile)
                 && matches!(e.policy.phase, Phase::Attention | Phase::Reconnecting)
         })

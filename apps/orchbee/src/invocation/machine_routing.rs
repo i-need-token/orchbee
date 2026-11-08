@@ -14,20 +14,15 @@ pub(crate) struct Route {
 }
 
 pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
-    if let [mode, session, cohort] = tokens.as_slice()
+    // This helper grammar is permanent; a change adds a new helper name instead.
+    if let [mode, session] = tokens.as_slice()
         && mode == "--machine-tunnel-v1"
-        && cohort.len() == 64
-        && cohort
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         && let Ok(session) = orchbee_local_runtime::SessionName::parse(session)
     {
         return Ok(SelectedRequest {
             availability: super::grammar::Availability::Windows,
             format: None,
-            request: Request::MachineTunnel {
-                cohort: cohort.clone(),
-            },
+            request: Request::MachineTunnel,
             session: Some(session),
         });
     }

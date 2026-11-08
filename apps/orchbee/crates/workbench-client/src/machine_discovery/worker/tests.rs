@@ -11,6 +11,7 @@ fn mailbox_coalesces_and_failures_distinguish_transport_from_protocol() {
             generation,
             event: Event::Failed {
                 permanent: false,
+                refusal: None,
                 at: Instant::now(),
             },
         });

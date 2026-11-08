@@ -90,6 +90,7 @@ fn startup_budget_and_profile_generations_survive_rename_replacement_and_readd()
         generation,
         event: Event::Failed {
             permanent: true,
+            refusal: None,
             at: now,
         },
     });
@@ -233,6 +234,20 @@ fn terminal_subscription_refusals_require_attention_without_automatic_retry() ->
         drop(worker);
         server.finish()?;
     }
+    Ok(())
+}
+#[test]
+fn a_remote_refusal_survives_the_observer_and_clears_on_retry() -> io::Result<()> {
+    let worker = Worker::spawn(1, |_| Err(Refusal::SessionTooOld.into()))?;
+    let update = next_update(&worker);
+    let remote = profile(1);
+    let mut d = Discovery::default();
+    d.reconcile(std::slice::from_ref(&remote), Instant::now());
+    d.entries[0].accept(update);
+    assert_eq!(d.observations(Instant::now())[0].1, Observation::Attention);
+    assert_eq!(d.refusal(&remote), Some(Refusal::SessionTooOld));
+    d.retry(&remote.id, Instant::now());
+    assert_eq!(d.refusal(&remote), None);
     Ok(())
 }
 #[test]

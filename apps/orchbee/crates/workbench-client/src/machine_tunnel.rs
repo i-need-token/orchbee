@@ -12,6 +12,7 @@ use unix as platform;
 
 use crate::{
     local_client::{LocalClient, RetainedCarrier, cancellation::Cancellation},
+    machine_refusal::Refusal,
     machine_ssh,
     machines::Profile,
     tui_capabilities::Capability,
@@ -52,10 +53,9 @@ pub(crate) fn connect(
         task,
     } = platform::prepare(profile, &admitted)?;
     let guard = Arc::new(RetainedCarrier::new(stop, task));
-    // The invocation-owned wake is observed throughout this single admission.
-    // Saved machines move to the handshake's refusal copy later; until then the remote Session
-    // judges this build's own offer.
-    let offer = crate::local_client::client_offer(Some(&admitted.cohort));
+    // The tunnel carries an ordinary Client connection: the remote Session admits this build's
+    // own offer through the handshake. The invocation-owned wake is observed throughout.
+    let offer = crate::local_client::client_offer(None);
     let client =
         LocalClient::connect_before_cancellable(&endpoint, &offer, deadline, cancelled.wake())
             .map_err(admission_error)?;
@@ -65,6 +65,8 @@ pub(crate) fn connect(
     Ok(client.with_retained_carrier(guard))
 }
 
+/// The connection failure discovery classifies. A handshake refusal that needs the user to change
+/// one side carries its [`Refusal`]; capacity, stopping, and timeout stay transient.
 pub(crate) fn admission_error(error: crate::local_client::LocalClientConnectError) -> io::Error {
     use crate::local_client::LocalClientConnectError;
     use orchbee_local_client_protocol::ConnectClientError;
@@ -83,21 +85,28 @@ pub(crate) fn admission_error(error: crate::local_client::LocalClientConnectErro
             | orchbee_local_client_protocol::RejectionReason::HandshakeTimeout
             | orchbee_local_client_protocol::RejectionReason::Stopping,
         )) => io::ErrorKind::ConnectionRefused.into(),
-        LocalClientConnectError::Admission(ConnectClientError::Refused(rejection))
-            if matches!(
-                rejection.reason,
-                orchbee_connection_handshake::RejectionReason::Capacity
-                    | orchbee_connection_handshake::RejectionReason::Stopping
-                    | orchbee_connection_handshake::RejectionReason::Timeout
-            ) =>
-        {
-            io::ErrorKind::ConnectionRefused.into()
+        LocalClientConnectError::Admission(ConnectClientError::Refused(rejection)) => {
+            use orchbee_connection_handshake::RejectionReason as Reason;
+            match rejection.reason {
+                Reason::Capacity | Reason::Stopping | Reason::Timeout => {
+                    io::ErrorKind::ConnectionRefused.into()
+                }
+                Reason::EnvironmentMismatch => Refusal::OtherEnvironment.into(),
+                Reason::InitiatorTooOld => Refusal::ClientTooOld.into(),
+                Reason::InitiatorTooNew => Refusal::SessionTooOld.into(),
+                Reason::FingerprintMismatch => Refusal::DevelopmentBuildMismatch.into(),
+                Reason::Malformed | Reason::ConnectionUnsupported | Reason::Unknown => {
+                    io::ErrorKind::PermissionDenied.into()
+                }
+            }
         }
-        LocalClientConnectError::Admission(
-            ConnectClientError::Rejected(_)
-            | ConnectClientError::Refused(_)
-            | ConnectClientError::PredatesHandshake,
-        ) => io::ErrorKind::PermissionDenied.into(),
+        // A remote Session that predates the handshake is the older side.
+        LocalClientConnectError::Admission(ConnectClientError::PredatesHandshake) => {
+            Refusal::SessionTooOld.into()
+        }
+        LocalClientConnectError::Admission(ConnectClientError::Rejected(_)) => {
+            io::ErrorKind::PermissionDenied.into()
+        }
         LocalClientConnectError::Admission(
             ConnectClientError::Protocol(_) | ConnectClientError::UnexpectedResponse,
         ) => io::ErrorKind::InvalidData.into(),

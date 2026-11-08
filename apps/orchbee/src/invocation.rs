@@ -788,9 +788,7 @@ pub(crate) enum Request {
     },
     MachineRoute(machine_routing::Route),
     MachineRelay,
-    MachineTunnel {
-        cohort: String,
-    },
+    MachineTunnel,
     Machine {
         command: MachineCommand,
         format: OutputFormat,

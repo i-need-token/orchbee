@@ -164,7 +164,9 @@ sockets, and runtime directories keep the `orchbee` names until ORC-328;
 environment.
 
 `environment_stem` exposes the stem, and `environment_name` gives it as the handshake's
-`EnvironmentName`, which every negotiated connection compares with its peer's. The [data root](#data-root) owner derives every Orchbee
+`EnvironmentName`, which every negotiated connection compares with its peer's.
+`valid_environment_stem` checks another installation's stem against the same grammar, so a rule
+about a remote executable name never restates it. The [data root](#data-root) owner derives every Orchbee
 state location from it, so applications never spell a state directory or choose a home variable
 themselves. On every platform the data root is `<home>/.orchbee` for release and `<home>/.<stem>`
 otherwise; the Windows locations are:

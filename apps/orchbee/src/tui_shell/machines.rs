@@ -6,6 +6,7 @@ use crate::{
     local_client::{LocalClient, OwnedCancellation},
     machine_discovery::{Connection, Context, Discovery, display_label, same_endpoint},
     machine_picker::{Choice, SelectionOrigin, SelectionScope},
+    machine_refusal::Refusal,
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
     workbench_client::{
@@ -255,6 +256,17 @@ impl Manager {
         }
         self.selection_scope = None;
     }
+    /// A remote refusal names the side that must change instead of inviting a retry.
+    fn refuse_selection(&mut self, view: &mut ClientView, refusal: Refusal) {
+        if self.selection_current(view) {
+            if view.machines.direct_selection_pending() {
+                view.machine_refused(refusal);
+            }
+            view.machines.cancel_selection();
+            view.machines.error = Some(refusal.key());
+        }
+        self.selection_scope = None;
+    }
     pub(super) fn tick(
         &mut self,
         surface: &mut SurfaceSlot<'_>,
@@ -492,6 +504,12 @@ impl Manager {
         {
             if queued.profile.as_ref().is_some_and(|p| !self.valid(p)) {
                 self.fail_selection(view, "removed");
+            } else if let Some(refusal) = queued
+                .profile
+                .as_ref()
+                .and_then(|p| self.discovery.refusal(p))
+            {
+                self.refuse_selection(view, refusal);
             } else if now >= queued.deadline
                 || queued
                     .profile

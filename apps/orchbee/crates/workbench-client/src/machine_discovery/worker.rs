@@ -2,6 +2,7 @@
 use super::{Connection, Overview, Ready};
 use crate::background_thread::BackgroundThread;
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
+use crate::machine_refusal::Refusal;
 use crate::{
     local_client::{LocalClient, multiplex::StreamEvent},
     machines::{Profile, ProfileId},
@@ -18,9 +19,17 @@ use std::{
 };
 
 pub(super) enum Event {
-    Healthy { ready: Ready, online_since: Instant },
+    Healthy {
+        ready: Ready,
+        online_since: Instant,
+    },
     Reset,
-    Failed { permanent: bool, at: Instant },
+    Failed {
+        permanent: bool,
+        /// Why the remote refused this Client, when it said so.
+        refusal: Option<Refusal>,
+        at: Instant,
+    },
 }
 pub(super) struct Update {
     pub(super) generation: u64,
@@ -66,6 +75,7 @@ impl Worker {
                     event: Event::Failed {
                         permanent: permanent(error.kind())
                             || crate::local_client::multiplex::terminal_failure(&error),
+                        refusal: Refusal::of(&error),
                         at: Instant::now(),
                     },
                 });

@@ -271,6 +271,37 @@ impl Locale {
                 "Machine removed or disabled. Choose Local or another machine."
             }
             (Self::ZhCn, "removed") => "机器已删除或禁用，请选择本地或其他机器。",
+            // Refusals name the side that must change; each line fits the 70-column picker.
+            (Self::EnUs, "refused-environment") => {
+                "The remote Orchbee belongs to another environment.\nUse release on both, or builds from the same checkout path."
+            }
+            (Self::ZhCn, "refused-environment") => {
+                "远端 Orchbee 属于另一个环境。\n请两端都用正式版，或都用同一检出路径的构建。"
+            }
+            (Self::EnUs, "refused-unsupported") => {
+                "The remote needs Windows x64 or ARM64 and a usable Orchbee.\nInstall or repair Orchbee there, then choose to retry."
+            }
+            (Self::ZhCn, "refused-unsupported") => {
+                "远端须为 Windows x64 或 ARM64，且 Orchbee 可用。\n请在远端安装或修复 Orchbee，然后重新选择以重试。"
+            }
+            (Self::EnUs, "refused-client-old") => {
+                "This Orchbee is too old for the remote Session.\nUpdate Orchbee on this computer, then choose to retry."
+            }
+            (Self::ZhCn, "refused-client-old") => {
+                "本机 Orchbee 版本过旧，远端会话不接受。\n请更新本机的 Orchbee，然后重新选择以重试。"
+            }
+            (Self::EnUs, "refused-session-old") => {
+                "The remote Session is too old for this Orchbee.\nUpdate Orchbee there, then run `orchbee server stop` there."
+            }
+            (Self::ZhCn, "refused-session-old") => {
+                "远端会话版本过旧，无法与本机 Orchbee 配合。\n请在远端更新 Orchbee，再运行 `orchbee server stop`。"
+            }
+            (Self::EnUs, "refused-build") => {
+                "The remote Session runs a different development build.\nStop it there with `orchbee server stop`, then retry."
+            }
+            (Self::ZhCn, "refused-build") => {
+                "远端会话运行的是另一个开发构建。\n请在远端运行 `orchbee server stop` 停止它，然后重试。"
+            }
             _ => "",
         }
     }

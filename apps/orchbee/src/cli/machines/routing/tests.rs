@@ -10,7 +10,7 @@ fn routed_path_packets_retain_the_exact_unresolved_operand() {
         ["worktree", "create", "--path", r"~\remote", "--format=json"].as_slice(),
         ["worktree", "open", "--path", r"~\remote", "--format=json"].as_slice(),
     ] {
-        let packet = serde_json::json!({"version":1,"cohort":"a".repeat(64),"session":"work","arguments":arguments,"input":null,"locale":"en_US.UTF-8"});
+        let packet = serde_json::json!({"version":1,"session":"work","arguments":arguments,"input":null,"locale":"en_US.UTF-8"});
         let (admitted, input) = admit_packet(&serde_json::to_vec(&packet).unwrap()).unwrap();
         assert_eq!(admitted.arguments, arguments);
         assert!(input.is_empty());
@@ -42,7 +42,6 @@ fn selection_uses_id_before_exact_label_and_rejects_ambiguity_and_disabled() {
 fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
     let packet = Packet {
         version: 1,
-        cohort: "a".repeat(64),
         session: "work".into(),
         arguments: vec![
             "terminal".into(),
@@ -52,6 +51,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
         ],
         input: Some(STANDARD.encode([0, 255, 13, 10])),
         locale: "en_US.UTF-8".into(),
+        extensions: Extensions::new(),
     };
     let bytes = serde_json::to_vec(&packet).unwrap();
     assert_eq!(admit_packet(&bytes).unwrap().1, [0, 255, 13, 10]);
@@ -66,15 +66,21 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
         value["arguments"] = serde_json::json!(args);
         assert!(admit_packet(&serde_json::to_vec(&value).unwrap()).is_none());
     }
-    let mut value = serde_json::to_value(&packet).unwrap();
-    value["executable"] = serde_json::json!("cmd.exe");
-    assert!(admit_packet(&serde_json::to_vec(&value).unwrap()).is_none());
+    for (member, value) in [
+        ("executable", serde_json::json!("cmd.exe")),
+        ("cohort", serde_json::json!("a".repeat(64))),
+    ] {
+        let mut packet = serde_json::to_value(&packet).unwrap();
+        packet[member] = value;
+        assert!(admit_packet(&serde_json::to_vec(&packet).unwrap()).is_none());
+    }
     let reply = Reply {
         version: 1,
         outcome: Outcome::Completed,
         status: Some(255),
         stdout: STANDARD.encode([0, 255]),
         stderr: STANDARD.encode("中文 failure\n"),
+        extensions: Extensions::new(),
     };
     let output = reply.output().ok().unwrap();
     assert_eq!(output.status, 255);
@@ -97,4 +103,30 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
             .validate(&serde_json::from_slice(&output.stdout).unwrap())
             .unwrap();
     }
+}
+
+#[test]
+fn packets_and_replies_ignore_extension_content_and_read_only_their_generations() {
+    let packet = serde_json::json!({"version":1,"session":"work","arguments":["workspace","list"],
+        "input":null,"locale":"zh_CN.UTF-8","extensions":{"future-member":{"nested":[1,"x"]}}});
+    let (admitted, _) = admit_packet(&serde_json::to_vec(&packet).unwrap()).unwrap();
+    assert_eq!(admitted.arguments, ["workspace", "list"]);
+    for (member, value) in [
+        ("extensions", serde_json::json!({"Bad Name":1})),
+        ("extensions", serde_json::json!([])),
+        ("version", serde_json::json!(0)),
+        ("version", serde_json::json!(2)),
+    ] {
+        let mut packet = packet.clone();
+        packet[member] = value;
+        assert!(admit_packet(&serde_json::to_vec(&packet).unwrap()).is_none());
+    }
+    let reply = serde_json::json!({"version":1,"outcome":"completed","status":0,"stdout":"",
+        "stderr":"","extensions":{"future-member":true}});
+    let reply: Reply = serde_json::from_value(reply).unwrap();
+    assert_eq!(reply.output().ok().unwrap().status, 0);
+    let reply = serde_json::json!({"version":2,"outcome":"completed","status":0,"stdout":"",
+        "stderr":""});
+    let reply: Reply = serde_json::from_value(reply).unwrap();
+    assert!(matches!(reply.output(), Err(Outcome::Unknown)));
 }

@@ -5,6 +5,7 @@ use super::PrefixDesc;
 use super::agent_board::AgentBoardText;
 use super::prefix::{en_us_prefix_desc, zh_cn_prefix_desc};
 use super::{BackendAction, Notice};
+use crate::machine_refusal::Refusal;
 
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 
@@ -407,6 +408,22 @@ impl Locale {
             (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => {
                 "无法切换 · 请再次选择目标以重试"
             }
+            (Self::EnUs, Some(Notice::MachineRefused(refusal))) => match refusal {
+                Refusal::OtherEnvironment => "Could not switch · remote is another environment",
+                Refusal::Unsupported => "Could not switch · remote has no usable Orchbee",
+                Refusal::ClientTooOld => "Could not switch · update Orchbee on this computer",
+                Refusal::SessionTooOld => "Could not switch · remote Session is too old",
+                Refusal::DevelopmentBuildMismatch => {
+                    "Could not switch · remote runs another development build"
+                }
+            },
+            (Self::ZhCn, Some(Notice::MachineRefused(refusal))) => match refusal {
+                Refusal::OtherEnvironment => "无法切换 · 远端属于另一个环境",
+                Refusal::Unsupported => "无法切换 · 远端没有可用的 Orchbee",
+                Refusal::ClientTooOld => "无法切换 · 请更新本机的 Orchbee",
+                Refusal::SessionTooOld => "无法切换 · 远端会话版本过旧",
+                Refusal::DevelopmentBuildMismatch => "无法切换 · 远端运行的是另一个开发构建",
+            },
             (Self::EnUs, Some(Notice::NoNotificationTarget)) => "No Agent notification",
             (Self::ZhCn, Some(Notice::NoNotificationTarget)) => "没有智能体通知",
             (Self::EnUs, Some(Notice::PointerInputDropped)) => {

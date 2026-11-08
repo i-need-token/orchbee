@@ -35,6 +35,7 @@
 				"changed",
 				"committed",
 				"remote",
+				"remoteVersion",
 				"error",
 				"interrupted"
 			],
@@ -110,6 +111,19 @@
 				"remote": {
 					"enum": ["not-contacted", "unchanged", "possibly-started", "ready"]
 				},
+				"remoteVersion": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 64,
+							"pattern": "^[!-~]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
 				"error": {
 					"enum": [
 						null,
@@ -124,6 +138,7 @@
 						"ssh-failed",
 						"remote-protocol",
 						"remote-incompatible",
+						"remote-other-environment",
 						"remote-not-ready",
 						"cancelled",
 						"timeout",

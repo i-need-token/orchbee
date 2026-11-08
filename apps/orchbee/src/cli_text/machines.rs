@@ -25,8 +25,8 @@ impl super::CliText {
             ),
             C::MachineAdd => (
                 "orchbee machine add <ssh-target> --label <label> [--remote-session <name>] [--format text|json]",
-                "Windows remote with an installed compatible Orchbee cohort is required. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote session is retained. Automatic remote installation and interactive authentication are not yet supported.",
-                "远端须为 Windows 且已安装兼容的 Orchbee cohort。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端会话会保留。暂不支持自动安装远端程序及交互认证。",
+                "The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote session is retained. Automatic remote installation and interactive authentication are not yet supported.",
+                "远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端会话会保留。暂不支持自动安装远端程序及交互认证。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <profile-id> --label <label> [--format text|json]",
@@ -120,11 +120,19 @@ impl super::CliText {
             }
             (Locale::ZhCn, "remote-protocol") => "远端客户端返回了无效或不支持的状态文档。",
             (Locale::EnUs, "remote-incompatible") => {
-                "The remote Windows Orchbee version, protocols, or cohort are incompatible. Install the matching cohort first."
+                "The remote must run Windows x64 or ARM64 with an available Orchbee installation."
             }
             (Locale::ZhCn, "remote-incompatible") => {
-                "远端 Windows Orchbee 版本、协议或 cohort 不兼容，请先安装匹配的 cohort。"
+                "远端须为 Windows x64 或 ARM64，且 Orchbee 安装可用。"
             }
+            (Locale::EnUs, "remote-other-environment") => {
+                "The remote Orchbee belongs to another environment. Use release on both machines, or builds from the same checkout path on both."
+            }
+            (Locale::ZhCn, "remote-other-environment") => {
+                "远端 Orchbee 属于另一个环境。请两台机器都用正式版，或都用同一检出路径的构建。"
+            }
+            (Locale::EnUs, "remote-version") => "Remote Orchbee version:",
+            (Locale::ZhCn, "remote-version") => "远端 Orchbee 版本：",
             (Locale::EnUs, "remote-not-ready") => {
                 "The remote session could not be confirmed ready through a new SSH connection."
             }

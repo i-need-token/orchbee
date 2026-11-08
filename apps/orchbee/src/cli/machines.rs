@@ -25,6 +25,7 @@ enum Error {
     SshFailed,
     RemoteProtocol,
     RemoteIncompatible,
+    RemoteOtherEnvironment,
     RemoteNotReady,
     Cancelled,
     Timeout,
@@ -47,6 +48,7 @@ impl Error {
             Self::SshFailed => "ssh-failed",
             Self::RemoteProtocol => "remote-protocol",
             Self::RemoteIncompatible => "remote-incompatible",
+            Self::RemoteOtherEnvironment => "remote-other-environment",
             Self::RemoteNotReady => "remote-not-ready",
             Self::Cancelled => "cancelled",
             Self::Timeout => "timeout",
@@ -61,6 +63,7 @@ impl Error {
             | Self::SshUnavailable
             | Self::RemoteNotReady => 4,
             Self::SshFailed | Self::RemoteProtocol => 5,
+            Self::RemoteOtherEnvironment => 6,
             Self::Cancelled => 130,
             Self::Timeout => 7,
             Self::PhysicalUnknown => 8,
@@ -109,6 +112,8 @@ struct Report {
     changed: bool,
     committed: bool,
     remote: Remote,
+    /// The remote product version an add admitted; shown, never compared.
+    remote_version: Option<String>,
 }
 pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale) -> Output {
     if crate::tui_capabilities::Capability::SavedMachines
@@ -142,6 +147,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         changed: false,
         committed: false,
         remote: Remote::NotContacted,
+        remote_version: None,
     };
     let mut error = execute(command, &mut context, &mut report).err();
     let mut finalization = None;
@@ -191,7 +197,7 @@ fn execute(
                 .edit(&edit)
                 .map_err(Error::Catalog)?;
             report.id = Some(id);
-            ssh::prepare(draft, context, &mut report.remote)?;
+            report.remote_version = Some(ssh::prepare(draft, context, &mut report.remote)?);
             edit
         }
         MachineCommand::Rename { id, label } => {
@@ -235,47 +241,55 @@ fn emit(
             "revision":report.catalog.as_ref().map(|c| c.revision),
             "profiles":report.catalog.as_ref().map(|c| c.profiles.iter().map(crate::machines::Profile::json).collect::<Vec<_>>()),
             "changed":report.changed,"committed":report.committed,"remote":report.remote.token(),
+            "remoteVersion":report.remote_version,
             "error":error.map(Error::code),"interrupted":interrupted }});
-    let encoded =
-        match format {
-            OutputFormat::Json => output::encode_document(&document),
-            OutputFormat::Text if error.is_some() => output::encode_text(""),
-            OutputFormat::Text => {
-                let mut text = String::new();
-                if let Some(catalog) = &report.catalog {
-                    if matches!(command, MachineCommand::List) {
-                        if catalog.profiles.is_empty() {
-                            text.push_str(CliText::new(locale).cli_machine_message("empty"));
-                            text.push('\n');
-                        }
-                        for profile in &catalog.profiles {
-                            text.push_str(&format!(
-                                "{}\t{}\t{}\t{}\t{}\n",
-                                profile.id.as_str(),
-                                crate::cli_text::escape::escape(&profile.draft.label),
-                                crate::cli_text::escape::escape(&profile.draft.target),
-                                profile.draft.session.as_str(),
-                                CliText::new(locale).cli_machine_message(if profile.enabled {
-                                    "enabled"
-                                } else {
-                                    "disabled"
-                                })
-                            ));
-                        }
-                    } else {
-                        text.push_str(CliText::new(locale).cli_machine_message(
-                            if report.changed { "saved" } else { "unchanged" },
+    let encoded = match format {
+        OutputFormat::Json => output::encode_document(&document),
+        OutputFormat::Text if error.is_some() => output::encode_text(""),
+        OutputFormat::Text => {
+            let mut text = String::new();
+            if let Some(catalog) = &report.catalog {
+                if matches!(command, MachineCommand::List) {
+                    if catalog.profiles.is_empty() {
+                        text.push_str(CliText::new(locale).cli_machine_message("empty"));
+                        text.push('\n');
+                    }
+                    for profile in &catalog.profiles {
+                        text.push_str(&format!(
+                            "{}\t{}\t{}\t{}\t{}\n",
+                            profile.id.as_str(),
+                            crate::cli_text::escape::escape(&profile.draft.label),
+                            crate::cli_text::escape::escape(&profile.draft.target),
+                            profile.draft.session.as_str(),
+                            CliText::new(locale).cli_machine_message(if profile.enabled {
+                                "enabled"
+                            } else {
+                                "disabled"
+                            })
                         ));
-                        if let Some(id) = &report.id {
-                            text.push(' ');
-                            text.push_str(id.as_str());
-                        }
+                    }
+                } else {
+                    text.push_str(CliText::new(locale).cli_machine_message(if report.changed {
+                        "saved"
+                    } else {
+                        "unchanged"
+                    }));
+                    if let Some(id) = &report.id {
+                        text.push(' ');
+                        text.push_str(id.as_str());
+                    }
+                    text.push('\n');
+                    if let Some(version) = &report.remote_version {
+                        text.push_str(CliText::new(locale).cli_machine_message("remote-version"));
+                        text.push(' ');
+                        text.push_str(&crate::cli_text::escape::escape(version));
                         text.push('\n');
                     }
                 }
-                output::encode_text(&text)
             }
-        };
+            output::encode_text(&text)
+        }
+    };
     match encoded {
         Ok(stdout) => {
             let mut stderr = String::new();

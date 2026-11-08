@@ -11,7 +11,8 @@ use crate::{
     machines::{Catalog, Profile, Store},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use orchbee_local_runtime::{Cohort, CommandFailure, SessionName};
+use orchbee_connection_handshake::{Delivery, Extensions, Generation};
+use orchbee_local_runtime::{CommandFailure, SessionName};
 use serde::{Deserialize, Serialize};
 use std::{
     process::Command,
@@ -27,16 +28,33 @@ mod platform;
 const REQUEST_LIMIT: usize = 2 * 1024 * 1024;
 const REPLY_LIMIT: usize = 24 * 1024 * 1024;
 const ARGUMENT_LIMIT: usize = 64 * 1024;
+/// The routed command packet. `version` is its `machine-route` generation; `extensions` is the
+/// only open member, whose content a receiver ignores.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Packet {
-    version: u8,
-    cohort: String,
-    #[serde(rename = "session")]
+    version: u16,
     session: String,
     arguments: Vec<String>,
     input: Option<String>,
     locale: String,
+    #[serde(default, skip_serializing_if = "Extensions::is_empty")]
+    extensions: Extensions,
+}
+/// The generation this build writes.
+fn generation() -> u16 {
+    Delivery::MachineRoute
+        .supported_generations()
+        .highest()
+        .get()
+}
+/// Whether a received `version` names a generation this build reads.
+fn supported(version: u16) -> bool {
+    Generation::new(version).is_some_and(|generation| {
+        Delivery::MachineRoute
+            .supported_generations()
+            .contains(generation)
+    })
 }
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -57,24 +75,38 @@ impl Outcome {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Reply {
-    version: u8,
+    version: u16,
     outcome: Outcome,
     status: Option<u8>,
     stdout: String,
     stderr: String,
+    #[serde(default, skip_serializing_if = "Extensions::is_empty")]
+    extensions: Extensions,
 }
 impl Reply {
     fn failure(outcome: Outcome) -> Self {
         Self {
-            version: 1,
+            version: generation(),
             outcome,
             status: None,
             stdout: String::new(),
             stderr: String::new(),
+            extensions: Extensions::new(),
+        }
+    }
+    /// The remote CLI's exit status and output, reported exactly as the remote produced them.
+    fn completed(status: u8, stdout: &[u8], stderr: &[u8]) -> Self {
+        Self {
+            version: generation(),
+            outcome: Outcome::Completed,
+            status: Some(status),
+            stdout: STANDARD.encode(stdout),
+            stderr: STANDARD.encode(stderr),
+            extensions: Extensions::new(),
         }
     }
     fn output(self) -> Result<Output, Outcome> {
-        if self.version != 1 {
+        if !supported(self.version) {
             return Err(Outcome::Unknown);
         }
         if self.outcome != Outcome::Completed || self.status.is_none() {
@@ -139,6 +171,7 @@ fn failed(
     } else {
         match status {
             3 => FailureKind::InvalidUsage,
+            6 => FailureKind::Incompatible,
             7 => FailureKind::Timeout,
             130 => FailureKind::Cancelled,
             _ => FailureKind::ServiceUnavailable,
@@ -162,6 +195,13 @@ fn failed(
         code,
         outcome.token()
     );
+    // SSH admission refused this remote until one side changes, so name what must change.
+    if matches!(code, "remote-incompatible" | "remote-other-environment") {
+        result
+            .stderr
+            .push_str(CliText::new(locale).cli_machine_message(code));
+        result.stderr.push('\n');
+    }
     result
 }
 pub(crate) fn run(route: Route, locale: Locale) -> Output {
@@ -247,8 +287,7 @@ fn execute(
     .map_err(mapped)?;
     let client = ssh::client(&probe).map_err(mapped)?;
     let packet = Packet {
-        version: 1,
-        cohort: client.cohort,
+        version: generation(),
         session: profile.draft.session.as_str().into(),
         arguments,
         input,
@@ -257,6 +296,7 @@ fn execute(
             Locale::ZhCn => "zh_CN.UTF-8",
         }
         .into(),
+        extensions: Extensions::new(),
     };
     let bytes = serde_json::to_vec(&packet).map_err(|_| ("internal", 1))?;
     if bytes.len() > REQUEST_LIMIT {
@@ -334,7 +374,7 @@ pub(crate) fn serve(locale: Locale) -> Output {
     };
     let deadline = Instant::now() + Duration::from_secs(60);
     let reply = match source::acquire_document(None, REQUEST_LIMIT, deadline, &mut signals) {
-        Ok(bytes) => serve_packet(&bytes, deadline, &mut signals),
+        Ok(bytes) => serve_packet(&bytes, &mut signals),
         Err(_) => Reply::failure(Outcome::NotSubmitted),
     };
     let _ = locale; // Packet locale belongs to the spawned business CLI.
@@ -362,21 +402,17 @@ fn encoded(reply: Reply) -> Output {
         },
     }
 }
+/// Admits one packet of a generation this build reads; `extensions` content is ignored.
 fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
     if bytes.len() > REQUEST_LIMIT {
         return None;
     }
     let packet: Packet = serde_json::from_slice(bytes).ok()?;
-    if packet.version != 1
+    if !supported(packet.version)
         || packet.arguments.len() > 1024
         || packet.arguments.iter().map(String::len).sum::<usize>() > ARGUMENT_LIMIT
         || !matches!(packet.locale.as_str(), "en_US.UTF-8" | "zh_CN.UTF-8")
         || SessionName::parse(&packet.session).is_err()
-        || packet.cohort.len() != 64
-        || !packet
-            .cohort
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     {
         return None;
     }
@@ -404,16 +440,10 @@ fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
     };
     Some((packet, input))
 }
-fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> Reply {
+fn serve_packet(bytes: &[u8], signals: &mut ArmedSignals) -> Reply {
     let Some((packet, input)) = admit_packet(bytes) else {
         return Reply::failure(Outcome::NotSubmitted);
     };
-    let Ok(cohort) = Cohort::current(deadline) else {
-        return Reply::failure(Outcome::NotSubmitted);
-    };
-    if cohort.identity() != packet.cohort {
-        return Reply::failure(Outcome::NotSubmitted);
-    }
     let Ok(executable) = std::env::current_exe() else {
         return Reply::failure(Outcome::NotSubmitted);
     };
@@ -436,13 +466,7 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
     if (result.failure.is_none() || result.failure == Some(CommandFailure::ExitFailure))
         && let Some(status) = result.exit_code.and_then(|code| u8::try_from(code).ok())
     {
-        return Reply {
-            version: 1,
-            outcome: Outcome::Completed,
-            status: Some(status),
-            stdout: STANDARD.encode(result.stdout),
-            stderr: STANDARD.encode(result.stderr),
-        };
+        return Reply::completed(status, &result.stdout, &result.stderr);
     }
     Reply::failure(
         if matches!(

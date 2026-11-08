@@ -12,6 +12,7 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         changed: true,
         committed: true,
         remote: Remote::Ready,
+        remote_version: Some("0.0.0-remote".into()),
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let output = emit(
@@ -45,12 +46,14 @@ fn receipts_preserve_committed_and_remote_effects_on_cancellation() {
         changed: false,
         committed: false,
         remote: Remote::NotContacted,
+        remote_version: None,
     };
     for error in [
         Error::Catalog(CatalogError::NotFound),
         Error::SshFailed,
         Error::PhysicalUnknown,
         Error::RemoteIncompatible,
+        Error::RemoteOtherEnvironment,
         Error::Timeout,
         Error::Catalog(CatalogError::InvalidCatalog),
     ] {

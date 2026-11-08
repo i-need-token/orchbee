@@ -986,8 +986,15 @@ impl ClientView {
     pub fn workspace_navigation_unavailable(&mut self) {
         self.notice = Some(Notice::WorkspaceNavigationUnavailable);
     }
+    /// A sidebar switch to a saved machine that refused this Client names what must change.
+    pub fn machine_refused(&mut self, refusal: crate::machine_refusal::Refusal) {
+        self.notice = Some(Notice::MachineRefused(refusal));
+    }
     pub fn clear_workspace_navigation_notice(&mut self) {
-        if self.notice == Some(Notice::WorkspaceNavigationUnavailable) {
+        if matches!(
+            self.notice,
+            Some(Notice::WorkspaceNavigationUnavailable | Notice::MachineRefused(_))
+        ) {
             self.notice = None;
         }
     }

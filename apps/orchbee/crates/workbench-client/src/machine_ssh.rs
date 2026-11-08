@@ -1,34 +1,53 @@
 //! Shared Windows SSH command policy and installed-Client admission, without catalog or UI ownership.
+//! Admission compares no product version, protocol, or cohort across machines: the remote Session
+//! judges this Client through the handshake the tunnel carries.
+use crate::machine_refusal::Refusal;
 use base64::Engine as _;
 use serde_json::Value;
 use std::{io, path::Path, process::Command, time::Instant};
 
-#[derive(Clone, Copy, Debug)]
+/// Why a remote Client status document was not admitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AdmissionError {
+    /// The document is malformed or names an executable this rule cannot run.
     Protocol,
-    Incompatible,
+    /// The remote is not Windows on x64 or ARM64, or its installation is unavailable.
+    Unsupported,
+    /// The remote Client belongs to another environment kind than this build.
+    OtherEnvironment,
 }
+impl AdmissionError {
+    /// The refusal the user sees; a malformed document has none and reads as a failed attempt.
+    pub fn refusal(self) -> Option<Refusal> {
+        match self {
+            Self::Protocol => None,
+            Self::Unsupported => Some(Refusal::Unsupported),
+            Self::OtherEnvironment => Some(Refusal::OtherEnvironment),
+        }
+    }
+}
+/// An admitted remote installed Client.
 pub struct Client {
     pub executable: String,
-    pub cohort: String,
+    /// The remote product version, shown to the user and never compared.
+    pub version: String,
 }
+/// Admits a remote `orchbee.status.client` document. The remote must run Windows on x64 or ARM64
+/// from an available installation of the same environment kind as this build: release admits only
+/// `orchbee.exe`, and a development or test build admits any valid development or test name.
 pub fn client(value: &Value) -> Result<Client, AdmissionError> {
+    client_of_kind(value, orchbee_local_runtime::is_release())
+}
+fn client_of_kind(value: &Value, release: bool) -> Result<Client, AdmissionError> {
     if value["schema"] != "orchbee.status.client" || value["version"] != 1 {
         return Err(AdmissionError::Protocol);
     }
     let r = &value["result"];
-    if r["version"] != env!("CARGO_PKG_VERSION")
-        || r["platform"] != "windows"
-        || r["architecture"] != std::env::consts::ARCH
-        || !protocols(&r["protocols"])
-        || r["cohort"]["state"] != "available"
+    if r["platform"] != "windows"
+        || !matches!(r["architecture"].as_str(), Some("x86_64" | "aarch64"))
     {
-        return Err(AdmissionError::Incompatible);
+        return Err(AdmissionError::Unsupported);
     }
-    let cohort = r["cohort"]["identity"]
-        .as_str()
-        .filter(|s| hex64(s))
-        .ok_or(AdmissionError::Protocol)?;
     let executable = r["executable"]["path"]
         .as_str()
         .filter(|s| {
@@ -39,32 +58,52 @@ pub fn client(value: &Value) -> Result<Client, AdmissionError> {
                 && s.as_bytes()
                     .get(2)
                     .is_some_and(|b| matches!(b, b'/' | b'\\'))
-                && s.rsplit(['/', '\\'])
-                    .next()
-                    .is_some_and(|name| name.eq_ignore_ascii_case("orchbee.exe"))
         })
         .ok_or(AdmissionError::Protocol)?;
+    let stem = executable
+        .rsplit(['/', '\\'])
+        .next()
+        .map(str::to_ascii_lowercase)
+        .and_then(|name| name.strip_suffix(".exe").map(str::to_owned))
+        .filter(|stem| orchbee_local_runtime::valid_environment_stem(stem))
+        .ok_or(AdmissionError::Protocol)?;
+    if !same_environment_kind(&stem, release) {
+        return Err(AdmissionError::OtherEnvironment);
+    }
+    let version = r["version"]
+        .as_str()
+        .filter(|version| orchbee_connection_handshake::ProductVersion::new(*version).is_ok())
+        .ok_or(AdmissionError::Protocol)?;
+    if r["cohort"]["state"] != "available" {
+        return Err(AdmissionError::Unsupported);
+    }
     Ok(Client {
         executable: executable.to_owned(),
-        cohort: cohort.to_owned(),
+        version: version.to_owned(),
     })
 }
-pub fn protocols(value: &Value) -> bool {
-    value["admission"] == orchbee_local_client_protocol::PROTOCOL_VERSION
-        && value["terminal"] == orchbee_client_server_protocol::PROTOCOL_VERSION
-}
-fn hex64(s: &str) -> bool {
-    s.len() == 64
-        && s.bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+/// Release admits only release; any development or test stem admits any other, because the
+/// handshake through the tunnel compares the exact environment.
+fn same_environment_kind(stem: &str, release: bool) -> bool {
+    (stem == orchbee_connection_handshake::RELEASE_ENVIRONMENT) == release
 }
 pub fn literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 pub fn program(executable: Option<&str>, session: &str, action: &str) -> String {
     let resolve = executable.map_or_else(
-        || "$program=(Get-Command orchbee.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Path".to_owned(),
-        |path| format!("$program={}", literal(path)));
+        || {
+            format!(
+                "$program=$null;foreach($name in {}){{$found=Get-Command $name -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1;if($found){{$program=$found.Path;break}}}}",
+                probe_names()
+                    .iter()
+                    .map(|name| literal(name))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        },
+        |path| format!("$program={}", literal(path)),
+    );
     let args = if action == "start" {
         "'server' 'start'".to_owned()
     } else {
@@ -85,6 +124,20 @@ pub fn program(executable: Option<&str>, session: &str, action: &str) -> String 
             .collect::<Vec<_>>(),
     );
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
+}
+/// The remote PATH names a probe tries in order. A development or test build first looks for its
+/// own name and then for release, so a release remote reads as another environment instead of a
+/// missing installation.
+fn probe_names() -> Vec<String> {
+    let release = format!("{}.exe", orchbee_connection_handshake::RELEASE_ENVIRONMENT);
+    if orchbee_local_runtime::is_release() {
+        vec![release]
+    } else {
+        vec![
+            format!("{}.exe", orchbee_local_runtime::environment_stem()),
+            release,
+        ]
+    }
 }
 pub fn command(ssh: &Path, target: &str, remote: &str) -> Command {
     let mut command = Command::new(ssh);
@@ -149,10 +202,15 @@ pub(crate) fn probe(
         return Err(io::ErrorKind::InvalidData.into());
     }
     let value = serde_json::from_slice(&result.stdout).map_err(|_| io::ErrorKind::InvalidData)?;
-    client(&value).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            "remote Client admission refused",
+    client(&value).map_err(|error| {
+        error.refusal().map_or_else(
+            || {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "remote Client status is malformed",
+                )
+            },
+            io::Error::from,
         )
     })
 }

@@ -2,29 +2,45 @@ use super::*;
 use serde_json::json;
 #[cfg(windows)]
 mod windows;
+/// The remote installation of this build's environment kind, at another product version and
+/// protocol than this build.
+fn remote_executable() -> String {
+    format!(
+        "C:/remote/{}.exe",
+        orchbee_local_runtime::environment_stem()
+    )
+}
 fn client_document() -> Value {
     json!({"schema":"orchbee.status.client","version":1,"result":{
-        "version":env!("CARGO_PKG_VERSION"),"platform":"windows","architecture":std::env::consts::ARCH,
-        "protocols":{"admission":orchbee_local_client_protocol::PROTOCOL_VERSION,
-            "terminal":orchbee_client_server_protocol::PROTOCOL_VERSION},
+        "version":"0.0.0-remote","platform":"windows","architecture":"aarch64",
+        "protocols":{"admission":1,"terminal":255},
         "cohort":{"state":"available","identity":"a".repeat(64)},
-        "executable":{"path":"C:/remote/orchbee.exe"}}})
+        "executable":{"path":remote_executable()}}})
 }
 #[test]
-fn installed_client_admission_requires_current_document_version() {
+fn installed_client_admission_accepts_another_product_version_and_requires_document_version() {
     let mut document = client_document();
     let admitted = client(&document).unwrap();
-    assert_eq!(admitted.executable, "C:/remote/orchbee.exe");
-    assert_eq!(admitted.cohort, "a".repeat(64));
+    assert_eq!(admitted.executable, remote_executable());
+    assert_eq!(admitted.version, "0.0.0-remote");
+    // This test build is not release, so a release remote belongs to another environment.
+    document["result"]["executable"]["path"] = json!("C:/remote/orchbee.exe");
+    assert!(matches!(
+        client(&document),
+        Err(Error::RemoteOtherEnvironment)
+    ));
+    assert_eq!(Error::RemoteOtherEnvironment.status(), 6);
+    document = client_document();
     document["version"] = json!(2);
     assert!(client(&document).is_err());
 }
 
 fn server_document() -> Value {
     json!({"schema":"orchbee.status.server","version":1,"result":{
-        "server":{"state":"running","stopping":false,"version":env!("CARGO_PKG_VERSION"),
-            "cohort":"a".repeat(64),"protocols":client_document()["result"]["protocols"]},
-        "localCohort":{"identity":"a".repeat(64)},"compatibility":{"compatible":true}}})
+        "server":{"state":"running","restartKeepsTerminals":true,"processes":[
+            {"role":"server","version":"0.0.0-remote","processId":7,"state":"ready","terminals":0},
+            {"role":"worker","version":"0.0.0-remote","processId":8,"state":"ready","terminals":0}]},
+        "clientVersion":"0.0.0-remote"}})
 }
 #[test]
 fn preparation_requires_a_fresh_compatible_observation_and_retains_partial_state() {
@@ -42,7 +58,7 @@ fn preparation_requires_a_fresh_compatible_observation_and_retains_partial_state
                     client_document()
                 }
                 "start" => {
-                    assert_eq!(path, Some("C:/remote/orchbee.exe"));
+                    assert_eq!(path, Some(remote_executable().as_str()));
                     json!({"schema":"orchbee.server.start","version":1,"result":{"outcome":"already-running"}})
                 }
                 "server" => server_document(),
@@ -50,7 +66,7 @@ fn preparation_requires_a_fresh_compatible_observation_and_retains_partial_state
             })
         });
         if failure == 0 {
-            assert_eq!(result, Ok(()));
+            assert_eq!(result, Ok("0.0.0-remote".to_owned()));
             assert_eq!(remote.token(), "ready");
             assert_eq!(calls, ["client", "start", "server"]);
         } else {
@@ -66,18 +82,14 @@ fn preparation_requires_a_fresh_compatible_observation_and_retains_partial_state
             );
         }
     }
-    let client = client(&client_document()).unwrap();
-    for (field, value) in [
-        ("state", json!("not-running")),
-        ("stopping", json!(true)),
-        ("cohort", json!("b".repeat(64))),
-        ("version", json!("old")),
-        ("protocols", json!({"admission":0,"terminal":0})),
-    ] {
+    for (field, value) in [("state", json!("not-running")), ("processes", json!([]))] {
         let mut v = server_document();
         v["result"]["server"][field] = value;
-        assert_eq!(server(&v, &client), Err(Error::RemoteNotReady));
+        assert_eq!(server(&v), Err(Error::RemoteNotReady));
     }
+    let mut v = server_document();
+    v["result"]["server"]["processes"][0]["state"] = json!("draining");
+    assert_eq!(server(&v), Err(Error::RemoteNotReady));
     let mut v = client_document();
     v["result"]["platform"] = json!("linux");
     assert!(matches!(super::client(&v), Err(Error::RemoteIncompatible)));

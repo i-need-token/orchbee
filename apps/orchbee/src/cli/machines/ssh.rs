@@ -5,13 +5,14 @@ use orchbee_local_runtime::CommandFailure;
 use serde_json::Value;
 use std::path::Path;
 
-use crate::machine_ssh::protocols;
 pub(super) use crate::machine_ssh::{Client, command, literal, program};
+/// Prepares the remote Session and returns the remote product version, which is shown and never
+/// compared.
 pub(super) fn prepare(
     draft: &Draft,
     context: &mut Context,
     remote: &mut Remote,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     context.check()?;
     let ssh = crate::machine_ssh::executable().map_err(|_| Error::SshUnavailable)?;
     prepare_session(remote, |path, action| {
@@ -26,7 +27,7 @@ pub(super) fn prepare(
 fn prepare_session(
     remote: &mut Remote,
     mut call: impl FnMut(Option<&str>, &str) -> Result<Value, Error>,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     *remote = Remote::Unchanged;
     let probe = call(None, "client")?;
     let client = client(&probe)?;
@@ -44,29 +45,30 @@ fn prepare_session(
     }
     // The first SSH connection has settled. Read readiness using a fresh connection.
     let ready = call(Some(&client.executable), "server")?;
-    server(&ready, &client)?;
+    server(&ready)?;
     *remote = Remote::Ready;
-    Ok(())
+    Ok(client.version)
 }
 pub(super) fn client(value: &Value) -> Result<Client, Error> {
     crate::machine_ssh::client(value).map_err(|error| match error {
         crate::machine_ssh::AdmissionError::Protocol => Error::RemoteProtocol,
-        crate::machine_ssh::AdmissionError::Incompatible => Error::RemoteIncompatible,
+        crate::machine_ssh::AdmissionError::Unsupported => Error::RemoteIncompatible,
+        crate::machine_ssh::AdmissionError::OtherEnvironment => Error::RemoteOtherEnvironment,
     })
 }
-fn server(value: &Value, client: &Client) -> Result<(), Error> {
+/// The remote's own Client reports its Session running with a ready Server. Versions are not
+/// compared: the remote Session judges a later tunnel connection through the handshake.
+fn server(value: &Value) -> Result<(), Error> {
     if value["schema"] != "orchbee.status.server" || value["version"] != 1 {
         return Err(Error::RemoteProtocol);
     }
-    let r = &value["result"];
-    if r["server"]["state"] != "running"
-        || r["server"]["stopping"] != false
-        || r["server"]["version"] != env!("CARGO_PKG_VERSION")
-        || r["server"]["cohort"].as_str() != Some(client.cohort.as_str())
-        || r["localCohort"]["identity"].as_str() != Some(client.cohort.as_str())
-        || r["compatibility"]["compatible"] != true
-        || !protocols(&r["server"]["protocols"])
-    {
+    let server = &value["result"]["server"];
+    let ready = server["processes"].as_array().is_some_and(|processes| {
+        processes
+            .iter()
+            .any(|process| process["role"] == "server" && process["state"] == "ready")
+    });
+    if server["state"] != "running" || !ready {
         return Err(Error::RemoteNotReady);
     }
     Ok(())
