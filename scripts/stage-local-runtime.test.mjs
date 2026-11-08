@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-import { options, verifiedCapsuleDigest } from './stage-local-runtime.mjs';
+import { developmentArtifactStem, options, verifiedCapsuleDigest } from './stage-local-runtime.mjs';
 import { assertWindowsFileSymlinkSupport } from './stage-native-windows.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
@@ -98,50 +98,48 @@ test('macOS staging accepts a normalized absolute output and rejects WSL routing
 	assert.throws(() => options(['--output', 'orchbee-native-dev'], 'darwin'), /absolute output/u);
 });
 
-test('artifact stems are validated at the staging boundary and only name a native Windows cohort', () => {
-	const stem = 'ob-dev-0123456789abcdef';
-	assert.deepEqual(
-		options(['--output', 'C:\\orchbee-native-dev', '--artifact-stem', stem], 'win32'),
-		{
-			'--artifact-stem': stem,
-			'--output': 'C:\\orchbee-native-dev',
-		},
-	);
-	assert.deepEqual(
-		options(
-			['--output', '/private/tmp/orchbee-native-dev', '--artifact-stem', 'orchbee'],
-			'darwin',
-		),
-		{
-			'--artifact-stem': 'orchbee',
-			'--output': '/private/tmp/orchbee-native-dev',
-		},
-	);
-	assert.throws(
-		() =>
-			options(['--output', '/private/tmp/orchbee-native-dev', '--artifact-stem', stem], 'darwin'),
-		/only by native Windows staging/u,
-	);
-	assert.throws(
-		() =>
-			options(
-				['--wsl', 'Ubuntu', '--output', '/tmp/orchbee-native-dev', '--artifact-stem', stem],
-				'win32',
-			),
-		/only by native Windows staging/u,
-	);
-	for (const invalid of [
-		'ob-dev-0123456789ABCDEF',
-		'ob-dev-0123',
-		'ob-prod-0123456789abcdef',
-		'orchbee-server',
-		'..\\orchbee',
-	]) {
-		assert.throws(
-			() => options(['--output', 'C:\\orchbee-native-dev', '--artifact-stem', invalid], 'win32'),
-			/--artifact-stem must be/u,
+test('every platform stages each environment stem and rejects any other at the boundary', () => {
+	const destinations = [
+		[['--output', 'C:\\orchbee-native-dev'], 'win32'],
+		[['--output', '/private/tmp/orchbee-native-dev'], 'darwin'],
+		[['--output', '/tmp/orchbee-native-dev'], 'linux'],
+		[['--wsl', 'Ubuntu', '--output', '/tmp/orchbee-native-dev'], 'win32'],
+	];
+	for (const [destination, platform] of destinations) {
+		for (const stem of ['orchbee', 'ob-dev-0123456789abcdef', 'ob-test-0123456789abcdef']) {
+			assert.equal(
+				options([...destination, '--artifact-stem', stem], platform)['--artifact-stem'],
+				stem,
+				`${platform} ${destination.join(' ')}`,
+			);
+		}
+		for (const invalid of [
+			'ob-dev-0123456789ABCDEF',
+			'ob-dev-0123',
+			'ob-prod-0123456789abcdef',
+			'orchbee-server',
+			'..\\orchbee',
+		]) {
+			assert.throws(
+				() => options([...destination, '--artifact-stem', invalid], platform),
+				/--artifact-stem must be/u,
+			);
+		}
+	}
+});
+
+test('a cohort staged without a stem takes the development stem Desktop derives for the checkout', () => {
+	// Desktop's distribution suite pins this digest for the same macOS checkout path.
+	for (const platform of ['darwin', 'linux']) {
+		assert.equal(
+			developmentArtifactStem('/source/orchbee-worktrees/feature', platform),
+			'ob-dev-4a884c37300b9d45',
 		);
 	}
+	assert.equal(
+		developmentArtifactStem('C:\\Source\\Orchbee', 'win32'),
+		developmentArtifactStem('c:\\Source\\Orchbee\\.', 'win32'),
+	);
 });
 
 test('Windows ConPTY staging rejects missing, altered and linked bundles before publication', (t) => {

@@ -125,7 +125,7 @@ export type DesktopDistributionProfile =
 export type DesktopDistributionDescriptor = z.infer<typeof desktopDistributionDescriptorSchema>;
 
 /**
- * The checkout digest. `scripts/stage-native-windows.mjs` and `crates/local-runtime/build.rs`, which
+ * The checkout digest. `scripts/stage-local-runtime.mjs` and `crates/local-runtime/build.rs`, which
  * names a plain Cargo build `ob-test-<digest>`, mirror it; change all three together.
  */
 export function createDesktopDevelopmentScope(

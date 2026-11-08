@@ -9,17 +9,14 @@ import {
 	mkdtempSync,
 	readFileSync,
 	readdirSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-	ARTIFACT_STEM_PATTERN,
-	developmentArtifactStem,
-	stageWindows,
-} from './stage-native-windows.mjs';
+import { ARTIFACT_STEM_PATTERN, stageWindows } from './stage-native-windows.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
@@ -130,6 +127,27 @@ export function verifiedCapsuleDigest(rootPath) {
 	const computed = capsulePayloadDigest(rootPath);
 	return computed === declared ? declared : null;
 }
+/**
+ * The development stem of a checkout, so a cohort staged without `--artifact-stem` never carries the
+ * release identity. Mirrors `createDesktopDevelopmentScope` in desktop-distribution-profile.ts, so the
+ * Desktop development cohort and a hand-staged cohort of one checkout share one environment.
+ * `crates/local-runtime/build.rs` derives a plain Cargo build's `ob-test-` stem from the same digest.
+ */
+export function developmentArtifactStem(canonicalSourceRoot, platform = process.platform) {
+	const normalized = (platform === 'win32' ? path.win32 : path.posix)
+		.normalize(canonicalSourceRoot)
+		.normalize('NFC');
+	const canonical =
+		platform === 'win32' && /^[A-Z]:/u.test(normalized)
+			? normalized[0].toLowerCase() + normalized.slice(1)
+			: normalized;
+	const digest = createHash('sha256')
+		.update('orchbee-development-data-root-v1\0')
+		.update(canonical)
+		.digest('hex')
+		.slice(0, 16);
+	return 'ob-dev-' + digest;
+}
 export function options(args, platform = process.platform) {
 	const result = {};
 	for (let i = 0; i < args.length; i += 2) {
@@ -152,11 +170,9 @@ export function options(args, platform = process.platform) {
 		!(nativeWindows ? path.win32 : path.posix).isAbsolute(result['--output'])
 	)
 		throw new Error('An absolute output directory is required');
-	const artifactStem = result['--artifact-stem'] ?? 'orchbee';
-	if (!ARTIFACT_STEM_PATTERN.test(artifactStem))
+	const artifactStem = result['--artifact-stem'];
+	if (artifactStem !== undefined && !ARTIFACT_STEM_PATTERN.test(artifactStem))
 		throw new Error('--artifact-stem must be orchbee, ob-dev-<16 hex>, or ob-test-<16 hex>');
-	if (artifactStem !== 'orchbee' && !nativeWindows)
-		throw new Error('Environment artifact stems are staged only by native Windows staging');
 	if (!['darwin', 'linux', 'win32'].includes(platform))
 		throw new Error('Local startup staging currently supports macOS, Windows and Linux');
 	return result;
@@ -164,25 +180,41 @@ export function options(args, platform = process.platform) {
 function main() {
 	const selected = options(process.argv.slice(2));
 	const distro = selected['--wsl'];
+	// Release staging names `orchbee` explicitly; anything else is this checkout's development cohort.
+	const artifactStem =
+		selected['--artifact-stem'] ?? developmentArtifactStem(realpathSync.native(root));
 	if (process.platform === 'win32' && !distro) {
 		stageWindows(
 			root,
 			selected['--output'],
 			selected['--cargo-target-dir'],
 			verifiedCapsuleDigest,
-			// Release staging names `orchbee` explicitly; anything else is this checkout's development cohort.
-			selected['--artifact-stem'] ?? developmentArtifactStem(root),
+			artifactStem,
 		);
 		return;
 	}
-	const runCommand = (command, args, capture = false) => {
+	// `wsl.exe` forwards no environment, so added variables travel as `env` arguments there.
+	const runCommand = (command, args, capture = false, environment = {}) => {
+		const assignments = Object.entries(environment).map(([name, value]) => `${name}=${value}`);
 		const executable = distro ? 'wsl.exe' : command;
 		const argv = distro
-			? ['-d', distro, '--exec', 'bash', '-lc', 'exec "$@"', 'native-stage', command, ...args]
+			? [
+					'-d',
+					distro,
+					'--exec',
+					'bash',
+					'-lc',
+					'exec "$@"',
+					'native-stage',
+					...(assignments.length > 0 ? ['env', ...assignments] : []),
+					command,
+					...args,
+				]
 			: args;
 		return execFileSync(executable, argv, {
 			cwd: root,
 			encoding: 'utf8',
+			env: distro ? process.env : { ...process.env, ...environment },
 			stdio: capture ? 'pipe' : 'inherit',
 		});
 	};
@@ -202,19 +234,25 @@ function main() {
 	let temporary;
 	let outputCreated = false;
 	try {
-		runCommand('cargo', [
-			'build',
-			'--release',
-			'--locked',
-			'--target-dir',
-			target,
-			'-p',
-			'orchbee',
-			'-p',
-			'orchbee-server',
-			'-p',
-			'orchbee-worker',
-		]);
+		// The stem names the environment; macOS and Linux file names stay `orchbee` until ORC-328.
+		runCommand(
+			'cargo',
+			[
+				'build',
+				'--release',
+				'--locked',
+				'--target-dir',
+				target,
+				'-p',
+				'orchbee',
+				'-p',
+				'orchbee-server',
+				'-p',
+				'orchbee-worker',
+			],
+			false,
+			{ ORCHBEE_ARTIFACT_STEM: artifactStem },
+		);
 		temporary = mkdtempSync(path.join(tmpdir(), 'orchbee-native-host-'));
 		const hostPrefix = path.join(temporary, 'host');
 		const zigArguments = ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix];
@@ -264,7 +302,7 @@ function main() {
 		const platform = process.platform === 'darwin' ? 'macOS' : 'Linux';
 		const displayPlatform = distro ? `${platform} (WSL)` : platform;
 		process.stdout.write(
-			`Staged ${displayPlatform} development cohort: ${output}\n` +
+			`Staged ${displayPlatform} ${artifactStem} cohort: ${output}\n` +
 				`Run in an interactive ${displayPlatform} terminal: ${path.posix.join(output, 'orchbee')}\n`,
 		);
 	} catch (error) {

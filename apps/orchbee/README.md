@@ -229,10 +229,10 @@ Windows Terminal. The directory contains the four exact `.exe` siblings, a hash 
 observation-adapter capsule. Keep them together. The file names start with the artifact stem. Native
 Windows staging defaults to this checkout's development stem, `ob-dev-<16 lowercase hex>`, the same
 one `pnpm desktop` uses, so a development cohort never shares image names with the installed release.
-`--artifact-stem orchbee` stages the release names and `ob-test-<16 lowercase hex>` a test cohort;
-other platforms and WSL staging accept only `orchbee`. A plain `cargo build` or `cargo test` on
-Windows compiles this checkout's test stem, `ob-test-<same 16 hex>`, so its binaries never act on
-the release installation; Cargo still writes them as `target\...\orchbee*.exe`, and they find their
+`--artifact-stem orchbee` stages the release names and `ob-test-<16 lowercase hex>` a test cohort.
+A plain `cargo build` or `cargo test` compiles this checkout's test stem, `ob-test-<same 16 hex>`,
+on every platform, so its binaries never act on the release installation; on Windows Cargo still
+writes them as `target\...\orchbee*.exe`, and they find their
 siblings only in a cohort staged under the stem's names. This is a native development cohort using Windows named pipes and
 ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
 selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell.
@@ -307,6 +307,10 @@ copies the canonical observation-adapters capsule as the cohort's lazily validat
 and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
 Cargo build cache. This stages a development cohort without installing a system service.
+The binaries compile this checkout's development stem, `ob-dev-<16 lowercase hex>`, as their
+environment, so they keep their state under `~/.ob-dev-<16 lowercase hex>`; `--artifact-stem`
+selects `orchbee` or an `ob-test-` stem as on Windows. File names, sockets, and runtime directories
+keep the `orchbee` names in every environment until ORC-328.
 
 The default Session is `/tmp/orchbee-native-<effective-uid>` on Linux and
 `/private/tmp/orchbee-native-<effective-uid>` on macOS. Development/tests can isolate a Session by

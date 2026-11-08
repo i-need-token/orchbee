@@ -1,6 +1,6 @@
-//! Resolves this build's Windows environment stem (ORC-382). Staging names one through
+//! Resolves this build's environment stem (ORC-382) on every target. Staging names one through
 //! `ORCHBEE_ARTIFACT_STEM`; any other build is this checkout's test environment,
-//! `ob-test-<checkout digest>`, so only a build that names `orchbee` carries the release names.
+//! `ob-test-<checkout digest>`, so only a build that names `orchbee` is release.
 use sha2::{Digest, Sha256};
 use std::{env, fs, path::Path};
 
@@ -9,10 +9,6 @@ const STEM_VARIABLE: &str = "ORCHBEE_ARTIFACT_STEM";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed={STEM_VARIABLE}");
-    // POSIX cohorts keep the shipped names until ORC-328.
-    if env::var_os("CARGO_CFG_WINDOWS").is_none() {
-        return;
-    }
     let stem = match env::var(STEM_VARIABLE) {
         Ok(stem) => stem,
         Err(env::VarError::NotPresent) => format!("ob-test-{}", checkout_digest()),
@@ -23,9 +19,10 @@ fn main() {
 
 /// The checkout digest that `createDesktopDevelopmentScope` in
 /// `apps/desktop/src/distribution/desktop-distribution-profile.ts` defines: the first 16 hex
-/// digits of SHA-256 over `orchbee-development-data-root-v1\0` and the checkout's canonical path
-/// with a lowercase drive letter. Node also applies NFC, which changes only a path stored in
-/// decomposed form.
+/// digits of SHA-256 over `orchbee-development-data-root-v1\0` and the checkout's canonical path,
+/// with a lowercase drive letter on Windows. Node also applies NFC, which changes only a path
+/// stored in decomposed form. The build host's path is hashed, so a cross-compiled build carries
+/// the digest of the checkout it was built from.
 fn checkout_digest() -> String {
     let manifest = env::var_os("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR");
     let checkout = Path::new(&manifest).join("../..");
