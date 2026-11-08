@@ -51,3 +51,32 @@ fn only_the_supplied_environment_selects_the_root() {
         })
     );
 }
+
+// `newestVersion` only rises, so its comparison decides whether a newer build ever rewrites the
+// record; an unreadable version must never win.
+#[test]
+fn product_versions_follow_semantic_version_precedence() {
+    use version_record::newer_product_version as newer;
+    let ascending = [
+        "0.9.0",
+        "0.10.0-alpha",
+        "0.10.0-alpha.1",
+        "0.10.0-alpha.beta",
+        "0.10.0-beta.2",
+        "0.10.0-beta.11",
+        "0.10.0",
+        "1.0.0",
+    ];
+    for (index, lower) in ascending.iter().enumerate() {
+        for higher in &ascending[index + 1..] {
+            assert!(newer(higher, lower), "{higher} > {lower}");
+            assert!(!newer(lower, higher), "{lower} < {higher}");
+        }
+        assert!(!newer(lower, lower));
+    }
+    assert!(!newer("1.0.0+build", "1.0.0"));
+    for unreadable in ["", "1", "1.0", "1.0.0.0", "1..0", "v1.0.0", "1.0.0-"] {
+        assert!(!newer(unreadable, "0.0.1"), "{unreadable}");
+        assert!(!newer("9.0.0", unreadable), "{unreadable}");
+    }
+}

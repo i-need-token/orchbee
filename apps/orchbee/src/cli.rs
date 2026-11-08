@@ -206,6 +206,40 @@ pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
 
 /// Encode a failure into its process answer. `format` is the format selected by
 /// a valid selector before the failure; `None` keeps stdout empty.
+/// Refuses a data root whose layout this build cannot read, before anything else in it is read.
+/// Only the root a command would open is admitted; resolving it reads no file.
+pub(crate) fn data_root_layout_refusal(
+    format: Option<OutputFormat>,
+    locale: Locale,
+) -> Option<Output> {
+    let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name)).ok()?;
+    let refusal = root.admit_layout().err()?;
+    let reason = if refusal.layout.is_some() {
+        "layout-newer"
+    } else {
+        "layout-unreadable"
+    };
+    let mut details = serde_json::Map::from_iter([
+        ("stage".to_owned(), Value::from("data-root")),
+        ("reason".to_owned(), Value::from(reason)),
+        (
+            "dataRoot".to_owned(),
+            Value::from(root.path().to_string_lossy().into_owned()),
+        ),
+    ]);
+    if let Some(layout) = refusal.layout {
+        details.insert("layout".to_owned(), Value::from(layout));
+    }
+    if let Some(version) = refusal.newest_version {
+        details.insert("newestVersion".to_owned(), Value::from(version));
+    }
+    Some(failure_output(
+        Failure::new(FailureKind::Incompatible).details(details),
+        format,
+        locale,
+    ))
+}
+
 pub(crate) fn failure_output(
     failure: Failure,
     format: Option<OutputFormat>,

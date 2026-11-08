@@ -113,12 +113,14 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `agent-detection/<provider>.toml`                    | Detection rule overrides a person writes                                                                                                     |
 | `logs/<YYYY-MM-DD>.jsonl`                            | Daily diagnostic log of every process, named by local date                                                                                   |
 | `logs/destructive-commands.jsonl`                    | Destructive request log and its `.1` generation                                                                                              |
-| `internal/version.json`                              | Layout record, written once by the writer that creates the root                                                                              |
+| `internal/version.json`                              | Layout record and the newest Orchbee version that used the root; `version.lock` and `version.pending` guard its replacement                  |
 | `internal/config.lock`                               | Writer lock of the default settings file                                                                                                     |
 | `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
 | `internal/state/<record>.json`                       | `StateRecord`: preferences, onboarding, and the machine catalog                                                                              |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
 | `internal/backups/<date>-reset-keys/`                | Copy of the settings file taken by `config reset-keys`                                                                                       |
+| `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
+| `internal/backups/<date>-<reset>/`                   | Copy of a record taken before a reset the person requested; never deleted automatically                                                      |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
 | `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |
@@ -128,9 +130,15 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
-Orchbee wrote records its layout; nothing raises `newestVersion` yet. The record is
-`{"layout":1,"newestVersion":"<version>"}`, and Desktop Main writes the same shape; search for
-`data-root-version-record` before changing it. Nothing migrates or removes what an earlier build
+Orchbee wrote records its layout. The record is `{"layout":1,"newestVersion":"<version>"}`, and
+Desktop Main reads and writes the same shape; search for `data-root-version-record` before changing
+it. Later releases only add entries, which every rewrite keeps. `DataRoot::admit_layout` reads only
+this record and refuses a root whose `layout` is higher than `LAYOUT`, or whose record cannot be
+read, and every process that opens a root calls it before any other read: the Client before it
+dispatches any command that opens the root, and the Server and Worker before their first log
+record. The first writer of each process also refuses such a root before it creates anything, and
+raises `newestVersion` to `PRODUCT_VERSION` under `internal/version.lock` when the record names an
+older version, using Semantic Versioning precedence, so a refusal can name the newest version. Nothing migrates or removes what an earlier build
 left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee` (its Session catalogs, checkpoints, TUI
 positions and audit log), `internal/session-catalog/`, `internal/native-sessions/` and
 `internal/tui-position/` of a development or test root, the `%TEMP%\orchbee-native-*` and
@@ -140,6 +148,30 @@ store layout (`internal/plugins/config/p-<digest>`, `state/p-<digest>`, and
 `managed/`); a registry written in that layout reads as invalid until it is deleted, after which
 plugins are linked or installed again. `PluginStorePaths` places everything in the plugin store;
 the store chooses the folder and version names.
+
+## Persisted data versions
+
+`record_migration` owns the version rules of the
+[layout proposal](../../proposals/platform/data-root-layout.md#persisted-data-versions-and-migration)
+for every record versioned by a top-level integer `version` (`VersionedRecord`). A store passes the
+bytes it read to `open_record` with its current strict parser: `Current` parses as usual;
+`Migrated` carries an earlier record converted by pure N to N+1 steps whose result the parser
+admitted, which a reader uses in memory and only a writer persists; `Newer` and `NotUpdated` are
+never rewritten; `Unversioned` is the store's ordinary invalid record. No step ships yet, so an
+earlier version is `NotUpdated` until a format changes and adds its step here.
+
+`persist_migration` copies the original into `internal/backups/<YYYY-MM-DD>-upgrade-<product
+version>/` at its path relative to the root and flushes it before the store's flushed atomic
+replacement runs; every record one product version migrates shares that folder, and creating
+another keeps only the three newest. A failed backup or replacement leaves the record unchanged.
+`back_up_for_reset` copies a record into `internal/backups/<YYYY-MM-DD>-<reset>/`, or the next free
+`-2`, `-3`, before a reset the person requested replaces it, and nothing deletes those folders.
+Backups are Windows effects; POSIX returns `Unsupported` until ORC-328.
+
+`report_record_notice` logs a record a process cannot use, once per record and problem, and answers
+whether this was the first time, so the process shows one of the two localized messages once;
+`reported_record_notices` lists them for a surface that shows them. Applications own the message
+text and each record's consequence.
 
 ## Windows user path operands
 

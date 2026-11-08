@@ -381,6 +381,31 @@
 				"write-failure"
 			]
 		},
+		"dataRootStageDetails": {
+			"type": "object",
+			"required": ["stage", "reason", "dataRoot"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "data-root"
+				},
+				"reason": {
+					"enum": ["layout-newer", "layout-unreadable"]
+				},
+				"dataRoot": {
+					"type": "string",
+					"minLength": 1
+				},
+				"layout": {
+					"type": "integer",
+					"minimum": 2
+				},
+				"newestVersion": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		},
 		"admissionDetails": {
 			"type": "object",
 			"required": ["stage"],
@@ -1130,6 +1155,9 @@
 											},
 											{
 												"$ref": "#/$defs/cohortStageDetails"
+											},
+											{
+												"$ref": "#/$defs/dataRootStageDetails"
 											}
 										]
 									}

@@ -203,6 +203,12 @@ impl Stamp {
     }
 }
 
+/// Today's local date, `YYYY-MM-DD`, or the UTC date when the host offers no local clock.
+pub(crate) fn local_date() -> String {
+    let (year, month, date) = civil_from_days(Stamp::now().day);
+    format!("{year:04}-{month:02}-{date:02}")
+}
+
 fn file_name(day: i64) -> String {
     let (year, month, date) = civil_from_days(day);
     format!("{year:04}-{month:02}-{date:02}{FILE_SUFFIX}")

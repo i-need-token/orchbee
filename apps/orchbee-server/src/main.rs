@@ -53,6 +53,13 @@ use std::env;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // A root whose layout this build cannot read is refused before anything in it is read, the
+    // log included; the Client that started this process names the refusal to the person.
+    if orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+        .is_ok_and(|root| root.admit_layout().is_err())
+    {
+        return ExitCode::FAILURE;
+    }
     #[cfg(any(unix, windows))]
     orchbee_local_runtime::install_diagnostic_log(orchbee_local_runtime::LogRole::Server);
     #[cfg(any(unix, windows))]

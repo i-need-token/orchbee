@@ -58,8 +58,16 @@ mod activation_record;
 mod cohort;
 mod data_root;
 pub use data_root::{
-    DataRoot, DataRootError, HOME_VARIABLE, StateRecord, TUI_POSITION_RECORD, default_runtime_base,
+    DataRoot, DataRootError, HOME_VARIABLE, LAYOUT, LayoutRefusal, PRODUCT_VERSION, StateRecord,
+    TUI_POSITION_RECORD, default_runtime_base,
 };
+mod record_migration;
+pub use record_migration::{
+    RecordNotice, RecordOpening, RecordProblem, VersionedRecord, open_record, report_record_notice,
+    reported_record_notices,
+};
+#[cfg(windows)]
+pub use record_migration::{back_up_for_reset, persist_migration};
 mod environment;
 pub use environment::{
     ENVIRONMENT_VARIABLE, EnvironmentKind, checkout_name, environment_kind, environment_name,

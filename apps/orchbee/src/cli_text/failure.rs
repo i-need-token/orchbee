@@ -648,6 +648,18 @@ impl super::CliText {
                 session: detail("sessionVersion").map(str::to_owned),
             })
         };
+        if detail("stage") == Some("data-root") {
+            let refusal = orchbee_local_runtime::LayoutRefusal {
+                layout: failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("layout"))
+                    .and_then(serde_json::Value::as_u64),
+                newest_version: detail("newestVersion").map(str::to_owned),
+            };
+            let root = std::path::Path::new(detail("dataRoot").unwrap_or_default());
+            return self.locale.data_root_layout_refusal(root, &refusal);
+        }
         let refusal = match detail("reason") {
             Some("client-too-old") => StartupFailure::ClientTooOld(versions()),
             Some("session-too-old") => StartupFailure::SessionTooOld(versions()),

@@ -63,7 +63,11 @@ a release build withholds emits `stage: "release"`, `reason: "withheld-in-releas
 `feature` token, and exit code `4`. A Session connection the handshake refuses emits kind
 `incompatible`, `stage: "admission"`, a closed `reason` (`client-too-old`, `session-too-old`,
 `environment-mismatch`, or `fingerprint-mismatch`), and exit code `6`; the two version reasons add
-the Client's `clientVersion` and, when the Session stated one, its `sessionVersion`.
+the Client's `clientVersion` and, when the Session stated one, its `sessionVersion`. A command that
+opens a data root whose layout this build cannot read emits kind `incompatible` in the shared
+failure document before it reads anything else, with `stage: "data-root"`, `reason`
+`layout-newer` (with the root's `layout` and, when recorded, its `newestVersion`) or
+`layout-unreadable`, the `dataRoot` path, and exit code `6`.
 
 ## Exit codes
 

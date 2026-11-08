@@ -78,6 +78,23 @@ use presentation::present;
 #[cfg(any(unix, windows))]
 const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
+/// Whether a request reads or writes the data root, so its layout must be admitted first. Help,
+/// the version, the skill text, completion, schemas and the default settings template read no
+/// file in it.
+fn opens_data_root(request: &invocation::Request) -> bool {
+    !matches!(
+        request,
+        invocation::Request::Version
+            | invocation::Request::RootHelp
+            | invocation::Request::Help(_)
+            | invocation::Request::Skill
+            | invocation::Request::Withheld(_)
+            | invocation::Request::DefaultConfig
+            | invocation::Request::Completion(_)
+            | invocation::Request::SchemaExport { .. }
+    )
+}
+
 fn main() -> ExitCode {
     let selected = parse_selected_request(env::args_os().skip(1));
     if let Ok(selected) = &selected
@@ -96,7 +113,13 @@ fn main() -> ExitCode {
             locale,
         );
     }
+    let format = selected.as_ref().ok().and_then(|selected| selected.format);
     let parsed = selected.map(cli::invocation_route::prepare);
+    if parsed.as_ref().is_ok_and(opens_data_root)
+        && let Some(refusal) = cli::data_root_layout_refusal(format, locale)
+    {
+        return emit(refusal, locale);
+    }
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         diagnostic_events::tui_started();

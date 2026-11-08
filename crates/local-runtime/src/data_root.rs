@@ -3,14 +3,21 @@
 //! reads, edits, or keeps; everything Orchbee manages for itself lives under `internal/`. Every
 //! Orchbee state path derives from here, so callers never spell a folder or choose a home variable
 //! themselves. Resolving touches no file; the Windows adapter creates private folders on first
-//! write and records the root's layout.
+//! write and records the root's layout. Every process that opens a root admits its layout first,
+//! before any other read.
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
 };
 
+mod version_record;
+#[cfg(windows)]
+pub(crate) use version_record::compare_product_versions;
+pub use version_record::{LAYOUT, LayoutRefusal, PRODUCT_VERSION};
 #[cfg(windows)]
 mod windows;
+#[cfg(all(test, windows))]
+pub(crate) use windows::settle_version_record;
 #[cfg(windows)]
 pub use windows::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
