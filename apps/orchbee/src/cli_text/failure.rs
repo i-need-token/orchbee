@@ -82,14 +82,14 @@ impl super::CliText {
                 .and_then(|details| details.get("reason"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("io-error");
-            // The variable that supplies the configuration root differs by environment.
-            if matches!(field, "APPDATA" | "USERPROFILE") && reason == "missing" {
+            // The home variable that holds the default data root differs by platform.
+            if matches!(field, "USERPROFILE" | "HOME") && reason == "missing" {
                 return match self.locale {
                     Locale::EnUs => format!(
-                        "{field} is not set, so the local Session has no configuration location. Set {field} or ORCHBEE_CONFIG_FILE to an absolute path and retry.\n"
+                        "{field} is not set, so the local Session has no data folder. Set {field} or ORCHBEE_HOME to an absolute path and retry.\n"
                     ),
                     Locale::ZhCn => format!(
-                        "未设置 {field}，本地会话没有配置位置。请将 {field} 或 ORCHBEE_CONFIG_FILE 设为绝对路径后重试。\n"
+                        "未设置 {field}，本地会话没有数据文件夹。请将 {field} 或 ORCHBEE_HOME 设为绝对路径后重试。\n"
                     ),
                 };
             }

@@ -1,7 +1,7 @@
 //! Windows private-cache locking and persistence witness for the joined position writer.
 use super::{Preferences, Writer};
 use crate::startup_preference::tests::position;
-use crate::startup_preference::{FILE, MAXIMUM_BYTES, decode};
+use crate::startup_preference::{FILE, MAXIMUM_BYTES, RECORD, decode};
 use std::{fs, path::PathBuf};
 
 struct Root(PathBuf);
@@ -40,7 +40,7 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
     let root = Root::new();
     let path = root.0.join("position");
     let mut writer = {
-        let _lock = orchbee_local_runtime::PrivateCache::acquire(&path).unwrap();
+        let _lock = orchbee_local_runtime::PrivateCache::acquire(&path, RECORD).unwrap();
         let mut writer = Writer::start(path.clone()).unwrap();
         writer.publish(position(1));
         writer.publish(position(2));
@@ -58,14 +58,14 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
         serde_json::from_slice::<serde_json::Value>(&raw).unwrap()["version"],
         1
     );
-    assert!(!path.join(".orchbee-update.pending").exists());
+    assert!(!path.join(format!("{RECORD}.pending")).exists());
 }
 #[test]
 fn unreadable_record_counts_as_unsaved_and_the_next_position_replaces_it() {
     // A record from an earlier format once disabled every later write for that runtime.
     let root = Root::new();
     let path = root.0.join("position");
-    orchbee_local_runtime::PrivateCache::acquire(&path)
+    orchbee_local_runtime::PrivateCache::acquire(&path, RECORD)
         .unwrap()
         .replace(FILE, br#"{"version":2,"position":null}"#)
         .unwrap();

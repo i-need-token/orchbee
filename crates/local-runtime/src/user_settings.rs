@@ -27,7 +27,10 @@ pub use notifications::{
 mod reference;
 mod reset_keys;
 mod window_title;
-use crate::user_path::{USER_PATH_LIMIT, normalize_user_path};
+use crate::{
+    DataRoot,
+    user_path::{USER_PATH_LIMIT, normalize_user_path},
+};
 pub use keys::{
     CommandSize, CustomCommand, CustomCommandAction, CustomCommandEntry, KeyChord, KeyOverride,
     KeySettings, KeyTrigger, trigger_label,
@@ -159,50 +162,30 @@ pub enum DirectoryPolicy {
     Explicit,
 }
 
-/// This environment's roaming state root, which holds the default `config.toml`, and the variable
-/// that diagnostics name for it.
-fn default_root(env: &impl Fn(&str) -> Option<OsString>) -> Option<(OsString, &'static str)> {
-    #[cfg(windows)]
-    {
-        crate::environment::roaming_state_root(env).map(|root| {
-            (
-                root.into_os_string(),
-                crate::environment::roaming_state_variable(),
-            )
-        })
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = env;
-        None
-    }
-}
-
+/// `ORCHBEE_CONFIG_FILE` when set, otherwise `config.toml` in the data root. An explicit file
+/// moves only the settings; every other record stays in the data root. A home folder that is not
+/// set leaves no location, which activation reports with the variable that should supply it.
 fn location(
     env: &impl Fn(&str) -> Option<OsString>,
 ) -> Result<Option<(PathBuf, bool)>, SettingsError> {
     source::require()?;
-    let (value, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
-        (value, "ORCHBEE_CONFIG_FILE", true)
-    } else if let Some((root, field)) = default_root(env) {
-        (root, field, false)
+    let (path, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
+        let field = "ORCHBEE_CONFIG_FILE";
+        let raw = value
+            .to_str()
+            .ok_or(SettingsError::new(field, "invalid-path"))?;
+        if !Path::new(raw).is_absolute() || raw.is_empty() {
+            return Err(SettingsError::new(field, "invalid-path"));
+        }
+        let checked = normalize_user_path(raw, env, || Err(std::io::ErrorKind::NotFound.into()))
+            .map_err(|_| SettingsError::new(field, "invalid-path"))?;
+        (PathBuf::from(checked.as_str()), field, true)
     } else {
-        return Ok(None);
-    };
-    let raw = value
-        .to_str()
-        .ok_or(SettingsError::new(field, "invalid-path"))?;
-    let path = Path::new(raw);
-    if !path.is_absolute() || raw.is_empty() {
-        return Err(SettingsError::new(field, "invalid-path"));
-    }
-    let checked = normalize_user_path(raw, env, || Err(std::io::ErrorKind::NotFound.into()))
-        .map_err(|_| SettingsError::new(field, "invalid-path"))?;
-    let path = PathBuf::from(checked.as_str());
-    let path = if explicit {
-        path
-    } else {
-        path.join("config.toml")
+        match DataRoot::resolve(env) {
+            Ok(root) => (root.config_file(), DataRoot::variable(env), false),
+            Err(error) if error.reason == "missing" => return Ok(None),
+            Err(error) => return Err(SettingsError::new(error.variable, error.reason)),
+        }
     };
     if path
         .to_str()
@@ -213,8 +196,8 @@ fn location(
     Ok(Some((path, explicit)))
 }
 
-/// The shared settings location without opening the file or applying runtime settings.
-/// Companion user assets use this parent directory; absence remains explicit.
+/// The shared settings location without opening the file or applying runtime settings; absence
+/// remains explicit. Records other than settings derive from the data root, never from this path.
 pub fn user_settings_path(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<Option<PathBuf>, SettingsError> {

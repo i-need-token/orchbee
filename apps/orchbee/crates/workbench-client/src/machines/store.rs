@@ -1,9 +1,10 @@
 //! The only writer of the private saved-machine catalog.
 use super::{Catalog, Edit, Error};
-use orchbee_local_runtime::{PrivateCache, user_settings_path};
+use orchbee_local_runtime::{DataRoot, PrivateCache, StateRecord};
 use std::{io, path::PathBuf};
 
-const FILE: &str = "catalog.json";
+const RECORD: StateRecord = StateRecord::Machines;
+const FILE: &str = RECORD.file_name();
 const MAX_BYTES: usize = 128 * 1024;
 
 pub struct Store {
@@ -11,20 +12,16 @@ pub struct Store {
 }
 impl Store {
     pub fn configured() -> Result<Self, Error> {
-        let path = user_settings_path(|name| std::env::var_os(name))
-            .map_err(|_| Error::Configuration)?
-            .ok_or(Error::Configuration)?;
-        let parent = path.parent().ok_or(Error::Configuration)?;
-        Ok(Self {
-            root: parent.join("machines"),
-        })
+        let root =
+            DataRoot::resolve(|name| std::env::var_os(name)).map_err(|_| Error::Configuration)?;
+        Ok(Self { root: root.state() })
     }
     pub fn read(&self) -> Result<Catalog, Error> {
         decode(PrivateCache::read_existing(&self.root, FILE, MAX_BYTES).map_err(storage)?)
     }
     /// Re-read while holding the writer lock, after remote preparation has ended.
     pub fn commit(&self, edit: &Edit) -> Result<(Catalog, bool), Error> {
-        let mut cache = PrivateCache::acquire(&self.root).map_err(storage)?;
+        let mut cache = PrivateCache::acquire(&self.root, RECORD.name()).map_err(storage)?;
         let current = decode(cache.read(FILE, MAX_BYTES).map_err(storage)?)?;
         let (next, changed) = current.edit(edit)?;
         if changed {

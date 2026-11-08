@@ -17,14 +17,14 @@ fn document(output: std::process::Output, status: i32) -> Value {
 #[test]
 fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     let fixture = Fixture::new();
-    let root = fixture.roaming_root().join("machines");
+    let root = fixture.data_root().state();
     let list = document(fixture.run(&["machine", "list", "--json"]), 0);
     assert_eq!(list["result"]["profiles"], json!([]));
     assert!(!root.exists());
-    let mut cache = PrivateCache::acquire(&root).unwrap();
+    let mut cache = PrivateCache::acquire(&root, "machines").unwrap();
     cache
         .replace(
-            "catalog.json",
+            "machines.json",
             &serde_json::to_vec(&json!({"schemaVersion":1,"revision":1,"profiles":[{
                 "id":ID,"label":"Work","target":"example.invalid","session":"work","enabled":true
             }]}))
@@ -59,9 +59,9 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
 #[test]
 fn invalid_catalog_and_invalid_grammar_refuse_add_before_ssh_and_preserve_bytes() {
     let fixture = Fixture::new();
-    let root = fixture.roaming_root().join("machines");
-    let mut cache = PrivateCache::acquire(&root).unwrap();
-    cache.replace("catalog.json", b"not json").unwrap();
+    let root = fixture.data_root().state();
+    let mut cache = PrivateCache::acquire(&root, "machines").unwrap();
+    cache.replace("machines.json", b"not json").unwrap();
     drop(cache);
     let value = document(
         fixture.run(&[
@@ -76,7 +76,7 @@ fn invalid_catalog_and_invalid_grammar_refuse_add_before_ssh_and_preserve_bytes(
     assert_eq!(value["result"]["error"], "invalid-catalog");
     assert_eq!(value["result"]["remote"], "not-contacted");
     assert_eq!(
-        std::fs::read(root.join("catalog.json")).unwrap(),
+        std::fs::read(root.join("machines.json")).unwrap(),
         b"not json"
     );
     for args in [

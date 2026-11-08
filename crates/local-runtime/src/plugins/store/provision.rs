@@ -1,7 +1,7 @@
 //! One serialized offline install/update/uninstall workflow with atomic catalog commitment.
 use super::{
     Catalog, Error, FILE, MAX_REVISION, PluginRegistry, PluginRegistryEntry, REGISTRY_LIMIT,
-    decode, load, storage,
+    REGISTRY_RECORD, decode, load, storage,
 };
 use crate::{
     CommandFailure, CommandOutput, PluginGithubSource, PluginManagedSource, PrivateCache,
@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 mod cleanup;
 #[cfg(all(test, windows))]
 mod tests;
+/// Names the writer lock that serializes managed checkouts inside `managed/`.
+const MANAGED_RECORD: &str = "checkouts";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -184,7 +186,7 @@ fn failed(failure: PluginProvisionFailure) -> PluginProvisionReport {
 }
 impl<'a> Provision<'a> {
     fn open(registry: &'a PluginRegistry) -> Result<Self, PluginProvisionFailure> {
-        let store = PrivateCache::acquire(&registry.root).map_err(storage)?;
+        let store = PrivateCache::acquire(&registry.root, REGISTRY_RECORD).map_err(storage)?;
         let catalog = decode(
             store
                 .read(FILE, REGISTRY_LIMIT)
@@ -268,7 +270,7 @@ impl<'a> Provision<'a> {
             .checkpoint()
             .map_err(PluginProvisionFailure::Command)?;
         let managed = self.registry.root.join("managed");
-        let _managed = PrivateCache::acquire(&managed).map_err(storage)?;
+        let _managed = PrivateCache::acquire(&managed, MANAGED_RECORD).map_err(storage)?;
         let container = managed.join(format!("i-{id}"));
         // Never adopt an existing directory, even if the caller reused a valid identity.
         if std::fs::symlink_metadata(&container).is_ok() {

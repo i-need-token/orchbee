@@ -25,7 +25,7 @@ fn live_update_commits_and_activates_without_repeating_downloads() {
         .initialize_source(Some(root.0.clone()), &detector, Ok(Some(http.url.clone())))
         .unwrap();
     assert!(
-        !root.0.join("agent-detection").exists(),
+        std::fs::read_dir(&root.0).unwrap().next().is_none(),
         "initial status read creates nothing"
     );
     let action = Action::Update {

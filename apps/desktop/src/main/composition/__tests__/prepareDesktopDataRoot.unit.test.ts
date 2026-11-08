@@ -21,14 +21,29 @@ afterEach(() => {
 });
 
 describe('prepareDesktopDataRoot', () => {
-	it('uses the fixed hidden root for release Desktop', () => {
-		expect(
+	it('uses the fixed hidden root for release Desktop and keeps its own state internal', () => {
+		const root = prepareWithoutFileSystem({
+			distribution: resolveDesktopDistributionProfile('release'),
+			homeDirectory: '/Users/person',
+			platform: 'darwin',
+		});
+		expect(root.path).toBe('/Users/person/.orchbee');
+		expect(root.scope).toEqual({ kind: 'release' });
+		for (const location of [root.electronDirectory, root.windowStateFile]) {
+			expect(location.startsWith('/Users/person/.orchbee/internal/')).toBe(true);
+		}
+	});
+
+	it('takes the root from ORCHBEE_HOME only when it names an absolute folder', () => {
+		const prepare = (homeOverride: string) =>
 			prepareWithoutFileSystem({
-				distribution: resolveDesktopDistributionProfile('release'),
+				distribution: developmentDistribution('/source/orchbee'),
 				homeDirectory: '/Users/person',
+				homeOverride,
 				platform: 'darwin',
-			}),
-		).toEqual({ path: '/Users/person/.orchbee', scope: { kind: 'release' } });
+			});
+		expect(prepare('/Volumes/data/orchbee').path).toBe('/Volumes/data/orchbee');
+		expect(() => prepare('relative/orchbee')).toThrow('ORCHBEE_HOME');
 	});
 
 	it('derives a stable development root from the canonical checkout path', () => {
@@ -58,16 +73,24 @@ describe('prepareDesktopDataRoot', () => {
 	it('creates and reuses an agreeing development scope marker', () => {
 		const home = temporaryDirectory();
 		const input = {
+			applicationVersion: '1.2.3',
 			distribution: developmentDistribution(realpathSync.native(home), process.platform),
 			homeDirectory: home,
+			homeOverride: undefined,
 			platform: process.platform,
 		} as const;
 		const first = prepareDesktopDataRoot(input);
-		const second = prepareDesktopDataRoot(input);
+		const second = prepareDesktopDataRoot({ ...input, applicationVersion: '2.0.0' });
 		expect(second).toEqual(first);
+		const internal = path.join(first.path, 'internal');
 		expect(
-			JSON.parse(readFileSync(path.join(first.path, 'development-scope-v1.json'), 'utf8')),
+			JSON.parse(readFileSync(path.join(internal, 'development-checkout.json'), 'utf8')),
 		).toMatchObject(input.distribution.dataScope);
+		// The root records its layout once; a later start leaves the record as it is.
+		expect(JSON.parse(readFileSync(path.join(internal, 'version.json'), 'utf8'))).toEqual({
+			layout: 1,
+			newestVersion: '1.2.3',
+		});
 	});
 
 	it('rejects a development marker for another checkout', () => {
@@ -92,8 +115,10 @@ describe('prepareDesktopDataRoot', () => {
 		expect(() =>
 			prepareDesktopDataRoot(
 				{
+					applicationVersion: '1.2.3',
 					distribution: developmentDistribution(home, process.platform),
 					homeDirectory: home,
+					homeOverride: undefined,
 					platform: process.platform,
 				},
 				dependencies,
@@ -103,16 +128,24 @@ describe('prepareDesktopDataRoot', () => {
 });
 
 function prepareWithoutFileSystem(
-	input: Parameters<typeof prepareDesktopDataRoot>[0],
+	input: Omit<
+		Parameters<typeof prepareDesktopDataRoot>[0],
+		'applicationVersion' | 'homeOverride'
+	> & {
+		readonly homeOverride?: string;
+	},
 ): ReturnType<typeof prepareDesktopDataRoot> {
-	return prepareDesktopDataRoot(input, {
-		chmod: () => undefined,
-		mkdir: () => undefined,
-		readFile: () => {
-			throw new Error('Unexpected marker read.');
+	return prepareDesktopDataRoot(
+		{ applicationVersion: '1.2.3', homeOverride: undefined, ...input },
+		{
+			chmod: () => undefined,
+			mkdir: () => undefined,
+			readFile: () => {
+				throw new Error('Unexpected marker read.');
+			},
+			writeFile: () => undefined,
 		},
-		writeFile: () => undefined,
-	});
+	);
 }
 
 function developmentDistribution(sourceRoot: string, platform: NodeJS.Platform = 'darwin') {

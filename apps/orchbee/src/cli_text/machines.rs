@@ -79,8 +79,12 @@ impl super::CliText {
                 "The remote session may be running; this command does not roll it back."
             }
             (Locale::ZhCn, "remote-retained") => "远端会话可能仍在运行；本命令不会回滚它。",
-            (Locale::EnUs, "configuration") => "The Windows configuration location is unavailable.",
-            (Locale::ZhCn, "configuration") => "Windows 配置位置不可用。",
+            (Locale::EnUs, "configuration") => {
+                "The Orchbee data folder is unavailable; check USERPROFILE or ORCHBEE_HOME."
+            }
+            (Locale::ZhCn, "configuration") => {
+                "Orchbee 数据文件夹不可用；请检查 USERPROFILE 或 ORCHBEE_HOME。"
+            }
             (Locale::EnUs, "invalid-catalog") => {
                 "The machine catalog is invalid; existing data was preserved."
             }

@@ -48,6 +48,8 @@ const env = {
 	...process.env,
 	APPDATA: path.join(scratch, 'appdata'),
 	LOCALAPPDATA: path.join(scratch, 'localappdata'),
+	// The data root holds configuration and device records; orchbee creates it on first write.
+	ORCHBEE_HOME: path.join(scratch, 'home'),
 	ORCHBEE_RUNTIME_BASE: path.join(scratch, 'rt'),
 	ORCHBEE_SESSION: `agent-self-test-${process.pid}`,
 };

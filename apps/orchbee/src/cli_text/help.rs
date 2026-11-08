@@ -884,8 +884,8 @@ impl super::CliText {
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",
             ),
             HelpText::ConfigLocation => (
-                "Configuration: Windows {config-file}; macOS ~/Library/Application Support/Orchbee/config.toml; Linux $XDG_CONFIG_HOME/Orchbee/config.toml (default ~/.config). ORCHBEE_CONFIG_FILE overrides the path. Use orchbee config check to inspect it and orchbee server diagnose for runtime facts.",
-                "配置：Windows 为 {config-file}；macOS 为 ~/Library/Application Support/Orchbee/config.toml；Linux 为 $XDG_CONFIG_HOME/Orchbee/config.toml（默认 ~/.config）。ORCHBEE_CONFIG_FILE 覆盖路径。使用 orchbee config check 检查配置，使用 orchbee server diagnose 查看运行时事实。",
+                "Configuration: {config-file}. ORCHBEE_HOME moves the whole data folder; ORCHBEE_CONFIG_FILE moves only the configuration file. Use orchbee config check to inspect it and orchbee server diagnose for runtime facts.",
+                "配置：{config-file}。ORCHBEE_HOME 移动整个数据文件夹；ORCHBEE_CONFIG_FILE 只移动配置文件。使用 orchbee config check 检查配置，使用 orchbee server diagnose 查看运行时事实。",
             ),
             HelpText::Reference => (
                 "Offline guide: orchbee --skill. Command help: orchbee help <command>.",

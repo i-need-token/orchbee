@@ -12,7 +12,7 @@ Guidance reserves rows above the sidebar's Settings action, outside the scrollin
 
 ## Persistent state
 
-The state belongs beside the resolved native configuration file, in `<config-filename>.native-state/onboarding.json`. A closed version 1 document contains `version` and `dismissed`, bounded to 1024 bytes. It is local to that configuration profile and survives Session changes; no Session checkpoint, user preference or server publication contains this bit.
+The state is `internal/state/onboarding.json` in the data root; an explicit `ORCHBEE_CONFIG_FILE` does not move it. A closed version 1 document contains `version` and `dismissed`, bounded to 1024 bytes. It is local to that data root and survives Session changes; no Session checkpoint, user preference or server publication contains this bit.
 
 Reading does not create files. Missing state shows the card. Unreadable, oversized, unknown-version or malformed state shows guidance with a localized warning and preserves the existing bytes. Explicit dismissal acquires the existing private cache lock, reads and validates the latest document, and atomically writes the dismissed state. Concurrent dismissal is idempotent. Invalid existing data is never repaired or replaced. If saving fails, the card closes in this Client and a localized notice explains it may return after restart. The private cache owner handles permissions, bounded reads, publication residue and handle release.
 

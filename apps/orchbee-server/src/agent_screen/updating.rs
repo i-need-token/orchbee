@@ -1,9 +1,8 @@
 //! Real remote-rule cache updates. Observer installation and public receipts are separate owners.
 use super::{RemoteCache, ScreenDetector, manifest::Manifest, version::Version};
 use orchbee_agent_observation_protocol::AgentReportProvider;
-use orchbee_local_runtime::PrivateCache;
+use orchbee_local_runtime::{DataRoot, PrivateCache};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -14,6 +13,10 @@ use std::{
 mod fetch;
 const LIMIT: usize = 256 * 1024;
 const UPDATE_BUDGET: Duration = Duration::from_secs(600);
+/// The cache's index: the last update's status, which records the catalog URL its rules came from.
+const STATUS: &str = "catalog.json";
+/// Names the cache's writer lock and staging file beside its index.
+const RECORD: &str = "catalog";
 pub(crate) const CATALOG_ENV: &str = "ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL";
 /// The Session's frozen catalog choice. `Ok(None)` means no catalog is configured, so no update
 /// runs and the remote directory is never read.
@@ -140,15 +143,11 @@ fn update_provider(
     row.cached_version = Some(display);
     Ok(Disposition::Updated)
 }
-/// Each catalog keeps its rules and their status in its own directory, named by the first 128 bits
-/// of the catalog URL's SHA-256, so no failed or interrupted update and no concurrent read can pair
-/// one catalog's status with another catalog's rules.
-fn remote_root(root: &Path, source: &CatalogUrl) -> PathBuf {
-    let mut prefix = [0; 16];
-    prefix.copy_from_slice(&Sha256::digest(source.as_str().as_bytes())[..16]);
-    root.join("agent-detection")
-        .join("remote")
-        .join(format!("{:032x}", u128::from_be_bytes(prefix)))
+/// The data root keeps one remote rule cache, `internal/cache/agent-detection/`. Its index records
+/// the catalog its rules came from: an index naming another catalog admits no rules, and the next
+/// update from this catalog discards them, the index first, before writing its own.
+fn remote_root(root: &Path) -> PathBuf {
+    DataRoot::at(root.to_owned()).agent_detection_cache()
 }
 fn parse_status(bytes: &[u8]) -> Result<UpdateReport, Failure> {
     let report: UpdateReport = serde_json::from_slice(bytes).map_err(|_| Failure::Cache)?;
@@ -158,7 +157,7 @@ fn parse_status(bytes: &[u8]) -> Result<UpdateReport, Failure> {
 /// The persisted status of the configured catalog. A status recorded for another catalog
 /// describes no rules this Session may use, so it reads as absent.
 fn configured_status(root: &Path, source: &CatalogUrl) -> Result<Option<UpdateReport>, Failure> {
-    let Some(bytes) = PrivateCache::read_existing(&remote_root(root, source), "status.json", LIMIT)
+    let Some(bytes) = PrivateCache::read_existing(&remote_root(root), STATUS, LIMIT)
         .map_err(|_| Failure::Cache)?
     else {
         return Ok(None);
@@ -173,7 +172,7 @@ pub(crate) fn remote_cache(root: Option<&Path>, source: &Source) -> RemoteCache 
         (Some(root), Ok(Some(source)))
             if matches!(configured_status(root, source), Ok(Some(_))) =>
         {
-            RemoteCache::Admitted(remote_root(root, source))
+            RemoteCache::Admitted(remote_root(root))
         }
         _ => RemoteCache::Ignored,
     }
@@ -243,26 +242,23 @@ fn run_with_fetch(
             .duration_since(UNIX_EPOCH)
             .map_err(|_| Failure::Clock)?
             .as_secs();
-        let directory = remote_root(root, source);
-        let writer = cache.insert(PrivateCache::acquire(&directory).map_err(|e| {
+        let directory = remote_root(root);
+        let writer = cache.insert(PrivateCache::acquire(&directory, RECORD).map_err(|e| {
             if e.kind() == std::io::ErrorKind::WouldBlock {
                 Failure::Busy
             } else {
                 Failure::Cache
             }
         })?);
-        let recorded = match writer
-            .read("status.json", LIMIT)
-            .map_err(|_| Failure::Cache)?
-        {
+        let recorded = match writer.read(STATUS, LIMIT).map_err(|_| Failure::Cache)? {
             Some(bytes) => Some(parse_status(&bytes)?.catalog_url),
             None => None,
         };
-        // This updater is the only writer of its catalog's directory. Rules that no status there
-        // attributes to this catalog are removed, the status first, before this catalog's status
+        // The writer lock makes this updater the cache's only writer. Rules that no index there
+        // attributes to this catalog are removed, the index first, before this catalog's index
         // can claim them; a failed removal stops the update with nothing admitting those rules.
         if recorded.as_deref() != Some(source.as_str()) {
-            writer.remove("status.json").map_err(|_| Failure::Cache)?;
+            writer.remove(STATUS).map_err(|_| Failure::Cache)?;
             let bundled = ScreenDetector::bundled().map_err(|_| Failure::InvalidManifest)?;
             for manifest in &bundled.0 {
                 writer
@@ -324,7 +320,7 @@ fn run_with_fetch(
         if serde_json::to_vec(&report)
             .ok()
             .filter(|b| b.len() <= LIMIT)
-            .is_none_or(|bytes| cache.replace("status.json", &bytes).is_err())
+            .is_none_or(|bytes| cache.replace(STATUS, &bytes).is_err())
         {
             report.status_saved = false;
             report.failure.get_or_insert(Failure::Cache);

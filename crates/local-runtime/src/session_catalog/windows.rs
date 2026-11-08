@@ -737,7 +737,7 @@ impl SessionCatalog {
             }
             check()?;
             let _local =
-                crate::environment::open_state_root(local)?.ok_or(io::ErrorKind::NotFound)?;
+                crate::data_root::open_state_root(local)?.ok_or(io::ErrorKind::NotFound)?;
             if local.canonicalize()? != self.local {
                 return Err(io::ErrorKind::InvalidInput.into());
             }

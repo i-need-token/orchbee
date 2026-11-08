@@ -100,8 +100,7 @@ pub(crate) fn run(
         let configuration =
             orchbee_local_runtime::read_user_settings(|name| std::env::var_os(name))
                 .map_err(io::Error::other)?;
-        terminals
-            .initialize_preferences(configuration_windows::preferences_scope(&configuration)?)?;
+        terminals.initialize_preferences(configuration_windows::preferences_scope()?)?;
         terminals.start_process_observer_with_configuration(configuration, false)?;
     }
     let _client_service = endpoints

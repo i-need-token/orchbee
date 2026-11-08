@@ -17,7 +17,7 @@ pub(crate) struct ReleaseStore {
 impl ReleaseStore {
     /// Creates missing private directories and refuses unsafe existing installations.
     pub(crate) fn acquire(root: &Path) -> io::Result<Self> {
-        let lock = PrivateCache::acquire(root)?;
+        let lock = PrivateCache::acquire(root, "install")?;
         Ok(Self {
             root: root.to_owned(),
             _lock: lock,

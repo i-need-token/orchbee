@@ -87,8 +87,8 @@ fn assert_environment_paths(text: &str) {
     );
     if !orchbee_local_runtime::is_release() {
         for release in [
-            r"%APPDATA%\Orchbee\config.toml",
-            "APPDATA/Orchbee/config.toml",
+            r"%USERPROFILE%\.orchbee\config.toml",
+            "~/.orchbee/config.toml",
         ] {
             assert!(!text.contains(release), "{text}");
         }

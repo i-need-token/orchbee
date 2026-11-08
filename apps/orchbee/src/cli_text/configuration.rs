@@ -17,13 +17,13 @@ pub(super) const HELP_CONFIG_CHECK_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_CONFIG_RESET_KEYS_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee config reset-keys [--format text|json]",
-        "Back up {config-file} (or ORCHBEE_CONFIG_FILE) and remove\ncustom keys. Preserve other settings and comments outside the removed tables.\nMissing file or no keys succeeds without writing. Invalid TOML or an unsafe\nedit fails unchanged. Windows requires a private parent and an exclusively\nopened regular file. Keep the reported backup until you no longer need to\nrestore the configuration. A failed restore reports recoveryRequired=true.\nDoes not connect, launch, or reload a Client. Exit 0 on success/no change,\n1 on failure, 2 on usage error.",
+        "Back up {config-file} (or ORCHBEE_CONFIG_FILE) to\ninternal/backups/<date>-reset-keys in the data folder and remove custom keys.\nPreserve other settings and comments outside the removed tables.\nMissing file or no keys succeeds without writing. Invalid TOML or an unsafe\nedit fails unchanged. Windows requires a private parent and an exclusively\nopened regular file. Keep the reported backup until you no longer need to\nrestore the configuration. A failed restore reports recoveryRequired=true.\nDoes not connect, launch, or reload a Client. Exit 0 on success/no change,\n1 on failure, 2 on usage error.",
     );
 
 pub(super) const HELP_CONFIG_RESET_KEYS_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee config reset-keys [--format text|json]",
-        "备份 {config-file}（或 ORCHBEE_CONFIG_FILE 指定文件），并移除自定义键位。保留其他设置及被移除表之外的注释。文件不存在或无 keys\n时成功且不写入；TOML 无效或无法安全编辑时保持不变并失败。Windows 要求私有父目录和可独占打开的普通文件。请保留回执中的备份，直到不再需要恢复配置；恢复失败时报告 recoveryRequired=true。不连接、启动或重载客户端。成功或无变更退出 0，失败退出 1，用法错误退出 2。",
+        "将 {config-file}（或 ORCHBEE_CONFIG_FILE 指定文件）备份到数据文件夹的 internal/backups/<日期>-reset-keys，并移除自定义键位。保留其他设置及被移除表之外的注释。文件不存在或无 keys\n时成功且不写入；TOML 无效或无法安全编辑时保持不变并失败。Windows 要求私有父目录和可独占打开的普通文件。请保留回执中的备份，直到不再需要恢复配置；恢复失败时报告 recoveryRequired=true。不连接、启动或重载客户端。成功或无变更退出 0，失败退出 1，用法错误退出 2。",
     );
 
 /// Help copy names the configuration file this environment reads by default with this placeholder,
@@ -35,24 +35,19 @@ pub(crate) fn fill_environment_placeholders(copy: &str) -> String {
     copy.replace(CONFIGURATION_FILE_PLACEHOLDER, &configuration_file())
 }
 
-/// The configuration file this environment reads by default, spelled with the variable that
-/// supplies its root: release reads `%APPDATA%\Orchbee\config.toml`, a development or test build
-/// `%USERPROFILE%\.<stem>\config.toml`. The state owner derives the root while every variable it
-/// reads stays a `%NAME%` reference, so help reads no environment and never spells the layout.
+/// The configuration file this environment reads by default, `config.toml` in its data root,
+/// spelled with the home variable instead of a resolved path: `%USERPROFILE%\.<stem>\config.toml`
+/// on Windows, `~/.<stem>/config.toml` elsewhere. The data root owner derives it from that
+/// reference, so help reads no environment and never spells the layout.
 fn configuration_file() -> String {
     #[cfg(windows)]
-    {
-        orchbee_local_runtime::roaming_state_root(|name| Some(format!("%{name}%").into()))
-            .unwrap_or_default()
-            .join("config.toml")
-            .to_string_lossy()
-            .into_owned()
-    }
-    // Other platforms keep the release environment until ORC-328; their help names the Windows file.
+    let home = format!("%{}%", orchbee_local_runtime::DataRoot::home_variable());
     #[cfg(not(windows))]
-    {
-        r"%APPDATA%\Orchbee\config.toml".to_owned()
-    }
+    let home = "~".to_owned();
+    orchbee_local_runtime::DataRoot::under_home(std::path::Path::new(&home))
+        .config_file()
+        .to_string_lossy()
+        .into_owned()
 }
 
 impl super::CliText {

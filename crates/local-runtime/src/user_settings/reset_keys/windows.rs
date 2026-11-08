@@ -1,13 +1,12 @@
 //! Explicit offline repair; read-only settings admission never invokes this writer.
 use super::super::{LIMIT, SettingsError, user_settings_path};
-use crate::private_filesystem as permissions;
+use crate::{DataRoot, private_filesystem as permissions};
 use std::{
     ffi::OsString,
     fs::{self, File, OpenOptions},
     io::{self, Read, Seek, SeekFrom, Write},
     os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -21,15 +20,19 @@ fn failed(field: &'static str, reason: &'static str) -> KeysResetOutcome {
     }
 }
 
-/// Does not activate a Session or apply the resulting file to any running Client.
+/// Does not activate a Session or apply the resulting file to any running Client. The backup goes
+/// to `internal/backups/<YYYY-MM-DD>-reset-keys/` in the data root, whichever file it copies.
 pub fn reset_keybindings(env: impl Fn(&str) -> Option<OsString>) -> KeysResetReport {
+    let backups = DataRoot::resolve(&env).ok().map(|root| root.backups());
     match user_settings_path(env) {
         Err(error) => KeysResetReport {
             path: None,
             outcome: failed(error.field, error.reason),
         },
         Ok(path) => {
-            let outcome = path.as_deref().map_or(KeysResetOutcome::Missing, reset_at);
+            let outcome = path.as_deref().map_or(KeysResetOutcome::Missing, |path| {
+                reset_at(path, backups.as_deref())
+            });
             KeysResetReport { path, outcome }
         }
     }
@@ -71,7 +74,7 @@ fn read(file: &mut File) -> Result<String, SettingsError> {
     String::from_utf8(bytes).map_err(|_| SettingsError::new("file", "invalid-utf8"))
 }
 
-fn reset_at(path: &Path) -> KeysResetOutcome {
+fn reset_at(path: &Path, backups: Option<&Path>) -> KeysResetOutcome {
     let mut original = match open(path, false) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -88,10 +91,19 @@ fn reset_at(path: &Path) -> KeysResetOutcome {
         Ok(None) => return KeysResetOutcome::NoKeys,
         Err(error) => return failed(error.field, error.reason),
     };
-    apply_prepared(path, original, &before, &after)
+    let Some(backups) = backups else {
+        return failed("backup", "create-failed");
+    };
+    apply_prepared(path, backups, original, &before, &after)
 }
 
-fn apply_prepared(path: &Path, original: File, before: &str, after: &str) -> KeysResetOutcome {
+fn apply_prepared(
+    path: &Path,
+    backups: &Path,
+    original: File,
+    before: &str,
+    after: &str,
+) -> KeysResetOutcome {
     let Some(parent) = path.parent() else {
         return failed("file", "invalid-path");
     };
@@ -110,6 +122,7 @@ fn apply_prepared(path: &Path, original: File, before: &str, after: &str) -> Key
     }
     commit(
         path,
+        backups,
         &mut original,
         before.as_bytes(),
         after.as_bytes(),
@@ -162,12 +175,13 @@ fn replace(file: &mut File, bytes: &[u8]) -> io::Result<()> {
 
 fn commit(
     path: &Path,
+    backups: &Path,
     original: &mut File,
     before: &[u8],
     after: &[u8],
     mut write: impl FnMut(&mut File, &[u8]) -> io::Result<()>,
 ) -> KeysResetOutcome {
-    let (backup_path, mut backup) = match create_backup(path) {
+    let (backup_path, mut backup) = match create_backup(path, backups) {
         Ok(value) => value,
         Err(_) => return failed("backup", "create-failed"),
     };
@@ -194,7 +208,13 @@ fn commit(
 }
 
 fn cleanup_failure(field: &'static str, reason: &'static str, path: PathBuf) -> KeysResetOutcome {
-    let residue = fs::remove_file(&path).err().map(|_| path);
+    let residue = fs::remove_file(&path).err().map(|_| path.clone());
+    if residue.is_none()
+        && let Some(folder) = path.parent()
+    {
+        // The dated folder held only this copy; a folder that cannot go stays empty.
+        let _ = fs::remove_dir(folder);
+    }
     KeysResetOutcome::Failed {
         error: SettingsError::new(field, reason),
         backup_path: residue,
@@ -202,35 +222,47 @@ fn cleanup_failure(field: &'static str, reason: &'static str, path: PathBuf) -> 
     }
 }
 
-fn create_backup(path: &Path) -> io::Result<(PathBuf, File)> {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or(io::ErrorKind::InvalidInput)?;
-    let timestamp = SystemTime::now()
+/// Creates the next free `<YYYY-MM-DD>-reset-keys` folder, then `-2`, `-3` and so on, as a private
+/// folder below `backups`, and an exclusive copy target named like the settings file inside it.
+fn create_backup(path: &Path, backups: &Path) -> io::Result<(PathBuf, File)> {
+    let name = path.file_name().ok_or(io::ErrorKind::InvalidInput)?;
+    let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(io::Error::other)?
-        .as_nanos();
-    for _ in 0..16 {
-        let index = NEXT.fetch_add(1, Ordering::Relaxed);
-        let candidate = path.with_file_name(format!(
-            "{name}.bak-keys-{}-{timestamp}-{index}",
-            std::process::id()
-        ));
-        match OpenOptions::new()
+        .as_millis();
+    let date = crate::local_clock(u64::try_from(now).map_err(io::Error::other)?)
+        .ok_or(io::ErrorKind::Unsupported)?;
+    let stem = format!(
+        "{:04}-{:02}-{:02}-reset-keys",
+        date.year, date.month, date.day
+    );
+    let _pins = crate::data_root::create_state_directory(backups)?;
+    for index in 1..=BACKUP_FOLDER_LIMIT {
+        let folder = backups.join(if index == 1 {
+            stem.clone()
+        } else {
+            format!("{stem}-{index}")
+        });
+        match fs::create_dir(&folder) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+        let mut directory = permissions::open_directory(&folder, true)?;
+        permissions::protect_new(&mut directory)?;
+        let candidate = folder.join(name);
+        let file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .share_mode(0)
-            .open(&candidate)
-        {
-            Ok(file) => return Ok((candidate, file)),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
-        }
+            .open(&candidate)?;
+        return Ok((candidate, file));
     }
     Err(io::ErrorKind::AlreadyExists.into())
 }
+
+/// Resets on one day beyond this many leave the settings unchanged instead of searching on.
+const BACKUP_FOLDER_LIMIT: u32 = 1000;
 
 #[cfg(test)]
 mod tests;

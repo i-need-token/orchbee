@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
-const RECORD_NAME: &str = "preferences.json";
+const RECORD_NAME: &str = crate::StateRecord::Preferences.file_name();
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum CommitError {

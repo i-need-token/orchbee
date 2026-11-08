@@ -52,17 +52,20 @@ mod command;
 pub use command::{windows_encoded_command, windows_raw_command_encoded};
 mod activation_record;
 mod cohort;
+mod data_root;
+pub use data_root::{
+    DataRoot, DataRootError, HOME_VARIABLE, StateRecord, default_runtime_base, local_state_root,
+};
 mod environment;
 pub use environment::{
-    ENVIRONMENT_VARIABLE, default_runtime_base, environment_stem, is_release, local_state_root,
-    session_route_environment,
+    ENVIRONMENT_VARIABLE, environment_stem, is_release, session_route_environment,
 };
 #[cfg(windows)]
 mod destructive_log;
 #[cfg(windows)]
-pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
+pub use data_root::prepare_default_runtime_base;
 #[cfg(windows)]
-pub use environment::{prepare_default_runtime_base, roaming_state_root, roaming_state_variable};
+pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
 #[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]

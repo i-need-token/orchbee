@@ -6,7 +6,17 @@ import { z } from 'zod';
 import type { DesktopDistributionProfile } from '../../distribution';
 
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
-const DEVELOPMENT_SCOPE_MARKER_NAME = 'development-scope-v1.json';
+// Everything Desktop keeps for itself lives under `internal/`; the top level of a data root holds
+// only what a person reads, edits, or keeps.
+const INTERNAL_DIRECTORY_NAME = 'internal';
+const DEVELOPMENT_SCOPE_MARKER_NAME = 'development-checkout.json';
+const ELECTRON_DIRECTORY_NAME = 'desktop';
+const STATE_DIRECTORY_NAME = 'state';
+const WINDOW_STATE_FILE_NAME = 'desktop-window.json';
+const VERSION_FILE_NAME = 'version.json';
+// Cross-runtime contract: search for `data-root-version-record` before changing this shape; native
+// writers write the same record when they create the root.
+const DATA_ROOT_LAYOUT = 1;
 
 const developmentScopeMarkerSchema = z.strictObject({
 	digest: z.string().regex(/^[0-9a-f]{16}$/u),
@@ -16,24 +26,33 @@ const developmentScopeMarkerSchema = z.strictObject({
 });
 
 export interface DesktopDataRootInput {
+	/** The Orchbee version recorded when this start creates the root. */
+	readonly applicationVersion: string;
 	readonly distribution: DesktopDistributionProfile;
 	readonly homeDirectory: string;
+	/** `ORCHBEE_HOME`, which names the root in place of the profile's folder below home. */
+	readonly homeOverride: string | undefined;
 	readonly platform: NodeJS.Platform;
 }
 
-export type DesktopDataRoot =
-	| {
-			readonly path: string;
-			readonly scope: { readonly kind: 'test' | 'release' };
-	  }
-	| {
-			readonly path: string;
-			readonly scope: {
-				readonly digest: string;
-				readonly kind: 'development';
-				readonly sourceRoot: string;
-			};
-	  };
+interface DesktopDataRootLocations {
+	/** Electron `userData`: browser storage, Chromium caches, and the single-instance lock. */
+	readonly electronDirectory: string;
+	readonly path: string;
+	readonly windowStateFile: string;
+}
+
+export type DesktopDataRoot = DesktopDataRootLocations &
+	(
+		| { readonly scope: { readonly kind: 'test' | 'release' } }
+		| {
+				readonly scope: {
+					readonly digest: string;
+					readonly kind: 'development';
+					readonly sourceRoot: string;
+				};
+		  }
+	);
 
 interface DesktopDataRootDependencies {
 	readonly chmod: (filePath: string, mode: number) => void;
@@ -56,37 +75,47 @@ const defaultDependencies: DesktopDataRootDependencies = {
 	writeFile: (filePath, data, options) => writeFileSync(filePath, data, options),
 };
 
+/**
+ * Creates the root, `internal/`, and Electron's folder, then records the layout in
+ * `internal/version.json` when the root has no record yet. The window state's folder is left to
+ * the first save.
+ */
 export function prepareDesktopDataRoot(
 	input: DesktopDataRootInput,
 	dependencies: DesktopDataRootDependencies = defaultDependencies,
 ): DesktopDataRoot {
 	const resolved = resolveDesktopDataRoot(input);
-	dependencies.mkdir(resolved.path, { mode: 0o700, recursive: true });
-	if (input.platform !== 'win32') dependencies.chmod(resolved.path, 0o700);
+	const platformPath = input.platform === 'win32' ? path.win32 : path.posix;
+	const internal = platformPath.join(resolved.path, INTERNAL_DIRECTORY_NAME);
+	for (const directory of [resolved.path, internal, resolved.electronDirectory]) {
+		dependencies.mkdir(directory, { mode: 0o700, recursive: true });
+		if (input.platform !== 'win32') dependencies.chmod(directory, 0o700);
+	}
+	ensureVersionRecord(platformPath.join(internal, VERSION_FILE_NAME), input, dependencies);
 	if (resolved.scope.kind === 'development') {
-		ensureDevelopmentScopeMarker({ path: resolved.path, scope: resolved.scope }, dependencies);
+		ensureDevelopmentScopeMarker(
+			platformPath.join(internal, DEVELOPMENT_SCOPE_MARKER_NAME),
+			resolved.scope,
+			dependencies,
+		);
 	}
 	return resolved;
 }
 
 function resolveDesktopDataRoot(input: DesktopDataRootInput): DesktopDataRoot {
 	const platformPath = input.platform === 'win32' ? path.win32 : path.posix;
-	if (!platformPath.isAbsolute(input.homeDirectory)) {
-		throw new Error('Desktop data-root resolution requires an absolute home directory.');
-	}
-	const normalizedHome = normalizePath(input.homeDirectory, input.platform);
+	const root = resolveRootPath(input, platformPath);
+	const internal = platformPath.join(root, INTERNAL_DIRECTORY_NAME);
+	const locations: DesktopDataRootLocations = {
+		electronDirectory: platformPath.join(internal, ELECTRON_DIRECTORY_NAME),
+		path: root,
+		windowStateFile: platformPath.join(internal, STATE_DIRECTORY_NAME, WINDOW_STATE_FILE_NAME),
+	};
 	if (input.distribution.dataScope.kind !== 'development') {
-		const directoryName = input.distribution.dataRootDirectoryName;
-		if (directoryName === null) {
-			throw new Error('Packaged Desktop distribution requires a fixed data-root directory.');
-		}
-		return {
-			path: platformPath.join(normalizedHome, directoryName),
-			scope: { kind: input.distribution.dataScope.kind },
-		};
+		return { ...locations, scope: { kind: input.distribution.dataScope.kind } };
 	}
 	return {
-		path: platformPath.join(normalizedHome, `.${input.distribution.artifactStem}`),
+		...locations,
 		scope: {
 			digest: input.distribution.dataScope.digest,
 			kind: 'development',
@@ -95,17 +124,57 @@ function resolveDesktopDataRoot(input: DesktopDataRootInput): DesktopDataRoot {
 	};
 }
 
+/** `ORCHBEE_HOME` when set, as the native runtime resolves it, otherwise the profile's folder. */
+function resolveRootPath(input: DesktopDataRootInput, platformPath: typeof path.posix): string {
+	if (input.homeOverride !== undefined) {
+		if (!platformPath.isAbsolute(input.homeOverride)) {
+			throw new Error('ORCHBEE_HOME must name an absolute folder.');
+		}
+		return normalizePath(input.homeOverride, input.platform);
+	}
+	if (!platformPath.isAbsolute(input.homeDirectory)) {
+		throw new Error('Desktop data-root resolution requires an absolute home directory.');
+	}
+	const normalizedHome = normalizePath(input.homeDirectory, input.platform);
+	if (input.distribution.dataScope.kind === 'development') {
+		return platformPath.join(normalizedHome, `.${input.distribution.artifactStem}`);
+	}
+	const directoryName = input.distribution.dataRootDirectoryName;
+	if (directoryName === null) {
+		throw new Error('Packaged Desktop distribution requires a fixed data-root directory.');
+	}
+	return platformPath.join(normalizedHome, directoryName);
+}
+
+/** Writes the layout record only when it is absent; an existing record stays as it is. */
+function ensureVersionRecord(
+	recordPath: string,
+	input: DesktopDataRootInput,
+	dependencies: DesktopDataRootDependencies,
+): void {
+	const record = { layout: DATA_ROOT_LAYOUT, newestVersion: input.applicationVersion };
+	try {
+		dependencies.writeFile(recordPath, `${JSON.stringify(record)}\n`, {
+			encoding: 'utf8',
+			flag: 'wx',
+			mode: 0o600,
+		});
+	} catch (error: unknown) {
+		if (!isAlreadyExistsError(error)) throw error;
+	}
+}
+
 function ensureDevelopmentScopeMarker(
-	resolved: Extract<DesktopDataRoot, { readonly scope: { readonly kind: 'development' } }>,
+	markerPath: string,
+	scope: Extract<DesktopDataRoot['scope'], { readonly kind: 'development' }>,
 	dependencies: DesktopDataRootDependencies,
 ): void {
 	const marker = developmentScopeMarkerSchema.parse({
-		digest: resolved.scope.digest,
+		digest: scope.digest,
 		digestVersion: DEVELOPMENT_SCOPE_DIGEST_VERSION,
 		kind: 'development',
-		sourceRoot: resolved.scope.sourceRoot,
+		sourceRoot: scope.sourceRoot,
 	});
-	const markerPath = path.join(resolved.path, DEVELOPMENT_SCOPE_MARKER_NAME);
 	const encoded = `${JSON.stringify(marker, null, 2)}\n`;
 	try {
 		dependencies.writeFile(markerPath, encoded, { encoding: 'utf8', flag: 'wx', mode: 0o600 });

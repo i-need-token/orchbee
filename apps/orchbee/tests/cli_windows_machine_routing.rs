@@ -75,12 +75,12 @@ fn relay_with_environment(
     serde_json::from_slice(&result.stdout).unwrap()
 }
 
-/// An invalid profile that only home expansion sees. A development or test build also finds its
-/// configuration and machine catalog below the profile, so the settings file keeps them valid.
-fn invalid_home(settings: &std::path::Path) -> [(&'static str, &std::ffi::OsStr); 2] {
+/// An invalid profile that only home expansion sees. The data root holds configuration and the
+/// machine catalog, so naming one outside the profile keeps them valid.
+fn invalid_home(data_root: &std::path::Path) -> [(&'static str, &std::ffi::OsStr); 2] {
     [
         ("USERPROFILE", std::ffi::OsStr::new("private-invalid-home")),
-        ("ORCHBEE_CONFIG_FILE", settings.as_os_str()),
+        ("ORCHBEE_HOME", data_root.as_os_str()),
     ]
 }
 
@@ -106,8 +106,8 @@ fn home_path_route_conflict_precedes_execution_context_resolution() {
         let mut arguments = vec!["--machine", "work", "--session", "local"];
         arguments.extend_from_slice(command);
         arguments.push("--format=json");
-        let settings = fixture.settings_file();
-        let output = fixture.run_with_env(&arguments, None, None, &invalid_home(&settings));
+        let data_root = fixture.separate_data_root();
+        let output = fixture.run_with_env(&arguments, None, None, &invalid_home(&data_root));
         assert_eq!(output.status.code(), Some(2));
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
@@ -133,8 +133,8 @@ fn home_path_sender_selects_the_machine_without_resolving_its_operand() {
         let mut arguments = vec!["--machine", "missing"];
         arguments.extend_from_slice(command);
         arguments.push("--format=json");
-        let settings = fixture.settings_file();
-        let output = fixture.run_with_env(&arguments, None, None, &invalid_home(&settings));
+        let data_root = fixture.separate_data_root();
+        let output = fixture.run_with_env(&arguments, None, None, &invalid_home(&data_root));
         assert_eq!(
             output.status.code(),
             Some(3),
@@ -163,12 +163,12 @@ fn home_path_relay_leaves_resolution_to_the_business_process() {
         let fixture = Fixture::new();
         let mut arguments = command.to_vec();
         arguments.push("--format=json");
-        let settings = fixture.settings_file();
+        let data_root = fixture.separate_data_root();
         let reply = relay_with_environment(
             &fixture,
             &packet(&fixture, &arguments),
             false,
-            &invalid_home(&settings),
+            &invalid_home(&data_root),
         );
         assert_eq!(reply["outcome"], "completed", "{command:?}: {reply}");
         assert_eq!(reply["status"], 2);
@@ -225,7 +225,7 @@ fn relay_round_trip_runs_exact_cohort_and_keeps_success_and_failure_receipts() {
         );
     }
     // Windows PowerShell creates folders under the profile it receives; Orchbee state stays absent.
-    assert!(!fixture.roaming_root().exists());
+    assert!(!fixture.data_root().path().exists());
 }
 #[test]
 fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
@@ -257,9 +257,9 @@ fn routing_help_and_selection_refuse_before_ssh_or_session_effects() {
             .status
             .success()
     );
-    let root = fixture.roaming_root().join("machines");
-    let mut cache = PrivateCache::acquire(&root).unwrap();
-    cache.replace("catalog.json",&serde_json::to_vec(&json!({"schemaVersion":1,"revision":1,"profiles":[
+    let root = fixture.data_root().state();
+    let mut cache = PrivateCache::acquire(&root, "machines").unwrap();
+    cache.replace("machines.json",&serde_json::to_vec(&json!({"schemaVersion":1,"revision":1,"profiles":[
         {"id":"11111111111111111111111111111111","label":"same","target":"example.invalid","session":"work","enabled":false},
         {"id":"22222222222222222222222222222222","label":"same","target":"example.invalid","session":"work","enabled":true}
     ]})).unwrap()).unwrap();

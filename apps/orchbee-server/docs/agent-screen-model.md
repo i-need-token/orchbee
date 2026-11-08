@@ -84,13 +84,13 @@ Working-to-plain-idle transitions hold for three further confirmations or 700 ms
 ## Evidence and delivery
 
 The accepted rule-maintenance model gives the Server one immutable compiled ruleset and its
-provenance. Windows startup resolves the shared configuration-file parent without rewriting user
-settings. For each bundled provider, `<config>/agent-detection/<report-label>.toml` overrides
-`<config>/agent-detection/remote/<catalog>/<report-label>.toml`, then bundled rules. `<catalog>` is
-the first 32 lowercase hexadecimal digits of the SHA-256 of the configured catalog URL. The remote
-cache takes part only while a valid update catalog is configured and the status in that catalog's
-directory records it as the source of its rules; otherwise its rules are never read, and a local
-override precedes bundled rules. Without a configured catalog the Server never reads `agent-detection/remote`. Reads admit regular UTF-8
+provenance. Windows startup resolves the [data root](../../../crates/local-runtime/README.md#data-root)
+without rewriting user settings; an explicit settings file does not move it. For each bundled
+provider, `<root>/agent-detection/<report-label>.toml` overrides
+`<root>/internal/cache/agent-detection/<report-label>.toml`, then bundled rules. The remote cache
+takes part only while a valid update catalog is configured and the cache's `catalog.json` records it
+as the source of its rules; otherwise its rules are never read, and a local override precedes
+bundled rules. Without a configured catalog the Server never reads the cache. Reads admit regular UTF-8
 files of at most 256 KiB with the same provider, engine and complexity validation as bundled rules.
 Present versions must be dotted numeric; remote caches must also declare an engine version and
 be no older than bundled versions. Trailing zero segments compare equally. Normalized manifest
@@ -155,7 +155,7 @@ cohort:
 node apps/orchbee-server/scripts/agent-detection-self-test.mjs --orchbee <cohort>\orchbee.exe --scratch <new directory> [--agents opencode,pi,omp] [--path-prepend <dir>] [--env NAME=VALUE]
 ```
 
-The script creates the scratch directory, points `APPDATA`, `LOCALAPPDATA` and
+The script creates the scratch directory, points `APPDATA`, `LOCALAPPDATA`, `ORCHBEE_HOME` and
 `ORCHBEE_RUNTIME_BASE` into it, starts its own Session and opens each Agent in a `cmd.exe`
 workspace. `--path-prepend` adds directories, such as a Node toolchain, to that shell because Worker
 terminals start from the user's registry environment; `--env` sets a variable in that shell before
@@ -193,19 +193,20 @@ Cached versions never decrease. Equal numeric versions must have identical bytes
 without a version increase fail. Each newer valid manifest commits atomically, so partial provider
 failures retain independent outcomes and never masquerade as a successful whole update.
 
-Each catalog has its own cache directory, holding its rules and the `status.json` that records the
-catalog URL each update used, and the updater is its only writer. No failed or interrupted update
-and no concurrent read can therefore pair one catalog's status with rules another catalog cached;
-within a catalog the status is replaced after the rules it describes. When the status in a
-catalog's directory names another catalog, or none exists, an update removes that status and then
-every cached bundled-provider rule before recording its own; a failed removal stops the update. A
-missing status, or one that names another catalog, means no cache: rule selection and maintenance
-status ignore it until the configured catalog's next update. An unreadable status remains a cache
-status error and refuses updates. Rules that earlier versions cached directly under
-`agent-detection/remote` are no longer read.
+A data root keeps one cache, holding the rules and the `catalog.json` status that records the
+catalog URL the last update used; the writer lock makes one updater its only writer. Within a
+catalog the status is replaced after the rules it describes. When the status names another catalog,
+or none exists, an update removes that status and then every cached bundled-provider rule before
+recording its own; a failed removal stops the update, so no status ever attributes one catalog's
+rules to another. A missing status, or one that names another catalog, means no cache: rule
+selection and maintenance status ignore it until the configured catalog's next update. Two Sessions
+of one data root configured with different catalogs therefore discard each other's cache; a Session
+that started while the other's rules were current may keep using them until it reloads. An
+unreadable status remains a cache status error and refuses updates. Rules that earlier versions
+cached under `agent-detection/remote` beside the settings file are no longer read.
 
 The Server owns logical cache/update state. The Windows filesystem adapter pins admitted private
-ancestors/files and provides one cross-process writer lock in each catalog's cache directory.
+ancestors/files and provides one cross-process writer lock, `catalog.lock`, in the cache.
 It preserves malformed or unsafe user data instead of repairing it. Bounded named pending leaves
 belong to this cache owner; explicit settlement removes them after child/file consumers end and
 later recovery only touches these owned leaves under the same lock. The downloader resolves the

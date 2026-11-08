@@ -2,7 +2,7 @@
 
 ## File and validation
 
-Orchbee reads `APPDATA/Orchbee/config.toml`, or the absolute file named by `ORCHBEE_CONFIG_FILE`. Development and test builds read `config.toml` in their environment data root instead, `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>`, so they never share the release file; `ORCHBEE_CONFIG_FILE` still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults; a missing explicit file is an error. Invalid or empty location variables, unreadable files, directories, files larger than 64 KiB and invalid UTF-8/TOML are fatal to the read that meets them. A successfully parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
+Orchbee reads `config.toml` in its environment's [data root](../../../crates/local-runtime/README.md#data-root), `%USERPROFILE%/.orchbee/config.toml` for release and `%USERPROFILE%/.<stem>/config.toml` with a stem such as `ob-dev-<digest>` for development and test builds, so environments never share a file. `ORCHBEE_HOME` moves the whole data root; the absolute file named by `ORCHBEE_CONFIG_FILE` replaces only the settings file and still wins in every environment. The [environment rules](../../../crates/local-runtime/README.md#windows-named-runtime-identity) list the other locations. The running Session's Server reads it at startup, on reload and when its sampler sees a change; `config check` reads it offline. Creation commands never read it. A missing default file means unchanged defaults; a missing explicit file is an error. Invalid or empty location variables, unreadable files, directories, files larger than 64 KiB and invalid UTF-8/TOML are fatal to the read that meets them. A successfully parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
 
 ```toml
 [terminal]
@@ -19,7 +19,7 @@ manifest_check = true
 
 Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. Unknown sections, fields and actions warn and are ignored; loading configuration never enables a plugin, installs a provider or runs a configured command.
 
-`terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A path must also be a workbench directory path, so a bare verbatim drive such as `\\?\C:` is invalid; the same rules apply to `worktrees.directory`. An invalid path falls back only that leaf. A missing `APPDATA` leaves `config check` on defaults, but Session activation then has no configuration location for the Session's preference scope: it fails as configuration `APPDATA`/`missing` (exit 1) before its activation marker commits. An explicit malformed value does not silently fall back.
+`terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A path must also be a workbench directory path, so a bare verbatim drive such as `\\?\C:` is invalid; the same rules apply to `worktrees.directory`. An invalid path falls back only that leaf. A missing `USERPROFILE`, with no `ORCHBEE_HOME`, leaves `config check` on defaults, but Session activation then has no data root for the Session's preference scope: it fails as configuration `USERPROFILE`/`missing` (exit 1) before its activation marker commits. An empty or relative `ORCHBEE_HOME` is the configuration failure `ORCHBEE_HOME`/`invalid-path`. An explicit malformed value does not silently fall back.
 
 Warnings use a bounded canonical reason grammar and a closed disposition vocabulary, and carry only a bounded canonical dotted field path. They are deduplicated and sorted by field and reason. A result carries at most 128 warning entries and an exact omitted count, so truncation is always visible. Unknown path segments are escaped and truncated on a UTF-8 boundary; distinct original fields are deduplicated before display truncation.
 
@@ -104,9 +104,11 @@ other settings or reload a running Client.
 
 The shared Windows settings repair owner pins the private parent directory tree, rejects reparse
 points/nonregular or multiply linked files, and reopens the file exclusively before comparing its
-bytes with the prepared input. Changed input or a concurrent file holder refuses the edit. A unique
-adjacent `.bak-keys-...` backup is created without overwriting an existing file, admitted as private,
-and flushed before rewriting the original through its exclusive handle. The original's file identity
+bytes with the prepared input. Changed input or a concurrent file holder refuses the edit. The
+backup is a copy with the settings file's name in a new private
+`internal/backups/<YYYY-MM-DD>-reset-keys` folder of the data root, or `-2`, `-3` and so on when
+that day's folder exists, so no earlier backup is overwritten. It is flushed before rewriting the
+original through its exclusive handle. The original's file identity
 and permissions remain. A write/flush failure restores and flushes the original before releasing it;
 failed recovery retains the complete backup and reports `recoveryRequired: true`. A process crash
 after rewriting begins also leaves the previously flushed backup available. This is recoverable

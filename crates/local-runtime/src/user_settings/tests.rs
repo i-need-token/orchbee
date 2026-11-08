@@ -212,18 +212,13 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
 #[test]
 fn file_bounds_missing_locations_and_no_creation_are_preserved() {
     let fixture = Fixture::new();
-    let environment = |key: &str| {
-        matches!(key, "APPDATA" | "USERPROFILE").then(|| fixture.0.clone().into_os_string())
-    };
+    let environment =
+        |key: &str| (key == "USERPROFILE").then(|| fixture.0.clone().into_os_string());
     let settings = read_user_settings(environment).unwrap();
     assert!(!settings.exists);
     assert_eq!(
         settings.path,
-        Some(
-            crate::roaming_state_root(environment)
-                .unwrap()
-                .join("config.toml")
-        )
+        Some(crate::DataRoot::resolve(environment).unwrap().config_file())
     );
     assert_eq!(std::fs::read_dir(&fixture.0).unwrap().count(), 0);
     assert_eq!(fixture.read().unwrap_err().reason, "missing");

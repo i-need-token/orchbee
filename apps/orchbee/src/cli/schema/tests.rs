@@ -637,7 +637,8 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         ("file", "invalid-utf8"),
         ("file", "invalid-toml"),
         ("ORCHBEE_CONFIG_FILE", "invalid-path"),
-        ("APPDATA", "invalid-path"),
+        ("ORCHBEE_HOME", "invalid-path"),
+        ("USERPROFILE", "invalid-path"),
     ] {
         fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
         assert!(full_validator.is_valid(&fatal), "{field}: {reason}");

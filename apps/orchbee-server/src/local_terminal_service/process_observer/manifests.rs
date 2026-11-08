@@ -92,23 +92,17 @@ impl Registry {
     ) -> std::io::Result<()> {
         self.initialize_source(root, detector, Ok(None))
     }
+    /// `root` is the data root that holds `agent-detection/` and the rule cache.
     pub(super) fn initialize_settings(
         &self,
+        root: Option<PathBuf>,
         settings: &UserSettings,
         detector: &ScreenDetector,
         source: updating::Source,
         background: bool,
         release: bool,
     ) -> std::io::Result<()> {
-        self.initialize_source(
-            settings
-                .path
-                .as_deref()
-                .and_then(std::path::Path::parent)
-                .map(std::path::Path::to_owned),
-            detector,
-            source,
-        )?;
+        self.initialize_source(root, detector, source)?;
         if let Some(state) = self
             .0
             .lock()

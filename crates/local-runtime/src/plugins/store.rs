@@ -6,7 +6,7 @@ use super::{
     PluginManagedSource, PluginManifest, PluginRegistryError as Error, manifest::MANIFEST_LIMIT,
     plugin_identifier,
 };
-use crate::{PrivateCache, user_settings_path};
+use crate::{DataRoot, PrivateCache};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -18,6 +18,8 @@ use std::{
 const REGISTRY_LIMIT: usize = 1024 * 1024;
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 const FILE: &str = "registry.json";
+/// Names the registry's writer lock and staging file beside `registry.json`.
+const REGISTRY_RECORD: &str = "registry";
 mod provision;
 pub use provision::{
     PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure, PluginProvisionOutput,
@@ -93,10 +95,8 @@ impl PluginRegistry {
         env: impl Fn(&str) -> Option<std::ffi::OsString>,
     ) -> Result<Self, Error> {
         platform::require()?;
-        let path = user_settings_path(env)
-            .map_err(|_| Error::InvalidPath)?
-            .ok_or(Error::InvalidPath)?;
-        Self::at(path.parent().ok_or(Error::InvalidPath)?.join("plugins"))
+        let root = DataRoot::resolve(env).map_err(|_| Error::InvalidPath)?;
+        Self::at(root.plugins())
     }
     /// The root is an absolute, private catalog directory, not a linked plugin source.
     pub fn at(root: PathBuf) -> Result<Self, Error> {
@@ -159,9 +159,9 @@ impl PluginRegistry {
         let component = component(&id);
         let config = self.root.join("config").join(&component);
         let state = self.root.join("state").join(component);
-        // Each statement releases its cache guard before acquiring the next directory.
-        PrivateCache::acquire(&config).map_err(storage)?;
-        PrivateCache::acquire(&state).map_err(storage)?;
+        // The plugin owns what these folders hold, so no writer lock goes in them.
+        PrivateCache::prepare(&config).map_err(storage)?;
+        PrivateCache::prepare(&state).map_err(storage)?;
         Ok((config, state))
     }
     pub fn mutate(&self, mutation: PluginRegistryMutation) -> Result<PluginRegistryResult, Error> {
@@ -174,7 +174,7 @@ impl PluginRegistry {
             PluginRegistryMutation::Unlink { id }
             | PluginRegistryMutation::SetEnabled { id, .. } => (plugin_identifier(id)?, None),
         };
-        let mut store = PrivateCache::acquire(&self.root).map_err(storage)?;
+        let mut store = PrivateCache::acquire(&self.root, REGISTRY_RECORD).map_err(storage)?;
         let bytes = store.read(FILE, REGISTRY_LIMIT).map_err(storage)?;
         let mut catalog = decode(bytes.as_deref(), &self.root)?;
         let before = catalog.plugins.clone();

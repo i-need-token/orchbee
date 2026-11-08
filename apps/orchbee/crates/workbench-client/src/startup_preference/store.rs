@@ -1,5 +1,5 @@
 //! The optional position cache: platform storage identity, load, and the single background writer.
-use super::{FILE, MAXIMUM_BYTES, Position, Record, Schema, decode};
+use super::{FILE, MAXIMUM_BYTES, Position, RECORD, Record, Schema, decode};
 use crate::background_thread::BackgroundThread;
 
 #[cfg(unix)]
@@ -148,7 +148,7 @@ fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
     .map_err(std::io::Error::other)?;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
     loop {
-        match orchbee_local_runtime::PrivateCache::acquire(path) {
+        match orchbee_local_runtime::PrivateCache::acquire(path, RECORD) {
             Ok(mut cache) => return cache.replace(FILE, &bytes),
             Err(error)
                 if error.kind() == std::io::ErrorKind::WouldBlock

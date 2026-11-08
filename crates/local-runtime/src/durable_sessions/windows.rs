@@ -146,7 +146,7 @@ impl Directory {
             .join(Rendezvous::host_endpoint_id(base))
     }
     pub(crate) fn open(local: &Path, base: &Path) -> io::Result<Option<Self>> {
-        let Some(_local) = crate::environment::open_state_root(local)? else {
+        let Some(_local) = crate::data_root::open_state_root(local)? else {
             return Ok(None);
         };
         let path = Self::path(local, base);
@@ -164,7 +164,7 @@ impl Directory {
         }))
     }
     pub(crate) fn create(local: &Path, base: &Path) -> io::Result<Self> {
-        let mut pins = crate::environment::create_state_root(local)?;
+        let mut pins = crate::data_root::create_state_directory(local)?;
         let mut path = local.to_owned();
         for component in [CATALOG_DIRECTORY, &Rendezvous::host_endpoint_id(base)] {
             path.push(component);

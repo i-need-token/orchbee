@@ -31,13 +31,16 @@ Every environment keeps all of its state under one data root, `<home>/.<stem>`, 
 `~/.orchbee` for release. One owner in `crates/local-runtime` resolves the root from the compiled
 stem, and every caller derives its location from that owner. The
 [data root layout](data-root-layout.md) defines the tree in every environment and replaces the
-shipped release locations. On Windows, slice 1 already keeps non-release state in these roots, in
-the release relative layout, with the default runtime base at `<root>/runtime`.
+shipped release locations. On Windows, slice 1 already keeps non-release state in these roots, and
+phase 1 of that layout puts it under `internal/`, with the default runtime base at
+`<root>/internal/runtime`.
 
 - `ORCHBEE_CONFIG_FILE` and an explicitly set `ORCHBEE_RUNTIME_BASE` keep their override meaning in
   every environment; under [accepted choice 1](data-root-layout.md#accepted-choices),
-  `ORCHBEE_HOME` moves the whole root and `ORCHBEE_CONFIG_FILE` names only another settings file. Desktop stops writing `ORCHBEE_CONFIG_FILE` for non-release profiles because the Client
-  derives the same file.
+  `ORCHBEE_HOME` moves the whole root and `ORCHBEE_CONFIG_FILE` names only another settings file.
+  Desktop no longer writes `ORCHBEE_CONFIG_FILE`: on Windows the Client derives the same root, and
+  on macOS and Linux, whose natives keep release names until ORC-328, a non-release Desktop passes
+  `ORCHBEE_HOME` instead.
 - Runtime directories differ per environment, so Session scopes and pipe names cannot collide; the
   release `default` Session belongs only to release.
 - Pipe names keep the `orchbee-` prefix in every environment, because each environment's runtime

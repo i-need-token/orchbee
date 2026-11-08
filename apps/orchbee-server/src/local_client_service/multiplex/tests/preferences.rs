@@ -5,7 +5,7 @@ use crate::{
     workbench_service::{WorkbenchExecution, WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
 };
-use orchbee_local_runtime::{UserPreferencesScope, UserPreferencesStore};
+use orchbee_local_runtime::{DataRoot, UserPreferencesScope, UserPreferencesStore};
 use orchbee_workbench_protocol::{
     SettingsOperation, SettingsOutcome, SettingsRequest, UserPreferencesRequest,
     UserPreferencesResponse, WorkbenchResponse, WorkbenchSnapshotOutcome, read_workbench_response,
@@ -40,7 +40,7 @@ fn external_preferences_keep_their_deadline_during_traffic_and_idle() {
         std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
     let directory = PreferenceDirectory(directory);
-    let scope = UserPreferencesScope::for_configuration(&directory.0.join("config.toml")).unwrap();
+    let scope = UserPreferencesScope::for_data_root(&DataRoot::at(directory.0.clone()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
         WorkerRegistry::new(),
     ))));

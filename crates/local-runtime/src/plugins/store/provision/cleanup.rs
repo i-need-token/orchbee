@@ -1,6 +1,7 @@
 //! Cleanup only generation paths recorded before creation, never arbitrary source operands.
 use super::{
-    Path, PluginProvisionExecutor, PluginProvisionFailure, PrivateCache, Provision, storage,
+    MANAGED_RECORD, Path, PluginProvisionExecutor, PluginProvisionFailure, PrivateCache, Provision,
+    storage,
 };
 use std::{fs, io};
 
@@ -16,7 +17,7 @@ impl Provision<'_> {
             return Ok(());
         }
         let managed = self.registry.root.join("managed");
-        let _managed = PrivateCache::acquire(&managed).map_err(storage)?;
+        let _managed = PrivateCache::acquire(&managed, MANAGED_RECORD).map_err(storage)?;
         let base = managed.canonicalize().map_err(storage)?;
         while let Some(id) = self.catalog.cleanup.first().cloned() {
             executor

@@ -9,6 +9,7 @@ fn configuration_apply_changes_live_schedule_but_refuses_active_or_stopped_maint
     let startup = UserSettings::default();
     registry
         .initialize_settings(
+            None,
             &startup,
             &ScreenDetector::bundled().unwrap(),
             Ok(None),

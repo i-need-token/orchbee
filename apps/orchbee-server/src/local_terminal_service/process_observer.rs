@@ -97,16 +97,23 @@ impl ProcessObserver {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
         let settings = &current.settings;
-        let root = settings.path.as_deref().and_then(std::path::Path::parent);
+        // Detection rules live in the data root, whichever settings file the Session reads.
+        let root = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+            .ok()
+            .map(|root| root.path().to_owned());
         // One startup read freezes the catalog for both rule selection and maintenance.
         let source = updating::configured_source();
-        let detector = ScreenDetector::load(root, updating::remote_cache(root, &source))
-            .map_err(io::Error::other)?;
+        let detector = ScreenDetector::load(
+            root.as_deref(),
+            updating::remote_cache(root.as_deref(), &source),
+        )
+        .map_err(io::Error::other)?;
         // Validate the complete authoritative rev0 response before manifest policy or its schedule
         // can become visible. Installation remains after manifest initialization so a later
         // manifest failure cannot leave the configuration owner half-started.
         let configuration = super::configuration::Registry::prepare_initial(&current)?;
         self.wake.manifests.initialize_settings(
+            root,
             settings,
             &detector,
             source,

@@ -18,7 +18,7 @@ afterEach(async () => {
 describe('FileDesktopWindowStateStore', () => {
 	it('atomically writes and restores one strict window-state record', async () => {
 		const directory = await createTemporaryDirectory();
-		const filePath = path.join(directory, 'state', 'window-state-v1.json');
+		const filePath = path.join(directory, 'state', 'desktop-window.json');
 		const store = new FileDesktopWindowStateStore(filePath, { randomToken: () => 'one' });
 		const state = requiredState({ height: 700, width: 1_100, x: 20, y: 30 }, true);
 

@@ -258,16 +258,18 @@ fn connect_or_activate(
                                 ActivationCause::Configuration(error),
                             )
                         })?;
-                // The Server freezes its preference scope from this location and exits without
-                // one, so an environment that names no location is a configuration failure here,
+                // The Server freezes its preference scope from the data root and exits without
+                // one, so an environment that names no data root is a configuration failure here,
                 // before the marker commits, rather than a Server exit that reads as a wedge.
                 #[cfg(windows)]
-                if settings.path.is_none() {
+                if let Err(error) =
+                    orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+                {
                     return Err(ActivationFailure::caused(
                         StartupFailure::Configuration,
                         ActivationCause::Configuration(orchbee_local_runtime::SettingsError::new(
-                            orchbee_local_runtime::roaming_state_variable(),
-                            "missing",
+                            error.variable,
+                            error.reason,
                         )),
                     ));
                 }

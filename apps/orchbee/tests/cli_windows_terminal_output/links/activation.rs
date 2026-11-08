@@ -409,7 +409,7 @@ fn link_activation_refuses_stale_content_catalog_limits_and_uncertain_detach_wit
     ] {
         let fixture = Fixture::new();
         let source = plugin(&fixture);
-        let registry_root = fixture.roaming_root().join("plugins");
+        let registry_root = fixture.data_root().plugins();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);

@@ -251,6 +251,9 @@ fn workspace_path_resolution_uses_the_final_process_home_or_current_directory() 
                 assert_closed(&mut stream);
             },
         );
+        // The data root sits outside the profile, so an invalid profile reaches only home
+        // expansion and leaves this environment's Session state root intact.
+        let data_root = fixture.separate_data_root();
         let mut command = fixture.command(
             &[
                 "workspace",
@@ -261,14 +264,17 @@ fn workspace_path_resolution_uses_the_final_process_home_or_current_directory() 
             ],
             None,
             None,
-            &[(
-                "USERPROFILE",
-                if home_operand {
-                    executor.as_os_str()
-                } else {
-                    std::ffi::OsStr::new("private-invalid-home")
-                },
-            )],
+            &[
+                (
+                    "USERPROFILE",
+                    if home_operand {
+                        executor.as_os_str()
+                    } else {
+                        std::ffi::OsStr::new("private-invalid-home")
+                    },
+                ),
+                ("ORCHBEE_HOME", data_root.as_os_str()),
+            ],
         );
         command.current_dir(if home_operand { &fixture.0 } else { &executor });
         let output = fixture.run_command(

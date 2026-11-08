@@ -1,9 +1,10 @@
 //! Native-profile education state. Only an explicit dismissal writes storage.
 use crate::client_view::{ClientAction, PrefixAction};
-use orchbee_local_runtime::{PrivateCache, user_settings_path};
+use orchbee_local_runtime::{DataRoot, PrivateCache, StateRecord};
 use serde::Deserialize;
 use std::{io, path::PathBuf};
-const FILE: &str = "onboarding.json";
+const RECORD: StateRecord = StateRecord::Onboarding;
+const FILE: &str = RECORD.file_name();
 const MAX_BYTES: usize = 1024;
 const DISMISSED: &[u8] = b"{\"version\":1,\"dismissed\":true}\n";
 
@@ -84,13 +85,9 @@ fn decode(bytes: Option<Vec<u8>>) -> io::Result<bool> {
 }
 impl State {
     pub fn load() -> Self {
-        let root = user_settings_path(|name| std::env::var_os(name))
+        let root = DataRoot::resolve(|name| std::env::var_os(name))
             .ok()
-            .flatten()
-            .and_then(|path| {
-                let name = path.file_name()?.to_str()?;
-                Some(path.parent()?.join(format!("{name}.native-state")))
-            });
+            .map(|root| root.state());
         let result = root
             .as_ref()
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
@@ -109,7 +106,7 @@ impl State {
         // Hide locally even if storage refuses. The notice explains that a restart may show it again.
         self.visible = false;
         let root = self.root.as_ref().ok_or(io::ErrorKind::NotFound)?;
-        let mut cache = PrivateCache::acquire(root)?;
+        let mut cache = PrivateCache::acquire(root, RECORD.name())?;
         if !decode(cache.read(FILE, MAX_BYTES)?)? {
             cache.replace(FILE, DISMISSED)?;
         }
@@ -201,7 +198,7 @@ mod storage_tests {
             root: Some(directory.clone()),
         };
         concurrent.dismiss().unwrap();
-        let mut cache = PrivateCache::acquire(&directory).unwrap();
+        let mut cache = PrivateCache::acquire(&directory, RECORD.name()).unwrap();
         cache.replace(FILE, b"broken").unwrap();
         drop(cache);
         let mut corrupted = State {

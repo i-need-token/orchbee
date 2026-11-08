@@ -14,12 +14,14 @@ fn reset_receipts_keep_backup_and_recovery_evidence_in_both_locales() {
                 "missing" => KeysResetOutcome::Missing,
                 "no-keys" => KeysResetOutcome::NoKeys,
                 "reset" => KeysResetOutcome::Reset {
-                    backup_path: "C:/settings/config.toml.bak-keys-1".into(),
+                    backup_path:
+                        "C:/home/.orchbee/internal/backups/2026-11-08-reset-keys/config.toml".into(),
                 },
                 _ => KeysResetOutcome::Failed {
                     error: SettingsError::new("file", "write-failed"),
-                    backup_path: (case != "failed")
-                        .then(|| "C:/settings/config.toml.bak-keys-1".into()),
+                    backup_path: (case != "failed").then(|| {
+                        "C:/home/.orchbee/internal/backups/2026-11-08-reset-keys/config.toml".into()
+                    }),
                     recovery_required: case == "recovery",
                 },
             };
@@ -39,7 +41,7 @@ fn reset_receipts_keep_backup_and_recovery_evidence_in_both_locales() {
             );
             assert_eq!(document["result"]["recoveryRequired"], case == "recovery");
             if case == "recovery" {
-                assert!(answer.stderr.contains("config.toml.bak-keys-1"));
+                assert!(answer.stderr.contains("2026-11-08-reset-keys"));
             }
             let mut invalid = document.clone();
             invalid["result"]["unknown"] = true.into();

@@ -72,7 +72,7 @@ impl ScreenDetector {
         let Some(root) = configuration_root else {
             return Ok(detector);
         };
-        let root = root.join("agent-detection");
+        let root = orchbee_local_runtime::DataRoot::at(root.to_owned()).agent_detection();
         for current in &mut detector.0 {
             let filename = format!("{}.toml", current.provider.report_label());
             let local = root.join(&filename);

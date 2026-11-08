@@ -6,7 +6,12 @@ pub struct PrivateCache;
 
 impl PrivateCache {
     /// Refuses acquisition before creating a directory, lock, or file.
-    pub fn acquire(_path: &Path) -> io::Result<Self> {
+    pub fn acquire(_directory: &Path, _record: &str) -> io::Result<Self> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+
+    /// Refuses to create a directory.
+    pub fn prepare(_directory: &Path) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
 

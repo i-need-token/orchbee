@@ -6,8 +6,8 @@ state. OpenSSH owns credentials, keys, host trust, and SSH configuration.
 
 ## Catalog and transitions
 
-`machines/catalog.json` beside the selected Windows configuration file is a
-private, atomic, schema-version-1 document. Its revision is a nonnegative safe
+`internal/state/machines.json` in the data root is a private, atomic,
+schema-version-1 document; an explicit `ORCHBEE_CONFIG_FILE` does not move it. Its revision is a nonnegative safe
 integer; profiles have distinct random 32-character lowercase hexadecimal IDs.
 At most 64 profiles and 128 KiB are admitted. Labels are nonblank, control-free,
 and at most 128 UTF-8 bytes. Targets are at most 1024 ASCII bytes: an SSH host

@@ -106,6 +106,8 @@ struct Record<P> {
 
 const MAXIMUM_BYTES: usize = 4096;
 const FILE: &str = "position.json";
+/// Names the writer lock and staging file beside `position.json`.
+const RECORD: &str = "position";
 
 fn decode(bytes: &[u8]) -> std::io::Result<Position> {
     if bytes.len() > MAXIMUM_BYTES {

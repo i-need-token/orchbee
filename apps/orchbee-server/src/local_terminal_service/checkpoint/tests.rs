@@ -62,8 +62,8 @@ fn restored_terminals_capture_the_session_preferences() -> Result<(), Box<dyn Er
         &serde_json::to_string(&root.0.to_string_lossy())?,
     );
     let checkpoint = WorkbenchCheckpoint::parse(checkpoint.as_bytes())?;
-    let scope = UserPreferencesScope::for_configuration(&root.0.join("config.toml"))
-        .map_err(|_failure| "preference scope")?;
+    let scope =
+        UserPreferencesScope::for_data_root(&orchbee_local_runtime::DataRoot::at(root.0.clone()));
     let (service, restore) =
         LocalTerminalService::from_checkpoint(Arc::clone(&registry), Some(checkpoint), scope)?;
     let service = Arc::new(service);

@@ -3,17 +3,11 @@ use orchbee_local_runtime::{
     SettingsError, UserPreferencesScope, UserSettingsLoad, normalize_user_path,
 };
 use std::{ffi::OsString, io, path::Path, path::PathBuf};
-/// The Session's preference scope follows the configuration file from the Server's single
-/// startup read, or the environment when that read resolved no file. A composition root
-/// freezes it before any terminal launches, restored terminals included.
-pub(super) fn preferences_scope(
-    configuration: &UserSettingsLoad,
-) -> io::Result<UserPreferencesScope> {
-    match configuration.settings.path.as_deref() {
-        Some(path) => UserPreferencesScope::for_configuration(path),
-        None => UserPreferencesScope::from_environment(|name| std::env::var_os(name)),
-    }
-    .map_err(|_| io::Error::other("Settings scope is unavailable"))
+/// The Session's preference scope is its data root's, whichever settings file the startup read
+/// chose. A composition root freezes it before any terminal launches, restored terminals included.
+pub(super) fn preferences_scope() -> io::Result<UserPreferencesScope> {
+    UserPreferencesScope::from_environment(|name| std::env::var_os(name))
+        .map_err(|_| io::Error::other("Settings scope is unavailable"))
 }
 /// The Client freezes only the location; this read is the Server's authoritative baseline.
 pub(super) fn resolve(

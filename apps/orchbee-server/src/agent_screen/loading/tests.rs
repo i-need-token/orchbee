@@ -13,21 +13,23 @@ impl Root {
             u128::from_le_bytes(nonce)
         ));
         fs::create_dir(&path).unwrap();
-        fs::create_dir_all(path.join("agent-detection/remote")).unwrap();
-        Self(path)
+        let root = Self(path);
+        fs::create_dir_all(root.data_root().agent_detection()).unwrap();
+        fs::create_dir_all(root.data_root().agent_detection_cache()).unwrap();
+        root
+    }
+    fn data_root(&self) -> orchbee_local_runtime::DataRoot {
+        orchbee_local_runtime::DataRoot::at(self.0.clone())
     }
     fn local(&self) -> PathBuf {
-        self.0.join("agent-detection").join("codex.toml")
+        self.data_root().agent_detection().join("codex.toml")
     }
     fn remote(&self) -> PathBuf {
-        self.0
-            .join("agent-detection")
-            .join("remote")
-            .join("codex.toml")
+        self.data_root().agent_detection_cache().join("codex.toml")
     }
     /// Admits the cached rules beside [`Self::remote`].
     fn cache(&self) -> RemoteCache {
-        RemoteCache::Admitted(self.0.join("agent-detection").join("remote"))
+        RemoteCache::Admitted(self.data_root().agent_detection_cache())
     }
     fn explain(&self) -> orchbee_workbench_protocol::AgentScreenExplanation {
         ScreenDetector::load(Some(&self.0), self.cache())

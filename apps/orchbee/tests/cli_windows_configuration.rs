@@ -9,7 +9,7 @@ use support::{Fixture, assert_closed, configuration_reply, peer, validate};
 #[test]
 fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     let run = || fixture.run(&["channel", "show", "--format=json"]);
     let output = run();
     assert!(output.status.success());
@@ -86,7 +86,7 @@ fn id(n: u64) -> String {
 #[test]
 fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
     std::fs::write(&config, content).unwrap();
@@ -166,7 +166,7 @@ fn generated_default_config_passes_the_offline_config_check() {
     let generated = fixture.run(&["--default-config"]);
     assert_eq!(generated.status.code(), Some(0));
     assert!(generated.stderr.is_empty());
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(&config, generated.stdout).unwrap();
 
@@ -344,7 +344,7 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
 #[test]
 fn field_errors_warn_default_or_disable_only_the_affected_setting() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     for (text, field, reason, disposition) in [
         (
@@ -406,7 +406,7 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
 #[test]
 fn config_check_bounds_diagnostics_and_reports_the_exact_omitted_count() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let text = (0..130)
         .map(|index| format!("unknown_{index:03}=true"))
@@ -432,7 +432,7 @@ fn config_check_bounds_diagnostics_and_reports_the_exact_omitted_count() {
 #[test]
 fn config_check_reports_the_actual_file_without_creating_it() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     validate(&doc, schema);
@@ -470,7 +470,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
 #[test]
 fn config_check_validates_current_key_policy() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
@@ -807,7 +807,7 @@ fn reset_keys_real_windows_cli_refuses_bad_input_before_writing() {
 #[test]
 fn config_check_window_title_diagnostics() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let default = orchbee_local_runtime::DEFAULT_WINDOW_TITLE;
     for (title, effective, diagnostic) in [
@@ -840,7 +840,7 @@ fn config_check_window_title_diagnostics() {
 #[test]
 fn config_check_notification_policy_validates_actual_file_and_closed_versions() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
@@ -901,7 +901,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
 #[test]
 fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_profiles() {
     let fixture = Fixture::new();
-    let config = fixture.roaming_root().join("config.toml");
+    let config = fixture.data_root().config_file();
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let text = "[ui.sidebar.spaces]\nrows=[['state_icon','workspace'],[{token='branch',fg='#abc',rules=[{starts_with='worktree/',bold=true}]},'git_status','$branch']]\nrow_gap=2\n[ui.sidebar.agents]\nrows=[['agent']]";
     std::fs::write(&config, text).unwrap();

@@ -2,7 +2,7 @@
 use super::super::{
     LIMIT, SettingsError, UpdateChannel, parse, read_user_settings_at, user_settings_path,
 };
-use crate::PrivateCache;
+use crate::{DataRoot, PrivateCache};
 use std::{ffi::OsString, path::PathBuf};
 
 /// Validates the complete existing configuration, preserves TOML syntax, and atomically saves
@@ -19,7 +19,13 @@ pub fn set_update_channel(
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(failure)?;
-    let mut cache = PrivateCache::acquire(parent).map_err(|_| failure())?;
+    // The writer lock stays in the data root's internal folder, so the folder holding the settings
+    // gains only a staging file while the write runs.
+    let lock = DataRoot::resolve(&env)
+        .map_err(|_| failure())?
+        .config_lock_directory();
+    let mut cache =
+        PrivateCache::acquire_with_lock_in(parent, "config", &lock).map_err(|_| failure())?;
     let bytes = cache
         .read(name, LIMIT as usize)
         .map_err(|_| failure())?

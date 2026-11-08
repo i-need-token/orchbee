@@ -1,5 +1,7 @@
 use super::*;
+use std::sync::atomic::{AtomicU64, Ordering};
 
+/// A settings file in its own temporary folder, with the data root that receives backups beside it.
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
@@ -15,22 +17,49 @@ impl Fixture {
     fn path(&self) -> PathBuf {
         self.0.join("config.toml")
     }
+    fn home(&self) -> PathBuf {
+        self.0.join("home")
+    }
+    fn backups(&self) -> PathBuf {
+        DataRoot::at(self.home()).backups()
+    }
     fn reset(&self) -> KeysResetReport {
-        reset_keybindings(|key| {
-            (key == "ORCHBEE_CONFIG_FILE").then(|| self.path().into_os_string())
+        reset_keybindings(|key| match key {
+            "ORCHBEE_CONFIG_FILE" => Some(self.path().into_os_string()),
+            "ORCHBEE_HOME" => Some(self.home().into_os_string()),
+            _ => None,
         })
     }
+    /// The files a reset left: those beside the settings file and every backup copy.
     fn leaves(&self) -> usize {
-        fs::read_dir(&self.0).unwrap().count()
+        let beside = fs::read_dir(&self.0)
+            .unwrap()
+            .filter(|entry| entry.as_ref().unwrap().file_name() != "home")
+            .count();
+        let copies = fs::read_dir(self.backups()).map_or(0, |folders| {
+            folders
+                .map(|folder| fs::read_dir(folder.unwrap().path()).unwrap().count())
+                .sum()
+        });
+        beside + copies
     }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // This fixture creates only files in its unique owned root, never subdirectories.
-        for entry in fs::read_dir(&self.0).unwrap() {
-            fs::remove_file(entry.unwrap().path()).unwrap();
-        }
-        fs::remove_dir(&self.0).unwrap();
+        let actual = self.0.canonicalize().unwrap();
+        assert_eq!(
+            actual.parent(),
+            Some(std::env::temp_dir().canonicalize().unwrap().as_path())
+        );
+        assert!(
+            actual
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("orchbee-reset-keys-")
+        );
+        fs::remove_dir_all(actual).unwrap();
     }
 }
 
@@ -100,6 +129,7 @@ fn reset_keys_backs_up_exact_bytes_preserves_file_identity_and_never_repeats_a_w
     let KeysResetOutcome::Reset { backup_path } = fixture.reset().outcome else {
         panic!("reset")
     };
+    assert!(backup_path.starts_with(fixture.backups()));
     assert_eq!(fs::read(&backup_path).unwrap(), source);
     permissions::require_private(&File::open(&backup_path).unwrap()).unwrap();
     assert_eq!(
@@ -161,17 +191,24 @@ fn reset_keys_write_failure_restores_or_retains_a_complete_recovery_backup() {
         fs::write(fixture.path(), before).unwrap();
         let mut file = open(&fixture.path(), true).unwrap();
         let mut writes = 0;
-        let result = commit(&fixture.path(), &mut file, before, b"", |file, bytes| {
-            writes += 1;
-            if writes == 1 {
-                replace(file, b"partial")?;
-                Err(io::ErrorKind::Other.into())
-            } else if recovery_fails {
-                Err(io::ErrorKind::Other.into())
-            } else {
-                replace(file, bytes)
-            }
-        });
+        let result = commit(
+            &fixture.path(),
+            &fixture.backups(),
+            &mut file,
+            before,
+            b"",
+            |file, bytes| {
+                writes += 1;
+                if writes == 1 {
+                    replace(file, b"partial")?;
+                    Err(io::ErrorKind::Other.into())
+                } else if recovery_fails {
+                    Err(io::ErrorKind::Other.into())
+                } else {
+                    replace(file, bytes)
+                }
+            },
+        );
         drop(file);
         let KeysResetOutcome::Failed {
             backup_path,
@@ -200,7 +237,13 @@ fn reset_keys_changed_input_refuses_before_creating_any_backup() {
     let current = "[keys]\nprefix='ctrl+a'\n[terminal]\nnew_cwd='home'\n";
     fs::write(fixture.path(), current).unwrap();
     let read = open(&fixture.path(), false).unwrap();
-    let result = apply_prepared(&fixture.path(), read, "[keys]\nprefix='f12'\n", "");
+    let result = apply_prepared(
+        &fixture.path(),
+        &fixture.backups(),
+        read,
+        "[keys]\nprefix='f12'\n",
+        "",
+    );
     let KeysResetOutcome::Failed {
         error,
         backup_path,

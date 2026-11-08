@@ -21,7 +21,7 @@ impl Writer {
     pub(in crate::user_preferences) fn acquire(
         scope: &UserPreferencesScope,
     ) -> Result<Self, PreferencesFailure> {
-        PrivateCache::acquire(&scope.directory)
+        PrivateCache::acquire(&scope.directory, crate::StateRecord::Preferences.name())
             .map(|cache| Self { cache })
             .map_err(|error| {
                 if error.kind() == io::ErrorKind::WouldBlock {

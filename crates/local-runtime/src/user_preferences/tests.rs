@@ -124,9 +124,9 @@ impl Fixture {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
         }
-        let store = UserPreferencesStore::new(
-            UserPreferencesScope::for_configuration(&root.join("config.toml")).unwrap(),
-        );
+        let store = UserPreferencesStore::new(UserPreferencesScope::for_data_root(
+            &crate::DataRoot::at(root.clone()),
+        ));
         Self { root, store }
     }
     fn update(
@@ -154,16 +154,16 @@ fn accepted(response: UserPreferencesResponse) -> UserPreferencesSnapshot {
 }
 
 #[test]
-fn reads_do_not_create_storage_and_explicit_configuration_files_are_isolated() {
+fn reads_do_not_create_storage_and_data_roots_are_isolated() {
     let fixture = Fixture::new();
     let before = fixture.store.read().unwrap();
     assert_eq!(before.source, "missing");
     assert_eq!(before.values, UserPreferencesValues::default());
     assert!(!fixture.store.scope.directory.exists());
     fixture.update(&before.source, PreferenceKey::SoundEnabled, json!(true));
-    let other = UserPreferencesStore::new(
-        UserPreferencesScope::for_configuration(&fixture.root.join("other.toml")).unwrap(),
-    );
+    let other = UserPreferencesStore::new(UserPreferencesScope::for_data_root(
+        &crate::DataRoot::at(fixture.root.join("other")),
+    ));
     assert_eq!(other.read().unwrap().source, "missing");
 }
 
@@ -385,8 +385,9 @@ fn publication_rechecks_the_source_after_candidate_preparation() {
 fn shared_preferences_ignore_configuration_bytes_before_first_save() {
     let fixture = Fixture::new();
     let configuration = fixture.root.join("generated.toml");
-    let store =
-        UserPreferencesStore::new(UserPreferencesScope::for_configuration(&configuration).unwrap());
+    let store = UserPreferencesStore::new(UserPreferencesScope::for_data_root(
+        &crate::DataRoot::at(fixture.root.clone()),
+    ));
 
     let without_file = store.read().unwrap();
     assert_eq!(without_file.source, "missing");

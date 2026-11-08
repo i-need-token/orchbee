@@ -14,7 +14,7 @@ impl Runtime {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!("orchbee-graphics-files-{nonce:032x}"));
-        let cache = PrivateCache::acquire(&path).unwrap();
+        let cache = PrivateCache::acquire(&path, "runtime").unwrap();
         Self {
             path,
             cache: Some(cache),

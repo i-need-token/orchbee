@@ -33,7 +33,7 @@ impl SessionStore {
         if maximum_bytes == 0 || maximum_bytes.checked_add(HEADER_BYTES + 1).is_none() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        let mut directories = crate::environment::create_state_root(local)?;
+        let mut directories = crate::data_root::create_state_directory(local)?;
         let mut directory = local.to_owned();
         let key = ModeCheckedLocalSessionRendezvous::host_endpoint_id(session.runtime_directory());
         for component in [crate::durable_sessions::CHECKPOINT_DIRECTORY, key.as_str()] {

@@ -24,7 +24,14 @@ fn automatic_real_update_avoids_the_manual_ledger_and_only_configuration_changes
     let wake = &service.process_observer.wake;
     let mut detector = ScreenDetector::bundled().unwrap();
     wake.manifests
-        .initialize_settings(&settings, &detector, Ok(Some(http.url.clone())), true, true)
+        .initialize_settings(
+            Some(root.0.clone()),
+            &settings,
+            &detector,
+            Ok(Some(http.url.clone())),
+            true,
+            true,
+        )
         .unwrap();
     let reload = Action::Reload {
         operation_id: id(1),
@@ -117,7 +124,7 @@ fn unconfigured_source_reads_no_remote_state_and_admits_no_update() {
     let root = Root::new();
     let path = root.0.join("config.toml");
     std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
-    let remote = root.0.join("agent-detection").join("remote");
+    let remote = orchbee_local_runtime::DataRoot::at(root.0.clone()).agent_detection_cache();
     std::fs::create_dir_all(&remote).unwrap();
     // Any read of this unconfirmed status would surface as a cache status error.
     std::fs::write(remote.join("status.json"), "unconfirmed").unwrap();
@@ -126,6 +133,7 @@ fn unconfigured_source_reads_no_remote_state_and_admits_no_update() {
     let registry = Registry::default();
     registry
         .initialize_settings(
+            Some(root.0.clone()),
             &settings,
             &ScreenDetector::bundled().unwrap(),
             Ok(None),

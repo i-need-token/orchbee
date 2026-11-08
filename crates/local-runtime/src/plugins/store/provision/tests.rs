@@ -386,7 +386,7 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_p
     let entry = install(&registry, 1, &mut Executor::default())
         .plugin
         .unwrap();
-    let mut cache = PrivateCache::acquire(&registry.root).unwrap();
+    let mut cache = PrivateCache::acquire(&registry.root, "registry").unwrap();
     let mut catalog = decode(
         cache.read(FILE, REGISTRY_LIMIT).unwrap().as_deref(),
         &registry.root,
@@ -404,7 +404,7 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_p
     );
     assert!(missing.cleanup_pending.is_empty());
     assert!(Path::new(&entry.plugin_root).exists());
-    let mut cache = PrivateCache::acquire(&registry.root).unwrap();
+    let mut cache = PrivateCache::acquire(&registry.root, "registry").unwrap();
     let mut catalog = decode(
         cache.read(FILE, REGISTRY_LIMIT).unwrap().as_deref(),
         &registry.root,
@@ -444,7 +444,7 @@ fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
                 enabled: true,
             })
             .unwrap();
-        let mut cache = PrivateCache::acquire(&registry.root).unwrap();
+        let mut cache = PrivateCache::acquire(&registry.root, "registry").unwrap();
         let mut document: serde_json::Value =
             serde_json::from_slice(&cache.read(FILE, REGISTRY_LIMIT).unwrap().unwrap()).unwrap();
         assert_eq!(document["version"], 1);

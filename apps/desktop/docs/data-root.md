@@ -2,11 +2,12 @@
 
 ## Authority and scope
 
-This reference owns the Desktop product-data root and distribution-profile isolation. The data root
-scopes Electron `userData`, the single-instance lock, the window-state record, and, outside a
-release, the configuration file under which Desktop runs `orchbee`. It does not define Session
-state, which the Server owns, user-selectable storage locations, migration between profiles or from
-earlier Electron-managed locations, or automatic deletion.
+This reference owns how Desktop resolves and prepares its data root and distribution-profile
+isolation. The data root scopes Electron `userData`, the single-instance lock, the window-state
+record, and the root under which Desktop runs `orchbee`. The
+[data root owner](../../../crates/local-runtime/README.md#data-root) defines the shared layout. This
+reference does not define Session state, which the Server owns, migration between profiles or from
+earlier locations, or automatic deletion.
 
 ## Resolution
 
@@ -16,6 +17,20 @@ earlier Electron-managed locations, or automatic deletion.
 | Test                 | `<home>/.ob-test-<home-digest>` |
 | Release              | `<home>/.orchbee`               |
 
+`ORCHBEE_HOME` in Main's environment replaces the profile's folder, as it does for the native
+runtime; a relative value fails startup instead of falling back. Desktop keeps its own files under
+`internal/`:
+
+| Path                                 | Contents                                                        |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `internal/desktop/`                  | Electron `userData`: browser storage, Chromium caches, and lock |
+| `internal/state/desktop-window.json` | Window bounds and state, created by the first save              |
+| `internal/development-checkout.json` | Development scope marker                                        |
+| `internal/version.json`              | Layout record written when the root has none                    |
+
+Electron 42 ignores `--disk-cache-dir`, and moving `sessionData` would move browser storage with
+the caches, so Chromium's caches stay in `internal/desktop/` rather than `internal/cache/`.
+
 Dev resolves the canonical source-checkout root before hashing, whether launched live by
 `pnpm desktop` or from `pnpm desktop:package:dev`. The scope digest is the first 16 lowercase
 hexadecimal characters of SHA-256 over a version-tagged identity containing the platform-normalized
@@ -24,28 +39,29 @@ a nested package path part of the identity. The live development launcher suppli
 root explicitly; the packaged Dev descriptor records it and startup re-resolves the same canonical
 path before accepting the scope.
 
-Every development root contains one bounded scope marker with the complete canonical checkout path
-and digest version. Startup accepts an existing root only when the marker agrees. A mismatch fails
+Every development root contains one bounded scope marker,
+`internal/development-checkout.json`, with the complete canonical checkout path and digest version. Startup accepts an existing root only when the marker agrees. A mismatch fails
 closed instead of opening another checkout's state. A moved checkout receives a new root; the old
 root remains untouched.
 
 ## Startup order and ownership
 
-Desktop Main resolves the explicit distribution profile and creates its data root before requesting
-Electron's single-instance lock. Live development accepts only the launcher-provided source root;
+Desktop Main resolves the explicit distribution profile and creates its data root, `internal/`, and
+`internal/desktop/` before requesting Electron's single-instance lock. When `internal/version.json`
+is absent it writes `{"layout":1,"newestVersion":"<version>"}` exclusively and leaves an existing
+record as it is; the native writers write the same shape, under the `data-root-version-record`
+contract. Live development accepts only the launcher-provided source root;
 packaged applications accept only the strict descriptor inside `app.asar`, and process environment
-cannot override it. Main sets Electron `userData` to the resolved root first, so one profile scope
+cannot override that profile; `ORCHBEE_HOME` moves only the folder. Main sets Electron `userData` to `internal/desktop/` first, so one profile scope
 controls both disk state and lock identity. The same checkout therefore admits one Dev instance,
 while Dev, Test, Release, and different development checkouts may run concurrently.
 
-Outside a release on Windows, the bundled Client is compiled with the profile's artifact stem and
-derives `<data-root>/config.toml` itself, so Main passes its environment through unchanged and
-creates no file. On macOS and Linux, which keep the release names until ORC-328, Main runs `orchbee`
-with `ORCHBEE_CONFIG_FILE` set to `<data-root>/config.toml`, so a Session it starts keeps this data
-root's preferences rather than the installed release's. The runtime refuses an explicit
-configuration file that does not exist, so Main creates an empty, owner-only file when none is
-present and leaves an existing one as it is. A release, or an `ORCHBEE_CONFIG_FILE` already in
-Main's environment, runs `orchbee` with the environment unchanged.
+On Windows the bundled Client is compiled with the profile's artifact stem and derives the same
+root, and an inherited `ORCHBEE_HOME` names it for both, so Main passes its environment through
+unchanged. On macOS and Linux, which keep the release names until ORC-328, a development or test
+Main runs `orchbee` with `ORCHBEE_HOME` set to its data root, so a Session it starts keeps this
+root's configuration and preferences rather than the installed release's. A release runs `orchbee`
+with the environment unchanged. Main creates no configuration file.
 
 On POSIX, Main creates product-owned data directories with owner-only access. The renderer receives
 no data-root path, enumeration, location override, or generic filesystem capability. Tests use an
@@ -54,19 +70,23 @@ explicitly injected temporary home and source root.
 ## Invariants
 
 - Dev, Test, and Release roots are pairwise distinct.
-- Packaged profile identity and data scope come only from the strict embedded descriptor.
+- Packaged profile identity and data scope come only from the strict embedded descriptor;
+  `ORCHBEE_HOME` changes only where the root lives.
 - Equal canonical development checkout paths resolve to equal roots.
 - An accepted development root marker names exactly the path used to derive its digest.
 - Different paths may not share one accepted root, including after a truncated-digest collision.
 - Changing or moving a checkout never deletes or migrates the prior root.
-- Desktop never replaces an existing configuration file.
+- Desktop never writes the top level of a data root; its files live under `internal/`.
+- Desktop never replaces an existing `internal/version.json`.
 
 ## Verification
 
-`prepareDesktopDataRoot` tests cover the fixed Release root, the stable development root,
-different-checkout isolation, and marker creation, reuse, and mismatch.
+`prepareDesktopDataRoot` tests cover the fixed Release root with its files under `internal/`, the
+`ORCHBEE_HOME` override and its refusal of a relative value, the stable development root,
+different-checkout isolation, marker creation, reuse, and mismatch, and a version record written
+once.
 `resolveDesktopApplicationDistribution` tests cover live development from the canonical checkout,
 strict packaged descriptors, revalidation of a packaged Dev descriptor against the current checkout,
 and environment non-override. No test drives the Main entry, which selects `userData` before
-requesting the single-instance lock and, outside a release on macOS and Linux, creates the
-configuration file.
+requesting the single-instance lock and, outside a release on macOS and Linux, passes
+`ORCHBEE_HOME` to the Client.

@@ -70,9 +70,9 @@ fn update(root: &Root, source: &CatalogUrl, content: &str) -> UpdateReport {
 fn scripted(root: &Root, content: &str) -> UpdateReport {
     update(root, &CatalogUrl::parse(CATALOG).unwrap(), content)
 }
-/// A leaf in the directory of the catalog that `scripted` updates.
+/// A leaf in the data root's remote rule cache.
 fn cached(root: &Root, name: &str) -> PathBuf {
-    remote_root(&root.0, &CatalogUrl::parse(CATALOG).unwrap()).join(name)
+    remote_root(&root.0).join(name)
 }
 /// The cached Codex version that a Session configured with `source` selects, if any.
 fn selected(root: &Root, source: &CatalogUrl) -> Option<String> {
@@ -130,7 +130,7 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     let rejected = scripted(&root, &rules("codex", "3"));
     assert_eq!(rejected.agents[0].error, Some(Failure::Cache));
     assert_eq!(fs::read(&path).unwrap(), b"corrupt");
-    let status = cached(&root, "status.json");
+    let status = cached(&root, STATUS);
     fs::write(&status, b"corrupt status").unwrap();
     let rejected = scripted(&root, &rules("codex", "3"));
     assert_eq!(rejected.failure, Some(Failure::Cache));
@@ -138,7 +138,7 @@ fn cache_updates_preserve_versions_bytes_partial_outcomes_and_corrupt_inputs() {
     assert_eq!(fs::read(status).unwrap(), b"corrupt status");
 }
 #[test]
-fn each_catalog_selects_only_rules_its_own_updates_cached() {
+fn a_catalog_selects_only_rules_its_own_update_cached() {
     let root = Root::new();
     let first = CatalogUrl::parse(CATALOG).unwrap();
     let other = CatalogUrl::parse("https://example.com/other/index.toml").unwrap();
@@ -150,40 +150,40 @@ fn each_catalog_selects_only_rules_its_own_updates_cached() {
     assert_eq!(selected(&root, &other), None);
     let foreign = maintenance(Some(&root.0), &Ok(Some(other.clone())));
     assert_eq!((foreign.last_update, foreign.status_error), (None, None));
-    // Read and write sharing without delete sharing refuses replacing a held status.
-    let hold = |source: &CatalogUrl| {
+    // Read and write sharing without delete sharing refuses replacing or removing a held index.
+    let hold = || {
         use std::os::windows::fs::OpenOptionsExt;
         fs::OpenOptions::new()
             .read(true)
             .share_mode(0x1 | 0x2)
-            .open(remote_root(&root.0, source).join("status.json"))
+            .open(cached(&root, STATUS))
             .unwrap()
     };
-    // Switching catalogs while the first catalog's status cannot be replaced, and then failing to
-    // publish the new catalog's status after its rules were cached, never pairs one catalog's
-    // status with the other's rules.
-    let held = hold(&first);
-    assert!(update(&root, &other, &rules("codex", "2099.2")).status_saved);
+    // Another catalog's update discards the index before it writes any rule; while it cannot,
+    // the update stops and the cached rules stay attributed to the catalog they came from.
+    let held = hold();
+    let blocked = update(&root, &other, &rules("codex", "2099.2"));
     drop(held);
+    assert_eq!(
+        (blocked.failure, blocked.status_saved),
+        (Some(Failure::Cache), false)
+    );
     assert_eq!(selected(&root, &first).as_deref(), Some("2099.1"));
+    assert_eq!(selected(&root, &other), None);
+    assert!(update(&root, &other, &rules("codex", "2099.2")).status_saved);
+    assert_eq!(selected(&root, &first), None);
     assert_eq!(selected(&root, &other).as_deref(), Some("2099.2"));
-    let held = hold(&other);
+    // An index that cannot be published leaves the previous one, which names the same catalog.
+    let held = hold();
     let unpublished = update(&root, &other, &rules("codex", "2099.3"));
     drop(held);
     assert_eq!(
         (unpublished.failure, unpublished.status_saved),
         (Some(Failure::Cache), false)
     );
-    assert_eq!(selected(&root, &first).as_deref(), Some("2099.1"));
     assert_eq!(selected(&root, &other).as_deref(), Some("2099.3"));
-    // A status in a catalog's directory that names another catalog admits nothing. Even a failed
-    // catalog fetch removes it and then the rules before recording its own.
-    fs::copy(
-        remote_root(&root.0, &other).join("status.json"),
-        cached(&root, "status.json"),
-    )
-    .unwrap();
-    assert_eq!(selected(&root, &first), None);
+    // Even a failed catalog fetch removes another catalog's index and then its rules before
+    // recording its own.
     let report = run_with_fetch(
         &root.0,
         &first,
@@ -194,9 +194,11 @@ fn each_catalog_selects_only_rules_its_own_updates_cached() {
     assert_eq!(report.failure, Some(Failure::InvalidCatalog));
     assert!(report.status_saved);
     assert!(!cached(&root, "codex.toml").exists());
-    // Rules without a recorded catalog are never admitted.
-    fs::remove_file(remote_root(&root.0, &other).join("status.json")).unwrap();
     assert_eq!(selected(&root, &other), None);
+    // Rules without an index are never admitted.
+    fs::write(cached(&root, "codex.toml"), rules("codex", "2099.4")).unwrap();
+    fs::remove_file(cached(&root, STATUS)).unwrap();
+    assert_eq!(selected(&root, &first), None);
 }
 #[test]
 fn catalog_and_cancellation_fail_before_any_manifest_commit() {
@@ -250,7 +252,7 @@ fn catalog_and_cancellation_fail_before_any_manifest_commit() {
     let root = Root::new();
     let report = run(&root.0, &source, &AtomicBool::new(true));
     assert_eq!(report.failure, Some(Failure::Cancelled));
-    assert!(!root.0.join("agent-detection").exists());
+    assert_eq!(fs::read_dir(&root.0).unwrap().count(), 0);
 }
 pub(crate) struct Http {
     pub(crate) url: CatalogUrl,

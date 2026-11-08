@@ -18,8 +18,6 @@ fn configuration_names_admit_unicode_and_reject_windows_aliases_without_opening_
         "con.toml",
         "COM¹.toml",
         "LPT9",
-        ".ORCHBEE-UPDATE.LOCK",
-        ".orchbee-update.pending",
     ] {
         assert!(configuration_leaf(root, name).is_err(), "{name}");
     }
@@ -59,8 +57,16 @@ fn private_cache_serializes_writers_and_preserves_rejected_targets() {
             .is_none()
     );
     assert!(!path.exists());
-    let mut cache = PrivateCache::acquire(&path).unwrap();
-    assert!(matches!(PrivateCache::acquire(&path),Err(e) if e.kind()==io::ErrorKind::WouldBlock));
+    let mut cache = PrivateCache::acquire(&path, "codex").unwrap();
+    assert!(
+        matches!(PrivateCache::acquire(&path, "codex"),Err(e) if e.kind()==io::ErrorKind::WouldBlock)
+    );
+    // Another record in the same folder has its own writer lock.
+    drop(PrivateCache::acquire(&path, "status").unwrap());
+    for reserved in ["codex.lock", "CODEX.PENDING"] {
+        assert!(cache.replace(reserved, b"bad").is_err(), "{reserved}");
+        assert!(cache.read_configuration(reserved, 4).is_err(), "{reserved}");
+    }
     assert!(cache.read("codex.toml", 4).unwrap().is_none());
     cache.replace("codex.toml", b"old").unwrap();
     cache.replace("codex.toml", b"new").unwrap();
@@ -75,10 +81,10 @@ fn private_cache_serializes_writers_and_preserves_rejected_targets() {
     assert_eq!(fs::read(path.join("codex.toml")).unwrap(), b"new");
     fs::remove_file(path.join("alias.toml")).unwrap();
     assert!(fs::rename(&path, root.0.join("redirected")).is_err());
-    assert!(!path.join(PENDING).exists());
+    assert!(!path.join("codex.pending").exists());
     drop(cache);
-    fs::write(path.join(PENDING), b"interrupted stage").unwrap();
-    let cache = PrivateCache::acquire(&path).unwrap();
-    assert!(!path.join(PENDING).exists());
+    fs::write(path.join("codex.pending"), b"interrupted stage").unwrap();
+    let cache = PrivateCache::acquire(&path, "codex").unwrap();
+    assert!(!path.join("codex.pending").exists());
     drop(cache);
 }

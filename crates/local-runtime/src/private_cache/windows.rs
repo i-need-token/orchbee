@@ -5,13 +5,17 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
 };
-const LOCK: &str = ".orchbee-update.lock";
-const PENDING: &str = ".orchbee-update.pending";
+const LOCK_EXTENSION: &str = "lock";
+const PENDING_EXTENSION: &str = "pending";
 
-/// Pins private cache ancestors and holds the cross-process writer lock until dropped.
-/// The two reserved `.orchbee-update.*` leaves belong to this owner, not user inputs.
+/// Pins private cache ancestors and holds the cross-process writer lock of one record until
+/// dropped. The record's lock `<record>.lock` and staging file `<record>.pending` belong to this
+/// owner, not user inputs; both sit beside the record's files unless the owner keeps the lock
+/// elsewhere.
 pub struct PrivateCache {
     path: PathBuf,
+    record: String,
+    pending: PathBuf,
     _lock: File,
     _pins: Vec<File>,
 }
@@ -39,10 +43,27 @@ impl PrivateRead {
 }
 
 impl PrivateCache {
-    /// Creates missing private descendants; rejects unsafe existing objects without repair.
-    pub fn acquire(path: &Path) -> io::Result<Self> {
-        let pins = create_tree(path)?;
-        let lock_path = path.join(LOCK);
+    /// Guards `record` in `directory`, creating missing private directories and rejecting unsafe
+    /// existing objects without repair. `record` names the lock and staging file: `preferences`
+    /// guards `preferences.json` with `preferences.lock` and `preferences.pending`.
+    pub fn acquire(directory: &Path, record: &str) -> io::Result<Self> {
+        Self::acquire_with_lock_in(directory, record, directory)
+    }
+    /// Like [`Self::acquire`], but keeps the persistent lock in `lock_directory`, so a record in a
+    /// folder a person reads gains only a staging file, and only while a write runs.
+    pub(crate) fn acquire_with_lock_in(
+        directory: &Path,
+        record: &str,
+        lock_directory: &Path,
+    ) -> io::Result<Self> {
+        if !valid_record(record) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let mut pins = crate::data_root::create_state_directory(directory)?;
+        if lock_directory != directory {
+            pins.extend(crate::data_root::create_state_directory(lock_directory)?);
+        }
+        let lock_path = lock_directory.join(format!("{record}.{LOCK_EXTENSION}"));
         let lock = match permissions::open_file(&lock_path, true, true) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -56,12 +77,19 @@ impl PrivateCache {
             Err(TryLockError::Error(error)) => return Err(error),
         }
         let mut cache = Self {
-            path: path.to_owned(),
+            path: directory.to_owned(),
+            record: record.to_owned(),
+            pending: directory.join(format!("{record}.{PENDING_EXTENSION}")),
             _lock: lock,
             _pins: pins,
         };
         cache.recover_pending()?;
         Ok(cache)
+    }
+    /// Creates missing private directories and admits existing ones without taking a lock, for a
+    /// folder whose contents another owner writes.
+    pub fn prepare(directory: &Path) -> io::Result<()> {
+        crate::data_root::create_state_directory(directory).map(drop)
     }
     /// No symlinks/reparse points, hard links, nonregular files or foreign ACLs are followed.
     pub fn read(&self, name: &str, maximum: usize) -> io::Result<Option<Vec<u8>>> {
@@ -97,7 +125,7 @@ impl PrivateCache {
         name: &str,
         maximum: usize,
     ) -> io::Result<Option<Vec<u8>>> {
-        read_snapshot_leaf(&configuration_leaf(&self.path, name)?, maximum).map(|(bytes, _)| bytes)
+        read_snapshot_leaf(&self.configuration_leaf(name)?, maximum).map(|(bytes, _)| bytes)
     }
     /// Compare after flushing the candidate. An absent observed target uses a no-replace move.
     /// The preferences owner admits a larger, separately bounded launch-profile catalog.
@@ -111,8 +139,9 @@ impl PrivateCache {
         if after.len() > maximum {
             return Err(ConfigurationWriteFailure::Io);
         }
-        let target =
-            configuration_leaf(&self.path, name).map_err(|_| ConfigurationWriteFailure::Io)?;
+        let target = self
+            .configuration_leaf(name)
+            .map_err(|_| ConfigurationWriteFailure::Io)?;
         let observed = self
             .read_configuration(name, maximum)
             .map_err(|_| ConfigurationWriteFailure::Io)?;
@@ -124,7 +153,7 @@ impl PrivateCache {
         }
         self.recover_pending()
             .map_err(|_| ConfigurationWriteFailure::Io)?;
-        let pending = self.path.join(PENDING);
+        let pending = self.pending.clone();
         let result = (|| {
             let mut file = permissions::open_file(&pending, true, true)
                 .map_err(|_| ConfigurationWriteFailure::Io)?;
@@ -165,7 +194,7 @@ impl PrivateCache {
             Err(error) => return Err(error),
         }
         self.recover_pending()?;
-        let pending = self.path.join(PENDING);
+        let pending = self.pending.clone();
         let mut file = permissions::open_file(&pending, true, true)?;
         let write = file.write_all(bytes).and_then(|()| file.sync_all());
         drop(file);
@@ -193,14 +222,29 @@ impl PrivateCache {
         fs::remove_file(target)
     }
     fn leaf(&self, name: &str) -> io::Result<PathBuf> {
+        self.require_unreserved(name)?;
         cache_leaf(&self.path, name)
     }
+    fn configuration_leaf(&self, name: &str) -> io::Result<PathBuf> {
+        self.require_unreserved(name)?;
+        configuration_leaf(&self.path, name)
+    }
+    /// The lock and staging file are this owner's, never a record a caller reads or replaces.
+    fn require_unreserved(&self, name: &str) -> io::Result<()> {
+        let reserved = [LOCK_EXTENSION, PENDING_EXTENSION]
+            .iter()
+            .any(|extension| name.eq_ignore_ascii_case(&format!("{}.{extension}", self.record)));
+        if reserved {
+            Err(io::ErrorKind::InvalidInput.into())
+        } else {
+            Ok(())
+        }
+    }
     fn recover_pending(&mut self) -> io::Result<()> {
-        let path = self.path.join(PENDING);
-        match permissions::open_file(&path, false, false) {
+        match permissions::open_file(&self.pending, false, false) {
             Ok(file) => {
                 drop(file);
-                fs::remove_file(path)
+                fs::remove_file(&self.pending)
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(error),
@@ -244,8 +288,6 @@ fn configuration_leaf(path: &Path, name: &str) -> io::Result<PathBuf> {
         || name.chars().any(|ch| {
             ch.is_control() || matches!(ch, '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*')
         })
-        || name.eq_ignore_ascii_case(LOCK)
-        || name.eq_ignore_ascii_case(PENDING)
         || reserved
     {
         return Err(io::ErrorKind::InvalidInput.into());
@@ -288,37 +330,13 @@ fn read_leaf(path: &Path, maximum: usize) -> io::Result<Option<Vec<u8>>> {
     }
     Ok(Some(bytes))
 }
-fn create_tree(path: &Path) -> io::Result<Vec<File>> {
-    match permissions::open_tree(path) {
-        Ok(pins) => Ok(pins),
-        Err(error)
-            if error.kind() == io::ErrorKind::NotFound
-                && crate::environment::creates_as_state_root(path) =>
-        {
-            crate::environment::create_state_root(path)
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            let parent = path
-                .parent()
-                .filter(|p| *p != path)
-                .ok_or(io::ErrorKind::InvalidInput)?;
-            let mut pins = create_tree(parent)?;
-            let created = match fs::create_dir(path) {
-                Ok(()) => true,
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
-                Err(error) => return Err(error),
-            };
-            let mut file = permissions::open_directory(path, created)?;
-            if created {
-                permissions::protect_new(&mut file)?;
-            } else {
-                permissions::require_private(&file)?;
-            }
-            pins.push(file);
-            Ok(pins)
-        }
-        Err(error) => Err(error),
-    }
+/// A record name is one plain word or hyphenated phrase, so its lock and staging names stay plain.
+fn valid_record(record: &str) -> bool {
+    !record.is_empty()
+        && record.len() <= 64
+        && record
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
 #[cfg(test)]

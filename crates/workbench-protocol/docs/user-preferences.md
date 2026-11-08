@@ -57,22 +57,21 @@ for that generation's default launches. Failure refuses the default launch witho
 inventing another executable or rewriting the catalog. Existing terminals retain their launch.
 A native Session reads its store once before it admits each creation and sends the Worker the
 effective scrollback, default colors and selected profile command. The Worker never opens the
-store, so the Session's frozen configuration identity is the only scope, and a saved change
-reaches only later creations.
+store, so the Session's frozen data root is the only scope, and a saved change reaches only later
+creations.
 
 ## Scope and persistence
 
-The configuration identity is frozen at process/Session startup. Explicit
-`ORCHBEE_CONFIG_FILE` isolates that absolute configuration path. Otherwise the
-native platform configuration location selects the record. Clients using the
-same identity share one private record beside that configuration. Different
-development identities, devices, or browser origins remain separate. This
-contract does not introduce a Workspace preference or a remote write route.
+The scope is the [data root](../../local-runtime/README.md#data-root), frozen at process/Session
+startup: the record is its `internal/state/preferences.json`. `ORCHBEE_HOME` selects another root;
+an explicit `ORCHBEE_CONFIG_FILE` moves only the settings file, never the record. Clients of one
+data root share one private record. Different environments, devices, or browser origins remain
+separate. This contract does not introduce a Workspace preference or a remote write route.
 
-Desktop development and local distributions select their isolated data-root configuration when
-no explicit override is present; release uses the native platform location. A TUI validating that
-development identity must select the same absolute `ORCHBEE_CONFIG_FILE`. This keeps development
-preferences isolated from the installed release while preserving one authority within each scope.
+Each Desktop distribution uses its environment's data root, so development preferences stay
+isolated from the installed release while one authority holds within each scope. A TUI validating a
+development Desktop's preferences runs from the same checkout's environment or names the same
+`ORCHBEE_HOME`.
 
 Read returns a complete validated snapshot, exact source token and claimed keys. An absent record returns canonical defaults, no claimed keys and the `missing` source token; an existing record uses a lowercase SHA-256 token of its bytes. Invalid, unreadable, unsafe or oversized records are refused on read rather than silently replaced. The complete record/exchange bound is 2 MiB.
 
@@ -85,7 +84,7 @@ automatically replayed. A saved snapshot describes that commit, not immunity
 from a later edit. Noncooperating external editors are outside the shared lock's
 transaction boundary.
 
-Desktop windows and native Clients read or update the current shared record through the Server. Explicit edits and resets claim keys even when the reset value already equals the default. Configuration files select the storage scope without supplying preference values.
+Desktop windows and native Clients read or update the current shared record through the Server. Explicit edits and resets claim keys even when the reset value already equals the default. Configuration files neither select the storage scope nor supply preference values.
 
 ## Explicit recovery from a refused record
 

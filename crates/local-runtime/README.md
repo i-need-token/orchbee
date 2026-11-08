@@ -15,7 +15,7 @@ This crate owns admitted shared capabilities and stable runtime lifecycle contra
 | `process_registration`, `process_observation`, `registered_child`          | Client-created Server, Server-created Worker and Worker-created Host share registration-before-execution and exact process identity recovery.                                                                                                               |
 | `session_store`, `checkpoint_rotation`, `checkpoint_restore_notice`        | Server checkpoint publication/rotation and Client recovery diagnosis/stopped deletion share fixed slots, activation generations and storage lock guards.                                                                                                    |
 | `user_preferences`, `default_interactive_launch`, `notification_policy`    | The Desktop settings bridge, Client, Server and Worker consume shared preferences, launch snapshots or notification profiles; settings decoding uses notification types directly without platform aliases.                                                  |
-| `user_settings`, `plugins`, `user_path`                                    | Server configuration and the Client's minimal `config.toml` reads (activation, release channel and `config check`) share the bounded settings schema; plugins and paths also serve Worker execution, and Windows path grammar stays explicit on every host. |
+| `data_root`, `user_settings`, `plugins`, `user_path`                       | Server configuration and the Client's minimal `config.toml` reads (activation, release channel and `config check`) share the bounded settings schema; plugins and paths also serve Worker execution, and Windows path grammar stays explicit on every host. |
 | `command`, `command_outcome`, `command_child`, `directory`                 | Client commands/provisioning, Server restart and Worker commands/directory observations share encoding, outcomes and process settlement contracts.                                                                                                          |
 | `private_cache`, `private_filesystem`, `host_appearance`                   | Runtime storage, CLI release storage and Server frame reads share exact handle admission; Client and Worker share read-only Windows theme observation.                                                                                                      |
 
@@ -38,8 +38,8 @@ Product types for Session identity, lifecycle, checkpoints and command outcomes 
 
 `UserPreferencesStore` owns the versioned, bounded device preference record described by the
 [shared contract](../../schemas/workbench/README.md#shared-user-preferences). Its scope is frozen
-from the exact configuration path. A filename-derived private directory separates configurations
-even when their parent is shared. Reads create nothing; invalid or unreadable records are refused.
+from the data root: the record is `internal/state/preferences.json`, an explicit settings file does
+not move it, and only another data root does. Reads create nothing; invalid or unreadable records are refused.
 Updates acquire an OS-held writer lock, compare the observed source, apply only supplied leaves,
 validate the complete candidate and publish a flushed atomic replacement. A reset claims its keys
 just like an edit. Windows uses the pinned private-cache boundary; Unix uses descriptor-relative,
@@ -97,6 +97,37 @@ state.
 
 The pure Windows command encoder is shared by CLI Agent start and Server restart. It emits a bounded UTF-16LE Base64 script with one literal argument array. Native, batch and PowerShell script dispatch preserve argument boundaries, including empty values, quotes and percent signs. It excludes aliases/functions, rejects control characters, caps encoded text at 30,000 characters and refuses batch command lines over 8,000 characters. Applications select programs, shells, interactive flags and stricter carrier limits; this library starts no process. Helper functions and error preferences remain in a child scope when the caller keeps PowerShell open. The embedded PowerShell asset is maintained with this encoder and the CLI's real Windows argv test.
 
+## Data root
+
+`DataRoot` is the one owner of every path in an environment's data root, the folder that holds
+everything Orchbee keeps: `ORCHBEE_HOME` when it is set, otherwise `<home>/.<stem>`, where home is
+`USERPROFILE` on Windows, as Node's `os.homedir()` resolves it so Desktop derives the same folder,
+and `HOME` elsewhere. Resolution reads only the environment its caller supplies and touches no
+file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back to home. The
+[layout proposal](../../proposals/platform/data-root-layout.md) owns the tree and its later phases.
+
+| Path                                  | Owner and use                                                      |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `config.toml`                         | Default settings file; `ORCHBEE_CONFIG_FILE` moves only this file  |
+| `agent-detection/<provider>.toml`     | Detection rule overrides a person writes                           |
+| `logs/destructive-commands.jsonl`     | Destructive request log and its `.1` generation                    |
+| `internal/version.json`               | Layout record, written once by the writer that creates the root    |
+| `internal/config.lock`                | Writer lock of the default settings file                           |
+| `internal/state/<record>.json`        | `StateRecord`: preferences, onboarding, and the machine catalog    |
+| `internal/cache/agent-detection/`     | Downloaded detection rules and `catalog.json`, which names the URL |
+| `internal/backups/<date>-reset-keys/` | Copy of the settings file taken by `config reset-keys`             |
+| `internal/plugins/`                   | Plugin registry, managed checkouts, and plugin folders             |
+| `internal/runtime/`                   | Default runtime base of a development or test environment          |
+
+Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
+inside the root also writes `internal/version.json` when it is absent, so a root that holds anything
+Orchbee wrote records its layout; nothing raises `newestVersion` yet. The record is
+`{"layout":1,"newestVersion":"<version>"}`, and Desktop Main writes the same shape; search for
+`data-root-version-record` before changing it. Release Session catalogs, checkpoints and the TUI
+position stay in `%LOCALAPPDATA%\Orchbee` until Sessions move into the root by name; a development
+or test environment keeps them under `internal/`. Nothing migrates or removes what an earlier build
+left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee\audit`, or the top level of a data root.
+
 ## Windows user path operands
 
 `UserPathOperand::parse` admits bounded drive-absolute, home-relative or current-directory-relative syntax without reading process context or probing the filesystem. The opaque operand preserves its spelling; `resolve` uses only the final execution owner's supplied environment or current directory. Absolute literals need neither capability. Invalid required home values never fall through to a lower-priority home source. `normalize_user_path` remains the combined entry point for callers that already own execution context. Applications own grammar completion, routing and the point at which resolution is permitted.
@@ -119,22 +150,22 @@ only for a path stored in decomposed form. Cohort file names derive from the ste
 `orchbee*.exe` outputs are never run as they are: tests and staging start a copy named by
 `CohortArtifact`. macOS and Linux keep the release names until ORC-328.
 
-`environment_stem` exposes the stem, and one owner derives every
-Orchbee state location from it, so applications never spell a state directory or choose an AppData
-variable themselves:
+`environment_stem` exposes the stem, and the [data root](#data-root) owner derives every Orchbee
+state location from it, so applications never spell a state directory or choose a home variable
+themselves:
 
-| Location             | Release                  | Development or test      |
-| -------------------- | ------------------------ | ------------------------ |
-| Roaming state root   | `%APPDATA%\Orchbee`      | `<home>\.<stem>`         |
-| Local state root     | `%LOCALAPPDATA%\Orchbee` | `<home>\.<stem>`         |
-| Default runtime base | `std::env::temp_dir()`   | `<home>\.<stem>\runtime` |
+| Location             | Release                  | Development or test            |
+| -------------------- | ------------------------ | ------------------------------ |
+| Data root            | `<home>\.orchbee`        | `<home>\.<stem>`               |
+| Session state root   | `%LOCALAPPDATA%\Orchbee` | `<data root>\internal`         |
+| Default runtime base | `std::env::temp_dir()`   | `<data root>\internal\runtime` |
 
-Home follows `USERPROFILE` first, as Node's `os.homedir()` does, so Desktop derives the same data
-root. Resolving a location touches no file. Storage owners take either state root, pin its
-ancestors and require the root itself to be private, creating it private on first write; its parent
-may be a home directory whose ACL other principals share. `PrivateCache` applies the same rule when
-it creates a missing roaming or local state root whose parent exists, in every environment; a root
-whose parent is missing is created by the private recursive creation used for any other directory. Activation creates a
+Resolving a location touches no file. Storage owners take the data root or the Session state root,
+pin its ancestors and require the root itself to be private, creating it private on first write;
+its parent may be a home directory whose ACL other principals share. `PrivateCache` applies the
+same rule when it creates a missing root whose parent exists, in every environment; a root whose
+parent is missing is created by the private recursive creation used for any other directory.
+Activation creates a
 non-release default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must
 already exist. Until then, read-only `session list`, `server diagnose` and `config check` report
 nothing started.
@@ -232,11 +263,12 @@ power-loss durability and inventory recovery after external removal of the runti
 ## Windows destructive request log
 
 `append_destructive_request` appends one caller-supplied JSON record as one line to
-`<local state root>\audit\destructive.jsonl`. It creates the state root, the private `audit`
+`logs\destructive-commands.jsonl` in the data root. It creates the root, the private `logs`
 directory and the file on first use under the state root rules above, and admits existing ones only
 when they are private regular files and directories. Concurrent appends serialize on the file's own
 lock and give up after 500 ms. The current file never exceeds `DESTRUCTIVE_LOG_ROTATION_BYTES`,
-1 MiB: an append that would pass it first copies the current lines over `destructive.1.jsonl`,
+1 MiB: an append that would pass it first copies the current lines over
+`destructive-commands.1.jsonl`,
 replacing the generation kept there, and empties the current file in place, so at most two
 generations remain. Nothing reads the log back. Callers treat every error as a non-event, so a
 failed append never blocks or changes their command. The
@@ -602,20 +634,23 @@ The same reader owns `UpdateChannel` (`stable`/`preview`, default stable) and de
 
 The shared bounded settings reader and pure Windows user-path adapter, which normalizes resolved relative and tilde operands lexically while keeping absolute literals verbatim, serve CLI configuration, common Client activation and direct managed Server startup. They own fatal file/path/environment admission, field-local fallback to existing safe defaults, resolved restore policy and a deterministic warning record; applications own wire projection, activation commit and private child arguments. The load result keeps effective settings and diagnostics together. Diagnostics are deduplicated before display truncation, sorted by field and reason, capped at 128 entries with an exact omitted count, and never retain source values or commands. See [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The pinned `toml` dependency parses at this file boundary. The reader has no Workbench dependency.
 
-The pure `user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the environment's roaming state root; absent roots remain absent. The Server uses its parent for detection-rule inputs.
+The pure `user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the data root; a missing home leaves the location absent, and an invalid `ORCHBEE_HOME` is a settings error. Detection rules, preferences and other records follow the data root, never the settings file's folder.
 
 ## Windows private update cache
 
 `PrivateCache` owns pinned private ancestors, no-follow regular single-link files and a
-cross-process writer lock for Server-owned detection cache updates. Applications retain logical
+cross-process writer lock for one named record in a folder. Applications retain logical
 filenames, content validation, versions and policy. Missing descendants are created only below an
 admitted private parent; unsafe existing data is refused without repair. Bounded reads preserve
 absence. Replacement flushes a complete staging file, then atomically replaces the admitted leaf.
 Removal deletes only an admitted leaf under the writer lock; an absent leaf is already removed.
-The reserved `.orchbee-update.lock` is a persistent cache coordination object;
-`.orchbee-update.pending` is the one owned staging leaf, removed after settlement or recovered under
-the next exclusive lock. Cleanup failures are returned, never converted into successful publication.
-The Server updater is the real consumer; this adapter alone does not implement remote updates.
+The caller names the record: `<record>.lock` beside it is the persistent writer lock and
+`<record>.pending` the one owned staging leaf, removed after settlement or recovered under the next
+exclusive lock. Both names are reserved and refused as leaves; another record in the same folder
+locks independently. The default settings file keeps its lock in `internal/config.lock`, so its
+folder gains only `config.pending` while a write runs. `prepare` creates a private folder without a
+lock, for a folder whose contents another program owns. Cleanup failures are returned, never converted into successful publication.
+Applications own what each record holds; this adapter alone implements no update policy.
 
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
 

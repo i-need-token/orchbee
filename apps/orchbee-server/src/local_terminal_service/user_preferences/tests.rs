@@ -43,7 +43,9 @@ fn private_root() -> Scope {
 #[test]
 fn settings_dispatch_checks_permission_and_session_before_shared_store_access() {
     let fixture = private_root();
-    let scope = UserPreferencesScope::for_configuration(&fixture.0.join("config.toml")).unwrap();
+    let scope = UserPreferencesScope::for_data_root(&orchbee_local_runtime::DataRoot::at(
+        fixture.0.clone(),
+    ));
     let service = Arc::new(LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
         Ok(
@@ -148,7 +150,9 @@ fn launch_capture_reads_the_frozen_scope_and_refuses_without_a_store() {
     assert_eq!(captured(None), None);
     assert_eq!(captured(Some(&explicit)), None);
 
-    let scope = UserPreferencesScope::for_configuration(&fixture.0.join("config.toml")).unwrap();
+    let scope = UserPreferencesScope::for_data_root(&orchbee_local_runtime::DataRoot::at(
+        fixture.0.clone(),
+    ));
     service.initialize_preferences(scope.clone()).unwrap();
     let saved = UserPreferencesStore::new(scope).execute(&UserPreferencesRequest::Update {
         source: "missing".into(),
@@ -179,7 +183,9 @@ fn launch_capture_reads_the_frozen_scope_and_refuses_without_a_store() {
 #[test]
 fn unreadable_preferences_launch_defaults_without_repairing_the_record() {
     let fixture = private_root();
-    let scope = UserPreferencesScope::for_configuration(&fixture.0.join("config.toml")).unwrap();
+    let scope = UserPreferencesScope::for_data_root(&orchbee_local_runtime::DataRoot::at(
+        fixture.0.clone(),
+    ));
     let store = UserPreferencesStore::new(scope.clone());
     assert!(matches!(
         store.execute(&UserPreferencesRequest::Update {

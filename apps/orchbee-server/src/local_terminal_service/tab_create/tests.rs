@@ -368,10 +368,9 @@ fn a_tab_created_on_a_reporting_worker_publishes_its_system_shell() -> TestResul
 
     let service = LocalTerminalService::workspace_fixture(Arc::clone(&registry));
     // A fresh preference store selects the System shell default profile.
-    let scope = orchbee_local_runtime::UserPreferencesScope::for_configuration(
-        &configuration.0.join("config.toml"),
-    )
-    .map_err(|_failure| "the preference scope was refused")?;
+    let scope = orchbee_local_runtime::UserPreferencesScope::for_data_root(
+        &orchbee_local_runtime::DataRoot::at(configuration.0.clone()),
+    );
     service.initialize_preferences(scope)?;
     let service = Arc::new(service);
     let command = command(&service, 1_201, 0);

@@ -156,7 +156,7 @@ pub(super) fn run(
         let (mut terminals, pending) = LocalTerminalService::from_checkpoint(
             registry,
             checkpoint,
-            super::configuration_windows::preferences_scope(&configuration)?,
+            super::configuration_windows::preferences_scope()?,
         )?;
         terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))

@@ -2,7 +2,6 @@
  * The Desktop application as a Server Client: one window whose document holds one Client connection
  * through an `orchbee server connect` relay.
  */
-import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -50,32 +49,24 @@ const distribution = resolveDesktopApplicationDistribution({
 });
 app.setName(distribution.applicationName);
 const dataRoot = prepareDesktopDataRoot({
+	applicationVersion: app.getVersion(),
 	distribution,
 	homeDirectory: app.getPath('home'),
+	homeOverride: process.env['ORCHBEE_HOME'],
 	platform: process.platform,
 });
-app.setPath('userData', dataRoot.path);
+app.setPath('userData', dataRoot.electronDirectory);
 
 /**
- * What `orchbee` runs under. Outside a release, a Session it starts keeps this data directory's
- * preferences rather than the installed release's.
+ * What `orchbee` runs under: the same data root as Desktop, so a Session it starts keeps this
+ * root's configuration and preferences rather than another environment's.
  */
 function resolveClientEnvironment(root: DesktopDataRoot): NodeJS.ProcessEnv {
-	// Windows natives are compiled with the profile's stem and derive their own
-	// `~/.<stem>/config.toml`; other platforms use release names until ORC-328.
-	if (process.platform === 'win32') return process.env;
-	if (process.env['ORCHBEE_CONFIG_FILE'] !== undefined || root.scope.kind === 'release') {
-		return process.env;
-	}
-	const configurationFile = path.join(root.path, 'config.toml');
-	// The runtime refuses an explicit configuration file that does not exist, so an empty one stands
-	// for the defaults; one already there is the person's and stays as it is.
-	try {
-		writeFileSync(configurationFile, '', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-	} catch (error) {
-		if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
-	}
-	return { ...process.env, ORCHBEE_CONFIG_FILE: configurationFile };
+	// Windows natives are compiled with the profile's stem and derive the same root, and an inherited
+	// ORCHBEE_HOME names it for both. Other platforms build release names until ORC-328, so a
+	// development or test Desktop names its root for them.
+	if (process.platform === 'win32' || root.scope.kind === 'release') return process.env;
+	return { ...process.env, ORCHBEE_HOME: root.path };
 }
 
 function requiredEnvironment(key: string): string {
@@ -173,7 +164,7 @@ async function start(): Promise<void> {
 		sessionArguments: session === undefined ? [] : ['--session', session],
 		windowHidden: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined,
 		windowStateOwner: new DesktopWindowStateOwner(
-			new FileDesktopWindowStateStore(path.join(dataRoot.path, 'window-state-v1.json')),
+			new FileDesktopWindowStateStore(dataRoot.windowStateFile),
 			process.platform,
 		),
 	});

@@ -291,7 +291,7 @@
 						"additionalProperties": false,
 						"properties": {
 							"field": {
-								"enum": ["file", "ORCHBEE_CONFIG_FILE", "APPDATA"]
+								"enum": ["file", "ORCHBEE_CONFIG_FILE", "ORCHBEE_HOME", "USERPROFILE", "HOME"]
 							},
 							"reason": {
 								"enum": [
@@ -328,7 +328,7 @@
 							{
 								"properties": {
 									"field": {
-										"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
+										"enum": ["ORCHBEE_CONFIG_FILE", "ORCHBEE_HOME", "USERPROFILE", "HOME"]
 									},
 									"reason": {
 										"const": "invalid-path"

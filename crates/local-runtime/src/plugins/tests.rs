@@ -209,7 +209,7 @@ fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
             enabled: true,
         })
         .unwrap();
-    let mut cache = crate::PrivateCache::acquire(registry.root()).unwrap();
+    let mut cache = crate::PrivateCache::acquire(registry.root(), "registry").unwrap();
     let before = cache.read("registry.json", 1024 * 1024).unwrap().unwrap();
     assert_eq!(
         registry

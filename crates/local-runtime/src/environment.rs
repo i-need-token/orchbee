@@ -1,24 +1,10 @@
-//! This build's environment and the state locations it owns. The compiled artifact stem names the
-//! environment (ORC-382): release keeps the shipped locations, and a development or test
-//! environment keeps all of its state under one data root, `<home>/.<stem>`. Callers derive every
-//! Orchbee state location from here instead of spelling one.
-use std::{ffi::OsString, path::PathBuf};
+//! This build's environment. The compiled artifact stem names the environment (ORC-382) and its
+//! [data root](crate::DataRoot), `<home>/.<stem>`, which derives every state location; this owner
+//! adds the routing rule that keeps one environment's terminals from reaching another's Session.
+use std::ffi::OsString;
 
 #[cfg(windows)]
 mod windows;
-#[cfg(windows)]
-pub(crate) use windows::{create_state_root, creates_as_state_root, open_state_root};
-#[cfg(windows)]
-pub use windows::{
-    local_state_root, prepare_default_runtime_base, roaming_state_root, roaming_state_variable,
-};
-
-/// The local state root. POSIX keeps the `LOCALAPPDATA` lookup its callers used before ORC-382
-/// until ORC-328 defines its state locations; its Session catalog is unsupported until then.
-#[cfg(not(windows))]
-pub fn local_state_root(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    env("LOCALAPPDATA").map(PathBuf::from)
-}
 
 /// The variable through which a managed terminal names the environment whose Session it routes to.
 pub const ENVIRONMENT_VARIABLE: &str = "ORCHBEE_ENVIRONMENT";
@@ -47,24 +33,6 @@ pub fn environment_stem() -> &'static str {
 /// ORC-328, so this is true there; a rule that applies only on Windows gates on the platform too.
 pub fn is_release() -> bool {
     environment_stem() == RELEASE_STEM
-}
-
-/// The runtime base this environment uses when `ORCHBEE_RUNTIME_BASE` does not name one. Absent
-/// only when a non-release environment cannot resolve its home directory.
-pub fn default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
-    #[cfg(windows)]
-    {
-        windows::default_runtime_base(&env)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = env;
-        #[cfg(target_os = "macos")]
-        let base = PathBuf::from("/private/tmp");
-        #[cfg(not(target_os = "macos"))]
-        let base = PathBuf::from("/tmp");
-        Some(base)
-    }
 }
 
 /// The environment a Session route reader consults. When `ORCHBEE_ENVIRONMENT` names another
