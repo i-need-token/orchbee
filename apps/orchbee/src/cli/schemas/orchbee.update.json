@@ -85,6 +85,7 @@
 				"error": {
 					"enum": [
 						null,
+						"non-release-build",
 						"configuration",
 						"source-unconfigured",
 						"source-invalid",

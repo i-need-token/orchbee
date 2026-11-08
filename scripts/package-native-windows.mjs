@@ -113,8 +113,11 @@ export function packageWindows(cohort, channel, version, buildId) {
 		throw new Error('Invalid native cohort manifest');
 	for (const peer of peers) {
 		const file = files.find((entry) => entry.path === peer + '.exe');
-		if (!file || file.sha256 !== manifest.artifacts[peer])
-			throw new Error('Cohort binary digest mismatch');
+		if (!file)
+			throw new Error(
+				`Missing ${peer}.exe: a release feed packages a cohort staged with --artifact-stem orchbee`,
+			);
+		if (file.sha256 !== manifest.artifacts[peer]) throw new Error('Cohort binary digest mismatch');
 	}
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
 	if (capsule === null || capsule !== manifest.artifacts['agent-observation-adapters'])

@@ -338,7 +338,7 @@ and per-Agent sound overrides retain their separate ownership.
 
 `orchbee update [--format text|json]` installs the configured channel. `orchbee channel set <stable|preview> [--format text|json]` validates and atomically saves the channel first, preserving comments and other TOML values, then runs the same updater. A missing explicitly selected file may be created by this writer. Update failure retains the saved preference. Both commands work without a Session; neither starts, stops, replaces or reconnects a running Session.
 
-The shared update workflow, source/manifest admission, bounded transfer policy, verification, publication, activation decisions and installed-release provenance compile on every host. Named native ports own declared environment/configuration access, installation-root admission, no-follow manifest opening, system executable lookup, capsule verification and owned process execution. Capability admission runs before signal registration or any environment, file, network or process effect. Linux/macOS retain the generic unsupported-platform result (exit 4); they neither save a channel nor perform an update.
+The shared update workflow, source/manifest admission, bounded transfer policy, verification, publication, activation decisions and installed-release provenance compile on every host. Named native ports own declared environment/configuration access, installation-root admission, no-follow manifest opening, system executable lookup, capsule verification and owned process execution. Capability admission runs before signal registration or any environment, file, network or process effect. A development or test build, whose cohort carries an environment artifact stem, refuses with `non-release-build` before saving a channel or touching the installation. Linux/macOS retain the generic unsupported-platform result (exit 4); they neither save a channel nor perform an update.
 
 Set `ORCHBEE_UPDATE_MANIFEST` to an explicit absolute local release manifest or HTTPS URL. `{channel}` expands to the selected token. There is no implicit public feed. The chosen manifest is the trust authority; per-file SHA-256 checks prove content integrity against it, not an independent publisher signature. `ORCHBEE_INSTALL_DIR` defaults to `LOCALAPPDATA/Programs/Orchbee`. Install paths reject PATH delimiters, expansion tokens and controls. Source acquisition has a shared 600-second deadline and Ctrl+C cancellation. HTTPS uses curl 8.4 or newer from the OS system directory with HTTPS-only bounded redirects, no curlrc or inherited proxy/credential environment, and bounded downloads.
 
@@ -350,9 +350,10 @@ The installation owner serializes writers and publishes an immutable directory n
 
 `orchbee.update` v1 distinguishes channel saved, release published, PATH activated, reuse, interruption, failure phase/reason and pending cleanup. Status is 0 on completion, 1 on known failure, 2 on usage error, 7 on timeout, 8 on unconfirmed physical/activation outcome, and 130 on interruption. A published path can be used directly even when activation needs retry; a new sign-in refreshes inherited PATH. Full distribution publication, HTTPS source acceptance and real user PATH/whole-cohort startup acceptance are deployment obligations and are not implied by a local staging test.
 
-To prepare a feed from a completed Windows cohort without publishing it:
+To prepare a feed from a completed Windows cohort without publishing it, stage the cohort with `--artifact-stem orchbee` so it carries the release names:
 
 ```powershell
+node scripts/stage-local-runtime.mjs --output C:\path\to\cohort --artifact-stem orchbee
 node scripts/package-native-windows.mjs C:/path/to/cohort stable 0.1.0 build-id
 $env:ORCHBEE_UPDATE_MANIFEST = 'C:/path/to/cohort/release.json'
 orchbee update --format json

@@ -4,6 +4,6 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 #[cfg(unix)]
-pub(super) use unix::{artifact_file_name, open_directory, open_file};
+pub(super) use unix::{artifact_file_name, has_release_names, open_directory, open_file};
 #[cfg(windows)]
-pub(super) use windows::{artifact_file_name, open_directory, open_file};
+pub(super) use windows::{artifact_file_name, has_release_names, open_directory, open_file};

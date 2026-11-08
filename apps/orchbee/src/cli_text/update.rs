@@ -11,6 +11,10 @@ impl super::CliText {
                 "Channel preference saved. It remains saved if the update fails.",
                 "频道偏好已保存；更新失败时也会保留该偏好。",
             ),
+            "non-release-build" => (
+                "This is a development or test build, so it does not update the release installation. Nothing was changed. Run orchbee update from the installed release.",
+                "当前是开发或测试构建，不会更新正式版安装，未做任何改动。请用已安装正式版的 orchbee update。",
+            ),
             "configuration" => (
                 "Cannot read or save configuration. Run orchbee config check.",
                 "无法读取或保存配置。请运行 orchbee config check。",

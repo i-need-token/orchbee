@@ -33,6 +33,11 @@ impl CohortArtifact {
     pub fn file_name(self) -> String {
         filesystem::artifact_file_name(self)
     }
+    /// Whether this build's cohort carries the shipped release names rather than a development or
+    /// test environment stem. Only such a build may act on the release installation.
+    pub fn has_release_names() -> bool {
+        filesystem::has_release_names()
+    }
 }
 
 /// A native cohort admission failure with the exact required artifact when

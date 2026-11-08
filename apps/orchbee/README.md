@@ -221,11 +221,15 @@ root in PowerShell; the output directory must be new, and its parent must alread
 
 ```powershell
 node scripts/stage-local-runtime.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
-& "$env:LOCALAPPDATA\OrchbeeNative\orchbee.exe"
 ```
 
-The directory contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter
-capsule. Keep them together. The file names start with the artifact stem: `orchbee` unless `--artifact-stem` names an environment (`ob-dev-<16 lowercase hex>` or `ob-test-<16 lowercase hex>`), which only native Windows staging accepts. This is a native development cohort using Windows named pipes and
+Staging prints the Client path, for example `...\OrchbeeNative\ob-dev-<16 lowercase hex>.exe`; run it in
+Windows Terminal. The directory contains the four exact `.exe` siblings, a hash manifest, and the
+observation-adapter capsule. Keep them together. The file names start with the artifact stem. Native
+Windows staging defaults to this checkout's development stem, `ob-dev-<16 lowercase hex>`, the same
+one `pnpm desktop` uses, so a development cohort never shares image names with the installed release.
+`--artifact-stem orchbee` stages the release names and `ob-test-<16 lowercase hex>` a test cohort;
+other platforms and WSL staging accept only `orchbee`. This is a native development cohort using Windows named pipes and
 ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
 selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell.
 See [Windows configuration](docs/windows-cli-configuration.md#automatic-windows-shell)

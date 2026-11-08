@@ -15,7 +15,11 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ARTIFACT_STEM_PATTERN, stageWindows } from './stage-native-windows.mjs';
+import {
+	ARTIFACT_STEM_PATTERN,
+	developmentArtifactStem,
+	stageWindows,
+} from './stage-native-windows.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
@@ -166,7 +170,8 @@ function main() {
 			selected['--output'],
 			selected['--cargo-target-dir'],
 			verifiedCapsuleDigest,
-			selected['--artifact-stem'] ?? 'orchbee',
+			// Release staging names `orchbee` explicitly; anything else is this checkout's development cohort.
+			selected['--artifact-stem'] ?? developmentArtifactStem(root),
 		);
 		return;
 	}

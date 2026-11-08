@@ -20,6 +20,24 @@ import path from 'node:path';
 // plus a 16-digit lowercase hex digest (ORC-382). Mirrors the grammar in desktop-distribution-profile.ts.
 export const ARTIFACT_STEM_PATTERN = /^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})$/u;
 
+/**
+ * The development stem of a checkout, so a cohort staged without `--artifact-stem` never carries the
+ * release names. Mirrors `createDesktopDevelopmentScope` in desktop-distribution-profile.ts, so the
+ * Desktop development cohort and a hand-staged cohort of one checkout share names and build outputs.
+ */
+export function developmentArtifactStem(sourceRoot) {
+	const normalized = path.win32.normalize(realpathSync.native(sourceRoot)).normalize('NFC');
+	const canonical = /^[A-Z]:/u.test(normalized)
+		? normalized[0].toLowerCase() + normalized.slice(1)
+		: normalized;
+	const digest = createHash('sha256')
+		.update('orchbee-development-data-root-v1\0')
+		.update(canonical)
+		.digest('hex')
+		.slice(0, 16);
+	return 'ob-dev-' + digest;
+}
+
 // Only the newly created, empty destination is secured. Existing installations
 // are never repaired or overwritten. No user path is interpolated into code.
 function privateDirectory(directory) {

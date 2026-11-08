@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{invocation::OutputFormat, localization::Locale};
 pub(in crate::cli) use installed::{VerifiedRelease, observe as observe_installation};
-use orchbee_local_runtime::{CommandFailure, CommandOutput, UpdateChannel};
+use orchbee_local_runtime::{CohortArtifact, CommandFailure, CommandOutput, UpdateChannel};
 use serde_json::json;
 use std::{
     io,
@@ -28,6 +28,7 @@ use std::{
 
 #[derive(Clone, Copy)]
 enum Error {
+    NonReleaseBuild,
     Configuration,
     SourceUnconfigured,
     SourceInvalid,
@@ -51,6 +52,7 @@ enum Error {
 impl Error {
     fn code(self) -> &'static str {
         match self {
+            Self::NonReleaseBuild => "non-release-build",
             Self::Configuration => "configuration",
             Self::SourceUnconfigured => "source-unconfigured",
             Self::SourceInvalid => "source-invalid",
@@ -159,6 +161,10 @@ pub(crate) fn run(
     let mut selected = channel;
     let result = (|| {
         context.check()?;
+        // A development or test cohort must never write the release installation or its channel.
+        if !CohortArtifact::has_release_names() {
+            return Err(Error::NonReleaseBuild);
+        }
         if let Some(channel) = channel {
             report.config_path =
                 Some(platform::save_channel(channel).map_err(|_| Error::Configuration)?);

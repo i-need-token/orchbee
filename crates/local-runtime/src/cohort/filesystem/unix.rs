@@ -14,6 +14,10 @@ pub(crate) fn open_directory(path: &Path) -> io::Result<OwnedFd> {
     validate_directory(&descriptor, path, geteuid().as_raw(), None).map_err(io::Error::other)?;
     Ok(descriptor)
 }
+// POSIX cohorts keep the shipped names until ORC-328.
+pub(crate) const fn has_release_names() -> bool {
+    true
+}
 pub(crate) fn artifact_file_name(artifact: CohortArtifact) -> String {
     match artifact {
         CohortArtifact::Client => "orchbee".to_owned(),
