@@ -12,22 +12,42 @@ import {
 	resolveDesktopSessionName,
 } from '../distribution';
 import type { DesktopDevelopmentRuntimeLogger } from './DesktopDevelopmentRuntime';
+import {
+	type DevelopmentSessionMarker,
+	DevelopmentSessionMarkerSchema,
+	type DevelopmentSessionObservation,
+	keepDevelopmentSession,
+	keepsDevelopmentSession,
+} from './development-session-reuse';
 
 const COHORT_DIRECTORY_PATTERN = /^cohort-[0-9a-f]{16}$/u;
 /** The CLI's Session name grammar, which also keeps a name inside the store as a file name. */
 const SESSION_NAME_PATTERN = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,64}$/u;
 const SESSION_MARKER_SUFFIX = '.session.json';
-const SessionMarkerSchema = z.strictObject({
-	cohort: z.string().regex(COHORT_DIRECTORY_PATTERN),
+/** `running` is null while the Session starts, deletes, or cannot be read. */
+const SessionListSchema = z.object({
+	result: z.object({
+		sessions: z.array(
+			z.object({
+				name: z.string(),
+				pid: z.int().positive().nullable(),
+				running: z.boolean().nullable(),
+			}),
+		),
+	}),
+	schema: z.literal('orchbee.session.list'),
 });
 /** `server stop` waits up to 65 seconds by default. */
 const SESSION_STOP_TIMEOUT_MILLISECONDS = 70_000;
+/** `session list` reads under its own five-second deadline. */
+const SESSION_LIST_TIMEOUT_MILLISECONDS = 10_000;
 
 /**
  * Builds the checkout's native cohort and stages it once per distinct build under
- * `target/desktop-development`, returning the staged Client. A Session refuses a Client of
- * another cohort, so a development Session that an earlier cohort started is stopped by that cohort
- * first; cohorts no development Session names any more are removed.
+ * `target/desktop-development`, returning the staged Client. A development Session that an earlier
+ * cohort started keeps running when that cohort's Server, Worker, and Terminal Host are unchanged,
+ * since the new Client joins it by protocol fingerprint; otherwise that cohort stops it first.
+ * Cohorts no development Session marker names any more are removed.
  */
 export async function prepareDesktopDevelopmentCohort(input: {
 	readonly environment: NodeJS.ProcessEnv;
@@ -39,8 +59,12 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		'dev',
 		createDesktopDevelopmentScope(sourceRoot, process.platform),
 	);
-	// The Client, Server and Worker find their siblings by this stem, so it is compiled into them.
-	const stem = resolveDesktopCohortArtifactStem(profile, process.platform);
+	// Every executable compiles in the environment stem, which the handshake compares, so a release
+	// Client in one of this Desktop's terminals is refused on every platform. The Client, Server and
+	// Worker find their siblings by the file stem, which macOS and Linux keep at `orchbee` until
+	// ORC-328.
+	const environmentStem = profile.artifactStem;
+	const fileStem = resolveDesktopCohortArtifactStem(profile, process.platform);
 	const suffix = process.platform === 'win32' ? '.exe' : '';
 	const hostRoot = path.join(sourceRoot, 'apps', 'terminal-host');
 	await run(
@@ -57,17 +81,17 @@ export async function prepareDesktopDevelopmentCohort(input: {
 			'orchbee-worker',
 		],
 		sourceRoot,
-		{ ...process.env, ORCHBEE_ARTIFACT_STEM: stem },
+		{ ...process.env, ORCHBEE_ARTIFACT_STEM: environmentStem },
 	);
 	// The Host carries the cohort's environment, so it builds into its own prefix and leaves the
 	// test Host in `zig-out` alone.
 	const hostPrefix = path.join(sourceRoot, 'target', 'desktop-development', 'host');
 	await run(
 		'zig',
-		['build', '-Doptimize=ReleaseSafe', `-Denvironment=${stem}`, '--prefix', hostPrefix],
+		['build', '-Doptimize=ReleaseSafe', `-Denvironment=${environmentStem}`, '--prefix', hostPrefix],
 		hostRoot,
 	);
-	const key = createHash('sha256').update(stem).update('\0');
+	const key = createHash('sha256').update(environmentStem).update('\0');
 	for (const file of [
 		path.join(sourceRoot, 'target', 'release', `orchbee${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-server${suffix}`),
@@ -100,38 +124,64 @@ export async function prepareDesktopDevelopmentCohort(input: {
 				'--output',
 				cohort,
 				'--artifact-stem',
-				stem,
+				environmentStem,
 			],
 			sourceRoot,
 		);
 	}
-	const executable = path.join(cohort, `${stem}${suffix}`);
+	const executable = path.join(cohort, `${fileStem}${suffix}`);
 	const session =
 		input.environment['ORCHBEE_DESKTOP_SESSION'] ?? resolveDesktopSessionName(profile);
 	if (session === undefined || !SESSION_NAME_PATTERN.test(session)) return executable;
 	const markerPath = path.join(store, `${session}${SESSION_MARKER_SUFFIX}`);
-	const previous = await readSessionMarker(markerPath);
-	if (previous !== undefined && previous !== cohortName) {
-		const previousExecutable = await findCohortClient(path.join(store, previous), stem, suffix);
-		if (previousExecutable !== undefined) {
-			input.logger.info(`Stopping Session ${session}, which ${previous} started…`);
-			const failure = await stopSession(previousExecutable, session, input.environment);
-			if (failure !== undefined) {
-				input.logger.warn(
-					`Session ${session} still runs ${previous} and could not be stopped (${failure}), ` +
-						'so this window cannot join it. Stop it with ' +
-						`"${previousExecutable}" --session ${session} server stop --confirm, then restart.`,
+	const marker = await readSessionMarker(markerPath);
+	let next: DevelopmentSessionMarker = { client: cohortName, cohort: cohortName };
+	let removesUnnamedCohorts = true;
+	if (marker !== undefined && (marker.cohort !== cohortName || marker.client !== cohortName)) {
+		const previous = marker.cohort;
+		if (
+			keepsDevelopmentSession(
+				await readCohortManifest(path.join(store, previous)),
+				await readCohortManifest(cohort),
+			)
+		) {
+			const observation = await observeSession(executable, session, input.environment);
+			next = keepDevelopmentSession(marker, cohortName, observation);
+			// While nothing says which cohort runs the Session, none is removed.
+			removesUnnamedCohorts = observation.kind !== 'unknown';
+			if (observation.kind !== 'stopped') {
+				input.logger.info(
+					`Keeping Session ${session}: its Server, Worker and Terminal Host are unchanged.`,
 				);
-				return executable;
+			}
+		} else {
+			const previousExecutable = await findCohortClient(
+				path.join(store, previous),
+				fileStem,
+				suffix,
+			);
+			if (previousExecutable !== undefined) {
+				input.logger.info(`Stopping Session ${session}, which ${previous} started…`);
+				const failure = await stopSession(previousExecutable, session, input.environment);
+				if (failure !== undefined) {
+					input.logger.warn(
+						`Session ${session} still runs ${previous} and could not be stopped (${failure}), ` +
+							'so this window cannot join it. Stop it with ' +
+							`"${previousExecutable}" --session ${session} server stop --confirm, then restart.`,
+					);
+					return executable;
+				}
 			}
 		}
 	}
-	await writeFile(markerPath, `${JSON.stringify({ cohort: cohortName })}\n`, 'utf8');
-	await removeUnnamedCohorts(store, cohortName, input.logger);
+	await writeFile(markerPath, `${JSON.stringify(next)}\n`, 'utf8');
+	if (removesUnnamedCohorts) await removeUnnamedCohorts(store, cohortName, input.logger);
 	return executable;
 }
 
-async function readSessionMarker(markerPath: string): Promise<string | undefined> {
+async function readSessionMarker(
+	markerPath: string,
+): Promise<DevelopmentSessionMarker | undefined> {
 	let text: string;
 	try {
 		text = await readFile(markerPath, 'utf8');
@@ -139,10 +189,52 @@ async function readSessionMarker(markerPath: string): Promise<string | undefined
 		return undefined;
 	}
 	try {
-		const parsed = SessionMarkerSchema.safeParse(JSON.parse(text));
-		return parsed.success ? parsed.data.cohort : undefined;
+		const parsed = DevelopmentSessionMarkerSchema.safeParse(JSON.parse(text));
+		return parsed.success ? parsed.data : undefined;
 	} catch {
 		return undefined;
+	}
+}
+
+/** The staged `cohort.json`, or nothing when it cannot be read. */
+async function readCohortManifest(cohort: string): Promise<unknown> {
+	try {
+		const document: unknown = JSON.parse(await readFile(path.join(cohort, 'cohort.json'), 'utf8'));
+		return document;
+	} catch {
+		return undefined;
+	}
+}
+
+/** What `session list` says about the named Session; one it leaves out has never started. */
+function observeSession(
+	executable: string,
+	session: string,
+	environment: NodeJS.ProcessEnv,
+): Promise<DevelopmentSessionObservation> {
+	return new Promise((resolve) => {
+		execFile(
+			executable,
+			['session', 'list', '--format', 'json'],
+			{ env: environment, timeout: SESSION_LIST_TIMEOUT_MILLISECONDS, windowsHide: true },
+			(error, stdout) => {
+				resolve(error === null ? readSessionObservation(stdout, session) : { kind: 'unknown' });
+			},
+		);
+	});
+}
+
+function readSessionObservation(stdout: string, session: string): DevelopmentSessionObservation {
+	try {
+		const parsed = SessionListSchema.safeParse(JSON.parse(stdout));
+		if (!parsed.success) return { kind: 'unknown' };
+		const entry = parsed.data.result.sessions.find((candidate) => candidate.name === session);
+		if (entry === undefined || entry.running === false) return { kind: 'stopped' };
+		return entry.running === true && entry.pid !== null
+			? { kind: 'running', pid: entry.pid }
+			: { kind: 'unknown' };
+	} catch {
+		return { kind: 'unknown' };
 	}
 }
 
@@ -195,8 +287,8 @@ async function removeUnnamedCohorts(
 	const named = new Set([current]);
 	for (const entry of entries) {
 		if (!entry.endsWith(SESSION_MARKER_SUFFIX)) continue;
-		const cohort = await readSessionMarker(path.join(store, entry));
-		if (cohort !== undefined) named.add(cohort);
+		const marker = await readSessionMarker(path.join(store, entry));
+		if (marker !== undefined) named.add(marker.cohort).add(marker.client ?? marker.cohort);
 	}
 	for (const entry of entries) {
 		if (!COHORT_DIRECTORY_PATTERN.test(entry) || named.has(entry)) continue;

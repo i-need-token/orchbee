@@ -47,12 +47,14 @@ const distributionProfile = (() => {
 	}
 	return resolveDesktopDistributionProfile(profileId);
 })();
+// The environment stem every cohort executable compiles in, which the handshake compares.
+const cohortEnvironmentStem = distributionProfile.artifactStem;
 // The Client's name in the cohort, and on Windows the packaged executable's stem. Other platforms keep `orchbee`.
 const cohortArtifactStem = resolveDesktopCohortArtifactStem(distributionProfile, process.platform);
 // Only a cohort compiled with the release stem may ship as release (ORC-382).
-if (distributionProfile.profileId === 'release' && cohortArtifactStem !== 'orchbee') {
+if (distributionProfile.profileId === 'release' && cohortEnvironmentStem !== 'orchbee') {
 	throw new Error(
-		`Release packaging refuses the ${cohortArtifactStem} cohort; it requires orchbee.`,
+		`Release packaging refuses the ${cohortEnvironmentStem} cohort; it requires orchbee.`,
 	);
 }
 // On Windows the shell is `<stem>-desktop.exe`, so its image name differs from the Client's `<stem>.exe`
@@ -104,7 +106,7 @@ try {
 			'--output',
 			cohortRoot,
 			'--artifact-stem',
-			cohortArtifactStem,
+			cohortEnvironmentStem,
 		],
 		{ cwd: repositoryRoot, stdio: 'inherit' },
 	);

@@ -131,11 +131,15 @@ evidence, limits, and rollback contract live in
 supervises one Electron process:
 
 - At start it builds the checkout's native cohort (`orchbee`, Server, Worker, and Terminal Host)
-  and stages it once per distinct build under `target/desktop-development`, reusing an identical
-  staged cohort. A Session refuses a Client of another cohort, so a development Session
-  that an earlier cohort started is stopped by that cohort first, and cohorts no development Session
-  names any more are removed. Native sources are not watched; restart `pnpm desktop` after changing
-  them.
+  with the checkout's development stem compiled in on every platform, and stages it once per
+  distinct build under `target/desktop-development`, reusing an identical staged cohort. The running
+  development Session stays when the new `cohort.json` names the same Server, Worker, and Terminal
+  Host as the cohort that started it, because the rebuilt Client joins it by protocol fingerprint;
+  otherwise that cohort stops it first, which ends its terminals. Each Session's marker beside the
+  cohorts records the cohort that started it, the cohort whose Client the latest run used, and the
+  Server's process ID that `session list` reported, so cleanup removes only cohorts no running
+  Session can be using, and nothing while `session list` cannot answer. Native sources are not
+  watched; restart `pnpm desktop` after changing them.
 - A Web change reloads the renderer through the development server. A Main or preload build asks
   Electron to quit and starts it again; the Session outlives every restart, and outlives
   `pnpm desktop` itself, as it outlives a released Desktop.
@@ -194,7 +198,7 @@ Desktop owns exactly three explicit distribution profiles:
 
 On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
 
-Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. macOS and Linux keep the `orchbee` names until their cohort naming moves (ORC-328).
+Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. macOS and Linux keep the `orchbee` file names until their cohort naming moves (ORC-328), but their cohorts compile in the same environment stem, which the handshake compares, so a release Client in a development or test Desktop's terminal is refused there too.
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.

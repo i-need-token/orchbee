@@ -158,8 +158,8 @@ Node also applies NFC, which differs only for a path stored in decomposed form.
 
 On Windows, cohort file names derive from the stem, so Cargo's own `orchbee*.exe` outputs are never
 run as they are: tests and staging start a copy named by `CohortArtifact`. macOS and Linux compile
-the same stem, and default staging passes the checkout's development stem, but cohort files,
-sockets, and runtime directories keep the `orchbee` names until ORC-328;
+the same stem, and default staging, `pnpm desktop`, and Desktop packaging pass the environment's
+stem, but cohort files, sockets, and runtime directories keep the `orchbee` names until ORC-328;
 `CohortArtifact::has_release_names` reports the names, while `is_release` reports the
 environment.
 

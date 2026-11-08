@@ -95,7 +95,8 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 } as const satisfies Record<DesktopDistributionProfileId, DesktopDistributionProfileDefinition>;
 
 interface DesktopDistributionProfileBase extends DesktopDistributionProfileDefinition {
-	// The environment's stem for its cohort's file names; see `resolveDesktopCohortArtifactStem`.
+	// The environment stem every cohort executable compiles in on every platform; Windows file names
+	// also carry it, see `resolveDesktopCohortArtifactStem`.
 	readonly artifactStem: string;
 	readonly bundleIdentifier: string;
 	readonly profileId: DesktopDistributionProfileId;
@@ -146,8 +147,9 @@ export function createDesktopDevelopmentScope(
 }
 
 /**
- * The stem the native cohort carries on this platform. Environment stems name Windows cohorts only
- * until the POSIX cohort names move (ORC-328); elsewhere the shipped `orchbee` names remain.
+ * The stem the native cohort's file names carry on this platform. Environment stems name Windows
+ * cohort files only until the POSIX cohort names move (ORC-328); elsewhere the shipped `orchbee`
+ * names remain, while every executable still compiles in the profile's `artifactStem`.
  */
 export function resolveDesktopCohortArtifactStem(
 	profile: DesktopDistributionProfile,
