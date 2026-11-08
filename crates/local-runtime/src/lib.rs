@@ -54,12 +54,11 @@ mod activation_record;
 mod cohort;
 mod environment;
 pub use environment::{
-    ENVIRONMENT_VARIABLE, default_runtime_base, environment_stem, session_route_environment,
+    ENVIRONMENT_VARIABLE, default_runtime_base, environment_stem, local_state_root,
+    session_route_environment,
 };
 #[cfg(windows)]
-pub use environment::{
-    local_state_root, prepare_default_runtime_base, roaming_state_root, roaming_state_variable,
-};
+pub use environment::{prepare_default_runtime_base, roaming_state_root, roaming_state_variable};
 #[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]

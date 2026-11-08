@@ -2324,6 +2324,8 @@ fn attach_with_fixture(stream: &UnixStream) -> ViewerId {
         &request,
         TerminalViewerOutcome::Attached {
             attachment_id: attachment.clone(),
+            creation_id: orchbee_client_server_protocol::HostCreationId::parse(&"c".repeat(32))
+                .unwrap(),
             host_epoch: epoch,
             host_terminal_id,
         },
@@ -2700,6 +2702,10 @@ fn terminal_read_correlation_mismatch_is_protocol_invalid() -> TestResult {
                 wrong,
                 TerminalViewerOutcome::Attached {
                     attachment_id: attachment,
+                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                        &"c".repeat(32),
+                    )
+                    .unwrap(),
                     host_epoch: epoch,
                     host_terminal_id,
                 },
@@ -4873,6 +4879,10 @@ fn terminal_wait_late_attach_answer_settles_as_timeout() -> TestResult {
                 request.request_id().clone(),
                 TerminalViewerOutcome::Attached {
                     attachment_id: attachment,
+                    creation_id: orchbee_client_server_protocol::HostCreationId::parse(
+                        &"c".repeat(32),
+                    )
+                    .unwrap(),
                     host_epoch: epoch,
                     host_terminal_id,
                 },

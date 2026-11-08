@@ -1,6 +1,6 @@
 use super::*;
 use std::{
-    fs,
+    fs::{self, File},
     os::unix::fs::{PermissionsExt, symlink},
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -32,7 +32,7 @@ impl Fixture {
             )
             .unwrap();
             artifacts.insert(
-                artifact.file_name().into(),
+                artifact.file_name(),
                 serde_json::Value::String(format!("{:x}", Sha256::digest(b"native fixture\n"))),
             );
         }

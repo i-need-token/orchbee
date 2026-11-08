@@ -510,6 +510,8 @@ fn run_prepared_surface(
     drop(terminal);
     drop(surface);
     drop(machines);
+    // Windows releases its notification owner before restoration finishes; POSIX holds nothing.
+    #[cfg(windows)]
     drop(system_notifications);
     measurement_recorder
         .finish_after_restore(

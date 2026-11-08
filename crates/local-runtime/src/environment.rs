@@ -13,6 +13,13 @@ pub use windows::{
     local_state_root, prepare_default_runtime_base, roaming_state_root, roaming_state_variable,
 };
 
+/// The local state root. POSIX keeps the `LOCALAPPDATA` lookup its callers used before ORC-382
+/// until ORC-328 defines its state locations; its Session catalog is unsupported until then.
+#[cfg(not(windows))]
+pub fn local_state_root(env: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    env("LOCALAPPDATA").map(PathBuf::from)
+}
+
 /// The variable through which a managed terminal names the environment whose Session it routes to.
 pub const ENVIRONMENT_VARIABLE: &str = "ORCHBEE_ENVIRONMENT";
 /// Inherited Session routing that only the naming environment may follow.
