@@ -85,6 +85,7 @@ fn record_row(record: &UnrecognizedRecord) -> Row {
             "reason".to_owned(),
             json!(match record.reason {
                 UnrecognizedRecordReason::Unreadable => "unreadable",
+                UnrecognizedRecordReason::Version => "version",
                 UnrecognizedRecordReason::LetterCase => "letter-case",
             }),
         ),

@@ -1458,6 +1458,32 @@ pub(crate) fn config_checks(
             ))?;
         }
     }
+    for record in checks
+        .iter()
+        .filter_map(|check| check.details.get("records").and_then(Value::as_array))
+        .flatten()
+    {
+        let notice = orchbee_local_runtime::VersionedRecord::from_token(
+            record["record"].as_str().unwrap_or_default(),
+        )
+        .map(|kind| orchbee_local_runtime::RecordNotice {
+            record: kind,
+            problem: if record["problem"] == "not-updated" {
+                orchbee_local_runtime::RecordProblem::NotUpdated
+            } else {
+                orchbee_local_runtime::RecordProblem::Newer
+            },
+            version: record["version"].as_u64().unwrap_or_default(),
+            path: std::path::PathBuf::from(record["path"].as_str().unwrap_or_default()),
+        });
+        if let Some(notice) = notice {
+            out.write(format_args!(
+                "  {}\n    {}\n",
+                locale.record_notice(&notice),
+                crate::native_path::display(record["path"].as_str().unwrap_or_default())
+            ))?;
+        }
+    }
     if checks
         .iter()
         .any(|check| check.details.get("reason").and_then(Value::as_str) == Some("not-started"))
@@ -1511,6 +1537,13 @@ fn check_summary(check: &CheckReport) -> String {
     }
     if let Some(path) = text("path") {
         return crate::native_path::display(path);
+    }
+    if let Some(records) = check.details.get("records").and_then(Value::as_array) {
+        return records
+            .iter()
+            .filter_map(|record| record["record"].as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
     }
     match (text("locale"), text("source")) {
         (Some(locale), Some(source)) => format!("{locale} ({source})"),

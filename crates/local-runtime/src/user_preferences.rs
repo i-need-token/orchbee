@@ -36,6 +36,10 @@ impl From<PreferencesFailure> for CommitError {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Record {
     version: u8,
+    /// Fields a later release added, kept unread and written back unchanged; two installed
+    /// versions read this record at once.
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    extensions: serde_json::Map<String, serde_json::Value>,
     values: UserPreferencesValues,
     #[serde(deserialize_with = "unique_claimed_keys")]
     claimed: BTreeSet<PreferenceKey>,
@@ -57,11 +61,17 @@ fn unique_claimed_keys<'de, D: serde::Deserializer<'de>>(
 /// The application freezes one scope at startup; requests never choose a file or another device.
 pub struct UserPreferencesStore {
     scope: UserPreferencesScope,
+    /// The values this process keeps while the record's version is one it cannot use: such a
+    /// record is never rewritten, so the store works from defaults and keeps changes here only.
+    memory: std::sync::Mutex<Option<Record>>,
 }
 impl UserPreferencesStore {
     /// Construction is read-only; even the record's parent is created only by an accepted write.
     pub const fn new(scope: UserPreferencesScope) -> Self {
-        Self { scope }
+        Self {
+            scope,
+            memory: std::sync::Mutex::new(None),
+        }
     }
 
     /// Exact authority identity, also used by callers to explain a deliberately isolated scope.
@@ -95,6 +105,26 @@ impl UserPreferencesStore {
                 if bytes.len() > MAXIMUM_USER_PREFERENCES_BYTES {
                     return Err(PreferencesFailure::InvalidSource);
                 }
+                let opening =
+                    crate::open_record(crate::VersionedRecord::Preferences, bytes, |bytes| {
+                        strict(bytes).is_some()
+                    });
+                if let Some((problem, version)) = opening.problem() {
+                    crate::report_record_notice(&crate::RecordNotice {
+                        record: crate::VersionedRecord::Preferences,
+                        problem,
+                        version,
+                        path: self.scope.directory.join(RECORD_NAME),
+                    });
+                    return Ok(self.remembered());
+                }
+                if let crate::RecordOpening::Migrated {
+                    bytes: migrated, ..
+                } = &opening
+                {
+                    let record = strict(migrated).ok_or(PreferencesFailure::InvalidSource)?;
+                    return Ok((record, source_token(Some(bytes))));
+                }
                 let record: Record =
                     serde_json::from_slice(bytes).map_err(|_| PreferencesFailure::InvalidSource)?;
                 if record.version != 1 {
@@ -109,11 +139,7 @@ impl UserPreferencesStore {
                 Ok((record, source_token(Some(bytes))))
             }
             None => {
-                let record = Record {
-                    version: 1,
-                    values: UserPreferencesValues::default(),
-                    claimed: BTreeSet::new(),
-                };
+                let record = Record::empty();
                 launch_admission::validate(&record.values.launch_profiles)
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
                 Ok((record, source_token(None)))
@@ -153,17 +179,11 @@ impl UserPreferencesStore {
                     if source == "unreadable")
                     && changes.is_reset_all() =>
             {
-                (
-                    Record {
-                        version: 1,
-                        values: UserPreferencesValues::default(),
-                        claimed: BTreeSet::new(),
-                    },
-                    "unreadable".into(),
-                )
+                (Record::empty(), "unreadable".into())
             }
             Err(reason) => return Err(reason.into()),
         };
+        let in_memory = previous_source.starts_with(MEMORY_SOURCE);
         let mut candidate = previous.clone();
         match request {
             UserPreferencesRequest::Update { source, changes } => {
@@ -184,9 +204,82 @@ impl UserPreferencesStore {
         if after.len() > MAXIMUM_USER_PREFERENCES_BYTES {
             return Err(PreferencesFailure::InvalidChanges.into());
         }
+        #[cfg(windows)]
+        if in_memory
+            && changes.is_reset_all()
+            && let Some(original) = before.as_deref()
+            && let Some(root) = self
+                .scope
+                .directory
+                .parent()
+                .and_then(std::path::Path::parent)
+        {
+            // Resetting every setting is the one change that replaces a record this build cannot
+            // use; the person asked for it, and the record is backed up first.
+            crate::back_up_for_reset(
+                &crate::DataRoot::at(root.to_path_buf()),
+                "reset-settings",
+                &self.scope.directory.join(RECORD_NAME),
+                original,
+            )
+            .map_err(|_| PreferencesFailure::WriteFailed)?;
+            writer.commit(before.as_deref(), &after)?;
+            if let Ok(mut memory) = self.memory.lock() {
+                *memory = None;
+            }
+            return Ok((snapshot(&candidate, source_token(Some(&after))), true));
+        }
+        if in_memory {
+            let source = memory_token(&after);
+            if let Ok(mut memory) = self.memory.lock() {
+                *memory = Some(candidate.clone());
+            }
+            return Ok((snapshot(&candidate, source), true));
+        }
         writer.commit(before.as_deref(), &after)?;
         Ok((snapshot(&candidate, source_token(Some(&after))), true))
     }
+}
+
+/// Source tokens of values kept in memory begin with this, so a write never reaches the record.
+const MEMORY_SOURCE: &str = "memory-";
+
+impl Record {
+    fn empty() -> Self {
+        Self {
+            version: 1,
+            extensions: serde_json::Map::new(),
+            values: UserPreferencesValues::default(),
+            claimed: BTreeSet::new(),
+        }
+    }
+}
+
+impl UserPreferencesStore {
+    /// The values kept in memory, or the defaults before any change.
+    fn remembered(&self) -> (Record, String) {
+        let record = self
+            .memory
+            .lock()
+            .ok()
+            .and_then(|memory| memory.clone())
+            .unwrap_or_else(Record::empty);
+        let bytes = serde_json::to_vec(&record).unwrap_or_default();
+        (record, memory_token(&bytes))
+    }
+}
+
+fn memory_token(bytes: &[u8]) -> String {
+    format!("{MEMORY_SOURCE}{:x}", Sha256::digest(bytes))
+}
+
+/// The current strict record, or `None` when `bytes` are not one.
+fn strict(bytes: &[u8]) -> Option<Record> {
+    let record: Record = serde_json::from_slice(bytes).ok()?;
+    (record.version == 1
+        && record.values.validate().is_ok()
+        && launch_admission::validate(&record.values.launch_profiles).is_ok())
+    .then_some(record)
 }
 
 fn source_token(bytes: Option<&[u8]>) -> String {

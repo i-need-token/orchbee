@@ -19,6 +19,9 @@ pub(crate) struct Preferences {
     pub(crate) unreadable: bool,
     /// The cache itself is unavailable, so this invocation neither reads nor writes it.
     pub(crate) failed: bool,
+    /// The record's version is one this build cannot use. It counts as no saved position and is
+    /// never rewritten, so this invocation remembers no position.
+    pub(crate) unusable: bool,
 }
 impl Preferences {
     pub(crate) fn load(runtime: &std::path::Path) -> Self {
@@ -29,17 +32,43 @@ impl Preferences {
                 position: None,
                 unreadable: false,
                 failed: true,
+                unusable: false,
             },
         }
     }
     fn load_from(path: std::path::PathBuf) -> Self {
+        let mut unusable = false;
         let (position, unreadable, failed) =
             match orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES) {
                 Ok(None) => (None, false, false),
-                Ok(Some(bytes)) => match decode(&bytes) {
-                    Ok(position) => (Some(position), false, false),
-                    Err(_) => (None, true, false),
-                },
+                Ok(Some(bytes)) => {
+                    let opening = orchbee_local_runtime::open_record(
+                        orchbee_local_runtime::VersionedRecord::TuiPosition,
+                        &bytes,
+                        |bytes| decode(bytes).is_ok(),
+                    );
+                    if let Some((problem, version)) = opening.problem() {
+                        orchbee_local_runtime::report_record_notice(
+                            &orchbee_local_runtime::RecordNotice {
+                                record: orchbee_local_runtime::VersionedRecord::TuiPosition,
+                                problem,
+                                version,
+                                path: path.join(FILE),
+                            },
+                        );
+                        unusable = true;
+                        (None, false, false)
+                    } else {
+                        let bytes = match opening {
+                            orchbee_local_runtime::RecordOpening::Migrated { bytes, .. } => bytes,
+                            _ => bytes,
+                        };
+                        match decode(&bytes) {
+                            Ok(position) => (Some(position), false, false),
+                            Err(_) => (None, true, false),
+                        }
+                    }
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::FileTooLarge => {
                     (None, true, false)
                 }
@@ -50,10 +79,11 @@ impl Preferences {
             position,
             unreadable,
             failed,
+            unusable,
         }
     }
     pub(crate) fn writer(self) -> std::io::Result<Option<Writer>> {
-        if self.failed {
+        if self.failed || self.unusable {
             return Ok(None);
         }
         Writer::start(self.path).map(Some)

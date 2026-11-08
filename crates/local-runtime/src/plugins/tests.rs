@@ -223,17 +223,11 @@ fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
         cache.read("registry.json", 1024 * 1024).unwrap().unwrap(),
         before
     );
-    cache
-        .replace(
-            "registry.json",
-            b"{\"version\":255,\"revision\":0,\"plugins\":[]}",
-        )
-        .unwrap();
+    // A registry a newer version saved reads as no plugin and refuses changes, unchanged.
+    let newer = b"{\"version\":255,\"revision\":0,\"plugins\":[],\"later\":{}}";
+    cache.replace("registry.json", newer).unwrap();
     drop(cache);
-    assert_eq!(
-        registry.list(None).unwrap_err(),
-        PluginRegistryError::InvalidRegistry
-    );
+    assert!(registry.list(None).unwrap().plugins.is_empty());
     assert_eq!(
         registry
             .mutate(PluginRegistryMutation::Link {
@@ -241,7 +235,11 @@ fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
                 enabled: false
             })
             .unwrap_err(),
-        PluginRegistryError::InvalidRegistry
+        PluginRegistryError::UnusableRegistry
+    );
+    assert_eq!(
+        std::fs::read(registry.root().join("registry.json")).unwrap(),
+        newer
     );
 }
 #[cfg(windows)]

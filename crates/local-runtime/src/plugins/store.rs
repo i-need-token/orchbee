@@ -56,6 +56,10 @@ impl PluginRegistryEntry {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Catalog {
     version: u8,
+    /// Fields a later release added, kept unread and written back unchanged; two installed
+    /// versions read this record at once.
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    extensions: serde_json::Map<String, serde_json::Value>,
     revision: u64,
     plugins: Vec<PluginRegistryEntry>,
     /// The folder each plugin id received, kept after unlink because its folders stay.
@@ -68,6 +72,7 @@ impl Default for Catalog {
     fn default() -> Self {
         Self {
             version: 1,
+            extensions: serde_json::Map::new(),
             revision: 0,
             plugins: vec![],
             folders: BTreeMap::new(),
@@ -132,7 +137,7 @@ impl PluginRegistry {
         let id = id.map(plugin_identifier).transpose()?;
         let bytes =
             PrivateCache::read_existing(self.root(), FILE, REGISTRY_LIMIT).map_err(storage)?;
-        let mut catalog = decode(bytes.as_deref(), &self.paths)?;
+        let mut catalog = decode_for_reading(bytes.as_deref(), &self.paths)?;
         for entry in &mut catalog.plugins {
             refresh(entry);
         }
@@ -152,7 +157,7 @@ impl PluginRegistry {
         }
         let read = PrivateCache::read_existing_pinned(self.root(), FILE, REGISTRY_LIMIT)
             .map_err(storage)?;
-        let catalog = decode(read.bytes(), &self.paths)?;
+        let catalog = decode_for_reading(read.bytes(), &self.paths)?;
         let fingerprint = registered_fingerprint(catalog.revision, &catalog.plugins)?;
         Ok(PluginRegisteredCatalog {
             revision: catalog.revision,
@@ -379,18 +384,56 @@ fn encode(catalog: &Catalog, paths: &PluginStorePaths) -> Result<Vec<u8>, Error>
     if bytes.len() > REGISTRY_LIMIT {
         return Err(Error::LimitExceeded);
     }
-    decode(Some(&bytes), paths)?;
+    decode_current(&bytes, paths)?;
     Ok(bytes)
 }
+/// A reader works as it does without a registry whose version this build cannot use: no plugin
+/// is registered.
+fn decode_for_reading(bytes: Option<&[u8]>, paths: &PluginStorePaths) -> Result<Catalog, Error> {
+    match decode(bytes, paths) {
+        Err(Error::UnusableRegistry) => Ok(Catalog::default()),
+        decoded => decoded,
+    }
+}
+/// The registry, refused as [`Error::UnusableRegistry`] when its version is one this build cannot
+/// use, which is reported once per process and never rewritten: a folder assignment kept only in
+/// memory could give a newer version's folder to another plugin, so changes are refused.
 fn decode(bytes: Option<&[u8]>, paths: &PluginStorePaths) -> Result<Catalog, Error> {
     let Some(bytes) = bytes else {
         return Ok(Catalog::default());
     };
+    let opening = crate::open_record(crate::VersionedRecord::PluginRegistry, bytes, |bytes| {
+        decode_current(bytes, paths).is_ok()
+    });
+    if let Some((problem, version)) = opening.problem() {
+        crate::report_record_notice(&crate::RecordNotice {
+            record: crate::VersionedRecord::PluginRegistry,
+            problem,
+            version,
+            path: paths.root().join(FILE),
+        });
+        return Err(Error::UnusableRegistry);
+    }
+    match opening {
+        crate::RecordOpening::Migrated { bytes, .. } => decode_current(&bytes, paths),
+        _ => decode_current(bytes, paths),
+    }
+}
+fn decode_current(bytes: &[u8], paths: &PluginStorePaths) -> Result<Catalog, Error> {
     let catalog: Catalog = serde_json::from_slice(bytes).map_err(|_| Error::InvalidRegistry)?;
     // Authoring TOML permits omitted fields; the retained JSON must contain the complete
     // serialized manifest and provenance. Compare JSON values so whitespace/key order are free.
-    let retained: serde_json::Value =
+    let mut retained: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|_| Error::InvalidRegistry)?;
+    if let Some(object) = retained.as_object_mut()
+        && object.get("extensions").is_some_and(|extensions| {
+            extensions
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty)
+        })
+    {
+        object.remove("extensions");
+    }
     if retained != serde_json::to_value(&catalog).map_err(|_| Error::InvalidRegistry)? {
         return Err(Error::InvalidRegistry);
     }

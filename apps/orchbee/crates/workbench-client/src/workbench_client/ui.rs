@@ -807,6 +807,9 @@ impl<'a> WorkbenchClientView<'a> {
                 WorkbenchClientNotice::PositionLocationChangedEmpty
             }
             ClientNotice::PositionUnavailable => WorkbenchClientNotice::PositionUnavailable,
+            ClientNotice::RecordUnusable(record, problem) => {
+                WorkbenchClientNotice::RecordUnusable(record, problem)
+            }
         })
     }
 

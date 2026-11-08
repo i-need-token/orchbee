@@ -460,7 +460,6 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_r
 #[test]
 fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
     for fault in [
-        "version",
         "folders",
         "cleanup",
         "blockedCleanup",
@@ -482,7 +481,6 @@ fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
             serde_json::from_slice(&cache.read(FILE, REGISTRY_LIMIT).unwrap().unwrap()).unwrap();
         assert_eq!(document["version"], 1);
         match fault {
-            "version" => document["version"] = serde_json::json!(2),
             "source" => {
                 document["plugins"][0]
                     .as_object_mut()

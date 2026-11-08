@@ -69,3 +69,37 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
     );
     assert_eq!(fs::read(store.root.join(FILE)).unwrap(), b"{");
 }
+#[test]
+fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
+    let id = ProfileId::generate().unwrap();
+    let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
+    let store = Store {
+        root: root.0.join("machines"),
+    };
+    let draft = Draft::parse("First", "example.invalid", "work").unwrap();
+    let mut lock = PrivateCache::acquire(&store.root, RECORD.name()).unwrap();
+    lock.replace(
+        FILE,
+        br#"{"version":1,"revision":0,"profiles":[],"extensions":{"later":[1]}}"#,
+    )
+    .unwrap();
+    drop(lock);
+    store
+        .commit(&Edit::Add {
+            id: id.clone(),
+            draft: draft.clone(),
+        })
+        .unwrap();
+    let written: serde_json::Value =
+        serde_json::from_slice(&fs::read(store.root.join(FILE)).unwrap()).unwrap();
+    assert_eq!(written["extensions"], serde_json::json!({"later": [1]}));
+    // A newer record reads as no saved machine; a change lasts only in this process.
+    let newer = br#"{"version":2,"revision":9,"profiles":[],"later":{}}"#;
+    let mut lock = PrivateCache::acquire(&store.root, RECORD.name()).unwrap();
+    lock.replace(FILE, newer).unwrap();
+    drop(lock);
+    assert!(store.read().unwrap().profiles.is_empty());
+    store.commit(&Edit::Add { id, draft }).unwrap();
+    assert_eq!(store.read().unwrap().profiles.len(), 1);
+    assert_eq!(fs::read(store.root.join(FILE)).unwrap(), newer);
+}

@@ -3,8 +3,9 @@
 //! contract: search for `data-root-version-record` before changing it; Desktop Main reads and
 //! writes the same record.
 use super::DataRoot;
+#[cfg(any(windows, test))]
+use std::cmp::Ordering;
 use std::{
-    cmp::Ordering,
     fs::File,
     io::{self, Read},
     path::Path,
@@ -86,6 +87,7 @@ impl VersionRecord {
         })
     }
 
+    #[cfg(windows)]
     /// The record this build writes into a root that holds none.
     pub(crate) fn initial() -> Vec<u8> {
         encode(&serde_json::Map::from_iter([
@@ -102,6 +104,7 @@ impl VersionRecord {
         })
     }
 
+    #[cfg(windows)]
     /// The record with `newestVersion` raised to `version`, when `version` is newer than the one
     /// it names or it names none; `None` leaves the record as it is.
     pub(crate) fn raised(&self, version: &str) -> Option<Vec<u8>> {
@@ -118,6 +121,7 @@ impl VersionRecord {
     }
 }
 
+#[cfg(windows)]
 fn encode(entries: &serde_json::Map<String, serde_json::Value>) -> Vec<u8> {
     let mut bytes = serde_json::to_vec(entries).unwrap_or_default();
     bytes.push(b'\n');
@@ -147,6 +151,7 @@ pub(crate) fn read_record(path: &Path) -> io::Result<Option<Vec<u8>>> {
 /// Whether `candidate` takes precedence over `than` as Semantic Versioning orders versions: the
 /// numeric core first, then a release above its pre-releases, then pre-release identifiers, with
 /// build metadata ignored. A version either side cannot read is never newer.
+#[cfg(any(windows, test))]
 pub(crate) fn newer_product_version(candidate: &str, than: &str) -> bool {
     match (Precedence::parse(candidate), Precedence::parse(than)) {
         (Some(candidate), Some(than)) => candidate.cmp(&than).is_gt(),
@@ -166,12 +171,14 @@ pub(crate) fn compare_product_versions(left: &str, right: &str) -> Ordering {
     }
 }
 
+#[cfg(any(windows, test))]
 #[derive(Eq, PartialEq)]
 struct Precedence<'a> {
     core: [u64; 3],
     pre_release: Vec<&'a str>,
 }
 
+#[cfg(any(windows, test))]
 impl<'a> Precedence<'a> {
     fn parse(text: &'a str) -> Option<Self> {
         let text = text.split_once('+').map_or(text, |(version, _)| version);
@@ -199,6 +206,7 @@ impl<'a> Precedence<'a> {
     }
 }
 
+#[cfg(any(windows, test))]
 impl Ord for Precedence<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.core.cmp(&other.core).then_with(|| {
@@ -225,6 +233,7 @@ impl Ord for Precedence<'_> {
     }
 }
 
+#[cfg(any(windows, test))]
 impl PartialOrd for Precedence<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))

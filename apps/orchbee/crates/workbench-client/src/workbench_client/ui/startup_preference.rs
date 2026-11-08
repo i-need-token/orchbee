@@ -75,6 +75,17 @@ impl WorkbenchClientUi {
         }
     }
 
+    /// Shows the message of a record this Session's stores cannot use, after any position notice.
+    pub(in crate::workbench_client) fn report_record_notice(
+        &mut self,
+        record: orchbee_local_runtime::VersionedRecord,
+        problem: orchbee_local_runtime::RecordProblem,
+    ) {
+        if let Some(state) = self.state.as_mut() {
+            state.set_notice(ClientNotice::RecordUnusable(record, problem));
+        }
+    }
+
     pub(in crate::workbench_client) fn report_position_notice(&mut self, changed: bool) {
         if let Some(state) = self.state.as_mut() {
             state.set_notice(if changed && state.cache().tabs().is_empty() {

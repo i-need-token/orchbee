@@ -46,7 +46,7 @@ just like an edit. Windows uses the pinned private-cache boundary; Unix uses des
 no-follow private files and synchronizes the containing directory after replacement. A failure after
 replacement reports an unknown outcome and never authorizes automatic replay.
 
-Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. Desktop import fields are outside the current strict record.
+Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. A record whose version this build cannot use is never rewritten: reads give the defaults, and updates apply to values the store keeps in memory, with a `memory-` source token, until the Session stops. Resetting every setting is the one update that replaces it, after a copy goes to the `reset-settings` backup folder ([persisted data versions](#persisted-data-versions)). Desktop import fields are outside the current strict record.
 
 An absent preference record returns canonical defaults, no claimed keys and the `missing` source token. Only the preference record participates in source observation. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Session consume this same storage owner, not separate stores.
 
@@ -168,10 +168,24 @@ another keeps only the three newest. A failed backup or replacement leaves the r
 `-2`, `-3`, before a reset the person requested replaces it, and nothing deletes those folders.
 Backups are Windows effects; POSIX returns `Unsupported` until ORC-328.
 
+| Record                            | Version and extension object | While its version is one this build cannot use                                                                                                          |
+| --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/state/preferences.json` | `version`; `extensions`      | Reads give the defaults, and accepted changes stay in the store's memory until the Session stops; resetting every setting backs it up, then replaces it |
+| `internal/plugins/registry.json`  | `version`; `extensions`      | Readers see no plugin; link, install, folder assignment and cleanup are refused with `UnusableRegistry`                                                 |
+| `sessions/<session>/session.json` | `version`; `extensions`      | The catalog lists the Session as unrecognized with reason `Version`; it is neither started nor deleted                                                  |
+
+Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
+release adds an optional field there without a migration. Workbench Client owns the onboarding,
+machine and TUI position records with the same rules. `inspect_records` reads every versioned
+record of a root, or one Session's, creating nothing, and reports the unusable ones; `config check`
+lists them and the TUI shows the first when it starts, since the Server reads the records it holds.
+
 `report_record_notice` logs a record a process cannot use, once per record and problem, and answers
 whether this was the first time, so the process shows one of the two localized messages once;
-`reported_record_notices` lists them for a surface that shows them. Applications own the message
-text and each record's consequence.
+`reported_record_notices` lists them for a surface that shows them, and `take_unshown_record_notices`
+hands over only those no surface has shown yet: the CLI prints them on stderr after its command, and
+`config check` takes the ones it lists. Applications own the message text and each record's
+consequence.
 
 ## Windows user path operands
 

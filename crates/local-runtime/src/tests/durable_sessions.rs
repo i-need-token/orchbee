@@ -604,6 +604,8 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
         if missing_processes {
             record.as_object_mut().unwrap().remove("processes");
         } else {
+            // A record a newer version saved is listed unreadable too, but no deletion fence
+            // replaces it: it is never rewritten.
             record["version"] = serde_json::json!(5);
         }
         let bytes = serde_json::to_vec(&record).unwrap();
@@ -630,10 +632,15 @@ fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion
         drop(lifetime);
         drop(owner);
         drop(session);
-        assert_eq!(
-            catalog.delete(&name, deadline(), || Ok(false)).unwrap(),
-            Outcome::Deleted
-        );
-        assert!(!path.exists());
+        if missing_processes {
+            assert_eq!(
+                catalog.delete(&name, deadline(), || Ok(false)).unwrap(),
+                Outcome::Deleted
+            );
+            assert!(!path.exists());
+        } else {
+            assert!(catalog.delete(&name, deadline(), || Ok(false)).is_err());
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+        }
     }
 }

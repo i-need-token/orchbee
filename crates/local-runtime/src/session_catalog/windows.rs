@@ -335,7 +335,9 @@ impl SessionCatalog {
                         listed.retained = record.activation();
                         listed.runtime = Some(record.runtime().to_owned());
                     }
-                    CatalogRecord::Unreadable => listed.unreadable = true,
+                    CatalogRecord::Unreadable | CatalogRecord::Unusable => {
+                        listed.unreadable = true;
+                    }
                     CatalogRecord::Missing => {}
                 }
                 names.insert(key, listed);
@@ -384,10 +386,15 @@ impl SessionCatalog {
             if !folder.eq_ignore_ascii_case(name.as_str()) {
                 continue;
             }
-            if matches!(record, CatalogRecord::Unreadable) {
+            let reason = match record {
+                CatalogRecord::Unreadable => Some(RecordReason::Unreadable),
+                CatalogRecord::Unusable => Some(RecordReason::Version),
+                CatalogRecord::Readable(_) | CatalogRecord::Missing => None,
+            };
+            if let Some(reason) = reason {
                 records.push(UnrecognizedRecord {
                     kind: RecordKind::CatalogRecord,
-                    reason: RecordReason::Unreadable,
+                    reason,
                     path: directory.record_file(&folder)?,
                 });
             }

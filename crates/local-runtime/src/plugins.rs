@@ -23,6 +23,9 @@ pub enum PluginRegistryError {
     InvalidIdentifier,
     InvalidPath,
     InvalidRegistry,
+    /// The registry's version is one this build cannot use: saved by a newer version of Orchbee,
+    /// or an earlier one no step updates. Plugins read as none, and changes are refused.
+    UnusableRegistry,
     ManifestUnavailable,
     PluginNotFound,
     LimitExceeded,

@@ -480,6 +480,9 @@ impl Locale {
                 Self::EnUs => "The saved location could not be restored; showing an empty Workspace.".into(),
                 Self::ZhCn => "无法恢复上次的位置；已打开空工作区。".into(),
             },
+            WorkbenchClientNotice::RecordUnusable(record, problem) => {
+                self.record_message(record, problem, None)
+            }
             WorkbenchClientNotice::PositionUnavailable => match self {
                 Self::EnUs => {
                     "Position memory is unavailable; terminal tasks are still running.".into()

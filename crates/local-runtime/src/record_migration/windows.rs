@@ -1,7 +1,7 @@
 //! Windows effects of migration: upgrade and reset backups below the data root's
 //! `internal/backups/`, each a private folder holding copies at the records' paths relative to the
 //! root.
-use super::version_folder_name;
+use super::{RecordNotice, VersionedRecord, version_folder_name};
 use crate::{
     DataRoot, PRODUCT_VERSION, data_root::compare_product_versions,
     private_filesystem as permissions,
@@ -38,6 +38,67 @@ pub fn persist_migration(
     replace()?;
     Ok(copy)
 }
+
+/// Reads the device records, the plugin registry and the records of each Session folder, or only
+/// of `session` when given, creating nothing, and reports each one whose version this build cannot
+/// use. `config check` lists them, and a Client shows what the Server's records hold.
+pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNotice> {
+    let mut found = vec![
+        (
+            VersionedRecord::Preferences,
+            root.state(),
+            "preferences.json",
+        ),
+        (VersionedRecord::Onboarding, root.state(), "onboarding.json"),
+        (VersionedRecord::Machines, root.state(), "machines.json"),
+        (
+            VersionedRecord::PluginRegistry,
+            root.plugins(),
+            "registry.json",
+        ),
+    ];
+    let folders: Vec<PathBuf> = match session {
+        Some(session) => vec![root.sessions().join(session)],
+        None => fs::read_dir(root.sessions())
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                    .map(|entry| entry.path())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    };
+    for folder in folders {
+        found.push((
+            VersionedRecord::SessionLifecycle,
+            folder.clone(),
+            "session.json",
+        ));
+        found.push((VersionedRecord::TuiPosition, folder, "tui-position.json"));
+    }
+    let mut notices = Vec::new();
+    for (record, folder, file) in found {
+        let Ok(Some(bytes)) = crate::PrivateCache::read_existing(&folder, file, INSPECTED_LIMIT)
+        else {
+            continue;
+        };
+        if let Some((problem, version)) = super::open_record(record, &bytes, |_| true).problem() {
+            let notice = RecordNotice {
+                record,
+                problem,
+                version,
+                path: folder.join(file),
+            };
+            super::report_record_notice(&notice);
+            notices.push(notice);
+        }
+    }
+    notices
+}
+
+/// Larger than every versioned record's own bound, so inspection reads each one whole.
+const INSPECTED_LIMIT: usize = 1024 * 1024;
 
 /// Copies a record the person asked to reset into `internal/backups/<YYYY-MM-DD>-<reset>/`, or the
 /// next free `-2`, `-3` and so on, at its path relative to the root, before the reset replaces it.

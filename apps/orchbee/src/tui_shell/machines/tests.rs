@@ -361,6 +361,7 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
                 } else {
                     vec![updated]
                 },
+                ..Default::default()
             }),
             &mut surface,
             &mut view,
@@ -575,6 +576,7 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
         Ok(crate::machines::Catalog {
             revision: 2,
             profiles: vec![disabled],
+            ..Default::default()
         }),
         &mut surface,
         &mut view,
@@ -638,6 +640,7 @@ fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local()
         Ok(crate::machines::Catalog {
             revision: 2,
             profiles: vec![disabled],
+            ..Default::default()
         }),
         &mut surface,
         &mut view,

@@ -17,6 +17,8 @@ pub struct Position {
 
 /// Startup advice and the resolver's result retained until the initial view settles.
 pub(crate) struct Startup {
+    /// The first record this Session's stores cannot use, shown once the initial view settles.
+    pub(crate) record: Option<orchbee_local_runtime::RecordNotice>,
     pub(crate) fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub(crate) failed: bool,
     /// The saved record could not be read; startup proceeded as if none was saved.

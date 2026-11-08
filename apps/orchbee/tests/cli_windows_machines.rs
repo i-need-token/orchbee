@@ -25,7 +25,7 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     cache
         .replace(
             "machines.json",
-            &serde_json::to_vec(&json!({"schemaVersion":1,"revision":1,"profiles":[{
+            &serde_json::to_vec(&json!({"version":1,"revision":1,"profiles":[{
                 "id":ID,"label":"Work","target":"example.invalid","session":"work","enabled":true
             }]}))
             .unwrap(),

@@ -257,6 +257,12 @@ impl super::CliText {
                 "Plugin catalog is invalid; existing data was retained."
             }
             (Locale::ZhCn, Error::InvalidRegistry) => "插件目录无效；保留现有数据。",
+            (Locale::EnUs, Error::UnusableRegistry) => {
+                "The plugin registry was saved by a different version of Orchbee; plugins can't be changed with this version."
+            }
+            (Locale::ZhCn, Error::UnusableRegistry) => {
+                "插件注册表由其他版本的 Orchbee 保存；无法用此版本更改插件。"
+            }
             (Locale::EnUs, Error::ManifestUnavailable) => {
                 "Plugin source is unavailable; retained metadata cannot authorize execution."
             }

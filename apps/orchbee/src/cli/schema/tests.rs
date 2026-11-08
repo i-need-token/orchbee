@@ -625,7 +625,8 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
             {"name":"cohort","status":"pass","details":{"verified":true}},
             {"name":"locale","status":"pass","details":{"locale":"en-US","source":"LC_ALL"}},
             {"name":"sockets","status":"not-applicable","details":{"client":endpoint,"worker":endpoint,"host":budget,"clientPending":budget}},
-            {"name":"user-config","status":"fail","details":{"field":"file","reason":"invalid-toml"}}
+            {"name":"user-config","status":"fail","details":{"field":"file","reason":"invalid-toml"}},
+            {"name":"records","status":"pass","details":{"records":[]}}
         ]}
     });
     for (field, reason) in [

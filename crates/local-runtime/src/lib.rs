@@ -62,12 +62,12 @@ pub use data_root::{
     TUI_POSITION_RECORD, default_runtime_base,
 };
 mod record_migration;
-pub use record_migration::{
-    RecordNotice, RecordOpening, RecordProblem, VersionedRecord, open_record, report_record_notice,
-    reported_record_notices,
-};
 #[cfg(windows)]
-pub use record_migration::{back_up_for_reset, persist_migration};
+pub use record_migration::back_up_for_reset;
+pub use record_migration::{
+    RecordNotice, RecordOpening, RecordProblem, VersionedRecord, inspect_records, open_record,
+    persist_migration, report_record_notice, reported_record_notices, take_unshown_record_notices,
+};
 mod environment;
 pub use environment::{
     ENVIRONMENT_VARIABLE, EnvironmentKind, checkout_name, environment_kind, environment_name,

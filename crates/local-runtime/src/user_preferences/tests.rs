@@ -255,6 +255,7 @@ fn reading_a_current_record_preserves_values_source_and_bytes() {
     };
     let record = Record {
         version: 1,
+        extensions: serde_json::Map::new(),
         values,
         claimed: BTreeSet::from([PreferenceKey::SoundEnabled]),
     };
@@ -285,6 +286,7 @@ fn a_record_without_theme_fields_reads_with_their_defaults() {
     let fixture = Fixture::new();
     let record = Record {
         version: 1,
+        extensions: serde_json::Map::new(),
         values: UserPreferencesValues {
             sound_enabled: true,
             ..UserPreferencesValues::default()
@@ -324,6 +326,7 @@ fn explicitly_claimed_application_appearances_are_preserved() {
         };
         let record = Record {
             version: 1,
+            extensions: serde_json::Map::new(),
             values,
             claimed: BTreeSet::from([PreferenceKey::ApplicationTheme]),
         };
@@ -451,4 +454,44 @@ fn only_explicit_reset_all_may_replace_a_refused_record_and_cannot_clobber_a_rep
             reason: PreferencesFailure::SourceChanged,
         }
     );
+}
+
+#[test]
+fn a_newer_record_keeps_changes_in_memory_until_the_person_resets_every_setting() {
+    let fixture = Fixture::new();
+    let file = fixture.store.scope().directory().join("preferences.json");
+    fs::create_dir_all(fixture.store.scope().directory()).unwrap();
+    let newer = br#"{"version":2,"values":{},"claimed":[],"later":true}"#;
+    fs::write(&file, newer).unwrap();
+    let read = fixture.store.read().unwrap();
+    assert_eq!(read.values, UserPreferencesValues::default());
+    let changed = fixture.update(&read.source, PreferenceKey::ApplicationTheme, json!("dark"));
+    assert_eq!(fixture.store.read().unwrap(), changed);
+    assert_eq!(fs::read(&file).unwrap(), newer);
+    #[cfg(windows)]
+    {
+        let reset = accepted(fixture.store.execute(&UserPreferencesRequest::Update {
+            source: changed.source,
+            changes: UserPreferencesPatch::reset(PreferenceKey::ALL),
+        }));
+        assert_eq!(fixture.store.read().unwrap(), reset);
+        let backups = fixture.root.join("internal").join("backups");
+        let folder = fs::read_dir(&backups)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        assert!(folder.to_string_lossy().ends_with("-reset-settings"));
+        assert_eq!(
+            fs::read(
+                folder
+                    .join("internal")
+                    .join("state")
+                    .join("preferences.json")
+            )
+            .unwrap(),
+            newer
+        );
+    }
 }

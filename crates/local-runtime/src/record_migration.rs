@@ -14,7 +14,25 @@ mod windows;
 #[cfg(all(test, windows))]
 pub(crate) use windows::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
 #[cfg(windows)]
-pub use windows::{back_up_for_reset, persist_migration};
+pub use windows::{back_up_for_reset, inspect_records, persist_migration};
+
+/// Migration backups are Windows effects until ORC-328, so POSIX refuses before any effect and the
+/// record stays as it is.
+#[cfg(not(windows))]
+pub fn persist_migration(
+    _root: &crate::DataRoot,
+    _path: &std::path::Path,
+    _original: &[u8],
+    _replace: impl FnOnce() -> std::io::Result<()>,
+) -> std::io::Result<PathBuf> {
+    Err(std::io::ErrorKind::Unsupported.into())
+}
+
+/// The versioned stores are Windows effects until ORC-328, so POSIX inspects none.
+#[cfg(not(windows))]
+pub fn inspect_records(_root: &crate::DataRoot, _session: Option<&str>) -> Vec<RecordNotice> {
+    Vec::new()
+}
 
 /// A record whose format carries a top-level integer `version`. Checkpoint slots, the restore
 /// notice, earlier layouts and kept terminal output carry theirs in their frame header instead.
@@ -55,6 +73,11 @@ impl VersionedRecord {
             Self::SessionLifecycle => "session",
             Self::TuiPosition => "tui-position",
         }
+    }
+
+    /// The record a machine name spells, as [`Self::token`] writes it.
+    pub fn from_token(token: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|record| record.token() == token)
     }
 
     /// The version this build writes.
@@ -217,6 +240,21 @@ pub fn reported_record_notices() -> Vec<RecordNotice> {
         .lock()
         .map(|reported| reported.clone())
         .unwrap_or_default()
+}
+
+/// How many reported notices a surface has already shown.
+static SHOWN: Mutex<usize> = Mutex::new(0);
+
+/// The reported notices no surface has shown yet, oldest first, now marked shown, so a process
+/// that lists them itself keeps a later surface from repeating them.
+pub fn take_unshown_record_notices() -> Vec<RecordNotice> {
+    let reported = reported_record_notices();
+    let Ok(mut shown) = SHOWN.lock() else {
+        return Vec::new();
+    };
+    let unshown = reported.get(*shown..).unwrap_or_default().to_vec();
+    *shown = reported.len();
+    unshown
 }
 
 /// The folder-name spelling of a product version: ASCII letters, digits, `.`, `_`, and `-` stay

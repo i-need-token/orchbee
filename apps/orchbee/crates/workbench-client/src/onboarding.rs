@@ -1,11 +1,13 @@
 //! Native-profile education state. Only an explicit dismissal writes storage.
 use crate::client_view::{ClientAction, PrefixAction};
 use orchbee_local_runtime::{DataRoot, PrivateCache, StateRecord};
-use serde::Deserialize;
+use orchbee_local_runtime::{RecordNotice, VersionedRecord};
+use serde::{Deserialize, Serialize};
 use std::{io, path::PathBuf};
 const RECORD: StateRecord = StateRecord::Onboarding;
 const FILE: &str = RECORD.file_name();
 const MAX_BYTES: usize = 1024;
+#[cfg(test)]
 const DISMISSED: &[u8] = b"{\"version\":1,\"dismissed\":true}\n";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -63,25 +65,61 @@ pub struct State {
     pub(crate) read_failed: bool,
     root: Option<PathBuf>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
     version: u8,
+    /// Fields a later release added, kept unread and written back unchanged; two installed
+    /// versions read this record at once.
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    extensions: serde_json::Map<String, serde_json::Value>,
     dismissed: bool,
 }
-fn decode(bytes: Option<Vec<u8>>) -> io::Result<bool> {
+/// The stored record: absent, current, or one whose version this build cannot use, which works as
+/// no record and is never rewritten, so a dismissal then lasts only until Orchbee closes.
+enum Stored {
+    Absent,
+    Current(Document),
+    Unusable,
+}
+fn read(bytes: Option<Vec<u8>>, directory: Option<&PathBuf>) -> io::Result<Stored> {
     let Some(bytes) = bytes else {
-        return Ok(false);
+        return Ok(Stored::Absent);
     };
     if bytes.len() > MAX_BYTES {
         return Err(io::ErrorKind::InvalidData.into());
     }
-    let document: Document =
-        serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
-    if document.version != 1 {
-        return Err(io::ErrorKind::InvalidData.into());
+    let opening =
+        orchbee_local_runtime::open_record(VersionedRecord::Onboarding, &bytes, |bytes| {
+            strict(bytes).is_some()
+        });
+    if let Some((problem, version)) = opening.problem() {
+        if let Some(directory) = directory {
+            orchbee_local_runtime::report_record_notice(&RecordNotice {
+                record: VersionedRecord::Onboarding,
+                problem,
+                version,
+                path: directory.join(FILE),
+            });
+        }
+        return Ok(Stored::Unusable);
     }
-    Ok(document.dismissed)
+    let bytes = match opening {
+        orchbee_local_runtime::RecordOpening::Migrated { bytes, .. } => bytes,
+        _ => bytes,
+    };
+    strict(&bytes)
+        .map(Stored::Current)
+        .ok_or_else(|| io::ErrorKind::InvalidData.into())
+}
+fn strict(bytes: &[u8]) -> Option<Document> {
+    serde_json::from_slice::<Document>(bytes)
+        .ok()
+        .filter(|document| document.version == 1)
+}
+#[cfg(test)]
+fn decode(bytes: Option<Vec<u8>>) -> io::Result<bool> {
+    Ok(matches!(read(bytes, None)?, Stored::Current(document) if document.dismissed))
 }
 impl State {
     pub fn load() -> Self {
@@ -91,8 +129,13 @@ impl State {
         let result = root
             .as_ref()
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
-            .and_then(|root| PrivateCache::read_existing(root, FILE, MAX_BYTES))
-            .and_then(decode);
+            .and_then(|directory| {
+                read(
+                    PrivateCache::read_existing(directory, FILE, MAX_BYTES)?,
+                    Some(directory),
+                )
+            })
+            .map(|stored| matches!(stored, Stored::Current(document) if document.dismissed));
         Self {
             visible: !matches!(result, Ok(true)),
             read_failed: result.is_err(),
@@ -107,9 +150,20 @@ impl State {
         self.visible = false;
         let root = self.root.as_ref().ok_or(io::ErrorKind::NotFound)?;
         let mut cache = PrivateCache::acquire(root, RECORD.name())?;
-        if !decode(cache.read(FILE, MAX_BYTES)?)? {
-            cache.replace(FILE, DISMISSED)?;
-        }
+        let mut document = match read(cache.read(FILE, MAX_BYTES)?, Some(root))? {
+            Stored::Unusable => return Ok(()),
+            Stored::Current(document) if document.dismissed => return Ok(()),
+            Stored::Current(document) => document,
+            Stored::Absent => Document {
+                version: 1,
+                extensions: serde_json::Map::new(),
+                dismissed: false,
+            },
+        };
+        document.dismissed = true;
+        let mut bytes = serde_json::to_vec(&document).map_err(io::Error::other)?;
+        bytes.push(b'\n');
+        cache.replace(FILE, &bytes)?;
         Ok(())
     }
 }
@@ -122,7 +176,6 @@ mod tests {
         assert!(decode(Some(DISMISSED.to_vec())).unwrap());
         for bytes in [
             b"{}".as_slice(),
-            b"{\"version\":2,\"dismissed\":true}",
             b"{\"version\":1,\"dismissed\":true,\"extra\":0}",
             b"broken",
         ] {
@@ -208,5 +261,20 @@ mod storage_tests {
         };
         assert!(corrupted.dismiss().is_err());
         assert_eq!(std::fs::read(directory.join(FILE)).unwrap(), b"broken");
+        // A newer record reads as no dismissal, and dismissing it again hides the notice only
+        // locally: the record stays byte-identical so the newer version keeps it.
+        let newer = b"{\"version\":2,\"dismissed\":true,\"later\":[1]}";
+        let mut cache = PrivateCache::acquire(&directory, RECORD.name()).unwrap();
+        cache.replace(FILE, newer).unwrap();
+        drop(cache);
+        assert!(!read().unwrap());
+        let mut kept = State {
+            visible: true,
+            read_failed: false,
+            root: Some(directory.clone()),
+        };
+        kept.dismiss().unwrap();
+        assert!(!kept.visible);
+        assert_eq!(std::fs::read(directory.join(FILE)).unwrap(), newer);
     }
 }

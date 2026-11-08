@@ -34,6 +34,9 @@ pub(crate) enum Lifecycle {
 #[serde(deny_unknown_fields)]
 pub(crate) struct Record {
     version: u8,
+    /// Fields a later release added, kept unread; two installed versions read this record at once.
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    extensions: serde_json::Map<String, serde_json::Value>,
     pub(crate) name: String,
     runtime: String,
     #[serde(deserialize_with = "Option::deserialize")]
@@ -61,6 +64,7 @@ impl Record {
     ) -> io::Result<Self> {
         Ok(Self {
             version: 1,
+            extensions: serde_json::Map::new(),
             name: name.as_str().to_owned(),
             runtime: runtime
                 .to_str()
@@ -114,6 +118,9 @@ pub(crate) enum CatalogRecord {
     Readable(Record),
     /// The folder holds a record this build cannot admit for the Session the folder names.
     Unreadable,
+    /// The folder holds a record whose version this build cannot use: saved by a newer version,
+    /// or an earlier one no step updates. It is never rewritten.
+    Unusable,
     /// The folder holds no record: checkpoint data or a TUI position without its lifecycle.
     Missing,
 }
@@ -223,9 +230,30 @@ impl Directory {
         }
         Ok(Some(bytes))
     }
+    /// The record, refused as `InvalidData` when this build cannot admit it. A record whose
+    /// version this build cannot use is refused the same way, carrying [`UnusableRecord`], and is
+    /// reported once per process.
     pub(crate) fn read(&self, scope: &str) -> io::Result<Option<Record>> {
         let Some(bytes) = self.read_bytes(scope)? else {
             return Ok(None);
+        };
+        let opening =
+            crate::open_record(crate::VersionedRecord::SessionLifecycle, &bytes, |bytes| {
+                serde_json::from_slice::<Record>(bytes)
+                    .is_ok_and(|record| self.validate(scope, &record).is_ok())
+            });
+        if let Some((problem, version)) = opening.problem() {
+            crate::report_record_notice(&crate::RecordNotice {
+                record: crate::VersionedRecord::SessionLifecycle,
+                problem,
+                version,
+                path: self.record_path(scope, RECORD_FILE)?,
+            });
+            return Err(io::Error::new(io::ErrorKind::InvalidData, UnusableRecord));
+        }
+        let bytes = match opening {
+            crate::RecordOpening::Migrated { bytes, .. } => bytes,
+            _ => bytes,
         };
         let record: Record =
             serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
@@ -292,6 +320,7 @@ impl Directory {
             let record = match self.read(scope) {
                 Ok(Some(record)) => CatalogRecord::Readable(record),
                 Ok(None) => CatalogRecord::Missing,
+                Err(error) if unusable(&error) => CatalogRecord::Unusable,
                 Err(error) if error.kind() == io::ErrorKind::InvalidData => {
                     CatalogRecord::Unreadable
                 }
@@ -326,7 +355,8 @@ impl Directory {
         // guarded deletion can install its recovery fence over such a record.
         match self.read(scope) {
             Ok(_) => {}
-            Err(error) if deleting && error.kind() == io::ErrorKind::InvalidData => {}
+            Err(error)
+                if deleting && error.kind() == io::ErrorKind::InvalidData && !unusable(&error) => {}
             Err(error) => return Err(error),
         }
         let bytes = serde_json::to_vec(record).map_err(io::Error::other)?;
@@ -363,6 +393,26 @@ impl Directory {
         remove_private(&self.record_path(scope, RECORD_FILE)?)?;
         remove_empty_folder(&self.folder(scope))
     }
+}
+
+/// Marks a record whose version this build cannot use: it reads as invalid everywhere, but no
+/// deletion fence replaces it, since such a record is never rewritten.
+#[derive(Debug)]
+pub(crate) struct UnusableRecord;
+
+impl std::fmt::Display for UnusableRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the record's version is one this build cannot use")
+    }
+}
+
+impl std::error::Error for UnusableRecord {}
+
+/// Whether `error` refused a record whose version this build cannot use.
+pub(crate) fn unusable(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(|inner| inner.is::<UnusableRecord>())
 }
 
 /// Removes an empty Session folder; an absent one is already removed.

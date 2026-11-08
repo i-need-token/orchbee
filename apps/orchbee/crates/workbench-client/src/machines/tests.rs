@@ -144,6 +144,7 @@ fn invalid_catalog_and_exhaustion_never_mutate_the_source() {
                 enabled: true,
             })
             .collect(),
+        ..Catalog::default()
     };
     assert_eq!(
         full.edit(&Edit::Add {

@@ -76,7 +76,10 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                 })
                 .collect::<Vec<_>>();
             if APPEND_UNSUPPORTED_CHECK {
+                // The marker takes the user configuration's place; the records check stays last.
+                let records = check_documents.pop();
                 check_documents.push(json!({"kind":"unsupported"}));
+                check_documents.extend(records);
             }
             let result = json!({
                 "ok": !failed,
@@ -183,7 +186,34 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
             ),
         });
     }
+    checks.push(records_check());
     Ok(checks)
+}
+
+/// Every record whose version this build cannot use, read without creating anything; each store
+/// works without such a record, so it warns rather than fails.
+fn records_check() -> CheckReport {
+    let notices = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+        .map(|root| orchbee_local_runtime::inspect_records(&root, None))
+        .unwrap_or_default();
+    // The check lists these itself, so the closing stderr notice does not repeat them.
+    orchbee_local_runtime::take_unshown_record_notices();
+    let records = notices
+        .iter()
+        .map(|notice| {
+            json!({
+                "record": notice.record.token(),
+                "problem": notice.problem.token(),
+                "version": notice.version,
+                "path": notice.path.to_string_lossy(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let status = if records.is_empty() { pass } else { warning };
+    status(
+        "records",
+        Map::from_iter([("records".to_owned(), json!(records))]),
+    )
 }
 
 /// `unstarted` marks a default runtime base that nothing has created yet: the environment has not

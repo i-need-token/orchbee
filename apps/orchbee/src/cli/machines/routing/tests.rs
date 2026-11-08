@@ -37,6 +37,7 @@ fn selection_uses_id_before_exact_label_and_rejects_ambiguity_and_disabled() {
     let mut catalog = Catalog {
         revision: 1,
         profiles: vec![a, b],
+        ..Default::default()
     };
     assert_eq!(select(&catalog, "same").unwrap_err(), "ambiguous-machine");
     catalog.profiles[1].draft.label = id.into();

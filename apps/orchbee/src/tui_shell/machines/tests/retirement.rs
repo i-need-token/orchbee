@@ -107,6 +107,7 @@ fn remove(
                 Ok(crate::machines::Catalog {
                     revision: 2,
                     profiles: Vec::new(),
+                    ..Default::default()
                 }),
                 &mut surface,
                 &mut view,

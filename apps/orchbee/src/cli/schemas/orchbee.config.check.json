@@ -32,8 +32,8 @@
 				},
 				"checks": {
 					"type": "array",
-					"minItems": 6,
-					"maxItems": 6,
+					"minItems": 7,
+					"maxItems": 7,
 					"prefixItems": [
 						{
 							"$ref": "#/$defs/runtimeBaseCheck"
@@ -59,6 +59,9 @@
 									"$ref": "#/$defs/unsupported"
 								}
 							]
+						},
+						{
+							"$ref": "#/$defs/recordsCheck"
 						}
 					],
 					"items": false
@@ -119,6 +122,57 @@
 		}
 	},
 	"$defs": {
+		"recordsCheck": {
+			"type": "object",
+			"required": ["name", "status", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"const": "records"
+				},
+				"status": {
+					"enum": ["pass", "warning"]
+				},
+				"details": {
+					"type": "object",
+					"required": ["records"],
+					"additionalProperties": false,
+					"properties": {
+						"records": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["record", "problem", "version", "path"],
+								"additionalProperties": false,
+								"properties": {
+									"record": {
+										"enum": [
+											"preferences",
+											"onboarding",
+											"machines",
+											"plugin-registry",
+											"session",
+											"tui-position"
+										]
+									},
+									"problem": {
+										"enum": ["newer-format", "not-updated"]
+									},
+									"version": {
+										"type": "integer",
+										"minimum": 0
+									},
+									"path": {
+										"type": "string",
+										"minLength": 1
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"userConfigCheck": {
 			"type": "object",
 			"required": ["name", "status", "details"],

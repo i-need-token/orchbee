@@ -266,9 +266,20 @@ impl WorkbenchClient {
                 None
             }
         };
+        // Records the Server holds are read there; a read-only inspection shows them here too, so a
+        // refused record never leaves the TUI silently empty.
+        let session = runtime.file_name().and_then(|name| name.to_str());
+        let record = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+            .ok()
+            .map(|root| orchbee_local_runtime::inspect_records(&root, session))
+            .unwrap_or_default()
+            .into_iter()
+            .chain(orchbee_local_runtime::reported_record_notices())
+            .next();
         let mut workbench_client = Self::start_with_context(client, geometry, context)?;
         workbench_client.position_writer = writer;
         workbench_client.position_startup = Some(crate::startup_preference::Startup {
+            record,
             fallback,
             failed,
             unreadable,
@@ -287,6 +298,9 @@ impl WorkbenchClient {
                 || startup.fallback.load(std::sync::atomic::Ordering::Acquire)
             {
                 native.report_position_fallback(startup.saved.as_ref());
+            }
+            if let Some(record) = startup.record {
+                native.report_record_notice(record.record, record.problem);
             }
         }
     }

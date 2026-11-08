@@ -672,6 +672,12 @@ pub(crate) enum ClientPhaseKind {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ClientNotice {
     Unsupported(crate::tui_capabilities::Capability),
+    /// A record this Session's stores cannot use: saved by a newer version, or not updated from
+    /// an earlier one. Its store works without it.
+    RecordUnusable(
+        orchbee_local_runtime::VersionedRecord,
+        orchbee_local_runtime::RecordProblem,
+    ),
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,

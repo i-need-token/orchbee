@@ -31,24 +31,27 @@ impl Locale {
         }
     }
 
-    /// The message for a record this process cannot use, without a trailing newline.
+    /// The message for a record this process cannot use, naming the Session whose folder holds
+    /// it, without a trailing newline.
     pub fn record_notice(self, notice: &RecordNotice) -> String {
-        let session = matches!(
-            notice.record,
-            VersionedRecord::SessionLifecycle | VersionedRecord::TuiPosition
-        )
-        .then(|| {
-            notice
-                .path
-                .parent()
-                .and_then(Path::file_name)
-                .and_then(|name| name.to_str())
-        })
-        .flatten()
-        .unwrap_or_default();
-        let item = self.record_item(notice.record, session);
-        let consequence = self.record_consequence(notice.record);
-        match (self, notice.problem) {
+        let session = notice
+            .path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str());
+        self.record_message(notice.record, notice.problem, session)
+    }
+
+    /// The message for `record`; a Session record without `session` is the current Session's.
+    pub fn record_message(
+        self,
+        record: VersionedRecord,
+        problem: RecordProblem,
+        session: Option<&str>,
+    ) -> String {
+        let item = self.record_item(record, session);
+        let consequence = self.record_consequence(record);
+        match (self, problem) {
             (Self::EnUs, RecordProblem::NotUpdated) => format!(
                 "Orchbee couldn't update {} from an earlier version and left it unchanged. {consequence}",
                 lowercase_first(&item)
@@ -66,7 +69,7 @@ impl Locale {
     }
 
     /// The record's name as the messages' `{item}`, capitalized for the start of a sentence.
-    fn record_item(self, record: VersionedRecord, session: &str) -> String {
+    fn record_item(self, record: VersionedRecord, session: Option<&str>) -> String {
         match (self, record) {
             (Self::EnUs, VersionedRecord::Preferences) => "Settings preferences".into(),
             (Self::ZhCn, VersionedRecord::Preferences) => "设置偏好".into(),
@@ -76,14 +79,22 @@ impl Locale {
             (Self::ZhCn, VersionedRecord::Machines) => "已保存的机器列表".into(),
             (Self::EnUs, VersionedRecord::PluginRegistry) => "The plugin registry".into(),
             (Self::ZhCn, VersionedRecord::PluginRegistry) => "插件注册表".into(),
-            (Self::EnUs, VersionedRecord::SessionLifecycle) => {
-                format!("The record of Session {session}")
-            }
-            (Self::ZhCn, VersionedRecord::SessionLifecycle) => format!("会话 {session} 的记录"),
-            (Self::EnUs, VersionedRecord::TuiPosition) => {
-                format!("The TUI position of Session {session}")
-            }
-            (Self::ZhCn, VersionedRecord::TuiPosition) => format!("会话 {session} 的 TUI 位置"),
+            (Self::EnUs, VersionedRecord::SessionLifecycle) => session.map_or_else(
+                || "This Session's record".into(),
+                |session| format!("The record of Session {session}"),
+            ),
+            (Self::ZhCn, VersionedRecord::SessionLifecycle) => session.map_or_else(
+                || "此会话的记录".into(),
+                |session| format!("会话 {session} 的记录"),
+            ),
+            (Self::EnUs, VersionedRecord::TuiPosition) => session.map_or_else(
+                || "This Session's TUI position".into(),
+                |session| format!("The TUI position of Session {session}"),
+            ),
+            (Self::ZhCn, VersionedRecord::TuiPosition) => session.map_or_else(
+                || "此会话的 TUI 位置".into(),
+                |session| format!("会话 {session} 的 TUI 位置"),
+            ),
         }
     }
 

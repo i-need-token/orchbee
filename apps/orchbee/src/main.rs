@@ -343,7 +343,12 @@ fn main() -> ExitCode {
     )
 }
 
-fn emit(result: cli::Output, locale: Locale) -> ExitCode {
+fn emit(mut result: cli::Output, locale: Locale) -> ExitCode {
+    // A record a store could not use is named once, after the command's own diagnostics.
+    for notice in orchbee_local_runtime::take_unshown_record_notices() {
+        result.stderr.push_str(&locale.record_notice(&notice));
+        result.stderr.push('\n');
+    }
     emit_with(
         result,
         locale,

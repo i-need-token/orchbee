@@ -144,6 +144,9 @@ impl Profile {
 pub struct Catalog {
     pub revision: u64,
     pub profiles: Vec<Profile>,
+    /// Fields a later release added, kept unread and written back unchanged; two installed
+    /// versions read this record at once.
+    pub extensions: serde_json::Map<String, Value>,
 }
 #[derive(Clone, Debug)]
 pub enum Edit {
@@ -164,9 +167,13 @@ pub enum Error {
 }
 impl Catalog {
     pub(crate) fn parse(bytes: &[u8]) -> Option<Self> {
-        let value: Value = serde_json::from_slice(bytes).ok()?;
-        if !keys(&value, &["schemaVersion", "revision", "profiles"]) || value["schemaVersion"] != 1
-        {
+        let mut value: Value = serde_json::from_slice(bytes).ok()?;
+        let extensions = match value.as_object_mut()?.remove("extensions") {
+            None => serde_json::Map::new(),
+            Some(Value::Object(extensions)) => extensions,
+            Some(_) => return None,
+        };
+        if !keys(&value, &["version", "revision", "profiles"]) || value["version"] != 1 {
             return None;
         }
         let revision = value["revision"].as_u64().filter(|v| *v <= MAX_REVISION)?;
@@ -181,10 +188,20 @@ impl Catalog {
             }
             profiles.push(profile);
         }
-        Some(Self { revision, profiles })
+        Some(Self {
+            revision,
+            profiles,
+            extensions,
+        })
     }
     pub(crate) fn json(&self) -> Value {
-        json!({"schemaVersion":1,"revision":self.revision,"profiles":self.profiles.iter().map(Profile::json).collect::<Vec<_>>()})
+        let mut value = json!({"version":1,"revision":self.revision,"profiles":self.profiles.iter().map(Profile::json).collect::<Vec<_>>()});
+        if !self.extensions.is_empty()
+            && let Some(object) = value.as_object_mut()
+        {
+            object.insert("extensions".into(), Value::Object(self.extensions.clone()));
+        }
+        value
     }
     /// Pure candidate construction: any refusal leaves the original untouched.
     pub fn edit(&self, edit: &Edit) -> Result<(Self, bool), Error> {

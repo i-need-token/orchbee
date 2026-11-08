@@ -41,6 +41,10 @@ pub(crate) enum DisplayProvenance {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchClientNotice {
     Unsupported(crate::host_capabilities::Capability),
+    RecordUnusable(
+        orchbee_local_runtime::VersionedRecord,
+        orchbee_local_runtime::RecordProblem,
+    ),
     Settings(super::super::SettingsNotice),
     MenuUnavailable,
     LocalBusy,

@@ -33,6 +33,9 @@ pub enum UnrecognizedRecordKind {
 pub enum UnrecognizedRecordReason {
     /// It occupies the selected Session's folder but cannot be admitted for that Session.
     Unreadable,
+    /// Its version is one this build cannot use: saved by a newer version of Orchbee, or an
+    /// earlier one no step updates. It is never rewritten, so neither start nor delete proceeds.
+    Version,
     /// Another folder spells the selected Session's name in different letter case, which only a
     /// case-sensitive directory can hold; both folders refuse the Session.
     LetterCase,
