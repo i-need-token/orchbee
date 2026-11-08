@@ -1,8 +1,8 @@
-//! Cleanup only generation paths recorded before creation, never arbitrary source operands.
+//! Cleanup only source folders recorded before creation, never arbitrary source operands.
 use super::{
-    MANAGED_RECORD, Path, PluginProvisionExecutor, PluginProvisionFailure, PrivateCache, Provision,
-    storage,
+    Generation, Path, PluginProvisionExecutor, PluginProvisionFailure, Provision, storage,
 };
+use crate::data_root::PluginStorePaths;
 use std::{fs, io};
 
 impl Provision<'_> {
@@ -16,23 +16,22 @@ impl Provision<'_> {
         if self.catalog.cleanup.is_empty() {
             return Ok(());
         }
-        let managed = self.registry.root.join("managed");
-        let _managed = PrivateCache::acquire(&managed, MANAGED_RECORD).map_err(storage)?;
-        let base = managed.canonicalize().map_err(storage)?;
-        while let Some(id) = self.catalog.cleanup.first().cloned() {
+        // Registered roots are canonical, so recorded folders compare in the canonical store.
+        let base = PluginStorePaths::new(self.registry.root().canonicalize().map_err(storage)?);
+        while let Some(key) = self.catalog.cleanup.first().cloned() {
             executor
                 .checkpoint()
                 .map_err(PluginProvisionFailure::Command)?;
-            let path = base.join(format!("i-{id}"));
+            let generation =
+                Generation::parse(&key).ok_or(PluginProvisionFailure::CleanupIncomplete)?;
+            let path = generation.path(&base);
             // A committed catalog is the authority after a crash. Explicit local linking
             // into a generation also transfers that source out of automatic cleanup.
-            let referenced = self.catalog.plugins.iter().any(|entry| {
-                entry
-                    .source
-                    .as_ref()
-                    .is_some_and(|s| s.installation_id == id)
-                    || Path::new(&entry.plugin_root).starts_with(&path)
-            });
+            let referenced = self
+                .catalog
+                .plugins
+                .iter()
+                .any(|entry| Path::new(&entry.plugin_root).starts_with(&path));
             if !referenced {
                 match fs::symlink_metadata(&path) {
                     Ok(_) => {
@@ -41,6 +40,13 @@ impl Provision<'_> {
                     }
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                     Err(_) => return Err(PluginProvisionFailure::CleanupIncomplete),
+                }
+                if let Generation::Source { folder, .. } = &generation {
+                    // Emptied folders go too. Either may still hold another version or the
+                    // plugin's own folders, or be recreated by a concurrent first use, so a
+                    // refusal leaves it in place.
+                    let _ = fs::remove_dir(base.sources(folder));
+                    let _ = fs::remove_dir(base.plugin(folder));
                 }
             }
             self.catalog.cleanup.remove(0);

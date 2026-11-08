@@ -101,6 +101,41 @@ impl PluginProvisionExecutor for Executor {
         output
     }
 }
+/// The rule after any install, update, or uninstall settles: no fetched source waits, and the
+/// only source folders in the store are those the catalog registers.
+fn assert_only_registered_sources(registry: &PluginRegistry) {
+    assert!(!registry.paths.pending_source().exists());
+    let mut found = vec![];
+    for plugin in fs::read_dir(registry.root().canonicalize().unwrap()).unwrap() {
+        let plugin = plugin.unwrap().path();
+        if let Ok(sources) = fs::read_dir(plugin.join(crate::data_root::PluginStorePaths::SOURCES))
+        {
+            found.extend(sources.map(|source| source.unwrap().path()));
+        }
+    }
+    found.sort();
+    let mut registered: Vec<PathBuf> = registry
+        .list(None)
+        .unwrap()
+        .plugins
+        .into_iter()
+        .filter(|entry| entry.source.is_some())
+        .map(|entry| PathBuf::from(entry.plugin_root))
+        .collect();
+    registered.sort();
+    assert_eq!(found, registered);
+}
+/// The recorded cleanup key of a registered managed entry's source folder.
+fn generation_key(registry: &PluginRegistry, entry: &PluginRegistryEntry) -> String {
+    let relative = Path::new(&entry.plugin_root)
+        .strip_prefix(registry.root().canonicalize().unwrap())
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .replace('\\', "/");
+    assert!(Generation::parse(&relative).is_some());
+    relative
+}
 fn install(registry: &PluginRegistry, n: u8, executor: &mut Executor) -> PluginProvisionReport {
     registry.install(
         PluginGithubSource::parse("example/tools").unwrap(),
@@ -200,15 +235,7 @@ fn plugin_managed_update_reuses_recorded_source_and_skips_an_unchanged_commit() 
         Some(PluginProvisionFailure::IdentityChanged)
     );
     assert_eq!(registry.list(None).unwrap(), current);
-    for n in [3, 4] {
-        assert!(
-            !registry
-                .root
-                .join("managed")
-                .join(format!("i-{n:032x}"))
-                .exists()
-        );
-    }
+    assert_only_registered_sources(&registry);
     assert_eq!(
         registry
             .update("absent", &format!("{:032x}", 5), &mut Executor::default())
@@ -268,13 +295,7 @@ fn plugin_managed_failed_or_changed_build_keeps_previous_catalog() {
         assert!(failed.failure.is_some());
         assert!(failed.cleanup_pending.is_empty());
         assert_eq!(registry.list(None).unwrap(), original);
-        assert!(
-            !registry
-                .root
-                .join("managed")
-                .join(format!("i-{n:032x}"))
-                .exists()
-        );
+        assert_only_registered_sources(&registry);
     }
 }
 #[test]
@@ -284,6 +305,9 @@ fn plugin_managed_uninstall_reports_committed_removal_and_recoverable_cleanup() 
     let first = install(&registry, 1, &mut Executor::default())
         .plugin
         .unwrap();
+    // A later install may reuse a freed version name, so the stranded content is what must go.
+    let stranded = Path::new(&first.plugin_root).join("stranded.txt");
+    fs::write(&stranded, b"old").unwrap();
     let held = crate::private_filesystem::open_file(
         &Path::new(&first.plugin_root).join("artifact.txt"),
         false,
@@ -302,7 +326,8 @@ fn plugin_managed_uninstall_reports_committed_removal_and_recoverable_cleanup() 
     let recovered = install(&registry, 2, &mut Executor::default());
     assert_eq!(recovered.failure, None);
     assert!(recovered.cleanup_pending.is_empty());
-    assert!(!Path::new(&first.plugin_root).exists());
+    assert!(!stranded.exists());
+    assert_only_registered_sources(&registry);
 }
 #[test]
 fn plugin_managed_invalid_inputs_and_local_source_collision_never_replace_link() {
@@ -332,7 +357,7 @@ fn plugin_managed_invalid_inputs_and_local_source_collision_never_replace_link()
         &"1".repeat(32),
         &mut executor,
     );
-    assert!(!registry.root.exists());
+    assert!(!registry.root().exists());
     assert!(bad.failure.is_some());
     assert_eq!(executor.called, 0);
     fs::write(fixture.0.join("orchbee-plugin.toml"), MANIFEST).unwrap();
@@ -380,19 +405,19 @@ fn plugin_managed_uncertain_child_fences_cleanup_and_later_effects() {
 }
 
 #[test]
-fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_provenance() {
+fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_roots() {
     let fixture = Fixture::new();
     let registry = fixture.registry();
     let entry = install(&registry, 1, &mut Executor::default())
         .plugin
         .unwrap();
-    let mut cache = PrivateCache::acquire(&registry.root, "registry").unwrap();
+    let mut cache = PrivateCache::acquire(registry.root(), "registry").unwrap();
     let mut catalog = decode(
         cache.read(FILE, REGISTRY_LIMIT).unwrap().as_deref(),
-        &registry.root,
+        &registry.paths,
     )
     .unwrap();
-    catalog.cleanup.push(format!("{:032x}", 1));
+    catalog.cleanup.push(generation_key(&registry, &entry));
     cache
         .replace(FILE, &serde_json::to_vec(&catalog).unwrap())
         .unwrap();
@@ -404,13 +429,20 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_p
     );
     assert!(missing.cleanup_pending.is_empty());
     assert!(Path::new(&entry.plugin_root).exists());
-    let mut cache = PrivateCache::acquire(&registry.root, "registry").unwrap();
+    let mut cache = PrivateCache::acquire(registry.root(), "registry").unwrap();
     let mut catalog = decode(
         cache.read(FILE, REGISTRY_LIMIT).unwrap().as_deref(),
-        &registry.root,
+        &registry.paths,
     )
     .unwrap();
-    catalog.plugins[0].source.as_mut().unwrap().installation_id = "3".repeat(32);
+    // A managed root outside its plugin's source folder would let cleanup or a build reach it.
+    let outside = fixture.0.canonicalize().unwrap();
+    catalog.plugins[0].plugin_root = outside.to_str().unwrap().to_owned();
+    catalog.plugins[0].manifest_path = outside
+        .join("orchbee-plugin.toml")
+        .to_str()
+        .unwrap()
+        .to_owned();
     cache
         .replace(FILE, &serde_json::to_vec(&catalog).unwrap())
         .unwrap();
@@ -429,6 +461,7 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_p
 fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
     for fault in [
         "version",
+        "folders",
         "cleanup",
         "blockedCleanup",
         "source",
@@ -444,7 +477,7 @@ fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
                 enabled: true,
             })
             .unwrap();
-        let mut cache = PrivateCache::acquire(&registry.root, "registry").unwrap();
+        let mut cache = PrivateCache::acquire(registry.root(), "registry").unwrap();
         let mut document: serde_json::Value =
             serde_json::from_slice(&cache.read(FILE, REGISTRY_LIMIT).unwrap().unwrap()).unwrap();
         assert_eq!(document["version"], 1);
@@ -478,7 +511,7 @@ fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
             Err(Error::InvalidRegistry)
         );
         assert_eq!(
-            PrivateCache::read_existing(&registry.root, FILE, REGISTRY_LIMIT)
+            PrivateCache::read_existing(registry.root(), FILE, REGISTRY_LIMIT)
                 .unwrap()
                 .unwrap(),
             encoded

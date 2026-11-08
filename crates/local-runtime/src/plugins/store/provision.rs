@@ -1,20 +1,23 @@
-//! One serialized offline install/update/uninstall workflow with atomic catalog commitment.
+//! One serialized offline install/update/uninstall workflow with atomic catalog commitment. A
+//! source is fetched into the store's pending source, then moved into its plugin's folder under
+//! its version's name before it builds, so every name it lives under is known before creation.
 use super::{
-    Catalog, Error, FILE, MAX_REVISION, PluginRegistry, PluginRegistryEntry, REGISTRY_LIMIT,
-    REGISTRY_RECORD, decode, load, storage,
+    Catalog, Error, FILE, Generation, MAX_REVISION, PluginRegistry, PluginRegistryEntry,
+    REGISTRY_LIMIT, REGISTRY_RECORD, decode, encode, load, naming, platform, storage,
 };
 use crate::{
     CommandFailure, CommandOutput, PluginGithubSource, PluginManagedSource, PrivateCache,
     plugin_git_reference,
 };
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::{
+    fs, io,
+    path::{Component, Path, PathBuf},
+};
 
 mod cleanup;
 #[cfg(all(test, windows))]
 mod tests;
-/// Names the writer lock that serializes managed checkouts inside `managed/`.
-const MANAGED_RECORD: &str = "checkouts";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -186,13 +189,13 @@ fn failed(failure: PluginProvisionFailure) -> PluginProvisionReport {
 }
 impl<'a> Provision<'a> {
     fn open(registry: &'a PluginRegistry) -> Result<Self, PluginProvisionFailure> {
-        let store = PrivateCache::acquire(&registry.root, REGISTRY_RECORD).map_err(storage)?;
+        let store = PrivateCache::acquire(registry.root(), REGISTRY_RECORD).map_err(storage)?;
         let catalog = decode(
             store
                 .read(FILE, REGISTRY_LIMIT)
                 .map_err(storage)?
                 .as_deref(),
-            &registry.root,
+            &registry.paths,
         )?;
         Ok(Self {
             registry,
@@ -202,11 +205,7 @@ impl<'a> Provision<'a> {
         })
     }
     fn persist(&mut self) -> Result<(), PluginProvisionFailure> {
-        let bytes = serde_json::to_vec(&self.catalog).map_err(|_| Error::InvalidRegistry)?;
-        if bytes.len() > REGISTRY_LIMIT {
-            return Err(Error::LimitExceeded.into());
-        }
-        decode(Some(&bytes), &self.registry.root)?;
+        let bytes = encode(&self.catalog, &self.registry.paths)?;
         self.store.replace(FILE, &bytes).map_err(storage)?;
         Ok(())
     }
@@ -219,14 +218,76 @@ impl<'a> Provision<'a> {
             .ok_or(Error::LimitExceeded)?;
         Ok(())
     }
-    fn queue(&mut self, id: &str) -> Result<(), PluginProvisionFailure> {
-        if !self.catalog.cleanup.iter().any(|s| s == id) {
+    /// Records `generation` for removal unless a recorded key already names its folder.
+    fn queue(&mut self, generation: &Generation) -> Result<(), PluginProvisionFailure> {
+        let recorded = self
+            .catalog
+            .cleanup
+            .iter()
+            .filter_map(|key| Generation::parse(key))
+            .any(|queued| queued.same_folder(generation));
+        if !recorded {
             if self.catalog.cleanup.len() == 64 {
                 return Err(Error::LimitExceeded.into());
             }
-            self.catalog.cleanup.push(id.into());
+            self.catalog.cleanup.push(generation.key());
         }
         Ok(())
+    }
+    fn dequeue(&mut self, generation: &Generation) {
+        self.catalog.cleanup.retain(|key| {
+            Generation::parse(key).is_none_or(|queued| !queued.same_folder(generation))
+        });
+    }
+    /// The source folder a registered managed entry lives in, which decoding already checked.
+    fn generation(
+        &self,
+        entry: &PluginRegistryEntry,
+    ) -> Result<Generation, PluginProvisionFailure> {
+        let folder = self
+            .catalog
+            .folders
+            .get(&entry.manifest.id)
+            .ok_or(Error::InvalidRegistry)?;
+        let canonical = self.registry.root().canonicalize().map_err(storage)?;
+        let sources = super::PluginStorePaths::new(canonical).sources(folder);
+        match Path::new(&entry.plugin_root)
+            .strip_prefix(&sources)
+            .ok()
+            .and_then(|rest| rest.components().next())
+        {
+            Some(Component::Normal(version)) => Ok(Generation::Source {
+                folder: folder.clone(),
+                version: version.to_str().ok_or(Error::InvalidRegistry)?.to_owned(),
+            }),
+            _ => Err(Error::InvalidRegistry.into()),
+        }
+    }
+    /// The first name the plugin's `version` can take among its source folders: neither present
+    /// nor recorded for removal.
+    fn free_version(&self, folder: &str, version: &str) -> Result<String, PluginProvisionFailure> {
+        let base = naming::spelling(version, "version");
+        for name in naming::candidates(&base) {
+            let candidate = Generation::Source {
+                folder: folder.to_owned(),
+                version: name.clone(),
+            };
+            let recorded = self
+                .catalog
+                .cleanup
+                .iter()
+                .filter_map(|key| Generation::parse(key))
+                .any(|queued| queued.same_folder(&candidate));
+            if recorded {
+                continue;
+            }
+            match fs::symlink_metadata(candidate.path(&self.registry.paths)) {
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(name),
+                Err(error) => return Err(storage(error).into()),
+            }
+        }
+        Err(Error::LimitExceeded.into())
     }
     fn update(
         &mut self,
@@ -269,18 +330,14 @@ impl<'a> Provision<'a> {
         executor
             .checkpoint()
             .map_err(PluginProvisionFailure::Command)?;
-        let managed = self.registry.root.join("managed");
-        let _managed = PrivateCache::acquire(&managed, MANAGED_RECORD).map_err(storage)?;
-        let container = managed.join(format!("i-{id}"));
-        // Never adopt an existing directory, even if the caller reused a valid identity.
-        if std::fs::symlink_metadata(&container).is_ok() {
+        let pending = self.registry.paths.pending_source();
+        // Never adopt an existing directory: recorded cleanup has removed every one it knew.
+        if fs::symlink_metadata(&pending).is_ok() {
             return Err(Error::InvalidPath.into());
         }
-        self.queue(id)?;
+        self.queue(&Generation::Pending)?;
         self.persist()?;
-        std::fs::create_dir(&container).map_err(storage)?;
-        let checkout = container.join("checkout");
-        std::fs::create_dir(&checkout).map_err(storage)?;
+        fs::create_dir(&pending).map_err(storage)?;
         self.report.stage = PluginProvisionStage::Checkout;
         for args in [
             vec!["init".into()],
@@ -299,9 +356,9 @@ impl<'a> Provision<'a> {
             ],
             vec!["checkout".into(), "--detach".into(), "FETCH_HEAD".into()],
         ] {
-            self.git(&checkout, args, executor)?;
+            self.git(&pending, args, executor)?;
         }
-        let resolved = self.git(&checkout, vec!["rev-parse".into(), "HEAD".into()], executor)?;
+        let resolved = self.git(&pending, vec!["rev-parse".into(), "HEAD".into()], executor)?;
         let resolved_commit = String::from_utf8(resolved.stdout)
             .map_err(|_| Error::InvalidManifest)?
             .trim()
@@ -309,7 +366,7 @@ impl<'a> Provision<'a> {
         if let Some(update) = update
             && update.commit == resolved_commit
         {
-            // Already current: the staged generation stays queued, so finishing removes it.
+            // Already current: the pending source stays queued, so finishing removes it.
             self.report.plugin = self
                 .catalog
                 .plugins
@@ -319,23 +376,25 @@ impl<'a> Provision<'a> {
             return Ok(());
         }
         self.report.stage = PluginProvisionStage::Inspect;
-        let root = source
-            .subdir
-            .as_ref()
-            .map_or_else(|| checkout.clone(), |subdir| checkout.join(subdir));
-        let before = load(&root, true)?;
-        if update.is_some_and(|update| update.id != before.manifest.id) {
+        let within = |checkout: &Path| {
+            source
+                .subdir
+                .as_ref()
+                .map_or_else(|| checkout.to_owned(), |subdir| checkout.join(subdir))
+        };
+        let fetched = load(&within(&pending), true)?;
+        if update.is_some_and(|update| update.id != fetched.manifest.id) {
             return Err(PluginProvisionFailure::IdentityChanged);
         }
-        let canonical_checkout = checkout.canonicalize().map_err(storage)?;
-        if !Path::new(&before.plugin_root).starts_with(&canonical_checkout) {
+        let canonical_pending = pending.canonicalize().map_err(storage)?;
+        if !Path::new(&fetched.plugin_root).starts_with(&canonical_pending) {
             return Err(Error::InvalidPath.into());
         }
         let existing = self
             .catalog
             .plugins
             .iter()
-            .position(|p| p.manifest.id == before.manifest.id);
+            .position(|p| p.manifest.id == fetched.manifest.id);
         if existing.is_some_and(|i| self.catalog.plugins[i].source.is_none()) {
             return Err(PluginProvisionFailure::LinkedConflict);
         }
@@ -343,12 +402,35 @@ impl<'a> Provision<'a> {
             return Err(Error::LimitExceeded.into());
         }
         let provenance = PluginManagedSource {
-            github: source,
+            github: source.clone(),
             requested_ref: reference,
             resolved_commit,
             installation_id: id.into(),
         };
         provenance.validate()?;
+        // Build outputs may record their own location, so the source moves to its final folder,
+        // recorded for removal first, before any build command runs.
+        let (folder, _) = self
+            .registry
+            .assign_folder(&mut self.catalog, &fetched.manifest.id)?;
+        let version = self.free_version(&folder, &fetched.manifest.version)?;
+        let generation = Generation::Source {
+            folder: folder.clone(),
+            version,
+        };
+        self.queue(&generation)?;
+        self.persist()?;
+        let _pins =
+            platform::pin_private(&self.registry.paths.sources(&folder)).map_err(storage)?;
+        let checkout = generation.path(&self.registry.paths);
+        self.place(&pending, &checkout, executor)?;
+        self.dequeue(&Generation::Pending);
+        self.persist()?;
+        let root = within(&checkout);
+        let before = load(&root, true)?;
+        if before.manifest != fetched.manifest {
+            return Err(PluginProvisionFailure::ManifestChanged);
+        }
         self.report.stage = PluginProvisionStage::Build;
         for step in &before.manifest.build {
             if before.manifest.supports_windows(&step.platforms) {
@@ -374,12 +456,7 @@ impl<'a> Provision<'a> {
         let saved = self.catalog.clone();
         if let Some(index) = existing {
             entry.enabled = self.catalog.plugins[index].enabled;
-            let old = self.catalog.plugins[index]
-                .source
-                .as_ref()
-                .expect("managed replacement checked")
-                .installation_id
-                .clone();
+            let old = self.generation(&self.catalog.plugins[index])?;
             self.queue(&old)?;
             self.catalog.plugins[index] = entry.clone();
         } else {
@@ -388,7 +465,7 @@ impl<'a> Provision<'a> {
         self.catalog
             .plugins
             .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
-        self.catalog.cleanup.retain(|candidate| candidate != id);
+        self.dequeue(&generation);
         if let Err(error) = self.bump_revision().and_then(|()| self.persist()) {
             self.catalog = saved;
             return Err(error);
@@ -397,6 +474,30 @@ impl<'a> Provision<'a> {
         self.report.changed = true;
         self.report.output = None;
         Ok(())
+    }
+    /// Moves the fetched source to its final folder. A virus scanner or indexer that briefly holds
+    /// a file just written refuses the move on Windows, so a refusal is retried within a short
+    /// bound before the install fails.
+    fn place(
+        &self,
+        pending: &Path,
+        checkout: &Path,
+        executor: &mut impl PluginProvisionExecutor,
+    ) -> Result<(), PluginProvisionFailure> {
+        let mut attempts = 0;
+        loop {
+            match fs::rename(pending, checkout) {
+                Ok(()) => return Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::PermissionDenied && attempts < 20 => {
+                    attempts += 1;
+                    executor
+                        .checkpoint()
+                        .map_err(PluginProvisionFailure::Command)?;
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(error) => return Err(storage(error).into()),
+            }
+        }
     }
     fn git(
         &mut self,
@@ -479,10 +580,11 @@ impl<'a> Provision<'a> {
             .ok_or(Error::PluginNotFound)?;
         self.report.stage = PluginProvisionStage::Commit;
         let saved = self.catalog.clone();
-        let entry = self.catalog.plugins.remove(index);
-        if let Some(source) = &entry.source {
-            self.queue(&source.installation_id)?;
+        if self.catalog.plugins[index].source.is_some() {
+            let generation = self.generation(&self.catalog.plugins[index])?;
+            self.queue(&generation)?;
         }
+        let entry = self.catalog.plugins.remove(index);
         if let Err(error) = self.bump_revision().and_then(|()| self.persist()) {
             self.catalog = saved;
             return Err(error);
@@ -509,11 +611,10 @@ impl<'a> Provision<'a> {
             .catalog
             .cleanup
             .iter()
-            .map(|id| {
-                self.registry
-                    .root
-                    .join("managed")
-                    .join(format!("i-{id}"))
+            .filter_map(|key| Generation::parse(key))
+            .map(|generation| {
+                generation
+                    .path(&self.registry.paths)
                     .to_string_lossy()
                     .into_owned()
             })

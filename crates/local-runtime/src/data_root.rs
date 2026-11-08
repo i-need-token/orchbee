@@ -68,6 +68,79 @@ impl StateRecord {
     }
 }
 
+/// The plugin store, `internal/plugins/`: the registry, the source a running install fetches, and
+/// one folder per plugin holding its `config`, `data`, and `source/<version>` folders. The store
+/// chooses each folder and version name; this type only places them.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PluginStorePaths {
+    root: PathBuf,
+}
+
+impl PluginStorePaths {
+    /// The registry's record name: its file is `registry.json`, beside `registry.lock` and
+    /// `registry.pending`.
+    pub(crate) const REGISTRY_RECORD: &'static str = "registry";
+    /// The registry file.
+    pub(crate) const REGISTRY_FILE: &'static str = "registry.json";
+    /// The source a running install fetches before its plugin id and version name its folder.
+    pub(crate) const PENDING_SOURCE: &'static str = "source.pending";
+    /// The folder of a plugin's managed sources, one per version.
+    pub(crate) const SOURCES: &'static str = "source";
+
+    /// The store at `root`, which is `internal/plugins/` of a data root unless a test keeps its
+    /// own.
+    pub(crate) fn new(root: PathBuf) -> Self {
+        Self { root }
+    }
+
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+
+    pub(crate) fn pending_source(&self) -> PathBuf {
+        self.root.join(Self::PENDING_SOURCE)
+    }
+
+    /// One plugin's folder.
+    pub(crate) fn plugin(&self, folder: &str) -> PathBuf {
+        self.root.join(folder)
+    }
+
+    /// The configuration folder the plugin owns, the one folder in the store meant for hand
+    /// editing.
+    pub(crate) fn config(&self, folder: &str) -> PathBuf {
+        self.plugin(folder).join("config")
+    }
+
+    /// The data folder the plugin owns.
+    pub(crate) fn data(&self, folder: &str) -> PathBuf {
+        self.plugin(folder).join("data")
+    }
+
+    /// The plugin's managed sources.
+    pub(crate) fn sources(&self, folder: &str) -> PathBuf {
+        self.plugin(folder).join(Self::SOURCES)
+    }
+
+    /// One managed source, the checkout of one version.
+    pub(crate) fn source(&self, folder: &str, version: &str) -> PathBuf {
+        self.sources(folder).join(version)
+    }
+
+    /// Whether `name` is one the store keeps for itself, so no plugin folder may take it. Letter
+    /// case does not distinguish names on Windows.
+    pub(crate) fn reserved(name: &str) -> bool {
+        [
+            Self::REGISTRY_FILE,
+            "registry.lock",
+            "registry.pending",
+            Self::PENDING_SOURCE,
+        ]
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved))
+    }
+}
+
 impl DataRoot {
     /// `ORCHBEE_HOME` when set, otherwise `<home>/.<stem>`. Home follows `USERPROFILE` on Windows,
     /// as Node's `os.homedir()` does so Desktop derives the same folder, and `HOME` elsewhere.
@@ -165,7 +238,7 @@ impl DataRoot {
         self.internal().join("backups")
     }
 
-    /// The plugin registry and plugin folders.
+    /// The plugin store; `PluginStorePaths` places what it holds.
     pub fn plugins(&self) -> PathBuf {
         self.internal().join("plugins")
     }

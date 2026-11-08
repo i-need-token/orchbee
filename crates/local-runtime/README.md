@@ -116,7 +116,9 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/state/<record>.json`        | `StateRecord`: preferences, onboarding, and the machine catalog    |
 | `internal/cache/agent-detection/`     | Downloaded detection rules and `catalog.json`, which names the URL |
 | `internal/backups/<date>-reset-keys/` | Copy of the settings file taken by `config reset-keys`             |
-| `internal/plugins/`                   | Plugin registry, managed checkouts, and plugin folders             |
+| `internal/plugins/registry.json`      | Plugin registry, folder assignments, and recorded cleanup          |
+| `internal/plugins/<folder>/`          | One plugin's `config/`, `data/`, and `source/<version>/`           |
+| `internal/plugins/source.pending/`    | The source a running install fetches before it moves               |
 | `internal/runtime/`                   | Default runtime base of a development or test environment          |
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
@@ -126,7 +128,11 @@ Orchbee wrote records its layout; nothing raises `newestVersion` yet. The record
 `data-root-version-record` before changing it. Release Session catalogs, checkpoints and the TUI
 position stay in `%LOCALAPPDATA%\Orchbee` until Sessions move into the root by name; a development
 or test environment keeps them under `internal/`. Nothing migrates or removes what an earlier build
-left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee\audit`, or the top level of a data root.
+left in `%APPDATA%\Orchbee`, `%LOCALAPPDATA%\Orchbee\audit`, or the top level of a data root, nor
+the earlier plugin store layout (`internal/plugins/config/p-<digest>`, `state/p-<digest>`, and
+`managed/`); a registry written in that layout reads as invalid until it is deleted, after which
+plugins are linked or installed again. `PluginStorePaths` places everything in the plugin store;
+the store chooses the folder and version names.
 
 ## Windows user path operands
 
@@ -668,7 +674,7 @@ The Windows settings owner exposes bounded offline keybinding reset with semanti
 
 The same keys owner encodes and validates canonical `[keys]` profiles for live Client publication, capped at 64 KiB and 144 expanded triggers per action. User files keep the 16-alternative bound; Server and Client own publication and installation.
 
-The Windows plugin catalog boundary supplies bounded manifest parsing, normalized identifiers, platform inheritance, source availability and atomic private user registration for native plugin management. Reads do not create storage; unavailable sources retain explicitly marked inspection metadata. Configuration/state paths remain stable after unlink. The shared Windows command owner provides bounded output capture and descendant settlement for Worker commands and offline provisioning; applications own execution policy. Managed provisioning owns serialized source download/build/commit/cleanup, including update from a recorded source, through an application-supplied executor, with one strict version 1 catalog including required provenance/recovery fields; see the [native plugin contract](../../apps/orchbee/docs/windows-plugins.md).
+The Windows plugin catalog boundary supplies bounded manifest parsing, normalized identifiers, platform inheritance, source availability and atomic private user registration for native plugin management. Reads do not create storage; unavailable sources retain explicitly marked inspection metadata. Each plugin's folder is spelled from its ID, recorded in the registry, and keeps its `config` and `data` folders after unlink. The shared Windows command owner provides bounded output capture and descendant settlement for Worker commands and offline provisioning; applications own execution policy. Managed provisioning owns serialized source download/build/commit/cleanup, including update from a recorded source, through an application-supplied executor, with one strict version 1 catalog including required provenance/recovery fields; see the [native plugin contract](../../apps/orchbee/docs/windows-plugins.md).
 
 ## Windows update channel writes
 

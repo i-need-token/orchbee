@@ -249,7 +249,7 @@ fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
 fn plugin_catalog_user_paths_are_stable_distinct_and_windows_safe() {
     let root = Root::new();
     let registry = root.registry();
-    let mut paths = std::collections::BTreeSet::new();
+    let mut folders = std::collections::BTreeSet::new();
     for id in [
         "..",
         "CON",
@@ -259,10 +259,19 @@ fn plugin_catalog_user_paths_are_stable_distinct_and_windows_safe() {
         "Example",
         "example",
     ] {
-        let path = registry.config_dir(id).unwrap();
-        assert!(paths.insert(path.clone()));
-        assert_eq!(path, registry.config_dir(id).unwrap());
-        assert!(path.starts_with(registry.root().join("config")));
+        let (config, data) = registry.user_directories(id).unwrap();
+        assert!(config.is_dir() && data.is_dir());
+        assert_eq!(config, registry.config_dir(id).unwrap());
+        // Each plugin's folders share one folder of its own directly in the store, distinct
+        // from every other plugin's even where letter case does not distinguish names.
+        let folder = config.parent().unwrap();
+        assert_eq!(data.parent(), Some(folder));
+        assert_eq!(folder.parent(), Some(registry.root()));
+        assert!(folders.insert(folder.to_string_lossy().to_ascii_lowercase()));
+        // An id that is already a plain folder name is the name a person finds.
+        if matches!(id, "a_b" | "Example") {
+            assert_eq!(folder.file_name().unwrap(), id);
+        }
     }
     assert!(registry.config_dir("../outside").is_err());
 }
