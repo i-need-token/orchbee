@@ -499,9 +499,9 @@ fn plugin_pane_source_context_refuses_missing_or_mismatched_source_before_user_s
     ] {
         let (root, registry, mut snapshot, mut command, selector) = fixture();
         let mut context = source_fixture(&mut snapshot);
-        // Linking already creates user storage. Remove only this fixture's owned
-        // directories so refusal can witness that launch does not recreate them.
-        for suffix in ["catalog/config", "catalog/state"] {
+        // Linking already creates user storage in the plugin's folder, `tools`. Remove only this
+        // fixture's owned directories so refusal can witness that launch does not recreate them.
+        for suffix in ["catalog/tools/config", "catalog/tools/data"] {
             let target = root.0.join(suffix);
             assert!(target.starts_with(&root.0));
             fs::remove_dir_all(target).unwrap();
@@ -529,8 +529,8 @@ fn plugin_pane_source_context_refuses_missing_or_mismatched_source_before_user_s
             resolve_from(&registry, &snapshot, &command, &selector).is_err(),
             "{case}"
         );
-        assert!(!root.0.join("catalog/config").exists(), "{case}");
-        assert!(!root.0.join("catalog/state").exists(), "{case}");
+        assert!(!root.0.join("catalog/tools/config").exists(), "{case}");
+        assert!(!root.0.join("catalog/tools/data").exists(), "{case}");
     }
 }
 
