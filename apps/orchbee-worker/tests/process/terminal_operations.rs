@@ -723,8 +723,7 @@ fn host_record(
 }
 
 fn connect_observer(endpoint: &Path) -> TestResult<(UnixStream, HostEpoch)> {
-    let mut stream = UnixStream::connect(endpoint)?;
-    configure_peer_stream(&stream)?;
+    let mut stream = connect_with_offer(endpoint)?;
     let control = encode_connection_control(&ConnectionControl::Hello(Hello {
         client_id: ClientId::from_bytes([88; 16])?,
         protocol: CURRENT_PROTOCOL_VERSION,

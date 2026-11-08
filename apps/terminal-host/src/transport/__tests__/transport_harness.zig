@@ -5,6 +5,8 @@ pub const protocol = @import("terminal-protocol");
 pub const service_boundary = @import("terminal-host-service");
 pub const subject = @import("terminal-host-transport");
 pub const host_service = service_boundary.service;
+pub const handshake = @import("terminal-host-handshake");
+pub const candidate_admission = service_boundary.candidate_admission;
 pub const host_core = core_boundary.state;
 pub const host_runtime_aggregate = service_boundary.testing.runtime_aggregate;
 pub const monotonic = @import("terminal-host-platform").monotonic;
@@ -27,6 +29,7 @@ pub const serveAcceptedConnection = subject.testing.serveAcceptedConnectionFn;
 pub const serveConnection = subject.testing.serveConnectionFn;
 pub const serveConnectionWithHandshakeTimeout = subject.testing.serveConnectionWithHandshakeTimeoutFn;
 pub const serveUntilIdleLoop = subject.testing.serveUntilIdleLoopFn;
+pub const Served = subject.testing.ServedType;
 pub const validEndpointId = subject.validEndpointId;
 pub const windowsStatusError = subject.testing.windowsStatusErrorFn;
 pub const writeOutgoing = subject.testing.writeOutgoingFn;
@@ -216,7 +219,42 @@ pub const WindowsTestClient = if (builtin.os.tag != .windows) void else struct {
 // filter, the idle exit condition is still evaluated, and it never escalates to
 // a fatal teardown or the retained-cleanup window.
 
+/// This build's own Worker offer, which the Host it was built with accepts.
+pub fn workerOffer() handshake.message.Offer {
+    const host = candidate_admission.profile();
+    return .{
+        .connection = host.connection,
+        .generations = host.generations,
+        .capabilities = host.capabilities,
+        .product_version = host.product_version,
+        .build = host.build,
+        .environment = host.environment,
+        .fingerprint = host.fingerprint,
+    };
+}
+
+/// Sends one `OBHS` frame and decodes the Host's reply into `arena`.
+pub fn exchangeCandidate(
+    arena: std.mem.Allocator,
+    client: anytype,
+    initiator: handshake.message.InitiatorMessage,
+) !handshake.message.AcceptorMessage {
+    const frame = try handshake.encode.initiatorFrame(std.testing.allocator, initiator);
+    defer std.testing.allocator.free(frame);
+    try client.writeAll(frame);
+    const payload = try handshake.frame.readPayload(arena, client);
+    return handshake.decode.acceptorPayload(arena, payload);
+}
+
+pub fn expectOfferAnswered(client: anytype) !void {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const reply = try exchangeCandidate(arena.allocator(), client, .{ .offer = workerOffer() });
+    try std.testing.expect(reply == .answer);
+}
+
 pub fn expectHandshakeAccepted(client: *TestClient) !void {
+    try expectOfferAnswered(client);
     const hello_payload = try std.fmt.allocPrint(
         std.testing.allocator,
         "{{\"clientId\":\"22222222222222222222222222222222\",\"frameBytes\":1024,\"inputBytes\":1024,\"protocol\":{{\"major\":{d},\"minor\":{d},\"patch\":{d}}},\"rowWindowBytes\":1024,\"supportedOptionalFeatures\":[]}}",

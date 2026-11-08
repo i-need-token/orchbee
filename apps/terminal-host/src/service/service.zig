@@ -2,6 +2,7 @@ const std = @import("std");
 const build_options = @import("build-options");
 const target_builtin = @import("builtin");
 
+const candidate_admission = @import("candidate_admission.zig");
 const control_encode = @import("terminal-host-control").encode;
 const host_connection = @import("connection_workflow.zig");
 const host_event_delivery = @import("event_delivery.zig");
@@ -98,6 +99,18 @@ pub const HostService = struct {
 
     pub fn disconnect(self: *HostService, connection: *ConnectionState) void {
         self.connection_workflow.disconnect(&self.runtime_aggregate, connection);
+    }
+
+    /// The facts a handshake reply reports, read on the dispatch thread.
+    pub fn candidateFacts(self: *const HostService) candidate_admission.Facts {
+        return .{
+            .terminals = std.math.cast(u32, self.runtime_aggregate.terminalCount()) orelse
+                std.math.maxInt(u32),
+            .state = switch (self.lifecycle) {
+                .running => .ready,
+                .shutting_down => .stopping,
+            },
+        };
     }
 
     pub fn canStopWhenIdle(self: *const HostService) bool {

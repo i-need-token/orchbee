@@ -15,6 +15,11 @@ _Static_assert(
 #define PIPE_REJECT_REMOTE_CLIENTS 0x00000008
 #endif
 
+/* One Worker session plus at most four control connections (runtime-model TH-003). Every
+ * instance of a pipe must declare the same limit. */
+#define OB_WINDOWS_PIPE_INSTANCES 5
+#define OB_WINDOWS_PIPE_NAME_CHARACTERS 96
+
 typedef enum {
     OB_WINDOWS_READ_IDLE = 0,
     OB_WINDOWS_READ_PENDING = 1,
@@ -22,12 +27,14 @@ typedef enum {
 } ObWindowsReadState;
 
 struct ObWindowsLocalServer {
+    /* Held only by the primary instance, which owns the endpoint lifetime. */
     HANDLE mutex;
     HANDLE pipe;
     BYTE *token_user;
     BYTE prefetched_byte;
     ObWindowsReadState read_state;
     OVERLAPPED readiness_read;
+    wchar_t pipe_name[OB_WINDOWS_PIPE_NAME_CHARACTERS];
 };
 
 typedef struct {
@@ -289,6 +296,46 @@ static PSECURITY_DESCRIPTOR ob_current_user_descriptor(PSID user) {
     return descriptor;
 }
 
+/* Takes ownership of `token_user`, which is freed on failure. */
+static ObWindowsLocalServer *ob_windows_local_server_open_instance(
+    const wchar_t *pipe_name,
+    BYTE *token_user,
+    SECURITY_ATTRIBUTES *attributes,
+    DWORD first_instance_flag
+) {
+    HANDLE pipe = CreateNamedPipeW(
+        pipe_name,
+        PIPE_ACCESS_DUPLEX | first_instance_flag | FILE_FLAG_OVERLAPPED,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+        OB_WINDOWS_PIPE_INSTANCES,
+        256 * 1024,
+        256 * 1024,
+        0,
+        attributes
+    );
+    if (pipe == INVALID_HANDLE_VALUE) {
+        HeapFree(GetProcessHeap(), 0, token_user);
+        return NULL;
+    }
+    ObWindowsLocalServer *server = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*server));
+    if (server == NULL) {
+        CloseHandle(pipe);
+        HeapFree(GetProcessHeap(), 0, token_user);
+        return NULL;
+    }
+    server->readiness_read.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (server->readiness_read.hEvent == NULL) {
+        HeapFree(GetProcessHeap(), 0, server);
+        CloseHandle(pipe);
+        HeapFree(GetProcessHeap(), 0, token_user);
+        return NULL;
+    }
+    server->pipe = pipe;
+    server->token_user = token_user;
+    wcscpy_s(server->pipe_name, OB_WINDOWS_PIPE_NAME_CHARACTERS, pipe_name);
+    return server;
+}
+
 ObWindowsLocalServer *ob_windows_local_server_create(
     const wchar_t *runtime_directory,
     const wchar_t *endpoint_id,
@@ -320,7 +367,7 @@ ObWindowsLocalServer *ob_windows_local_server_create(
     };
 
     wchar_t mutex_name[96];
-    wchar_t pipe_name[96];
+    wchar_t pipe_name[OB_WINDOWS_PIPE_NAME_CHARACTERS];
     _snwprintf_s(
         mutex_name,
         sizeof(mutex_name) / sizeof(mutex_name[0]),
@@ -348,45 +395,52 @@ ObWindowsLocalServer *ob_windows_local_server_create(
         return NULL;
     }
 
-    HANDLE pipe = CreateNamedPipeW(
+    ObWindowsLocalServer *server = ob_windows_local_server_open_instance(
         pipe_name,
-        PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
-        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1,
-        256 * 1024,
-        256 * 1024,
-        0,
-        &attributes
+        token_user,
+        &attributes,
+        FILE_FLAG_FIRST_PIPE_INSTANCE
     );
     LocalFree(descriptor);
-    if (pipe == INVALID_HANDLE_VALUE) {
-        ReleaseMutex(mutex);
-        CloseHandle(mutex);
-        HeapFree(GetProcessHeap(), 0, token_user);
-        return NULL;
-    }
-
-    ObWindowsLocalServer *server = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*server));
     if (server == NULL) {
-        CloseHandle(pipe);
         ReleaseMutex(mutex);
         CloseHandle(mutex);
-        HeapFree(GetProcessHeap(), 0, token_user);
         return NULL;
     }
     server->mutex = mutex;
-    server->pipe = pipe;
-    server->token_user = token_user;
-    server->readiness_read.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (server->readiness_read.hEvent == NULL) {
-        HeapFree(GetProcessHeap(), 0, server);
-        CloseHandle(pipe);
-        ReleaseMutex(mutex);
-        CloseHandle(mutex);
+    *status = OB_WINDOWS_IPC_OK;
+    return server;
+}
+
+ObWindowsLocalServer *ob_windows_local_server_create_instance(
+    const ObWindowsLocalServer *primary,
+    int *status
+) {
+    *status = OB_WINDOWS_IPC_SYSTEM_ERROR;
+    HANDLE process_token = NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &process_token)) return NULL;
+    BYTE *token_user = ob_token_user(process_token);
+    CloseHandle(process_token);
+    if (token_user == NULL) return NULL;
+    PSECURITY_DESCRIPTOR descriptor =
+        ob_current_user_descriptor(((TOKEN_USER *)token_user)->User.Sid);
+    if (descriptor == NULL) {
         HeapFree(GetProcessHeap(), 0, token_user);
         return NULL;
     }
-    *status = OB_WINDOWS_IPC_OK;
+    SECURITY_ATTRIBUTES attributes = {
+        .nLength = sizeof(SECURITY_ATTRIBUTES),
+        .lpSecurityDescriptor = descriptor,
+        .bInheritHandle = FALSE,
+    };
+    ObWindowsLocalServer *server = ob_windows_local_server_open_instance(
+        primary->pipe_name,
+        token_user,
+        &attributes,
+        0
+    );
+    LocalFree(descriptor);
+    if (server != NULL) *status = OB_WINDOWS_IPC_OK;
     return server;
 }
 
@@ -395,8 +449,10 @@ void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
     ob_windows_local_server_reset_connection(server);
     CloseHandle(server->readiness_read.hEvent);
     CloseHandle(server->pipe);
-    ReleaseMutex(server->mutex);
-    CloseHandle(server->mutex);
+    if (server->mutex != NULL) {
+        ReleaseMutex(server->mutex);
+        CloseHandle(server->mutex);
+    }
     HeapFree(GetProcessHeap(), 0, server->token_user);
     HeapFree(GetProcessHeap(), 0, server);
 }

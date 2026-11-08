@@ -72,10 +72,16 @@ operating-system user, submits its bounded cohort handshake, and verifies typed 
 not contact Terminal Host before Server accepts that Worker connection.
 
 After Server admission, Worker resolves only `<runtime-directory>/<endpoint-id>.s`, connects to the
-existing Terminal Host, independently requires the same effective user, and performs the existing
-exact-version Terminal Protocol `Hello`/`HelloAccepted` exchange. The request identifies one fixed
-diagnostic Worker broker client, advertises the protocol hard limits and no optional feature, and
-is accepted only through the registered request/response roles, exact correlation, exact protocol
+existing Terminal Host, independently requires the same effective user, and opens with this build's
+`worker-host` [connection handshake](../../schemas/connection/README.md) offer: its package version,
+the commit `ORCHBEE_SOURCE_COMMIT` named at compile time, its compiled environment, and the
+protocol fingerprint. The Host's reply is bounded by the two-second candidate deadline. A
+`capacity` rejection or a close before any reply means the Host still holds another Worker
+session, so Worker dials again every 20 milliseconds until its deadline; any other rejection,
+including `environment-mismatch` or `fingerprint-mismatch`, fails the connection. After an answer,
+Worker performs the existing exact-version Terminal Protocol `Hello`/`HelloAccepted` exchange. The
+request identifies one fixed diagnostic Worker broker client, advertises the protocol hard limits
+and no optional feature, and is accepted only through the registered request/response roles, exact correlation, exact protocol
 version, matching negotiated limits, an empty feature intersection, and a nonzero Host epoch.
 
 Only after both peers accept does Worker write `ready\n` to stdout. Its main thread then runs one
@@ -131,7 +137,8 @@ checked again before handoff. The Host directory is `host` under the runtime, wi
 against the platform socket-address ABI before the directory or the Host process is created; an
 address that cannot fit produces the same pre-handoff failure without either side effect. Any pre-existing endpoint immediately requires recovery; only the
 newly spawned Host may be awaited for its final 0600 socket.
-Host startup, its one dial, and strict OBTP handshake share five seconds without renewal or retry.
+Host startup, its dial, the `worker-host` offer with its `capacity` redials, and the strict OBTP
+handshake share five seconds without renewal.
 Preparation/startup failure returns a pre-handoff failure when deliverable and retires Worker;
 uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
 and replay cache.

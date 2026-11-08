@@ -95,6 +95,10 @@ impl Admission {
         stream.set_nonblocking(true)?;
         Ok(Self { stream, deadline })
     }
+    /// Moves the deadline that bounds the following reads and writes.
+    pub(super) fn set_deadline(&mut self, deadline: Instant) {
+        self.deadline = deadline;
+    }
     pub(super) fn remaining(&self) -> io::Result<std::time::Duration> {
         let remaining = self.deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {

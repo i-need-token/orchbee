@@ -22,6 +22,7 @@
 			"capabilities": [],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/control",
+				"apps/terminal-host/src/handshake",
 				"apps/terminal-host/src/protocol",
 				"crates/connection-handshake/src",
 				"crates/terminal-protocol/src",

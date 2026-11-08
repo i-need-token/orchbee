@@ -20,6 +20,23 @@ import path from 'node:path';
 // plus a 16-digit lowercase hex digest (ORC-382). Mirrors the grammar in desktop-distribution-profile.ts.
 export const ARTIFACT_STEM_PATTERN = /^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})$/u;
 
+/**
+ * The Terminal Host build options that give a Host its cohort's identity: the environment stem, which
+ * the Worker handshake compares, the product version of `apps/orchbee`, and the source commit that
+ * release packaging names in `ORCHBEE_SOURCE_COMMIT`, which the Cargo builds read at compile time.
+ */
+export function terminalHostBuildOptions(root, artifactStem, environment = process.env) {
+	const manifest = readFileSync(path.join(root, 'apps', 'orchbee', 'Cargo.toml'), 'utf8');
+	const version = /^version = "([^"]+)"$/mu.exec(manifest)?.[1];
+	if (version === undefined) throw new Error('apps/orchbee/Cargo.toml declares no package version');
+	const commit = environment.ORCHBEE_SOURCE_COMMIT;
+	return [
+		`-Denvironment=${artifactStem}`,
+		`-Dhost-version=${version}`,
+		...(commit === undefined || commit === '' ? [] : [`-Dsource-commit=${commit}`]),
+	];
+}
+
 // Only the newly created, empty destination is secured. Existing installations
 // are never repaired or overwritten. No user path is interpolated into code.
 function privateDirectory(directory) {
@@ -119,7 +136,9 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 			},
 		);
 		const hostPrefix = path.join(temporary, 'host');
-		execFileSync('zig', ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix], {
+		const hostArguments = ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix];
+		hostArguments.push(...terminalHostBuildOptions(root, artifactStem));
+		execFileSync('zig', hostArguments, {
 			cwd: path.join(root, 'apps', 'terminal-host'),
 			stdio: 'inherit',
 			windowsHide: true,

@@ -14,8 +14,8 @@ generation numbers for every connection, frame format, and unnegotiated delivery
 | [`v1/fixtures/`](v1/fixtures/)                                                         | Valid, boundary, invalid, and admission fixtures                                             |
 | [Versioning and Upgrade](../../proposals/platform/versioning-and-upgrade.md#handshake) | Accepted design and rationale until P0 to P2 ship                                            |
 
-`crates/connection-handshake` is the Rust binding. The Terminal Host adds the Zig binding in
-`apps/terminal-host/src/handshake`. Both are independent implementations of this contract; nothing
+`crates/connection-handshake` is the Rust binding, and `apps/terminal-host/src/handshake` is the
+Terminal Host's Zig binding. Both are independent implementations of this contract; nothing
 generates source from it. From the first public release, `OBHS` and its messages never change
 except by new members of `extensions`, and the fixtures of this directory freeze.
 
@@ -142,8 +142,8 @@ The acceptor runs these checks in order and rejects at the first failure.
   capability names; a frame format or delivery gains features through its connection or its
   `extensions`.
 - `fingerprintInputs` lists repository-relative `/`-separated directories in strictly ascending
-  bytewise order; none repeats or contains another, and each exists. The Terminal Host's
-  `src/handshake` joins the `worker-host` list in the change that creates it.
+  bytewise order; none repeats or contains another, and each exists. The `worker-host` list
+  includes the Terminal Host's `src/handshake` binding.
 - Each binding mirrors these numbers in its own constants under a conformance check.
 
 ## Development fingerprint

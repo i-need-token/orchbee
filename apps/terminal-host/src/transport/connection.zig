@@ -1,8 +1,11 @@
 const std = @import("std");
 
+const handshake = @import("terminal-host-handshake");
 const host_service = @import("terminal-host-service").service;
 const monotonic = @import("terminal-host-platform").monotonic;
 const protocol = @import("terminal-protocol");
+const candidate = @import("candidate.zig");
+const control_lanes = @import("control_lanes.zig");
 
 const endpoint_id_bytes = 32;
 pub const poll_interval_ms = 20;
@@ -39,6 +42,15 @@ pub fn validEndpointId(endpoint_id: []const u8) bool {
     return true;
 }
 
+/// What one accepted connection was, for the wait for a Host's first connection.
+pub const Served = enum {
+    /// A connection that could have been the Worker: its session, a refused offer, or a candidate
+    /// that never produced a decodable frame.
+    worker,
+    /// A control request, answered and closed; the Host still waits for its Worker.
+    control_request,
+};
+
 pub fn serveConnection(transport: anytype, service: *host_service.HostService) !void {
     return serveConnectionWithHandshakeTimeout(
         transport,
@@ -47,10 +59,51 @@ pub fn serveConnection(transport: anytype, service: *host_service.HostService) !
     );
 }
 
+/// Serves one connection without control lanes; `handshake_timeout_ns` bounds both the
+/// `OBHS` candidate, together with its own deadline, and the OBTP `Hello` that follows.
 pub fn serveConnectionWithHandshakeTimeout(
     transport: anytype,
     service: *host_service.HostService,
     handshake_timeout_ns: i128,
+) !void {
+    var lanes: control_lanes.None = .{};
+    _ = try serveWithLanes(transport, service, handshake_timeout_ns, &lanes);
+}
+
+/// Admits the connection's `OBHS` candidate first. An admitted Worker offer becomes the session:
+/// `lanes` answer control connections until it ends, and they are joined before this returns.
+fn serveWithLanes(
+    transport: anytype,
+    service: *host_service.HostService,
+    handshake_timeout_ns: i128,
+    lanes: anytype,
+) !Served {
+    if (handshake_timeout_ns < 0) return error.ConnectionClosed;
+    const candidate_deadline_ns = @min(
+        handshake.frame.candidate_deadline_ns,
+        std.math.cast(u64, handshake_timeout_ns) orelse std.math.maxInt(u64),
+    );
+    switch (try candidate.admit(service.allocator, transport, .{
+        .facts = .{ .service = service },
+        .session_slot_free = true,
+        .deadline_ns = candidate_deadline_ns,
+    })) {
+        .session => {},
+        .offer_refused => return .worker,
+        .request_answered => return .control_request,
+        .refused => return error.ConnectionClosed,
+    }
+    lanes.start(service.candidateFacts());
+    defer lanes.stopAndJoin(service);
+    try serveSession(transport, service, handshake_timeout_ns, lanes);
+    return .worker;
+}
+
+fn serveSession(
+    transport: anytype,
+    service: *host_service.HostService,
+    handshake_timeout_ns: i128,
+    lanes: anytype,
 ) !void {
     var connection: host_service.ConnectionState = .awaiting_hello;
     defer service.disconnect(&connection);
@@ -82,6 +135,7 @@ pub fn serveConnectionWithHandshakeTimeout(
             continue;
         }
 
+        lanes.publish(service.candidateFacts());
         var events = try service.pollEvents(&connection);
         defer events.deinit();
         try writeOutgoing(transport, events.records());
@@ -99,10 +153,17 @@ pub fn serveConnectionWithHandshakeTimeout(
     }
 }
 
-pub fn serveAcceptedConnection(transport: anytype, service: *host_service.HostService) void {
-    serveConnection(transport, service) catch |err| switch (err) {
-        error.ConnectionClosed => {},
-        else => std.log.warn("closing terminal Host connection after dispatch failure: {s}", .{@errorName(err)}),
+pub fn serveAcceptedConnection(
+    transport: anytype,
+    service: *host_service.HostService,
+    lanes: anytype,
+) Served {
+    return serveWithLanes(transport, service, record_read_timeout_ns, lanes) catch |err| {
+        switch (err) {
+            error.ConnectionClosed => {},
+            else => std.log.warn("closing terminal Host connection after dispatch failure: {s}", .{@errorName(err)}),
+        }
+        return .worker;
     };
 }
 
@@ -114,10 +175,12 @@ pub fn serveUntilIdleLoop(
     var completed_accept = false;
     while (true) {
         if (!completed_accept) {
-            server.serveOne(service) catch |err| {
+            // A control request answered before the Worker arrives keeps the Host waiting.
+            const served: Served = server.serveOne(service) catch |err| served: {
                 if (!recoverable_failure(err)) return err;
+                break :served .worker;
             };
-            completed_accept = true;
+            completed_accept = served != .control_request;
             continue;
         }
         service.maintain();

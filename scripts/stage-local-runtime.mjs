@@ -16,7 +16,11 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ARTIFACT_STEM_PATTERN, stageWindows } from './stage-native-windows.mjs';
+import {
+	ARTIFACT_STEM_PATTERN,
+	stageWindows,
+	terminalHostBuildOptions,
+} from './stage-native-windows.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
@@ -133,9 +137,16 @@ export function verifiedCapsuleDigest(rootPath) {
  * The development stem of a checkout, so a cohort staged without `--artifact-stem` never carries the
  * release identity. Mirrors `createDesktopDevelopmentScope` in desktop-distribution-profile.ts, so the
  * Desktop development cohort and a hand-staged cohort of one checkout share one environment.
- * `crates/local-runtime/build.rs` derives a plain Cargo build's `ob-test-` stem from the same digest.
  */
 export function developmentArtifactStem(canonicalSourceRoot, platform = process.platform) {
+	return 'ob-dev-' + checkoutDigest(canonicalSourceRoot, platform);
+}
+/**
+ * The 16-digit digest of a checkout's canonical path that names its development and test
+ * environments. `crates/local-runtime/build.rs` derives a plain Cargo build's `ob-test-` stem from
+ * the same digest, and the Terminal Host package build gives its Host that stem.
+ */
+export function checkoutDigest(canonicalSourceRoot, platform = process.platform) {
 	const normalized = (platform === 'win32' ? path.win32 : path.posix)
 		.normalize(canonicalSourceRoot)
 		.normalize('NFC');
@@ -143,12 +154,11 @@ export function developmentArtifactStem(canonicalSourceRoot, platform = process.
 		platform === 'win32' && /^[A-Z]:/u.test(normalized)
 			? normalized[0].toLowerCase() + normalized.slice(1)
 			: normalized;
-	const digest = createHash('sha256')
+	return createHash('sha256')
 		.update('orchbee-development-data-root-v1\0')
 		.update(canonical)
 		.digest('hex')
 		.slice(0, 16);
-	return 'ob-dev-' + digest;
 }
 export function options(args, platform = process.platform) {
 	const result = {};
@@ -257,7 +267,13 @@ function main() {
 		);
 		temporary = mkdtempSync(path.join(tmpdir(), 'orchbee-native-host-'));
 		const hostPrefix = path.join(temporary, 'host');
-		const zigArguments = ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix];
+		const zigArguments = [
+			'build',
+			'-Doptimize=ReleaseSafe',
+			'--prefix',
+			hostPrefix,
+			...terminalHostBuildOptions(root, artifactStem),
+		];
 		if (distro) {
 			if (runCommand('uname', ['-m'], true).trim() !== 'x86_64')
 				throw new Error('Windows cross-staging currently requires x86_64 Linux');

@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 
 const connection = @import("connection.zig");
+const control_lanes = @import("control_lanes.zig");
 const posix = @import("local_server_posix.zig");
 const windows = @import("local_server_windows.zig");
 
@@ -22,7 +23,12 @@ pub const testing = if (builtin.is_test) struct {
     pub const posixSendFlags = posix.send_flags;
     pub const posixCompat = @import("terminal-host-platform").posix_compat;
     pub const posixEndpointSecurity = posix.endpoint_security;
-    pub const serveAcceptedConnectionFn = connection.serveAcceptedConnection;
+    pub const ServedType = connection.Served;
+    /// Serves an accepted test transport without control lanes.
+    pub fn serveAcceptedConnectionFn(transport: anytype, service: anytype) void {
+        var lanes: control_lanes.None = .{};
+        _ = connection.serveAcceptedConnection(transport, service, &lanes);
+    }
     pub const serveConnectionFn = connection.serveConnection;
     pub const serveConnectionWithHandshakeTimeoutFn = connection.serveConnectionWithHandshakeTimeout;
     pub const serveUntilIdleLoopFn = connection.serveUntilIdleLoop;

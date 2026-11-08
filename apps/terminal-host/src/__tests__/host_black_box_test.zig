@@ -4,6 +4,8 @@ const platform_boundary = @import("terminal-host-platform");
 const monotonic = platform_boundary.monotonic;
 const pty_process = platform_boundary.process;
 const protocol = @import("terminal-protocol");
+const build_options = @import("build-options");
+const terminal_host_handshake = @import("terminal-host-handshake");
 const black_box_transport = @import("black_box_transport.zig");
 
 const endpoint_startup_timeout_ns = 5 * std.time.ns_per_s;
@@ -378,12 +380,7 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
 
     var trace: Trace = .{};
     try trace.observe(.host_spawned);
-    var client = try black_box_transport.connectBefore(
-        allocator,
-        runtime_directory.path(),
-        &endpoint_id,
-        endpoint_startup_timeout_ns,
-    );
+    var client = try connectWorker(allocator, runtime_directory.path(), &endpoint_id);
     var client_open = true;
     defer if (client_open) client.close();
     try trace.observe(.ipc_connected);
@@ -462,12 +459,7 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
     client.close();
     client_open = false;
     try trace.observe(.ipc_disconnected);
-    client = try black_box_transport.connectBefore(
-        allocator,
-        runtime_directory.path(),
-        &endpoint_id,
-        endpoint_startup_timeout_ns,
-    );
+    client = try connectWorker(allocator, runtime_directory.path(), &endpoint_id);
     client_open = true;
     try trace.observe(.ipc_reconnected);
     const reconnect_epoch = try handshake(allocator, &client);
@@ -600,6 +592,37 @@ fn controlShellCommand(allocator: std.mem.Allocator) !ShellCommand {
             "Add-Type 'using System; using System.Runtime.InteropServices; using System.Threading; public static class ControlWitness { public delegate bool Handler(uint kind); [DllImport(\"kernel32.dll\")] static extern bool SetConsoleCtrlHandler(Handler h,bool add); static readonly ManualResetEvent Seen=new ManualResetEvent(false); static readonly Handler Callback=Handle; static bool Handle(uint kind) { if(kind!=0) return false; Seen.Set(); return true; } public static bool Arm() { return SetConsoleCtrlHandler(Callback,true); } public static bool Wait() { return Seen.WaitOne(8000); } }'; if(-not [ControlWitness]::Arm()) { exit 8 }; [Console]::TreatControlCAsInput=$false; [Console]::Title='orchbee-control-ready'; if([ControlWitness]::Wait()) { [Console]::WriteLine('control-received'); exit 0 }; exit 9",
         },
     };
+}
+
+/// Connects as a Worker of this build would: the Host must answer its `worker-host` offer before
+/// any OBTP record.
+fn connectWorker(
+    allocator: std.mem.Allocator,
+    runtime_directory: []const u8,
+    endpoint_id: []const u8,
+) !black_box_transport.Client {
+    const host = terminal_host_handshake.registry.workerHostProfile(
+        build_options.host_version,
+        .{ .commit = build_options.source_commit },
+        build_options.environment,
+    );
+    const frame = try terminal_host_handshake.encode.initiatorFrame(allocator, .{ .offer = .{
+        .connection = host.connection,
+        .generations = host.generations,
+        .capabilities = host.capabilities,
+        .product_version = host.product_version,
+        .build = host.build,
+        .environment = host.environment,
+        .fingerprint = host.fingerprint,
+    } });
+    defer allocator.free(frame);
+    return black_box_transport.connectWorkerBefore(
+        allocator,
+        runtime_directory,
+        endpoint_id,
+        frame,
+        endpoint_startup_timeout_ns,
+    );
 }
 
 fn handshake(

@@ -1003,6 +1003,7 @@ impl Fixture {
             let (mut peer, _) = listener.accept()?;
             peer.set_read_timeout(Some(BUDGET))?;
             peer.set_write_timeout(Some(BUDGET))?;
+            crate::host_connection::answer_test_offer(&mut peer)?;
             let record = read_record(&mut peer)?;
             let envelope = decode_transport_envelope(&record).map_err(io_error)?;
             let ConnectionControl::Hello(hello) =

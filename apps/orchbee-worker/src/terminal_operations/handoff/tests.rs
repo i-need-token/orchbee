@@ -524,6 +524,7 @@ fn connected_host() -> (HostBrokerConnection, LocalStream) {
         peer.set_read_timeout(Some(Duration::from_secs(4))).unwrap();
         peer.set_write_timeout(Some(Duration::from_secs(4)))
             .unwrap();
+        crate::host_connection::answer_test_offer(&mut peer).unwrap();
         let mut header = [0; 64];
         peer.read_exact(&mut header).unwrap();
         let length = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;

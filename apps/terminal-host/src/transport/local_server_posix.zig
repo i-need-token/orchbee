@@ -7,6 +7,7 @@ const output_wake = @import("terminal-host-platform").output_wake;
 const posix_compat = @import("terminal-host-platform").posix_compat;
 const thread_sync = @import("terminal-host-platform").thread_sync;
 const connection = @import("connection.zig");
+const control_lanes = @import("control_lanes.zig");
 
 pub const endpoint_security = @import("posix_endpoint_security.zig");
 
@@ -18,6 +19,9 @@ else
 const Connection = if (builtin.os.tag == .windows) void else struct {
     io: std.Io,
     stream: std.Io.net.Stream,
+    /// Only the dispatch thread waits on the process-wide output wake; a control lane's
+    /// connection waits on its socket alone.
+    observe_output_wake: bool = true,
 
     pub fn read(self: *Connection, bytes: []u8) !usize {
         return std.posix.read(self.stream.socket.handle, bytes);
@@ -74,10 +78,15 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
                 .revents = 0,
             },
         };
-        if (try std.posix.poll(&descriptors, output_wake.pollTimeoutMs(connection.poll_interval_ms)) == 0) {
+        const observed = if (self.observe_output_wake) descriptors[0..] else descriptors[0..1];
+        const timeout_ms = if (self.observe_output_wake)
+            output_wake.pollTimeoutMs(connection.poll_interval_ms)
+        else
+            connection.poll_interval_ms;
+        if (try std.posix.poll(observed, timeout_ms) == 0) {
             return false;
         }
-        if (descriptors[1].revents != 0) output_wake.drain();
+        if (self.observe_output_wake and descriptors[1].revents != 0) output_wake.drain();
         const result = descriptors[0].revents;
         if (result & std.posix.POLL.IN != 0) return true;
         if (result & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
@@ -193,8 +202,8 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         }.recoverable);
     }
 
-    pub fn serveOne(self: *Server, service: *host_service.HostService) !void {
-        try self.acceptAndServe(service);
+    pub fn serveOne(self: *Server, service: *host_service.HostService) !connection.Served {
+        return self.acceptAndServe(service);
     }
 
     pub fn serveOneBefore(
@@ -213,11 +222,11 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
             return error.ConnectionClosed;
         }
         if (result & std.posix.POLL.IN == 0) return false;
-        try self.acceptAndServe(service);
+        _ = try self.acceptAndServe(service);
         return true;
     }
 
-    fn acceptAndServe(self: *Server, service: *host_service.HostService) !void {
+    fn acceptAndServe(self: *Server, service: *host_service.HostService) !connection.Served {
         const accepted = try self.listener.accept(self.io);
         defer accepted.close(self.io);
         try endpoint_security.requirePeerEffectiveUid(
@@ -225,6 +234,64 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
             std.c.geteuid(),
         );
         var transport: Connection = .{ .io = self.io, .stream = accepted };
-        connection.serveAcceptedConnection(&transport, service);
+        var lanes = Lanes.init(.{ .server = self }, service.allocator);
+        return connection.serveAcceptedConnection(&transport, service, &lanes);
     }
+};
+
+const Lanes = control_lanes.ControlLanes(LaneEndpoint);
+
+/// The control lanes share the endpoint's listener; one lane at a time polls and accepts, so an
+/// accept never blocks a lane that lost the race for a connection.
+const LaneEndpoint = if (builtin.os.tag == .windows) void else struct {
+    server: *Server,
+    accept_lock: thread_sync.Mutex = .{},
+
+    pub const Lane = struct {
+        endpoint: *LaneEndpoint,
+        accepted: ?Connection = null,
+
+        pub fn open(endpoint: *LaneEndpoint) !Lane {
+            return .{ .endpoint = endpoint };
+        }
+
+        pub fn close(_: *Lane) void {}
+
+        /// Whether a same-user connection is ready; another user's connection is closed.
+        pub fn acceptBefore(self: *Lane, timeout_ms: u32) !bool {
+            const io = thread_sync.io();
+            const stream = stream: {
+                // A lane that finds another lane polling waits once and rechecks its stop flag.
+                if (!self.endpoint.accept_lock.tryLock()) {
+                    monotonic.sleep(@as(u64, timeout_ms) * std.time.ns_per_ms);
+                    return false;
+                }
+                defer self.endpoint.accept_lock.unlock();
+                var descriptors = [_]std.posix.pollfd{.{
+                    .fd = self.endpoint.server.listener.socket.handle,
+                    .events = std.posix.POLL.IN,
+                    .revents = 0,
+                }};
+                if (try std.posix.poll(&descriptors, @intCast(timeout_ms)) == 0) return false;
+                if (descriptors[0].revents & std.posix.POLL.IN == 0) return false;
+                break :stream try self.endpoint.server.listener.accept(io);
+            };
+            endpoint_security.requirePeerEffectiveUid(stream.socket.handle, std.c.geteuid()) catch {
+                stream.close(io);
+                return false;
+            };
+            self.accepted = .{ .io = io, .stream = stream, .observe_output_wake = false };
+            return true;
+        }
+
+        pub fn transport(self: *Lane) *Connection {
+            return &self.accepted.?;
+        }
+
+        pub fn finish(self: *Lane) void {
+            const accepted = self.accepted orelse return;
+            accepted.stream.close(accepted.io);
+            self.accepted = null;
+        }
+    };
 };

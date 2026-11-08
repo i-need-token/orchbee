@@ -36,6 +36,9 @@ const WindowsTestRuntimeDirectory = harness.WindowsTestRuntimeDirectory;
 const PosixTestClient = harness.PosixTestClient;
 const WindowsTestClient = harness.WindowsTestClient;
 const expectHandshakeAccepted = harness.expectHandshakeAccepted;
+const expectOfferAnswered = harness.expectOfferAnswered;
+const handshake = harness.handshake;
+const workerOffer = harness.workerOffer;
 const ServeThreadContext = harness.ServeThreadContext;
 const serveTestConnection = harness.serveTestConnection;
 const serveTestUntilIdle = harness.serveTestUntilIdle;
@@ -544,6 +547,7 @@ test "malformed local record closes only that connection" {
     var malformed_client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
     var malformed_client_open = true;
     defer if (malformed_client_open) malformed_client.close();
+    try expectOfferAnswered(&malformed_client);
     var malformed = [_]u8{0} ** protocol.transport_envelope_header_bytes;
     @memcpy(malformed[0..4], "OBTP");
     std.mem.writeInt(u16, malformed[4..6], protocol.transport_envelope_header_bytes, .little);
@@ -645,7 +649,12 @@ test "failed response handoff destroys the broker but preserves retained termina
         false,
     );
     defer std.testing.allocator.free(hello);
+    const offer = try handshake.encode.initiatorFrame(std.testing.allocator, .{ .offer = workerOffer() });
+    defer std.testing.allocator.free(offer);
+    const input = try std.mem.concat(std.testing.allocator, u8, &.{ offer, hello });
+    defer std.testing.allocator.free(input);
 
+    // The handshake answer goes out; only OBTP response writes count and fail.
     const FailingWriteTransport = struct {
         record: []const u8,
         offset: usize = 0,
@@ -662,7 +671,8 @@ test "failed response handoff destroys the broker but preserves retained termina
             return self.offset < self.record.len;
         }
 
-        pub fn writeAll(self: *@This(), _: []const u8) !void {
+        pub fn writeAll(self: *@This(), bytes: []const u8) !void {
+            if (std.mem.startsWith(u8, bytes, handshake.frame.magic)) return;
             self.writes += 1;
             return error.InjectedWriteFailure;
         }
@@ -686,7 +696,7 @@ test "failed response handoff destroys the broker but preserves retained termina
     );
     _ = serviceCore(&service).disconnect(setup_connection);
 
-    var transport: FailingWriteTransport = .{ .record = hello };
+    var transport: FailingWriteTransport = .{ .record = input };
     try std.testing.expectError(
         error.InjectedWriteFailure,
         serveConnection(&transport, &service),

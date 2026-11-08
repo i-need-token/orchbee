@@ -452,6 +452,7 @@ fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStre
     let task = thread::spawn(move || {
         let (mut peer, _) = listener.accept().unwrap();
         timeout(&peer);
+        crate::host_connection::answer_test_offer(&mut peer).unwrap();
         let bytes = record(&mut peer);
         let envelope = decode_transport_envelope(&bytes).unwrap();
         let ConnectionControl::Hello(hello) =

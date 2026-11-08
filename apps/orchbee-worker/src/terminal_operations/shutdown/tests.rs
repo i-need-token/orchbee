@@ -170,6 +170,7 @@ fn connected_host() -> (HostBrokerConnection, LocalStream) {
         peer.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         peer.set_write_timeout(Some(Duration::from_secs(5)))
             .unwrap();
+        crate::host_connection::answer_test_offer(&mut peer).unwrap();
         let record = read_record(&mut peer);
         let envelope = decode_transport_envelope(&record).unwrap();
         let ConnectionControl::Hello(hello) =

@@ -11,6 +11,7 @@ getrandom.workspace = true
 orchbee-agent-integration = { path = "../../crates/agent-integration" }
 orchbee-agent-integration-writer = { path = "../../crates/agent-integration-writer" }
 orchbee-color-themes = { path = "../../crates/color-themes" }
+orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 orchbee-local-runtime = { path = "../../crates/local-runtime" }
 

@@ -6,6 +6,7 @@ const posix_compat = platform_boundary.posix_compat;
 const pty_process = platform_boundary.process;
 const thread_sync = platform_boundary.thread_sync;
 const protocol = @import("terminal-protocol");
+const handshake = @import("terminal-host-handshake");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
     @cInclude("local_ipc_windows.h");
@@ -95,6 +96,73 @@ pub fn readRecordBefore(
     @memcpy(record[0..header.len], &header);
     try readExactlyBefore(client, record[header.len..], &timer, timeout_ns);
     return record;
+}
+
+/// Connects and sends `offer_frame` until the Host answers it. A Host still ending the previous
+/// Worker session answers `capacity` or closes before replying; both retry until the deadline.
+pub fn connectWorkerBefore(
+    allocator: std.mem.Allocator,
+    runtime_directory: []const u8,
+    endpoint_id: []const u8,
+    offer_frame: []const u8,
+    timeout_ns: u64,
+) !Client {
+    var timer = try monotonic.Timer.start();
+    while (true) {
+        const remaining_ns = timeout_ns -| timer.read();
+        if (remaining_ns == 0) return error.EndpointStartupTimeout;
+        var client = try connectBefore(allocator, runtime_directory, endpoint_id, remaining_ns);
+        if (offerAnswered(allocator, &client, offer_frame, remaining_ns)) |answered| {
+            if (answered) return client;
+        } else |err| switch (err) {
+            error.ConnectionClosed => {},
+            else => {
+                client.close();
+                return err;
+            },
+        }
+        client.close();
+        monotonic.sleep(poll_interval_ms * std.time.ns_per_ms);
+    }
+}
+
+/// Whether the Host answered the offer; `false` when it is still busy with a Worker session.
+fn offerAnswered(
+    allocator: std.mem.Allocator,
+    client: *Client,
+    offer_frame: []const u8,
+    timeout_ns: u64,
+) !bool {
+    try client.writeAll(offer_frame);
+    const payload = try readHandshakePayloadBefore(allocator, client, timeout_ns);
+    defer allocator.free(payload);
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    return switch (try handshake.decode.acceptorPayload(arena.allocator(), payload)) {
+        .answer => true,
+        .rejection => |rejection| if (rejection.reason == .capacity) false else error.UnexpectedHandshakeRejection,
+        else => error.UnexpectedHandshakeReply,
+    };
+}
+
+/// Reads one `OBHS` frame's payload, the Host's reply to the connection's first frame.
+fn readHandshakePayloadBefore(
+    allocator: std.mem.Allocator,
+    client: *Client,
+    timeout_ns: u64,
+) ![]u8 {
+    var timer = try monotonic.Timer.start();
+    var header: [handshake.frame.header_bytes]u8 = undefined;
+    try readExactlyBefore(client, &header, &timer, timeout_ns);
+    if (!std.mem.eql(u8, header[0..handshake.frame.magic.len], handshake.frame.magic)) {
+        return error.UnexpectedHandshakeFrame;
+    }
+    const length = handshake.frame.payloadLength(header[handshake.frame.magic.len..].*) orelse
+        return error.UnexpectedHandshakeFrame;
+    const payload = try allocator.alloc(u8, length);
+    errdefer allocator.free(payload);
+    try readExactlyBefore(client, payload, &timer, timeout_ns);
+    return payload;
 }
 
 fn temporaryRoot(allocator: std.mem.Allocator) ![]u8 {

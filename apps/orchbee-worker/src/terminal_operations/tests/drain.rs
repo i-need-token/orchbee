@@ -111,6 +111,7 @@ fn scripted_host_peer() -> TestResult<(
             let (mut peer, _) = listener.accept()?;
             peer.set_read_timeout(Some(Duration::from_secs(3)))?;
             peer.set_write_timeout(Some(Duration::from_secs(3)))?;
+            crate::host_connection::answer_test_offer(&mut peer)?;
             let record = read_record(&mut peer)?;
             let envelope = decode_transport_envelope(&record)?;
             let ConnectionControl::Hello(hello) =

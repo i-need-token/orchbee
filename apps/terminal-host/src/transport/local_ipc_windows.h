@@ -23,6 +23,12 @@ ObWindowsLocalServer *ob_windows_local_server_create(
     const wchar_t *endpoint_id,
     int *status
 );
+/* Another instance of `primary`'s pipe for a control connection; it holds no lifetime mutex and
+ * may be created and destroyed on any thread. */
+ObWindowsLocalServer *ob_windows_local_server_create_instance(
+    const ObWindowsLocalServer *primary,
+    int *status
+);
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server);
 int ob_windows_local_server_accept(ObWindowsLocalServer *server);
 int ob_windows_local_server_accept_before(

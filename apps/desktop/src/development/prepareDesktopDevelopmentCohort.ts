@@ -59,13 +59,20 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		sourceRoot,
 		{ ...process.env, ORCHBEE_ARTIFACT_STEM: stem },
 	);
-	await run('zig', ['build', '-Doptimize=ReleaseSafe'], hostRoot);
+	// The Host carries the cohort's environment, so it builds into its own prefix and leaves the
+	// test Host in `zig-out` alone.
+	const hostPrefix = path.join(sourceRoot, 'target', 'desktop-development', 'host');
+	await run(
+		'zig',
+		['build', '-Doptimize=ReleaseSafe', `-Denvironment=${stem}`, '--prefix', hostPrefix],
+		hostRoot,
+	);
 	const key = createHash('sha256').update(stem).update('\0');
 	for (const file of [
 		path.join(sourceRoot, 'target', 'release', `orchbee${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-server${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-worker${suffix}`),
-		path.join(hostRoot, 'zig-out', 'bin', `orchbee-terminal-host${suffix}`),
+		path.join(hostPrefix, 'bin', `orchbee-terminal-host${suffix}`),
 		path.join(hostRoot, 'windows-conpty.json'),
 		path.join(
 			sourceRoot,

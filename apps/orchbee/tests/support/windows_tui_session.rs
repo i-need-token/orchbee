@@ -129,13 +129,22 @@ impl Fixture {
         .unwrap();
     }
 
-    /// Builds the Host from this checkout into the fixture root, as
-    /// `pnpm --filter @orchbee/terminal-host build` does into `zig-out`. Zig's cache returns an
-    /// unchanged build in well under a second.
+    /// Builds the Host from this checkout into the fixture root, in the environment this test
+    /// build and its peers share, as `pnpm --filter @orchbee/terminal-host build` does into
+    /// `zig-out`. Zig's cache returns an unchanged build in well under a second.
     fn build_host(&self) -> PathBuf {
         let prefix = self.root.join("host");
+        let environment = format!(
+            "-Denvironment={}",
+            orchbee_local_runtime::environment_stem()
+        );
         let build = Command::new("zig")
-            .args(["build", "-Doptimize=ReleaseSafe", "--prefix"])
+            .args([
+                "build",
+                "-Doptimize=ReleaseSafe",
+                environment.as_str(),
+                "--prefix",
+            ])
             .arg(&prefix)
             .current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../terminal-host"))
             .output()

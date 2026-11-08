@@ -1,7 +1,7 @@
 //! Owns the admitted same-user Host broker connection, negotiated limits, and
-//! connection-scoped viewer, controller, title, and event state. It validates the Host
-//! handshake without owning the Host child, product Workbench membership, or Agent
-//! interpretation.
+//! connection-scoped viewer, controller, title, and event state. It offers the `worker-host`
+//! connection and validates the OBTP Hello without owning the Host child, product Workbench
+//! membership, or Agent interpretation.
 
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
@@ -10,8 +10,11 @@ use std::{
     io::{self, Read, Write},
     path::Path,
     rc::Rc,
-    time::Duration,
+    thread,
+    time::{Duration, Instant},
 };
+
+use orchbee_connection_handshake::CANDIDATE_DEADLINE;
 
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_terminal_protocol::{
@@ -33,6 +36,7 @@ pub(crate) use events::{consume_event, validate_event};
 mod controllers;
 mod exchange;
 mod host_colors;
+mod offer;
 mod target_cleanup;
 mod titles;
 mod viewers;
@@ -41,6 +45,8 @@ mod viewers;
 mod tests;
 pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
 pub(crate) use host_colors::HostColors;
+#[cfg(test)]
+pub(crate) use offer::answer_test_offer;
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 
@@ -77,7 +83,19 @@ impl HostBrokerConnection {
         deadline: std::time::Instant,
         drain: Rc<RefCell<AgentDrain>>,
     ) -> Result<Self, Box<dyn Error>> {
-        let mut transport = admission::Admission::connect(endpoint, deadline)?;
+        let offer = offer::local()?;
+        let mut transport = loop {
+            let mut transport = admission::Admission::connect(endpoint, deadline)?;
+            transport.set_deadline(deadline.min(Instant::now() + CANDIDATE_DEADLINE));
+            if offer::exchange(&mut transport, &offer)? == offer::Outcome::Answered {
+                transport.set_deadline(deadline);
+                break transport;
+            }
+            if Instant::now() + offer::RETRY_INTERVAL >= deadline {
+                return Err(offer::still_busy());
+            }
+            thread::sleep(offer::RETRY_INTERVAL);
+        };
         let expected = requested_hello()?;
         let correlation_id = CorrelationId::from_bytes(HELLO_CORRELATION_BYTES)?;
         write_hello(&mut transport, &expected, correlation_id)?;
@@ -101,10 +119,23 @@ impl HostBrokerConnection {
         endpoint: &Path,
         drain: Rc<RefCell<AgentDrain>>,
     ) -> Result<Self, Box<dyn Error>> {
-        let mut stream = UnixStream::connect(endpoint)?;
-        require_same_effective_user(&stream)?;
+        let offer = offer::local()?;
+        // A Host still ending the previous Worker session asks this one to dial again.
+        let busy_deadline = Instant::now() + CANDIDATE_DEADLINE;
+        let mut stream = loop {
+            let mut stream = UnixStream::connect(endpoint)?;
+            require_same_effective_user(&stream)?;
+            stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
+            stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
+            if offer::exchange(&mut stream, &offer)? == offer::Outcome::Answered {
+                break stream;
+            }
+            if Instant::now() + offer::RETRY_INTERVAL >= busy_deadline {
+                return Err(offer::still_busy());
+            }
+            thread::sleep(offer::RETRY_INTERVAL);
+        };
         stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
-        stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
 
         let expected = requested_hello()?;
         let correlation_id = CorrelationId::from_bytes(HELLO_CORRELATION_BYTES)?;

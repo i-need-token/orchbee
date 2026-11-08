@@ -39,6 +39,12 @@ It does not own Project, Workspace, Workbench, Tab, Panel, Agent, provider, or p
 The accepted contract requires these externally visible properties:
 
 - One endpoint has at most one active physical local broker session.
+- Every connection opens with one `OBHS` [connection handshake](../../schemas/connection/README.md)
+  frame before any OBTP byte. Only an admitted `worker-host` offer of this Host's environment and
+  protocol fingerprint continues as the broker session; a control request gets one reply and
+  closes. While the session runs, at most four further control connections are served: another
+  offer is refused with `capacity`, and `query` reports this Host's version, environment, terminal
+  count, and state. Control connections carry no attachment or broker authority.
 - A broker disconnect destroys that broker's attachments but does not terminate or dispose retained terminals.
 - A Host with retained terminals remains available for reconnect. A Host with no broker and no retained terminal may exit.
 - Terminal creation is atomic and idempotent by creation identity and durable launch fingerprint
@@ -163,9 +169,10 @@ These controls establish a same-user trust boundary. The endpoint identifier is 
 
 Terminal Host authenticates every accepted client, and closing a broker connection does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised.
 
-The Worker connects only after Server admission: it authenticates the same-user Host and completes
-the exact-version `Hello` exchange. Server remains the launch-authorization owner and Host remains
-the terminal authority.
+The Worker connects only after Server admission: it authenticates the same-user Host, sends its
+`worker-host` offer, dials again while the Host answers `capacity` or closes before replying, and
+then completes the exact-version `Hello` exchange. Server remains the launch-authorization owner
+and Host remains the terminal authority.
 
 Process-tree ownership follows the containment domain created at launch: a dedicated session on Linux and macOS, the retained direct-child process-reaper subtree on FreeBSD, or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, that domain is the Job members that hold the Terminal console: closing ends them and releases the other members, such as GUI programs started from the shell, from Terminal ownership, while any failure or a Host crash still ends the whole Job ([runtime model](docs/runtime-model.md)). The Host observes Job accounting at a quiet monotonic cadence and closes HPCON only after no member holds the console; broker-owned force escalation terminates the console holders, or the whole Job when that fails, so that observation can complete. Natural process exit does not signal the Job handle. On Linux and macOS, preventing a trusted same-user child from deliberately escaping the POSIX session is not an isolation promise.
 
@@ -188,6 +195,15 @@ operations, while Terminal Host remains a separately retained server process.
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 
 `orchbee-terminal-host --version` prints the executable name and its embedded semantic version. The binary version identifies the packaged process and is independent from protocol and binary format versions.
+
+The build options that give a Host its identity are `-Dhost-version=<semver>`, `-Denvironment=<name>`
+(`orchbee`, `ob-dev-<16 hex>`, or `ob-test-<16 hex>`), and the optional
+`-Dsource-commit=<40 hex>`. A Host built without an environment is `unconfigured` and admits no
+Worker. `build/fingerprint.zig` computes the `worker-host` protocol fingerprint from the registry's
+`fingerprintInputs` exactly as `crates/connection-handshake` does, so a Worker and a Host built from
+one checkout agree, and a change to any listed input refuses the other side's older build. The
+package `build` script passes this checkout's `ob-test-` environment, the `apps/orchbee` version,
+and `ORCHBEE_SOURCE_COMMIT` when set; the staging scripts pass their cohort's stem.
 
 ## SSH Environment release component
 
@@ -307,7 +323,8 @@ remain unchanged, alongside the deterministic Host reader/resize ordering test.
 ## Development
 
 The repository-level `pnpm desktop` development runtime builds this package with
-`zig build -Doptimize=ReleaseSafe` into the native cohort it stages when it starts, and reuses an
+`zig build -Doptimize=ReleaseSafe -Denvironment=<development stem>` into its own prefix under
+`target/desktop-development` and the native cohort it stages when it starts, and reuses an
 identical staged cohort. It does not watch Host sources; restart `pnpm desktop` after a Host change.
 A changed cohort first stops the development Session the previous cohort started, so PTY process
 state, VT history, and Host identities do not cross a Host update. Packaged Host lifecycle and

@@ -23,6 +23,7 @@ const serveAcceptedConnection = harness.serveAcceptedConnection;
 const serveConnection = harness.serveConnection;
 const serveConnectionWithHandshakeTimeout = harness.serveConnectionWithHandshakeTimeout;
 const serveUntilIdleLoop = harness.serveUntilIdleLoop;
+const Served = harness.Served;
 const validEndpointId = harness.validEndpointId;
 const windowsStatusError = harness.windowsStatusError;
 const writeOutgoing = harness.writeOutgoing;
@@ -51,7 +52,7 @@ test "recoverable accept failure still evaluates the idle exit condition" {
     const RecoverableFailureServer = struct {
         calls: usize = 0,
 
-        pub fn serveOne(self: *@This(), _: *host_service.HostService) !void {
+        pub fn serveOne(self: *@This(), _: *host_service.HostService) !Served {
             self.calls += 1;
             return error.TestRecoverableAcceptFailure;
         }
@@ -77,7 +78,7 @@ test "THDD-001 PeerIdentityMismatch accept failure stays on the recoverable path
     const PeerMismatchServer = struct {
         calls: usize = 0,
 
-        pub fn serveOne(self: *@This(), _: *host_service.HostService) !void {
+        pub fn serveOne(self: *@This(), _: *host_service.HostService) !Served {
             self.calls += 1;
             return error.PeerIdentityMismatch;
         }
@@ -120,8 +121,9 @@ test "accept timeouts continue Host maintenance without a broker" {
     const TimeoutServer = struct {
         calls: usize = 0,
 
-        pub fn serveOne(self: *@This(), _: *MaintenanceService) !void {
+        pub fn serveOne(self: *@This(), _: *MaintenanceService) !Served {
             self.calls += 1;
+            return .worker;
         }
 
         pub fn serveOneBefore(

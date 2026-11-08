@@ -1,5 +1,6 @@
 const builtin = @import("builtin");
 
+pub const candidate_admission = @import("candidate_admission.zig");
 pub const service = @import("service.zig");
 
 pub const testing = if (builtin.is_test) struct {

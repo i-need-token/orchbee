@@ -19,6 +19,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_connection_handshake::{
+    AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, ConnectionKind, Decision,
+    EnvironmentName, InitiatorMessage, Offer, OfferFailure, ProcessState, ProductVersion,
+    RejectionReason as HandshakeRejection, conclude_offer, encode_acceptor_frame,
+    encode_initiator_frame, read_acceptor_message, read_initiator_message,
+};
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_worker_protocol::{
     LocalWorkerMessage, RejectionReason, WorkerHello, WorkerId, read_message, write_message,
@@ -296,7 +302,66 @@ fn assert_worker_identity(hello: &WorkerHello) {
     assert_eq!(hello.worker_id(), LOCAL_WORKER_ID);
 }
 
+/// This test build's `worker-host` identity, which the Worker under test shares.
+fn worker_host_identity() -> io::Result<(ProductVersion, EnvironmentName)> {
+    Ok((
+        ProductVersion::new("0.1.0").map_err(protocol_io)?,
+        EnvironmentName::new(orchbee_local_runtime::environment_stem()).map_err(protocol_io)?,
+    ))
+}
+
+/// Answers the Worker's `worker-host` offer as a Host of this build does before OBTP.
+fn answer_worker_offer(stream: &mut UnixStream) -> io::Result<()> {
+    let offer = read_initiator_message(stream).map_err(protocol_io)?;
+    let (product_version, environment) = worker_host_identity()?;
+    let profile = AcceptorProfile::local(
+        ConnectionKind::WorkerHost,
+        product_version,
+        Build::default(),
+        environment,
+    );
+    let load = AcceptorLoad {
+        session_slot_free: true,
+        control_slot_free: true,
+        state: ProcessState::Ready,
+    };
+    let Decision::Accept(answer) = profile.decide(&offer, load) else {
+        return Err(io::Error::other("Worker sent an offer this build refuses"));
+    };
+    stream.write_all(&encode_acceptor_frame(&AcceptorMessage::Answer(answer)).map_err(protocol_io)?)
+}
+
+/// Connects to a real Host with this build's offer, dialing again while the Host still ends the
+/// previous Worker session.
+fn connect_with_offer(endpoint: &Path) -> TestResult<UnixStream> {
+    let (product_version, environment) = worker_host_identity()?;
+    let offer = Offer::local(
+        ConnectionKind::WorkerHost,
+        product_version,
+        Build::default(),
+        environment,
+    );
+    let frame = encode_initiator_frame(&InitiatorMessage::Offer(offer.clone()))?;
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        let mut stream = UnixStream::connect(endpoint)?;
+        configure_peer_stream(&stream)?;
+        stream.write_all(&frame)?;
+        match conclude_offer(&offer, read_acceptor_message(&mut stream)?) {
+            Ok(_) => return Ok(stream),
+            Err(OfferFailure::Rejected(rejection))
+                if rejection.reason == HandshakeRejection::Capacity
+                    && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err(failure) => return Err(format!("Host refused the offer: {failure:?}").into()),
+        }
+    }
+}
+
 fn read_host_hello(stream: &mut UnixStream) -> io::Result<(Hello, CorrelationId)> {
+    answer_worker_offer(stream)?;
     let record = read_terminal_record(stream)?;
     let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
     let correlation_id = envelope

@@ -6,10 +6,10 @@
 	"type": "module",
 	"scripts": {
 		"benchmark": "zig build benchmark -Doptimize=ReleaseFast",
-		"build": "zig build -Doptimize=ReleaseSafe",
+		"build": "node scripts/build-host.mjs",
 		"check:zig-file-size": "node scripts/check-zig-file-size.mjs",
-		"format": "zig fmt build.zig build.zig.zon src",
-		"format:check": "zig fmt --check build.zig build.zig.zon src && node scripts/check-zig-file-size.mjs",
+		"format": "zig fmt build.zig build.zig.zon build src",
+		"format:check": "zig fmt --check build.zig build.zig.zon build src && node scripts/check-zig-file-size.mjs",
 		"surface-fixtures:generate": "node scripts/run-surface-fixture-conformance.mjs --write",
 		"test": "node scripts/run-zig-tests.mjs && node scripts/run-protocol-conformance.mjs && node scripts/run-surface-fixture-conformance.mjs && node --test scripts/powershell-prompt.test.mjs",
 		"test:black-box": "zig build test-black-box",

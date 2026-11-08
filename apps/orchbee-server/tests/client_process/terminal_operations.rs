@@ -14,6 +14,11 @@ use orchbee_client_server_protocol::{
     StartMode, StartOutcome, StartRejectedReason, StartTransition, StartUnavailableReason,
     TerminalCreateRequest, TerminalStartRequest, read_server_message, write_client_message,
 };
+use orchbee_connection_handshake::{
+    Build, ConnectionKind, EnvironmentName, InitiatorMessage, Offer, OfferFailure, ProductVersion,
+    RejectionReason as HandshakeRejection, conclude_offer, encode_initiator_frame,
+    read_acceptor_message,
+};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ClientId, ConnectionControl, CorrelationId, Envelope, Hello,
     InventoryControl, ListTerminals, MAXIMUM_INPUT_BYTES, MAXIMUM_ROW_WINDOW_BYTES,
@@ -288,10 +293,39 @@ impl Drop for ChildGuard {
     }
 }
 
+/// Connects to the real Host with this build's `worker-host` offer, dialing again while the Host
+/// still ends the stopped Worker's session.
+fn connect_host_observer(endpoint: &Path) -> TestResult<UnixStream> {
+    let offer = Offer::local(
+        ConnectionKind::WorkerHost,
+        ProductVersion::new(env!("CARGO_PKG_VERSION"))?,
+        Build::default(),
+        EnvironmentName::new(orchbee_local_runtime::environment_stem())?,
+    );
+    let frame = encode_initiator_frame(&InitiatorMessage::Offer(offer.clone()))?;
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        let mut observer = UnixStream::connect(endpoint)?;
+        observer.set_read_timeout(Some(PROCESS_TIMEOUT))?;
+        observer.set_write_timeout(Some(PROCESS_TIMEOUT))?;
+        observer.write_all(&frame)?;
+        match conclude_offer(&offer, read_acceptor_message(&mut observer)?) {
+            Ok(_) => return Ok(observer),
+            Err(OfferFailure::Rejected(rejection))
+                if rejection.reason == HandshakeRejection::Capacity
+                    && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err(failure) => {
+                return Err(format!("Host refused the observer offer: {failure:?}").into());
+            }
+        }
+    }
+}
+
 fn running_inventory(endpoint: &Path) -> TestResult<usize> {
-    let mut observer = UnixStream::connect(endpoint)?;
-    observer.set_read_timeout(Some(PROCESS_TIMEOUT))?;
-    observer.set_write_timeout(Some(PROCESS_TIMEOUT))?;
+    let mut observer = connect_host_observer(endpoint)?;
     let hello = encode_connection_control(&ConnectionControl::Hello(Hello {
         client_id: ClientId::from_bytes([88; 16])?,
         protocol: CURRENT_PROTOCOL_VERSION,

@@ -5,6 +5,7 @@ const host_service = @import("terminal-host-service").service;
 const monotonic = @import("terminal-host-platform").monotonic;
 const output_wake = @import("terminal-host-platform").output_wake;
 const connection = @import("connection.zig");
+const control_lanes = @import("control_lanes.zig");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
     @cInclude("local_ipc_windows.h");
@@ -12,6 +13,9 @@ const windows_c = if (builtin.os.tag == .windows) @cImport({
 
 pub const Server = if (builtin.os.tag != .windows) void else struct {
     handle: *windows_c.ObWindowsLocalServer,
+    /// Only the dispatch thread waits on the process-wide output wake; a control lane's instance
+    /// waits on its pipe alone.
+    observe_output_wake: bool = true,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -56,10 +60,11 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
         }.recoverable);
     }
 
-    pub fn serveOne(self: *Server, service: *host_service.HostService) !void {
+    pub fn serveOne(self: *Server, service: *host_service.HostService) !connection.Served {
         try requireStatus(windows_c.ob_windows_local_server_accept(self.handle));
         defer windows_c.ob_windows_local_server_disconnect(self.handle);
-        connection.serveAcceptedConnection(self, service);
+        var lanes = Lanes.init(.{ .primary = self.handle }, service.allocator);
+        return connection.serveAcceptedConnection(self, service, &lanes);
     }
 
     pub fn serveOneBefore(
@@ -74,7 +79,8 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
         if (status == windows_c.OB_WINDOWS_IPC_ACCEPT_TIMEOUT) return false;
         try requireStatus(status);
         defer windows_c.ob_windows_local_server_disconnect(self.handle);
-        connection.serveAcceptedConnection(self, service);
+        var lanes = Lanes.init(.{ .primary = self.handle }, service.allocator);
+        _ = connection.serveAcceptedConnection(self, service, &lanes);
         return true;
     }
 
@@ -122,12 +128,62 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
         try requireStatus(windows_c.ob_windows_local_server_wait_readable_or_wake(
             self.handle,
             connection.poll_interval_ms,
-            output_wake.windowsEvent(),
-            output_wake.windowsTimer(),
+            if (self.observe_output_wake) output_wake.windowsEvent() else null,
+            if (self.observe_output_wake) output_wake.windowsTimer() else null,
             &readable,
         ));
         return readable != 0;
     }
+};
+
+const Lanes = control_lanes.ControlLanes(LaneEndpoint);
+
+/// Each control lane listens on its own instance of the endpoint's pipe, created when the Worker
+/// session starts and closed when it ends, so no idle instance can take a Worker's connection.
+const LaneEndpoint = if (builtin.os.tag != .windows) void else struct {
+    primary: *windows_c.ObWindowsLocalServer,
+
+    pub const Lane = struct {
+        instance: Server,
+
+        pub fn open(endpoint: *LaneEndpoint) !Lane {
+            var status: c_int = windows_c.OB_WINDOWS_IPC_SYSTEM_ERROR;
+            const handle = windows_c.ob_windows_local_server_create_instance(
+                endpoint.primary,
+                &status,
+            ) orelse return statusError(status);
+            return .{ .instance = .{ .handle = handle, .observe_output_wake = false } };
+        }
+
+        pub fn close(self: *Lane) void {
+            windows_c.ob_windows_local_server_destroy(self.instance.handle);
+        }
+
+        /// Whether a same-user connection is ready; a peer that left or belongs to another user
+        /// is dropped like on the primary instance.
+        pub fn acceptBefore(self: *Lane, timeout_ms: u32) !bool {
+            const status = windows_c.ob_windows_local_server_accept_before(
+                self.instance.handle,
+                timeout_ms,
+            );
+            return switch (status) {
+                windows_c.OB_WINDOWS_IPC_OK => true,
+                windows_c.OB_WINDOWS_IPC_ACCEPT_TIMEOUT,
+                windows_c.OB_WINDOWS_IPC_CONNECTION_CLOSED,
+                windows_c.OB_WINDOWS_IPC_PEER_IDENTITY_MISMATCH,
+                => false,
+                else => statusError(status),
+            };
+        }
+
+        pub fn transport(self: *Lane) *Server {
+            return &self.instance;
+        }
+
+        pub fn finish(self: *Lane) void {
+            windows_c.ob_windows_local_server_disconnect(self.instance.handle);
+        }
+    };
 };
 
 pub fn statusError(status: c_int) anyerror {

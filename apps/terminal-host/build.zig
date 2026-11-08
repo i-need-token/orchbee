@@ -3,9 +3,13 @@ const std = @import("std");
 // Imported into the build script (not as a build module) so the envelope
 // fixture cap is computed from the authoritative protocol record limit.
 const contract = @import("src/protocol/contract.zig");
+const fingerprint = @import("build/fingerprint.zig");
 
 const required_zig_version = "0.16.0";
 const default_host_version = "0.1.0";
+// A Host built without an environment matches no peer: no build of any other
+// program is named this, so every offer is refused with `environment-mismatch`.
+const default_environment = "unconfigured";
 const authored_c_flags: []const []const u8 = &.{
     "-std=c17",
     "-Wall",
@@ -40,6 +44,47 @@ fn powershellStartupModule(builder: *std.Build) *std.Build.Module {
         \\pub const script: []const u8 = @embedFile("initialization.ps1") ++ @embedFile("reader.ps1");
         \\
     ) });
+}
+
+/// The connection registry and fixtures, embedded so the handshake conformance
+/// tests read the authoritative files; copy steps register them as inputs.
+fn handshakeFixtureModule(builder: *std.Build) *std.Build.Module {
+    const files = builder.addWriteFiles();
+    _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(
+        "../../schemas/connection/v1/connections.json",
+    ) }, "connections.json");
+    for ([_][]const u8{ "admission", "boundary", "invalid", "valid" }) |name| {
+        _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
+            "../../schemas/connection/v1/fixtures/{s}.json",
+            .{name},
+        )) }, builder.fmt("{s}.json", .{name}));
+    }
+    return builder.createModule(.{ .root_source_file = files.add("fixtures.zig",
+        \\pub const registry: []const u8 = @embedFile("connections.json");
+        \\pub const admission: []const u8 = @embedFile("admission.json");
+        \\pub const boundary: []const u8 = @embedFile("boundary.json");
+        \\pub const invalid: []const u8 = @embedFile("invalid.json");
+        \\pub const valid: []const u8 = @embedFile("valid.json");
+        \\
+    ) });
+}
+
+fn handshakeName(text: []const u8) bool {
+    if (text.len < 1 or text.len > 64) return false;
+    for (text) |byte| switch (byte) {
+        'a'...'z', '0'...'9', '-' => {},
+        else => return false,
+    };
+    return true;
+}
+
+fn lowercaseHex(text: []const u8, digits: usize) bool {
+    if (text.len != digits) return false;
+    for (text) |byte| switch (byte) {
+        '0'...'9', 'a'...'f' => {},
+        else => return false,
+    };
+    return true;
 }
 
 fn readFixture(
@@ -98,8 +143,32 @@ pub fn build(builder: *std.Build) void {
             .{max_host_version_bytes},
         );
     }
+    const environment = builder.option(
+        []const u8,
+        "environment",
+        "Environment name a Worker must offer: orchbee, ob-dev-<16 hex>, or ob-test-<16 hex>",
+    ) orelse default_environment;
+    if (!handshakeName(environment)) {
+        std.debug.panic("invalid terminal Host environment name: {s}", .{environment});
+    }
+    const source_commit = builder.option(
+        []const u8,
+        "source-commit",
+        "40 lowercase hexadecimal digits of the source commit the Host reports",
+    );
+    if (source_commit) |commit| if (!lowercaseHex(commit, 40)) {
+        std.debug.panic("invalid terminal Host source commit: {s}", .{commit});
+    };
     const build_options = builder.addOptions();
     build_options.addOption([]const u8, "host_version", host_version);
+    build_options.addOption([]const u8, "environment", environment);
+    build_options.addOption(?[]const u8, "source_commit", source_commit);
+    const handshake_options = builder.addOptions();
+    handshake_options.addOption(
+        []const u8,
+        "worker_host_fingerprint",
+        &fingerprint.forConnection(builder, "worker-host"),
+    );
 
     const terminal_input_module = builder.createModule(.{
         .root_source_file = builder.path("src/protocol/semantic_input.zig"),
@@ -154,6 +223,12 @@ pub fn build(builder: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const handshake_module = builder.createModule(.{
+        .root_source_file = builder.path("src/handshake/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    handshake_module.addOptions("handshake-options", handshake_options);
     const service_module = builder.createModule(.{
         .root_source_file = builder.path("src/service/root.zig"),
         .target = target,
@@ -250,9 +325,11 @@ pub fn build(builder: *std.Build) void {
     service_module.addImport("terminal-host-engine", engine_module);
     service_module.addImport("terminal-host-model", model_module);
     service_module.addImport("terminal-host-platform", platform_module);
+    service_module.addImport("terminal-host-handshake", handshake_module);
     service_module.addOptions("build-options", build_options);
     transport_module.addImport("terminal-protocol", protocol_module);
     transport_module.addImport("terminal-host-platform", platform_module);
+    transport_module.addImport("terminal-host-handshake", handshake_module);
     transport_module.addImport("terminal-host-service", service_module);
     cli_module.addImport("terminal-host-model", model_module);
     cli_module.addImport("terminal-host-transport", transport_module);
@@ -263,6 +340,8 @@ pub fn build(builder: *std.Build) void {
     executable_module.addImport("terminal-host-platform", platform_module);
     black_box_test_module.addImport("terminal-protocol", protocol_module);
     black_box_test_module.addImport("terminal-host-platform", platform_module);
+    black_box_test_module.addImport("terminal-host-handshake", handshake_module);
+    black_box_test_module.addOptions("build-options", build_options);
     const benchmark_module = builder.createModule(.{
         .root_source_file = builder.path("src/benchmark/main.zig"),
         .target = target,
@@ -433,6 +512,7 @@ pub fn build(builder: *std.Build) void {
     transport_test_module.addImport("terminal-host-platform", platform_module);
     transport_test_module.addImport("terminal-host-service", service_module);
     transport_test_module.addImport("terminal-host-transport", transport_module);
+    transport_test_module.addImport("terminal-host-handshake", handshake_module);
 
     switch (target.result.os.tag) {
         .freebsd, .linux, .macos => {
@@ -723,8 +803,22 @@ pub fn build(builder: *std.Build) void {
     focused_platform_tests.root_module.link_libc = true;
     builder.step("test-platform", "Run Terminal Host native platform tests")
         .dependOn(&builder.addRunArtifact(focused_platform_tests).step);
+    const handshake_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/handshake/__tests__/handshake_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    handshake_test_module.addImport("terminal-host-handshake", handshake_module);
+    handshake_test_module.addImport("handshake-fixtures", handshakeFixtureModule(builder));
+    const focused_handshake_tests = builder.addTest(.{
+        .name = "terminal-host-handshake-tests",
+        .root_module = handshake_test_module,
+    });
+    builder.step("test-handshake", "Run the OBHS binding against the connection fixtures")
+        .dependOn(&builder.addRunArtifact(focused_handshake_tests).step);
     for ([_]*std.Build.Module{
         cli_test_module,
+        handshake_test_module,
         benchmark_test_module,
         protocol_test_module,
         model_test_module,
