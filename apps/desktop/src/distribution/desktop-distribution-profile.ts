@@ -4,6 +4,8 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import {
+	DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME,
+	DEFAULT_DESKTOP_TEST_APPLICATION_NAME,
 	desktopApplicationNameSchema,
 	parseDesktopApplicationName,
 	resolveDesktopApplicationNameFromEnvironment,
@@ -12,12 +14,8 @@ import {
 const DEVELOPMENT_SCOPE_DIGEST_LENGTH = 16;
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION = 1;
-const DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME = 'Orchbee Dev';
-export const DEFAULT_DESKTOP_TEST_APPLICATION_NAME = 'Orchbee Test';
 // The shipped cohort names. Environment stems (ORC-382) are built beside them.
 const RELEASE_ARTIFACT_STEM = 'orchbee';
-const TEST_ARTIFACT_STEM_DIGEST_LENGTH = 16;
-const TEST_ARTIFACT_STEM_DIGEST_PURPOSE = 'orchbee-test-artifact-v1';
 const TEST_ARTIFACT_STEM_PATTERN = /^ob-test-[0-9a-f]{16}$/u;
 
 export const DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME = 'desktop-distribution-v1.json';
@@ -105,7 +103,8 @@ interface DesktopDistributionProfileBase extends DesktopDistributionProfileDefin
 
 interface DesktopDistributionProfileOptions {
 	readonly applicationName?: string;
-	// Required for `test`: the stem from `createDesktopTestArtifactStem`, or the one a descriptor records.
+	// Required for `test`: the stem from `createDesktopTestArtifactStem` in
+	// `tooling/desktop-distribution-packaging.ts`, or the one a descriptor records.
 	readonly artifactStem?: string;
 }
 
@@ -144,18 +143,6 @@ export function createDesktopDevelopmentScope(
 		.digest('hex')
 		.slice(0, DEVELOPMENT_SCOPE_DIGEST_LENGTH);
 	return { digest, digestVersion: DEVELOPMENT_SCOPE_DIGEST_VERSION, sourceRoot };
-}
-
-/** The stem of this home directory's test cohort, so two accounts on one machine never share names. */
-export function createDesktopTestArtifactStem(homeDirectory: string): string {
-	if (homeDirectory.length === 0) {
-		throw new Error('The test artifact stem requires the home directory.');
-	}
-	const digest = createHash('sha256')
-		.update(`${TEST_ARTIFACT_STEM_DIGEST_PURPOSE}\0${homeDirectory}`)
-		.digest('hex')
-		.slice(0, TEST_ARTIFACT_STEM_DIGEST_LENGTH);
-	return `ob-test-${digest}`;
 }
 
 /**

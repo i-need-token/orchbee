@@ -1,13 +1,19 @@
+import { createHash } from 'node:crypto';
+
 import { z } from 'zod';
 
-import { resolveDesktopApplicationNameFromEnvironment } from '../desktop-application-name.ts';
 import {
 	DEFAULT_DESKTOP_TEST_APPLICATION_NAME,
-	type DesktopDistributionDescriptor,
-	type DesktopDistributionProfile,
+	resolveDesktopApplicationNameFromEnvironment,
+} from '../desktop-application-name.ts';
+import type {
+	DesktopDistributionDescriptor,
+	DesktopDistributionProfile,
 } from '../desktop-distribution-profile.ts';
 
 const DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_TEST_APPLICATION_NAME';
+const TEST_ARTIFACT_STEM_DIGEST_LENGTH = 16;
+const TEST_ARTIFACT_STEM_DIGEST_PURPOSE = 'orchbee-test-artifact-v1';
 const DESKTOP_DISTRIBUTION_PROFILE_IDS = ['dev', 'test', 'release'] as const;
 const desktopDistributionProfileIdSchema = z.enum(DESKTOP_DISTRIBUTION_PROFILE_IDS);
 
@@ -34,6 +40,18 @@ export function resolveDesktopTestApplicationName(
 		DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY,
 		DEFAULT_DESKTOP_TEST_APPLICATION_NAME,
 	);
+}
+
+/** The stem of this home directory's test cohort, so two accounts on one machine never share names. */
+export function createDesktopTestArtifactStem(homeDirectory: string): string {
+	if (homeDirectory.length === 0) {
+		throw new Error('The test artifact stem requires the home directory.');
+	}
+	const digest = createHash('sha256')
+		.update(`${TEST_ARTIFACT_STEM_DIGEST_PURPOSE}\0${homeDirectory}`)
+		.digest('hex')
+		.slice(0, TEST_ARTIFACT_STEM_DIGEST_LENGTH);
+	return `ob-test-${digest}`;
 }
 
 function createDesktopDistributionDescriptor(

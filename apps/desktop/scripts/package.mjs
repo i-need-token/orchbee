@@ -10,12 +10,12 @@ import { packager } from '@electron/packager';
 import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
-	createDesktopTestArtifactStem,
 	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
 import {
+	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
 	resolveDesktopTestApplicationName,

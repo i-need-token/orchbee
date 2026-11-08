@@ -163,7 +163,7 @@ development startup hook.
 
 ### Distribution profiles
 
-Runtime identity and descriptor parsing belong to `src/distribution/desktop-distribution-profile.ts`; packaging-only argument parsing and descriptor encoding live in `src/distribution/tooling/`. Both use the same application-name validation. These source-executed commands require Node native type stripping (enabled by default in Node 22.18 and newer). Node-executed scripts import source modules through explicit `.ts` paths under the [TypeScript module contract](../../docs/TYPESCRIPT.md#module-syntax); the no-emit Desktop typecheck enables `allowImportingTsExtensions`, and the distribution tests include a real Node import witness. `@electron/packager` is a development dependency.
+Runtime identity and descriptor parsing belong to `src/distribution/desktop-distribution-profile.ts`; packaging-only argument parsing and descriptor encoding live in `src/distribution/tooling/`. The application-name rules and the default `Orchbee Dev` and `Orchbee Test` names belong to `src/distribution/desktop-application-name.ts`, which the profile and the tooling both import. These source-executed commands require Node native type stripping (enabled by default in Node 22.18 and newer). Node-executed scripts import source modules through explicit `.ts` paths under the [TypeScript module contract](../../docs/TYPESCRIPT.md#module-syntax); the no-emit Desktop typecheck enables `allowImportingTsExtensions`, and the distribution tests include a real Node import witness. `@electron/packager` is a development dependency.
 
 Desktop owns exactly three explicit distribution profiles:
 

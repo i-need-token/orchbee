@@ -1,4 +1,5 @@
 export {
+	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
 	resolveDesktopTestApplicationName,

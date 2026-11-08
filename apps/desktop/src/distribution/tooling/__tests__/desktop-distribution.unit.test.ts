@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createDesktopDevelopmentScope,
-	createDesktopTestArtifactStem,
 	parseDesktopDistributionDescriptor,
 	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
@@ -12,6 +11,7 @@ import {
 	resolveDesktopDistributionProfile,
 } from '../../desktop-distribution-profile';
 import {
+	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
 	resolveDesktopTestApplicationName,

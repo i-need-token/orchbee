@@ -5,6 +5,11 @@ const DESKTOP_APPLICATION_NAME_PATTERN = /^[^"*/:<>?\\|\p{Cc}]+$/u;
 const WINDOWS_RESERVED_APPLICATION_NAME_PATTERN =
 	/^(?:aux|con|nul|prn|com[1-9]|lpt[1-9])(?:\.|$)/iu;
 
+// Default display names of the development and test distributions. The profile module owns each
+// distribution's identity; this module owns the application-name rules and their defaults.
+export const DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME = 'Orchbee Dev';
+export const DEFAULT_DESKTOP_TEST_APPLICATION_NAME = 'Orchbee Test';
+
 export const desktopApplicationNameSchema = z
 	.string()
 	.min(1)
