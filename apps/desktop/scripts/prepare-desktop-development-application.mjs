@@ -2,10 +2,13 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
 	access,
+	copyFile,
 	cp,
+	link,
 	mkdir,
 	mkdtemp,
 	readFile,
+	readdir,
 	realpath,
 	rename,
 	rm,
@@ -17,6 +20,7 @@ import { promisify } from 'node:util';
 
 import {
 	createDesktopDevelopmentScope,
+	resolveDesktopCohortArtifactStem,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
@@ -24,6 +28,8 @@ import {
 const executeFile = promisify(execFile);
 const DEVELOPMENT_APPLICATION_IDENTITY_SCHEMA_VERSION = 1;
 const DEVELOPMENT_APPLICATION_MARKER_FILE_NAME = 'desktop-development-application-v1.json';
+const DEVELOPMENT_SHELL_IDENTITY_SCHEMA_VERSION = 1;
+const DEVELOPMENT_SHELL_MARKER_FILE_NAME = 'desktop-development-shell-v1.json';
 const ELECTRON_HELPER_NAMES = [
 	'Electron Helper',
 	'Electron Helper (GPU)',
@@ -32,6 +38,7 @@ const ELECTRON_HELPER_NAMES = [
 ];
 
 export async function prepareDesktopDevelopmentExecutable(options) {
+	if (process.platform === 'win32') return prepareWindowsDevelopmentShell(options);
 	if (process.platform !== 'darwin') return options.electronExecutable;
 	const [sourceRoot, sourceExecutable] = await Promise.all([
 		realpath(options.sourceRoot),
@@ -99,6 +106,100 @@ export async function prepareDesktopDevelopmentExecutable(options) {
 		return executablePath;
 	} finally {
 		if (stagingOwned) await rm(stagingDirectory, { force: true, recursive: true });
+	}
+}
+
+/**
+ * Electron's distribution with its executable named `<stem>-desktop.exe`, as a packaged Windows
+ * Desktop is, so a checkout's shell never shares an image name with its Client, another checkout's
+ * shell, or an installed Orchbee (ORC-382). Files are hard links to the installed distribution where
+ * the volume allows, and copies otherwise; the directory is named by its identity and reused.
+ */
+async function prepareWindowsDevelopmentShell(options) {
+	const [sourceRoot, sourceExecutable] = await Promise.all([
+		realpath(options.sourceRoot),
+		realpath(options.electronExecutable),
+	]);
+	const electronPackage = createRequire(import.meta.url)('electron/package.json');
+	if (typeof electronPackage?.version !== 'string') {
+		throw new Error('The pinned Electron version is unavailable.');
+	}
+	const profile = resolveDesktopDistributionProfile(
+		'dev',
+		createDesktopDevelopmentScope(sourceRoot, process.platform),
+	);
+	const executableName = `${resolveDesktopCohortArtifactStem(profile, process.platform)}-desktop.exe`;
+	const sourceDirectory = path.dirname(sourceExecutable);
+	const marker = `${JSON.stringify(
+		{
+			electronVersion: electronPackage.version,
+			executableName,
+			schemaVersion: DEVELOPMENT_SHELL_IDENTITY_SCHEMA_VERSION,
+			sourceExecutable,
+		},
+		null,
+		2,
+	)}\n`;
+	const cacheKey = createHash('sha256').update(marker).digest('hex').slice(0, 24);
+	const outputRoot = path.resolve(options.outputRoot);
+	const cacheDirectory = path.join(outputRoot, `${profile.dataScope.digest}-${cacheKey}`);
+	const executablePath = path.join(cacheDirectory, executableName);
+	if (await isPreparedShell(cacheDirectory, executablePath, marker)) return executablePath;
+
+	await mkdir(outputRoot, { recursive: true });
+	const stagingDirectory = await mkdtemp(path.join(outputRoot, '.development-shell-'));
+	let stagingOwned = true;
+	try {
+		await linkDirectory(sourceDirectory, stagingDirectory, (name) =>
+			name === path.basename(sourceExecutable) ? executableName : name,
+		);
+		await writeFile(path.join(stagingDirectory, DEVELOPMENT_SHELL_MARKER_FILE_NAME), marker, {
+			encoding: 'utf8',
+		});
+		try {
+			await rename(stagingDirectory, cacheDirectory);
+			stagingOwned = false;
+		} catch (error) {
+			if (
+				!isDestinationConflict(error) ||
+				!(await isPreparedShell(cacheDirectory, executablePath, marker))
+			) {
+				throw error;
+			}
+		}
+		return executablePath;
+	} finally {
+		if (stagingOwned) await rm(stagingDirectory, { force: true, recursive: true });
+	}
+}
+
+/** Mirrors `source` into the empty `destination`, renaming its top-level entries by `rename`. */
+async function linkDirectory(source, destination, renameEntry = (name) => name) {
+	for (const entry of await readdir(source, { withFileTypes: true })) {
+		const from = path.join(source, entry.name);
+		const to = path.join(destination, renameEntry(entry.name));
+		if (entry.isDirectory()) {
+			await mkdir(to);
+			await linkDirectory(from, to);
+		} else if (entry.isFile()) {
+			await link(from, to).catch(() => copyFile(from, to));
+		} else {
+			throw new Error(`The Electron distribution holds an unexpected entry: ${from}`);
+		}
+	}
+}
+
+async function isPreparedShell(cacheDirectory, executablePath, marker) {
+	try {
+		const storedMarker = await readFile(
+			path.join(cacheDirectory, DEVELOPMENT_SHELL_MARKER_FILE_NAME),
+			'utf8',
+		);
+		if (storedMarker !== marker) return false;
+		await access(executablePath);
+		return true;
+	} catch {
+		return false;
 	}
 }
 

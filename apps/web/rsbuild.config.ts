@@ -3,6 +3,8 @@ import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
 
+import { developmentServerPorts } from '../../scripts/development-server-ports.mjs';
+
 export default defineConfig(({ command }) => ({
 	...(command === 'dev' ? { dev: { hmr: false, liveReload: true } } : {}),
 	plugins: [
@@ -34,7 +36,8 @@ export default defineConfig(({ command }) => ({
 	},
 	server: {
 		host: '127.0.0.1',
-		port: 3000,
+		// Derived from the checkout, so two checkouts serve their renderers side by side.
+		port: developmentServerPorts().web,
 		strictPort: true,
 	},
 }));

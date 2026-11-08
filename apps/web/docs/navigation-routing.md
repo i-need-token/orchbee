@@ -10,9 +10,12 @@ it to where it was.
 
 | Runtime              | Origin example           | Route owner    |
 | -------------------- | ------------------------ | -------------- |
-| Development renderer | `http://127.0.0.1:3000`  | `@orchbee/web` |
+| Development renderer | `http://127.0.0.1:45538` | `@orchbee/web` |
 | Packaged Electron    | `orchbee://app`          | `@orchbee/web` |
 | Shared Web, reserved | `https://192.0.2.1:8443` | `@orchbee/web` |
+
+The development renderer's port is derived from the checkout and lies in 41000–48999, as the
+[Desktop development runtime](../../desktop/README.md#development) describes.
 
 LAN serving, token exchange, Cookie authentication, a Settings screen, a login screen, and
 operating-system delivery of external deep links are outside this contract. They must extend the

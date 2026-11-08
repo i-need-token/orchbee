@@ -47,7 +47,7 @@ const distributionProfile = (() => {
 	}
 	return resolveDesktopDistributionProfile(profileId);
 })();
-// The Client's name in the cohort and, on Windows, the packaged executable. Other platforms keep `orchbee`.
+// The Client's name in the cohort, and on Windows the packaged executable's stem. Other platforms keep `orchbee`.
 const cohortArtifactStem = resolveDesktopCohortArtifactStem(distributionProfile, process.platform);
 // Only a cohort compiled with the release stem may ship as release (ORC-382).
 if (distributionProfile.profileId === 'release' && cohortArtifactStem !== 'orchbee') {
@@ -55,8 +55,12 @@ if (distributionProfile.profileId === 'release' && cohortArtifactStem !== 'orchb
 		`Release packaging refuses the ${cohortArtifactStem} cohort; it requires orchbee.`,
 	);
 }
+// On Windows the shell is `<stem>-desktop.exe`, so its image name differs from the Client's `<stem>.exe`
+// and from every other environment's (ORC-382).
 const packagedExecutableName =
-	process.platform === 'win32' ? cohortArtifactStem : distributionProfile.applicationName;
+	process.platform === 'win32'
+		? `${cohortArtifactStem}-desktop`
+		: distributionProfile.applicationName;
 const usesDarwinApplicationIcon = process.platform === 'darwin';
 const applicationPackage = JSON.parse(
 	await readFile(path.join(applicationRoot, 'package.json'), 'utf8'),
@@ -163,7 +167,7 @@ try {
 				: path.join(
 						output,
 						process.platform === 'win32'
-							? `${cohortArtifactStem}.exe`
+							? `${packagedExecutableName}.exe`
 							: distributionProfile.applicationName,
 					);
 		await access(executablePath);

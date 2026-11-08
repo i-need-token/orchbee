@@ -7,15 +7,18 @@ import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 
 import type { DesktopDevelopmentRuntime, DesktopDevelopmentRuntimeLogger } from './src/development';
 
+import { developmentServerPorts } from '../../scripts/development-server-ports.mjs';
 import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
 
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ command }) => {
 	let developmentRuntime: DesktopDevelopmentRuntime | undefined;
-	const rendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'] ?? 'http://127.0.0.1:3000/';
-
 	const sourceRoot = path.resolve(desktopRoot, '..', '..');
+	const ports = developmentServerPorts(sourceRoot);
+	const rendererUrl =
+		process.env['ORCHBEE_DESKTOP_RENDERER_URL'] ?? `http://127.0.0.1:${ports.web}/`;
+
 	const developmentRuntimePlugin: RsbuildPlugin = {
 		name: 'orchbee-desktop-development-runtime',
 		apply: 'serve',
@@ -125,7 +128,7 @@ export default defineConfig(({ command }) => {
 		},
 		server: {
 			host: '127.0.0.1',
-			port: 3010,
+			port: ports.desktop,
 			strictPort: true,
 		},
 	};

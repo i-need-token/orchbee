@@ -139,8 +139,13 @@ supervises one Electron process:
 - The runtime removes `PAGER` and `GIT_PAGER` from Electron's environment, which the Session's
   shells inherit through `orchbee` and where a non-interactive pager would stick.
 
-Electron defaults to `http://127.0.0.1:3000/`; `ORCHBEE_DESKTOP_RENDERER_URL` selects another
-loopback Web server. To run the built entry without the development runtime, run
+Each checkout's development servers listen on loopback ports derived from its checkout digest, so
+two checkouts run `pnpm desktop` side by side: the Web renderer on an even port of 41000–48999 and
+this package's Main and preload server on the next one, both strict. `scripts/development-server-ports.mjs`
+at the repository root owns the rule. Electron loads that Web port unless
+`ORCHBEE_DESKTOP_RENDERER_URL` selects another loopback Web server; two checkouts landing in one
+slot fail at start, and `rsbuild dev --port` serves either one elsewhere. Packaged builds run no
+development server. To run the built entry without the development runtime, run
 `pnpm --filter @orchbee/web build` and `pnpm --filter @orchbee/desktop build`, set these, and run
 `electron dist/main/main.cjs` in this directory:
 
@@ -155,6 +160,12 @@ loopback Web server. To run the built entry without the development runtime, run
 A packaged application ignores all but the last two: it runs its bundled cohort and serves its
 bundled renderer through the secure `orchbee:` scheme. A window that stays hidden produces no
 frames; automation that needs pixels shows it off-screen with `showInactive`.
+
+On Windows, the command mirrors Electron's distribution, by hard links where the volume allows,
+into a content-addressed directory beneath `apps/desktop/out/development-runtime/` with the
+executable renamed `ob-dev-<scope-digest>-desktop.exe`, and launches that. Task Manager then tells
+the development shell apart from its own `ob-dev-<scope-digest>.exe` Client, another checkout's
+shell, and an installed `orchbee-desktop.exe`.
 
 On macOS, the command materializes and ad-hoc signs a content-addressed `Orchbee Dev.app` beneath
 `apps/desktop/out/development-runtime/`, then launches its exact executable. Its application name,
@@ -180,7 +191,7 @@ Desktop owns exactly three explicit distribution profiles:
 
 On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
 
-Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The packaged executable and the Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged output folder takes the stem as its name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. macOS and Linux keep the `orchbee` names until their cohort naming moves (ORC-328).
+Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. macOS and Linux keep the `orchbee` names until their cohort naming moves (ORC-328).
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.
