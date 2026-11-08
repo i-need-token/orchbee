@@ -21,8 +21,12 @@ pub use plugins::{
 };
 #[cfg(windows)]
 mod host_appearance;
+mod host_system;
 #[cfg(windows)]
 pub use host_appearance::read_windows_apps_use_light_theme;
+pub use host_system::WindowsVersion;
+#[cfg(windows)]
+pub use host_system::read_windows_version;
 mod local_clock;
 pub use local_clock::{LocalClock, local_clock};
 mod private_cache;
@@ -59,6 +63,17 @@ pub use data_root::{
 mod environment;
 pub use environment::{
     ENVIRONMENT_VARIABLE, environment_name, environment_stem, is_release, session_route_environment,
+};
+mod diagnostic_bundle;
+pub use diagnostic_bundle::{
+    ARGUMENT_PLACEHOLDER, COMMAND_PLACEHOLDER, CREDENTIAL_PLACEHOLDER, DiagnosticRedactor,
+    ENVIRONMENT_PLACEHOLDER, HOME_PLACEHOLDER, QUERY_PLACEHOLDER, UNRECOGNIZED_PLACEHOLDER,
+    diagnostic_archive, redact_preferences, redact_settings,
+};
+mod diagnostic_log;
+pub use diagnostic_log::{
+    DAILY_LOG_LIMIT_BYTES, LogField, LogLevel, LogRole, LogValue, RETAINED_LOG_DAYS,
+    RecentDiagnosticLogs, install_diagnostic_log, log_event, recent_diagnostic_logs,
 };
 #[cfg(windows)]
 mod destructive_log;

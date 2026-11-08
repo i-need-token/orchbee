@@ -286,9 +286,9 @@ pub fn default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> Option<Pa
 }
 
 #[cfg(windows)]
-const HOME_SOURCE: &str = "USERPROFILE";
+pub(crate) const HOME_SOURCE: &str = "USERPROFILE";
 #[cfg(not(windows))]
-const HOME_SOURCE: &str = "HOME";
+pub(crate) const HOME_SOURCE: &str = "HOME";
 
 /// Admits an absolute folder without touching the file system. Windows applies the user-path
 /// grammar the settings file always used, so forward slashes and verbatim prefixes normalize the

@@ -110,6 +110,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config.toml`                                        | Default settings file; `ORCHBEE_CONFIG_FILE` moves only this file                                                                            |
 | `agent-detection/<provider>.toml`                    | Detection rule overrides a person writes                                                                                                     |
+| `logs/<YYYY-MM-DD>.jsonl`                            | Daily diagnostic log of every process, named by local date                                                                                   |
 | `logs/destructive-commands.jsonl`                    | Destructive request log and its `.1` generation                                                                                              |
 | `internal/version.json`                              | Layout record, written once by the writer that creates the root                                                                              |
 | `internal/config.lock`                               | Writer lock of the default settings file                                                                                                     |
@@ -273,6 +274,45 @@ ephemeral intent before the durable record last. Retrying resumes that deletion;
 arbitrary trees or stops a process. The shared namespace lock intentionally outlives individual
 sessions. This covers cooperating current-user invocations and ordinary process interruption;
 power-loss durability and inventory recovery after external removal of the runtime base are unclaimed.
+
+## Windows diagnostic log
+
+`install_diagnostic_log(role)` is called only by an executable entry point, the Client, Server and
+Worker, and `log_event` writes nothing until it has been, so library code that tests exercise never
+logs. A record is one JSON line in `logs\<YYYY-MM-DD>.jsonl`, named by local date:
+`{"time","level","role","pid","event","fields"}`, with UTC time to the millisecond and at most
+eight camelCase fields. Event names and text values are `&'static str` tokens of letters, digits,
+`.`, `_` and `-`, at most 64 bytes, and other values are counts and flags; a token outside the
+grammar is written as `invalid`. A record therefore cannot carry terminal content, typed input,
+prompts, arguments, environment or configuration values, file contents or credentials. Host
+diagnostics reach the log only as the Worker's Terminal Host start and failure records.
+
+A writer holds the day's file without write sharing while it appends, waiting up to 500 ms for
+another writer, so Desktop Main's exclusive open and the natives admit one record at a time. The
+first append of a process on a new day removes daily files dated more than six days earlier; the
+destructive request log, its generation, and any other name are never daily files. A record is
+admitted while the file plus the record plus a 256-byte reserve stays within
+`DAILY_LOG_LIMIT_BYTES`, 7 MiB; the first record refused closes the day with one `log-capped`
+record, so the folder holds at most 51 MiB with the destructive log. Every error is a non-event.
+Desktop Main writes the same records with role `desktop-main`; search for `daily-diagnostic-log`
+before changing the shape, a limit, or the names. POSIX processes do not log until ORC-328.
+
+## Diagnostic bundle redaction
+
+`recent_diagnostic_logs` reads today's file and the six before it without creating anything and
+keeps only lines that are exactly records this grammar writes, counting the rest, so a bundle never
+carries text a writer did not produce. `redact_settings` writes `config.toml` again from its values,
+so its comments are not carried, and `redact_preferences` keeps the preference record's shape; both
+replace a value under a command, executable or program key with `<command>`, every argument under
+an args or arguments key with `<argument>`, every value under an env, environment or
+environmentVariables key with `<environment>`, every value under a key that names a token, secret,
+password, API key or credential with `<credential>`, and a settings value that no documented option
+covers with `<unrecognized>`. `DiagnosticRedactor` then scrubs every remaining string and object key:
+the home folder becomes `<home>`, the value of an `ORCHBEE_*`, `APPDATA`, `LOCALAPPDATA`, `TEMP` or
+`TMP` variable becomes `<env:NAME>`, URL user information becomes `<credential>`, and a URL query
+becomes `?<query>`. `diagnostic_archive` writes the entries as one stored ZIP archive. The
+[CLI command](../../apps/orchbee/README.md#windows-diagnostic-bundle) chooses what a bundle
+holds.
 
 ## Windows destructive request log
 
