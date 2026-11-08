@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 import { resolveDesktopApplicationNameFromEnvironment } from '../desktop-application-name.ts';
 import {
-	DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
+	DEFAULT_DESKTOP_TEST_APPLICATION_NAME,
 	type DesktopDistributionDescriptor,
 	type DesktopDistributionProfile,
 } from '../desktop-distribution-profile.ts';
 
-const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
-const DESKTOP_DISTRIBUTION_PROFILE_IDS = ['dev', 'local', 'release'] as const;
+const DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_TEST_APPLICATION_NAME';
+const DESKTOP_DISTRIBUTION_PROFILE_IDS = ['dev', 'test', 'release'] as const;
 const desktopDistributionProfileIdSchema = z.enum(DESKTOP_DISTRIBUTION_PROFILE_IDS);
 
 type DesktopDistributionProfileId = DesktopDistributionProfile['profileId'];
@@ -21,20 +21,18 @@ export function parseDesktopDistributionProfileArguments(
 	arguments_: readonly string[],
 ): DesktopDistributionProfileId {
 	if (arguments_.length !== 2 || arguments_[0] !== '--profile') {
-		throw new Error(
-			'Desktop packaging requires exactly one --profile dev|local|release selection.',
-		);
+		throw new Error('Desktop packaging requires exactly one --profile dev|test|release selection.');
 	}
 	return parseDesktopDistributionProfileId(arguments_[1]);
 }
 
-export function resolveDesktopLocalApplicationName(
+export function resolveDesktopTestApplicationName(
 	environment: Readonly<Record<string, string | undefined>>,
 ): string {
 	return resolveDesktopApplicationNameFromEnvironment(
 		environment,
-		DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY,
-		DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
+		DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY,
+		DEFAULT_DESKTOP_TEST_APPLICATION_NAME,
 	);
 }
 
@@ -53,11 +51,11 @@ function createDesktopDistributionDescriptor(
 			schemaVersion: 1,
 		};
 	}
-	if (profile.profileId === 'local') {
+	if (profile.profileId === 'test') {
 		return {
 			applicationName: profile.applicationName,
 			artifactStem: profile.artifactStem,
-			profileId: 'local',
+			profileId: 'test',
 			schemaVersion: 1,
 		};
 	}

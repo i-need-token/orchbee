@@ -61,6 +61,9 @@ app.setPath('userData', dataRoot.path);
  * preferences rather than the installed release's.
  */
 function resolveClientEnvironment(root: DesktopDataRoot): NodeJS.ProcessEnv {
+	// Windows natives are compiled with the profile's stem and derive their own
+	// `~/.<stem>/config.toml`; other platforms use release names until ORC-328.
+	if (process.platform === 'win32') return process.env;
 	if (process.env['ORCHBEE_CONFIG_FILE'] !== undefined || root.scope.kind === 'release') {
 		return process.env;
 	}

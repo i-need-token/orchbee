@@ -14,12 +14,12 @@ import {
 import {
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
-	resolveDesktopLocalApplicationName,
+	resolveDesktopTestApplicationName,
 } from '../desktop-distribution-packaging';
 
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
-const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
+const DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_TEST_APPLICATION_NAME';
 const testArtifactStem = createDesktopTestArtifactStem('/Users/person');
 
 describe('Desktop distribution profiles', () => {
@@ -31,22 +31,21 @@ describe('Desktop distribution profiles', () => {
 				'--input-type=module',
 				'--eval',
 				`const packaging = await import(process.argv[1]);
-process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
+process.stdout.write(packaging.resolveDesktopTestApplicationName({}));`,
 				tooling.href,
 			],
 			{ encoding: 'utf8', timeout: 10_000, windowsHide: true },
 		);
-		expect(output).toBe('Orchbee Local');
+		expect(output).toBe(resolveDesktopTestApplicationName({}));
 	});
 
-	it('resolves the three explicit application identities and release policies', () => {
+	it('resolves the development and release application identities and release policies', () => {
 		const developmentScope = createDesktopDevelopmentScope(
 			'/source/orchbee-worktrees/feature',
 			'darwin',
 		);
 		const profiles = [
 			resolveDesktopDistributionProfile('dev', developmentScope),
-			resolveDesktopDistributionProfile('local', undefined, { artifactStem: testArtifactStem }),
 			resolveDesktopDistributionProfile('release'),
 		];
 
@@ -67,14 +66,6 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 				dataScope: 'development',
 				iconFileName: 'orchbee-dev.icns',
 				outputDirectoryName: 'dev',
-			},
-			{
-				applicationName: 'Orchbee Local',
-				artifactStem: testArtifactStem,
-				bundleIdentifier: 'com.electron.orchbee.local',
-				dataScope: 'local',
-				iconFileName: 'orchbee-local.icns',
-				outputDirectoryName: 'local',
 			},
 			{
 				applicationName: 'Orchbee',
@@ -100,7 +91,7 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 			'dev',
 			createDesktopDevelopmentScope('/source/orchbee', 'win32'),
 		);
-		const localProfile = resolveDesktopDistributionProfile('local', undefined, {
+		const testProfile = resolveDesktopDistributionProfile('test', undefined, {
 			artifactStem: testArtifactStem,
 		});
 		const releaseProfile = resolveDesktopDistributionProfile('release');
@@ -108,10 +99,10 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 		expect(resolveDesktopCohortArtifactStem(developmentProfile, 'win32')).toBe(
 			developmentProfile.artifactStem,
 		);
-		expect(resolveDesktopCohortArtifactStem(localProfile, 'win32')).toBe(testArtifactStem);
+		expect(resolveDesktopCohortArtifactStem(testProfile, 'win32')).toBe(testArtifactStem);
 		expect(resolveDesktopCohortArtifactStem(releaseProfile, 'win32')).toBe('orchbee');
 		expect(resolveDesktopCohortArtifactStem(developmentProfile, 'darwin')).toBe('orchbee');
-		expect(resolveDesktopCohortArtifactStem(localProfile, 'linux')).toBe('orchbee');
+		expect(resolveDesktopCohortArtifactStem(testProfile, 'linux')).toBe('orchbee');
 	});
 
 	it('derives a test stem per home directory in the ob-test grammar', () => {
@@ -121,19 +112,19 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 		expect(() => createDesktopTestArtifactStem('')).toThrow('requires the home directory');
 	});
 
-	it('overrides development and local application names from their own environment keys', () => {
+	it('overrides development and test application names from their own environment keys', () => {
 		const developmentScope = createDesktopDevelopmentScope('/source/orchbee', 'darwin');
 		const developmentApplicationName = 'Orchbee Dev Canary';
 		const developmentProfile = resolveDesktopDistributionProfile('dev', developmentScope, {
 			applicationName: developmentApplicationName,
 		});
-		const localApplicationName = 'Terminal';
-		const localProfile = resolveDesktopDistributionProfile('local', undefined, {
-			applicationName: localApplicationName,
+		const testApplicationName = 'Terminal';
+		const testProfile = resolveDesktopDistributionProfile('test', undefined, {
+			applicationName: testApplicationName,
 			artifactStem: testArtifactStem,
 		});
-		const localDescriptor = parseDesktopDistributionDescriptor(
-			JSON.parse(encodeDesktopDistributionDescriptor(localProfile)),
+		const testDescriptor = parseDesktopDistributionDescriptor(
+			JSON.parse(encodeDesktopDistributionDescriptor(testProfile)),
 		);
 
 		expect(
@@ -142,34 +133,28 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 			}),
 		).toBe(developmentApplicationName);
 		expect(
-			resolveDesktopLocalApplicationName({
-				[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: localApplicationName,
+			resolveDesktopTestApplicationName({
+				[DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY]: testApplicationName,
 			}),
-		).toBe(localApplicationName);
-		expect(resolveDesktopDistributionDescriptor(localDescriptor, 'darwin')).toEqual(localProfile);
+		).toBe(testApplicationName);
+		expect(resolveDesktopDistributionDescriptor(testDescriptor, 'darwin')).toEqual(testProfile);
 		expect(developmentProfile.bundleIdentifier).toBe(
 			resolveDesktopDistributionProfile('dev', developmentScope).bundleIdentifier,
 		);
-		expect(localProfile.bundleIdentifier).toBe(
-			resolveDesktopDistributionProfile('local', undefined, {
+		expect(testProfile.bundleIdentifier).toBe(
+			resolveDesktopDistributionProfile('test', undefined, {
 				artifactStem: testArtifactStem,
 			}).bundleIdentifier,
 		);
 	});
 
-	it('uses profile defaults and rejects unsafe local overrides', () => {
+	it('uses profile defaults and rejects unsafe test overrides', () => {
 		expect(resolveDesktopDevelopmentApplicationName({})).toBe('Orchbee Dev');
-		expect(resolveDesktopLocalApplicationName({})).toBe('Orchbee Local');
 		expect(
 			resolveDesktopDevelopmentApplicationName({
-				[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Wrong Profile',
+				[DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Wrong Profile',
 			}),
 		).toBe('Orchbee Dev');
-		expect(
-			resolveDesktopLocalApplicationName({
-				[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Wrong Profile',
-			}),
-		).toBe('Orchbee Local');
 		const invalidNames = [
 			'',
 			' Orchbee Dev',
@@ -190,10 +175,10 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 				}),
 			).toThrow(DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY);
 			expect(() =>
-				resolveDesktopLocalApplicationName({
-					[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
+				resolveDesktopTestApplicationName({
+					[DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
 				}),
-			).toThrow(DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY);
+			).toThrow(DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY);
 		}
 	});
 
@@ -221,25 +206,25 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 		expect(() => resolveDesktopDistributionProfile('dev')).toThrow(
 			'requires a development checkout scope',
 		);
-		expect(() => resolveDesktopDistributionProfile('local', scope)).toThrow(
+		expect(() => resolveDesktopDistributionProfile('test', scope)).toThrow(
 			'cannot carry a development scope',
 		);
-		expect(() => resolveDesktopDistributionProfile('local')).toThrow(
+		expect(() => resolveDesktopDistributionProfile('test')).toThrow(
 			'requires its test artifact stem',
 		);
 	});
 
 	it('requires one explicit packaging profile argument', () => {
 		expect(
-			['dev', 'local', 'release'].map((profileId) =>
+			['dev', 'test', 'release'].map((profileId) =>
 				parseDesktopDistributionProfileArguments(['--profile', profileId]),
 			),
-		).toEqual(['dev', 'local', 'release']);
+		).toEqual(['dev', 'test', 'release']);
 		expect(() => parseDesktopDistributionProfileArguments(['--profile', 'production'])).toThrow(
 			'Invalid option',
 		);
 		expect(() => parseDesktopDistributionProfileArguments([])).toThrow('exactly one --profile');
-		expect(() => parseDesktopDistributionProfileArguments(['--profile', 'local', 'extra'])).toThrow(
+		expect(() => parseDesktopDistributionProfileArguments(['--profile', 'test', 'extra'])).toThrow(
 			'exactly one --profile',
 		);
 	});
@@ -266,8 +251,8 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 		).toThrow('invalid scope digest');
 	});
 
-	it('round-trips a named local descriptor and rejects one without its test stem', () => {
-		const profile = resolveDesktopDistributionProfile('local', undefined, {
+	it('round-trips a named test descriptor and rejects one without its test stem', () => {
+		const profile = resolveDesktopDistributionProfile('test', undefined, {
 			applicationName: 'Terminal',
 			artifactStem: testArtifactStem,
 		});
@@ -277,13 +262,13 @@ process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
 
 		expect(resolveDesktopDistributionDescriptor(descriptor, 'darwin')).toEqual(profile);
 		expect(() =>
-			parseDesktopDistributionDescriptor({ profileId: 'local', schemaVersion: 1 }),
+			parseDesktopDistributionDescriptor({ profileId: 'test', schemaVersion: 1 }),
 		).toThrow('Invalid input');
 	});
 
 	it('rejects missing and unknown descriptor fields', () => {
 		expect(() =>
-			parseDesktopDistributionDescriptor({ profileId: 'local', schemaVersion: 1, unknown: true }),
+			parseDesktopDistributionDescriptor({ profileId: 'test', schemaVersion: 1, unknown: true }),
 		).toThrow('Unrecognized key');
 		expect(() =>
 			parseDesktopDistributionDescriptor({ profileId: 'dev', schemaVersion: 1 }),

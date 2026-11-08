@@ -10,7 +10,7 @@ import { resolveDesktopApplicationDistribution } from '../resolveDesktopApplicat
 
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
-const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
+const DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_TEST_APPLICATION_NAME';
 
 type ResolverDependencies = NonNullable<
 	Parameters<typeof resolveDesktopApplicationDistribution>[1]
@@ -36,7 +36,7 @@ describe('resolveDesktopApplicationDistribution', () => {
 		expect(dependencies.readFile).not.toHaveBeenCalled();
 	});
 
-	it('applies the local development application name override only to live development', () => {
+	it('applies the development application name override only to live development', () => {
 		const dependencies = createDependencies();
 		dependencies.realpath.mockReturnValue('/source/orchbee');
 
@@ -70,10 +70,10 @@ describe('resolveDesktopApplicationDistribution', () => {
 		).toThrow('canonical source checkout root');
 	});
 
-	it('loads a packaged local profile only from the bundle descriptor', () => {
+	it('loads a packaged test profile only from the bundle descriptor', () => {
 		const dependencies = createDependencies();
 		dependencies.readFile.mockReturnValue(
-			'{"applicationName":"Terminal","artifactStem":"ob-test-0123456789abcdef","profileId":"local","schemaVersion":1}\n',
+			'{"applicationName":"Terminal","artifactStem":"ob-test-0123456789abcdef","profileId":"test","schemaVersion":1}\n',
 		);
 
 		const profile = resolveDesktopApplicationDistribution(
@@ -81,7 +81,7 @@ describe('resolveDesktopApplicationDistribution', () => {
 				applicationPath: '/Applications/Terminal.app/Contents/Resources/app.asar',
 				environment: {
 					ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: '/untrusted/override',
-					[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Untrusted Override',
+					[DESKTOP_TEST_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Untrusted Override',
 				},
 				packaged: true,
 				platform: 'darwin',
@@ -90,7 +90,7 @@ describe('resolveDesktopApplicationDistribution', () => {
 		);
 
 		expect(profile).toEqual(
-			resolveDesktopDistributionProfile('local', undefined, {
+			resolveDesktopDistributionProfile('test', undefined, {
 				applicationName: 'Terminal',
 				artifactStem: 'ob-test-0123456789abcdef',
 			}),

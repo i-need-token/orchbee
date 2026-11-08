@@ -10,11 +10,11 @@ earlier Electron-managed locations, or automatic deletion.
 
 ## Resolution
 
-| Distribution profile | Data root                            |
-| -------------------- | ------------------------------------ |
-| Dev                  | `<home>/.orchbee-dev-<scope-digest>` |
-| Local                | `<home>/.orchbee-local`              |
-| Release              | `<home>/.orchbee`                    |
+| Distribution profile | Data root                       |
+| -------------------- | ------------------------------- |
+| Dev                  | `<home>/.ob-dev-<scope-digest>` |
+| Test                 | `<home>/.ob-test-<home-digest>` |
+| Release              | `<home>/.orchbee`               |
 
 Dev resolves the canonical source-checkout root before hashing, whether launched live by
 `pnpm desktop` or from `pnpm desktop:package:dev`. The scope digest is the first 16 lowercase
@@ -36,13 +36,16 @@ Electron's single-instance lock. Live development accepts only the launcher-prov
 packaged applications accept only the strict descriptor inside `app.asar`, and process environment
 cannot override it. Main sets Electron `userData` to the resolved root first, so one profile scope
 controls both disk state and lock identity. The same checkout therefore admits one Dev instance,
-while Dev, Local, Release, and different development checkouts may run concurrently.
+while Dev, Test, Release, and different development checkouts may run concurrently.
 
-Outside a release, Main runs `orchbee` with `ORCHBEE_CONFIG_FILE` set to `<data-root>/config.toml`,
-so a Session it starts keeps this data root's preferences rather than the installed release's. The
-runtime refuses an explicit configuration file that does not exist, so Main creates an empty,
-owner-only file when none is present and leaves an existing one as it is. A release, or an
-`ORCHBEE_CONFIG_FILE` already in Main's environment, runs `orchbee` with the environment unchanged.
+Outside a release on Windows, the bundled Client is compiled with the profile's artifact stem and
+derives `<data-root>/config.toml` itself, so Main passes its environment through unchanged and
+creates no file. On macOS and Linux, which keep the release names until ORC-328, Main runs `orchbee`
+with `ORCHBEE_CONFIG_FILE` set to `<data-root>/config.toml`, so a Session it starts keeps this data
+root's preferences rather than the installed release's. The runtime refuses an explicit
+configuration file that does not exist, so Main creates an empty, owner-only file when none is
+present and leaves an existing one as it is. A release, or an `ORCHBEE_CONFIG_FILE` already in
+Main's environment, runs `orchbee` with the environment unchanged.
 
 On POSIX, Main creates product-owned data directories with owner-only access. The renderer receives
 no data-root path, enumeration, location override, or generic filesystem capability. Tests use an
@@ -50,7 +53,7 @@ explicitly injected temporary home and source root.
 
 ## Invariants
 
-- Dev, Local, and Release roots are pairwise distinct.
+- Dev, Test, and Release roots are pairwise distinct.
 - Packaged profile identity and data scope come only from the strict embedded descriptor.
 - Equal canonical development checkout paths resolve to equal roots.
 - An accepted development root marker names exactly the path used to derive its digest.
@@ -60,9 +63,10 @@ explicitly injected temporary home and source root.
 
 ## Verification
 
-`prepareDesktopDataRoot` tests cover the fixed Local and Release roots, the stable development root,
+`prepareDesktopDataRoot` tests cover the fixed Release root, the stable development root,
 different-checkout isolation, and marker creation, reuse, and mismatch.
 `resolveDesktopApplicationDistribution` tests cover live development from the canonical checkout,
 strict packaged descriptors, revalidation of a packaged Dev descriptor against the current checkout,
 and environment non-override. No test drives the Main entry, which selects `userData` before
-requesting the single-instance lock and creates the configuration file.
+requesting the single-instance lock and, outside a release on macOS and Linux, creates the
+configuration file.

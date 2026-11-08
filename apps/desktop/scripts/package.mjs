@@ -18,7 +18,7 @@ import {
 import {
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
-	resolveDesktopLocalApplicationName,
+	resolveDesktopTestApplicationName,
 } from '../src/distribution/tooling/index.ts';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
@@ -39,9 +39,9 @@ const distributionProfile = (() => {
 			applicationName: resolveDesktopDevelopmentApplicationName(process.env),
 		});
 	}
-	if (profileId === 'local') {
+	if (profileId === 'test') {
 		return resolveDesktopDistributionProfile(profileId, undefined, {
-			applicationName: resolveDesktopLocalApplicationName(process.env),
+			applicationName: resolveDesktopTestApplicationName(process.env),
 			artifactStem: createDesktopTestArtifactStem(homedir()),
 		});
 	}

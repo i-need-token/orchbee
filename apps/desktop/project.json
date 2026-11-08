@@ -3,7 +3,7 @@
 	"domain": "desktop",
 	"runtime": ["electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron Main and preload composition for the local Desktop window as a Server Client: the Server restore read and one opaque `orchbee server connect` relay per renderer document, secure packaged or development Web resource delivery, native Project Folder acquisition, window state, menu, and window Actions, product-data-root and development-checkout isolation, dev/local/release distribution identities and current-platform packaging with a bundled native cohort, and development-only cohort staging and Electron restart.",
+	"responsibility": "Electron Main and preload composition for the local Desktop window as a Server Client: the Server restore read and one opaque `orchbee server connect` relay per renderer document, secure packaged or development Web resource delivery, native Project Folder acquisition, window state, menu, and window Actions, product-data-root and development-checkout isolation, dev/test/release distribution identities and current-platform packaging with a bundled native cohort, and development-only cohort staging and Electron restart.",
 	"nonGoals": [
 		"Defining Project, Workspace, Workbench, Tab, Panel, Agent, or Session semantics; the Server owns them and apps/web presents them.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",

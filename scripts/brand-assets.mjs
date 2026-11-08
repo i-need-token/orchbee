@@ -10,7 +10,7 @@ const DARWIN_BODY_TRANSFORM = 'translate(100 100) scale(0.8046875)';
 
 const DARWIN_BADGES = {
 	dev: `<g data-orchbee-distribution="dev"><circle cx="836" cy="836" r="140" fill="#625bf6" stroke="${INK}" stroke-width="24"/><path d="M812 768 754 836l58 68m48-136 58 68-58 68" fill="none" stroke="${GLYPH}" stroke-linecap="round" stroke-linejoin="round" stroke-width="30"/></g>`,
-	local: `<g data-orchbee-distribution="local"><rect x="696" y="696" width="280" height="280" rx="90" fill="#168f5b" stroke="${INK}" stroke-width="24"/><path d="M766 856v-40a70 70 0 0 1 140 0v40m-160 0h180v70H746z" fill="none" stroke="${GLYPH}" stroke-linecap="round" stroke-linejoin="round" stroke-width="30"/></g>`,
+	test: `<g data-orchbee-distribution="test"><rect x="696" y="696" width="280" height="280" rx="90" fill="#168f5b" stroke="${INK}" stroke-width="24"/><path d="M766 856v-40a70 70 0 0 1 140 0v40m-160 0h180v70H746z" fill="none" stroke="${GLYPH}" stroke-linecap="round" stroke-linejoin="round" stroke-width="30"/></g>`,
 	release: '',
 };
 
@@ -63,7 +63,7 @@ export function renderBrandSvgs(masterSvg) {
 // Every tracked file under resources/brand/, keyed by its relative path.
 export function brandAssetPlan() {
 	const plan = new Map();
-	for (const name of ['square', 'macos', 'macos-dev', 'macos-local']) {
+	for (const name of ['square', 'macos', 'macos-dev', 'macos-test']) {
 		plan.set(`svg/orchbee-icon-${name}.svg`, { kind: 'svg', svg: name });
 	}
 	for (const size of ICON_SIZES) {

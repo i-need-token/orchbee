@@ -1,5 +1,5 @@
 export {
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
-	resolveDesktopLocalApplicationName,
+	resolveDesktopTestApplicationName,
 } from './desktop-distribution-packaging.ts';

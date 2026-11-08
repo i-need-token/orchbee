@@ -41,7 +41,7 @@ already do by typing into a terminal. A link the page opens asks for a window, w
 handing an `http`, `https`, or `mailto` address to the person's browser instead; top-level
 navigation stays within the renderer's origin.
 
-A release joins the default Session, Local joins `desktop-local`, and Dev joins
+A release joins the default Session, Test joins `desktop-test`, and Dev joins
 `desktop-dev-<scope-digest>`, so each distribution profile keeps its own terminals;
 `ORCHBEE_DESKTOP_SESSION` names another. Outside a release, both `orchbee` commands run under the
 data root's configuration file, as [Desktop data root](docs/data-root.md) describes, so a Session
@@ -167,20 +167,20 @@ Runtime identity and descriptor parsing belong to `src/distribution/desktop-dist
 
 Desktop owns exactly three explicit distribution profiles:
 
-| Command                        | Application         | Bundle identifier                          | Data root                       | Icon              | Output                      |
-| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | --------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Purple Dev badge  | `apps/desktop/out/dev/`     |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`   |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Orchbee mark      | `apps/desktop/out/release/` |
+| Command                        | Application        | Bundle identifier                          | Data root                  | Icon             | Output                      |
+| ------------------------------ | ------------------ | ------------------------------------------ | -------------------------- | ---------------- | --------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`  | `com.electron.orchbee.dev.d<scope-digest>` | `~/.ob-dev-<scope-digest>` | Purple Dev badge | `apps/desktop/out/dev/`     |
+| `pnpm desktop:package:test`    | `Orchbee Test.app` | `com.electron.orchbee.test`                | `~/.ob-test-<home-digest>` | Green Test badge | `apps/desktop/out/test/`    |
+| `pnpm desktop:package:release` | `Orchbee.app`      | `com.electron.orchbee`                     | `~/.orchbee`               | Orchbee mark     | `apps/desktop/out/release/` |
 
-On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Local badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
+On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. After changing `resources/icon.svg`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Windows and Linux packages still use the Electron default icon.
 
-Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for local (one per home directory). The packaged executable and the Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged output folder takes the stem as its name. Display names, bundle identifiers, and data roots do not change. macOS and Linux keep the `orchbee` names until their cohort naming moves (ORC-328).
+Windows packages name their native cohort and executable by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The packaged executable and the Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>.exe` and `ob-dev-<scope-digest>-server.exe`, and the packaged output folder takes the stem as its name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. macOS and Linux keep the `orchbee` names until their cohort naming moves (ORC-328).
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.
-`ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME` independently overrides the default `Orchbee Local` name
-for `pnpm desktop:package:local`. Each value must be 1–64 characters, have no leading or trailing
+`ORCHBEE_DESKTOP_TEST_APPLICATION_NAME` independently overrides the default `Orchbee Test` name
+for `pnpm desktop:package:test`. Each value must be 1–64 characters, have no leading or trailing
 whitespace, and contain no path separators, control characters, or platform-invalid filename
 characters. The selected name is persisted in the corresponding distribution descriptor so the
 packaged application keeps it without the shell variable. Neither override changes its profile's
@@ -190,12 +190,12 @@ bundle identifier or data root, and the `release` profile ignores both variables
 ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME="Orchbee Dev Canary" \
 pnpm desktop:package:dev
 
-ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME="Terminal" \
-pnpm desktop:package:local
+ORCHBEE_DESKTOP_TEST_APPLICATION_NAME="Terminal" \
+pnpm desktop:package:test
 ```
 
 `pnpm desktop` uses the `dev` identity without creating a packaged application. Packaging requires
-an explicit dev/local/release profile. Each command builds Web resources and the Main and preload
+an explicit dev/test/release profile. Each command builds Web resources and the Main and preload
 bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: the Client,
 Server, Worker, Terminal Host, the observation Capsule, and the platform's terminal runtime. The
 window's Session runs that cohort, so the application carries it. The cohort and the Web resources

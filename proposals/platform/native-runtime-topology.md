@@ -1422,8 +1422,8 @@ guides. These choices stand unless review changes them:
   cohort once per distinct build, stops a development Session that an earlier cohort started, and
   restarts Electron after a Main or preload build. The Session outlives each restart and
   `pnpm desktop` itself; a native change needs a new `pnpm desktop`.
-- **Each profile joins its own Session.** Dev joins `desktop-dev-<scope-digest>`, Local
-  `desktop-local`, and a release the default Session, and outside a release `orchbee` runs under
+- **Each profile joins its own Session.** Dev joins `desktop-dev-<scope-digest>`, Test
+  `desktop-test`, and a release the default Session, and outside a release `orchbee` runs under
   the data root's configuration file.
 - **Zsh, Bash, and Fish integration left with Main.** Main injected it into the shells it launched.
   The Server launches them now and ships none, so those shells report command boundaries only

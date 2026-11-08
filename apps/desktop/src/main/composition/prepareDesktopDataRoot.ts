@@ -24,7 +24,7 @@ export interface DesktopDataRootInput {
 export type DesktopDataRoot =
 	| {
 			readonly path: string;
-			readonly scope: { readonly kind: 'local' | 'release' };
+			readonly scope: { readonly kind: 'test' | 'release' };
 	  }
 	| {
 			readonly path: string;
@@ -86,7 +86,7 @@ function resolveDesktopDataRoot(input: DesktopDataRootInput): DesktopDataRoot {
 		};
 	}
 	return {
-		path: platformPath.join(normalizedHome, `.orchbee-dev-${input.distribution.dataScope.digest}`),
+		path: platformPath.join(normalizedHome, `.${input.distribution.artifactStem}`),
 		scope: {
 			digest: input.distribution.dataScope.digest,
 			kind: 'development',

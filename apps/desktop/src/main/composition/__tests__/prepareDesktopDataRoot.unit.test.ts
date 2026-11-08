@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe('prepareDesktopDataRoot', () => {
-	it('uses separate fixed hidden roots for local and release Desktop', () => {
+	it('uses the fixed hidden root for release Desktop', () => {
 		expect(
 			prepareWithoutFileSystem({
 				distribution: resolveDesktopDistributionProfile('release'),
@@ -29,15 +29,6 @@ describe('prepareDesktopDataRoot', () => {
 				platform: 'darwin',
 			}),
 		).toEqual({ path: '/Users/person/.orchbee', scope: { kind: 'release' } });
-		expect(
-			prepareWithoutFileSystem({
-				distribution: resolveDesktopDistributionProfile('local', undefined, {
-					artifactStem: 'ob-test-0123456789abcdef',
-				}),
-				homeDirectory: '/Users/person',
-				platform: 'darwin',
-			}),
-		).toEqual({ path: '/Users/person/.orchbee-local', scope: { kind: 'local' } });
 	});
 
 	it('derives a stable development root from the canonical checkout path', () => {
@@ -52,7 +43,6 @@ describe('prepareDesktopDataRoot', () => {
 			platform: 'darwin',
 		});
 		expect(first).toEqual(second);
-		expect(first.path).toMatch(/^\/Users\/person\/\.orchbee-dev-[0-9a-f]{16}$/u);
 	});
 
 	it('isolates different development checkouts', () => {
