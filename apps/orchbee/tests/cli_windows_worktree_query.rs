@@ -1,6 +1,6 @@
 //! Source-query grammar and offline discoverability never activate a Session.
 #![cfg(windows)]
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 
 fn run(words: &[&str], locale: &str) -> Output {
     crate::staged_client::command()
@@ -22,7 +22,7 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
                 vec!["worktree", "open", "--cwd", path, "--path", path],
             ] {
                 words.push("--format=json");
-                let output = Command::new(crate::staged_client::client())
+                let output = crate::staged_client::isolated()
                     .args(&words)
                     .env(
                         "USERPROFILE",
@@ -42,7 +42,7 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
             }
         }
         for (verb, option) in [("list", "--cwd"), ("create", "--path"), ("open", "--path")] {
-            let output = Command::new(crate::staged_client::client())
+            let output = crate::staged_client::isolated()
                 .args(["worktree", verb, option, "~", "--format=json"])
                 .env("USERPROFILE", "private-invalid-home-value")
                 .env("HOME", "C:/must-not-fall-back")

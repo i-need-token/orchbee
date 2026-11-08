@@ -5,6 +5,8 @@
 mod changes;
 #[path = "support/windows_agent_peer/cohort_fixture.rs"]
 mod cohort_fixture;
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
 #[allow(dead_code)]
 #[path = "support/terminal_metadata_peer.rs"]
 mod metadata_peer;

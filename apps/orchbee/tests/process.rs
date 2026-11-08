@@ -24,7 +24,7 @@ fn skill_is_offline_localized_and_describes_the_native_surface() -> Result<(), B
 #[test]
 fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error>> {
     let invoke = |arguments: &[&str], locale: &str| {
-        std::process::Command::new(crate::staged_client::client())
+        crate::staged_client::isolated()
             .args(arguments)
             .env("LC_ALL", locale)
             .env("APPDATA", "relative-appdata")

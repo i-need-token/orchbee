@@ -3,6 +3,9 @@
 #[path = "support/windows_agent_peer/cohort_fixture.rs"]
 mod cohort_fixture;
 #[allow(dead_code)]
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
+#[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
 use cohort_fixture::CohortFixture as Fixture;
@@ -15,12 +18,20 @@ use serde_json::{Value, json};
 fn fixture_child_route_is_default_unless_explicitly_overridden() {
     use std::ffi::OsStr;
 
+    // Whether the child of `command` receives `name`: the command's own change wins, otherwise the
+    // child inherits this process's value. Windows compares names without letter case.
+    let child_has = |command: &std::process::Command, name: &str| match command
+        .get_envs()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+    {
+        Some((_, value)) => value.is_some(),
+        None => std::env::var_os(name).is_some(),
+    };
     let fixture = Fixture::new();
     let command = fixture.command(&["--help"], None, None, &[]);
     for name in ["ORCHBEE_RUNTIME_SCOPE", "ORCHBEE_SESSION"] {
-        assert_eq!(
-            command.get_envs().find(|(key, _)| *key == name),
-            Some((OsStr::new(name), None)),
+        assert!(
+            !child_has(&command, name),
             "the default peer route must not inherit {name}"
         );
     }

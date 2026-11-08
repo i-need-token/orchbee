@@ -248,7 +248,7 @@ fn run(base: &Path, arguments: &[&str]) -> Output {
 /// caller finishes through `support::bounded_wait_with_output`, keeping the
 /// shared wall-clock backstop, drain discipline, and capture budget.
 fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
-    Command::new(cohort().join("orchbee"))
+    crate::staged_client::orchbee_command(cohort().join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env_remove("LC_ALL")
@@ -1066,7 +1066,7 @@ fn completion_scripts_are_local_and_parseable() -> TestResult {
 fn missing_cohort_is_a_check_failure_not_a_crash() -> TestResult {
     // The unadorned build-tree binary has no cohort.json beside it.
     let base = base_dir("nocohort");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+    let mut command = crate::staged_client::orchbee_command(env!("CARGO_BIN_EXE_orchbee"));
     command
         .args(["status", "--format", "json"])
         .env("ORCHBEE_RUNTIME_BASE", &base);
@@ -1877,7 +1877,7 @@ fn stdout_write_failure_is_reported() -> TestResult {
     // /dev/full fails every write: the real emit boundary, not an injected
     // earlier stage.
     let dev_full = fs::File::options().write(true).open("/dev/full")?;
-    let child = Command::new(cohort().join("orchbee"))
+    let child = crate::staged_client::orchbee_command(cohort().join("orchbee"))
         .args(["api", "schema", "orchbee.status", "--format", "json"])
         .env("ORCHBEE_RUNTIME_BASE", &base)
         .env("LANG", "en_US.UTF-8")

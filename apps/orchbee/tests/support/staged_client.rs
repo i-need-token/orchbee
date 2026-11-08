@@ -6,10 +6,18 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
+pub use crate::inherited_environment::orchbee_command;
+
 /// The CLI executable this test process starts.
 pub fn client() -> &'static Path {
     static CLIENT: OnceLock<PathBuf> = OnceLock::new();
     CLIENT.get_or_init(stage)
+}
+
+/// The CLI under test without any inherited `ORCHBEE_*` variable, for a test that gives it the
+/// environment its fixture owns.
+pub fn isolated() -> Command {
+    orchbee_command(client())
 }
 
 /// Starts the CLI under test for an invocation that owns no fixture. On Windows it receives the
@@ -18,13 +26,13 @@ pub fn client() -> &'static Path {
 pub fn command() -> Command {
     #[cfg(windows)]
     {
-        let mut command = Command::new(client());
+        let mut command = isolated();
         command.env("USERPROFILE", profile());
         command
     }
     #[cfg(not(windows))]
     {
-        Command::new(client())
+        isolated()
     }
 }
 

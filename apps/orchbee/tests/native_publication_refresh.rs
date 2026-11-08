@@ -8,6 +8,8 @@
 //! lives in the deterministic unit suites; this file covers the real Linux PTY +
 //! Server/Worker/Host two-Client path only.
 
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
 #[path = "local_startup_process/native_cohort.rs"]
 mod native_cohort;
 #[path = "local_startup_process/pty_client.rs"]

@@ -891,7 +891,7 @@ fn terminal_send_invalid_argv_never_connects() -> TestResult {
 
 /// A spawn with caller-owned stdin (the shared `run` always closes it).
 fn run_with_stdin(base: &Path, arguments: &[&str], stdin: Stdio) -> std::process::Child {
-    Command::new(cohort().join("orchbee"))
+    crate::staged_client::orchbee_command(cohort().join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env_remove("LC_ALL")
@@ -1602,7 +1602,7 @@ fn terminal_send_file_dash_is_a_literal_path() -> TestResult {
     fs::create_dir(&workdir).expect("create literal cwd");
     staged_file(&workdir, "-", b"from the dash file\n");
     let peer = serve_send(&scope, "from the dash file\n".to_owned(), 19, false);
-    let child = Command::new(cohort().join("orchbee"))
+    let child = crate::staged_client::orchbee_command(cohort().join("orchbee"))
         .args([
             "terminal", "send", TERMINAL, "--file", "-", "--format", "json",
         ])

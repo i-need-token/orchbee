@@ -52,6 +52,9 @@ mod tui_observer;
 mod workbench_peer;
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
+#[allow(dead_code)]
 #[path = "support/mod.rs"]
 mod support;
 
@@ -668,7 +671,7 @@ fn server_and_worker_readiness_does_not_start_a_host() -> TestResult {
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = Cohort::load(&fixture.cohort, deadline)
         .map_err(|error| format!("fixture cohort admission: {error}"))?;
-    let mut server = Command::new(fixture.cohort.join("orchbee-server"))
+    let mut server = crate::support::orchbee_command(fixture.cohort.join("orchbee-server"))
         .arg("--runtime-directory")
         .arg(fixture.runtime())
         .stdin(Stdio::null())
@@ -784,7 +787,7 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
     let cohort_identity = Cohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))?
         .identity()
         .to_owned();
-    let mut worker = Command::new(fixture.cohort.join("orchbee-worker"))
+    let mut worker = crate::support::orchbee_command(fixture.cohort.join("orchbee-worker"))
         .arg("--runtime-directory")
         .arg(fixture.runtime())
         .stdin(Stdio::null())
@@ -964,7 +967,7 @@ fn help_version_and_non_tty_use_no_runtime_or_processes() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     for arguments in [vec!["--help"], vec!["--version"], vec![]] {
-        let output = Command::new(fixture.cohort.join("orchbee"))
+        let output = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
             .args(&arguments)
             .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
             .env("LC_ALL", "en_US.UTF-8")

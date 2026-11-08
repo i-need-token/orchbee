@@ -13,7 +13,7 @@ use std::{
     io::{self, Read, Write},
     os::fd::{AsFd, OwnedFd},
     path::Path,
-    process::{Child, ChildStderr, Command, ExitStatus, Stdio},
+    process::{Child, ChildStderr, ExitStatus, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -162,7 +162,7 @@ impl Client {
         fixture.register_runtime_base(base);
         let pty = open_outer_pty(columns, rows, pixels_known).unwrap();
         let original = tcgetattr(&pty.slave).unwrap();
-        let mut child = Command::new(fixture.cohort.join("orchbee"))
+        let mut child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
             .args(args)
             .env("ORCHBEE_RUNTIME_BASE", base)
             .env("LC_ALL", locale)

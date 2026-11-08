@@ -185,20 +185,14 @@ impl Fixture {
         worker: Option<&str>,
         environment: &[(&str, &std::ffi::OsStr)],
     ) -> Command {
-        let mut command = Command::new(self.executable());
+        let mut command = crate::inherited_environment::orchbee_command(self.executable());
         command
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env("LC_ALL", "en_US.UTF-8")
             .env("APPDATA", self.profile())
             // A development or test build keeps its state under the profile, not APPDATA.
-            .env("USERPROFILE", self.profile())
-            .env_remove("ORCHBEE_CONFIG_FILE")
-            .env_remove("ORCHBEE_HOME")
-            .env_remove("ORCHBEE_RUNTIME_SCOPE")
-            .env_remove("ORCHBEE_SESSION")
-            .env_remove("ORCHBEE_TERMINAL_ID")
-            .env_remove("ORCHBEE_WORKER_ID");
+            .env("USERPROFILE", self.profile());
         if let Some(value) = terminal {
             command.env("ORCHBEE_TERMINAL_ID", value);
         }

@@ -3,6 +3,9 @@
 //! and a `host` Session whose terminal runs a real TUI Client. A test owns its root, Sessions,
 //! controlling attachments and processes until they drop.
 
+#[path = "inherited_environment.rs"]
+mod inherited_environment;
+
 use orchbee_local_runtime::CohortArtifact;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -181,15 +184,10 @@ impl Fixture {
 
     /// The CLI under test in this fixture's isolated environment.
     pub fn command(&self, words: &[&str]) -> Command {
-        let mut command = Command::new(self.staged_client());
+        let mut command = inherited_environment::orchbee_command(self.staged_client());
         command
             .args(words)
             .env("ORCHBEE_RUNTIME_BASE", self.root.join("runtime"))
-            .env_remove("ORCHBEE_RUNTIME_SCOPE")
-            .env_remove("ORCHBEE_SESSION")
-            .env_remove("ORCHBEE_CONFIG_FILE")
-            .env_remove("ORCHBEE_TERMINAL_ID")
-            .env_remove("ORCHBEE_WORKER_ID")
             .env("USERPROFILE", self.root.join("home"))
             .env("HOME", self.root.join("home"))
             .env("APPDATA", self.root.join("roaming"))

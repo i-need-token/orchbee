@@ -297,7 +297,7 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
         .output()
         .unwrap();
     assert_ne!(invalid.status.code(), Some(0));
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args([
             "agent",
             "doctor",
@@ -350,7 +350,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         fixture.provider_document("explain", "devin", 0)["result"]["state"],
         "update-required"
     );
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .env("APPDATA", fixture.0.join("roaming"))
@@ -416,7 +416,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         }
     }
     fs::write(&target, &installed).unwrap();
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .env("APPDATA", fixture.0.join("roaming"))
@@ -528,7 +528,7 @@ fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
         }
     }
     fs::write(&target, &installed).unwrap();
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args(["agent", "doctor", "--provider", "letta", "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .env_remove("HOME")
@@ -641,7 +641,7 @@ fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
         assert_eq!(delivery["events"], 2);
     }
     let doctor = || {
-        let output = Command::new(crate::staged_client::client())
+        let output = crate::staged_client::isolated()
             .args(["agent", "doctor", "--provider", "kimi", "--format", "json"])
             .env("USERPROFILE", fixture.home())
             .env_remove("KIMI_CODE_HOME")
@@ -852,7 +852,7 @@ fn check_json_hooks(provider: &str) {
     );
     assert!(configured.join(target.file_name().unwrap()).is_file());
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args([
             "agent",
             "doctor",
@@ -961,7 +961,7 @@ fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
     );
     fixture.provider_document("disable", id, 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args(["agent", "doctor", "--provider", id, "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .output()
@@ -1067,7 +1067,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     let installed = xdg.join("opencode/plugins/orchbee-agent-observation.js");
     assert!(installed.is_file());
     assert!(!current.exists());
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .args([
             "agent",
             "doctor",
@@ -1230,7 +1230,7 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
                 .is_file()
         );
         assert!(!target.exists());
-        let doctor = Command::new(crate::staged_client::client())
+        let doctor = crate::staged_client::isolated()
             .args([
                 "agent",
                 "doctor",
@@ -1303,7 +1303,7 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
                 .exists()
         );
         let bytes = fs::read(&target).unwrap();
-        let mut doctor = Command::new(crate::staged_client::client());
+        let mut doctor = crate::staged_client::isolated();
         doctor
             .args(["agent", "doctor", "--provider", "kilo", "--format", "json"])
             .env("USERPROFILE", fixture.home())
@@ -1607,7 +1607,9 @@ impl Fixture {
     }
     /// The CLI under test, selecting this fixture's runtime base and profile.
     fn cli(&self) -> Command {
-        let mut command = Command::new(self.1.0.join(CohortArtifact::Client.file_name()));
+        let mut command = crate::staged_client::orchbee_command(
+            self.1.0.join(CohortArtifact::Client.file_name()),
+        );
         command
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env_remove("ORCHBEE_RUNTIME_SCOPE")
@@ -2057,7 +2059,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             fs::remove_file(client.join("index.js")).unwrap();
         }
         let doctor_hook = || {
-            let doctor = Command::new(crate::staged_client::client())
+            let doctor = crate::staged_client::isolated()
                 .args([
                     "agent",
                     "doctor",
@@ -2321,7 +2323,7 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
         fixture.provider_document("explain", id, 0)["result"]["state"],
         "update-required"
     );
-    let doctor = Command::new(crate::staged_client::client())
+    let doctor = crate::staged_client::isolated()
         .env("USERPROFILE", fixture.home())
         .args(["agent", "doctor", "--provider", id, "--format", "json"])
         .output()
@@ -2408,7 +2410,7 @@ fn droid_uses_the_effective_configuration_without_shadowing_fallback_hooks() {
         if origin == "new" {
             exercise_installed_json_hooks("droid", target);
         }
-        let doctor = Command::new(crate::staged_client::client())
+        let doctor = crate::staged_client::isolated()
             .env("USERPROFILE", fixture.home())
             .args(["agent", "doctor", "--provider", "droid", "--format", "json"])
             .output()

@@ -2,6 +2,8 @@
 //! The aggregate integration target shares one module; process-isolated targets
 //! retain their own module instance.
 
+pub use crate::inherited_environment::orchbee_command;
+
 use std::{
     fs,
     io::{ErrorKind, Read},
@@ -362,7 +364,7 @@ pub fn run(binary: &Path, base: &Path, arguments: &[&str]) -> Output {
 /// needs the zh-CN pass to differ from the en-US default in exactly one
 /// environment variable.
 pub fn run_lang(binary: &Path, base: &Path, arguments: &[&str], lang: &str) -> Output {
-    let mut command = Command::new(binary);
+    let mut command = orchbee_command(binary);
     command
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)

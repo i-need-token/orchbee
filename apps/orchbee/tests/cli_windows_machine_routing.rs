@@ -4,10 +4,7 @@ use crate::peer_support as support;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use orchbee_local_runtime::{PrivateCache, run_windows_command_exchange};
 use serde_json::{Value, json};
-use std::{
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use support::{Fixture, validate};
 
 fn packet(args: &[&str]) -> Value {
@@ -24,7 +21,7 @@ fn relay_with_environment(
 ) -> Value {
     let executable = fixture.executable();
     let mut command = if shell {
-        let mut c = Command::new(
+        let mut c = crate::staged_client::orchbee_command(
             std::path::PathBuf::from(winsafe::GetSystemDirectory().unwrap())
                 .join("WindowsPowerShell/v1.0/powershell.exe"),
         );
@@ -46,7 +43,7 @@ fn relay_with_environment(
         ]);
         c
     } else {
-        let mut c = Command::new(executable);
+        let mut c = crate::staged_client::orchbee_command(executable);
         c.arg("--machine-relay-v1");
         c
     };

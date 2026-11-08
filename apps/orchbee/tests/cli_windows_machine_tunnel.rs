@@ -12,7 +12,7 @@ use orchbee_local_runtime::CommandChild;
 use orchbee_workbench_client::test_support::local_client::handshake;
 use std::{
     io::{self, Read, Write},
-    process::{Command, Stdio},
+    process::Stdio,
     thread,
     time::{Duration, Instant},
 };
@@ -80,14 +80,14 @@ fn tunnel_helper_carries_the_handshake_full_duplex_binary_and_final_eof_bytes() 
         let exe = fixture.executable();
         let mut command = if shell {
             let remote = program::command(exe.to_str().unwrap(), "default");
-            let mut c = Command::new(
+            let mut c = crate::staged_client::orchbee_command(
                 std::path::PathBuf::from(winsafe::GetSystemDirectory().unwrap())
                     .join("WindowsPowerShell/v1.0/powershell.exe"),
             );
             c.args(remote.split_ascii_whitespace().skip(1));
             c
         } else {
-            let mut c = Command::new(exe);
+            let mut c = crate::staged_client::orchbee_command(exe);
             c.args(["--machine-tunnel-v1", "default"]);
             c
         };

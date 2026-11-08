@@ -17,7 +17,7 @@ struct Reap(Child);
 
 impl Reap {
     fn spawn(fixture: &Fixture, arguments: &[&str]) -> Self {
-        let child = Command::new(fixture.cohort.join("orchbee"))
+        let child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
             .env("LANG", "en_US.UTF-8")

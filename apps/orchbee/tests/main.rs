@@ -1,6 +1,8 @@
 //! Integration and conformance tests through this crate's public boundaries.
 
 // Aggregate suites share each fixture owner once; isolated targets retain their own owners.
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
 #[cfg(windows)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;

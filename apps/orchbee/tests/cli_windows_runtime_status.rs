@@ -15,7 +15,7 @@ use std::{
     fs,
     io::{Read, Write},
     num::NonZeroU32,
-    process::{Command, Output},
+    process::Output,
     thread,
     time::{Duration, Instant},
 };
@@ -450,7 +450,7 @@ fn localized_text_lists_each_process_and_json_is_locale_independent() {
     let fixture = Fixture::new();
     let mut outputs = Vec::new();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
-        let output = Command::new(fixture.executable())
+        let output = crate::staged_client::orchbee_command(fixture.executable())
             .args(["status", "client", "--format=json"])
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
@@ -466,7 +466,7 @@ fn localized_text_lists_each_process_and_json_is_locale_independent() {
         ("zh_CN.UTF-8", "重启保留终端"),
     ] {
         let handle = peer(&fixture, |stream| answer(stream, &processes()));
-        let output = Command::new(fixture.executable())
+        let output = crate::staged_client::orchbee_command(fixture.executable())
             .args(["status", "server"])
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))

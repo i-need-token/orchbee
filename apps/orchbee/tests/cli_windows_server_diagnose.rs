@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::PathBuf,
-    process::{Command, Output, Stdio},
+    process::{Output, Stdio},
 };
 
 struct Fixture(PathBuf);
@@ -37,7 +37,7 @@ impl Fixture {
     }
 
     fn run(&self, format: &str, locale: &str) -> Output {
-        Command::new(crate::staged_client::client())
+        crate::staged_client::isolated()
             .args(["server", "diagnose", "--format", format])
             .env("ORCHBEE_RUNTIME_BASE", self.runtime())
             // A development or test build keeps its Session catalog under the profile.
@@ -225,7 +225,7 @@ fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
     fs::write(&identity, br#"{"version":1,"name":"work"}"#).unwrap();
     let entries = fs::read_dir(&base).unwrap().count();
     let run = |session: &str, format: &str, locale: &str| {
-        Command::new(crate::staged_client::client())
+        crate::staged_client::isolated()
             .args([
                 "--session",
                 session,

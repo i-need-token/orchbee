@@ -138,7 +138,7 @@ impl Fixture {
             WorkspacePlacement,
         };
         let fixture = Self::new();
-        let child = std::process::Command::new(fixture.cohort.join("orchbee"))
+        let child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
             .args(["server", "start"])
             .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
             .env("SHELL", "/bin/sh")

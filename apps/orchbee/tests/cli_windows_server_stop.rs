@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::PathBuf,
-    process::{Command, Output, Stdio},
+    process::{Output, Stdio},
 };
 
 const ID: &str = "11111111111111111111111111111111";
@@ -34,7 +34,7 @@ impl Fixture {
         self.0.join("profile")
     }
     fn run(&self, arguments: &[&str], locale: &str) -> Output {
-        Command::new(crate::staged_client::client())
+        crate::staged_client::isolated()
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.runtime())
             .env("USERPROFILE", self.profile())
@@ -93,7 +93,7 @@ fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
     fs::write(&blocked_runtime, b"untouched").unwrap();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         let run = |arguments: &[&str]| {
-            Command::new(crate::staged_client::client())
+            crate::staged_client::isolated()
                 .args(arguments)
                 .env("ORCHBEE_RUNTIME_BASE", &blocked_runtime)
                 .env("USERPROFILE", fixture.profile())

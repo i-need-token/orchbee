@@ -50,7 +50,7 @@ impl Drop for Reap {
 /// Run one query invocation of the staged `orchbee` binary. stdin is null and
 /// both streams are pipes: every witness here is non-TTY.
 pub(super) fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
-    Command::new(fixture.cohort.join("orchbee"))
+    crate::support::orchbee_command(fixture.cohort.join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
         .env("LANG", "en_US.UTF-8")
@@ -143,7 +143,7 @@ pub(super) fn spawn_real_server(fixture: &Fixture) -> Reap {
 pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) -> Reap {
     let session = fixture.session();
     session.commit_activation().expect("fixture activation");
-    let mut command = Command::new(fixture.cohort.join("orchbee-server"));
+    let mut command = crate::support::orchbee_command(fixture.cohort.join("orchbee-server"));
     for (name, value) in env {
         command.env(name, value);
     }
@@ -484,7 +484,7 @@ fn blocked_stdout_keeps_no_transport_and_releases_the_real_server() -> TestResul
     // Minimum legal pipe capacity keeps the witness small and deterministic.
     fcntl(&read_end, FcntlArg::F_SETPIPE_SZ(4096))?;
     let mut child = Reap::spawn(
-        Command::new(fixture.cohort.join("orchbee"))
+        crate::support::orchbee_command(fixture.cohort.join("orchbee"))
             .args(["api", "snapshot", "--format", "json"])
             .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
             .env("LANG", "en_US.UTF-8")

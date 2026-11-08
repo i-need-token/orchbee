@@ -25,6 +25,8 @@ use orchbee_agent_observation_protocol::{
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use sha2::{Digest, Sha256};
 
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
 #[path = "support/mod.rs"]
 mod support;
 
@@ -557,7 +559,7 @@ fn held_peer_timeout_reports_agent_failure() -> TestResult {
 /// A spawn with the shared deterministic-locale environment whose `Child`
 /// stays caller-owned — signal tests must hold it to signal and reap it.
 fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
-    Command::new(cohort().join("orchbee"))
+    crate::support::orchbee_command(cohort().join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env_remove("LC_ALL")

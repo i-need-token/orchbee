@@ -26,6 +26,9 @@ use std::{
 
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
+#[path = "support/inherited_environment.rs"]
+mod inherited_environment;
+#[allow(dead_code)]
 #[path = "support/mod.rs"]
 mod support;
 

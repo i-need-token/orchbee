@@ -15,7 +15,7 @@ use std::process::Output;
 /// Run `server start` with a caller-chosen LANG/base override; identical to
 /// `run_cli` apart from the extra environment pair.
 fn run_start(fixture: &Fixture, arguments: &[&str], lang: &str, base: &std::path::Path) -> Output {
-    Command::new(fixture.cohort.join("orchbee"))
+    crate::support::orchbee_command(fixture.cohort.join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env("LANG", lang)
@@ -128,7 +128,7 @@ fn session_start_overlapping_invocations_spawn_exactly_one_server() -> TestResul
     let mut children = Vec::new();
     for _ in 0..3 {
         children.push(
-            Command::new(fixture.cohort.join("orchbee"))
+            crate::support::orchbee_command(fixture.cohort.join("orchbee"))
                 .args(["server", "start", "--format", "json"])
                 .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
                 .env("LANG", "en_US.UTF-8")
@@ -231,7 +231,7 @@ fn session_start_sigterm_is_signal_death_not_a_cancel_envelope() -> TestResult {
         LockAttempt::Acquired(lock) => lock,
         LockAttempt::Contended => panic!("fixture activation lock must be free"),
     };
-    let child = Command::new(fixture.cohort.join("orchbee"))
+    let child = crate::support::orchbee_command(fixture.cohort.join("orchbee"))
         .args(["server", "start", "--format", "json"])
         .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
         .env("LANG", "en_US.UTF-8")

@@ -51,14 +51,12 @@ impl Fixture {
         locale: &str,
         codex_home: Option<&Path>,
     ) -> Output {
-        let mut command = Command::new(binary);
+        let mut command = crate::staged_client::orchbee_command(binary);
         command
             .args(words)
             .env("USERPROFILE", self.0.join("用户 home"))
             .env("APPDATA", self.0.join("roaming"))
             .env("LOCALAPPDATA", self.0.join("local"))
-            .env_remove("ORCHBEE_HOME")
-            .env_remove("ORCHBEE_ENVIRONMENT")
             .env_remove("HERMES_HOME")
             .env_remove("HERMES_DATA_DIR_SUFFIX")
             .env("HOME", self.0.join("wrong-posix-home"))
@@ -66,7 +64,6 @@ impl Fixture {
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
             .env_remove("CODEX_HOME")
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
             .current_dir(&self.0)
             .stdin(Stdio::null());
         if let Some(home) = codex_home {

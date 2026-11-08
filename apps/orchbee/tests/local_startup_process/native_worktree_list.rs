@@ -19,7 +19,7 @@ use std::process::Output;
 /// Run one CLI invocation under a chosen locale. Identical to `run_cli`
 /// except `LANG`; the worktree surface owns no locale flag of its own.
 fn run_cli_lang(fixture: &Fixture, lang: &str, arguments: &[&str]) -> Output {
-    Command::new(fixture.cohort.join("orchbee"))
+    crate::support::orchbee_command(fixture.cohort.join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
         .env("LANG", lang)

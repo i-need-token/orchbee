@@ -5,7 +5,7 @@ use std::{
     fs::{self, File},
     io::{self, Read},
     os::fd::OwnedFd,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{Child, ExitStatus, Stdio},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -50,7 +50,7 @@ impl RunningTui {
         };
         let OpenptyResult { master, slave } = openpty(Some(&window), None)?;
         let initial_termios = tcgetattr(&slave)?;
-        let child = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        let child = crate::staged_client::orchbee_command(env!("CARGO_BIN_EXE_orchbee"))
             .args(arguments)
             .env_remove("LC_ALL")
             .env_remove("LC_MESSAGES")
