@@ -970,11 +970,6 @@ impl TerminalInputPort for WorkbenchClient {
                     control.interrupt_focus();
                 }
             }
-            TerminalObservation::InputAccepted => {
-                if let Some(native) = self.backend.native_mut() {
-                    native.observe_input_accepted();
-                }
-            }
             TerminalObservation::KeyboardIntent => {
                 if let Some(native) = self.backend.native_mut() {
                     native.observe_keyboard();

@@ -1,8 +1,5 @@
-//! Where focus returns across Workspaces once a Tab close settles.
-use super::{
-    ClosingTab, Focus, FocusReturnStep, capture_focus_return, input_drops_focus_return,
-    panel_focus_after_tab_close, record_tab_close_request, settle_focus_return,
-};
+//! Where focus returns when a Tab close holds the focused Panel.
+use super::{Focus, focus_return_candidate};
 use crate::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{
     WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
@@ -29,72 +26,21 @@ fn focus(location: &ClientContextLocation, tab: u64, panel: u64) -> Focus {
 }
 
 #[test]
-fn a_cross_workspace_return_waits_for_its_close_then_switches_to_its_tab_and_panel() {
+fn focus_return_never_enters_another_workspace() {
     let origin = workspace(1);
     let other = workspace(2);
-    // The closing Tab holds the focused Panel; the most recent Panel outside it is in another
-    // Workspace.
-    let history = [focus(&origin, 1, 11), focus(&other, 2, 21)];
-    let closing = history[0].tab.clone();
-    let picked = panel_focus_after_tab_close(
-        std::slice::from_ref(&closing),
-        Some(&history[0]),
-        &history,
-        |entry| &entry.tab,
-        |_| true,
-    )
-    .expect("the other Workspace's Panel is picked");
-    // The accepted close holds one return, even when the same close is observed again.
-    let mut slot = None;
-    capture_focus_return(&mut slot, &origin, &closing, picked, 0);
-    capture_focus_return(&mut slot, &origin, &closing, picked, 0);
-    let pending = slot.expect("one pending return");
-    // While the close is open, nothing moves.
+    let focused = focus(&origin, 1, 11);
+    let closed = [focused.tab.clone()];
+    // The most recent Panel is in another Workspace, so the next Panel of the origin is picked.
+    let history = [focus(&other, 2, 21), focus(&origin, 3, 31)];
     assert_eq!(
-        settle_focus_return(&pending, ClosingTab::Leaving, false, Some(1)),
-        FocusReturnStep::Wait
+        focus_return_candidate(&closed, &focused, &history, |_| true),
+        Some(&history[1])
     );
-    // Once the close is over, the switch lands on the other Workspace at its position, on the
-    // chosen Tab and Panel.
-    let FocusReturnStep::Switch { index, target } =
-        settle_focus_return(&pending, ClosingTab::Gone, true, Some(1))
-    else {
-        panic!("the return switches once the close is over");
-    };
-    assert_eq!(index, 1);
-    assert_eq!(target, &focus(&other, 2, 21));
-    // A Panel that is no longer open leaves the post-close landing in place.
+    // Without a Panel of the origin Workspace, nothing is picked and focus stays in its Workspace.
+    let only_other = [focus(&other, 2, 21)];
     assert_eq!(
-        settle_focus_return(&pending, ClosingTab::Gone, true, None),
-        FocusReturnStep::Drop
+        focus_return_candidate(&closed, &focused, &only_other, |_| true),
+        None
     );
-}
-
-#[test]
-fn input_after_a_tab_close_request_ends_its_return_and_a_new_request_ends_an_older_one() {
-    let origin = workspace(1);
-    let other = workspace(2);
-    let history = [focus(&origin, 1, 11), focus(&other, 2, 21)];
-    let closing = history[0].tab.clone();
-    let picked = panel_focus_after_tab_close(
-        std::slice::from_ref(&closing),
-        Some(&history[0]),
-        &history,
-        |entry| &entry.tab,
-        |_| true,
-    )
-    .expect("the other Workspace's Panel is picked");
-    // The request records epoch 4 after its own input, and the return it holds carries that epoch.
-    let mut slot = None;
-    let mut requested = 0;
-    record_tab_close_request(&mut slot, &mut requested, 4);
-    capture_focus_return(&mut slot, &origin, &closing, picked, requested);
-    let pending = slot.clone().expect("one pending return");
-    // Nothing has moved the keyboard since the request, so the return stands.
-    assert!(!input_drops_focus_return(&pending, 4));
-    // A key press, paste or mouse button press after the request ends it.
-    assert!(input_drops_focus_return(&pending, 5));
-    // A new Tab close request ends the return that an earlier close held.
-    record_tab_close_request(&mut slot, &mut requested, 5);
-    assert_eq!(slot, None);
 }

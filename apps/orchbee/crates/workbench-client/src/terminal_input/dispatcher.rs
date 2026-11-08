@@ -119,22 +119,6 @@ struct ProjectedCaptureItem {
 #[cfg(test)]
 mod tests;
 
-/// Whether a decoded item is a key press, paste or mouse button press the person made, the input
-/// that ends a pending focus return. Releases, motion, hover, host metadata and a tail a captured
-/// packet owns are not.
-fn accepted_input(item: &DecodedItem) -> bool {
-    !item.owned
-        && match &item.kind {
-            DecodedKind::Key(event) => event.kind != KeyKind::Release,
-            DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => true,
-            DecodedKind::Mouse(event) => {
-                event.action == super::mouse::MouseAction::Press
-                    && event.button != super::mouse::MouseButton::None
-            }
-            _ => false,
-        }
-}
-
 /// Adapts one decoded item to the confirmation port's decision vocabulary. Only
 /// legal single keys convert; every other complete item (modified keys,
 /// navigation keys, paste runs, non-decision sequences) maps to `Other` so an
@@ -1369,11 +1353,6 @@ impl InputDispatcher {
     ) -> Result<DispatchOutcome, Error> {
         let fenced = self.packet_fenced();
         let pointer = matches!(item.kind, DecodedKind::Mouse(_));
-        // Taken before any owner routes the item, so an action it causes is recorded after the
-        // input that caused it.
-        if accepted_input(&item) {
-            port.observe_terminal(TerminalObservation::InputAccepted);
-        }
         let outcome = self.route_item(view, port, now, item, after_layout, mode)?;
         self.switch_to_held_workspace(view, port, now, after_layout)?;
         if !fenced && self.packet_fenced() {

@@ -76,10 +76,6 @@ pub enum TerminalObservation {
     HostGraphics(crate::terminal_graphics::Facts),
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.
     InputIntent,
-    /// A key press, paste or mouse button press as the dispatcher takes it into routing, before
-    /// any owner decides it. Releases, motion, hover, host metadata and captured tails are
-    /// excluded.
-    InputAccepted,
     /// Input routed to the terminal proves keyboard delivery even if FocusIn arrives later.
     KeyboardIntent,
     /// The host window changed size: painted close, rename, setup and worktree decisions stay

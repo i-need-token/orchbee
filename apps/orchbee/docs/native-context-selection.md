@@ -141,13 +141,10 @@ selection does. Without a target the step does nothing and reports nothing. A st
 background read or the user's own switch is landing is held, then chooses its target where the
 switch landed. Restart discards the history, and the GUI keeps its own with the same model.
 
-A Tab close that holds the focused Panel returns focus from the same history. A Panel of the closing
-Tab's Workspace is selected as the close is accepted. A Panel of another Workspace is reached once
-the close is over, if that Panel is still open then, because context selection waits for the close.
-A close that stops, or a Workspace change in between, ends that return and leaves the post-close
-landing in place. A key press, paste or mouse button press after the close was last requested or
-confirmed ends it too, and so does a newer Tab close request, so focus stays where the person put
-it. The confirming input of the close itself does not count.
+A Tab close that holds the focused Panel returns focus from the same history, to the most recent
+Panel still open in that Tab's Workspace. A Panel of another Workspace is skipped, so focus never
+moves into another Workspace on a close; when no such Panel exists, the post-close landing in that
+Workspace applies.
 
 ## Windows startup preference
 
