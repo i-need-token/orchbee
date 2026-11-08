@@ -19,7 +19,7 @@
 - **`AGENTS.md` is a symlink to `CLAUDE.md`.** Only edit `CLAUDE.md`.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
 - **Desktop development diagnostics target the development application identity.** When inspecting `pnpm desktop`, target the generated `Orchbee Dev.app` by its exact path or checkout-scoped bundle identifier. Never open, focus, quit, replace, or fall back to `/Applications/Orchbee.app` unless the human explicitly requests the installed release application in the current task.
-- **Stop processes by PID, never by image name.** Image names do not identify an environment: the installed production Orchbee and test-harness cohorts run the shipped `orchbee*` names, while Windows dev and local builds run `ob-dev-*` and `ob-test-*` names. An agent stops only a PID it started, after confirming its start time still matches, and never stops the installed production Orchbee under `%LOCALAPPDATA%\Programs\Orchbee`; ask the human.
+- **Stop processes by PID, never by image name.** Image names do not identify an environment: on Windows only release builds run the shipped `orchbee*` names, while development cohorts run `ob-dev-*` names and the test package, plain Cargo builds and every `cargo test` process run `ob-test-*` names; macOS and Linux still run `orchbee*` everywhere. An agent stops only a PID it started, after confirming its start time still matches, and never stops the installed production Orchbee under `%LOCALAPPDATA%\Programs\Orchbee`; ask the human.
 
 ## Key Docs Index
 
