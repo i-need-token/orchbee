@@ -24,7 +24,7 @@ export interface DesktopApplicationMenuLabels {
 }
 
 /** The Windows diagnostic bundle Action, placed in the Help menu. */
-export interface DesktopApplicationMenuDiagnostics {
+interface DesktopApplicationMenuDiagnostics {
 	readonly categoryLabel: string;
 	readonly label: string;
 	getAvailability(): ActionAvailability;

@@ -1,8 +1,4 @@
-export {
-	DesktopDiagnosticLog,
-	type DesktopDiagnosticRecorder,
-	type DesktopLogLevel,
-} from './DesktopDiagnosticLog';
+export { DesktopDiagnosticLog, type DesktopDiagnosticRecorder } from './DesktopDiagnosticLog';
 export {
 	DesktopDiagnosticsActions,
 	type DesktopDiagnosticsActionSource,

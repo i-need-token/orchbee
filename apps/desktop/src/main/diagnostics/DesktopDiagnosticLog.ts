@@ -37,7 +37,7 @@ const SHARING_WAIT_MILLISECONDS = 500;
 const SHARING_RETRY_MILLISECONDS = 10;
 const DAY_MILLISECONDS = 86_400_000;
 
-export type DesktopLogLevel = 'error' | 'info' | 'warning';
+type DesktopLogLevel = 'error' | 'info' | 'warning';
 type DesktopLogValue = boolean | number | string;
 /**
  * Text written in the source: a string literal type, or a union of them such as Electron's renderer
