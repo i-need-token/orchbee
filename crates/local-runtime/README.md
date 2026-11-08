@@ -162,7 +162,8 @@ sockets, and runtime directories keep the `orchbee` names until ORC-328;
 `CohortArtifact::has_release_names` reports the names, while `is_release` reports the
 environment.
 
-`environment_stem` exposes the stem, and the [data root](#data-root) owner derives every Orchbee
+`environment_stem` exposes the stem, and `environment_name` gives it as the handshake's
+`EnvironmentName`, which every negotiated connection compares with its peer's. The [data root](#data-root) owner derives every Orchbee
 state location from it, so applications never spell a state directory or choose a home variable
 themselves. On every platform the data root is `<home>/.orchbee` for release and `<home>/.<stem>`
 otherwise; the Windows locations are:
@@ -521,6 +522,8 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 its exit before a cooperative deadline. It does not terminate descendants. Managed startup uses
 it only before the Worker can create a Host; later cleanup belongs to the Worker shutdown protocol.
 Dropping `RetainedChild` continues to release observation ownership without terminating anything.
+`RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in
+the handshake's `query` reply.
 
 `SessionStore` retains bounded checkpoint bytes under
 `<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`. Its caller supplies

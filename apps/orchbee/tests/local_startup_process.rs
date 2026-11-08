@@ -683,9 +683,12 @@ fn server_and_worker_readiness_does_not_start_a_host() -> TestResult {
         assert!(Instant::now() < deadline);
         thread::yield_now();
     }
-    let connection =
-        ClientConnection::connect_before(session.client_socket_path(), cohort.identity(), deadline)
-            .map_err(|error| format!("managed Client admission: {error}"))?;
+    let connection = ClientConnection::connect_before(
+        session.client_socket_path(),
+        &orchbee_workbench_client::application::local_client::client_offer(Some(cohort.identity())),
+        deadline,
+    )
+    .map_err(|error| format!("managed Client admission: {error}"))?;
     assert_eq!(fixture.processes("orchbee-worker").len(), 1);
     assert!(fixture.processes("orchbee-terminal-host").is_empty());
     assert!(!fixture.runtime().join("host").exists());

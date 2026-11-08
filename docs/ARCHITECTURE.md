@@ -58,12 +58,19 @@ flowchart TB
 Before the first public release, each wire protocol, persisted format, and machine-readable
 document retains only its current contract. Integer versions stay at `1`; the five OBTP version
 domains stay at generation 1, encoded `1.0.0`. Shape changes update that current contract directly, without historical
-versions, compatibility readers, or migrations. Cohort admission or strict parsing rejects peers
-and files with other shapes; where neither protects version reuse, replace the magic or schema
-identifier instead of retaining an older contract.
+versions, compatibility readers, or migrations. Strict parsing rejects files with other shapes;
+where it does not protect version reuse, replace the magic or schema identifier instead of retaining
+an older contract.
 
-The accepted [versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md)
-replaces cohort admission with per-connection negotiation in its P0 phase and sets the
+Connections open with the `OBHS` handshake of
+[`crates/connection-handshake`](../crates/connection-handshake/README.md) and
+[`schemas/connection`](../schemas/connection/README.md). Before the first public release, each
+negotiated connection keeps only its current protocol generation: an incompatible change advances
+the generation and drops the previous one, so negotiation rejects a stale peer, and the first
+public release freezes each current generation. Peers of different environments never connect, and development and test builds admit a peer only with an equal protocol fingerprint, so
+an unchanged protocol lets a rebuilt Client join the running development Session while a changed
+one is refused. The accepted
+[versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md) sets the
 compatibility rules that bind from the first public release. The
 [data root layout](../proposals/platform/data-root-layout.md) places every file Orchbee writes on a
 person's machine and sets the persisted-data migration rules that bind from the same release.

@@ -28,6 +28,7 @@ use orchbee_client_server_protocol::{
     TerminalLaunchReadResult, TerminalSendRequest, TerminalSendResult, TerminalViewerRequest,
     TerminalViewerResult, encode_client_frame, read_server_message,
 };
+use orchbee_connection_handshake::Offer;
 use orchbee_local_client_protocol::{ClientConnection, ConnectClientError};
 
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
@@ -149,7 +150,8 @@ pub struct LocalClient {
 #[derive(Clone, Debug)]
 pub struct LocalClientOrigin {
     endpoint: PathBuf,
-    cohort: String,
+    // Shared, so origins stay small inside the enums that carry them.
+    offer: Arc<Offer>,
     local: bool,
     multiplex: Option<Arc<multiplex::Connection>>,
     carrier: Option<Arc<RetainedCarrier>>,
@@ -167,7 +169,7 @@ impl LocalClientOrigin {
     pub fn shares_connection(&self, other: &Self) -> bool {
         match (&self.multiplex, &other.multiplex) {
             (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-            (None, None) => self.endpoint == other.endpoint && self.cohort == other.cohort,
+            (None, None) => self.endpoint == other.endpoint && self.offer == other.offer,
             _ => false,
         }
     }
@@ -211,7 +213,7 @@ impl LocalClientOrigin {
             });
         }
         let mut client =
-            LocalClient::connect_before_cancellable(&self.endpoint, &self.cohort, deadline, wake)?;
+            LocalClient::connect_before_cancellable(&self.endpoint, &self.offer, deadline, wake)?;
         client.origin = self.clone();
         client.clock = clock;
         Ok(client)
@@ -248,12 +250,13 @@ impl LocalClient {
         self
     }
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    /// Runs the handshake with `offer`, then the Client phase, before `deadline`.
     pub fn connect_before(
         endpoint: &Path,
-        cohort: &str,
+        offer: &Offer,
         deadline: Instant,
     ) -> Result<Self, LocalClientConnectError> {
-        Self::connect_before_cancellable(endpoint, cohort, deadline, None)
+        Self::connect_before_cancellable(endpoint, offer, deadline, None)
     }
 
     /// `connect_before` with the signal owner's borrowed wake descriptor
@@ -263,19 +266,19 @@ impl LocalClient {
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub fn connect_before_cancellable(
         endpoint: &Path,
-        cohort: &str,
+        offer: &Offer,
         deadline: Instant,
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<Self, LocalClientConnectError> {
         let connection =
-            ClientConnection::connect_before_cancellable(endpoint, cohort, deadline, wake)
+            ClientConnection::connect_before_cancellable(endpoint, offer, deadline, wake)
                 .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
             #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
-                cohort: cohort.to_owned(),
+                offer: Arc::new(offer.clone()),
                 local: true,
                 multiplex: None,
                 carrier: None,

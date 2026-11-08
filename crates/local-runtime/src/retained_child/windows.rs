@@ -88,6 +88,10 @@ impl RetainedChild {
         .map(Self)
         .map_err(io::Error::other)
     }
+    /// The operating-system process identifier of the held process.
+    pub fn id(&self) -> Option<u32> {
+        Some(self.0.dwProcessId)
+    }
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self
             .0

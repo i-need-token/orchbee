@@ -507,7 +507,7 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
         );
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "native-close-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let worker_mailbox = Arc::clone(&mailbox);
     let worker = thread::spawn(move || {
         let mut executor = ClientExecutor::new(client, Arc::clone(&worker_mailbox));
@@ -869,7 +869,7 @@ fn accepted_current_close_lands_on_the_neighbour_before_settlement_and_is_never_
         );
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "native-close-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let worker_mailbox = Arc::clone(&mailbox);
     let (report, finished) = mpsc::channel();
     let worker = thread::spawn(move || -> Result<(), CarrierFailure> {

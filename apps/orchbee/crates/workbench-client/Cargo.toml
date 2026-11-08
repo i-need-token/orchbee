@@ -14,6 +14,7 @@ test-support = ["orchbee-local-client/test-support"]
 serde.workspace = true
 base64.workspace = true
 getrandom.workspace = true
+orchbee-connection-handshake = { path = "../../../../crates/connection-handshake" }
 orchbee-local-client = { path = "../local-client" }
 orchbee-local-ipc = { path = "../../../../crates/local-ipc" }
 orchbee-local-runtime = { path = "../../../../crates/local-runtime" }

@@ -15,16 +15,14 @@ use std::{
     time::Duration,
 };
 
+use super::super::AgentRuntimeOwner;
+use super::{agent_harness, handshake_client};
 use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,
     AgentRequest, AgentResult, AgentSafeInteger, AgentSemanticStatus, AgentSessionId,
     AgentSessionRejectionReason, AgentStatusBasis, AgentUnavailableReason, ObapRequestId,
     read_agent_result, write_agent_request,
 };
-use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
-
-use super::super::AgentRuntimeOwner;
-use super::agent_harness;
 
 static ENDPOINT_COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -43,18 +41,6 @@ fn list_request(seed: u8) -> AgentReadRequest {
         limit: AgentSafeInteger::new(50),
         cursor: None,
     }
-}
-
-fn handshake(client: &mut UnixStream, cohort: &str) {
-    write_message(
-        client,
-        &LocalClientMessage::ClientHello(ClientHello::new(cohort).unwrap()),
-    )
-    .unwrap();
-    assert!(matches!(
-        read_message(client).unwrap(),
-        LocalClientMessage::ClientAccepted { .. }
-    ));
 }
 
 /// A seeded listener on a real filesystem socket serves the full OBAP
@@ -76,12 +62,12 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
         agent_harness::session_observed("sock.a", 1.0),
         agent_harness::turn_started("sock.a", "turn-1", "thinking", 1.0, 2.0),
     ])?;
-    let _listener = agent_harness::listen(&endpoint, "agent-test-cohort", agents)?;
+    let _listener = agent_harness::listen(&endpoint, agents)?;
 
     let mut client = UnixStream::connect(&endpoint)?;
     client.set_read_timeout(Some(Duration::from_secs(5)))?;
     client.set_write_timeout(Some(Duration::from_secs(5)))?;
-    handshake(&mut client, "agent-test-cohort");
+    handshake_client::admit(&mut client)?;
 
     write_agent_request(&mut client, &AgentRequest::Read(list_request(1))).unwrap();
     let AgentResult::Read(AgentReadResult::List {
@@ -162,7 +148,7 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
 #[test]
 fn an_admitted_connection_observes_runtime_unavailable_after_the_owner_drops() -> io::Result<()> {
     let agents = agent_harness::seeded(&[agent_harness::session_observed("sock.b", 1.0)])?;
-    let mut client = agent_harness::admitted(Arc::clone(&agents), "agent-test-cohort")?;
+    let mut client = agent_harness::admitted(Arc::clone(&agents))?;
 
     write_agent_request(client.stream(), &AgentRequest::Read(list_request(1))).unwrap();
     let AgentResult::Read(AgentReadResult::List { result, .. }) =
@@ -195,7 +181,7 @@ fn an_admitted_connection_observes_runtime_unavailable_after_the_owner_drops() -
 #[test]
 fn a_malformed_obap_record_ends_the_connection() -> io::Result<()> {
     let agents = agent_harness::seeded(&[])?;
-    let mut client = agent_harness::admitted(agents, "agent-test-cohort")?;
+    let mut client = agent_harness::admitted(agents)?;
     let mut header = [0_u8; 12];
     header[..4].copy_from_slice(b"OBAP");
     header[4..6].copy_from_slice(&1_u16.to_be_bytes());
@@ -221,11 +207,11 @@ fn a_real_listener_reports_the_genuine_empty_state() -> io::Result<()> {
     #[cfg(windows)]
     let endpoint = crate::tests::endpoint();
     let agents = agent_harness::seeded(&[])?;
-    let _listener = agent_harness::listen(&endpoint, "agent-test-cohort", agents)?;
+    let _listener = agent_harness::listen(&endpoint, agents)?;
 
     let mut client = UnixStream::connect(&endpoint)?;
     client.set_read_timeout(Some(Duration::from_secs(5)))?;
-    handshake(&mut client, "agent-test-cohort");
+    handshake_client::admit(&mut client)?;
 
     write_agent_request(&mut client, &AgentRequest::Read(list_request(1))).unwrap();
     let AgentResult::Read(AgentReadResult::List { result, .. }) =

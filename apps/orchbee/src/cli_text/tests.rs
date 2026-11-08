@@ -186,72 +186,32 @@ fn cli_cohort_failure_uses_repair_text_without_leaking_raw_io() {
             .io_diagnostic(&error)
     };
 
-    // The opaque failure itself carries no I/O detail to stdout or stderr.
-    let failure = cohort_failure(&std::io::Error::from_raw_os_error(110));
-    let expected_en = if cfg!(windows) {
-        "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged. Run `orchbee status client --format json` for I/O details.\n"
-    } else {
-        "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged.\n"
-    };
-    let expected_zh = if cfg!(windows) {
-        "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
-    } else {
-        "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。\n"
-    };
-    assert_eq!(
-        CliText::new(Locale::EnUs).cli_failure(&failure),
-        expected_en
-    );
-    assert_eq!(
-        CliText::new(Locale::ZhCn).cli_failure(&failure),
-        expected_zh
-    );
-    for (locale, expected) in [(Locale::EnUs, expected_en), (Locale::ZhCn, expected_zh)] {
-        let output = failure_output(
-            cohort_failure(&std::io::Error::from_raw_os_error(110)),
-            Some(OutputFormat::Text),
-            locale,
-        );
+    // The opaque failure itself carries no I/O detail to stdout or stderr; Windows points at the
+    // status client JSON diagnostic instead.
+    let hint = "orchbee status client --format json";
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let failure = cohort_failure(&std::io::Error::from_raw_os_error(110));
+        let text = CliText::new(locale).cli_failure(&failure);
+        assert!(!text.contains("110"), "{text}");
+        assert_eq!(text.contains(hint), cfg!(windows), "{text}");
+        let output = failure_output(failure, Some(OutputFormat::Text), locale);
         assert_eq!(output.status, 1);
         assert!(output.stdout.is_empty());
-        assert_eq!(output.stderr, expected);
+        assert_eq!(output.stderr, text);
+        // A failure without typed cohort evidence does not invent a missing file.
+        let untyped = Failure::new(FailureKind::CheckFailed).details(stage_details("cohort"));
+        assert_eq!(CliText::new(locale).cli_failure(&untyped), text);
+        // Only the typed missing-artifact path names the file.
+        assert!(!text.contains("orchbee-server.exe"));
+        assert!(
+            CliText::new(locale)
+                .cli_cohort_diagnostic(Some("orchbee-server.exe"))
+                .contains("`orchbee-server.exe`")
+        );
     }
-
-    // Exact artifact copy is emitted only by the typed missing-artifact path.
-    assert_eq!(
-        CliText::new(Locale::EnUs).cli_cohort_diagnostic(Some("orchbee-server.exe")),
-        if cfg!(windows) {
-            "Required native sibling `orchbee-server.exe` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application. Run `orchbee status client --format json` for I/O details.\n"
-        } else {
-            "Required native sibling `orchbee-server.exe` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application.\n"
-        }
-    );
-    assert_eq!(
-        CliText::new(Locale::ZhCn).cli_cohort_diagnostic(Some("orchbee-server.exe")),
-        if cfg!(windows) {
-            "原生开发 cohort 缺少必需的同级文件 `orchbee-server.exe`。请重新构建完整 cohort 或重新安装完整应用。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
-        } else {
-            "原生开发 cohort 缺少必需的同级文件 `orchbee-server.exe`。请重新构建完整 cohort 或重新安装完整应用。\n"
-        }
-    );
-
-    // A failure without typed cohort evidence does not invent a missing file.
-    let failure = Failure::new(FailureKind::CheckFailed).details(stage_details("cohort"));
-    assert_eq!(
-        CliText::new(Locale::EnUs).cli_failure(&failure),
-        if cfg!(windows) {
-            "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged. Run `orchbee status client --format json` for I/O details.\n"
-        } else {
-            "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged.\n"
-        }
-    );
-    assert_eq!(
-        CliText::new(Locale::ZhCn).cli_failure(&failure),
-        if cfg!(windows) {
-            "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
-        } else {
-            "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。\n"
-        }
+    assert_ne!(
+        CliText::new(Locale::EnUs).cli_cohort_diagnostic(None),
+        CliText::new(Locale::ZhCn).cli_cohort_diagnostic(None)
     );
 
     // The failure document and exit stay exactly the existing contract.

@@ -230,7 +230,7 @@ fn editor_refusal_unknown_wrong_echo_and_shutdown_never_repeat_open() -> TestRes
             }
             Ok(())
         })?;
-        let client = LocalClient::connect(server.endpoint(), "editor-fault-test")?;
+        let client = LocalClient::connect(server.endpoint())?;
         let origin = client.origin();
         drop(client);
         let mut driver = Driver::new(clock());
@@ -295,7 +295,7 @@ fn editor_close_during_source_poll_detaches_without_open_or_input() -> TestResul
         assert_eq!(stream.read(&mut [0; 1])?, 0);
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "editor-close-prefix-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let origin = client.origin();
     drop(client);
     let mut driver = Driver::new(clock());

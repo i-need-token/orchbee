@@ -141,7 +141,7 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
         );
         result
     })?;
-    let client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let client = LocalClient::connect(server.endpoint())?;
     eprintln!("observe client connected elapsed={:?}", started.elapsed());
     let mut connection = Connection {
         client: Some(client),
@@ -221,7 +221,7 @@ fn observe_inflight_cancel_or_timeout_retires_without_claiming_detach() -> TestR
                 .attachment_id
                 .to_text(),
         )?;
-        let client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let client = LocalClient::connect(server.endpoint())?;
         let mut connection = Connection {
             client: Some(client),
             viewer: Some(viewer.clone()),

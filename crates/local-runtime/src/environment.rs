@@ -29,6 +29,13 @@ pub const fn environment_stem() -> &'static str {
     ENVIRONMENT_STEM
 }
 
+/// This build's environment as the connection handshake compares it: the compiled stem, which every
+/// negotiated connection requires to equal its peer's.
+pub fn environment_name() -> orchbee_connection_handshake::EnvironmentName {
+    orchbee_connection_handshake::EnvironmentName::new(ENVIRONMENT_STEM)
+        .expect("a valid environment stem follows the handshake name grammar")
+}
+
 /// Whether this build is the release environment, the only one that may act on the release
 /// installation or use the shipped state locations. It is a constant expression, so a caller can
 /// choose compiled data by environment.

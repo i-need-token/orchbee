@@ -39,7 +39,7 @@ fn placement_refusals_remain_definite_only_for_the_requested_placement() -> Test
         *target = Some(placement);
         let expected = command.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 40)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -66,7 +66,7 @@ fn placement_refusals_remain_definite_only_for_the_requested_placement() -> Test
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let outcome = client.submit_workbench_tab_create(
             WorkbenchTabCreateRequest::try_from(command).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,

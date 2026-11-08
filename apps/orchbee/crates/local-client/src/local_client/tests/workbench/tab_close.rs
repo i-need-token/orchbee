@@ -373,7 +373,7 @@ fn resume_accepts_checked_successor_stale_current_and_fixed_receipt_replay() -> 
     // Exact replay acknowledges its original attempt even after a later status observation.
     let request = resume(1);
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 61)?;
         for read_between in [true, false] {
             assert_eq!(
@@ -404,7 +404,7 @@ fn resume_accepts_checked_successor_stale_current_and_fixed_receipt_replay() -> 
         }
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     for read_between in [true, false] {
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         assert!(
@@ -627,7 +627,7 @@ fn exchange<Output>(
     submit: impl FnOnce(&mut LocalClient) -> Output,
 ) -> Result<Output, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 60)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -648,7 +648,7 @@ fn exchange<Output>(
             .map_err(io::Error::other)
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = submit(&mut client);
     assert_eq!(
         client.generation().map(NonZeroU64::get),

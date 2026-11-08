@@ -53,13 +53,12 @@ pub(crate) fn connect(
     } = platform::prepare(profile, &admitted)?;
     let guard = Arc::new(RetainedCarrier::new(stop, task));
     // The invocation-owned wake is observed throughout this single admission.
-    let client = LocalClient::connect_before_cancellable(
-        &endpoint,
-        &admitted.cohort,
-        deadline,
-        cancelled.wake(),
-    )
-    .map_err(admission_error)?;
+    // Saved machines move to the handshake's refusal copy later; until then the remote Session
+    // judges this build's own offer.
+    let offer = crate::local_client::client_offer(Some(&admitted.cohort));
+    let client =
+        LocalClient::connect_before_cancellable(&endpoint, &offer, deadline, cancelled.wake())
+            .map_err(admission_error)?;
     if cancelled.is_cancelled()? {
         return Err(io::ErrorKind::Interrupted.into());
     }
@@ -84,9 +83,21 @@ pub(crate) fn admission_error(error: crate::local_client::LocalClientConnectErro
             | orchbee_local_client_protocol::RejectionReason::HandshakeTimeout
             | orchbee_local_client_protocol::RejectionReason::Stopping,
         )) => io::ErrorKind::ConnectionRefused.into(),
-        LocalClientConnectError::Admission(ConnectClientError::Rejected(_)) => {
-            io::ErrorKind::PermissionDenied.into()
+        LocalClientConnectError::Admission(ConnectClientError::Refused(rejection))
+            if matches!(
+                rejection.reason,
+                orchbee_connection_handshake::RejectionReason::Capacity
+                    | orchbee_connection_handshake::RejectionReason::Stopping
+                    | orchbee_connection_handshake::RejectionReason::Timeout
+            ) =>
+        {
+            io::ErrorKind::ConnectionRefused.into()
         }
+        LocalClientConnectError::Admission(
+            ConnectClientError::Rejected(_)
+            | ConnectClientError::Refused(_)
+            | ConnectClientError::PredatesHandshake,
+        ) => io::ErrorKind::PermissionDenied.into(),
         LocalClientConnectError::Admission(
             ConnectClientError::Protocol(_) | ConnectClientError::UnexpectedResponse,
         ) => io::ErrorKind::InvalidData.into(),

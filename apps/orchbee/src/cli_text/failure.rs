@@ -199,8 +199,8 @@ impl super::CliText {
                     .and_then(|value| value.as_str())
                     .unwrap_or("");
                 match self.locale {
-                    Locale::EnUs if cfg!(windows) && reason == "recovery-required" => self.locale.startup_failure(crate::local_startup::StartupFailure::RecoveryRequired).to_owned(),
-                    Locale::ZhCn if cfg!(windows) && reason == "recovery-required" => self.locale.startup_failure(crate::local_startup::StartupFailure::RecoveryRequired).to_owned(),
+                    Locale::EnUs if cfg!(windows) && reason == "recovery-required" => self.locale.startup_failure(&crate::local_startup::StartupFailure::RecoveryRequired).into_owned(),
+                    Locale::ZhCn if cfg!(windows) && reason == "recovery-required" => self.locale.startup_failure(&crate::local_startup::StartupFailure::RecoveryRequired).into_owned(),
                     Locale::EnUs => {
                         format!("The local session refused the start ({reason}); its activation state requires recovery and no repair was attempted.\n")
                     }
@@ -211,10 +211,10 @@ impl super::CliText {
             }
             FailureKind::Denied if local_runtime => match self.locale {
                 Locale::EnUs => {
-                    "The local session refused the start; the native development cohort is not permitted.\n"
+                    "The local session refused the start; this Orchbee installation is not permitted.\n"
                         .to_owned()
                 }
-                Locale::ZhCn => "本地会话拒绝了启动：原生开发 cohort 未获许可。\n".to_owned(),
+                Locale::ZhCn => "本地会话拒绝了启动：此 Orchbee 安装未获许可。\n".to_owned(),
             },
             FailureKind::ServiceUnavailable if local_runtime => {
                 self.cli_server_unavailable(failure)
@@ -348,13 +348,7 @@ impl super::CliText {
                 }
                 Locale::ZhCn => "本地会话返回了无效的协议响应。\n".to_owned(),
             },
-            FailureKind::Incompatible => match self.locale {
-                Locale::EnUs => {
-                    "The running local session is incompatible with this development cohort.\n"
-                        .to_owned()
-                }
-                Locale::ZhCn => "正在运行的本地会话与当前开发 cohort 不兼容。\n".to_owned(),
-            },
+            FailureKind::Incompatible => self.cli_incompatible(failure),
             FailureKind::CheckFailed => self.cli_check_failed(failure),
             FailureKind::Timeout => {
                 // `stage:"input"` is the `terminal send` source stage: no
@@ -629,6 +623,43 @@ impl super::CliText {
         }
     }
 
+    /// A handshake refusal shares the startup copy, which names the older side; any other
+    /// mismatch concerns this installation.
+    fn cli_incompatible(self, failure: &Failure) -> String {
+        use crate::local_activation::{RefusedVersions, StartupFailure};
+        let detail = |name: &str| {
+            failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get(name))
+                .and_then(|value| value.as_str())
+        };
+        let versions = || {
+            Box::new(RefusedVersions {
+                client: detail("clientVersion")
+                    .unwrap_or(crate::local_client::CLIENT_VERSION)
+                    .to_owned(),
+                session: detail("sessionVersion").map(str::to_owned),
+            })
+        };
+        let refusal = match detail("reason") {
+            Some("client-too-old") => StartupFailure::ClientTooOld(versions()),
+            Some("session-too-old") => StartupFailure::SessionTooOld(versions()),
+            Some("environment-mismatch") => StartupFailure::OtherEnvironment,
+            Some("fingerprint-mismatch") => StartupFailure::DevelopmentBuildMismatch,
+            _ => {
+                return match self.locale {
+                    Locale::EnUs => {
+                        "The running local session is incompatible with this Orchbee installation.\n"
+                    }
+                    Locale::ZhCn => "正在运行的本地会话与此 Orchbee 安装不兼容。\n",
+                }
+                .to_owned();
+            }
+        };
+        self.locale.startup_failure(&refusal).into_owned()
+    }
+
     pub(crate) fn cli_cohort_diagnostic(self, missing_artifact: Option<&str>) -> String {
         let io_details = if cfg!(windows) {
             match self.locale {
@@ -640,16 +671,16 @@ impl super::CliText {
         };
         match (self.locale, missing_artifact) {
             (Locale::EnUs, Some(name)) => format!(
-                "Required native sibling `{name}` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application.{io_details}\n"
+                "Required file `{name}` is missing from this Orchbee installation. Rebuild or reinstall the complete application.{io_details}\n"
             ),
             (Locale::ZhCn, Some(name)) => format!(
-                "原生开发 cohort 缺少必需的同级文件 `{name}`。请重新构建完整 cohort 或重新安装完整应用。{io_details}\n"
+                "此 Orchbee 安装缺少必需的文件 `{name}`。请重新构建或重新安装完整应用。{io_details}\n"
             ),
             (Locale::EnUs, None) => format!(
-                "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged.{io_details}\n"
+                "This Orchbee installation could not be validated. Verify that all of its files are present, readable, and unchanged.{io_details}\n"
             ),
             (Locale::ZhCn, None) => format!(
-                "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。{io_details}\n"
+                "无法验证此 Orchbee 安装。请确认其所有文件均存在、可读取且未被修改。{io_details}\n"
             ),
         }
     }

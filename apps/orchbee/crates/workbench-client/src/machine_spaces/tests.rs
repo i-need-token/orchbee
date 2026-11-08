@@ -185,8 +185,12 @@ fn workspace_checkpoint_is_complete_and_reads_git_for_each_workspace() -> io::Re
         let count = Arc::new(AtomicUsize::new(0));
         let peer = peer(bad, count.clone())?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &crate::local_client::test_support::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         let checkpoint = read(
             &mut client,
             deadline,
@@ -259,8 +263,12 @@ fn workspace_checkpoint_rejects_changed_reports_topology_and_wrong_git_identity(
     for bad in 1..=5 {
         let peer = peer(bad, Arc::new(AtomicUsize::new(0)))?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &crate::local_client::test_support::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         assert!(
             read(
                 &mut client,
@@ -311,8 +319,12 @@ fn workspace_checkpoint_cancellation_retires_inflight_io_and_sends_no_followup()
         Ok(())
     })?;
     let deadline = Instant::now() + Duration::from_secs(5);
-    let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-        .map_err(io::Error::other)?;
+    let mut client = LocalClient::connect_before(
+        peer.endpoint(),
+        &crate::local_client::test_support::handshake::offer(),
+        deadline,
+    )
+    .map_err(io::Error::other)?;
     let cancel = Arc::new(OwnedCancellation::new().unwrap());
     let flag = cancel.clone();
     let task = thread::spawn(move || read(&mut client, deadline, flag.borrow(), GitDemand::All));

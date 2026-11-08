@@ -13,46 +13,16 @@ const CLIENT_HELLO_KIND: u8 = 1;
 const CLIENT_ACCEPTED_KIND: u8 = 2;
 const REJECTED_KIND: u8 = 3;
 
-/// Frame version accepted by this matched-cohort admission protocol.
+/// Frame version: the `client-server` generation the handshake negotiated. Only generation 1
+/// exists, so every frame carries it.
 pub const PROTOCOL_VERSION: u16 = 1;
 /// Maximum payload length admitted before a reader allocates its payload buffer.
 pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 256;
-/// Maximum ASCII byte length of a nonempty executable-cohort identifier.
-pub const MAXIMUM_COHORT_BYTES: usize = 64;
 
-/// A bounded ASCII cohort claim; construction does not authenticate the executable or peer.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClientHello {
-    cohort: String,
-}
-
-impl ClientHello {
-    /// Copies a nonempty ASCII cohort identifier within the protocol's byte bound.
-    ///
-    /// # Errors
-    /// Returns [`ProtocolError::InvalidCohort`] for empty, non-ASCII or oversized input.
-    pub fn new(cohort: &str) -> Result<Self, ProtocolError> {
-        if cohort.is_empty() || cohort.len() > MAXIMUM_COHORT_BYTES || !cohort.as_bytes().is_ascii()
-        {
-            return Err(ProtocolError::InvalidCohort);
-        }
-        Ok(Self {
-            cohort: cohort.to_owned(),
-        })
-    }
-
-    /// Borrows the admitted identifier without normalizing its bytes.
-    #[must_use]
-    pub fn cohort(&self) -> &str {
-        &self.cohort
-    }
-}
-
-/// Closed admission refusal reasons; a refusal grants no Client Connection authority.
+/// Closed refusal reasons after the handshake answer; a refusal grants no Client Connection
+/// authority. Version and build compatibility are the handshake's, never an OBLC refusal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RejectionReason {
-    IncompatibleProtocol,
-    IncompatibleCohort,
     CapacityExceeded,
     WrongMessage,
     MalformedFrame,
@@ -61,15 +31,19 @@ pub enum RejectionReason {
 }
 
 /// One validated admission or lifecycle-control payload, without a Connection state transition.
+/// Every message follows a handshake answer on the same connection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LocalClientMessage {
-    ClientHello(ClientHello),
-    ClientAccepted { generation: NonZeroU64 },
-    Rejected { reason: RejectionReason },
+    /// Enters the Client phase.
+    ClientHello,
+    ClientAccepted {
+        generation: NonZeroU64,
+    },
+    Rejected {
+        reason: RejectionReason,
+    },
     SessionStopRequest(crate::SessionStopRequest),
     SessionStopResult(crate::SessionStopResult),
-    ServerMetadataRequest,
-    ServerMetadata(crate::ServerMetadata),
 }
 
 /// Distinguishes framing, version, length and payload rejection from transport failure.
@@ -79,7 +53,6 @@ pub enum ProtocolError {
     IncompatibleVersion { received: u16 },
     PayloadTooLarge { actual: usize, maximum: usize },
     InvalidPayload,
-    InvalidCohort,
 }
 
 impl fmt::Display for ProtocolError {
@@ -97,7 +70,6 @@ impl fmt::Display for ProtocolError {
                 "local Client frame payload has {actual} bytes; maximum is {maximum}"
             ),
             Self::InvalidPayload => formatter.write_str("invalid local Client frame payload"),
-            Self::InvalidCohort => formatter.write_str("invalid local Client executable cohort"),
         }
     }
 }
@@ -236,21 +208,11 @@ pub fn write_message(
 
 fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError> {
     let payload = match message {
-        LocalClientMessage::ServerMetadataRequest => vec![6],
-        LocalClientMessage::ServerMetadata(metadata) => crate::server_metadata::encode(metadata),
         LocalClientMessage::SessionStopRequest(request) => {
             crate::session_stop::encode_request(request)
         }
         LocalClientMessage::SessionStopResult(result) => crate::session_stop::encode_result(result),
-        LocalClientMessage::ClientHello(hello) => {
-            let cohort_length =
-                u8::try_from(hello.cohort.len()).map_err(|_error| ProtocolError::InvalidCohort)?;
-            let mut payload = Vec::with_capacity(2 + hello.cohort.len());
-            payload.push(CLIENT_HELLO_KIND);
-            payload.push(cohort_length);
-            payload.extend_from_slice(hello.cohort.as_bytes());
-            payload
-        }
+        LocalClientMessage::ClientHello => vec![CLIENT_HELLO_KIND],
         LocalClientMessage::ClientAccepted { generation } => {
             let mut payload = Vec::with_capacity(9);
             payload.push(CLIENT_ACCEPTED_KIND);
@@ -270,35 +232,17 @@ fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError
 
 fn decode_payload(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> {
     match payload.first().copied() {
-        Some(6) if payload.len() == 1 => Ok(LocalClientMessage::ServerMetadataRequest),
-        Some(7) => crate::server_metadata::decode(payload).map(LocalClientMessage::ServerMetadata),
         Some(4) => {
             crate::session_stop::decode_request(payload).map(LocalClientMessage::SessionStopRequest)
         }
         Some(5) => {
             crate::session_stop::decode_result(payload).map(LocalClientMessage::SessionStopResult)
         }
-        Some(CLIENT_HELLO_KIND) => decode_client_hello(payload),
+        Some(CLIENT_HELLO_KIND) if payload.len() == 1 => Ok(LocalClientMessage::ClientHello),
         Some(CLIENT_ACCEPTED_KIND) => decode_client_accepted(payload),
         Some(REJECTED_KIND) => decode_rejected(payload),
         Some(_) | None => Err(ProtocolError::InvalidPayload),
     }
-}
-
-fn decode_client_hello(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> {
-    let cohort_length = usize::from(
-        payload
-            .get(1)
-            .copied()
-            .ok_or(ProtocolError::InvalidPayload)?,
-    );
-    if payload.len() != 2 + cohort_length {
-        return Err(ProtocolError::InvalidPayload);
-    }
-    let cohort_bytes = payload.get(2..).ok_or(ProtocolError::InvalidPayload)?;
-    let cohort =
-        std::str::from_utf8(cohort_bytes).map_err(|_error| ProtocolError::InvalidCohort)?;
-    Ok(LocalClientMessage::ClientHello(ClientHello::new(cohort)?))
 }
 
 fn decode_client_accepted(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> {
@@ -326,8 +270,6 @@ fn decode_rejected(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> 
 
 const fn encode_reason(reason: RejectionReason) -> u8 {
     match reason {
-        RejectionReason::IncompatibleProtocol => 1,
-        RejectionReason::IncompatibleCohort => 2,
         RejectionReason::CapacityExceeded => 3,
         RejectionReason::WrongMessage => 4,
         RejectionReason::MalformedFrame => 5,
@@ -338,8 +280,6 @@ const fn encode_reason(reason: RejectionReason) -> u8 {
 
 const fn decode_reason(encoded: u8) -> Option<RejectionReason> {
     match encoded {
-        1 => Some(RejectionReason::IncompatibleProtocol),
-        2 => Some(RejectionReason::IncompatibleCohort),
         3 => Some(RejectionReason::CapacityExceeded),
         4 => Some(RejectionReason::WrongMessage),
         5 => Some(RejectionReason::MalformedFrame),

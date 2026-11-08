@@ -1,7 +1,8 @@
-//! Same-user Client connection admission and pre-admission control exchanges. Each attempt owns
-//! its candidate stream until failure or transfer; callers retain deadline, endpoint, cancellation
-//! arbitration and service-lifecycle policy.
+//! Same-user Client connection admission and control exchanges, each opened by one `OBHS` offer or
+//! control request. Each attempt owns its candidate stream until failure or transfer; callers
+//! retain the offer, deadline, endpoint, cancellation arbitration and service-lifecycle policy.
 
+use orchbee_connection_handshake::{CANDIDATE_DEADLINE, Offer, Rejection};
 use orchbee_local_ipc::LocalStream as UnixStream;
 #[cfg(windows)]
 use orchbee_local_ipc::{AsLocalIo, LocalIo};
@@ -11,28 +12,28 @@ use std::{
     fmt,
     io::{self, Read, Write},
     path::Path,
-    time::Duration,
 };
 
 #[cfg(unix)]
 use orchbee_local_peer_credentials::require_same_effective_user;
 
-use crate::{
-    ClientHello, LocalClientMessage, ProtocolError, ReadMessageError, RejectionReason,
-    WriteMessageError, read_message, write_message,
-};
+use crate::{ProtocolError, ReadMessageError, RejectionReason, WriteMessageError};
 
-const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
+mod handshake;
 
-/// Observe the same-user Windows Server before exact-cohort Connection admission.
-/// The candidate never enters an application phase and is dropped before returning.
-#[cfg(windows)]
-pub fn exchange_server_metadata_before(
+/// Asks the same-user Server for its processes with one `query` control request. The connection
+/// never enters the Client phase and closes before returning.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub fn exchange_query_before(
     endpoint: &Path,
+    environment: orchbee_connection_handshake::EnvironmentName,
     deadline: std::time::Instant,
-    wake: Option<LocalIo<'_>>,
-) -> Result<crate::ServerMetadata, ConnectClientError> {
-    windows_admission::server_metadata(endpoint, deadline, wake)
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+) -> Result<orchbee_connection_handshake::QueryResult, ConnectClientError> {
+    #[cfg(windows)]
+    return windows_admission::query(endpoint, environment, deadline, wake);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    return admission_deadline::query_before_cancellable(endpoint, environment, deadline, wake);
 }
 
 /// Retains whether a complete stop control record was submitted before exchange failure.
@@ -43,15 +44,17 @@ pub struct SessionStopExchangeError {
     pub submitted: bool,
 }
 
-/// One same-user stop/status control exchange, with no activation or mutation retry.
+/// One same-user stop/status control exchange after a handshake answer, with no activation or
+/// mutation retry.
 #[cfg(windows)]
 pub fn exchange_session_stop_before(
     endpoint: &Path,
+    offer: &Offer,
     request: crate::SessionStopRequest,
     deadline: std::time::Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<crate::SessionStopResult, SessionStopExchangeError> {
-    windows_admission::session_stop(endpoint, request, deadline, wake)
+    windows_admission::session_stop(endpoint, offer, request, deadline, wake)
 }
 
 /// Byte capacity of a filesystem-path Unix socket address on this platform's
@@ -84,15 +87,16 @@ pub struct ClientConnection {
 }
 
 impl ClientConnection {
-    /// Admits one Unix connection within the caller's existing monotonic deadline.
-    /// This neither selects a timeout nor activates, retries, or supervises a Session.
+    /// Admits one Unix connection within the caller's existing monotonic deadline: the offer, its
+    /// answer, then the Client phase. This neither selects a timeout nor activates, retries, or
+    /// supervises a Session.
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub fn connect_before(
         endpoint: &Path,
-        cohort: &str,
+        offer: &Offer,
         deadline: std::time::Instant,
     ) -> Result<Self, ConnectClientError> {
-        Self::connect_before_cancellable(endpoint, cohort, deadline, None)
+        Self::connect_before_cancellable(endpoint, offer, deadline, None)
     }
 
     /// The same admission plus one optional borrowed wake descriptor observed
@@ -108,36 +112,21 @@ impl ClientConnection {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub fn connect_before_cancellable(
         endpoint: &Path,
-        cohort: &str,
+        offer: &Offer,
         deadline: std::time::Instant,
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<Self, ConnectClientError> {
-        let hello = ClientHello::new(cohort)?;
-        admission_deadline::connect_before_cancellable(endpoint, hello, deadline, wake)
+        admission_deadline::connect_before_cancellable(endpoint, offer, deadline, wake)
     }
 
     #[cfg(unix)]
-    pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
-        let hello = ClientHello::new(cohort)?;
+    pub fn connect(endpoint: &Path, offer: &Offer) -> Result<Self, ConnectClientError> {
         let mut stream = UnixStream::connect(endpoint)?;
         require_same_effective_user(&stream)?;
-        stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
-        stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
-        write_message(&mut stream, &LocalClientMessage::ClientHello(hello))?;
-
-        let generation = match read_message(&mut stream)? {
-            LocalClientMessage::ClientAccepted { generation } => generation,
-            LocalClientMessage::Rejected { reason } => {
-                return Err(ConnectClientError::Rejected(reason));
-            }
-            LocalClientMessage::ClientHello(_)
-            | LocalClientMessage::SessionStopRequest(_)
-            | LocalClientMessage::SessionStopResult(_)
-            | LocalClientMessage::ServerMetadataRequest
-            | LocalClientMessage::ServerMetadata(_) => {
-                return Err(ConnectClientError::UnexpectedResponse);
-            }
-        };
+        stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
+        stream.set_write_timeout(Some(CANDIDATE_DEADLINE))?;
+        handshake::offer(&mut stream, offer)?;
+        let generation = handshake::enter_client_phase(&mut stream)?;
         stream.set_read_timeout(None)?;
         stream.set_write_timeout(None)?;
         Ok(Self { generation, stream })
@@ -211,10 +200,17 @@ impl Write for ClientConnection {
 
 #[derive(Debug)]
 pub enum ConnectClientError {
-    /// Linux deadline adapter failed before any OBLC exchange began.
+    /// The transport failed before any handshake byte was exchanged.
     ConnectFailed(io::Error),
     Io(io::Error),
     Protocol(ProtocolError),
+    /// The Server refused the offer or control request in the handshake. The rejection carries
+    /// the Server's product version and generations, which name the older side.
+    Refused(Box<Rejection>),
+    /// The reply did not start with `OBHS`: the Server predates the handshake and is the older
+    /// side, with no version to report.
+    PredatesHandshake,
+    /// The Server refused the Client phase or Session stop after answering the offer.
     Rejected(RejectionReason),
     UnexpectedResponse,
     /// The borrowed wake descriptor became readable during admission — a
@@ -235,6 +231,14 @@ impl fmt::Display for ConnectClientError {
                 error.fmt(formatter)
             }
             Self::Protocol(error) => error.fmt(formatter),
+            Self::Refused(rejection) => write!(
+                formatter,
+                "local Client was refused in the handshake: {}",
+                rejection.reason.as_str()
+            ),
+            Self::PredatesHandshake => {
+                formatter.write_str("local Server predates the connection handshake")
+            }
             Self::Rejected(reason) => write!(formatter, "local Client was rejected: {reason:?}"),
             Self::UnexpectedResponse => {
                 formatter.write_str("local Client received an unexpected handshake response")
@@ -253,7 +257,11 @@ impl std::error::Error for ConnectClientError {
                 Some(error)
             }
             Self::Protocol(error) => Some(error),
-            Self::Rejected(_) | Self::UnexpectedResponse | Self::CancellationReady => None,
+            Self::Refused(_)
+            | Self::PredatesHandshake
+            | Self::Rejected(_)
+            | Self::UnexpectedResponse
+            | Self::CancellationReady => None,
         }
     }
 }
@@ -299,27 +307,27 @@ pub fn unix_socket_path_fits(path: &Path) -> bool {
 }
 #[cfg(windows)]
 impl ClientConnection {
-    pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
+    pub fn connect(endpoint: &Path, offer: &Offer) -> Result<Self, ConnectClientError> {
         Self::connect_before(
             endpoint,
-            cohort,
-            std::time::Instant::now() + HANDSHAKE_TIMEOUT,
+            offer,
+            std::time::Instant::now() + CANDIDATE_DEADLINE,
         )
     }
     pub fn connect_before(
         endpoint: &Path,
-        cohort: &str,
+        offer: &Offer,
         deadline: std::time::Instant,
     ) -> Result<Self, ConnectClientError> {
-        Self::connect_before_cancellable(endpoint, cohort, deadline, None)
+        Self::connect_before_cancellable(endpoint, offer, deadline, None)
     }
     pub fn connect_before_cancellable(
         endpoint: &Path,
-        cohort: &str,
+        offer: &Offer,
         deadline: std::time::Instant,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Self, ConnectClientError> {
-        windows_admission::connect(endpoint, ClientHello::new(cohort)?, deadline, wake)
+        windows_admission::connect(endpoint, offer, deadline, wake)
     }
     pub fn shutdown_stream(&self) -> io::Result<UnixStream> {
         self.stream.try_clone()

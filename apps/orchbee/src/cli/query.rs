@@ -737,7 +737,7 @@ pub(crate) fn stream_snapshot(
         session_preamble(deadline.min(Instant::now() + COHORT_BUDGET), || Ok(()))?;
     let mut client = LocalClient::connect_before_cancellable(
         session.client_socket_path(),
-        cohort.identity(),
+        &crate::local_client::client_offer(Some(cohort.identity())),
         deadline,
         wake,
     )
@@ -824,8 +824,11 @@ fn admit_snapshot(
     deadline: Instant,
     settle: impl Fn() -> Result<(), Failure>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    let connected =
-        LocalClient::connect_before(session.client_socket_path(), cohort.identity(), deadline);
+    let connected = LocalClient::connect_before(
+        session.client_socket_path(),
+        &crate::local_client::client_offer(Some(cohort.identity())),
+        deadline,
+    );
     if let Err(failure) = settle() {
         drop(connected);
         return Err(failure);
@@ -2015,13 +2018,13 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
                     Failure::new(FailureKind::ServiceUnavailable)
                         .details(stage_details("admission"))
                 }
-                RejectionReason::IncompatibleProtocol | RejectionReason::IncompatibleCohort => {
-                    Failure::new(FailureKind::Incompatible).details(stage_details("admission"))
-                }
                 RejectionReason::WrongMessage | RejectionReason::MalformedFrame => {
                     Failure::new(FailureKind::ProtocolInvalid).details(stage_details("admission"))
                 }
             },
+            ConnectClientError::Refused(rejection) => classify_refusal(&rejection),
+            // A Session that predates the handshake is older than every Client that offers one.
+            ConnectClientError::PredatesHandshake => incompatible("session-too-old", None),
             ConnectClientError::Protocol(ProtocolError::IncompatibleVersion { .. }) => {
                 Failure::new(FailureKind::Incompatible).details(stage_details("admission"))
             }
@@ -2040,6 +2043,47 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
             Failure::new(FailureKind::InternalFailure)
         }
     }
+}
+
+/// A handshake refusal keeps its reason; a generation refusal also names both product versions.
+fn classify_refusal(rejection: &orchbee_connection_handshake::Rejection) -> Failure {
+    use orchbee_connection_handshake::RejectionReason;
+    match rejection.reason {
+        RejectionReason::Capacity => {
+            Failure::new(FailureKind::ConnectionCapacity).details(stage_details("admission"))
+        }
+        RejectionReason::Stopping | RejectionReason::Timeout => {
+            Failure::new(FailureKind::ServiceUnavailable).details(stage_details("admission"))
+        }
+        RejectionReason::InitiatorTooOld => {
+            incompatible("client-too-old", Some(rejection.product_version.as_str()))
+        }
+        RejectionReason::InitiatorTooNew => {
+            incompatible("session-too-old", Some(rejection.product_version.as_str()))
+        }
+        RejectionReason::EnvironmentMismatch => incompatible("environment-mismatch", None),
+        RejectionReason::FingerprintMismatch => incompatible("fingerprint-mismatch", None),
+        RejectionReason::ConnectionUnsupported
+        | RejectionReason::Malformed
+        | RejectionReason::Unknown => {
+            Failure::new(FailureKind::ProtocolInvalid).details(stage_details("admission"))
+        }
+    }
+}
+
+/// An incompatible admission, naming this Client's version and the Session's when it stated one.
+fn incompatible(reason: &str, session_version: Option<&str>) -> Failure {
+    let mut details = stage_reason_details("admission", reason);
+    if reason.ends_with("-too-old") {
+        details.insert(
+            "clientVersion".into(),
+            crate::local_client::CLIENT_VERSION.into(),
+        );
+        if let Some(version) = session_version {
+            details.insert("sessionVersion".into(), version.into());
+        }
+    }
+    Failure::new(FailureKind::Incompatible).details(details)
 }
 
 /// Preserve startup lane/Snapshot failure classification and its existing CLI schema selection.
@@ -2352,7 +2396,7 @@ pub(super) fn agent_session_until(
         session_preamble(cohort_deadline, || Ok(())).map_err(AgentAdmissionError::Preamble)?;
     LocalClient::connect_before_cancellable(
         session.client_socket_path(),
-        cohort.identity(),
+        &crate::local_client::client_offer(Some(cohort.identity())),
         total,
         wake,
     )

@@ -27,9 +27,10 @@ enum Case {
     WorkbenchDrift,
 }
 fn accept(stream: &mut LocalStream) -> io::Result<()> {
+    orchbee_workbench_client::test_support::local_client::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello { .. }
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -209,8 +210,12 @@ fn complete_read_requires_both_sources_and_all_revision_fences() -> io::Result<(
     ] {
         let peer = peer(case)?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &orchbee_workbench_client::test_support::local_client::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         let result = read(
             &mut client,
             &orchbee_workbench_client::test_support::machine_agents::fixture(),
@@ -241,8 +246,12 @@ fn expired_and_cancelled_reads_have_no_source_or_effect_requests() -> io::Result
             Ok(())
         })?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &orchbee_workbench_client::test_support::local_client::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         let cancel = OwnedCancellation::new()?;
         if cancelled {
             cancel.cancel();
@@ -289,8 +298,12 @@ fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io:
             Ok(())
         })?;
         let admission = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", admission)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &orchbee_workbench_client::test_support::local_client::handshake::offer(),
+            admission,
+        )
+        .map_err(io::Error::other)?;
         let deadline = if cancelled {
             admission
         } else {

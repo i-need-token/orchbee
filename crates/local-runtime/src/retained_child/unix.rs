@@ -27,6 +27,10 @@ impl RetainedChild {
             .spawn()?;
         Ok(Self(Some(child)))
     }
+    /// The operating-system process identifier of the held child.
+    pub fn id(&self) -> Option<u32> {
+        self.0.as_ref().map(Child::id)
+    }
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.0.as_mut() {
             Some(child) => child.try_wait(),

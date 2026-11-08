@@ -484,7 +484,9 @@ impl SessionPeer {
     ) -> Result<Self, String> {
         let admitted = ClientConnection::connect_before(
             fixture.session().client_socket_path(),
-            cohort.identity(),
+            &orchbee_workbench_client::application::local_client::client_offer(Some(
+                cohort.identity(),
+            )),
             deadline,
         )
         .map_err(|error| format!("admit peer {tag:#x}: {error}"))?;
@@ -2024,11 +2026,15 @@ fn c1_capacity_process_witness() -> TestResult {
                     ));
                 }
                 let per_op = (Instant::now() + EXCHANGE_TIMEOUT).min(fill_deadline);
-                match ClientConnection::connect_before(&socket, cohort.identity(), per_op) {
+                match ClientConnection::connect_before(
+                    &socket,
+                    &orchbee_workbench_client::application::local_client::client_offer(Some(
+                        cohort.identity(),
+                    )),
+                    per_op,
+                ) {
                     Ok(connection) => fills.push(connection),
-                    Err(ConnectClientError::Rejected(RejectionReason::CapacityExceeded)) => {
-                        thread::sleep(Duration::from_millis(100))
-                    }
+                    Err(error) if is_capacity(&error) => thread::sleep(Duration::from_millis(100)),
                     Err(error) => {
                         return Err(format!(
                             "session fill refused at {} live: {error}",
@@ -2041,10 +2047,12 @@ fn c1_capacity_process_witness() -> TestResult {
             // typed refusal — the fill budget is not reused after it served.
             match ClientConnection::connect_before(
                 &socket,
-                cohort.identity(),
+                &orchbee_workbench_client::application::local_client::client_offer(Some(
+                    cohort.identity(),
+                )),
                 Instant::now() + EXCHANGE_TIMEOUT,
             ) {
-                Err(ConnectClientError::Rejected(RejectionReason::CapacityExceeded)) => {}
+                Err(error) if is_capacity(&error) => {}
                 Err(error) => return Err(format!("session overflow failed untyped: {error}")),
                 Ok(_) => return Err("session admitted past the cap".into()),
             }
@@ -2084,7 +2092,9 @@ fn c1_capacity_process_witness() -> TestResult {
                 }
                 match ClientConnection::connect_before(
                     &socket,
-                    cohort.identity(),
+                    &orchbee_workbench_client::application::local_client::client_offer(Some(
+                        cohort.identity(),
+                    )),
                     Instant::now() + EXCHANGE_TIMEOUT,
                 ) {
                     Err(ConnectClientError::Io(error)) => {
@@ -2604,4 +2614,16 @@ fn owned_child_stop_watchdog_and_exit() -> TestResult {
     assert!(collect_bounded(&out, 1024).is_err());
     fs::remove_dir_all(&dir)?;
     Ok(())
+}
+
+/// A full Session refuses the offer with `capacity`; a slot taken between the answer and the hello
+/// still gets the Client-phase capacity rejection.
+fn is_capacity(error: &ConnectClientError) -> bool {
+    match error {
+        ConnectClientError::Refused(rejection) => {
+            rejection.reason == orchbee_connection_handshake::RejectionReason::Capacity
+        }
+        ConnectClientError::Rejected(reason) => *reason == RejectionReason::CapacityExceeded,
+        _ => false,
+    }
 }

@@ -66,7 +66,7 @@ fn panel_swap_wake_after_submission_retires_unknown_without_replay() -> TestResu
     let (submitted, wait_for_submission) = std::sync::mpsc::channel();
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 51)?;
         let WorkbenchRequest::Command(command) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
@@ -88,7 +88,7 @@ fn panel_swap_wake_after_submission_retires_unknown_without_replay() -> TestResu
             .map_err(io::Error::other)?;
         wake_write.write_all(b"x")
     });
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let mut command = panel_move_command(7);
     command.action = WorkbenchAction::PanelSwap {
         terminal_context_id: context_id(30),
@@ -147,7 +147,7 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
     for outcome in outcomes {
         let server_outcome = outcome.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 51)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -168,7 +168,7 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let actual = client.submit_workbench_panel_placement(
             WorkbenchPanelPlacementRequest::try_from(panel_move_command(7)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -296,7 +296,7 @@ fn panel_move_retires_wrong_kind_and_correlation_without_replay() -> TestResult 
 #[test]
 fn panel_move_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 52)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -308,7 +308,7 @@ fn panel_move_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResu
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now();
     assert!(
         matches!(client.submit_workbench_panel_placement(WorkbenchPanelPlacementRequest::try_from(panel_move_command(7)).unwrap(),deadline),WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(WorkbenchPanelPlacementNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
@@ -328,7 +328,7 @@ fn invalid_move(
     response: WorkbenchResponse,
 ) -> Result<WorkbenchPanelPlacementSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 54)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -337,7 +337,7 @@ fn invalid_move(
         write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_workbench_panel_placement(
         WorkbenchPanelPlacementRequest::try_from(panel_move_command(baseline)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -381,7 +381,7 @@ fn panel_swap_accepts_only_its_commit_and_retires_cross_action_or_lost_replies()
     ] {
         let valid = outcome == Some(swapped());
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 71)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -394,7 +394,7 @@ fn panel_swap_accepts_only_its_commit_and_retires_cross_action_or_lost_replies()
             }
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let answer = client.submit_workbench_panel_placement(
             WorkbenchPanelPlacementRequest::try_from(panel_swap_command()).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,

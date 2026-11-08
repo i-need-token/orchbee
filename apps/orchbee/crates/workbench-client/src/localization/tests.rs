@@ -357,3 +357,48 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
         assert_eq!(Locale::ZhCn.shell_notice(notice), zh);
     }
 }
+
+/// Each handshake refusal renders in both locales without internal terms, names both versions when
+/// known, and leaves out a Session version it was not told.
+#[test]
+fn handshake_refusals_name_the_older_side_in_both_locales() {
+    use crate::startup_status::{RefusedVersions, StartupFailure};
+    let versions = |session: Option<&str>| {
+        Box::new(RefusedVersions {
+            client: "1.2.0".to_owned(),
+            session: session.map(str::to_owned),
+        })
+    };
+    for failure in [
+        StartupFailure::ClientTooOld(versions(Some("1.4.0"))),
+        StartupFailure::SessionTooOld(versions(Some("1.0.0"))),
+        StartupFailure::SessionTooOld(versions(None)),
+        StartupFailure::OtherEnvironment,
+        StartupFailure::DevelopmentBuildMismatch,
+    ] {
+        let texts = [Locale::EnUs, Locale::ZhCn].map(|locale| locale.startup_failure(&failure));
+        assert_ne!(texts[0], texts[1]);
+        for text in &texts {
+            assert!(text.ends_with('\n'), "{text}");
+            assert!(
+                !text.contains("cohort") && !text.contains("generation"),
+                "{text}"
+            );
+            if let StartupFailure::ClientTooOld(known) | StartupFailure::SessionTooOld(known) =
+                &failure
+            {
+                assert!(text.contains(&known.client), "{text}");
+                if let Some(session) = &known.session {
+                    assert!(text.contains(session.as_str()), "{text}");
+                }
+                assert!(!text.contains("()") && !text.contains("（）"), "{text}");
+            }
+            // Before Restart Session exists, the remedy for an older Session is stopping it.
+            let stop = matches!(
+                failure,
+                StartupFailure::SessionTooOld(_) | StartupFailure::DevelopmentBuildMismatch
+            );
+            assert_eq!(text.contains("`orchbee server stop`"), stop, "{text}");
+        }
+    }
+}

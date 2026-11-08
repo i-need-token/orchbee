@@ -332,6 +332,14 @@ impl TerminalCoordinator {
         }
     }
 
+    /// The terminals whose Host reported a start.
+    pub(crate) fn started_count(&self) -> usize {
+        self.bindings
+            .values()
+            .filter(|binding| matches!(binding.phase, TerminalPhase::Started { .. }))
+            .count()
+    }
+
     pub(crate) fn viewer_target(
         &self,
         reference: &RequestId,

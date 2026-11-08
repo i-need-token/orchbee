@@ -1,7 +1,7 @@
-//! Owns bounded local Client connection admission, same-user and cohort checks, connection
-//! registration, and transfer into application service dispatch. It does not own canonical
-//! Workbench transitions or infer product Session identity from a Client connection
-//! generation.
+//! Owns bounded local Client connection admission: the same-user check, the `OBHS` handshake and
+//! its control requests, connection registration, and transfer into application service dispatch.
+//! It does not own canonical Workbench transitions or infer product Session identity from a Client
+//! connection generation.
 
 use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 #[cfg(unix)]
@@ -12,15 +12,19 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{
     io,
+    num::NonZeroU32,
     path::Path,
     sync::{Arc, Mutex},
     thread,
-    time::Duration,
 };
 
+use orchbee_connection_handshake::{
+    AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE, CohortIdentity,
+    ConnectionKind, Decision, Extensions, ProcessState, ProductVersion, ReadError, RequestKind,
+    RequestName, Unsupported, encode_acceptor_frame, read_initiator_message,
+};
 use orchbee_local_client_protocol::{
-    LocalClientMessage, ProtocolError, ReadMessageError, RejectionReason, read_message,
-    write_message,
+    LocalClientMessage, ReadMessageError, RejectionReason, read_message, write_message,
 };
 use orchbee_local_peer_credentials::require_same_effective_user;
 
@@ -37,20 +41,48 @@ mod application_connection;
 mod diagnostic;
 #[cfg(windows)]
 mod managed_windows;
-#[cfg(windows)]
-mod metadata;
 mod multiplex;
+mod query;
 mod record_stream;
 mod stop_control;
 #[cfg(windows)]
 pub(crate) use managed_windows::{ManagedClients, start as start_managed_windows};
 
-const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const MAXIMUM_CLIENT_CONNECTIONS: usize = 48;
+
+/// What the Client endpoint states about this Server in the handshake, and the Worker it lists in
+/// a `query` reply.
+#[derive(Clone, Debug)]
+pub(crate) struct ServerIdentity {
+    profile: AcceptorProfile,
+    worker: Option<NonZeroU32>,
+}
+
+impl ServerIdentity {
+    /// This build's `client-server` acceptor. `cohort` is the verified cohort identity the Server
+    /// runs from, if any, and `worker` the process identifier of the Worker it started.
+    pub(crate) fn local(cohort: Option<&str>, worker: Option<u32>) -> Self {
+        let product_version = ProductVersion::new(env!("CARGO_PKG_VERSION"))
+            .expect("the package version is printable ASCII");
+        let build = Build {
+            commit: None,
+            cohort: cohort.and_then(|identity| CohortIdentity::parse(identity).ok()),
+        };
+        Self {
+            profile: AcceptorProfile::local(
+                ConnectionKind::ClientServer,
+                product_version,
+                build,
+                orchbee_local_runtime::environment_name(),
+            ),
+            worker: worker.and_then(NonZeroU32::new),
+        }
+    }
+}
 
 pub(crate) fn start(
     endpoint: &Path,
-    expected_cohort: &str,
+    identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
@@ -60,17 +92,17 @@ pub(crate) fn start(
         read: true,
         manage: true,
     })?);
-    start_listener(listener, expected_cohort, terminals, agents)
+    start_listener(listener, identity, terminals, agents)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn start_managed(
     endpoint: &Path,
-    expected_cohort: &str,
+    identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
-    start_listener(bind_managed(endpoint)?, expected_cohort, terminals, agents)
+    start_listener(bind_managed(endpoint)?, identity, terminals, agents)
 }
 
 #[cfg(target_os = "linux")]
@@ -127,14 +159,14 @@ fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
 
 fn start_listener(
     listener: UnixListener,
-    expected_cohort: &str,
+    identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     terminals.bind_agent_names(&agents)?;
     let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
-    let expected_cohort: Arc<str> = Arc::from(expected_cohort);
+    let identity = Arc::new(identity);
     let workbench = Arc::new(WorkbenchService::new(
         WorkbenchPolicy {
             read: true,
@@ -152,7 +184,7 @@ fn start_listener(
                 listener,
                 registry,
                 connection_slots,
-                expected_cohort,
+                identity,
                 terminals,
                 workbench,
                 agents,
@@ -164,7 +196,7 @@ fn serve(
     listener: UnixListener,
     registry: Arc<Mutex<ClientConnectionRegistry>>,
     connection_slots: Arc<ConnectionSlots>,
-    expected_cohort: Arc<str>,
+    identity: Arc<ServerIdentity>,
     terminals: Arc<LocalTerminalService>,
     workbench: Arc<WorkbenchService>,
     agents: Arc<AgentService>,
@@ -180,7 +212,7 @@ fn serve(
                     continue;
                 };
                 let candidate_registry = Arc::clone(&registry);
-                let candidate_cohort = Arc::clone(&expected_cohort);
+                let candidate_identity = Arc::clone(&identity);
                 let candidate_terminals = Arc::clone(&terminals);
                 let candidate_workbench = Arc::clone(&workbench);
                 let candidate_agents = Arc::clone(&agents);
@@ -190,7 +222,7 @@ fn serve(
                         handle_candidate(
                             stream,
                             &candidate_registry,
-                            &candidate_cohort,
+                            &candidate_identity,
                             connection_slot,
                             &candidate_terminals,
                             &candidate_workbench,
@@ -213,7 +245,7 @@ fn serve(
 fn handle_candidate(
     stream: UnixStream,
     registry: &Arc<Mutex<ClientConnectionRegistry>>,
-    expected_cohort: &str,
+    identity: &ServerIdentity,
     _connection_slot: ConnectionSlot,
     terminals: &LocalTerminalService,
     workbench: &WorkbenchService,
@@ -222,7 +254,7 @@ fn handle_candidate(
     handle_candidate_control(
         stream,
         registry,
-        expected_cohort,
+        identity,
         _connection_slot,
         terminals,
         workbench,
@@ -233,7 +265,7 @@ fn handle_candidate(
 fn handle_candidate_control(
     mut stream: UnixStream,
     registry: &Arc<Mutex<ClientConnectionRegistry>>,
-    expected_cohort: &str,
+    identity: &ServerIdentity,
     _connection_slot: ConnectionSlot,
     terminals: &LocalTerminalService,
     workbench: &WorkbenchService,
@@ -241,8 +273,8 @@ fn handle_candidate_control(
 ) {
     let agents = control.agents;
     if let Err(error) = stream
-        .set_read_timeout(Some(HANDSHAKE_TIMEOUT))
-        .and_then(|()| stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)))
+        .set_read_timeout(Some(CANDIDATE_DEADLINE))
+        .and_then(|()| stream.set_write_timeout(Some(CANDIDATE_DEADLINE)))
     {
         diagnostic::report(&Diagnostic::new("handshake", "transport-setup").caused_by(&error));
         return;
@@ -251,13 +283,84 @@ fn handle_candidate_control(
         diagnostic::report(&Diagnostic::new("handshake", "peer-credentials"));
         return;
     }
+    let profile = &identity.profile;
+    let message = match read_initiator_message(&mut stream) {
+        Ok(message) => message,
+        Err(ReadError::Io(error))
+            if matches!(
+                error.kind(),
+                io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+            ) =>
+        {
+            let rejection = profile.reject(orchbee_connection_handshake::RejectionReason::Timeout);
+            let _delivered = send_handshake(&mut stream, &AcceptorMessage::Rejection(rejection));
+            return;
+        }
+        // A pre-handshake peer, a malformed frame, or a candidate that left.
+        Err(
+            ReadError::Io(_)
+            | ReadError::Closed
+            | ReadError::ForeignProtocol
+            | ReadError::Malformed(_),
+        ) => {
+            let rejection =
+                profile.reject(orchbee_connection_handshake::RejectionReason::Malformed);
+            let _delivered = send_handshake(&mut stream, &AcceptorMessage::Rejection(rejection));
+            return;
+        }
+    };
+    let session_slot_free = match registry.lock() {
+        Ok(registry) => registry.has_capacity(),
+        Err(_poisoned) => {
+            diagnostic::report(&Diagnostic::new("admission", "registry-poisoned"));
+            return;
+        }
+    };
+    // A recorded Session stop still answers offers, so its status and retry exchanges reach the
+    // stop owner; it refuses only the Client phase below.
+    let load = AcceptorLoad {
+        session_slot_free,
+        control_slot_free: true,
+        state: ProcessState::Ready,
+    };
+    match profile.decide(&message, load) {
+        Decision::Accept(answer) => {
+            if !send_handshake(&mut stream, &AcceptorMessage::Answer(answer)) {
+                return;
+            }
+        }
+        Decision::Reject(rejection) => {
+            let _delivered = send_handshake(&mut stream, &AcceptorMessage::Rejection(rejection));
+            return;
+        }
+        Decision::Unsupported(reply) => {
+            let _delivered = send_handshake(&mut stream, &AcceptorMessage::Unsupported(reply));
+            return;
+        }
+        Decision::Serve(RequestKind::Query) => {
+            query::respond(
+                &mut stream,
+                identity,
+                control.stopping(),
+                terminals.terminal_count(),
+            );
+            return;
+        }
+        // Server drain and exit arrive later; until then this Server serves neither request.
+        Decision::Serve(kind @ (RequestKind::Drain | RequestKind::Exit)) => {
+            if let Ok(request) = RequestName::new(kind.as_str()) {
+                let reply = Unsupported {
+                    request,
+                    extensions: Extensions::new(),
+                };
+                let _delivered = send_handshake(&mut stream, &AcceptorMessage::Unsupported(reply));
+            }
+            return;
+        }
+    }
 
     let message = match read_message(&mut stream) {
         Ok(message) => message,
-        Err(ReadMessageError::Protocol(ProtocolError::IncompatibleVersion { .. })) => {
-            send_rejection(&mut stream, RejectionReason::IncompatibleProtocol);
-            return;
-        }
         Err(ReadMessageError::Io(error))
             if matches!(
                 error.kind(),
@@ -272,16 +375,7 @@ fn handle_candidate_control(
             return;
         }
     };
-    #[cfg(windows)]
-    if matches!(message, LocalClientMessage::ServerMetadataRequest) {
-        metadata::respond(&mut stream, expected_cohort, control.metadata_mode());
-        return;
-    }
     if let LocalClientMessage::SessionStopRequest(request) = message {
-        if request.hello.cohort() != expected_cohort {
-            send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
-            return;
-        }
         let result = control.request(&request);
         if let Err(error) =
             write_message(&mut stream, &LocalClientMessage::SessionStopResult(result))
@@ -292,14 +386,10 @@ fn handle_candidate_control(
         }
         return;
     }
-    let LocalClientMessage::ClientHello(hello) = message else {
+    let LocalClientMessage::ClientHello = message else {
         send_rejection(&mut stream, RejectionReason::WrongMessage);
         return;
     };
-    if hello.cohort() != expected_cohort {
-        send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
-        return;
-    }
     let Some(admission_lease) = control.enter() else {
         send_rejection(&mut stream, RejectionReason::Stopping);
         return;
@@ -435,6 +525,20 @@ fn report_connection_end(
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {
     let _result = write_message(stream, &LocalClientMessage::Rejected { reason });
+}
+
+/// Writes one handshake reply and reports whether it was delivered; a refused candidate closes
+/// either way.
+fn send_handshake(stream: &mut UnixStream, message: &AcceptorMessage) -> bool {
+    use std::io::Write;
+    let Ok(frame) = encode_acceptor_frame(message) else {
+        diagnostic::report(&Diagnostic::new("handshake", "encode-reply"));
+        return false;
+    };
+    stream
+        .write_all(&frame)
+        .and_then(|()| stream.flush())
+        .is_ok()
 }
 
 /// Disposes the canonical Agent runtime when the owning listener loop

@@ -248,21 +248,16 @@ impl Drop for TestDirectory {
 /// Test-only admission without an operation deadline: real handshake, system clock and unbounded
 /// chunk limits. Production admission always goes through `connect_before`.
 impl super::super::LocalClient {
-    pub fn connect(
-        endpoint: &Path,
-        cohort: &str,
-    ) -> Result<Self, super::super::LocalClientConnectError> {
-        Self::connect_with_request_timeout(endpoint, cohort, super::super::REQUEST_TOTAL_TIMEOUT)
+    pub fn connect(endpoint: &Path) -> Result<Self, super::super::LocalClientConnectError> {
+        Self::connect_with_request_timeout(endpoint, super::super::REQUEST_TOTAL_TIMEOUT)
     }
 
     pub(in crate::local_client) fn connect_with_request_timeout(
         endpoint: &Path,
-        cohort: &str,
         request_timeout: Duration,
     ) -> Result<Self, super::super::LocalClientConnectError> {
         Self::connect_with_submission_runtime(
             endpoint,
-            cohort,
             request_timeout,
             Box::new(super::super::SystemMonotonicClock),
             super::super::IoChunkLimits::UNBOUNDED,
@@ -271,19 +266,19 @@ impl super::super::LocalClient {
 
     pub(in crate::local_client) fn connect_with_submission_runtime(
         endpoint: &Path,
-        cohort: &str,
         request_timeout: Duration,
         clock: Box<dyn super::super::MonotonicClock>,
         io_chunk_limits: super::super::IoChunkLimits,
     ) -> Result<Self, super::super::LocalClientConnectError> {
-        let connection = super::super::ClientConnection::connect(endpoint, cohort)
+        let offer = super::handshake::offer();
+        let connection = super::super::ClientConnection::connect(endpoint, &offer)
             .map_err(super::super::LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
             super::super::LocalClientOrigin {
                 multiplex: None,
                 endpoint: endpoint.to_path_buf(),
-                cohort: cohort.to_owned(),
+                offer: std::sync::Arc::new(offer),
                 local: true,
                 carrier: None,
             },
@@ -300,12 +295,10 @@ pub fn shutdown_handle(stream: UnixStream) -> super::super::LocalClientShutdown 
 
 pub fn connect_with_checkpoint_clock(
     endpoint: &Path,
-    cohort: &str,
     expired: Arc<AtomicBool>,
 ) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
     super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
-        cohort,
         super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(CheckpointClock {
             origin: Instant::now(),
@@ -317,12 +310,10 @@ pub fn connect_with_checkpoint_clock(
 
 pub fn connect_with_adjustable_clock(
     endpoint: &Path,
-    cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
 ) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
     super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
-        cohort,
         super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(AdjustableClock {
             origin: Instant::now(),
@@ -348,7 +339,7 @@ pub fn disconnected_origin() -> super::super::LocalClientOrigin {
     super::super::LocalClientOrigin {
         multiplex: None,
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
-        cohort: "agent-board-tests".to_owned(),
+        offer: std::sync::Arc::new(super::handshake::offer()),
         local: true,
         carrier: None,
     }
@@ -363,13 +354,11 @@ pub fn disconnected_remote_origin() -> super::super::LocalClientOrigin {
 
 pub fn connect_with_gated_prewrite_clock(
     endpoint: &Path,
-    cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
     prewrite_gate: Arc<PrewriteGate>,
 ) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
     super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
-        cohort,
         super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(GatedPrewriteClock {
             origin: Instant::now(),
@@ -382,7 +371,6 @@ pub fn connect_with_gated_prewrite_clock(
 
 pub fn connect_with_switchable_ceiling_clock(
     endpoint: &Path,
-    cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
     at_ceiling: Arc<AtomicBool>,
 ) -> io::Result<super::super::LocalClient> {
@@ -393,7 +381,6 @@ pub fn connect_with_switchable_ceiling_clock(
         })?;
     super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
-        cohort,
         super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(SwitchableCeilingClock {
             origin,
@@ -425,21 +412,18 @@ fn near_ceiling_from(origin: Instant, required_overflow: Duration) -> Option<Ins
 
 pub fn connect_with_next_ui_sample_expiry_clock(
     endpoint: &Path,
-    cohort: &str,
     phase: Arc<AtomicU8>,
 ) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
-    connect_with_ui_sample_expiry_clock(endpoint, cohort, phase, 1)
+    connect_with_ui_sample_expiry_clock(endpoint, phase, 1)
 }
 
 pub fn connect_with_ui_sample_expiry_clock(
     endpoint: &Path,
-    cohort: &str,
     phase: Arc<AtomicU8>,
     safe_samples: u8,
 ) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
     super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
-        cohort,
         super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(NextUiSampleExpiryClock {
             origin: Instant::now(),

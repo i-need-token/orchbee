@@ -16,8 +16,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_connection_handshake::{AcceptorMessage, RejectionReason as Refusal};
 use orchbee_local_client_protocol::{
-    ClientConnection, ClientHello, ConnectClientError, LocalClientMessage,
+    ClientConnection, ConnectClientError, LocalClientMessage,
     PROTOCOL_VERSION as CLIENT_PROTOCOL_VERSION, RejectionReason as ClientRejectionReason,
     read_message as read_client_message, write_message as write_client_message,
 };
@@ -36,6 +37,9 @@ type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
 #[path = "client_process/terminal_operations.rs"]
 mod terminal_operations;
+
+#[path = "client_process/handshake.rs"]
+mod handshake;
 
 #[path = "client_process/obcs.rs"]
 mod obcs;
@@ -124,12 +128,10 @@ fn active_session_capacity_is_typed_and_released_after_an_obcs_fault() -> TestRe
     for _session in 0..32 {
         sessions.push(connect_bounded_client(server.client_endpoint())?);
     }
-    assert!(matches!(
-        ClientConnection::connect(server.client_endpoint(), env!("CARGO_PKG_VERSION")),
-        Err(ConnectClientError::Rejected(
-            ClientRejectionReason::CapacityExceeded
-        ))
-    ));
+    assert!(is_capacity(&ClientConnection::connect(
+        server.client_endpoint(),
+        &handshake::offer()
+    )));
 
     let (mut faulted, disconnected_generation) = sessions.remove(0);
     faulted.write_all(b"XBCS\x00\x01\x00\x00")?;
@@ -145,15 +147,11 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
     let server = RunningServer::start()?;
 
     let mut slow = connect_candidate(server.client_endpoint())?;
-    slow.write_all(b"OBLC")?;
+    slow.write_all(b"OBHS")?;
     let ordinary = connect_client(server.client_endpoint())?;
-    assert_eq!(
-        read_client_message(&mut slow)?,
-        LocalClientMessage::Rejected {
-            reason: ClientRejectionReason::HandshakeTimeout,
-        }
-    );
+    assert_eq!(handshake_refusal(&mut slow)?, Refusal::Timeout);
 
+    // A Client from before the handshake, or a Worker on the Client endpoint, is malformed.
     let mut worker_on_client = connect_candidate(server.client_endpoint())?;
     write_worker_message(
         &mut worker_on_client,
@@ -163,17 +161,15 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
         )?),
     )?;
     assert_eq!(
-        read_client_message(&mut worker_on_client)?,
-        LocalClientMessage::Rejected {
-            reason: ClientRejectionReason::MalformedFrame,
-        }
+        handshake_refusal(&mut worker_on_client)?,
+        Refusal::Malformed
     );
+    let mut stale_client = connect_candidate(server.client_endpoint())?;
+    write_client_message(&mut stale_client, &LocalClientMessage::ClientHello)?;
+    assert_eq!(handshake_refusal(&mut stale_client)?, Refusal::Malformed);
 
     let mut client_on_worker = connect_candidate(server.worker_endpoint())?;
-    write_client_message(
-        &mut client_on_worker,
-        &LocalClientMessage::ClientHello(ClientHello::new(env!("CARGO_PKG_VERSION"))?),
-    )?;
+    write_client_message(&mut client_on_worker, &LocalClientMessage::ClientHello)?;
     assert_eq!(
         read_worker_message(&mut client_on_worker)?,
         LocalWorkerMessage::Rejected {
@@ -181,15 +177,6 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
         }
     );
 
-    assert_eq!(
-        exchange_client(
-            server.client_endpoint(),
-            LocalClientMessage::ClientHello(ClientHello::new("different-cohort")?),
-        )?,
-        LocalClientMessage::Rejected {
-            reason: ClientRejectionReason::IncompatibleCohort,
-        }
-    );
     let generation = NonZeroU64::new(9).ok_or_else(|| io::Error::other("invalid generation"))?;
     assert_eq!(
         exchange_client(
@@ -206,7 +193,7 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
             &client_frame(CLIENT_PROTOCOL_VERSION + 1, &[1]),
         )?,
         LocalClientMessage::Rejected {
-            reason: ClientRejectionReason::IncompatibleProtocol,
+            reason: ClientRejectionReason::MalformedFrame,
         }
     );
     let mut malformed = client_frame(CLIENT_PROTOCOL_VERSION, &[]);
@@ -219,7 +206,8 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
     );
 
     let mut duplicate = connect_candidate(server.client_endpoint())?;
-    let hello = LocalClientMessage::ClientHello(ClientHello::new(env!("CARGO_PKG_VERSION"))?);
+    handshake::answered(&mut duplicate)?;
+    let hello = LocalClientMessage::ClientHello;
     write_client_message(&mut duplicate, &hello)?;
     assert!(matches!(
         read_client_message(&mut duplicate)?,
@@ -234,16 +222,33 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
 }
 
 fn connect_client(endpoint: &Path) -> TestResult<ClientConnection> {
-    ClientConnection::connect(endpoint, env!("CARGO_PKG_VERSION"))
+    ClientConnection::connect(endpoint, &handshake::offer())
         .map_err(|error| Box::new(error) as Box<dyn Error>)
+}
+
+/// A full Session refuses in the handshake, or in the Client phase when another admission takes
+/// the last slot between the two.
+fn is_capacity(result: &Result<ClientConnection, ConnectClientError>) -> bool {
+    match result {
+        Err(ConnectClientError::Refused(rejection)) => rejection.reason == Refusal::Capacity,
+        Err(ConnectClientError::Rejected(reason)) => {
+            *reason == ClientRejectionReason::CapacityExceeded
+        }
+        _ => false,
+    }
+}
+
+fn handshake_refusal(stream: &mut UnixStream) -> TestResult<Refusal> {
+    match orchbee_connection_handshake::read_acceptor_message(stream)? {
+        AcceptorMessage::Rejection(rejection) => Ok(rejection.reason),
+        other => Err(io::Error::other(format!("expected a rejection: {other:?}")).into()),
+    }
 }
 
 fn connect_bounded_client(endpoint: &Path) -> TestResult<(UnixStream, NonZeroU64)> {
     let mut stream = connect_candidate(endpoint)?;
-    write_client_message(
-        &mut stream,
-        &LocalClientMessage::ClientHello(ClientHello::new(env!("CARGO_PKG_VERSION"))?),
-    )?;
+    handshake::answered(&mut stream)?;
+    write_client_message(&mut stream, &LocalClientMessage::ClientHello)?;
     match read_client_message(&mut stream)? {
         LocalClientMessage::ClientAccepted { generation } => Ok((stream, generation)),
         response => Err(io::Error::other(format!(
@@ -256,26 +261,25 @@ fn connect_bounded_client(endpoint: &Path) -> TestResult<(UnixStream, NonZeroU64
 fn wait_for_client_admission(endpoint: &Path) -> TestResult<ClientConnection> {
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
-        match ClientConnection::connect(endpoint, env!("CARGO_PKG_VERSION")) {
-            Ok(connection) => return Ok(connection),
-            Err(ConnectClientError::Rejected(ClientRejectionReason::CapacityExceeded))
-                if Instant::now() < deadline =>
-            {
-                thread::sleep(Duration::from_millis(10));
-            }
-            Err(error) => return Err(error.into()),
+        let result = ClientConnection::connect(endpoint, &handshake::offer());
+        if is_capacity(&result) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+            continue;
         }
+        return Ok(result?);
     }
 }
 
 fn exchange_client(endpoint: &Path, message: LocalClientMessage) -> TestResult<LocalClientMessage> {
     let mut stream = connect_candidate(endpoint)?;
+    handshake::answered(&mut stream)?;
     write_client_message(&mut stream, &message)?;
     Ok(read_client_message(&mut stream)?)
 }
 
 fn exchange_client_raw(endpoint: &Path, bytes: &[u8]) -> TestResult<LocalClientMessage> {
     let mut stream = connect_candidate(endpoint)?;
+    handshake::answered(&mut stream)?;
     stream.write_all(bytes)?;
     Ok(read_client_message(&mut stream)?)
 }

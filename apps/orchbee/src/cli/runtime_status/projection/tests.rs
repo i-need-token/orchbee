@@ -73,39 +73,70 @@ fn installed_channel_is_bound_to_release_observation_without_widening_v1() {
     assert!(!validator.is_valid(&bad));
 }
 
+/// Every reported process keeps its role and version in the schema-bound document, and an unknown
+/// role or state stays readable.
 #[test]
-fn unavailable_local_cohort_cannot_erase_known_protocol_incompatibility() {
-    let info = ServerMetadata::new(
-        "1.0",
-        orchbee_local_client_protocol::ClientHello::new("server").unwrap(),
-        std::num::NonZeroU32::new(1).unwrap(),
-        std::num::NonZeroU8::new(255).unwrap(),
-        ServerMode::Unmanaged,
-        u32::MAX,
+fn reported_processes_keep_their_order_versions_and_unknown_values() {
+    use orchbee_connection_handshake::{
+        Build, Extensions, ProcessEntry, ProcessRole, ProcessState, ProductVersion, QueryResult,
+    };
+    let entry = |role, version: &str, pid, state| ProcessEntry {
+        role,
+        product_version: ProductVersion::new(version).unwrap(),
+        build: Build::default(),
+        environment: orchbee_local_runtime::environment_name(),
+        pid: std::num::NonZeroU32::new(pid).unwrap(),
+        state,
+        terminals: 0,
+        connections: Vec::new(),
+    };
+    let result = QueryResult::new(
+        vec![
+            entry(ProcessRole::Server, "2.0.0", 7, ProcessState::Ready),
+            entry(ProcessRole::Worker, "2.0.0", 8, ProcessState::Draining),
+            entry(ProcessRole::Unknown, "3.0.0", 9, ProcessState::Unknown),
+        ],
+        Some(false),
+        Extensions::new(),
     )
     .unwrap();
-    let report = Report::Server(ServerReport {
-        scope: format!("orchbee-native-{}", "1".repeat(32)),
-        runtime: PathBuf::from(r"C:\runtime"),
-        endpoint: Some(PathBuf::from(r"\\.\pipe\test")),
-        server: Server::Observed(info),
-        cohort: Cohort::Unavailable(CohortIssue::TimedOut, None),
-    });
-    let doc = report.document();
+    let report = || {
+        Report::Server(ServerReport {
+            scope: format!("orchbee-native-{}", "1".repeat(32)),
+            runtime: PathBuf::from(r"C:\runtime"),
+            endpoint: Some(PathBuf::from(r"\\.\pipe\test")),
+            server: Server::Observed(result.clone()),
+        })
+    };
+    let doc = report().document();
     let schema: Value =
         serde_json::from_str(include_str!("../../schemas/orchbee.status.server.json")).unwrap();
-    jsonschema::draft202012::new(&schema)
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    validator.validate(&doc).unwrap();
+    let roles = doc["result"]["server"]["processes"]
+        .as_array()
         .unwrap()
-        .validate(&doc)
-        .unwrap();
+        .iter()
+        .map(|process| (process["role"].clone(), process["version"].clone()))
+        .collect::<Vec<_>>();
     assert_eq!(
-        doc["result"]["compatibility"],
-        json!({"admissionProtocol":true,"terminalProtocol":false,"cohort":null,"compatible":false,"restartRequired":true})
+        roles,
+        [
+            (json!("server"), json!("2.0.0")),
+            (json!("worker"), json!("2.0.0")),
+            (json!("unknown"), json!("3.0.0")),
+        ]
     );
-    assert_eq!(
-        doc["result"]["server"]["capabilities"]["managedStop"],
-        false
-    );
+    assert_eq!(doc["result"]["server"]["processes"][2]["state"], "unknown");
+    let mut empty = doc.clone();
+    empty["result"]["server"]["processes"] = json!([]);
+    assert!(!validator.is_valid(&empty));
+    // Text lists one line per process in both locales.
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = String::from_utf8(emit(report(), OutputFormat::Text, locale).stdout).unwrap();
+        assert_eq!(text.matches("2.0.0").count(), 2, "{text}");
+        assert_eq!(text.matches("3.0.0").count(), 1, "{text}");
+    }
 }
 
 #[test]

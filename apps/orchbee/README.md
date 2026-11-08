@@ -1046,7 +1046,7 @@ under `recent-unwrapped`. Detection remains plain text. Original PTY bytes, hype
 are not reproduced. Render requests and prepared output each retain the 8 MiB bound. See the
 [output contract](docs/native-terminal-output.md).
 
-Windows `status server` reads actual Server build/protocol/cohort metadata before Client Connection admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
+Windows `status server` lists the Session's processes and their versions with one handshake `query`, without a Client Connection; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
 ## Agent navigation
 

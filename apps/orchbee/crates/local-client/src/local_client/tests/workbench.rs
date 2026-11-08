@@ -138,7 +138,7 @@ fn tab_create_preserves_every_compatible_precommit_on_the_same_carrier() -> Test
     }
     let server_cases = cases.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 40)?;
         for (index, (outcome, _expected)) in server_cases.into_iter().enumerate() {
             let request_id = id(100 + index as u128);
@@ -160,7 +160,7 @@ fn tab_create_preserves_every_compatible_precommit_on_the_same_carrier() -> Test
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     for (index, (_outcome, expected)) in cases.into_iter().enumerate() {
         let request_id = id(100 + index as u128);
         let request = WorkbenchTabCreateRequest::try_from(tab_create_command(&request_id, 7))
@@ -244,7 +244,7 @@ fn tab_create_preserves_every_compatible_committed_variant() -> TestResult {
     }
     let server_cases = cases.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 41)?;
         for (index, (outcome, _expected)) in server_cases.into_iter().enumerate() {
             let request_id = id(200 + index as u128);
@@ -258,7 +258,7 @@ fn tab_create_preserves_every_compatible_committed_variant() -> TestResult {
         Ok(())
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     for (index, (_outcome, expected)) in cases.into_iter().enumerate() {
         let request_id = id(200 + index as u128);
         let request = WorkbenchTabCreateRequest::try_from(tab_create_command(&request_id, 7))
@@ -470,7 +470,7 @@ fn tab_create_retires_on_malformed_duplicate_oversized_or_truncated_responses() 
         let command = tab_create_command(FIRST_REQUEST_ID, 7);
         let expected = command.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 42)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -498,7 +498,7 @@ fn tab_create_retires_on_malformed_duplicate_oversized_or_truncated_responses() 
             }
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let request = WorkbenchTabCreateRequest::try_from(command).expect("tab.create fixture");
         let submission = client.submit_workbench_tab_create(
             request,
@@ -556,7 +556,7 @@ fn tab_create_retires_on_malformed_duplicate_oversized_or_truncated_responses() 
 #[test]
 fn tab_create_prewrite_deadlines_are_definite_and_do_not_change_the_carrier() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 43)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -568,7 +568,7 @@ fn tab_create_prewrite_deadlines_are_definite_and_do_not_change_the_carrier() ->
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
 
     let request = WorkbenchTabCreateRequest::try_from(tab_create_command(FIRST_REQUEST_ID, 7))
         .expect("tab.create fixture");
@@ -613,7 +613,7 @@ fn tab_create_partial_write_deadline_is_unknown_and_retires() -> TestResult {
         &WorkbenchRequest::Command(command.clone()),
     )?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 44)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -630,7 +630,6 @@ fn tab_create_partial_write_deadline_is_unknown_and_retires() -> TestResult {
     let deadline = clock.origin + Duration::from_millis(90);
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::new(usize::MAX, 1),
@@ -654,12 +653,12 @@ fn tab_create_partial_write_deadline_is_unknown_and_retires() -> TestResult {
 #[test]
 fn tab_create_read_deadline_is_unknown_and_retires_without_retry() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 45)?;
         let _request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = WorkbenchTabCreateRequest::try_from(tab_create_command(FIRST_REQUEST_ID, 7))
         .expect("tab.create fixture");
     assert!(matches!(
@@ -694,7 +693,7 @@ fn tab_create_read_deadline_is_unknown_and_retires_without_retry() -> TestResult
 #[test]
 fn tab_create_completed_response_after_the_fixed_deadline_is_unknown() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 47)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -712,7 +711,6 @@ fn tab_create_completed_response_after_the_fixed_deadline_is_unknown() -> TestRe
     let deadline = clock.origin + Duration::from_millis(80);
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::UNBOUNDED,
@@ -736,7 +734,7 @@ fn tab_create_completed_response_after_the_fixed_deadline_is_unknown() -> TestRe
 #[test]
 fn tab_create_caller_deadline_cannot_extend_the_single_exchange_budget() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 48)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -754,7 +752,6 @@ fn tab_create_caller_deadline_cannot_extend_the_single_exchange_budget() -> Test
     let caller_deadline = clock.origin + SERVER_GUARD_TIMEOUT;
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         Duration::from_millis(80),
         Box::new(clock),
         IoChunkLimits::UNBOUNDED,
@@ -780,7 +777,7 @@ fn snapshot_read_supports_partial_io_and_preserves_the_same_mixed_carrier() -> T
     let expected = snapshot_result(FIRST_REQUEST_ID);
     let server = FakeServer::start(move |stream| {
         let mut stream = ChunkedStream::new(stream, 1, 1);
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 31)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -801,7 +798,6 @@ fn snapshot_read_supports_partial_io_and_preserves_the_same_mixed_carrier() -> T
 
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(SystemMonotonicClock),
         IoChunkLimits::new(1, 1),
@@ -832,13 +828,13 @@ fn snapshot_read_retires_on_wrong_kind_or_correlation() -> TestResult {
     ] {
         let expected_wrong_kind = matches!(response, WorkbenchResponse::Command(_));
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 32)?;
             let _request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
             write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let error = client
             .submit_workbench_snapshot_read(snapshot_request(FIRST_REQUEST_ID))
             .expect_err("invalid response classification must fail");
@@ -880,7 +876,7 @@ fn snapshot_read_retires_on_malformed_invalid_oversized_or_truncated_frames() ->
         InvalidResponse::Truncated,
     ] {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 33)?;
             let _request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
             match invalid {
@@ -911,7 +907,7 @@ fn snapshot_read_retires_on_malformed_invalid_oversized_or_truncated_frames() ->
             }
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let error = client
             .submit_workbench_snapshot_read(snapshot_request(FIRST_REQUEST_ID))
             .expect_err("invalid Workbench framing must fail");
@@ -963,13 +959,13 @@ fn snapshot_read_retires_on_malformed_invalid_oversized_or_truncated_frames() ->
 #[test]
 fn snapshot_read_timeout_retires_without_retry() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 34)?;
         let _request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
     let mut client =
-        LocalClient::connect_with_request_timeout(server.endpoint(), COHORT, TEST_REQUEST_TIMEOUT)?;
+        LocalClient::connect_with_request_timeout(server.endpoint(), TEST_REQUEST_TIMEOUT)?;
     let error = client
         .submit_workbench_snapshot_read(snapshot_request(FIRST_REQUEST_ID))
         .expect_err("silent response must exhaust the request deadline");
@@ -989,7 +985,7 @@ fn snapshot_read_timeout_retires_without_retry() -> TestResult {
 #[test]
 fn snapshot_partial_write_deadline_retires_the_mixed_carrier() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 36)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -1001,7 +997,6 @@ fn snapshot_partial_write_deadline_retires_the_mixed_carrier() -> TestResult {
     let deadline = clock.origin + Duration::from_millis(90);
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::new(usize::MAX, 1),
@@ -1031,7 +1026,7 @@ fn snapshot_partial_write_deadline_retires_the_mixed_carrier() -> TestResult {
 #[test]
 fn snapshot_caller_deadline_cannot_extend_the_single_exchange_budget() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 50)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -1049,7 +1044,6 @@ fn snapshot_caller_deadline_cannot_extend_the_single_exchange_budget() -> TestRe
     let caller_deadline = clock.origin + SERVER_GUARD_TIMEOUT;
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         Duration::from_millis(80),
         Box::new(clock),
         IoChunkLimits::UNBOUNDED,
@@ -1074,7 +1068,7 @@ fn snapshot_caller_deadline_cannot_extend_the_single_exchange_budget() -> TestRe
 #[test]
 fn snapshot_prewrite_deadline_is_definite_and_keeps_the_carrier() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 35)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -1086,7 +1080,7 @@ fn snapshot_prewrite_deadline_is_definite_and_keeps_the_carrier() -> TestResult 
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now();
     assert!(matches!(
         client.submit_workbench_snapshot_read_before(snapshot_request(FIRST_REQUEST_ID), deadline),
@@ -1119,7 +1113,7 @@ fn publication_read_preserves_every_outcome_on_the_same_carrier() -> TestResult 
     ];
     let server_outcomes = outcomes.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 42)?;
         for (index, outcome) in server_outcomes.into_iter().enumerate() {
             let request_id = id(200 + index as u128);
@@ -1144,7 +1138,7 @@ fn publication_read_preserves_every_outcome_on_the_same_carrier() -> TestResult 
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     for (index, expected) in outcomes.into_iter().enumerate() {
         let request_id = id(200 + index as u128);
         assert_eq!(
@@ -1173,13 +1167,13 @@ fn publication_read_retires_on_wrong_kind_or_correlation() -> TestResult {
     ] {
         let expected_wrong_kind = matches!(response, WorkbenchResponse::Snapshot(_));
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 43)?;
             let _request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
             write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let error = client
             .submit_workbench_publication_read(publication_request(FIRST_REQUEST_ID, 6))
             .expect_err("invalid response classification must fail");
@@ -1234,7 +1228,7 @@ fn invalid_typed_submission(
 ) -> Result<WorkbenchTabCreateSubmission, Box<dyn std::error::Error>> {
     let expected = command.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 46)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -1243,7 +1237,7 @@ fn invalid_typed_submission(
         write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = WorkbenchTabCreateRequest::try_from(command).expect("tab.create fixture");
     let submission = client.submit_workbench_tab_create(
         request,
@@ -1480,7 +1474,7 @@ fn tab_create_wake_after_submission_retires_unknown_without_replay() -> TestResu
     let (submitted, wait_for_submission) = std::sync::mpsc::channel();
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 51)?;
         let WorkbenchRequest::Command(command) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
@@ -1502,7 +1496,7 @@ fn tab_create_wake_after_submission_retires_unknown_without_replay() -> TestResu
             .map_err(io::Error::other)?;
         wake_write.write_all(b"x")
     });
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let command = tab_create_command(FIRST_REQUEST_ID, 7);
     let answer = client.submit_workbench_tab_create_with_wake(
         WorkbenchTabCreateRequest::try_from(command).unwrap(),

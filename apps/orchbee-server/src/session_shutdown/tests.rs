@@ -1,9 +1,7 @@
 use super::*;
-use orchbee_local_client_protocol::ClientHello;
 
 fn request(id: u8, action: StopAction) -> SessionStopRequest {
     SessionStopRequest {
-        hello: ClientHello::new("cohort").unwrap(),
         id: StopId::new([id; 16]).unwrap(),
         action,
     }

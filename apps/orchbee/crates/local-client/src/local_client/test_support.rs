@@ -3,6 +3,7 @@
 //! The module compiles for this crate's unit tests and, through the `test-support` feature, for
 //! the application's development dependency only. Release builds never enable that feature, so
 //! these constructors never widen the production transport boundary.
+pub mod handshake;
 pub mod multiplex_peer;
 pub mod server;
 #[cfg(windows)]

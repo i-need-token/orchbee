@@ -1,5 +1,5 @@
 use super::*;
-use crate::cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, record, reply};
+use crate::cli::terminal_stream::tests::{SNAPSHOT, handshake, line, record, reply};
 use orchbee_client_server_protocol::{
     ClientMessage, ControlRejectedReason, ServerMessage, TerminalControlResult,
     read_client_message, write_server_message,
@@ -277,7 +277,7 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
             );
             result
         })?;
-        let client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let client = LocalClient::connect(server.endpoint())?;
         eprintln!("control client connected elapsed={:?}", started.elapsed());
         let mut connection = Connection {
             client: Some(client),
@@ -455,7 +455,7 @@ fn control_inflight_cancel_and_timeout_retire_unknown_delivery_without_replay() 
             assert_eq!(stream.read(&mut byte)?, 0);
             Ok(())
         })?;
-        let client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let client = LocalClient::connect(server.endpoint())?;
         let viewer = ViewerId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")?;
         let mut connection = Connection {
             client: Some(client),

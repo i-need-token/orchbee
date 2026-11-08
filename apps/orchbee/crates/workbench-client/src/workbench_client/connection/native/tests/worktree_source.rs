@@ -121,7 +121,7 @@ fn prepare_from(
         }
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "native-worktree-source-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let mut executor = ClientExecutor::new(
         client,
         Arc::new(CommandMailbox::new(10, fixture_geometry()?)),

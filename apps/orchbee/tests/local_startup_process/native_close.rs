@@ -28,7 +28,9 @@ impl SnapshotObserver {
             .map_err(|error| format!("observer cohort: {error}"))?;
         let admitted = ClientConnection::connect_before(
             fixture.session().client_socket_path(),
-            cohort.identity(),
+            &orchbee_workbench_client::application::local_client::client_offer(Some(
+                cohort.identity(),
+            )),
             deadline,
         )
         .map_err(|error| format!("snapshot observer admission: {error}"))?;

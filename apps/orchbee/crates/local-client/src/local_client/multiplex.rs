@@ -882,7 +882,7 @@ fn actor(
         if connection.is_none() && !active.is_empty() && Instant::now() >= reconnect_at {
             match ClientConnection::connect_before_cancellable(
                 &origin.endpoint,
-                &origin.cohort,
+                &origin.offer,
                 Instant::now() + Duration::from_secs(2),
                 Some(wake.as_local_io()),
             ) {

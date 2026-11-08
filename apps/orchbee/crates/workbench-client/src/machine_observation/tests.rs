@@ -12,7 +12,7 @@ fn source_connection() -> io::Result<Connection> {
     let peer = FakeServer::start(|mut stream| accept(&mut stream))?;
     let client = LocalClient::connect_before(
         peer.endpoint(),
-        "test-cohort",
+        &crate::local_client::test_support::handshake::offer(),
         Instant::now() + Duration::from_secs(3),
     )
     .map_err(io::Error::other)?;
@@ -363,7 +363,7 @@ fn carrier_snapshot_gate_and_reset_retire_completed_reads_before_accepting_fresh
             }
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let mut client = LocalClient::connect(server.endpoint())
         .map_err(io::Error::other)?
         .into_multiplexed()?;
     let source = Connection::from_origin(client.origin(), client.operation_clock());
@@ -497,7 +497,7 @@ fn a_reset_keeps_a_sampled_checkpoint_until_a_fresh_read_replaces_it() -> io::Re
             }
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let mut client = LocalClient::connect(server.endpoint())
         .map_err(io::Error::other)?
         .into_multiplexed()?;
     let source = Connection::from_origin(client.origin(), client.operation_clock());
@@ -628,7 +628,7 @@ fn failed_subscription_admission_and_first_read_recover_without_successful_state
             }
         }
     })?;
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .map_err(io::Error::other)?
         .into_multiplexed()?;
     let mut held = Vec::new();

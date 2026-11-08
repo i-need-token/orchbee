@@ -58,7 +58,7 @@ pub use data_root::{
 };
 mod environment;
 pub use environment::{
-    ENVIRONMENT_VARIABLE, environment_stem, is_release, session_route_environment,
+    ENVIRONMENT_VARIABLE, environment_name, environment_stem, is_release, session_route_environment,
 };
 #[cfg(windows)]
 mod destructive_log;

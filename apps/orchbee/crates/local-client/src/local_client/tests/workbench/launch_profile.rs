@@ -202,7 +202,7 @@ fn profile_mutations_preserve_committed_and_compatible_precommit_outcomes() -> T
         let request_id = id(300 + index as u128);
         let server_request_id = request_id.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 42)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -211,7 +211,7 @@ fn profile_mutations_preserve_committed_and_compatible_precommit_outcomes() -> T
             write_workbench_response(&mut stream, &command_response(&server_request_id, outcome))
                 .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let submission = client.submit_workbench_launch_profile_create(
             WorkbenchLaunchProfileCreateRequest::try_from(create_command(&request_id, 7))
                 .expect("create fixture"),
@@ -228,7 +228,7 @@ fn profile_mutations_preserve_committed_and_compatible_precommit_outcomes() -> T
 fn profile_delete_commit_and_revision_mismatch_retire_the_session() -> TestResult {
     let profile_id = LaunchProfileId::parse(&format!("{}:9", id(20)))?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 43)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -265,7 +265,7 @@ fn profile_delete_commit_and_revision_mismatch_retire_the_session() -> TestResul
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deleted = client.submit_workbench_launch_profile_delete(
         WorkbenchLaunchProfileDeleteRequest::try_from(delete_command(FIRST_REQUEST_ID, 7))
             .expect("delete fixture"),
@@ -302,7 +302,7 @@ fn profile_delete_commit_and_revision_mismatch_retire_the_session() -> TestResul
 fn catalog_read_returns_every_typed_outcome_and_retires_on_incompatible_response() -> TestResult {
     let session_id = SessionId::parse(&id(20))?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 44)?;
         let responses = [
             catalog_response(
@@ -347,7 +347,7 @@ fn catalog_read_returns_every_typed_outcome_and_retires_on_incompatible_response
         );
         write_workbench_response(&mut stream, &responses[2]).map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let listed = client.submit_workbench_launch_profile_catalog_read_before(
         catalog_request(FIRST_REQUEST_ID, None),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,

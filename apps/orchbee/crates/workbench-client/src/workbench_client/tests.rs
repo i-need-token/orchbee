@@ -361,7 +361,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
             }
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     client.set_submission_deadline(Some(Instant::now() + Duration::from_secs(5)));
     let (mut workbench_client, _mailbox) = workbench_client_with_identity(client, geometry)?;
 
@@ -819,7 +819,6 @@ fn taken_forward_expiry_fixture() -> Result<TakenForwardExpiryFixture, Box<dyn s
     let expired = Arc::new(AtomicBool::new(false));
     let mut client = crate::local_client::test_support::server::connect_with_checkpoint_clock(
         server.endpoint(),
-        "test-cohort",
         Arc::clone(&expired),
     )?;
     let clock = client.operation_clock();
@@ -1041,7 +1040,6 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
     let mut client =
         crate::local_client::test_support::server::connect_with_next_ui_sample_expiry_clock(
             server.endpoint(),
-            "test-cohort",
             Arc::clone(&clock_phase),
         )?;
     let clock = client.operation_clock();
@@ -1821,7 +1819,6 @@ fn workspace_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestR
     })?;
     let mut client = crate::local_client::test_support::server::connect_with_checkpoint_clock(
         server.endpoint(),
-        "test-cohort",
         client_expired,
     )?;
     client.set_submission_deadline(Some(Instant::now() + Duration::from_secs(10)));

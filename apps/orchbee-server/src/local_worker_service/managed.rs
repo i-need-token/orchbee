@@ -145,6 +145,8 @@ pub(super) fn run(
     #[cfg(not(windows))]
     admitted?;
     #[cfg(not(windows))]
+    let worker_process = worker.id();
+    #[cfg(not(windows))]
     drop(worker);
     #[cfg(windows)]
     let initialized = (|| {
@@ -232,7 +234,7 @@ pub(super) fn run(
     {
         let _clients = local_client_service::start_managed(
             session.client_socket_path(),
-            cohort.identity(),
+            local_client_service::ServerIdentity::local(Some(cohort.identity()), worker_process),
             terminals,
             agents,
         )?;

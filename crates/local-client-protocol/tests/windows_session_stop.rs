@@ -1,7 +1,8 @@
 //! Real Windows control exchanges retain submission uncertainty without mutation retry.
 #![cfg(windows)]
+use crate::handshake_peer::{answer_offer, offer};
 use orchbee_local_client_protocol::{
-    ClientHello, ConnectClientError, LocalClientMessage, SessionStopRequest, SessionStopResult,
+    ConnectClientError, LocalClientMessage, SessionStopRequest, SessionStopResult,
     SessionStopStatus, StopAction, StopId, exchange_session_stop_before, read_message,
     write_message,
 };
@@ -24,7 +25,6 @@ fn endpoint() -> PathBuf {
 }
 fn request() -> SessionStopRequest {
     SessionStopRequest {
-        hello: ClientHello::new("test").unwrap(),
         id: StopId::new([1; 16]).unwrap(),
         action: StopAction::Start,
     }
@@ -38,6 +38,7 @@ fn accepted_unknown_wrong_id_and_pre_submission_expiry_remain_distinct() {
         let driver = thread::spawn(move || {
             let (mut peer, _) = listener.accept().unwrap();
             peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            answer_offer(&mut peer).unwrap();
             assert_eq!(
                 read_message(&mut peer).unwrap(),
                 LocalClientMessage::SessionStopRequest(request())
@@ -59,6 +60,7 @@ fn accepted_unknown_wrong_id_and_pre_submission_expiry_remain_distinct() {
         });
         let result = exchange_session_stop_before(
             &endpoint,
+            &offer(),
             request(),
             Instant::now() + Duration::from_secs(2),
             None,
@@ -79,8 +81,8 @@ fn accepted_unknown_wrong_id_and_pre_submission_expiry_remain_distinct() {
     }
     let endpoint = endpoint();
     let listener = LocalListener::bind(&endpoint).unwrap();
-    let error =
-        exchange_session_stop_before(&endpoint, request(), Instant::now(), None).unwrap_err();
+    let error = exchange_session_stop_before(&endpoint, &offer(), request(), Instant::now(), None)
+        .unwrap_err();
     assert!(!error.submitted);
     // The unconsumed listener is still available to an unrelated proof connection.
     let connecting = thread::spawn(move || LocalStream::connect(endpoint).unwrap());

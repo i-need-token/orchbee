@@ -24,7 +24,7 @@ fn agent_view_correlation_deadline_and_post_handoff_failure_never_replay() -> Te
             _ => {}
         }
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 60)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -59,7 +59,7 @@ fn agent_view_correlation_deadline_and_post_handoff_failure_never_replay() -> Te
             assert_eq!(stream.read(&mut byte)?, 0, "no mutation replay");
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let early = client
             .agent_view(
                 request.clone(),

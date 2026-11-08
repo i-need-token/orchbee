@@ -197,8 +197,10 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
 
 /// OBLC admission: read the hello, answer `ClientAccepted`, return the stream.
 fn admit(stream: &UnixStream) {
+    orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut &*stream)
+        .unwrap();
     match read_message(&mut &*stream) {
-        Ok(LocalClientMessage::ClientHello(_)) => {}
+        Ok(LocalClientMessage::ClientHello) => {}
         other => panic!("peer expected ClientHello, got {other:?}"),
     }
     write_message(
@@ -441,14 +443,12 @@ fn capacity_rejection_maps_to_exit_four() -> TestResult {
     let base = base_dir("capacity");
     let scope = stage_scope(&base);
     let peer = spawn_peer(&scope, |stream| {
-        let _ = read_message(&mut &stream);
-        write_message(
+        orchbee_workbench_client::test_support::local_client::handshake::refuse(
             &mut &stream,
-            &LocalClientMessage::Rejected {
-                reason: RejectionReason::CapacityExceeded,
-            },
+            orchbee_connection_handshake::RejectionReason::Capacity,
+            "0.1.0",
         )
-        .expect("peer rejects");
+        .expect("peer refuses");
     });
     let output = run(&base, &["status", "--format", "json"]);
     peer.join().expect("peer finished");
@@ -460,16 +460,18 @@ fn capacity_rejection_maps_to_exit_four() -> TestResult {
     Ok(())
 }
 
+/// A Session that predates the handshake answers the offer with its old OBLC rejection; the
+/// Client reports it as too old, without a Session version it was never told.
 #[test]
-fn cohort_rejection_maps_to_exit_six() -> TestResult {
-    let base = base_dir("cohort-reject");
+fn pre_handshake_session_maps_to_exit_six() -> TestResult {
+    let base = base_dir("old-session");
     let scope = stage_scope(&base);
     let peer = spawn_peer(&scope, |stream| {
         let _ = read_message(&mut &stream);
         write_message(
             &mut &stream,
             &LocalClientMessage::Rejected {
-                reason: RejectionReason::IncompatibleCohort,
+                reason: RejectionReason::MalformedFrame,
             },
         )
         .expect("peer rejects");
@@ -477,7 +479,14 @@ fn cohort_rejection_maps_to_exit_six() -> TestResult {
     let output = run(&base, &["status", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(6));
-    assert_eq!(failure_kind(&output)["failure"]["kind"], "incompatible");
+    let document = failure_kind(&output);
+    assert_eq!(document["failure"]["kind"], "incompatible");
+    assert_eq!(document["failure"]["details"]["reason"], "session-too-old");
+    assert!(
+        document["failure"]["details"]
+            .get("sessionVersion")
+            .is_none()
+    );
     Ok(())
 }
 

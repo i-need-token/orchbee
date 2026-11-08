@@ -187,7 +187,9 @@ impl SnapshotObserver {
         let cohort = Cohort::load(&fixture.cohort, deadline)?;
         let admitted = ClientConnection::connect_before(
             fixture.session().client_socket_path(),
-            cohort.identity(),
+            &orchbee_workbench_client::application::local_client::client_offer(Some(
+                cohort.identity(),
+            )),
             deadline,
         )?;
         Ok(Self {

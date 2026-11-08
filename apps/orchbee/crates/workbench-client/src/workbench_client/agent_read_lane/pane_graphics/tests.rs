@@ -94,9 +94,10 @@ fn actual_read_connection_stages_every_chunk_and_rejects_catalog_source_and_offs
     // 4 wrong Session, 5 shared cached resource, 6 unrelated Session graphics revision advance.
     for fault in 0..=6 {
         let server = FakeServer::start_connections(2, move |index, mut stream| {
+            crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -228,7 +229,7 @@ fn actual_read_connection_stages_every_chunk_and_rejects_catalog_source_and_offs
             Ok(())
         })
         .unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let client = LocalClient::connect(server.endpoint()).unwrap();
         let origin = client.origin();
         let clock = client.operation_clock();
         drop(client);

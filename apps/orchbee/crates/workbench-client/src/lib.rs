@@ -149,13 +149,14 @@ pub mod application {
     pub mod local_activation {
         pub use crate::local_activation::{
             ActivationCause, ActivationFailure, StartedSession, StartupFailure,
-            activate_local_session, check_deadline, pause, runtime_base_unstarted,
+            activate_local_session, check_deadline, pause, refusal, runtime_base_unstarted,
             runtime_location, selected_session_name,
         };
         #[cfg(windows)]
         pub use crate::local_activation::{
             inside_selected_session, select_session, target_session_name,
         };
+        pub use crate::startup_status::RefusedVersions;
     }
 
     pub mod local_client {
@@ -227,8 +228,9 @@ pub mod application {
             WorktreeListReadError, WorktreeListReadFailure,
         };
         pub use crate::local_client::{
-            LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
-            OutcomeUnknownReason, SubmissionError, exchange_wake_fault, exchange_wake_ready,
+            CLIENT_VERSION, LocalClient, LocalClientConnectError, LocalClientOrigin,
+            LocalOperationClock, OutcomeUnknownReason, SubmissionError, client_offer,
+            exchange_wake_fault, exchange_wake_ready,
         };
     }
 
@@ -461,6 +463,12 @@ pub mod test_support {
 
     pub mod local_client {
         pub use crate::local_client::{wake_fault_io, wake_ready_io};
+
+        pub mod handshake {
+            pub use crate::local_client::test_support::handshake::{
+                answer_offer, expect_hello, offer, read_offer, refuse,
+            };
+        }
 
         pub mod multiplex_peer {
             pub use crate::local_client::test_support::multiplex_peer::Peer;

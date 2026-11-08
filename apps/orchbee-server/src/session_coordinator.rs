@@ -95,6 +95,11 @@ impl SessionCoordinator {
         }
     }
 
+    /// The Session's started terminals, as a `query` reply counts them.
+    pub(crate) fn terminal_count(&self) -> usize {
+        self.terminals.started_count()
+    }
+
     pub(crate) fn workbench_session_matches(
         &self,
         session: &orchbee_workbench_protocol::SessionId,

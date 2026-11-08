@@ -47,7 +47,7 @@ fn retained_identity_is_distinct_from_exchange_identity_and_reads_keep_the_sessi
     let expected_first = first.clone();
     let expected_read = read.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 60)?;
         for request in [expected_first, expected_read] {
             assert_eq!(
@@ -62,7 +62,7 @@ fn retained_identity_is_distinct_from_exchange_identity_and_reads_keep_the_sessi
         }
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
     for request in [first, read] {
         let reply = client
@@ -102,7 +102,7 @@ fn wrong_operation_project_or_attempt_retires_the_exchange_without_replay() -> T
         }
         let expected = request.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 60)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -118,7 +118,7 @@ fn wrong_operation_project_or_attempt_retires_the_exchange_without_replay() -> T
             );
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         let error = client
             .submit_workspace_group_close(request.clone(), deadline, None)
@@ -139,7 +139,7 @@ fn wrong_operation_project_or_attempt_retires_the_exchange_without_replay() -> T
 #[test]
 fn peer_eof_after_handoff_is_unknown_and_cannot_be_replayed_on_the_retired_session() -> TestResult {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 60)?;
         assert!(matches!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -147,7 +147,7 @@ fn peer_eof_after_handoff_is_unknown_and_cannot_be_replayed_on_the_retired_sessi
         ));
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
     let error = client
         .submit_workspace_group_close(start(), deadline, None)
@@ -184,7 +184,7 @@ fn project_close_all_admits_empty_completion_and_existing_later_attempt_receipts
         }
         let expected_reply = reply.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 60)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -193,7 +193,7 @@ fn project_close_all_admits_empty_completion_and_existing_later_attempt_receipts
             write_workbench_response(&mut stream, &WorkbenchResponse::WorkspaceGroupClose(reply))
                 .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         assert_eq!(
             client

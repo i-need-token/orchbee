@@ -1,5 +1,7 @@
 //! Retained Windows Client listener and handlers, closed only by the managed Session owner.
-use super::{AgentRuntimeOwner, ConnectionSlots, bind_managed, handle_candidate_control};
+use super::{
+    AgentRuntimeOwner, ConnectionSlots, ServerIdentity, bind_managed, handle_candidate_control,
+};
 use crate::session_shutdown::SessionShutdown;
 use crate::{
     agent_service::AgentService,
@@ -80,11 +82,12 @@ impl Drop for Registration {
     }
 }
 
-/// Starts the retained same-user/cohort listener; every accepted stream remains owned until join.
+/// Starts the retained same-user handshake listener; every accepted stream remains owned until
+/// join.
 /// Returns listener or thread-creation errors without claiming readiness.
 pub(crate) fn start(
     endpoint: &Path,
-    cohort: &str,
+    identity: ServerIdentity,
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
     shutdown: Arc<SessionShutdown>,
@@ -94,7 +97,7 @@ pub(crate) fn start(
     listener.set_nonblocking(true)?;
     let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let slots = Arc::new(ConnectionSlots::new());
-    let cohort: Arc<str> = Arc::from(cohort);
+    let identity = Arc::new(identity);
     let workbench = Arc::new(WorkbenchService::new(
         WorkbenchPolicy {
             read: true,
@@ -148,7 +151,7 @@ pub(crate) fn start(
                             id,
                         };
                         let registry = Arc::clone(&registry);
-                        let cohort = Arc::clone(&cohort);
+                        let identity = Arc::clone(&identity);
                         let terminals = Arc::clone(&terminals);
                         let workbench = Arc::clone(&workbench);
                         let agents = Arc::clone(&agents);
@@ -160,7 +163,7 @@ pub(crate) fn start(
                                 handle_candidate_control(
                                     stream,
                                     &registry,
-                                    &cohort,
+                                    &identity,
                                     slot,
                                     &terminals,
                                     &workbench,

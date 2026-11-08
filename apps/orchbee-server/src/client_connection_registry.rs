@@ -27,6 +27,12 @@ impl ClientConnectionRegistry {
         }
     }
 
+    /// Whether another connection fits; `admit` still decides, since a concurrent admission may
+    /// take the last slot first.
+    pub(crate) fn has_capacity(&self) -> bool {
+        self.active_generations.len() < MAXIMUM_ACTIVE_CLIENT_CONNECTIONS
+    }
+
     pub(crate) fn admit(&mut self) -> ClientConnectionAdmission {
         if self.active_generations.len() >= MAXIMUM_ACTIVE_CLIENT_CONNECTIONS {
             return ClientConnectionAdmission::CapacityExceeded;

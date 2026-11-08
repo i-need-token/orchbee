@@ -62,7 +62,7 @@ fn move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
     for outcome in outcomes {
         let server_outcome = outcome.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 51)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -83,7 +83,7 @@ fn move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let actual = client.submit_workbench_tab_move(
             WorkbenchTabMoveRequest::try_from(move_command(7)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -209,7 +209,7 @@ fn move_retires_wrong_kind_and_correlation_without_replay() -> TestResult {
 #[test]
 fn move_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 52)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -221,7 +221,7 @@ fn move_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now();
     assert!(
         matches!(client.submit_workbench_tab_move(WorkbenchTabMoveRequest::try_from(move_command(7)).unwrap(),deadline),WorkbenchTabMoveSubmission::DefinitelyNotSubmitted(WorkbenchTabMoveNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
@@ -241,7 +241,7 @@ fn move_partial_write_expiry_is_unknown_and_retires() -> TestResult {
     let mut frame = Vec::new();
     write_workbench_request(&mut frame, &WorkbenchRequest::Command(move_command(7)))?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 53)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -253,7 +253,6 @@ fn move_partial_write_expiry_is_unknown_and_retires() -> TestResult {
     let deadline = clock.origin + Duration::from_millis(90);
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::new(usize::MAX, 1),
@@ -271,7 +270,7 @@ fn move_partial_write_expiry_is_unknown_and_retires() -> TestResult {
 fn move_completed_response_past_caller_or_exchange_budget_retires_without_replay() -> TestResult {
     for caller_is_earlier in [true, false] {
         let server = FakeServer::start(|mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 55)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -299,7 +298,6 @@ fn move_completed_response_past_caller_or_exchange_budget_retires_without_replay
         };
         let mut client = LocalClient::connect_with_submission_runtime(
             server.endpoint(),
-            COHORT,
             timeout,
             Box::new(clock),
             IoChunkLimits::UNBOUNDED,
@@ -330,7 +328,7 @@ fn invalid_move(
     response: WorkbenchResponse,
 ) -> Result<WorkbenchTabMoveSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 54)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -339,7 +337,7 @@ fn invalid_move(
         write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_workbench_tab_move(
         WorkbenchTabMoveRequest::try_from(move_command(baseline)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,

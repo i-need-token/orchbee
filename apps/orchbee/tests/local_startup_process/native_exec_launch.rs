@@ -62,7 +62,7 @@ fn replay_command(
     let cohort = Cohort::load(&fixture.cohort, deadline)?;
     let admitted = ClientConnection::connect_before(
         fixture.session().client_socket_path(),
-        cohort.identity(),
+        &orchbee_workbench_client::application::local_client::client_offer(Some(cohort.identity())),
         deadline,
     )?;
     let mut stream = UnixStream::from(admitted.as_fd().try_clone_to_owned()?);

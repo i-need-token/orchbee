@@ -174,8 +174,12 @@ pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) ->
 /// cohort is verified once and lent to every admission instead of re-hashing
 /// the same immutable artifacts per session.
 pub(super) fn hold_session(fixture: &Fixture, cohort: &str, deadline: Instant) -> ClientConnection {
-    ClientConnection::connect_before(fixture.session().client_socket_path(), cohort, deadline)
-        .unwrap_or_else(|error| panic!("admit held session: {error}"))
+    ClientConnection::connect_before(
+        fixture.session().client_socket_path(),
+        &orchbee_workbench_client::application::local_client::client_offer(Some(cohort)),
+        deadline,
+    )
+    .unwrap_or_else(|error| panic!("admit held session: {error}"))
 }
 
 /// The Session query surface coexists with a live controlling TUI and reports

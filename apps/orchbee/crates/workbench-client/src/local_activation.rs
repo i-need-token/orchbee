@@ -5,8 +5,10 @@
 //! lock/marker/spawn order is identical for both callers; only the failure
 //! projection differs.
 
-use crate::local_client::{LocalClient, LocalClientConnectError};
-use orchbee_local_client_protocol::{ConnectClientError, RejectionReason, unix_socket_path_fits};
+use crate::local_client::{CLIENT_VERSION, LocalClient, LocalClientConnectError, client_offer};
+use crate::startup_status::RefusedVersions;
+use orchbee_connection_handshake::RejectionReason as Refusal;
+use orchbee_local_client_protocol::{ConnectClientError, unix_socket_path_fits};
 use orchbee_local_runtime::{
     Cohort, CohortArtifact, LockAttempt, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
@@ -368,7 +370,8 @@ fn connect(
     deadline: Instant,
 ) -> Result<Option<LocalClient>, ActivationFailure> {
     session.client_socket_exists().map_err(runtime_failure)?;
-    match LocalClient::connect_before(session.client_socket_path(), cohort.identity(), deadline) {
+    let offer = client_offer(Some(cohort.identity()));
+    match LocalClient::connect_before(session.client_socket_path(), &offer, deadline) {
         Ok(client) => Ok(Some(client)),
         Err(error) => {
             // An absent or refusing socket inside the activation loop is
@@ -383,20 +386,54 @@ fn connect(
                 return Ok(None);
             }
             let failure = match &error {
-                LocalClientConnectError::Admission(ConnectClientError::Rejected(
-                    RejectionReason::IncompatibleCohort | RejectionReason::IncompatibleProtocol,
-                )) => StartupFailure::Incompatible,
-                LocalClientConnectError::Admission(
-                    ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source),
-                ) => failure(source.kind(), StartupFailure::Admission),
-                // Only the explicitly recognized protocol failures have a more specific transport classification here.
-                _ => StartupFailure::Admission,
+                LocalClientConnectError::Admission(error) => match refusal(error) {
+                    Some(failure) => failure,
+                    None => admission_failure(error),
+                },
+                LocalClientConnectError::RequestIoConfiguration(_) => StartupFailure::Admission,
             };
             Err(ActivationFailure::caused(
                 failure,
                 ActivationCause::Connect(error),
             ))
         }
+    }
+}
+
+/// The verdict for a handshake refusal, or `None` for any other admission failure. A Session that
+/// predates the handshake is the older side.
+pub fn refusal(error: &ConnectClientError) -> Option<StartupFailure> {
+    let versions = |session: Option<&str>| {
+        Box::new(RefusedVersions {
+            client: CLIENT_VERSION.to_owned(),
+            session: session.map(str::to_owned),
+        })
+    };
+    match error {
+        ConnectClientError::PredatesHandshake => {
+            Some(StartupFailure::SessionTooOld(versions(None)))
+        }
+        ConnectClientError::Refused(rejection) => {
+            let session = Some(rejection.product_version.as_str());
+            match rejection.reason {
+                Refusal::InitiatorTooOld => Some(StartupFailure::ClientTooOld(versions(session))),
+                Refusal::InitiatorTooNew => Some(StartupFailure::SessionTooOld(versions(session))),
+                Refusal::EnvironmentMismatch => Some(StartupFailure::OtherEnvironment),
+                Refusal::FingerprintMismatch => Some(StartupFailure::DevelopmentBuildMismatch),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn admission_failure(error: &ConnectClientError) -> StartupFailure {
+    match error {
+        ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source) => {
+            failure(source.kind(), StartupFailure::Admission)
+        }
+        // Only the explicitly recognized protocol failures have a more specific transport classification here.
+        _ => StartupFailure::Admission,
     }
 }
 

@@ -169,7 +169,7 @@ fn observer(endpoint: std::path::PathBuf, generation: u64) -> io::Result<Worker>
     Worker::spawn(generation, move |_| {
         LocalClient::connect_before(
             &endpoint,
-            "test-cohort",
+            &crate::local_client::test_support::handshake::offer(),
             Instant::now() + Duration::from_secs(2),
         )
         .map_err(io::Error::other)

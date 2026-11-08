@@ -19,26 +19,80 @@ use nix::{
         AddressFamily, SockFlag, SockType, UnixAddr, connect, getsockopt, socket, sockopt,
     },
 };
+use orchbee_connection_handshake::{CANDIDATE_DEADLINE, EnvironmentName, Offer, QueryResult};
 use orchbee_local_peer_credentials::require_same_effective_user;
 
-use super::{ClientConnection, ConnectClientError};
-use crate::{ClientHello, LocalClientMessage, read_message, write_message};
+use super::{ClientConnection, ConnectClientError, handshake};
 
 pub(super) fn connect_before_cancellable(
     endpoint: &Path,
-    hello: ClientHello,
+    offer: &Offer,
     expires_at: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<ClientConnection, ConnectClientError> {
-    admit(endpoint, hello, expires_at, wake).map_err(translate_wake)
+    admit(endpoint, offer, expires_at, wake).map_err(translate_wake)
+}
+
+/// Sends one `query` request and reads its reply; the connection then closes.
+pub(super) fn query_before_cancellable(
+    endpoint: &Path,
+    environment: EnvironmentName,
+    expires_at: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<QueryResult, ConnectClientError> {
+    (|| {
+        let (mut stream, deadline) = open(endpoint, expires_at, wake)?;
+        let candidate = Deadline {
+            expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
+            ..deadline
+        };
+        let result = handshake::query(
+            &mut DeadlineIo {
+                stream: &mut stream,
+                deadline: candidate,
+            },
+            environment,
+        )?;
+        deadline.remaining()?;
+        Ok(result)
+    })()
+    .map_err(translate_wake)
 }
 
 fn admit(
     endpoint: &Path,
-    hello: ClientHello,
+    offer: &Offer,
     expires_at: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<ClientConnection, ConnectClientError> {
+    let (mut stream, deadline) = open(endpoint, expires_at, wake)?;
+    // The answer is due within the candidate deadline, inside the caller's.
+    let candidate = Deadline {
+        expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
+        ..deadline
+    };
+    handshake::offer(
+        &mut DeadlineIo {
+            stream: &mut stream,
+            deadline: candidate,
+        },
+        offer,
+    )?;
+    deadline.remaining()?;
+    let generation = handshake::enter_client_phase(&mut DeadlineIo {
+        stream: &mut stream,
+        deadline,
+    })?;
+    deadline.remaining()?;
+    finish_admission(stream, generation, deadline)
+}
+
+/// Connects without blocking past `expires_at` and proves the peer is the same user.
+fn open<'a>(
+    endpoint: &Path,
+    expires_at: Instant,
+    wake: Option<BorrowedFd<'a>>,
+) -> Result<(UnixStream, Deadline<'a>), ConnectClientError> {
     let deadline = Deadline {
         expires_at,
         now: &Instant::now,
@@ -67,7 +121,7 @@ fn admit(
         make_nonblocking_cloexec(&descriptor)?;
         descriptor
     };
-    let mut stream = UnixStream::from(descriptor);
+    let stream = UnixStream::from(descriptor);
     deadline.remaining()?;
     // A backlog EAGAIN is not a pending Unix connect. Only EINPROGRESS permits
     // waiting; every other error drops this one socket without another attempt.
@@ -75,8 +129,7 @@ fn admit(
     complete_connect(&stream, result, deadline).map_err(ConnectClientError::ConnectFailed)?;
     require_same_effective_user(&stream)?;
     deadline.remaining()?;
-    let generation = exchange_hello(&mut stream, hello, deadline)?;
-    finish_admission(stream, generation, deadline)
+    Ok((stream, deadline))
 }
 
 #[cfg(target_os = "macos")]
@@ -115,26 +168,6 @@ fn complete_connect(
     }
     deadline.remaining()?;
     Ok(())
-}
-
-fn exchange_hello(
-    stream: &mut (impl Read + Write + AsFd),
-    hello: ClientHello,
-    deadline: Deadline<'_>,
-) -> Result<NonZeroU64, ConnectClientError> {
-    let mut transport = DeadlineIo { stream, deadline };
-    write_message(&mut transport, &LocalClientMessage::ClientHello(hello))?;
-    let response = read_message(&mut transport);
-    deadline.remaining()?;
-    match response? {
-        LocalClientMessage::ClientAccepted { generation } => Ok(generation),
-        LocalClientMessage::Rejected { reason } => Err(ConnectClientError::Rejected(reason)),
-        LocalClientMessage::ClientHello(_)
-        | LocalClientMessage::SessionStopRequest(_)
-        | LocalClientMessage::SessionStopResult(_)
-        | LocalClientMessage::ServerMetadataRequest
-        | LocalClientMessage::ServerMetadata(_) => Err(ConnectClientError::UnexpectedResponse),
-    }
 }
 
 fn finish_admission(

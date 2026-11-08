@@ -76,7 +76,7 @@ fn panel_split_preserves_every_compatible_precommit_and_keeps_the_carrier() -> T
     for (outcome, expected) in cases {
         let server_outcome = outcome.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 61)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -99,7 +99,7 @@ fn panel_split_preserves_every_compatible_precommit_and_keeps_the_carrier() -> T
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         match client.submit_workbench_panel_split(
             WorkbenchPanelSplitRequest::try_from(panel_split_command(7)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -145,7 +145,7 @@ fn panel_split_preserves_pending_and_every_created_terminal_outcome() -> TestRes
     for outcome in outcomes {
         let server_outcome = outcome.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 62)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -157,7 +157,7 @@ fn panel_split_preserves_pending_and_every_created_terminal_outcome() -> TestRes
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let actual = client.submit_workbench_panel_split(
             WorkbenchPanelSplitRequest::try_from(panel_split_command(7)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -495,7 +495,7 @@ fn invalid_split(
     response: WorkbenchResponse,
 ) -> Result<WorkbenchPanelSplitSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 63)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -504,7 +504,7 @@ fn invalid_split(
         write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_workbench_panel_split(
         WorkbenchPanelSplitRequest::try_from(panel_split_command(baseline)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -584,7 +584,7 @@ fn panel_split_wake_after_submission_retires_unknown_without_replay() -> TestRes
     let (submitted, wait_for_submission) = std::sync::mpsc::channel();
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 51)?;
         let WorkbenchRequest::Command(command) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
@@ -606,7 +606,7 @@ fn panel_split_wake_after_submission_retires_unknown_without_replay() -> TestRes
             .map_err(io::Error::other)?;
         wake_write.write_all(b"x")
     });
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let command = panel_split_command(7);
     let answer = client.submit_workbench_panel_split_with_wake(
         WorkbenchPanelSplitRequest::try_from(command).unwrap(),

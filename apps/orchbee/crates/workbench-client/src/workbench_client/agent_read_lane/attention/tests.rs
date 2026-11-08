@@ -19,9 +19,10 @@ fn token() -> String {
 }
 
 fn accept(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -62,7 +63,7 @@ fn attention_lane_aligns_a_moving_list_and_recovers_foreign_boot_cursor() {
             assert_eq!(stream.read(&mut [0])?, 0);
             Ok(())
         }).unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let client = LocalClient::connect(server.endpoint()).unwrap();
         let (origin, clock) = (client.origin(), client.operation_clock());
         drop(client);
         let lane = AgentReadLane::spawn(origin, clock.clone()).unwrap();
@@ -104,7 +105,7 @@ fn attention_lane_drop_interrupts_and_joins_blocked_exchange() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint()).unwrap();
     let (origin, clock) = (client.origin(), client.operation_clock());
     drop(client);
     let lane = AgentReadLane::spawn(origin, clock.clone()).unwrap();

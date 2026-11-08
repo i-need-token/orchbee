@@ -22,12 +22,8 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     // and reminder notices before Move captures its budget and attempts the lock.
     let safe_samples = 4;
 
-    let mut client = connect_with_ui_sample_expiry_clock(
-        server.endpoint(),
-        "test-cohort",
-        Arc::clone(&phase),
-        safe_samples,
-    )?;
+    let mut client =
+        connect_with_ui_sample_expiry_clock(server.endpoint(), Arc::clone(&phase), safe_samples)?;
     client.set_submission_deadline(Some(
         client.operation_clock().now() + Duration::from_secs(5),
     ));

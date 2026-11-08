@@ -184,6 +184,15 @@ impl LocalTerminalService {
         }
     }
 
+    /// The Session's started terminals, saturating at `u32::MAX`.
+    pub(crate) fn terminal_count(&self) -> u32 {
+        let coordinator = self
+            .coordinator
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        u32::try_from(coordinator.terminal_count()).unwrap_or(u32::MAX)
+    }
+
     pub(crate) fn workbench_session_matches(
         &self,
         session: &orchbee_workbench_protocol::SessionId,

@@ -82,7 +82,7 @@ fn rename_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
         };
         let server_outcome = outcome.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 51)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -103,7 +103,7 @@ fn rename_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let actual = client.submit_workbench_label_rename(
             WorkbenchLabelRenameRequest::try_from(rename_command(baseline)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -245,7 +245,7 @@ fn rename_retires_wrong_kind_and_correlation_without_replay() -> TestResult {
 #[test]
 fn rename_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 52)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -257,7 +257,7 @@ fn rename_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now();
     assert!(
         matches!(client.submit_workbench_label_rename(WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(),deadline),WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(WorkbenchLabelRenameNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
@@ -283,7 +283,7 @@ fn rename_partial_write_expiry_is_unknown_and_retires() -> TestResult {
     let mut frame = Vec::new();
     write_workbench_request(&mut frame, &WorkbenchRequest::Command(rename_command(7)))?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 53)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -295,7 +295,6 @@ fn rename_partial_write_expiry_is_unknown_and_retires() -> TestResult {
     let deadline = clock.origin + Duration::from_millis(90);
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::new(usize::MAX, 1),
@@ -313,7 +312,7 @@ fn rename_partial_write_expiry_is_unknown_and_retires() -> TestResult {
 fn rename_completed_response_past_caller_or_exchange_budget_retires_without_replay() -> TestResult {
     for caller_is_earlier in [true, false] {
         let server = FakeServer::start(|mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 55)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -338,7 +337,6 @@ fn rename_completed_response_past_caller_or_exchange_budget_retires_without_repl
         };
         let mut client = LocalClient::connect_with_submission_runtime(
             server.endpoint(),
-            COHORT,
             timeout,
             Box::new(clock),
             IoChunkLimits::UNBOUNDED,
@@ -369,7 +367,7 @@ fn invalid_rename(
     response: WorkbenchResponse,
 ) -> Result<WorkbenchLabelRenameSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 54)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -378,7 +376,7 @@ fn invalid_rename(
         write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_workbench_label_rename(
         WorkbenchLabelRenameRequest::try_from(rename_command(baseline)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -446,7 +444,7 @@ fn rename_retires_close_reasons_acceptance_and_control_envelopes() -> TestResult
 fn rename_retires_malformed_or_truncated_response_without_retry() -> TestResult {
     for truncated in [false, true] {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 56)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -461,7 +459,7 @@ fn rename_retires_malformed_or_truncated_response_without_retry() -> TestResult 
             }
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         assert!(
             matches!(client.submit_workbench_label_rename(WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(), deadline), WorkbenchLabelRenameSubmission::OutcomeUnknown { request_id, reason: WorkbenchLabelRenameOutcomeUnknownReason::Response(_) } if request_id.as_str() == FIRST_REQUEST_ID)
@@ -496,7 +494,7 @@ fn panel_rename_carrier_preserves_exact_target_and_keeps_tab_rejection_scope_clo
         }
         let sent = command.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 55)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -515,7 +513,7 @@ fn panel_rename_carrier_preserves_exact_target_and_keeps_tab_rejection_scope_clo
             .map_err(io::Error::other)?;
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let result = client.submit_workbench_label_rename(
             WorkbenchLabelRenameRequest::try_from(command).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -562,7 +560,7 @@ fn panel_rename_lost_reply_retires_without_replay() -> TestResult {
     );
     let sent = command.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 56)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -570,7 +568,7 @@ fn panel_rename_lost_reply_retires_without_replay() -> TestResult {
         );
         Ok(()) // Accepted bytes, then the response is lost.
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     assert!(matches!(
         client.submit_workbench_label_rename(
             WorkbenchLabelRenameRequest::try_from(command).unwrap(),

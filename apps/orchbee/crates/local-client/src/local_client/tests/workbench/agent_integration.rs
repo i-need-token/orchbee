@@ -36,7 +36,7 @@ fn run_job(
     let server = {
         let (log, interrupted) = (Arc::clone(&log), Arc::clone(&interrupted));
         FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 70)?;
             loop {
                 let request = match read_workbench_request(&mut stream) {
@@ -72,7 +72,7 @@ fn run_job(
             }
         })?
     };
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let mut ids = 0x100_u128..;
     let deadline = Instant::now() + budget;
     let end = client.agent_integration_job(

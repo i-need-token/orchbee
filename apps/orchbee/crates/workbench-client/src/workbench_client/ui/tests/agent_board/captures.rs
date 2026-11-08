@@ -10,7 +10,7 @@ use orchbee_agent_observation_protocol::{
     AgentResult, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, AgentSessionSummary,
     AgentTurnPhase, read_agent_request, write_agent_result,
 };
-use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_local_client_protocol::{LocalClientMessage, write_message};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 use std::io::{self, Read, Write};
 use std::num::NonZeroU64;
@@ -87,17 +87,8 @@ fn capture_rows() -> Vec<AgentSessionSummary> {
     ]
 }
 
-fn admit_fake_client<Stream: Read + Write>(
-    stream: &mut Stream,
-    expected_cohort: &str,
-) -> io::Result<()> {
-    let LocalClientMessage::ClientHello(hello) = read_message(stream).map_err(io::Error::other)?
-    else {
-        return Err(io::Error::other("expected ClientHello"));
-    };
-    if hello.cohort() != expected_cohort {
-        return Err(io::Error::other("unexpected ClientHello cohort"));
-    }
+fn admit_fake_client<Stream: Read + Write>(stream: &mut Stream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::expect_hello(stream)?;
     write_message(
         stream,
         &LocalClientMessage::ClientAccepted {
@@ -120,12 +111,11 @@ fn install_capture_read(
     initial_rows: Vec<AgentSessionSummary>,
     expected_rows: usize,
 ) {
-    const COHORT: &str = "agent-board-capture";
     let mut rows = Some(initial_rows);
     let server = crate::local_client::test_support::server::FakeServer::start_connections(
         2,
         move |index, mut stream| {
-            admit_fake_client(&mut stream, COHORT)?;
+            admit_fake_client(&mut stream)?;
             if index == 0 {
                 return Ok(());
             }
@@ -155,7 +145,7 @@ fn install_capture_read(
         },
     )
     .unwrap();
-    let client = crate::local_client::LocalClient::connect(server.endpoint(), COHORT).unwrap();
+    let client = crate::local_client::LocalClient::connect(server.endpoint()).unwrap();
     ui.set_agent_board_origin(client.origin());
     drop(client);
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, reply, request};
+use crate::cli::terminal_stream::tests::{SNAPSHOT, handshake, line, reply, request};
 use crate::cli::terminal_stream::{STEP, relay};
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_terminal_protocol::{
@@ -199,7 +199,7 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
         );
         result
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     eprintln!("history client connected elapsed={:?}", started.elapsed());
     let viewer = ViewerId::parse(&window.attachment_id.to_text())?;
     let gate = Gate {

@@ -124,9 +124,10 @@ fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
     FakeServer::start(move |stream| {
         let mut stream = Peer::primary_lane(stream);
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,
@@ -163,7 +164,7 @@ fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt
     let (task, result) = spawn_attempt(crate::workbench_client::UiWakeup::current(), move || {
         LocalClient::connect_before(
             &endpoint,
-            "test-cohort",
+            &orchbee_workbench_client::test_support::local_client::handshake::offer(),
             Instant::now() + Duration::from_secs(3),
         )
         .map(PreparedSelection::Connection)
@@ -353,13 +354,14 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     // Origin, destination, Agent snapshot, Agent watch, and both native attention lanes.
     let server = FakeServer::start_optional_connections(6, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream)
                 .inspect_err(|error| {
                     eprintln!("machine-local-workspace lane={index} stage=hello-read: {error:?}");
                 })
                 .map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,
@@ -528,11 +530,15 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         }
     })?;
     let deadline = Instant::now() + Duration::from_secs(3);
-    let client = LocalClient::connect_before(server.endpoint(), "test-cohort", deadline)
-        .inspect_err(|error| {
-            eprintln!("machine-local-workspace lane=0 stage=origin-connect: {error:?}");
-        })
-        .map_err(io::Error::other)?;
+    let client = LocalClient::connect_before(
+        server.endpoint(),
+        &orchbee_workbench_client::test_support::local_client::handshake::offer(),
+        deadline,
+    )
+    .inspect_err(|error| {
+        eprintln!("machine-local-workspace lane=0 stage=origin-connect: {error:?}");
+    })
+    .map_err(io::Error::other)?;
     // An admitted local origin is sufficient to reopen a native lane. Keep the
     // source inert; the replacement native UI owns both attention readers,
     // independently of sidebar visibility. Preserve the peer and original
@@ -655,9 +661,10 @@ fn serve_reused_carrier(
     ended: &std::sync::mpsc::Sender<&'static str>,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+    orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)?;
     assert!(matches!(
         read_message(&mut stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         &mut stream,
@@ -751,8 +758,12 @@ fn machine_local_workspace_selection_retains_the_reused_carrier_after_install() 
     let (mut manager, mut view, mut surface) = setup();
     let geometry = terminal_geometry(dimensions(), &view)?
         .ok_or_else(|| io::Error::other("test viewport presents no pane"))?;
-    let mut client = LocalClient::connect_before(server.endpoint(), "test-cohort", deadline)
-        .map_err(io::Error::other)?;
+    let mut client = LocalClient::connect_before(
+        server.endpoint(),
+        &orchbee_workbench_client::test_support::local_client::handshake::offer(),
+        deadline,
+    )
+    .map_err(io::Error::other)?;
     // Start the source exactly as the TUI does: bounded startup, then a drawable source.
     client.set_submission_deadline(Some(deadline));
     let mut source = WorkbenchClient::start(client, geometry)?;
@@ -845,9 +856,10 @@ fn machine_workspace_escape_cancels_pending_native_read_and_retains_current_surf
     let (sent, received) = std::sync::mpsc::sync_channel(1);
     let server = FakeServer::start(move |stream| {
         let mut stream = Peer::primary_lane(stream);
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,

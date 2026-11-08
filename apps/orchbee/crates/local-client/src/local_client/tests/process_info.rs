@@ -7,7 +7,7 @@ use orchbee_client_server_protocol::{
 #[test]
 fn process_info_accepts_only_a_record_and_retires_on_empty_without_retry() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 9)?;
         for outcome in [Outcome::Record(vec![0xa5; 64]), Outcome::Empty {}] {
             let ClientMessage::TerminalViewer(request) =
@@ -32,7 +32,7 @@ fn process_info_accepts_only_a_record_and_retires_on_empty_without_retry() -> Te
         );
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = |id| {
         Ok::<_, Box<dyn std::error::Error>>(TerminalViewerRequest::new(
             RequestId::parse(id)?,
@@ -67,7 +67,7 @@ fn process_info_wake_after_submission_retires_the_read_carrier_without_replay() 
     let (submitted, wait_for_submission) = std::sync::mpsc::channel();
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 51)?;
         let ClientMessage::TerminalViewer(request) =
             read_client_message(&mut stream).map_err(io::Error::other)?
@@ -85,7 +85,7 @@ fn process_info_wake_after_submission_retires_the_read_carrier_without_replay() 
             .map_err(io::Error::other)?;
         wake_write.write_all(b"x")
     });
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = TerminalViewerRequest::new(
         RequestId::parse(FIRST_REQUEST_ID)?,
         Action::ReadProcessInfo {

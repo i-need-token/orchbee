@@ -903,6 +903,7 @@ dependencies = [
  "orchbee-agent-observation-protocol",
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
+ "orchbee-connection-handshake",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-runtime",
@@ -1001,6 +1002,7 @@ dependencies = [
  "orchbee-agent-integration",
  "orchbee-agent-observation-protocol",
  "orchbee-client-server-protocol",
+ "orchbee-connection-handshake",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-workbench-protocol",
@@ -1012,6 +1014,7 @@ name = "orchbee-local-client-protocol"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "orchbee-connection-handshake",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
 ]
@@ -1041,6 +1044,7 @@ dependencies = [
  "exacl",
  "nix",
  "orchbee-color-themes",
+ "orchbee-connection-handshake",
  "orchbee-local-ipc",
  "orchbee-workbench-protocol",
  "process-wrap",
@@ -1119,6 +1123,7 @@ dependencies = [
  "orchbee-agent-observation-protocol",
  "orchbee-client-server-protocol",
  "orchbee-color-themes",
+ "orchbee-connection-handshake",
  "orchbee-local-client",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",

@@ -1,18 +1,20 @@
-//! Metadata is readable before cohort admission and never activates a Session.
+//! The Session's processes are readable with one `query` request that never enters the Client
+//! phase or activates a Session.
 #![cfg(windows)]
 use crate::peer_support as support;
-use orchbee_client_server_protocol::PROTOCOL_VERSION as TERMINAL_PROTOCOL_VERSION;
-use orchbee_local_client_protocol::{
-    ClientHello, LocalClientMessage, RejectionReason, ServerMetadata, ServerMode, read_message,
-    write_message,
+use orchbee_connection_handshake::{
+    AcceptorMessage, Build, ConnectionKind, EnvironmentName, Extensions, InitiatorMessage,
+    ProcessEntry, ProcessRole, ProcessState, ProductVersion, QueryResult, Rejection,
+    RejectionReason, RequestKind, encode_acceptor_frame, read_initiator_message,
 };
+use orchbee_local_client_protocol::{LocalClientMessage, write_message};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::Cohort;
 use serde_json::{Value, json};
 use std::{
     fs,
     io::{Read, Write},
-    num::{NonZeroU8, NonZeroU32},
+    num::NonZeroU32,
     process::{Command, Output},
     thread,
     time::{Duration, Instant},
@@ -155,10 +157,16 @@ fn peer(
         stream
             .set_write_timeout(Some(Duration::from_secs(10)))
             .unwrap();
-        assert_eq!(
-            read_message(&mut stream).unwrap(),
-            LocalClientMessage::ServerMetadataRequest
-        );
+        match read_initiator_message(&mut stream).unwrap() {
+            InitiatorMessage::Request(request) => {
+                assert_eq!(request.kind, RequestKind::Query);
+                assert_eq!(
+                    request.environment,
+                    orchbee_local_runtime::environment_name()
+                );
+            }
+            other => panic!("expected a query request, got {other:?}"),
+        }
         action(&mut stream);
         assert_eq!(
             stream.read(&mut [0]).unwrap(),
@@ -171,18 +179,43 @@ fn peer(
         );
     })
 }
-fn metadata(cohort: &str, protocol: u8) -> LocalClientMessage {
-    LocalClientMessage::ServerMetadata(
-        ServerMetadata::new(
-            "9.8.7-test",
-            ClientHello::new(cohort).unwrap(),
-            NonZeroU32::new(42).unwrap(),
-            NonZeroU8::new(protocol).unwrap(),
-            ServerMode::ManagedStopping,
-            0x8000_0007,
+fn answer(stream: &mut LocalStream, message: &AcceptorMessage) {
+    stream
+        .write_all(&encode_acceptor_frame(message).unwrap())
+        .unwrap();
+}
+/// A stopping Server holding three terminals, then the Worker it started.
+fn processes() -> AcceptorMessage {
+    let entry = |role, pid| ProcessEntry {
+        role,
+        product_version: ProductVersion::new("9.8.7-test").unwrap(),
+        build: Build::default(),
+        environment: orchbee_local_runtime::environment_name(),
+        pid: NonZeroU32::new(pid).unwrap(),
+        state: ProcessState::Stopping,
+        terminals: 3,
+        connections: Vec::new(),
+    };
+    AcceptorMessage::QueryResult(
+        QueryResult::new(
+            vec![
+                entry(ProcessRole::Server, 42),
+                entry(ProcessRole::Worker, 43),
+            ],
+            Some(false),
+            Extensions::new(),
         )
         .unwrap(),
     )
+}
+fn rejection(reason: RejectionReason, environment: &str) -> AcceptorMessage {
+    AcceptorMessage::Rejection(Rejection {
+        reason,
+        generations: ConnectionKind::ClientServer.supported_generations(),
+        product_version: ProductVersion::new("9.8.7-test").unwrap(),
+        environment: EnvironmentName::new(environment).unwrap(),
+        extensions: Extensions::new(),
+    })
 }
 
 #[test]
@@ -203,7 +236,6 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
         server["result"]["server"],
         json!({"state":"not-running","reason":"runtime-absent"})
     );
-    assert!(server["result"]["compatibility"]["restartRequired"].is_null());
     assert!(!fixture.0.join("runtime").exists());
     // A fresh environment's default runtime base reads as not started, not as a failed check.
     let mut command = fixture.command(&["config", "check", "--format=json"], None, None, &[]);
@@ -238,57 +270,27 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
 }
 
 #[test]
-fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
+fn every_reported_process_keeps_its_version_without_local_installation_facts() {
     let fixture = Fixture::private_cohort();
-    let matching = Cohort::load(
-        fixture.cohort_directory(),
-        Instant::now() + Duration::from_secs(10),
-    )
-    .unwrap()
-    .identity()
-    .to_owned();
-    for (cohort, protocol, compatible) in [
-        (matching.as_str(), TERMINAL_PROTOCOL_VERSION, true),
-        ("other-server", TERMINAL_PROTOCOL_VERSION, false),
-        (matching.as_str(), 2, false),
-    ] {
-        let reply = metadata(cohort, protocol);
-        let handle = peer(&fixture, move |stream| {
-            write_message(stream, &reply).unwrap()
-        });
-        let doc = success(
-            fixture.run(&["status", "server", "--format=json"]),
-            "server",
-        );
-        handle.join().unwrap();
-        let result = &doc["result"];
-        assert_eq!(result["server"]["version"], "9.8.7-test");
-        assert_eq!(result["server"]["processId"], 42);
-        assert_eq!(result["server"]["stopping"], true);
-        assert_eq!(
-            result["server"]["capabilities"]["unknownBits"],
-            0x8000_0000u32
-        );
-        assert_eq!(result["server"]["capabilities"]["liveHandoff"], false);
-        assert_eq!(result["compatibility"]["compatible"], compatible);
-        assert_eq!(result["compatibility"]["restartRequired"], !compatible);
-    }
+    // The Session's facts do not depend on this executable's installation files.
     fs::remove_file(fixture.cohort_directory().join("cohort.json")).unwrap();
-    let reply = metadata(&matching, TERMINAL_PROTOCOL_VERSION);
-    let handle = peer(&fixture, move |stream| {
-        write_message(stream, &reply).unwrap()
-    });
+    let handle = peer(&fixture, |stream| answer(stream, &processes()));
     let doc = success(
         fixture.run(&["status", "server", "--format=json"]),
         "server",
     );
     handle.join().unwrap();
+    let process = json!({"version":"9.8.7-test","state":"stopping","terminals":3});
+    let mut server = process.clone();
+    server["role"] = json!("server");
+    server["processId"] = json!(42);
+    let mut worker = process;
+    worker["role"] = json!("worker");
+    worker["processId"] = json!(43);
     assert_eq!(
-        doc["result"]["localCohort"],
-        json!({"state":"unavailable","reason":"missing"})
+        doc["result"]["server"],
+        json!({"state":"running","restartKeepsTerminals":false,"processes":[server, worker]})
     );
-    assert_eq!(doc["result"]["server"]["version"], "9.8.7-test");
-    assert!(doc["result"]["compatibility"]["restartRequired"].is_null());
     fs::write(
         fixture.cohort_directory().join("cohort.json"),
         b"{\"schemaVersion\":1}",
@@ -339,20 +341,9 @@ fn offline_client_json_identifies_a_sibling_proven_missing_by_open() {
     assert!(!text.contains("missingArtifact"));
     assert!(!text.contains(&server));
 
-    for (locale, expected) in [
-        (
-            "en_US.UTF-8",
-            format!(
-                "Required native sibling `{server}` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application. Run `orchbee status client --format json` for I/O details.\n"
-            ),
-        ),
-        (
-            "zh_CN.UTF-8",
-            format!(
-                "原生开发 cohort 缺少必需的同级文件 `{server}`。请重新构建完整 cohort 或重新安装完整应用。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
-            ),
-        ),
-    ] {
+    // The localized copy names the missing file and points at the JSON diagnostic.
+    let mut texts = Vec::new();
+    for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         let output = fixture.run_with_env(
             &["server", "start"],
             None,
@@ -361,8 +352,15 @@ fn offline_client_json_identifies_a_sibling_proven_missing_by_open() {
         );
         assert_eq!(output.status.code(), Some(4));
         assert!(output.stdout.is_empty());
-        assert_eq!(String::from_utf8(output.stderr).unwrap(), expected);
+        let text = String::from_utf8(output.stderr).unwrap();
+        assert!(text.contains(&format!("`{server}`")), "{text}");
+        assert!(
+            text.contains("orchbee status client --format json"),
+            "{text}"
+        );
+        texts.push(text);
     }
+    assert_ne!(texts[0], texts[1]);
     let failure = fixture.run(&["server", "start", "--format=json"]);
     let failure = document(failure, 4, "orchbee.cli.failure");
     assert_eq!(failure["failure"]["details"]["stage"], "cohort");
@@ -371,25 +369,50 @@ fn offline_client_json_identifies_a_sibling_proven_missing_by_open() {
 }
 
 #[test]
-fn old_rejections_and_wrong_or_partial_replies_are_not_absence() {
+fn old_or_foreign_sessions_and_wrong_or_partial_replies_are_not_absence() {
     let fixture = Fixture::new();
-    for reason in [
-        RejectionReason::WrongMessage,
-        RejectionReason::MalformedFrame,
-    ] {
-        let handle = peer(&fixture, move |stream| {
-            write_message(stream, &LocalClientMessage::Rejected { reason }).unwrap()
-        });
-        let doc = document(
-            fixture.run(&["status", "server", "--format=json"]),
-            6,
-            "orchbee.cli.failure",
-        );
-        handle.join().unwrap();
-        assert_eq!(doc["failure"]["kind"], "incompatible");
-    }
+    // A Session that predates the handshake refuses the frame with its old OBLC rejection.
     let handle = peer(&fixture, |stream| {
-        write_message(stream, &LocalClientMessage::ServerMetadataRequest).unwrap()
+        write_message(
+            stream,
+            &LocalClientMessage::Rejected {
+                reason: orchbee_local_client_protocol::RejectionReason::MalformedFrame,
+            },
+        )
+        .unwrap()
+    });
+    let doc = document(
+        fixture.run(&["status", "server", "--format=json"]),
+        6,
+        "orchbee.cli.failure",
+    );
+    handle.join().unwrap();
+    assert_eq!(doc["failure"]["kind"], "incompatible");
+    assert_eq!(doc["failure"]["details"]["reason"], "session-too-old");
+    assert!(doc["failure"]["details"].get("sessionVersion").is_none());
+    // A Session of another environment refuses the request.
+    let handle = peer(&fixture, |stream| {
+        answer(
+            stream,
+            &rejection(RejectionReason::EnvironmentMismatch, "orchbee"),
+        )
+    });
+    let doc = document(
+        fixture.run(&["status", "server", "--format=json"]),
+        6,
+        "orchbee.cli.failure",
+    );
+    handle.join().unwrap();
+    assert_eq!(
+        doc["failure"]["details"],
+        json!({"stage":"admission","reason":"environment-mismatch"})
+    );
+    // A reply to another request is not a query result.
+    let handle = peer(&fixture, |stream| {
+        answer(
+            stream,
+            &AcceptorMessage::ExitResult(orchbee_connection_handshake::ExitResult::default()),
+        )
     });
     let doc = document(
         fixture.run(&["status", "server", "--format=json"]),
@@ -423,7 +446,7 @@ fn old_rejections_and_wrong_or_partial_replies_are_not_absence() {
 }
 
 #[test]
-fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
+fn localized_text_lists_each_process_and_json_is_locale_independent() {
     let fixture = Fixture::new();
     let mut outputs = Vec::new();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
@@ -439,16 +462,10 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
     }
     assert_eq!(outputs[0], outputs[1]);
     for (locale, label) in [
-        ("en_US.UTF-8", "Server version"),
-        ("zh_CN.UTF-8", "Server 版本"),
+        ("en_US.UTF-8", "Restart keeps terminals"),
+        ("zh_CN.UTF-8", "重启保留终端"),
     ] {
-        let reply = metadata(
-            "unsafe\x1b]52;c;bad\x07\r\ncohort",
-            TERMINAL_PROTOCOL_VERSION,
-        );
-        let handle = peer(&fixture, move |stream| {
-            write_message(stream, &reply).unwrap()
-        });
+        let handle = peer(&fixture, |stream| answer(stream, &processes()));
         let output = Command::new(fixture.executable())
             .args(["status", "server"])
             .env("LC_ALL", locale)
@@ -459,9 +476,9 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
         handle.join().unwrap();
         assert!(output.status.success());
         let text = String::from_utf8(output.stdout).unwrap();
-        assert!(text.contains(label));
+        assert!(text.contains(label), "{text}");
         assert!(!text.contains(['\x1b', '\x07', '\r']));
-        assert!(text.contains("9.8.7-test"));
+        assert_eq!(text.matches("9.8.7-test").count(), 2, "{text}");
     }
 }
 

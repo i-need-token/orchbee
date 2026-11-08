@@ -131,9 +131,12 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
         let selected = record.clone();
         let source = member.clone();
         let server = FakeServer::start(move |mut stream| {
+            orchbee_workbench_client::test_support::local_client::handshake::answer_offer(
+                &mut stream,
+            )?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -244,7 +247,7 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
             assert_eq!(stream.read(&mut [0; 1])?, 0);
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), "editor-cli-test")?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let mut signals = ArmedSignals::arm_interrupts()?;
         let target = Target::Id(id(if mode == 1 { 10 } else { 9 }));
         let answer = execute_admitted(

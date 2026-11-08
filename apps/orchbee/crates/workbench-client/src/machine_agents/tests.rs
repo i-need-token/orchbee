@@ -78,9 +78,10 @@ fn state(member: &TerminalPresentationId) -> TerminalAgentStateRow {
     }
 }
 pub(crate) fn accept(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -218,8 +219,12 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
 fn agent_checkpoint_joins_exact_primary_and_child_without_terminal_effects() -> io::Result<()> {
     let peer = peer(0)?;
     let deadline = Instant::now() + Duration::from_secs(3);
-    let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-        .map_err(io::Error::other)?;
+    let mut client = LocalClient::connect_before(
+        peer.endpoint(),
+        &crate::local_client::test_support::handshake::offer(),
+        deadline,
+    )
+    .map_err(io::Error::other)?;
     let rows = read(
         &mut client,
         deadline,
@@ -248,8 +253,12 @@ fn agent_checkpoint_rejects_partial_membership_and_spliced_report_revisions() ->
     for bad in [1, 2, 11, 12, 13] {
         let peer = peer(bad)?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &crate::local_client::test_support::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         assert!(
             read(
                 &mut client,
@@ -325,8 +334,12 @@ fn agent_checkpoint_cancel_interrupts_real_inflight_read_without_followup() -> i
         Ok(())
     })?;
     let deadline = Instant::now() + Duration::from_secs(3);
-    let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-        .map_err(io::Error::other)?;
+    let mut client = LocalClient::connect_before(
+        peer.endpoint(),
+        &crate::local_client::test_support::handshake::offer(),
+        deadline,
+    )
+    .map_err(io::Error::other)?;
     let cancel = Arc::new(OwnedCancellation::new().unwrap());
     let worker = cancel.clone();
     let task = thread::spawn(move || read(&mut client, deadline, worker.borrow()));
@@ -490,8 +503,12 @@ fn agent_checkpoint_metadata_requires_overlapping_revisions_exact_binding_and_ma
     for bad in [3, 4, 5, 6, 7, 9] {
         let peer = peer(bad)?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &crate::local_client::test_support::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         assert!(
             read(
                 &mut client,
@@ -511,8 +528,12 @@ fn agent_checkpoint_metadata_uses_authority_guards_without_losing_independent_to
     for bad in [0, 8] {
         let peer = peer(bad)?;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
-            .map_err(io::Error::other)?;
+        let mut client = LocalClient::connect_before(
+            peer.endpoint(),
+            &crate::local_client::test_support::handshake::offer(),
+            deadline,
+        )
+        .map_err(io::Error::other)?;
         let rows = read(
             &mut client,
             deadline,

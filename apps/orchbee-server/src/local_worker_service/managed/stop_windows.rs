@@ -105,7 +105,7 @@ pub(super) fn run(
         )?);
         local_client_service::start_managed_windows(
             owners.session.client_socket_path(),
-            cohort,
+            local_client_service::ServerIdentity::local(Some(cohort), owners.worker.id()),
             Arc::clone(&owners.terminals),
             Arc::clone(&owners.agents),
             Arc::clone(&shutdown),

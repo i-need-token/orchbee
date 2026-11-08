@@ -163,8 +163,10 @@ fn accept_bounded(listener: &UnixListener) -> UnixStream {
 
 /// OBLC admission: read the hello, answer `ClientAccepted`, return the stream.
 fn admit(stream: &UnixStream) {
+    orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut &*stream)
+        .unwrap();
     match read_message(&mut &*stream) {
-        Ok(LocalClientMessage::ClientHello(_)) => {}
+        Ok(LocalClientMessage::ClientHello) => {}
         other => panic!("peer expected ClientHello, got {other:?}"),
     }
     write_message(

@@ -12,6 +12,7 @@ nix = { workspace = true, features = ["fs", "user"] }
 toml.workspace = true
 toml_edit.workspace = true
 orchbee-color-themes = { path = "../color-themes" }
+orchbee-connection-handshake = { path = "../connection-handshake" }
 orchbee-local-ipc = { path = "../local-ipc" }
 orchbee-workbench-protocol = { path = "../workbench-protocol" }
 serde.workspace = true

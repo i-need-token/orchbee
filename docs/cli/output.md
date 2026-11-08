@@ -60,7 +60,10 @@ Each schema defines `unsupported` as a closed object with only required `kind`, 
 Neither represents an unsupported platform. An unsupported command emits a failure with
 `stage: "platform"`, `reason: "unsupported-platform"`, and exit code `4`. A command surface that
 a release build withholds emits `stage: "release"`, `reason: "withheld-in-release"`, a closed
-`feature` token, and exit code `4`.
+`feature` token, and exit code `4`. A Session connection the handshake refuses emits kind
+`incompatible`, `stage: "admission"`, a closed `reason` (`client-too-old`, `session-too-old`,
+`environment-mismatch`, or `fingerprint-mismatch`), and exit code `6`; the two version reasons add
+the Client's `clientVersion` and, when the Session stated one, its `sessionVersion`.
 
 ## Exit codes
 
@@ -75,7 +78,7 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 | `3`   | Refused         | The authority definitively declined: not found, ambiguous, denied, rejected, blocked, or conflicting; an activation refusal can follow partial runtime effects rather than promising nothing was applied        |
 | `4`   | Unavailable     | No reachable service, capacity exhausted, or the current platform or build cannot serve the request                                                                                                             |
 | `5`   | Broken channel  | Transport loss or a protocol violation                                                                                                                                                                          |
-| `6`   | Incompatible    | Protocol, cohort, or version mismatch                                                                                                                                                                           |
+| `6`   | Incompatible    | Protocol, environment, or version mismatch                                                                                                                                                                      |
 | `7`   | Cancelled       | The operation was accepted and ended in a cancelled terminal result, or a declared deadline elapsed — including a `terminal send` input source that exhausted its acquisition budget before any request existed |
 | `8`   | Unknown outcome | An effect may have been applied and cannot be confirmed                                                                                                                                                         |
 | `9`   | Failed          | The operation was accepted and ended in a failed terminal result                                                                                                                                                |

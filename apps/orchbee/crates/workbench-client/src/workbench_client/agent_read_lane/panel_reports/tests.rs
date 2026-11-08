@@ -28,9 +28,10 @@ fn scope() -> Scope {
 }
 use orchbee_workbench_protocol::SessionId;
 fn accept(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -80,7 +81,7 @@ fn panel_read_lane_joins_guards_and_refuses_either_revision_fence_or_wrong_bindi
             }
             assert_eq!(stream.read(&mut [0])?,0); Ok(())
         }).unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let client = LocalClient::connect(server.endpoint()).unwrap();
         let (origin, clock) = (client.origin(), client.operation_clock());
         drop(client);
         let lane = AgentReadLane::spawn(origin, clock.clone()).unwrap();
@@ -134,7 +135,7 @@ fn report_lane_drop_interrupts_required_read_and_joins() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint()).unwrap();
     let (origin, clock) = (client.origin(), client.operation_clock());
     drop(client);
     let lane = AgentReadLane::spawn(origin, clock.clone()).unwrap();

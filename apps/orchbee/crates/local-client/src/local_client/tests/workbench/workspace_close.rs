@@ -27,7 +27,7 @@ fn workspace_close_exchange_order_produces_the_typed_close_status_resume_closed_
     let resume_request = resume(1);
     let second_read = close_read();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 60)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -81,7 +81,7 @@ fn workspace_close_exchange_order_produces_the_typed_close_status_resume_closed_
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
     let request = WorkbenchWorkspaceCloseRequest::try_from(close_command(7))
         .expect("workspace.close fixture");
@@ -506,7 +506,7 @@ fn workspace_close_family_prewrite_deadlines_preserve_the_carrier_and_write_noth
 {
     for family in [Family::Command, Family::Read, Family::Resume] {
         let server = FakeServer::start(|mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 62)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -518,7 +518,7 @@ fn workspace_close_family_prewrite_deadlines_preserve_the_carrier_and_write_noth
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now();
         match family {
             Family::Command => assert!(matches!(
@@ -559,7 +559,7 @@ fn workspace_close_broken_peer_marks_unknown_and_never_replays() -> TestResult {
     for family in [Family::Command, Family::Read, Family::Resume] {
         let expected = family.request();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 63)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -568,7 +568,7 @@ fn workspace_close_broken_peer_marks_unknown_and_never_replays() -> TestResult {
             // Drop without answering: the exchange outcome is unknowable.
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         match family {
             Family::Command => assert!(matches!(
@@ -775,7 +775,7 @@ fn exchange<Output>(
     submit: impl FnOnce(&mut LocalClient) -> Output,
 ) -> Result<Output, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 60)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -796,7 +796,7 @@ fn exchange<Output>(
             .map_err(io::Error::other)
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = submit(&mut client);
     assert_eq!(
         client.generation().map(NonZeroU64::get),

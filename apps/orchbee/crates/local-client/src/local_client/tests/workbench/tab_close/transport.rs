@@ -82,7 +82,7 @@ fn require_failure(submission: Submission, check_reason: impl FnOnce(WorkbenchTa
 fn close_family_prewrite_deadlines_preserve_the_mixed_carrier_and_write_nothing() -> TestResult {
     for family in FAMILIES {
         let server = FakeServer::start(|mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 62)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -94,7 +94,7 @@ fn close_family_prewrite_deadlines_preserve_the_mixed_carrier_and_write_nothing(
             )
             .map_err(io::Error::other)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now();
         assert!(
             matches!(require_not_submitted(family.submit(&mut client,deadline)),WorkbenchTabCloseNotSubmitted::RequestNotSubmitted(error) if error.kind()==io::ErrorKind::TimedOut)
@@ -116,7 +116,7 @@ fn close_family_partial_handoff_expires_and_retires_without_replay() -> TestResu
         let mut frame = Vec::new();
         write_workbench_request(&mut frame, &family.request())?;
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 63)?;
             let mut received = Vec::new();
             stream.read_to_end(&mut received)?;
@@ -129,7 +129,6 @@ fn close_family_partial_handoff_expires_and_retires_without_replay() -> TestResu
         let deadline = clock.origin + Duration::from_millis(90);
         let mut client = LocalClient::connect_with_submission_runtime(
             server.endpoint(),
-            COHORT,
             SERVER_GUARD_TIMEOUT,
             Box::new(clock),
             IoChunkLimits::new(usize::MAX, 1),
@@ -155,7 +154,7 @@ fn close_family_complete_response_cannot_extend_caller_or_exchange_deadline() ->
     for family in FAMILIES {
         for caller_is_earlier in [true, false] {
             let server = FakeServer::start(move |mut stream| {
-                expect_hello(&mut stream, COHORT)?;
+                handshake::expect_hello(&mut stream)?;
                 admit(&mut stream, 64)?;
                 assert_eq!(
                     read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -180,7 +179,6 @@ fn close_family_complete_response_cannot_extend_caller_or_exchange_deadline() ->
             };
             let mut client = LocalClient::connect_with_submission_runtime(
                 server.endpoint(),
-                COHORT,
                 timeout,
                 Box::new(clock),
                 IoChunkLimits::UNBOUNDED,
@@ -226,7 +224,7 @@ fn close_family_direction_size_duplicate_and_generation_corruption_retire() -> T
                 continue;
             }
             let server = FakeServer::start(move |mut stream| {
-                expect_hello(&mut stream, COHORT)?;
+                handshake::expect_hello(&mut stream)?;
                 admit(&mut stream, 65)?;
                 assert_eq!(
                     read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -280,7 +278,7 @@ fn close_family_direction_size_duplicate_and_generation_corruption_retire() -> T
                 }
                 require_retirement(&mut stream)
             })?;
-            let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+            let mut client = LocalClient::connect(server.endpoint())?;
             let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
             require_failure(family.submit(&mut client, deadline), |reason| {
                 assert!(

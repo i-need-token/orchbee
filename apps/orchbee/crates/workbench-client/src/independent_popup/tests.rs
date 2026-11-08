@@ -53,9 +53,10 @@ impl Driver {
     }
 }
 fn admit(stream: &mut LocalStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -331,7 +332,7 @@ fn popup_lane_trace(editor: bool) -> TestResult {
         assert_eq!(stream.read(&mut [0; 1])?, 0);
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "popup-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let origin = client.origin();
     drop(client);
     let mut driver = Driver::new(clock());
@@ -448,7 +449,7 @@ fn popup_lane_trace(editor: bool) -> TestResult {
 #[test]
 fn popup_open_names_a_surface_that_cannot_fit_the_smallest_frame() -> TestResult {
     let server = FakeServer::start_connections(1, |_, mut stream| admit(&mut stream))?;
-    let client = LocalClient::connect(server.endpoint(), "popup-space-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let origin = client.origin();
     drop(client);
     let mut driver = Driver::new(clock());
@@ -496,7 +497,7 @@ fn popup_shutdown_interrupts_open_without_replay_and_known_refusal_allows_retry(
             assert_eq!(stream.read(&mut [0; 1])?, 0);
             Ok(())
         })?;
-        let client = LocalClient::connect(server.endpoint(), "popup-cancel-test")?;
+        let client = LocalClient::connect(server.endpoint())?;
         let origin = client.origin();
         drop(client);
         let mut driver = Driver::new(clock());

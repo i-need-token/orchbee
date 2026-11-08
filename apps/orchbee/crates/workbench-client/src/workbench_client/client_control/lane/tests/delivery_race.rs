@@ -145,7 +145,7 @@ fn sample_change_during_control_transfer_preserves_completion_and_next_command()
         }
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();

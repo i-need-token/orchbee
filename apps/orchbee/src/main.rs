@@ -70,7 +70,7 @@ use std::{
 
 use invocation::{Invocation, parse_selected_request};
 use localization::{Locale, select_locale};
-use presentation::{ProcessResult, present};
+use presentation::present;
 
 // Keep the additive shell integration seam type-checked without making it an invocation route.
 #[cfg(any(unix, windows))]
@@ -99,17 +99,7 @@ fn main() -> ExitCode {
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         return match local_startup::run(locale, *mouse) {
             Ok(()) => ExitCode::SUCCESS,
-            Err(failure) => emit(
-                cli::process_result(
-                    ProcessResult {
-                        status: 1,
-                        stdout: "",
-                        stderr: locale.startup_failure(failure),
-                    },
-                    locale,
-                ),
-                locale,
-            ),
+            Err(failure) => emit(cli::startup_failure(&failure, locale), locale),
         };
     }
     emit(

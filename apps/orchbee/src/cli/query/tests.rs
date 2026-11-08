@@ -249,8 +249,9 @@ fn session_socket_drops_before_finish_arbitration() {
 
     let (eof, eof_rx) = std::sync::mpsc::channel();
     let server = orchbee_workbench_client::test_support::local_client::server::FakeServer::start(move |mut stream| {
+            orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)?;
             match read_message(&mut stream).map_err(std::io::Error::other)? {
-                LocalClientMessage::ClientHello(_) => {}
+                LocalClientMessage::ClientHello => {}
                 _ => {
                     return Err(std::io::Error::other("expected ClientHello"));
                 }
@@ -278,8 +279,7 @@ fn session_socket_drops_before_finish_arbitration() {
             Ok(())
         })
         .expect("start fake server");
-    let client =
-        LocalClient::connect(server.endpoint(), "test-cohort").expect("connect admitted client");
+    let client = LocalClient::connect(server.endpoint()).expect("connect admitted client");
     let armed = AgentSignals::arm_interrupts().expect("arm interrupts");
     let watch = OrderWatch {
         inner: armed,
@@ -310,4 +310,91 @@ fn session_socket_drops_before_finish_arbitration() {
         "the exchange completed before finish"
     );
     server.finish().expect("peer finished");
+}
+
+/// A handshake refusal keeps exit 6 and the shared refusal copy; a generation refusal names both
+/// versions in the failure document, which stays schema-bound.
+#[test]
+fn handshake_refusals_are_incompatible_with_their_reason_and_versions() {
+    use orchbee_connection_handshake::{
+        ConnectionKind, EnvironmentName, Extensions, ProductVersion, Rejection, RejectionReason,
+    };
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.cli.failure.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    let refused = |reason| {
+        classify_connect(crate::local_client::LocalClientConnectError::Admission(
+            ConnectClientError::Refused(Box::new(Rejection {
+                reason,
+                generations: ConnectionKind::ClientServer.supported_generations(),
+                product_version: ProductVersion::new("9.0.0").unwrap(),
+                environment: EnvironmentName::new("orchbee").unwrap(),
+                extensions: Extensions::new(),
+            })),
+        ))
+    };
+    let client = crate::local_client::CLIENT_VERSION;
+    for (failure, reason, session) in [
+        (
+            refused(RejectionReason::InitiatorTooOld),
+            "client-too-old",
+            Some("9.0.0"),
+        ),
+        (
+            refused(RejectionReason::InitiatorTooNew),
+            "session-too-old",
+            Some("9.0.0"),
+        ),
+        (
+            classify_connect(crate::local_client::LocalClientConnectError::Admission(
+                ConnectClientError::PredatesHandshake,
+            )),
+            "session-too-old",
+            None,
+        ),
+        (
+            refused(RejectionReason::EnvironmentMismatch),
+            "environment-mismatch",
+            None,
+        ),
+        (
+            refused(RejectionReason::FingerprintMismatch),
+            "fingerprint-mismatch",
+            None,
+        ),
+    ] {
+        assert_eq!(failure.kind.exit_code(), 6);
+        let details = failure.details.clone().unwrap();
+        assert_eq!(details["reason"], reason);
+        assert_eq!(
+            details.get("sessionVersion").and_then(|v| v.as_str()),
+            session
+        );
+        assert_eq!(
+            details.contains_key("clientVersion"),
+            reason.ends_with("-too-old")
+        );
+        for locale in [
+            crate::localization::Locale::EnUs,
+            crate::localization::Locale::ZhCn,
+        ] {
+            let text = crate::cli_text::CliText::new(locale).cli_failure(&failure);
+            if reason.ends_with("-too-old") {
+                assert!(text.contains(client), "{text}");
+            }
+            if let Some(session) = session {
+                assert!(text.contains(session), "{text}");
+            }
+            assert!(!text.contains("cohort"), "{text}");
+        }
+        let output = crate::cli::failure_output(
+            failure,
+            Some(crate::invocation::OutputFormat::Json),
+            crate::localization::Locale::EnUs,
+        );
+        assert_eq!(output.status, 6);
+        validator
+            .validate(&serde_json::from_slice(&output.stdout).unwrap())
+            .unwrap();
+    }
 }

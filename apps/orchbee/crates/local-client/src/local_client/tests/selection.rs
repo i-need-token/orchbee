@@ -78,7 +78,7 @@ fn selection_replies_cross_the_local_carrier_without_retiring_or_replaying() -> 
     cases.push((actions().remove(5), Outcome::Record(vec![0x5a; 64])));
     let expected = cases.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 9)?;
         for (action, outcome) in expected {
             let ClientMessage::TerminalViewer(request) =
@@ -99,7 +99,7 @@ fn selection_replies_cross_the_local_carrier_without_retiring_or_replaying() -> 
         assert_eq!(stream.read(&mut [0])?, 0, "no extra selection request");
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     for (index, (action, expected)) in cases.into_iter().enumerate() {
         let result = client.submit_terminal_viewer(TerminalViewerRequest::new(
             RequestId::parse(&format!("{:032x}", index + 1))?,
@@ -122,7 +122,7 @@ fn selection_wrong_reply_pairings_retire_without_replay() -> TestResult {
         };
         let expected = action.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 9)?;
             let ClientMessage::TerminalViewer(request) =
                 read_client_message(&mut stream).map_err(io::Error::other)?
@@ -145,7 +145,7 @@ fn selection_wrong_reply_pairings_retire_without_replay() -> TestResult {
             );
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let request = TerminalViewerRequest::new(RequestId::parse(FIRST_REQUEST_ID)?, action);
         assert!(matches!(
             client.submit_terminal_viewer(request.clone()),

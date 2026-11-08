@@ -30,9 +30,10 @@ fn canonical_reply_is_correlated_and_unknown_reply_drops_connection_without_repl
     ] {
         let (closed, client_closed) = std::sync::mpsc::sync_channel(0);
         let server = FakeServer::start_connections(1, move |_, mut stream| {
+            crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -96,7 +97,7 @@ fn canonical_reply_is_correlated_and_unknown_reply_drops_connection_without_repl
             Ok(())
         })
         .unwrap();
-        let mut client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let mut client = LocalClient::connect(server.endpoint()).unwrap();
         let result =
             client.set_split_ratio(command(), Instant::now() + Duration::from_secs(1), None);
         if case == "commit" {

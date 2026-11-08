@@ -37,9 +37,63 @@ impl Locale {
         }
     }
 
-    pub const fn startup_failure(
+    /// The startup failure copy; a generation refusal names both versions, leaving out one the
+    /// Session did not state.
+    pub fn startup_failure(
         self,
-        failure: crate::startup_status::StartupFailure,
+        failure: &crate::startup_status::StartupFailure,
+    ) -> std::borrow::Cow<'static, str> {
+        use crate::startup_status::{RefusedVersions, StartupFailure};
+        // The Session's version, when it stated one, follows its name in parentheses.
+        let session = |versions: &RefusedVersions, name: &str| match (self, &versions.session) {
+            (Self::EnUs, Some(version)) => format!("{name} ({version})"),
+            (Self::ZhCn, Some(version)) => format!("{name}（{version}）"),
+            (_, None) => name.to_owned(),
+        };
+        match (self, failure) {
+            (Self::EnUs, StartupFailure::ClientTooOld(versions)) => format!(
+                "Orchbee {} is too old for {}. Update Orchbee, then try again.\n",
+                versions.client,
+                session(versions, "the running Session")
+            )
+            .into(),
+            (Self::ZhCn, StartupFailure::ClientTooOld(versions)) => format!(
+                "Orchbee {} 版本过旧，无法加入{}。请更新 Orchbee 后重试。\n",
+                versions.client,
+                session(versions, "正在运行的会话")
+            )
+            .into(),
+            (Self::EnUs, StartupFailure::SessionTooOld(versions)) => format!(
+                "{} is too old for Orchbee {}. Stop it with `orchbee server stop`, which ends its terminals, then try again.\n",
+                session(versions, "The running Session"),
+                versions.client
+            )
+            .into(),
+            (Self::ZhCn, StartupFailure::SessionTooOld(versions)) => format!(
+                "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server stop` 停止它（其中的终端会随之结束），然后重试。\n",
+                session(versions, "正在运行的会话"),
+                versions.client
+            )
+            .into(),
+            (Self::EnUs, StartupFailure::OtherEnvironment) => {
+                "This copy of Orchbee belongs to another environment and cannot join the running Session.\n".into()
+            }
+            (Self::ZhCn, StartupFailure::OtherEnvironment) => {
+                "此 Orchbee 属于另一个环境，无法加入正在运行的会话。\n".into()
+            }
+            (Self::EnUs, StartupFailure::DevelopmentBuildMismatch) => {
+                "This development build cannot join the running Session. Stop it with `orchbee server stop`, then try again.\n".into()
+            }
+            (Self::ZhCn, StartupFailure::DevelopmentBuildMismatch) => {
+                "此开发构建无法加入正在运行的会话。请运行 `orchbee server stop` 停止它，然后重试。\n".into()
+            }
+            (locale, failure) => locale.startup_failure_text(failure).into(),
+        }
+    }
+
+    const fn startup_failure_text(
+        self,
+        failure: &crate::startup_status::StartupFailure,
     ) -> &'static str {
         use crate::startup_status::StartupFailure;
         match (self, failure) {
@@ -66,10 +120,10 @@ impl Locale {
                 "Orchbee 的标准输入和输出需要连接同一交互终端，并提供有效尺寸。\n"
             }
             (Self::EnUs, StartupFailure::Cohort) => {
-                "The native development cohort is missing, changed, or invalid. Stage all four binaries together before running orchbee.\n"
+                "This Orchbee installation is missing, changed, or invalid. Stage all four binaries together before running orchbee.\n"
             }
             (Self::ZhCn, StartupFailure::Cohort) => {
-                "原生开发 cohort 缺失、已修改或无效。请将四个二进制一起暂存后再运行 orchbee。\n"
+                "此 Orchbee 安装缺失、已修改或无效。请将四个二进制一起暂存后再运行 orchbee。\n"
             }
             (Self::EnUs, StartupFailure::Runtime) => {
                 "The local session runtime failed its ownership or permission checks.\n"
@@ -90,12 +144,14 @@ impl Locale {
                     "本地会话需要显式恢复。未启动替代进程。\n"
                 }
             }
-            (Self::EnUs, StartupFailure::Incompatible) => {
-                "The running local session is incompatible with this development cohort.\n"
-            }
-            (Self::ZhCn, StartupFailure::Incompatible) => {
-                "正在运行的本地会话与当前开发 cohort 不兼容。\n"
-            }
+            // Rendered with their versions above.
+            (
+                _,
+                StartupFailure::ClientTooOld(_)
+                | StartupFailure::SessionTooOld(_)
+                | StartupFailure::OtherEnvironment
+                | StartupFailure::DevelopmentBuildMismatch,
+            ) => "",
             (Self::EnUs, StartupFailure::Admission) => {
                 "The local session could not admit this Client connection.\n"
             }

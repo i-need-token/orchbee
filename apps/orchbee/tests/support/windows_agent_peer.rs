@@ -370,9 +370,11 @@ pub(super) fn peer_with_budget(
         stream
             .set_write_timeout(Some(Duration::from_secs(10)))
             .unwrap();
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)
+            .unwrap();
         assert!(matches!(
             read_message(&mut stream).unwrap(),
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,

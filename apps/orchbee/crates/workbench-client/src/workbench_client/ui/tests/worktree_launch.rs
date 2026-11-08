@@ -1037,9 +1037,10 @@ fn pending_removal_status_is_read_again_with_bounded_backoff_until_it_settles() 
     let operation = plan.operation_id.clone();
     let (reads, observed) = mpsc::channel();
     let server = FakeServer::start_connections(2, move |index, mut stream| {
+        crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,
@@ -1079,7 +1080,7 @@ fn pending_removal_status_is_read_again_with_bounded_backoff_until_it_settles() 
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "worktree-observation-test").unwrap();
+    let client = LocalClient::connect(server.endpoint()).unwrap();
     let (mut ui, _mailbox, _clock, elapsed) =
         super::move_membership::ready_ui_with_snapshot(origin.cache.canonical_snapshot().clone());
     ui.worktrees.set_origin(client.origin());

@@ -19,9 +19,8 @@ use std::{
     time::Duration,
 };
 
-use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
-
-use super::super::{ConnectionSlots, handle_candidate, serve};
+use super::super::{ConnectionSlots, ServerIdentity, handle_candidate, serve};
+use super::handshake_client;
 use crate::{
     agent::{
         AgentObservationEvent, AgentTransition, RawAttentionRequest, RawExecutionLocation,
@@ -180,8 +179,8 @@ impl AdmittedClient {
 }
 
 /// Opens a real `UnixStream` pair, spawns `handle_candidate`, and completes
-/// the OBLC admission handshake; the returned stream is ready for OBAP.
-pub(crate) fn admitted(agents: Arc<AgentService>, cohort: &str) -> io::Result<AdmittedClient> {
+/// the `OBHS` handshake and OBLC Client phase; the returned stream is ready for OBAP.
+pub(crate) fn admitted(agents: Arc<AgentService>) -> io::Result<AdmittedClient> {
     let terminals = terminals();
     let workbench = workbench(&terminals);
     let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
@@ -190,29 +189,15 @@ pub(crate) fn admitted(agents: Arc<AgentService>, cohort: &str) -> io::Result<Ad
     let (mut client, server) = UnixStream::pair()?;
     client.set_read_timeout(Some(IO_BUDGET))?;
     client.set_write_timeout(Some(IO_BUDGET))?;
-    let expected_cohort = cohort.to_string();
+    let identity = ServerIdentity::local(None, None);
     let handler = thread::Builder::new()
         .name("orchbee-test-agent-candidate".to_owned())
         .spawn(move || {
             handle_candidate(
-                server,
-                &registry,
-                &expected_cohort,
-                slot,
-                &terminals,
-                &workbench,
-                &agents,
+                server, &registry, &identity, slot, &terminals, &workbench, &agents,
             );
         })?;
-    write_message(
-        &mut client,
-        &LocalClientMessage::ClientHello(ClientHello::new(cohort).map_err(io::Error::other)?),
-    )
-    .map_err(io::Error::other)?;
-    match read_message(&mut client).map_err(io::Error::other)? {
-        LocalClientMessage::ClientAccepted { .. } => {}
-        _other => return Err(io::Error::other("local client admission was not accepted")),
-    }
+    handshake_client::admit(&mut client)?;
     Ok(AdmittedClient {
         stream: client,
         handler,
@@ -224,7 +209,6 @@ pub(crate) fn admitted(agents: Arc<AgentService>, cohort: &str) -> io::Result<Ad
 /// guard. This is the fixture recovery's CLI subprocess tests reuse.
 pub(crate) fn listen(
     endpoint: &Path,
-    cohort: &str,
     agents: Arc<AgentService>,
 ) -> io::Result<JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
@@ -232,7 +216,7 @@ pub(crate) fn listen(
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
-    let expected_cohort: Arc<str> = Arc::from(cohort);
+    let identity = Arc::new(ServerIdentity::local(None, None));
     let terminals = terminals();
     let workbench = Arc::new(workbench(&terminals));
     thread::Builder::new()
@@ -242,7 +226,7 @@ pub(crate) fn listen(
                 listener,
                 registry,
                 connection_slots,
-                expected_cohort,
+                identity,
                 terminals,
                 workbench,
                 agents,

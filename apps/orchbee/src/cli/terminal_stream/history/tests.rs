@@ -1,7 +1,7 @@
 use super::*;
 use crate::cli::terminal_stream::{
     STEP,
-    tests::{COHORT, SNAPSHOT, handshake, request},
+    tests::{SNAPSHOT, handshake, request},
 };
 use orchbee_terminal_protocol::decode_terminal_text_frame;
 use orchbee_workbench_client::test_support::local_client::server::FakeServer;
@@ -20,7 +20,7 @@ fn absent_history_does_not_pause_live_projection_or_acquire_history_demand() -> 
             );
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let mut frame = decode_terminal_text_frame(SNAPSHOT)?;
         frame.alternate_screen = alternate;
         frame.scrollback_rows = retained;

@@ -17,10 +17,8 @@ fn round_trip(message: LocalClientMessage) {
 #[test]
 fn stop_control_round_trips_all_closed_states_and_rejects_ambiguous_frames() {
     let id = StopId::new([1; 16]).unwrap();
-    let hello = ClientHello::new("cohort").unwrap();
     for action in [StopAction::Start, StopAction::Status, StopAction::Retry] {
         round_trip(LocalClientMessage::SessionStopRequest(SessionStopRequest {
-            hello: hello.clone(),
             id,
             action,
         }));

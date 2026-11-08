@@ -12,9 +12,10 @@ fn id(n: u128) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
 }
 fn handshake(stream: &mut LocalStream, generation: u64) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -37,7 +38,7 @@ fn job(action: Action) -> Job {
     }
 }
 fn lane(server: &FakeServer) -> Lane {
-    let client = LocalClient::connect(server.endpoint(), "worktree-lane-test").unwrap();
+    let client = LocalClient::connect(server.endpoint()).unwrap();
     Lane::spawn(client.origin(), client.operation_clock()).unwrap()
 }
 fn take(lane: &Lane) -> Reply {

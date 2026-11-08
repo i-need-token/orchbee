@@ -5,7 +5,7 @@ use super::{
 };
 use crate::cli::console_interrupt::{ArmedSignals, Finish};
 use orchbee_local_client_protocol::{
-    ClientHello, ConnectClientError, SessionStopRequest, SessionStopStatus, StopAction,
+    ConnectClientError, SessionStopRequest, SessionStopStatus, StopAction,
 };
 use orchbee_local_runtime::{
     ActivationState, Cohort, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
@@ -122,8 +122,8 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
             return;
         }
     };
+    let offer = crate::local_client::client_offer(Some(cohort.identity()));
     let request = SessionStopRequest {
-        hello: ClientHello::new(cohort.identity()).expect("validated cohort"),
         id: answer.id,
         action,
     };
@@ -137,6 +137,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
     }
     let result = exchange_before(
         session.client_socket_path(),
+        &offer,
         request.clone(),
         deadline.min(Instant::now() + Duration::from_secs(2)),
         signals.poll_fd(),
@@ -144,7 +145,12 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
     match result {
         Ok(result) => answer.observation = Observation::Server(result.status),
         Err(error) => {
-            if matches!(error.failure, ConnectClientError::Rejected(_)) {
+            if matches!(
+                error.failure,
+                ConnectClientError::Rejected(_)
+                    | ConnectClientError::Refused(_)
+                    | ConnectClientError::PredatesHandshake
+            ) {
                 answer.observation = Observation::Unavailable("rejected");
                 return;
             }
@@ -208,6 +214,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
         }
         if let Ok(result) = exchange_before(
             session.client_socket_path(),
+            &offer,
             request.clone(),
             deadline.min(Instant::now() + Duration::from_secs(2)),
             signals.poll_fd(),

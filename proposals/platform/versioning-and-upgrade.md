@@ -208,8 +208,8 @@ side can always inspect and stop an older one.
   Each Host answers on its broker endpoint beside its single Worker session, with at most four
   control connections at a time; an offer while a Worker session is active is rejected with
   `capacity`.
-- `query` replaces the
-  [OBLC metadata request](../../crates/local-client-protocol/README.md#read-only-windows-server-metadata).
+- `query` replaces the OBLC metadata request (P0 delivered it as the
+  [process query](../../crates/local-client-protocol/README.md#process-query)).
   Session stop stays an OBLC request after the handshake; without a common generation, a newer side
   ends an older Session with `exit` to its Server and then to each Host (P1).
 - Request types, reply members, and their meanings freeze with `OBHS`; later facts go into

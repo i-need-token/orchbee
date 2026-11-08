@@ -68,7 +68,7 @@ fn cancellation_fences_a_late_reply_while_another_stream_completes() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -99,7 +99,7 @@ fn a_ready_listener_hears_a_record_no_reader_is_waiting_for() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -157,7 +157,7 @@ fn event_overflow_requires_an_observed_gap_before_the_replacement_snapshot() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -367,7 +367,7 @@ fn idle_probe_deadline_survives_unrelated_push_and_reconnect_does_not_replay_a_m
         Ok(())
     })
     .unwrap();
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let mut client = LocalClient::connect(server.endpoint()).unwrap();
     let Some(crate::local_client::ClientTransport::Direct(transport)) = client.connection.take()
     else {
         panic!()
@@ -444,9 +444,10 @@ fn an_offline_request_correlates_with_the_generation_that_first_writes_it() {
             return Ok(());
         }
         if index == 1 {
+            crate::local_client::test_support::handshake::answer_offer(&mut peer)?;
             assert!(matches!(
                 orchbee_local_client_protocol::read_message(&mut peer).map_err(io::Error::other)?,
-                orchbee_local_client_protocol::LocalClientMessage::ClientHello(_)
+                orchbee_local_client_protocol::LocalClientMessage::ClientHello
             ));
             waiting.send(()).unwrap();
             // Queuing the offline request wakes and cancels this unfinished admission.
@@ -501,7 +502,7 @@ fn an_offline_request_correlates_with_the_generation_that_first_writes_it() {
         }
     })
     .unwrap();
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let mut client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();

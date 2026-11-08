@@ -1,4 +1,4 @@
-use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     io::{self, Read, Write},
     num::NonZeroU64,
@@ -24,8 +24,7 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_local_client_protocol::{
     ConnectClientError, LocalClientMessage, PROTOCOL_VERSION as OBLC_PROTOCOL_VERSION,
-    ProtocolError as OblcProtocolError, RejectionReason, read_message as read_oblc_message,
-    write_message as write_oblc_message,
+    ProtocolError as OblcProtocolError, RejectionReason, write_message as write_oblc_message,
 };
 use orchbee_local_ipc::{AsLocalIo, LocalIo, PollFlags};
 
@@ -36,17 +35,14 @@ use super::{
     exchange_wake_fault, exchange_wake_ready,
 };
 
-const COHORT: &str = "test-cohort";
 const FIRST_REQUEST_ID: &str = "11111111111111111111111111111111";
 const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const TEST_REQUEST_TIMEOUT: Duration = Duration::from_millis(40);
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 
-#[cfg(unix)]
-use server::TestDirectory;
 use server::{FakeServer, connect_with_adjustable_clock};
 
-pub(crate) use super::test_support::{multiplex_peer, server};
+pub(crate) use super::test_support::{handshake, multiplex_peer, server};
 mod process_info;
 mod selection;
 mod workbench;
@@ -59,7 +55,7 @@ fn deadline_admission_hands_the_same_session_to_obcs() -> TestResult {
     let create = deferred_create(FIRST_REQUEST_ID)?;
     let expected_create = create.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -73,7 +69,7 @@ fn deadline_admission_hands_the_same_session_to_obcs() -> TestResult {
     })?;
     let mut client = LocalClient::connect_before(
         server.endpoint(),
-        COHORT,
+        &crate::local_client::test_support::handshake::offer(),
         Instant::now() + SERVER_GUARD_TIMEOUT,
     )?;
     assert_eq!(client.generation().map(NonZeroU64::get), Some(7));
@@ -93,7 +89,7 @@ fn accepts_one_session_and_submits_create_then_start_on_the_same_stream() -> Tes
     let expected_create = create.clone();
     let expected_start = start.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
 
         require_message(
@@ -117,7 +113,7 @@ fn accepts_one_session_and_submits_create_then_start_on_the_same_stream() -> Tes
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     assert_eq!(client.generation().map(NonZeroU64::get), Some(7));
     assert_eq!(
         client.submit_terminal_create(create)?,
@@ -136,7 +132,7 @@ fn accepts_one_session_and_submits_create_then_start_on_the_same_stream() -> Tes
 fn preserves_a_correlated_server_reported_unknown_outcome() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 8)?;
         let _request = read_client_message(&mut stream).map_err(io::Error::other)?;
         let request_id = RequestId::parse(FIRST_REQUEST_ID).map_err(io::Error::other)?;
@@ -150,7 +146,7 @@ fn preserves_a_correlated_server_reported_unknown_outcome() -> TestResult {
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_terminal_create(request)?;
     assert_eq!(result.outcome(), CreateOutcome::OutcomeUnknown);
     assert_eq!(client.generation().map(NonZeroU64::get), Some(8));
@@ -162,7 +158,7 @@ fn preserves_a_correlated_server_reported_unknown_outcome() -> TestResult {
 #[test]
 fn reports_exact_oblc_rejection() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         write_oblc_message(
             &mut stream,
             &LocalClientMessage::Rejected {
@@ -172,7 +168,7 @@ fn reports_exact_oblc_rejection() -> TestResult {
         .map_err(io::Error::other)
     })?;
 
-    let error = LocalClient::connect(server.endpoint(), COHORT)
+    let error = LocalClient::connect(server.endpoint())
         .expect_err("the fake Server rejection must fail admission");
     assert!(matches!(
         error,
@@ -187,7 +183,7 @@ fn reports_exact_oblc_rejection() -> TestResult {
 #[test]
 fn rejects_an_incompatible_oblc_response_version() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         let generation = NonZeroU64::new(9)
             .ok_or_else(|| io::Error::other("test generation must be nonzero"))?;
         let mut frame = Vec::new();
@@ -200,7 +196,7 @@ fn rejects_an_incompatible_oblc_response_version() -> TestResult {
         stream.write_all(&frame)
     })?;
 
-    let error = LocalClient::connect(server.endpoint(), COHORT)
+    let error = LocalClient::connect(server.endpoint())
         .expect_err("the incompatible OBLC version must fail admission");
     assert!(matches!(
         error,
@@ -213,53 +209,25 @@ fn rejects_an_incompatible_oblc_response_version() -> TestResult {
 }
 
 #[test]
-fn sends_the_exact_cohort_and_preserves_typed_cohort_rejection() -> TestResult {
+fn preserves_a_typed_handshake_refusal() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
-        write_oblc_message(
+        handshake::refuse(
             &mut stream,
-            &LocalClientMessage::Rejected {
-                reason: RejectionReason::IncompatibleCohort,
-            },
+            orchbee_connection_handshake::RejectionReason::InitiatorTooNew,
+            "0.0.9",
         )
-        .map_err(io::Error::other)
+        .map(drop)
     })?;
 
-    let error = LocalClient::connect(server.endpoint(), COHORT)
-        .expect_err("the incompatible cohort must fail admission");
+    let error =
+        LocalClient::connect(server.endpoint()).expect_err("a refused offer must fail admission");
     assert!(matches!(
         error,
-        LocalClientConnectError::Admission(ConnectClientError::Rejected(
-            RejectionReason::IncompatibleCohort
-        ))
+        LocalClientConnectError::Admission(ConnectClientError::Refused(rejection))
+            if rejection.reason == orchbee_connection_handshake::RejectionReason::InitiatorTooNew
+                && rejection.product_version.as_str() == "0.0.9"
     ));
     server.finish()?;
-    Ok(())
-}
-
-#[test]
-fn validates_the_cohort_before_connecting() -> TestResult {
-    #[cfg(unix)]
-    let directory = TestDirectory::new()?;
-    #[cfg(unix)]
-    let endpoint = directory.path.join("client.sock");
-    #[cfg(windows)]
-    let endpoint = super::test_support::windows_endpoints::endpoint();
-    let listener = UnixListener::bind(&endpoint)?;
-    listener.set_nonblocking(true)?;
-
-    let error = LocalClient::connect(&endpoint, "")
-        .expect_err("an invalid cohort must fail before the connection effect");
-    assert!(matches!(
-        error,
-        LocalClientConnectError::Admission(ConnectClientError::Protocol(
-            OblcProtocolError::InvalidCohort
-        ))
-    ));
-    assert!(matches!(
-        listener.accept(),
-        Err(error) if error.kind() == io::ErrorKind::WouldBlock
-    ));
     Ok(())
 }
 
@@ -269,7 +237,7 @@ fn supports_partial_io_across_oblc_and_obcs() -> TestResult {
     let expected_request = request.clone();
     let server = FakeServer::start(move |stream| {
         let mut stream = ChunkedStream::new(stream, 1, 1);
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 11)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -282,7 +250,7 @@ fn supports_partial_io_across_oblc_and_obcs() -> TestResult {
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     assert_eq!(
         client.submit_terminal_create(request)?,
         create_denied(FIRST_REQUEST_ID)?
@@ -296,7 +264,7 @@ fn supports_partial_io_across_oblc_and_obcs() -> TestResult {
 fn retires_the_session_when_create_receives_a_start_result() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 13)?;
         let _request = read_client_message(&mut stream).map_err(io::Error::other)?;
         write_server_message(
@@ -306,7 +274,7 @@ fn retires_the_session_when_create_receives_a_start_result() -> TestResult {
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let error = client
         .submit_terminal_create(request)
         .expect_err("the wrong result kind must not be accepted");
@@ -329,7 +297,7 @@ fn retires_the_session_when_create_receives_a_start_result() -> TestResult {
 fn retires_the_session_when_result_correlation_is_wrong() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 17)?;
         let _request = read_client_message(&mut stream).map_err(io::Error::other)?;
         write_server_message(
@@ -339,7 +307,7 @@ fn retires_the_session_when_result_correlation_is_wrong() -> TestResult {
         .map_err(io::Error::other)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let error = client
         .submit_terminal_create(request)
         .expect_err("the wrong correlation identity must not be accepted");
@@ -361,7 +329,7 @@ fn retires_the_session_when_result_correlation_is_wrong() -> TestResult {
 fn rejects_an_incompatible_obcs_result_version_as_unknown() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 19)?;
         let _request = read_client_message(&mut stream).map_err(io::Error::other)?;
         let mut frame = Vec::new();
@@ -374,7 +342,7 @@ fn rejects_an_incompatible_obcs_result_version_as_unknown() -> TestResult {
         stream.write_all(&frame)
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let error = client
         .submit_terminal_create(request)
         .expect_err("the incompatible OBCS version must not be accepted");
@@ -398,7 +366,7 @@ fn request_timeout_is_unknown_retires_the_session_and_never_resubmits() -> TestR
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let expected_request = request.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 23)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -416,7 +384,7 @@ fn request_timeout_is_unknown_retires_the_session_and_never_resubmits() -> TestR
     })?;
 
     let mut client =
-        LocalClient::connect_with_request_timeout(server.endpoint(), COHORT, TEST_REQUEST_TIMEOUT)?;
+        LocalClient::connect_with_request_timeout(server.endpoint(), TEST_REQUEST_TIMEOUT)?;
     let error = client
         .submit_terminal_create(request)
         .expect_err("a result timeout must be an unknown outcome");
@@ -449,7 +417,7 @@ fn slow_trickle_read_exhausts_one_total_deadline_despite_progress() -> TestResul
     let sent_bytes = Arc::new(AtomicU64::new(0));
     let server_sent_bytes = sent_bytes.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 24)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -485,7 +453,6 @@ fn slow_trickle_read_exhausts_one_total_deadline_despite_progress() -> TestResul
     );
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         Duration::from_millis(80),
         Box::new(clock),
         IoChunkLimits::UNBOUNDED,
@@ -519,7 +486,7 @@ fn slow_trickle_write_exhausts_one_total_deadline_after_partial_handoff() -> Tes
     let expected_frame = encode_client_frame(&ClientMessage::TerminalCreate(request.clone()))?;
     let expected_prefix = expected_frame[..4].to_vec();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 25)?;
 
         let mut received = Vec::new();
@@ -536,7 +503,6 @@ fn slow_trickle_write_exhausts_one_total_deadline_after_partial_handoff() -> Tes
     let clock = SteppingMonotonicClock::new(Duration::from_millis(10), observations.clone());
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         Duration::from_millis(90),
         Box::new(clock),
         IoChunkLimits::new(usize::MAX, 1),
@@ -566,7 +532,7 @@ fn slow_trickle_write_exhausts_one_total_deadline_after_partial_handoff() -> Tes
 #[test]
 fn deadline_expiry_before_the_first_write_is_a_definite_failure() -> TestResult {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 26)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -583,7 +549,6 @@ fn deadline_expiry_before_the_first_write_is_a_definite_failure() -> TestResult 
     let clock = SteppingMonotonicClock::new(Duration::from_millis(10), observations.clone());
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         Duration::from_millis(5),
         Box::new(clock),
         IoChunkLimits::UNBOUNDED,
@@ -608,7 +573,7 @@ fn eof_after_one_request_is_an_unknown_outcome_without_retry() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let expected_request = request.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 29)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -616,7 +581,7 @@ fn eof_after_one_request_is_an_unknown_outcome_without_retry() -> TestResult {
         )
     })?;
 
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let error = client
         .submit_terminal_create(request)
         .expect_err("EOF after submission must be an unknown outcome");
@@ -675,20 +640,6 @@ fn start_denied(request_id: &str) -> io::Result<TerminalStartResult> {
             reason: StartRejectedReason::NotAuthorized,
         },
     ))
-}
-
-fn expect_hello(stream: &mut impl Read, expected_cohort: &str) -> io::Result<()> {
-    let message = read_oblc_message(stream).map_err(io::Error::other)?;
-    let LocalClientMessage::ClientHello(hello) = message else {
-        return Err(io::Error::other("fake Server expected ClientHello"));
-    };
-    if hello.cohort() != expected_cohort {
-        return Err(io::Error::other(format!(
-            "fake Server received cohort {}; expected {expected_cohort}",
-            hello.cohort()
-        )));
-    }
-    Ok(())
 }
 
 fn admit(stream: &mut impl Write, generation: u64) -> io::Result<()> {
@@ -814,7 +765,7 @@ fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestRes
         TerminalViewerResult, ViewerId,
     };
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 9)?;
         for outcome in [Outcome::Record(vec![0xa5; 100_000]), Outcome::Detached {}] {
             let ClientMessage::TerminalViewer(request) =
@@ -839,7 +790,7 @@ fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestRes
         );
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = TerminalViewerRequest::new(
         RequestId::parse(FIRST_REQUEST_ID)?,
         Action::Poll {
@@ -873,7 +824,7 @@ fn viewer_accepts_the_extended_typed_outcomes_and_retires_on_a_wrong_pairing() -
         ViewerRowsRejectedReason, ViewportRowOrigin,
     };
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 9)?;
         // Every typed action is answered with its exact outcome.
         for _ in 0..5 {
@@ -923,7 +874,7 @@ fn viewer_accepts_the_extended_typed_outcomes_and_retires_on_a_wrong_pairing() -
         );
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let viewer = || ViewerId::parse(FIRST_REQUEST_ID).expect("viewer id");
     let accepted = Outcome::FeedbackAccepted {};
     let cases: [(Action, Outcome); 5] = [
@@ -1020,7 +971,7 @@ fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> Tes
         TerminalControlRequest, TerminalControlResult, ViewerId,
     };
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 10)?;
         for outcome in [
             Outcome::OutcomeUnknown {},
@@ -1046,7 +997,7 @@ fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> Tes
         assert_eq!(stream.read(&mut byte)?, 0);
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let action = Action::Resize {
         attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
         controller_id: ControllerId::parse(FIRST_REQUEST_ID)?,
@@ -1082,7 +1033,7 @@ fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> Tes
 #[test]
 fn initial_startup_budget_clamps_requests_until_explicit_readiness() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 1)?;
         let request = read_client_message(&mut stream).map_err(io::Error::other)?;
         require_message(
@@ -1095,7 +1046,7 @@ fn initial_startup_budget_clamps_requests_until_explicit_readiness() -> TestResu
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     client.set_submission_deadline(Some(Instant::now()));
     assert!(
         matches!(client.submit_terminal_create(deferred_create(FIRST_REQUEST_ID)?),
@@ -1120,7 +1071,7 @@ fn caller_deadline_viewer_and_control_forms_fail_before_write_and_keep_the_carri
     };
 
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 37)?;
         require_message(
             read_client_message(&mut stream).map_err(io::Error::other)?,
@@ -1132,7 +1083,7 @@ fn caller_deadline_viewer_and_control_forms_fail_before_write_and_keep_the_carri
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
 
     client.set_submission_deadline(Some(client.operation_clock().now()));
     assert!(matches!(
@@ -1191,7 +1142,7 @@ fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -
 
     for kind in [RequestKind::Viewer, RequestKind::Control] {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 49)?;
             let request = read_client_message(&mut stream).map_err(io::Error::other)?;
             let response = match (kind, request) {
@@ -1223,7 +1174,6 @@ fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -
         let caller_deadline = clock.origin + SERVER_GUARD_TIMEOUT;
         let mut client = LocalClient::connect_with_submission_runtime(
             server.endpoint(),
-            COHORT,
             Duration::from_millis(80),
             Box::new(clock),
             IoChunkLimits::UNBOUNDED,
@@ -1275,7 +1225,7 @@ fn semantic_paste_accepts_only_its_own_receipt_without_replaying_unknown_input()
     };
     for valid in [false, true] {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 49)?;
             let ClientMessage::TerminalControl(request) =
                 read_client_message(&mut stream).map_err(io::Error::other)?
@@ -1303,7 +1253,7 @@ fn semantic_paste_accepts_only_its_own_receipt_without_replaying_unknown_input()
             assert_eq!(stream.read(&mut [0])?, 0, "paste is never replayed");
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let result = client.submit_terminal_control_cancellable(
             TerminalControlRequest::new(
                 RequestId::parse(FIRST_REQUEST_ID)?,
@@ -1347,7 +1297,7 @@ fn host_colors_acknowledgement_keeps_the_session() -> TestResult {
         TerminalControlResult, TerminalRgb, ViewerId,
     };
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 49)?;
         let ClientMessage::TerminalControl(request) =
             read_client_message(&mut stream).map_err(io::Error::other)?
@@ -1367,7 +1317,7 @@ fn host_colors_acknowledgement_keeps_the_session() -> TestResult {
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_terminal_control_cancellable(
         TerminalControlRequest::new(
             RequestId::parse(FIRST_REQUEST_ID)?,
@@ -1397,7 +1347,7 @@ fn host_colors_acknowledgement_keeps_the_session() -> TestResult {
 #[test]
 fn operation_clock_clones_share_the_injected_monotonic_source() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 38)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -1409,7 +1359,6 @@ fn operation_clock_clones_share_the_injected_monotonic_source() -> TestResult {
     let origin = clock.origin;
     let client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         TEST_REQUEST_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::UNBOUNDED,
@@ -1432,7 +1381,7 @@ fn operation_clock_clones_share_the_injected_monotonic_source() -> TestResult {
 #[test]
 fn adjustable_clock_exposes_distinct_forward_and_cleanup_cutoffs() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 39)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -1440,7 +1389,7 @@ fn adjustable_clock_exposes_distinct_forward_and_cleanup_cutoffs() -> TestResult
         Ok(())
     })?;
     let elapsed_millis = Arc::new(AtomicU64::new(0));
-    let client = connect_with_adjustable_clock(server.endpoint(), COHORT, elapsed_millis.clone())?;
+    let client = connect_with_adjustable_clock(server.endpoint(), elapsed_millis.clone())?;
     let clock = client.operation_clock();
     let origin = clock.now();
 
@@ -1479,7 +1428,7 @@ fn deadline_io<'a>(
 /// A peer that completes OBLC admission then holds the session open until
 /// the client drops it — no OBAP/OBCS bytes ever arrive.
 fn hold_after_admission(stream: &mut UnixStream) -> io::Result<()> {
-    expect_hello(stream, COHORT)?;
+    handshake::expect_hello(stream)?;
     admit(stream, 7)?;
     let mut sink = [0_u8; 8];
     stream.read(&mut sink).map(|_| ())
@@ -1488,7 +1437,7 @@ fn hold_after_admission(stream: &mut UnixStream) -> io::Result<()> {
 #[test]
 fn wake_readiness_interrupts_the_exchange_wait() -> TestResult {
     let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     wake_write.write_all(b"x")?;
     let clock = client.operation_clock();
@@ -1516,7 +1465,7 @@ fn wake_readiness_interrupts_the_exchange_wait() -> TestResult {
 #[test]
 fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
         stream.write_all(b"noise")?;
         let mut sink = [0_u8; 8];
@@ -1525,7 +1474,7 @@ fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
         let _ = stream.read(&mut sink);
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     wake_write.write_all(b"x")?;
     let clock = client.operation_clock();
@@ -1548,7 +1497,7 @@ fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
 #[test]
 fn wake_fault_is_distinct_from_readiness() -> TestResult {
     let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     // A pipe, not a socket: with nothing written and the write end closed, the
     // read end reports POLLHUP without POLLIN — a stream socket would instead
     // report the peer's EOF as readable POLLIN.
@@ -1578,7 +1527,7 @@ fn wake_fault_is_distinct_from_readiness() -> TestResult {
 #[test]
 fn wake_readiness_wins_over_simultaneous_hangup() -> TestResult {
     let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     wake_write.write_all(b"x")?;
     drop(wake_write);
@@ -1602,7 +1551,7 @@ fn wake_readiness_wins_over_simultaneous_hangup() -> TestResult {
 #[test]
 fn absent_wake_descriptor_preserves_the_plain_wait() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
         stream.write_all(b"noise")?;
         let mut sink = [0_u8; 8];
@@ -1611,7 +1560,7 @@ fn absent_wake_descriptor_preserves_the_plain_wait() -> TestResult {
         let _ = stream.read(&mut sink);
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let clock = client.operation_clock();
     let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
     let io = deadline_io(
@@ -1632,7 +1581,7 @@ fn absent_wake_descriptor_preserves_the_plain_wait() -> TestResult {
 #[test]
 fn agent_read_wake_ready_before_write_is_request_not_submitted() -> TestResult {
     let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     wake_write.write_all(b"x")?;
     let request = AgentReadRequest::List {
@@ -1663,7 +1612,7 @@ fn agent_read_wake_ready_before_write_is_request_not_submitted() -> TestResult {
 fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
         read_agent_request(&mut stream).map_err(io::Error::other)?;
         // The request is fully on the wire; now the owner-side byte arrives
@@ -1672,7 +1621,7 @@ fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
         let mut sink = [0_u8; 8];
         stream.read(&mut sink).map(|_| ())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = AgentReadRequest::List {
         request_id: ObapRequestId::parse(FIRST_REQUEST_ID).expect("request id"),
         include_ended: false,
@@ -1704,7 +1653,7 @@ fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
 #[test]
 fn agent_read_names_family_result_retires_the_session() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
         let request = read_agent_request(&mut stream).map_err(io::Error::other)?;
         write_agent_result(
@@ -1731,7 +1680,7 @@ fn agent_read_names_family_result_retires_the_session() -> TestResult {
             Err(error) => Err(error),
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = AgentReadRequest::List {
         request_id: ObapRequestId::parse(FIRST_REQUEST_ID).expect("request id"),
         include_ended: false,

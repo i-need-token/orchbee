@@ -1,5 +1,5 @@
 //! Scripted peers keep domain assertions while exercising the real single-carrier framing.
-use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_local_client_protocol::{LocalClientMessage, write_message};
 use orchbee_local_ipc::LocalStream;
 use orchbee_workbench_protocol::{
     MultiplexLaneId, MultiplexMessage, MultiplexStreamId, ProtocolVersion, StreamFrameKind,
@@ -22,10 +22,7 @@ pub struct Open {
     pub request: Vec<u8>,
 }
 pub fn admit(stream: &mut LocalStream, generation: u64) -> io::Result<()> {
-    assert!(matches!(
-        read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
-    ));
+    super::handshake::expect_hello(stream)?;
     write_message(
         stream,
         &LocalClientMessage::ClientAccepted {

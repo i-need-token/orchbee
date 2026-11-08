@@ -15,9 +15,10 @@ use std::{
 };
 
 fn admit(stream: &mut LocalStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -153,7 +154,7 @@ fn overlay_lane_only_closes_known_settlement_and_retains_the_actual_or_uncertain
             assert_eq!(stream.read(&mut [0; 1])?, 0, "no repeat or guessed close");
             Ok(())
         })?;
-        let client = LocalClient::connect(server.endpoint(), "overlay-test")?;
+        let client = LocalClient::connect(server.endpoint())?;
         let origin = client.origin();
         drop(client);
         let clock = adjustable_operation_clock(Arc::new(std::sync::atomic::AtomicU64::new(0)));
@@ -194,7 +195,7 @@ fn overlay_lane_shutdown_interrupts_a_pending_read_and_joins_its_owned_thread()
         assert_eq!(stream.read(&mut [0; 1])?, 0);
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "overlay-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let origin = client.origin();
     drop(client);
     let clock = adjustable_operation_clock(Arc::new(std::sync::atomic::AtomicU64::new(0)));

@@ -284,9 +284,10 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
         let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
+        crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,
@@ -345,7 +346,7 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -392,9 +393,10 @@ fn unchanged_reload_reports_publication_without_reapplying_the_existing_snapshot
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
         let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
+        crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,
@@ -445,7 +447,7 @@ fn unchanged_reload_reports_publication_without_reapplying_the_existing_snapshot
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -499,9 +501,10 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
     };
     let server = FakeServer::start_connections(1, move |index, stream| {
         let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
+        crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ));
         write_message(
             &mut stream,
@@ -555,7 +558,7 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -623,7 +626,7 @@ fn closing_watcher_cancels_only_its_pending_stream() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -691,7 +694,7 @@ fn submitted_reload_loss_recovers_by_subscription_without_replaying_the_write() 
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();

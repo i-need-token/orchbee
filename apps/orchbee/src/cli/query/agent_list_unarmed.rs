@@ -48,9 +48,12 @@ pub(super) fn run(
         }
     }
 
-    let mut client =
-        LocalClient::connect_before(session.client_socket_path(), cohort.identity(), total)
-            .map_err(|error| AgentQueryError::Admission(super::classify_connect(error)))?;
+    let mut client = LocalClient::connect_before(
+        session.client_socket_path(),
+        &crate::local_client::client_offer(Some(cohort.identity())),
+        total,
+    )
+    .map_err(|error| AgentQueryError::Admission(super::classify_connect(error)))?;
     if Instant::now() >= total {
         drop(client);
         return Err(AgentQueryError::Read(timeout_failure()));

@@ -1,42 +1,24 @@
 use super::{
-    AsLocalIo, ClientConnection, ClientHello, ConnectClientError, Duration, LocalClientMessage,
-    LocalIo, Path, Read, UnixStream, Write, io, read_message, write_message,
+    AsLocalIo, CANDIDATE_DEADLINE, ClientConnection, ConnectClientError, LocalIo, Offer, Path,
+    Read, UnixStream, Write, handshake, io,
 };
+use crate::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-pub(super) fn server_metadata(
+/// Asks for the Server's processes; the connection closes with the reply.
+pub(super) fn query(
     endpoint: &Path,
+    environment: orchbee_connection_handshake::EnvironmentName,
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
-) -> Result<crate::ServerMetadata, ConnectClientError> {
-    let stream = connect_stream(endpoint, deadline, wake)?;
-    let mut transport = Admission {
-        stream,
-        deadline,
-        wake,
-        cancelled: None,
-    };
-    let exchange = (|| {
-        write_message(&mut transport, &LocalClientMessage::ServerMetadataRequest)?;
-        let metadata = match read_message(&mut transport)? {
-            LocalClientMessage::ServerMetadata(metadata) => metadata,
-            LocalClientMessage::Rejected { reason } => {
-                return Err(ConnectClientError::Rejected(reason));
-            }
-            LocalClientMessage::ClientHello(..)
-            | LocalClientMessage::ClientAccepted { .. }
-            | LocalClientMessage::SessionStopRequest(..)
-            | LocalClientMessage::SessionStopResult(..)
-            | LocalClientMessage::ServerMetadataRequest => {
-                return Err(ConnectClientError::UnexpectedResponse);
-            }
-        };
-        check_wake(wake)?;
-        if Instant::now() >= deadline {
-            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
-        }
-        Ok(metadata)
+) -> Result<orchbee_connection_handshake::QueryResult, ConnectClientError> {
+    let mut transport =
+        Admission::candidate(connect_stream(endpoint, deadline, wake)?, deadline, wake);
+    let exchange = (|| -> Result<_, ConnectClientError> {
+        let result = handshake::query(&mut transport, environment)?;
+        settle(wake, deadline)?;
+        Ok(result)
     })();
     if let Some(cancelled) = transport.cancelled {
         return Err(cancelled);
@@ -46,36 +28,17 @@ pub(super) fn server_metadata(
 
 pub(super) fn connect(
     endpoint: &Path,
-    hello: ClientHello,
+    offer: &Offer,
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<ClientConnection, ConnectClientError> {
-    let stream = connect_stream(endpoint, deadline, wake)?;
-    let mut transport = Admission {
-        stream,
-        deadline,
-        wake,
-        cancelled: None,
-    };
-    let exchange = (|| {
-        write_message(&mut transport, &LocalClientMessage::ClientHello(hello))?;
-        let generation = match read_message(&mut transport)? {
-            LocalClientMessage::ClientAccepted { generation } => generation,
-            LocalClientMessage::Rejected { reason } => {
-                return Err(ConnectClientError::Rejected(reason));
-            }
-            LocalClientMessage::ClientHello(_)
-            | LocalClientMessage::SessionStopRequest(_)
-            | LocalClientMessage::SessionStopResult(_)
-            | LocalClientMessage::ServerMetadataRequest
-            | LocalClientMessage::ServerMetadata(_) => {
-                return Err(ConnectClientError::UnexpectedResponse);
-            }
-        };
-        check_wake(wake)?;
-        if Instant::now() >= deadline {
-            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
-        }
+    let mut transport =
+        Admission::candidate(connect_stream(endpoint, deadline, wake)?, deadline, wake);
+    let exchange = (|| -> Result<_, ConnectClientError> {
+        handshake::offer(&mut transport, offer)?;
+        transport.deadline = deadline;
+        let generation = handshake::enter_client_phase(&mut transport)?;
+        settle(wake, deadline)?;
         Ok(generation)
     })();
     if let Some(cancelled) = transport.cancelled {
@@ -85,6 +48,15 @@ pub(super) fn connect(
         generation: exchange?,
         stream: transport.stream,
     })
+}
+
+/// A reply that arrived after a wake or past the deadline does not count.
+fn settle(wake: Option<LocalIo<'_>>, deadline: Instant) -> Result<(), ConnectClientError> {
+    check_wake(wake)?;
+    if Instant::now() >= deadline {
+        return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
+    }
+    Ok(())
 }
 
 fn connect_stream(
@@ -142,20 +114,18 @@ mod tests;
 
 pub(super) fn session_stop(
     endpoint: &Path,
+    offer: &Offer,
     request: crate::SessionStopRequest,
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<crate::SessionStopResult, super::SessionStopExchangeError> {
     let mut submitted = false;
     let result = (|| {
-        let stream = connect_stream(endpoint, deadline, wake)?;
-        let mut transport = Admission {
-            stream,
-            deadline,
-            wake,
-            cancelled: None,
-        };
+        let mut transport =
+            Admission::candidate(connect_stream(endpoint, deadline, wake)?, deadline, wake);
         let exchange = (|| {
+            handshake::offer(&mut transport, offer)?;
+            transport.deadline = deadline;
             let id = request.id;
             write_message(
                 &mut transport,
@@ -167,12 +137,10 @@ pub(super) fn session_stop(
                 LocalClientMessage::Rejected { reason } => {
                     return Err(ConnectClientError::Rejected(reason));
                 }
-                LocalClientMessage::ClientHello(..)
+                LocalClientMessage::ClientHello
                 | LocalClientMessage::ClientAccepted { .. }
                 | LocalClientMessage::SessionStopRequest(..)
-                | LocalClientMessage::SessionStopResult(..)
-                | LocalClientMessage::ServerMetadataRequest
-                | LocalClientMessage::ServerMetadata(..) => {
+                | LocalClientMessage::SessionStopResult(..) => {
                     return Err(ConnectClientError::UnexpectedResponse);
                 }
             };
@@ -212,7 +180,17 @@ struct Admission<'a> {
     wake: Option<LocalIo<'a>>,
     cancelled: Option<ConnectClientError>,
 }
-impl Admission<'_> {
+impl<'a> Admission<'a> {
+    /// The handshake reply is due within the candidate deadline, inside the caller's.
+    fn candidate(stream: UnixStream, deadline: Instant, wake: Option<LocalIo<'a>>) -> Self {
+        Self {
+            stream,
+            deadline: deadline.min(Instant::now() + CANDIDATE_DEADLINE),
+            wake,
+            cancelled: None,
+        }
+    }
+
     fn wait(&mut self, interest: PollFlags) -> io::Result<()> {
         loop {
             if let Err(error) = check_wake(self.wake) {

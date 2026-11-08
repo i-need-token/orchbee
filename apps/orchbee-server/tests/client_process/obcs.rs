@@ -7,14 +7,13 @@ use orchbee_client_server_protocol::{
     write_client_message as write_obcs_message,
 };
 use orchbee_local_client_protocol::{
-    ClientHello, LocalClientMessage, read_message as read_oblc_message,
-    write_message as write_oblc_message,
+    LocalClientMessage, read_message as read_oblc_message, write_message as write_oblc_message,
 };
 use orchbee_local_worker_protocol::{LocalWorkerMessage, RejectionReason as WorkerRejectionReason};
 
 use super::{
     FIRST_WORKER, RunningServer, SECOND_WORKER, TestResult, connect_bounded_client,
-    connect_candidate, connect_worker, exchange_worker, expect_connection_closed,
+    connect_candidate, connect_worker, exchange_worker, expect_connection_closed, handshake,
 };
 
 const FIRST_REQUEST_ID: &str = "11111111111111111111111111111111";
@@ -25,16 +24,17 @@ const POST_ADMISSION_STALL: Duration = Duration::from_millis(2_500);
 fn coalesced_oblc_hello_and_start_observe_acceptance_before_missing_reference() -> TestResult {
     let server = RunningServer::start()?;
     let start = start_request()?;
-    let mut bytes = Vec::new();
-    write_oblc_message(
-        &mut bytes,
-        &LocalClientMessage::ClientHello(ClientHello::new(env!("CARGO_PKG_VERSION"))?),
-    )?;
+    let mut bytes = handshake::offer_frame()?;
+    write_oblc_message(&mut bytes, &LocalClientMessage::ClientHello)?;
     bytes.extend_from_slice(&encode_client_frame(&start)?);
 
     let mut stream = connect_candidate(server.client_endpoint())?;
     let written = stream.write(&bytes)?;
     assert_eq!(written, bytes.len());
+    assert!(matches!(
+        orchbee_connection_handshake::read_acceptor_message(&mut stream)?,
+        orchbee_connection_handshake::AcceptorMessage::Answer(_)
+    ));
     assert!(matches!(
         read_oblc_message(&mut stream)?,
         LocalClientMessage::ClientAccepted { .. }

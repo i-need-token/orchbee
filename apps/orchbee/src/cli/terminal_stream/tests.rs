@@ -23,7 +23,6 @@ pub(super) use windows::line;
 
 pub(super) const SNAPSHOT: &[u8] =
     include_bytes!("../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
-pub(super) const COHORT: &str = "terminal-stream-test";
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[test]
@@ -39,9 +38,10 @@ fn palette_tagged_stream_uses_indexed_sgr() -> TestResult {
 }
 
 pub(super) fn handshake(stream: &mut LocalStream) -> io::Result<()> {
+    orchbee_workbench_client::test_support::local_client::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -118,7 +118,7 @@ fn observe_eof_is_failure_and_deadline_or_cancel_prevents_polling() -> TestResul
         ));
         Ok(())
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let cancelled = AtomicBool::new(false);
     let check = || cancelled.load(Ordering::Acquire);
     let expired = Gate {

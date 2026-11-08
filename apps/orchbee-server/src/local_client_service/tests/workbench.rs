@@ -1,4 +1,5 @@
-use super::super::{ConnectionSlots, handle_candidate};
+use super::super::{ConnectionSlots, ServerIdentity, handle_candidate};
+use super::handshake_client;
 use crate::{
     agent_service::{AgentPolicy, AgentService},
     client_connection_registry::ClientConnectionRegistry,
@@ -6,7 +7,6 @@ use crate::{
     workbench_service::{WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
 };
-use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_workbench_protocol::{
     WorkbenchCommandOutcome, WorkbenchResponse, WorkbenchSnapshotOutcome, parse_workbench_request,
@@ -47,18 +47,16 @@ fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_l
     client.set_write_timeout(Some(Duration::from_secs(3)))?;
     let server_thread = thread::spawn(move || {
         handle_candidate(
-            server, &registry, "test", slot, &terminals, &service, &agents,
+            server,
+            &registry,
+            &ServerIdentity::local(None, None),
+            slot,
+            &terminals,
+            &service,
+            &agents,
         )
     });
-    write_message(
-        &mut client,
-        &LocalClientMessage::ClientHello(ClientHello::new("test").unwrap()),
-    )
-    .unwrap();
-    assert!(matches!(
-        read_message(&mut client).unwrap(),
-        LocalClientMessage::ClientAccepted { .. }
-    ));
+    handshake_client::admit(&mut client)?;
     let read = parse_workbench_request(br#"{"kind":"workbench.snapshot.read","protocolVersion":1,"requestId":"11111111111111111111111111111111"}"#).unwrap();
     write_workbench_request(&mut client, &read).unwrap();
     let WorkbenchResponse::Snapshot(initial) = read_workbench_response(&mut client).unwrap() else {

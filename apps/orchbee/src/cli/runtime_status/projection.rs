@@ -1,12 +1,9 @@
-//! Pure projection of independently observed process and local cohort facts.
+//! Pure projection of the Session's process facts and this executable's local facts.
 use super::{Failure, FailureKind, Locale, Output, OutputFormat, failed};
 use crate::cli::output;
 use crate::cli_text::CliText;
 use crate::cli_text::escape::escape;
-use orchbee_local_client_protocol::{
-    SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW, SERVER_FEATURE_LIVE_HANDOFF,
-    SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata, ServerMode,
-};
+use orchbee_connection_handshake::{ProcessEntry, ProcessRole, QueryResult};
 use orchbee_local_runtime::{CohortArtifact, CohortError};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -128,7 +125,7 @@ pub(super) enum Absence {
     Endpoint,
 }
 pub(super) enum Server {
-    Observed(ServerMetadata),
+    Observed(QueryResult),
     Absent(Absence),
 }
 pub(super) struct ServerReport {
@@ -136,7 +133,6 @@ pub(super) struct ServerReport {
     pub(super) runtime: PathBuf,
     pub(super) endpoint: Option<PathBuf>,
     pub(super) server: Server,
-    pub(super) cohort: Cohort,
 }
 pub(super) enum Report {
     Client {
@@ -154,13 +150,23 @@ fn path(value: &Path) -> Value {
 fn protocols(terminal: u8) -> Value {
     json!({"admission":orchbee_local_client_protocol::PROTOCOL_VERSION,"terminal":terminal})
 }
-fn features(value: u32, mode: ServerMode) -> Value {
-    json!({"terminalRenderRows":value&SERVER_FEATURE_RENDER_ROWS!=0,
-        "clientViewControl":value&SERVER_FEATURE_CLIENT_VIEW!=0,
-        "agentObservation":value&SERVER_FEATURE_AGENT_OBSERVATION!=0,
-        "liveHandoff":value&SERVER_FEATURE_LIVE_HANDOFF!=0,
-        "managedStop":mode!=ServerMode::Unmanaged,
-        "unknownBits":value & !SERVER_KNOWN_FEATURES})
+/// One reported process; its role is the text label, so the text form leaves it out.
+fn process(entry: &ProcessEntry, with_role: bool) -> Value {
+    let mut value = json!({"version":entry.product_version.as_str(),"processId":entry.pid.get(),
+        "state":entry.state.as_str(),"terminals":entry.terminals});
+    if with_role {
+        value["role"] = json!(entry.role.as_str());
+    }
+    value
+}
+/// The text label naming a process role.
+fn role_label(role: ProcessRole) -> &'static str {
+    match role {
+        ProcessRole::Server => "role-server",
+        ProcessRole::Worker => "role-worker",
+        ProcessRole::TerminalHost => "role-terminal-host",
+        ProcessRole::Unknown => "role-unknown",
+    }
 }
 impl Report {
     pub(super) fn document(&self) -> Value {
@@ -179,44 +185,20 @@ impl Report {
                 }),
             ),
             Self::Server(report) => {
-                let (server, protocol, cohort) = match &report.server {
-                    Server::Absent(reason) => (
-                        json!({"state":"not-running","reason":match reason {Absence::Runtime=>"runtime-absent",Absence::Endpoint=>"endpoint-absent"}}),
-                        None,
-                        None,
-                    ),
-                    Server::Observed(info) => {
-                        let mode = info.mode();
-                        let cohort = match &report.cohort {
-                            Cohort::Available(id) => Some(id == info.cohort()),
-                            Cohort::Unavailable(_, _) => None,
-                        };
-                        (
-                            json!({"state":"running","version":info.version(),"processId":info.process_id().get(),"cohort":info.cohort(),
-                            "protocols":protocols(info.terminal_protocol().get()),"mode":if mode==ServerMode::Unmanaged {"unmanaged"}else{"managed"},
-                            "stopping":mode==ServerMode::ManagedStopping,"capabilities":features(info.features(),mode)}),
-                            Some(
-                                info.terminal_protocol().get()
-                                    == orchbee_client_server_protocol::PROTOCOL_VERSION,
-                            ),
-                            cohort,
-                        )
-                    }
-                };
-                let compatible = if protocol == Some(false) || cohort == Some(false) {
-                    Some(false)
-                } else if protocol == Some(true) && cohort == Some(true) {
-                    Some(true)
-                } else {
-                    None
+                let server = match &report.server {
+                    Server::Absent(reason) => json!({"state":"not-running","reason":match reason {
+                        Absence::Runtime => "runtime-absent",
+                        Absence::Endpoint => "endpoint-absent",
+                    }}),
+                    Server::Observed(result) => json!({"state":"running",
+                        "restartKeepsTerminals":result.restart_keeps_terminals(),
+                        "processes":result.processes().iter().map(|entry| process(entry, true)).collect::<Vec<_>>()}),
                 };
                 (
                     "orchbee.status.server",
                     json!({"scope":report.scope,"runtimeDirectory":path(&report.runtime),
                     "endpoint":report.endpoint.as_deref().map(path),"server":server,
-                    "clientVersion":env!("CARGO_PKG_VERSION"),"clientProtocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),
-                    "localCohort":report.cohort.json(false),"compatibility":{"admissionProtocol":protocol.map(|_|true),"terminalProtocol":protocol,"cohort":cohort,
-                        "compatible":compatible,"restartRequired":compatible.map(|value|!value)}}),
+                    "clientVersion":crate::local_client::CLIENT_VERSION}),
                 )
             }
         };
@@ -233,6 +215,18 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
             let client_cohort_text = match &report {
                 Report::Client { cohort, .. } => Some(cohort.json(false)),
                 Report::Server(_) => None,
+            };
+            // Each process is one line labelled by its role.
+            let processes = match &report {
+                Report::Server(ServerReport {
+                    server: Server::Observed(result),
+                    ..
+                }) => result
+                    .processes()
+                    .iter()
+                    .map(|entry| (role_label(entry.role), process(entry, false)))
+                    .collect(),
+                _ => Vec::new(),
             };
             let entries = match &report {
                 Report::Client { .. } => vec![
@@ -252,20 +246,22 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                             .expect("client text cohort projection"),
                     ),
                 ],
-                Report::Server(_) => vec![
-                    ("server", &value["server"]["state"]),
-                    ("version", &value["server"]["version"]),
-                    ("process", &value["server"]["processId"]),
-                    ("mode", &value["server"]["mode"]),
-                    ("stopping", &value["server"]["stopping"]),
-                    ("scope", &value["scope"]),
-                    ("endpoint", &value["endpoint"]),
-                    ("protocols", &value["server"]["protocols"]),
-                    ("server-cohort", &value["server"]["cohort"]),
-                    ("local-cohort", &value["localCohort"]),
-                    ("compatibility", &value["compatibility"]),
-                    ("capabilities", &value["server"]["capabilities"]),
-                ],
+                Report::Server(_) => {
+                    let mut entries = vec![
+                        ("server", &value["server"]["state"]),
+                        ("scope", &value["scope"]),
+                        ("endpoint", &value["endpoint"]),
+                    ];
+                    entries.extend(processes.iter().map(|(label, value)| (*label, value)));
+                    if !processes.is_empty() {
+                        entries.push((
+                            "restartKeepsTerminals",
+                            &value["server"]["restartKeepsTerminals"],
+                        ));
+                    }
+                    entries.push(("client", &value["clientVersion"]));
+                    entries
+                }
             };
             for (label, value) in entries {
                 let text = display(label, value, locale);

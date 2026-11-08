@@ -3,7 +3,7 @@
 #[path = "../crates/workbench-client/src/machine_tunnel/program.rs"]
 mod program;
 use crate::peer_support as support;
-use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
+use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader, LocalListener};
 use orchbee_local_runtime::{Cohort, CommandChild};
 use std::{
@@ -39,7 +39,6 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
     for shell in [false, true] {
         let listener = LocalListener::bind(session.client_socket_path()).unwrap();
         listener.set_nonblocking(true).unwrap();
-        let identity = cohort.identity().to_owned();
         let data: Vec<u8> = (0..512 * 1024).map(|n| (n % 256) as u8).collect();
         let remote_data = data.clone();
         let mut peer = Peer(Some(thread::spawn(move || {
@@ -62,7 +61,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
                 .unwrap();
             assert_eq!(
                 read_message(&mut stream).unwrap(),
-                LocalClientMessage::ClientHello(ClientHello::new(&identity).unwrap())
+                LocalClientMessage::ClientHello
             );
             write_message(
                 &mut stream,
@@ -105,11 +104,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             .env_remove("ORCHBEE_CONFIG_FILE");
         let mut child = Owned(CommandChild::spawn(command).map_err(|e| e.error).unwrap());
         let mut request = Vec::new();
-        write_message(
-            &mut request,
-            &LocalClientMessage::ClientHello(ClientHello::new(cohort.identity()).unwrap()),
-        )
-        .unwrap();
+        write_message(&mut request, &LocalClientMessage::ClientHello).unwrap();
         request.extend_from_slice(&data);
         let mut expected = Vec::new();
         write_message(

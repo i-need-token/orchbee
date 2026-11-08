@@ -104,7 +104,7 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
         }
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();

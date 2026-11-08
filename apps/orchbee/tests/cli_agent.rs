@@ -140,8 +140,10 @@ fn spawn_peer(
 
 /// OBLC admission: read the hello, answer `ClientAccepted`.
 fn admit(stream: &UnixStream) {
+    orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut &*stream)
+        .unwrap();
     match read_message(&mut &*stream) {
-        Ok(LocalClientMessage::ClientHello(_)) => {}
+        Ok(LocalClientMessage::ClientHello) => {}
         other => panic!("peer expected ClientHello, got {other:?}"),
     }
     write_message(
@@ -776,8 +778,10 @@ fn list_sigint_before_admission_is_typed_cancellation() -> TestResult {
     let peer = spawn_peer(&scope, 1, move |stream| {
         // Read the hello but never answer `ClientAccepted`: the CLI is parked
         // inside the admission exchange when the signal lands.
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut &stream)
+            .unwrap();
         match read_message(&mut &stream) {
-            Ok(LocalClientMessage::ClientHello(_)) => {}
+            Ok(LocalClientMessage::ClientHello) => {}
             other => panic!("peer expected ClientHello, got {other:?}"),
         }
         ready.send(()).expect("report the held admission");
@@ -1018,8 +1022,10 @@ fn list_peer_drop_before_admission_is_admission_failure() -> TestResult {
     let base = base_dir("alist-rst-pre");
     let scope = stage_scope(&base);
     let peer = spawn_peer(&scope, 1, |stream| {
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut &stream)
+            .unwrap();
         match read_message(&mut &stream) {
-            Ok(LocalClientMessage::ClientHello(_)) => {}
+            Ok(LocalClientMessage::ClientHello) => {}
             other => panic!("peer expected ClientHello, got {other:?}"),
         }
         drop(stream);

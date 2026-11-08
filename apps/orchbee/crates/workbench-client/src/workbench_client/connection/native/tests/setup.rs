@@ -62,7 +62,6 @@ pub(super) type TestResult<Value = ()> = std::result::Result<Value, Box<dyn Erro
 pub(super) const IDENTITY_SEED: u128 = 0x100;
 mod switch_membership;
 pub(super) use switch_membership::drive_switch_snapshot;
-const COHORT: &str = "native-scripted-test";
 pub(super) const WALL_GUARD: Duration = Duration::from_secs(2);
 const VIEWER_ID: &str = "22222222222222222222222222222222";
 /// A second physical viewer identity: a legitimate Server mints a distinct
@@ -450,21 +449,17 @@ impl Harness {
         let mut client = match (&ceiling_clock, &prewrite_gate) {
             (Some(at_ceiling), None) => connect_with_switchable_ceiling_clock(
                 server.endpoint(),
-                COHORT,
                 Arc::clone(&elapsed_millis),
                 Arc::clone(at_ceiling),
             )?,
             (None, Some(prewrite_gate)) => connect_with_gated_prewrite_clock(
                 server.endpoint(),
-                COHORT,
                 Arc::clone(&elapsed_millis),
                 Arc::clone(prewrite_gate),
             )?,
-            (None, None) => connect_with_adjustable_clock(
-                server.endpoint(),
-                COHORT,
-                Arc::clone(&elapsed_millis),
-            )?,
+            (None, None) => {
+                connect_with_adjustable_clock(server.endpoint(), Arc::clone(&elapsed_millis))?
+            }
             (Some(_), Some(_)) => return Err(test_error("Harness clock modes are exclusive")),
         };
         let clock = client.operation_clock();
@@ -2382,9 +2377,10 @@ impl UiDriver {
 }
 
 pub(super) fn admit(stream: &mut UnixStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     if !matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ) {
         return Err(io::Error::other("expected ClientHello"));
     }

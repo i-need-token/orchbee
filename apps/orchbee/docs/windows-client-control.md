@@ -54,7 +54,7 @@ An explicit Client selector chooses that exact live Client. Without it, validate
 
 `workbench.client-view` has Synchronize, List, Get, Submit and Read actions, with `workbench.client-view.result` responses. Requests carry protocol version, exchange request identity and Session identity. Synchronize carries required nullable completion; its result carries required nullable next control. Operation identity is separate from exchange identity. Frame kinds 25/26 retain OBWP version 1; request bodies are limited to 16 KiB and results to 64 KiB before allocation. Rust and TypeScript independently validate closed variants, required nullable fields, identity/sequence bounds and cross-field relationships.
 
-The boundary is additive within exact cohort admission. Old cohorts do not silently reinterpret new messages. Rolling back the cohort discards only volatile view/control observations; it does not change canonical Workspace or terminal state. New Mac/Linux control runtimes and Desktop CLI exposure are outside this Windows implementation.
+The boundary is additive within one Client ↔ Server protocol generation, and the handshake refuses a peer whose protocol differs, so an older build never silently reinterprets new messages. Rolling back discards only volatile view/control observations; it does not change canonical Workspace or terminal state. New Mac/Linux control runtimes and Desktop CLI exposure are outside this Windows implementation.
 
 ## Client viewport observations
 

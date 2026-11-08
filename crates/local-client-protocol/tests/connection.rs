@@ -34,13 +34,11 @@ fn connecting_adapter_authenticates_handshakes_and_observes_server_loss() -> io:
     let server = thread::spawn(move || -> Result<(), String> {
         let (mut stream, _address) = listener.accept().map_err(|error| error.to_string())?;
         require_same_effective_user(&stream).map_err(|error| error.to_string())?;
+        crate::handshake_peer::answer_offer(&mut stream).map_err(|error| error.to_string())?;
         let message = read_message(&mut stream).map_err(|error| error.to_string())?;
-        let LocalClientMessage::ClientHello(hello) = message else {
+        let LocalClientMessage::ClientHello = message else {
             return Err("expected ClientHello".to_owned());
         };
-        if hello.cohort() != "test-cohort" {
-            return Err(format!("unexpected cohort: {}", hello.cohort()));
-        }
         let generation = NonZeroU64::new(7).ok_or_else(|| "invalid generation".to_owned())?;
         write_message(
             &mut stream,
@@ -51,8 +49,8 @@ fn connecting_adapter_authenticates_handshakes_and_observes_server_loss() -> io:
         Ok(())
     });
 
-    let mut connection =
-        ClientConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
+    let mut connection = ClientConnection::connect(&endpoint, &crate::handshake_peer::offer())
+        .map_err(io::Error::other)?;
     assert_eq!(connection.generation().get(), 7);
     release_sender
         .send(())
@@ -76,13 +74,11 @@ fn accepted_connection_preserves_coalesced_next_phase_bytes() -> io::Result<()> 
     let server = thread::spawn(move || -> Result<(), String> {
         let (mut stream, _address) = listener.accept().map_err(|error| error.to_string())?;
         require_same_effective_user(&stream).map_err(|error| error.to_string())?;
+        crate::handshake_peer::answer_offer(&mut stream).map_err(|error| error.to_string())?;
         let message = read_message(&mut stream).map_err(|error| error.to_string())?;
-        let LocalClientMessage::ClientHello(hello) = message else {
+        let LocalClientMessage::ClientHello = message else {
             return Err("expected ClientHello".to_owned());
         };
-        if hello.cohort() != "test-cohort" {
-            return Err(format!("unexpected cohort: {}", hello.cohort()));
-        }
 
         let generation = NonZeroU64::new(11).ok_or_else(|| "invalid generation".to_owned())?;
         let mut coalesced_response = Vec::new();
@@ -115,8 +111,8 @@ fn accepted_connection_preserves_coalesced_next_phase_bytes() -> io::Result<()> 
         Ok(())
     });
 
-    let mut connection =
-        ClientConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
+    let mut connection = ClientConnection::connect(&endpoint, &crate::handshake_peer::offer())
+        .map_err(io::Error::other)?;
     assert_eq!(connection.generation().get(), 11);
 
     let mut server_phase_bytes = [0_u8; SERVER_PHASE_BYTES.len()];

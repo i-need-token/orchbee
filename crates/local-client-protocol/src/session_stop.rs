@@ -1,5 +1,5 @@
 //! Bounded Session stop control facts; only the lifecycle owner grants completion authority.
-use crate::{ClientHello, ProtocolError};
+use crate::ProtocolError;
 
 /// Nonzero stop identity, retained by callers across status queries and explicit retries.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,10 +45,9 @@ pub enum StopAction {
     Retry,
 }
 
-/// Same-user/cohort control request; admission must precede any lifecycle effect.
+/// Control request sent after a handshake answer; admission must precede any lifecycle effect.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SessionStopRequest {
-    pub hello: ClientHello,
     pub id: StopId,
     pub action: StopAction,
 }
@@ -112,8 +111,7 @@ pub struct SessionStopResult {
 }
 
 pub(super) fn encode_request(request: &SessionStopRequest) -> Vec<u8> {
-    let mut bytes = vec![4, request.hello.cohort().len() as u8];
-    bytes.extend_from_slice(request.hello.cohort().as_bytes());
+    let mut bytes = vec![4];
     bytes.extend_from_slice(&request.id.bytes());
     bytes.push(match request.action {
         StopAction::Start => 1,
@@ -124,25 +122,21 @@ pub(super) fn encode_request(request: &SessionStopRequest) -> Vec<u8> {
 }
 
 pub(super) fn decode_request(bytes: &[u8]) -> Result<SessionStopRequest, ProtocolError> {
-    let len = usize::from(*bytes.get(1).ok_or(ProtocolError::InvalidPayload)?);
-    if bytes.len() != 19 + len {
+    if bytes.len() != 18 {
         return Err(ProtocolError::InvalidPayload);
     }
-    let hello = ClientHello::new(
-        std::str::from_utf8(&bytes[2..2 + len]).map_err(|_| ProtocolError::InvalidCohort)?,
-    )?;
     let id = StopId::new(
-        bytes[2 + len..18 + len]
+        bytes[1..17]
             .try_into()
             .map_err(|_| ProtocolError::InvalidPayload)?,
     )?;
-    let action = match bytes[18 + len] {
+    let action = match bytes[17] {
         1 => StopAction::Start,
         2 => StopAction::Status,
         3 => StopAction::Retry,
         _ => return Err(ProtocolError::InvalidPayload),
     };
-    Ok(SessionStopRequest { hello, id, action })
+    Ok(SessionStopRequest { id, action })
 }
 
 pub(super) fn encode_result(result: &SessionStopResult) -> Vec<u8> {

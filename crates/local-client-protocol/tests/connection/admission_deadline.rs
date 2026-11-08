@@ -14,8 +14,8 @@ use nix::{
     sys::socket::{Backlog, listen},
 };
 use orchbee_local_client_protocol::{
-    ClientConnection, ClientHello, ConnectClientError, LocalClientMessage, ProtocolError,
-    RejectionReason, read_message, write_message,
+    ClientConnection, ConnectClientError, LocalClientMessage, ProtocolError, RejectionReason,
+    read_message, write_message,
 };
 
 use super::TestDirectory;
@@ -23,17 +23,13 @@ use super::TestDirectory;
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[test]
-fn invalid_cohort_and_expired_deadline_do_not_connect() -> TestResult {
+fn expired_deadline_does_not_connect() -> TestResult {
     let fixture = TestDirectory::new()?;
     let endpoint = fixture.path.join("client.sock");
     let listener = UnixListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
     assert!(matches!(
-        ClientConnection::connect_before(&endpoint, "", Instant::now()),
-        Err(ConnectClientError::Protocol(ProtocolError::InvalidCohort))
-    ));
-    assert!(matches!(
-        ClientConnection::connect_before(&endpoint, "test", Instant::now()),
+        ClientConnection::connect_before(&endpoint, &crate::handshake_peer::offer(), Instant::now()),
         Err(ConnectClientError::Io(error)) if error.kind() == io::ErrorKind::TimedOut
     ));
     assert_eq!(
@@ -51,9 +47,10 @@ fn accepted_deadline_connection_preserves_next_phase_and_blocking_mode() -> Test
     let server = thread::spawn(move || -> io::Result<()> {
         let mut stream = accept_candidate(&listener)?;
         stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        crate::handshake_peer::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream),
-            Ok(LocalClientMessage::ClientHello(_))
+            Ok(LocalClientMessage::ClientHello)
         ));
         let mut bytes = Vec::new();
         let generation = NonZeroU64::new(9).ok_or_else(|| io::Error::other("generation"))?;
@@ -71,7 +68,7 @@ fn accepted_deadline_connection_preserves_next_phase_and_blocking_mode() -> Test
     });
     let mut client = ClientConnection::connect_before(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(2),
     )?;
     assert_eq!(client.generation().get(), 9);
@@ -106,10 +103,8 @@ fn silent_server_observes_candidate_eof_after_total_timeout() -> TestResult {
     let server = thread::spawn(move || -> io::Result<()> {
         let mut stream = accept_candidate(&listener)?;
         stream.set_read_timeout(Some(Duration::from_secs(3)))?;
-        assert!(matches!(
-            read_message(&mut stream),
-            Ok(LocalClientMessage::ClientHello(_))
-        ));
+        // The offer arrives; the Server never answers it.
+        crate::handshake_peer::read_offer(&mut stream)?;
         assert_eq!(stream.read(&mut [0])?, 0);
         listener.set_nonblocking(true)?;
         assert_eq!(
@@ -120,7 +115,7 @@ fn silent_server_observes_candidate_eof_after_total_timeout() -> TestResult {
     });
     let result = ClientConnection::connect_before(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_millis(100),
     );
     assert!(
@@ -134,9 +129,9 @@ fn silent_server_observes_candidate_eof_after_total_timeout() -> TestResult {
 fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
     for response in [
         LocalClientMessage::Rejected {
-            reason: RejectionReason::IncompatibleCohort,
+            reason: RejectionReason::CapacityExceeded,
         },
-        LocalClientMessage::ClientHello(ClientHello::new("test")?),
+        LocalClientMessage::ClientHello,
         LocalClientMessage::ClientAccepted {
             generation: NonZeroU64::new(9).ok_or("generation")?,
         },
@@ -153,6 +148,7 @@ fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
         let server = thread::spawn(move || -> io::Result<()> {
             let mut stream = accept_candidate(&listener)?;
             stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+            crate::handshake_peer::answer_offer(&mut stream)?;
             read_message(&mut stream).map_err(io::Error::other)?;
             stream.write_all(&bytes)?;
             match stream.read(&mut [0]) {
@@ -165,7 +161,7 @@ fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
         });
         let result = ClientConnection::connect_before(
             &endpoint,
-            "test",
+            &crate::handshake_peer::offer(),
             Instant::now() + Duration::from_secs(1),
         );
         match response {
@@ -174,11 +170,9 @@ fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
                     matches!(result, Err(ConnectClientError::Rejected(actual)) if actual == reason)
                 );
             }
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
             | LocalClientMessage::SessionStopRequest(_)
-            | LocalClientMessage::SessionStopResult(_)
-            | LocalClientMessage::ServerMetadataRequest
-            | LocalClientMessage::ServerMetadata(_) => assert!(matches!(
+            | LocalClientMessage::SessionStopResult(_) => assert!(matches!(
                 result,
                 Err(ConnectClientError::UnexpectedResponse)
             )),
@@ -201,7 +195,7 @@ fn full_linux_unix_backlog_is_rejected_without_a_second_connection() -> TestResu
     let _occupant = UnixStream::connect(&endpoint)?;
     let result = ClientConnection::connect_before(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(1),
     );
     assert!(
@@ -226,7 +220,7 @@ fn borrowed_wake_ends_a_held_admission_and_is_never_drained() -> TestResult {
         stream.set_read_timeout(Some(Duration::from_secs(3)))?;
         // The wake may fire before or after the hello is written; either way
         // the client drops its candidate and this side observes EOF.
-        let _ = read_message(&mut stream);
+        let _ = crate::handshake_peer::read_offer(&mut stream);
         let mut sink = Vec::new();
         let _ = stream.read_to_end(&mut sink);
         Ok(())
@@ -240,7 +234,7 @@ fn borrowed_wake_ends_a_held_admission_and_is_never_drained() -> TestResult {
     });
     let result = ClientConnection::connect_before_cancellable(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(5),
         Some(read_end.as_fd()),
     );
@@ -266,7 +260,7 @@ fn a_preloaded_wake_wins_even_when_the_socket_is_ready() -> TestResult {
     let server = thread::spawn(move || -> io::Result<()> {
         let mut stream = accept_candidate(&listener)?;
         stream.set_read_timeout(Some(Duration::from_secs(3)))?;
-        let _ = read_message(&mut stream);
+        let _ = crate::handshake_peer::read_offer(&mut stream);
         let mut sink = Vec::new();
         let _ = stream.read_to_end(&mut sink);
         Ok(())
@@ -275,7 +269,7 @@ fn a_preloaded_wake_wins_even_when_the_socket_is_ready() -> TestResult {
     nix::unistd::write(&write_end, b"x")?;
     let result = ClientConnection::connect_before_cancellable(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(5),
         Some(read_end.as_fd()),
     );
@@ -294,7 +288,7 @@ fn a_faulted_wake_descriptor_is_a_source_fault_not_a_wake() -> TestResult {
     let server = thread::spawn(move || -> io::Result<()> {
         let mut stream = accept_candidate(&listener)?;
         stream.set_read_timeout(Some(Duration::from_secs(3)))?;
-        let _ = read_message(&mut stream);
+        let _ = crate::handshake_peer::read_offer(&mut stream);
         let mut sink = Vec::new();
         let _ = stream.read_to_end(&mut sink);
         Ok(())
@@ -304,7 +298,7 @@ fn a_faulted_wake_descriptor_is_a_source_fault_not_a_wake() -> TestResult {
     drop(read_end);
     let result = ClientConnection::connect_before_cancellable(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(5),
         Some(write_end.as_fd()),
     );
@@ -324,9 +318,10 @@ fn a_none_wake_is_exactly_the_existing_admission() -> TestResult {
     let server = thread::spawn(move || -> io::Result<()> {
         let mut stream = accept_candidate(&listener)?;
         stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        crate::handshake_peer::answer_offer(&mut stream)?;
         assert!(matches!(
             read_message(&mut stream),
-            Ok(LocalClientMessage::ClientHello(_))
+            Ok(LocalClientMessage::ClientHello)
         ));
         let mut bytes = Vec::new();
         write_message(
@@ -341,7 +336,7 @@ fn a_none_wake_is_exactly_the_existing_admission() -> TestResult {
     });
     let client = ClientConnection::connect_before_cancellable(
         &endpoint,
-        "test",
+        &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(2),
         None,
     )?;
@@ -368,12 +363,16 @@ fn accept_candidate(listener: &UnixListener) -> io::Result<UnixStream> {
 fn only_pre_connection_absence_and_refusal_have_dial_failure_provenance() -> TestResult {
     let fixture = TestDirectory::new()?;
     let endpoint = fixture.path.join("client.sock");
-    assert!(matches!(ClientConnection::connect_before(&endpoint, "test",
+    assert!(
+        matches!(ClientConnection::connect_before(&endpoint, &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(1)),
-        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::NotFound));
+        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::NotFound)
+    );
     drop(UnixListener::bind(&endpoint)?);
-    assert!(matches!(ClientConnection::connect_before(&endpoint, "test",
+    assert!(
+        matches!(ClientConnection::connect_before(&endpoint, &crate::handshake_peer::offer(),
         Instant::now() + Duration::from_secs(1)),
-        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::ConnectionRefused));
+        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::ConnectionRefused)
+    );
     Ok(())
 }

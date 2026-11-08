@@ -86,7 +86,7 @@ fn prepare_from(
         }
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let mut executor = ClientExecutor::new(
         client,
         Arc::new(CommandMailbox::new(10, fixture_geometry()?)),

@@ -36,7 +36,7 @@ fn exchange_operation(
     );
     let captured = command.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 61)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -45,7 +45,7 @@ fn exchange_operation(
         write_workbench_response(&mut stream, &command_response(FIRST_REQUEST_ID, outcome))
             .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let submission = client.submit_workbench_setup(
         WorkbenchSetupRequest::try_from(command).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,

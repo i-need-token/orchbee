@@ -1,6 +1,6 @@
 use super::super::{Action, LocalClient, Outcome, TerminalProjection, ViewerId};
 use super::*;
-use crate::cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, record, reply, request};
+use crate::cli::terminal_stream::tests::{SNAPSHOT, handshake, record, reply, request};
 use orchbee_client_server_protocol::{
     ClientMessage, ControllerId, PasteAcceptedBytes, ServerMessage, TerminalControlResult,
     read_client_message, write_server_message,
@@ -122,7 +122,7 @@ fn console_flush_gates_ack_and_paste_keeps_semantic_authority()
             Ok(())
         })?;
         let mut connection = Connection {
-            client: Some(LocalClient::connect(server.endpoint(), COHORT)?),
+            client: Some(LocalClient::connect(server.endpoint())?),
             viewer: Some(viewer.clone()),
         };
         let gate = Gate {

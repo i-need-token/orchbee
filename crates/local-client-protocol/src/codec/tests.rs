@@ -1,23 +1,16 @@
 use std::{io::Cursor, num::NonZeroU64};
 
 use super::{
-    ClientHello, FRAME_HEADER_BYTES, LocalClientMessage, MAXIMUM_COHORT_BYTES,
-    MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION, ProtocolError, ReadMessageError,
-    RejectionReason, read_message, write_message,
+    FRAME_HEADER_BYTES, LocalClientMessage, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION,
+    ProtocolError, ReadMessageError, RejectionReason, read_message, write_message,
 };
 
 #[test]
 fn round_trips_every_admitted_message() -> Result<(), Box<dyn std::error::Error>> {
     let generation = NonZeroU64::new(3).ok_or("generation must be nonzero")?;
     let messages = [
-        LocalClientMessage::ClientHello(ClientHello::new("0.1.0")?),
+        LocalClientMessage::ClientHello,
         LocalClientMessage::ClientAccepted { generation },
-        LocalClientMessage::Rejected {
-            reason: RejectionReason::IncompatibleProtocol,
-        },
-        LocalClientMessage::Rejected {
-            reason: RejectionReason::IncompatibleCohort,
-        },
         LocalClientMessage::Rejected {
             reason: RejectionReason::CapacityExceeded,
         },
@@ -30,6 +23,9 @@ fn round_trips_every_admitted_message() -> Result<(), Box<dyn std::error::Error>
         LocalClientMessage::Rejected {
             reason: RejectionReason::HandshakeTimeout,
         },
+        LocalClientMessage::Rejected {
+            reason: RejectionReason::Stopping,
+        },
     ];
 
     for expected in messages {
@@ -38,18 +34,6 @@ fn round_trips_every_admitted_message() -> Result<(), Box<dyn std::error::Error>
         assert_eq!(read_message(&mut Cursor::new(encoded))?, expected);
     }
     Ok(())
-}
-
-#[test]
-fn enforces_the_exact_cohort_boundary() {
-    let maximum = "a".repeat(MAXIMUM_COHORT_BYTES);
-    assert!(ClientHello::new(&maximum).is_ok());
-    assert_eq!(
-        ClientHello::new(&format!("{maximum}a")),
-        Err(ProtocolError::InvalidCohort)
-    );
-    assert_eq!(ClientHello::new(""), Err(ProtocolError::InvalidCohort));
-    assert_eq!(ClientHello::new("版本"), Err(ProtocolError::InvalidCohort));
 }
 
 #[test]
@@ -92,16 +76,18 @@ fn rejects_unknown_truncated_and_noncanonical_payloads() {
         vec![2],
         vec![2, 0, 0, 0, 0, 0, 0, 0, 0],
         vec![3, 99],
-        vec![3, 1, 0],
-        vec![1],
-        vec![1, 1],
-        vec![1, 1, 0xff],
+        vec![3, 3, 0],
+        // Version and cohort refusals belong to the handshake, never to OBLC.
+        vec![3, 1],
+        vec![3, 2],
+        vec![1, 0],
+        // The metadata messages gave way to the handshake's `query`.
+        vec![6],
+        vec![7],
     ] {
         assert!(matches!(
             read_message(&mut Cursor::new(frame(PROTOCOL_VERSION, &payload))),
-            Err(ReadMessageError::Protocol(
-                ProtocolError::InvalidPayload | ProtocolError::InvalidCohort
-            ))
+            Err(ReadMessageError::Protocol(ProtocolError::InvalidPayload))
         ));
     }
 

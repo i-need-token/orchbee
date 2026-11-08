@@ -39,7 +39,7 @@ fn workspace_metadata_report_correlation_uncertainty_and_no_replay() -> TestResu
             _ => {}
         }
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 60)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -65,7 +65,7 @@ fn workspace_metadata_report_correlation_uncertainty_and_no_replay() -> TestResu
             assert_eq!(stream.read(&mut byte)?, 0, "no replay or further frames");
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let early = client
             .workspace_metadata(
                 request.clone(),

@@ -9,17 +9,27 @@ Client scroll/visible output use the exact read-only Client viewport. History ga
 sources and uncertain observer cleanup remain explicit. [Event ownership and acceptance](docs/windows-events.md)
 defines the lifecycle, bounds and Windows evidence; Desktop receives no new consumer here.
 
-## Windows runtime metadata
+## Client handshake and process query
 
-The same-user OBLC metadata request reads this process's compiled version, retained expected
-cohort, PID, terminal protocol, implementation feature bits and actual managed/stopping mode.
-It runs before exact-cohort Client admission, creates no Connection generation or Workbench/viewer
-state, acquires no shutdown record lease, and closes after one response. Existing candidate and
-handshake limits still apply, including while ordinary Client admission is stopping. These are
-diagnostic facts, never an operation grant or proof of future availability. The
-[runtime status contract](../orchbee/docs/native-runtime-status.md) owns CLI behavior and evidence;
-the [local Client protocol](../../crates/local-client-protocol/README.md) owns framing. Only Windows
-dispatches this new read; old admission and Linux/macOS runtime behavior remain unchanged.
+Every Client connection opens with one `OBHS` frame from
+[`orchbee-connection-handshake`](../../crates/connection-handshake/README.md). Server builds its
+acceptor profile from its product version, startup cohort, and compiled environment, and decides an
+offer in the handshake's order: connection kind, environment, generation in the release
+environment or development fingerprint elsewhere, Client capacity, then state. A refusal carries
+Server's facts so the Client can name the older side. A frame that is not `OBHS` gets `malformed`,
+and an offer that stays silent past the two-second candidate deadline gets `timeout`. After a
+recorded Session stop, offers are still answered and the following Client hello gets the typed
+stopping rejection; `drain` and `exit` are answered `unsupported` until the restart phases add them.
+
+A `query` request, on every platform, checks only the environment and replies with this Server
+first and then the Worker it started, each with product version, build, environment, PID, state
+(`stopping` after a recorded stop), terminal count, and connections; `restartKeepsTerminals` is
+false. Hosts join once the Worker reports them. The query creates no Connection generation or
+Workbench/viewer state, acquires no shutdown record lease, and closes after one reply, including
+when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
+future availability. The [runtime status contract](../orchbee/docs/native-runtime-status.md) owns
+CLI behavior and evidence; the [local Client protocol](../../crates/local-client-protocol/README.md)
+owns the exchange.
 
 ## Durable Windows session lifecycle
 
@@ -322,13 +332,13 @@ When the private Client endpoint is selected, every same-user compatible Human C
 creates one independent process-local Client Connection generation. TUI, Web, Desktop, mobile, tab,
 window, and renderer identity are intentionally absent: the endpoint admits one peer Client model.
 Server accepts up to thirty-two active Connections and at most forty-eight total
-candidate/connection handler threads. Each handshake has a two-second read/write timeout. One silent candidate therefore cannot
+candidate/connection handler threads. The offer and the hello each have a two-second read/write timeout. One silent candidate therefore cannot
 block another connection while a handler slot remains, and saturation closes excess candidates
 without allocating more threads. Handler slots and admitted-Connection registrations are
 lifetime-owned guards, so normal completion, faults, and unwinding release both bounds.
 
-An authenticated candidate receives a typed rejection for protocol/cohort incompatibility,
-malformed or wrong messages, timeout, or active-Connection capacity. After completely writing
+An authenticated candidate receives a handshake rejection for its offer, or a typed `OBLC`
+rejection for a malformed or wrong message, timeout, or a recorded stop after its answer. After completely writing
 `ClientAccepted`, Server removes handshake timeouts and reads strict OBCS or OBWP on that same unbuffered
 stream. The private service grants its single local effective-user subject default-shell Create and
 Start, plus viewing and explicit acquisition of an exclusive input/resize controller for those terminals. It reads one request, invokes the Server-owned service, and writes the complete

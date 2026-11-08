@@ -108,7 +108,7 @@ fn layout_transport_preserves_exact_commits_and_definite_rejections() -> TestRes
         let sent = command.clone();
         let reply = outcome.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 61)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -118,7 +118,7 @@ fn layout_transport_preserves_exact_commits_and_definite_rejections() -> TestRes
                 .map_err(io::Error::other)?;
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let answer = client.submit_workbench_creation(
             CreationRequest::try_from(command).unwrap(),
             Instant::now() + Duration::from_secs(1),
@@ -135,7 +135,7 @@ fn layout_transport_preserves_exact_commits_and_definite_rejections() -> TestRes
 fn layout_transport_retires_mismatched_or_lost_replies_without_replay() -> TestResult {
     for mode in 0..7 {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 61)?;
             let _ = read_workbench_request(&mut stream).map_err(io::Error::other)?;
             if mode == 5 {
@@ -182,7 +182,7 @@ fn layout_transport_retires_mismatched_or_lost_replies_without_replay() -> TestR
             write_workbench_response(&mut stream, &reply).map_err(io::Error::other)?;
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = Instant::now() + Duration::from_secs(1);
         assert!(matches!(
             client.submit_workbench_creation(

@@ -85,7 +85,7 @@ fn known_setup(
     outcome: WorkbenchCommandOutcome,
 ) -> Result<WorkbenchSetupSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 61)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -103,7 +103,7 @@ fn known_setup(
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_workbench_setup(
         WorkbenchSetupRequest::try_from(setup_command(kind, 7)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -231,7 +231,7 @@ fn invalid_setup(
     response: WorkbenchResponse,
 ) -> Result<WorkbenchSetupSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 62)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -240,7 +240,7 @@ fn invalid_setup(
         write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
         require_retirement(&mut stream)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
     let result = client.submit_workbench_setup(
         WorkbenchSetupRequest::try_from(setup_command(kind, baseline)).unwrap(),
@@ -334,7 +334,7 @@ fn setup_retires_wrong_commit_kind_revision_and_correlation() -> TestResult {
 #[test]
 fn setup_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
     let server = FakeServer::start(|mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 52)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -346,7 +346,7 @@ fn setup_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
         )
         .map_err(io::Error::other)
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let deadline = client.operation_clock().now();
     assert!(
         matches!(client.submit_workbench_setup(WorkbenchSetupRequest::try_from(setup_command(2, 7)).unwrap(),deadline),WorkbenchSetupSubmission::DefinitelyNotSubmitted(WorkbenchSetupNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
@@ -372,7 +372,7 @@ fn setup_partial_write_expiry_is_unknown_and_retires() -> TestResult {
     let mut frame = Vec::new();
     write_workbench_request(&mut frame, &WorkbenchRequest::Command(setup_command(2, 7)))?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 53)?;
         let mut received = Vec::new();
         stream.read_to_end(&mut received)?;
@@ -384,7 +384,6 @@ fn setup_partial_write_expiry_is_unknown_and_retires() -> TestResult {
     let deadline = clock.origin + Duration::from_millis(90);
     let mut client = LocalClient::connect_with_submission_runtime(
         server.endpoint(),
-        COHORT,
         SERVER_GUARD_TIMEOUT,
         Box::new(clock),
         IoChunkLimits::new(usize::MAX, 1),
@@ -402,7 +401,7 @@ fn setup_partial_write_expiry_is_unknown_and_retires() -> TestResult {
 fn setup_completed_response_past_caller_or_exchange_budget_retires_without_replay() -> TestResult {
     for caller_is_earlier in [true, false] {
         let server = FakeServer::start(|mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 55)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -430,7 +429,6 @@ fn setup_completed_response_past_caller_or_exchange_budget_retires_without_repla
         };
         let mut client = LocalClient::connect_with_submission_runtime(
             server.endpoint(),
-            COHORT,
             timeout,
             Box::new(clock),
             IoChunkLimits::UNBOUNDED,
@@ -460,7 +458,7 @@ fn setup_completed_response_past_caller_or_exchange_budget_retires_without_repla
 fn setup_retires_malformed_or_truncated_response_without_retry() -> TestResult {
     for truncated in [false, true] {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 56)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -475,7 +473,7 @@ fn setup_retires_malformed_or_truncated_response_without_retry() -> TestResult {
             }
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         assert!(
             matches!(client.submit_workbench_setup(WorkbenchSetupRequest::try_from(setup_command(2, 7)).unwrap(), deadline), WorkbenchSetupSubmission::OutcomeUnknown { request_id, reason: WorkbenchSetupOutcomeUnknownReason::Response(_) } if request_id.as_str() == FIRST_REQUEST_ID)
@@ -499,7 +497,7 @@ fn setup_retires_malformed_or_truncated_response_without_retry() -> TestResult {
 fn setup_lost_result_retires_each_action_without_replay() -> TestResult {
     for kind in 0..3 {
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 63)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -508,7 +506,7 @@ fn setup_lost_result_retires_each_action_without_replay() -> TestResult {
             stream.shutdown(std::net::Shutdown::Write)?;
             require_retirement(&mut stream)
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         assert!(
             matches!(client.submit_workbench_setup(WorkbenchSetupRequest::try_from(setup_command(kind, 7)).unwrap(), deadline), WorkbenchSetupSubmission::OutcomeUnknown { request_id, reason: WorkbenchSetupOutcomeUnknownReason::Response(_) } if request_id.as_str() == FIRST_REQUEST_ID)
@@ -578,7 +576,7 @@ fn exchange_setup(
 ) -> Result<WorkbenchSetupSubmission, Box<dyn std::error::Error>> {
     let expected = command.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 71)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -599,7 +597,7 @@ fn exchange_setup(
             require_retirement(&mut stream)
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let request = WorkbenchSetupRequest::try_from(command).unwrap();
     let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
     let actual = client.submit_workbench_setup(request.clone(), deadline);

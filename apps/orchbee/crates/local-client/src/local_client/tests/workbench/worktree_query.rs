@@ -52,7 +52,7 @@ fn query_correlates_session_source_and_request_without_replay() -> TestResult {
         }
         let expected = request.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 60)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -71,7 +71,7 @@ fn query_correlates_session_source_and_request_without_replay() -> TestResult {
             assert_eq!(stream.read(&mut byte)?, 0, "one query, never replayed");
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let result = client.query_worktrees(
             request,
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,

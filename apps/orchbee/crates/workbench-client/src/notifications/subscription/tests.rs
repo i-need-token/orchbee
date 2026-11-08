@@ -64,7 +64,7 @@ fn notification_subscription_uses_one_admission_and_cancels_its_stream() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();

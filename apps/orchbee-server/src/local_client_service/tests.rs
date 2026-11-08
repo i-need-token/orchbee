@@ -9,8 +9,10 @@ use crate::client_connection_registry::{
 
 use super::{ClientConnectionRegistration, ConnectionSlots, MAXIMUM_CLIENT_CONNECTIONS};
 
+mod admission;
 mod agent;
 pub(crate) mod agent_harness;
+pub(crate) mod handshake_client;
 mod workbench;
 
 #[test]

@@ -49,7 +49,7 @@ fn title_uses_one_admission_and_cancellation_preserves_the_carrier() {
         )
     })
     .unwrap();
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let mut client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();
@@ -125,7 +125,7 @@ fn title_latest_value_is_consumed_once_without_a_lane_thread() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+    let client = LocalClient::connect(server.endpoint())
         .unwrap()
         .into_multiplexed()
         .unwrap();

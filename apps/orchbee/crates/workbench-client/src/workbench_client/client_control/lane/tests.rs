@@ -21,9 +21,10 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |index, stream| {
             let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
+            crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -110,7 +111,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
             Ok(())
         })
         .unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        let client = LocalClient::connect(server.endpoint())
             .unwrap()
             .into_multiplexed()
             .unwrap();
@@ -191,9 +192,10 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |_, stream| {
             let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
+            crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -228,7 +230,7 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
             Ok(())
         })
         .unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        let client = LocalClient::connect(server.endpoint())
             .unwrap()
             .into_multiplexed()
             .unwrap();
@@ -291,9 +293,10 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_connections(1, move |_, stream| {
             let mut stream = crate::local_client::test_support::multiplex_peer::Peer::new(stream);
+            crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -313,7 +316,7 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
             Ok(())
         })
         .unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        let client = LocalClient::connect(server.endpoint())
             .unwrap()
             .into_multiplexed()
             .unwrap();

@@ -13,12 +13,20 @@ use nix::errno::Errno;
 use nix::poll::PollFlags;
 
 use super::{
-    Deadline, DeadlineIo, WakeFault, WakeReady, complete_connect, exchange_hello, finish_admission,
-    is_wake, translate_wake, wake_observation_error,
+    Deadline, DeadlineIo, WakeFault, WakeReady, complete_connect, finish_admission, is_wake,
+    translate_wake, wake_observation_error,
 };
-use crate::{ClientHello, ConnectClientError, LocalClientMessage, RejectionReason, write_message};
+use crate::{ConnectClientError, LocalClientMessage, RejectionReason, write_message};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+/// The Client phase over the deadline transport, as admission runs it after the answer.
+fn exchange_hello(
+    stream: &mut (impl Read + Write + AsFd),
+    deadline: Deadline<'_>,
+) -> Result<NonZeroU64, ConnectClientError> {
+    super::super::handshake::enter_client_phase(&mut DeadlineIo { stream, deadline })
+}
 
 #[test]
 fn partial_reads_and_writes_share_the_original_deadline() -> TestResult {
@@ -120,12 +128,8 @@ fn decoded_acceptance_at_deadline_does_not_complete() -> TestResult {
     let (stream, mut peer) = UnixStream::pair()?;
     stream.set_nonblocking(true)?;
     let generation = NonZeroU64::new(7).ok_or("generation")?;
-    let hello = ClientHello::new("test")?;
     let mut request = Vec::new();
-    write_message(
-        &mut request,
-        &LocalClientMessage::ClientHello(hello.clone()),
-    )?;
+    write_message(&mut request, &LocalClientMessage::ClientHello)?;
     let mut response = Vec::new();
     write_message(
         &mut response,
@@ -145,7 +149,7 @@ fn decoded_acceptance_at_deadline_does_not_complete() -> TestResult {
         time: &time,
     };
     assert!(matches!(
-        exchange_hello(&mut chunked, hello, deadline),
+        exchange_hello(&mut chunked, deadline),
         Err(ConnectClientError::Io(error)) if error.kind() == io::ErrorKind::TimedOut
     ));
     assert_eq!(time.get(), deadline.expires_at);
@@ -247,7 +251,7 @@ fn wake_observation_survives_the_hello_io_wrapper_and_translates_once() -> TestR
         wake: Some(read_end.as_fd()),
     };
     let mut stream = stream;
-    let error = exchange_hello(&mut stream, ClientHello::new("test")?, deadline).unwrap_err();
+    let error = exchange_hello(&mut stream, deadline).unwrap_err();
     assert!(matches!(
         &error,
         ConnectClientError::Io(inner) if is_wake::<WakeReady>(inner)

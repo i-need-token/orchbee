@@ -12,7 +12,8 @@ use crate::{
     localization::Locale,
     presentation::ProcessResult,
 };
-use orchbee_local_client_protocol::{ConnectClientError, ServerMode};
+use orchbee_connection_handshake::ProcessState;
+use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_runtime::{
     ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, NamedSessionDeleteFailure,
     NamedSessionDeleteOutcome, NamedSessionDeleteReason as Reason, NamedSessionEntry,
@@ -37,19 +38,17 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
     }
     match command {
         NamedSessionCommand::Attach { mouse, .. } => {
-            let result = match crate::local_startup::run(locale, *mouse) {
-                Ok(()) => ProcessResult {
-                    status: 0,
-                    stdout: "",
-                    stderr: "",
-                },
-                Err(failure) => ProcessResult {
-                    status: 1,
-                    stdout: "",
-                    stderr: locale.startup_failure(failure),
-                },
-            };
-            super::process_result(result, locale)
+            match crate::local_startup::run(locale, *mouse) {
+                Ok(()) => super::process_result(
+                    ProcessResult {
+                        status: 0,
+                        stdout: "",
+                        stderr: "",
+                    },
+                    locale,
+                ),
+                Err(failure) => super::startup_failure(&failure, locale),
+            }
         }
         NamedSessionCommand::Stop { name, command } => {
             if let ServerStopCommand::Stop { confirm, .. } = command
@@ -269,15 +268,19 @@ fn observe(
         }
         Err(_) => return Err(local_error(io::ErrorKind::InvalidData.into())),
     };
-    match super::server_metadata::read(session.client_socket_path(), deadline, signals.poll_fd()) {
-        Ok(metadata) => Ok((
-            if metadata.mode() == ServerMode::ManagedStopping {
-                SessionState::Stopping
-            } else {
-                SessionState::Running
-            },
-            Some(metadata.process_id().get()),
-        )),
+    match super::server_query::read(session.client_socket_path(), deadline, signals.poll_fd()) {
+        // The answering Server comes first.
+        Ok(result) => Ok(match result.processes().first() {
+            Some(server) => (
+                if server.state == ProcessState::Stopping {
+                    SessionState::Stopping
+                } else {
+                    SessionState::Running
+                },
+                Some(server.pid.get()),
+            ),
+            None => (SessionState::Running, None),
+        }),
         Err(ConnectClientError::ConnectFailed(error))
             if matches!(
                 error.kind(),

@@ -116,9 +116,10 @@ pub(crate) fn full_frame_record(
 }
 
 pub(crate) fn admit(stream: &mut UnixStream) -> io::Result<()> {
+    crate::local_client::test_support::handshake::answer_offer(stream)?;
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
-        LocalClientMessage::ClientHello(_)
+        LocalClientMessage::ClientHello
     ));
     write_message(
         stream,
@@ -462,7 +463,7 @@ pub fn spin_with_draw(
 }
 
 pub fn native_client(server: &FakeServer) -> Result<LocalClient, Box<dyn std::error::Error>> {
-    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     client.set_submission_deadline(Some(Instant::now() + Duration::from_secs(5)));
     Ok(client)
 }

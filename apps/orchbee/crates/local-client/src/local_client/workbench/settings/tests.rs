@@ -23,9 +23,10 @@ fn request() -> SettingsRequest {
 fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
     for wrong_receipt in [false, true] {
         let server = FakeServer::start_connections(1, move |_, mut stream| {
+            crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
+                LocalClientMessage::ClientHello
             ));
             write_message(
                 &mut stream,
@@ -57,7 +58,7 @@ fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
             Ok(())
         })
         .unwrap();
-        let mut client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let mut client = LocalClient::connect(server.endpoint()).unwrap();
         let result = client
             .settings(
                 request(),

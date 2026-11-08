@@ -151,7 +151,6 @@ fn start_connections_admits_each_connection() {
 #[test]
 fn optional_connections_admit_a_pending_destination_while_an_observation_is_paused()
 -> io::Result<()> {
-    const COHORT: &str = "independent-lane-fixture";
     let request = SnapshotReadIntent {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("11111111111111111111111111111111")
@@ -162,9 +161,10 @@ fn optional_connections_admit_a_pending_destination_while_an_observation_is_paus
     let (destination_attempted, attempted) = sync_channel(1);
     let (destination_admitted, admitted) = sync_channel(1);
     let server = FakeServer::start_optional_connections(2, move |index, mut stream| {
+        crate::local_client::test_support::handshake::answer_offer(&mut stream)?;
         if !matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            LocalClientMessage::ClientHello
         ) {
             return Err(io::Error::other("lane must begin with ClientHello"));
         }
@@ -207,7 +207,11 @@ fn optional_connections_admit_a_pending_destination_while_an_observation_is_paus
 
     let deadline = Instant::now() + ACCEPT_GUARD_TIMEOUT;
     let mut first_error = None;
-    let mut observation = match LocalClient::connect_before(server.endpoint(), COHORT, deadline) {
+    let mut observation = match LocalClient::connect_before(
+        server.endpoint(),
+        &crate::local_client::test_support::handshake::offer(),
+        deadline,
+    ) {
         Ok(client) => Some(client),
         Err(error) => {
             first_error = Some(io::Error::other(error));
@@ -230,7 +234,12 @@ fn optional_connections_admit_a_pending_destination_while_an_observation_is_paus
         let endpoint = server.endpoint().to_owned();
         Some(thread::spawn(move || -> io::Result<LocalClient> {
             let _ = destination_attempted.send(());
-            LocalClient::connect_before(&endpoint, COHORT, deadline).map_err(io::Error::other)
+            LocalClient::connect_before(
+                &endpoint,
+                &crate::local_client::test_support::handshake::offer(),
+                deadline,
+            )
+            .map_err(io::Error::other)
         }))
     } else {
         None

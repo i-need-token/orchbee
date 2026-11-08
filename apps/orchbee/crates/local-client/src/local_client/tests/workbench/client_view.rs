@@ -59,7 +59,7 @@ fn view_exchange_correlates_owner_sample_and_session_and_never_replays() -> Test
         }
         let expected = request.clone();
         let server = FakeServer::start(move |mut stream| {
-            expect_hello(&mut stream, COHORT)?;
+            handshake::expect_hello(&mut stream)?;
             admit(&mut stream, 60)?;
             assert_eq!(
                 read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -84,7 +84,7 @@ fn view_exchange_correlates_owner_sample_and_session_and_never_replays() -> Test
             );
             Ok(())
         })?;
-        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let mut client = LocalClient::connect(server.endpoint())?;
         let deadline = client.operation_clock().now()
             + if fault == 8 {
                 Duration::from_millis(200)

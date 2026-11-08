@@ -1,5 +1,6 @@
 //! Native stop exchange and strict activation records; completion policy stays in the workflow.
 use super::ExchangeFailure;
+use orchbee_connection_handshake::Offer;
 use orchbee_local_client_protocol::{SessionStopRequest, SessionStopResult};
 use orchbee_local_ipc::LocalIo;
 use orchbee_local_runtime::{ActivationState, ModeCheckedLocalSessionRendezvous};
@@ -7,15 +8,18 @@ use std::{io, path::Path, time::Instant};
 
 pub(super) fn exchange_before(
     endpoint: &Path,
+    offer: &Offer,
     request: SessionStopRequest,
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<SessionStopResult, ExchangeFailure> {
-    orchbee_local_client_protocol::exchange_session_stop_before(endpoint, request, deadline, wake)
-        .map_err(|error| ExchangeFailure {
-            failure: error.failure,
-            submitted: error.submitted,
-        })
+    orchbee_local_client_protocol::exchange_session_stop_before(
+        endpoint, offer, request, deadline, wake,
+    )
+    .map_err(|error| ExchangeFailure {
+        failure: error.failure,
+        submitted: error.submitted,
+    })
 }
 
 pub(super) fn activation_state(

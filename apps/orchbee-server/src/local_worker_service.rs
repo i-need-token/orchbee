@@ -107,7 +107,11 @@ pub(crate) fn run(
         .client
         .as_deref()
         .map(|endpoint| {
-            local_client_service::start(endpoint, expected_cohort, Arc::clone(&terminals))
+            local_client_service::start(
+                endpoint,
+                local_client_service::ServerIdentity::local(None, None),
+                Arc::clone(&terminals),
+            )
         })
         .transpose()?;
     write_ready_marker()?;

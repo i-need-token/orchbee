@@ -87,7 +87,7 @@ pub(crate) mod send;
 mod server;
 mod server_connect;
 mod server_diagnose;
-mod server_metadata;
+mod server_query;
 mod server_stop;
 mod terminal_observation;
 pub(crate) mod update;
@@ -170,6 +170,19 @@ pub(crate) struct Output {
 /// through the preparation bound; their static bodies are far under it, so
 /// the overflow arm is unreachable — but if it ever ran it still reports a
 /// localized failure, never a hardcoded English string.
+/// A failed local startup exits 1 with its localized copy, which may name product versions.
+pub(crate) fn startup_failure(
+    failure: &crate::local_activation::StartupFailure,
+    locale: Locale,
+) -> Output {
+    Output {
+        status: 1,
+        stdout: Vec::new(),
+        stderr: locale.startup_failure(failure).into_owned(),
+        finalization: None,
+    }
+}
+
 pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
     match output::encode_text(result.stdout) {
         Ok(stdout) => Output {

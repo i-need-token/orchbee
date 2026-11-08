@@ -13,6 +13,7 @@ nix = { workspace = true, features = ["fs", "poll", "socket"] }
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 nix = { workspace = true, features = ["fs"] }
 [dependencies]
+orchbee-connection-handshake = { path = "../connection-handshake" }
 orchbee-local-ipc = { path = "../local-ipc" }
 orchbee-local-peer-credentials = { path = "../local-peer-credentials" }
 

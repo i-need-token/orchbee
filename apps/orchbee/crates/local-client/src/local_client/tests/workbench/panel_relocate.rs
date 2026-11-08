@@ -44,7 +44,7 @@ fn exchange(
 ) -> Result<WorkbenchPanelRelocateSubmission, Box<dyn std::error::Error>> {
     let expected = request.clone();
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 61)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
@@ -72,7 +72,7 @@ fn exchange(
             Ok(())
         }
     })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let result = client.submit_workbench_panel_relocate(
         WorkbenchPanelRelocateRequest::try_from(request).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
@@ -219,7 +219,7 @@ fn panel_relocation_wake_after_submission_retires_unknown_without_replay() -> Te
     let (submitted, waiting) = std::sync::mpsc::channel();
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
+        handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 51)?;
         let WorkbenchRequest::Command(command) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
@@ -244,7 +244,7 @@ fn panel_relocation_wake_after_submission_retires_unknown_without_replay() -> Te
             .map_err(io::Error::other)?;
         wake_write.write_all(b"x")
     });
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut client = LocalClient::connect(server.endpoint())?;
     let command = request(WorkbenchPanelRelocateDestination::NewTab {
         terminal_context_id: Some(context_id(40)),
         label: None,

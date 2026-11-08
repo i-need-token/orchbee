@@ -384,7 +384,31 @@
 			"properties": {
 				"stage": {
 					"const": "admission"
+				},
+				"reason": {
+					"enum": [
+						"client-too-old",
+						"session-too-old",
+						"environment-mismatch",
+						"fingerprint-mismatch"
+					]
+				},
+				"clientVersion": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[!-~]+$"
+				},
+				"sessionVersion": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[!-~]+$"
 				}
+			},
+			"dependentRequired": {
+				"clientVersion": ["reason"],
+				"sessionVersion": ["clientVersion"]
 			}
 		},
 		"protocolStageDetails": {

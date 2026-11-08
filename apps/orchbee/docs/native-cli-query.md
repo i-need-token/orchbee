@@ -334,8 +334,8 @@ reply/release traces. Final deployed Host/emulator acceptance remains separate.
 
 Bare `status` reads one Workbench snapshot and reports reachability and resource counts. Text
 includes the selected Session name only when `--session` was explicit. It always includes the
-executing Client's package version. On Windows, `status server` reports the Server's actual
-build metadata.
+executing Client's package version. On Windows, `status server` reports each Session process's
+version.
 
 ## Workbench topology queries
 
@@ -2304,7 +2304,12 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `ConnectClientError::Io`                                                                                                                  | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                                   |
 | OBLC `Rejected(CapacityExceeded)`                                                                                                         | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                                   |
 | OBLC `Rejected(HandshakeTimeout)`                                                                                                         | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                                   |
-| `Rejected(IncompatibleProtocol                                                \| IncompatibleCohort)`, `Protocol(IncompatibleVersion)`    | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                                   |
+| handshake `Refused(initiator-too-old)`                                                                                                    | `incompatible`                                                             | 6         | `{stage:"admission",reason:"client-too-old",clientVersion,sessionVersion}`                              |
+| handshake `Refused(initiator-too-new)`, `PredatesHandshake`                                                                               | `incompatible`                                                             | 6         | `{stage:"admission",reason:"session-too-old",clientVersion,sessionVersion?}`                            |
+| handshake `Refused(environment-mismatch \| fingerprint-mismatch)`                                                                         | `incompatible`                                                             | 6         | `{stage:"admission",reason:"environment-mismatch" \| "fingerprint-mismatch"}`                           |
+| OBLC `Protocol(IncompatibleVersion)` after an answer                                                                                      | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                                   |
+| handshake `Refused(capacity)`                                                                                                             | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                                   |
+| handshake `Refused(stopping \| timeout)`, OBLC `Rejected(Stopping)`                                                                       | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                                   |
 | `Rejected(WrongMessage                                                        \| MalformedFrame)`, `UnexpectedResponse`, other `Protocol` | `protocol-invalid`                                                         | 5         | `{stage:"admission"}`                                                                                   |
 | `RequestIoConfiguration`, `ConnectionUnavailable`, `RequestEncoding`                                                                      | `internal-failure`                                                         | 1         | omitted                                                                                                 |
 | `SnapshotReadError::RequestNotSubmitted` (any cause)                                                                                      | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                                    |
@@ -2894,7 +2899,7 @@ Source waits default to 30000 ms and recent80, with `--forever` for explicit unb
 They emit v1, or v1 with `--after`; existing output can match without a cursor. A match alone
 is not command completion. Reads and waits never take terminal control or change Client focus.
 
-Windows `status server` reads actual Server build/protocol/cohort metadata before Client Connection admission; `status client` checks this executable offline and its v1 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
+Windows `status server` lists the Session's processes and their versions with one handshake `query`, without a Client Connection; `status client` checks this executable offline and its v1 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, refusals, schemas and failures. Update-channel management remains unavailable.
 
 ## Agent navigation
 

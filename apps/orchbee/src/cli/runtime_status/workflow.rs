@@ -1,4 +1,4 @@
-//! One read-only admitted probe and an independent optional local cohort check.
+//! One read-only `query` of the selected Session, or a local executable check.
 use super::{
     Failure, FailureKind, Locale, Output, OutputFormat, RuntimeStatusScope, failed,
     projection::{
@@ -9,7 +9,7 @@ use crate::cli::{
     console_interrupt::{ArmedSignals, Finish},
     query,
 };
-use orchbee_local_client_protocol::{ConnectClientError, RejectionReason};
+use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_runtime::{
     self as runtime, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
@@ -91,19 +91,19 @@ fn collect(
         None => (runtime, None, Server::Absent(Absence::Runtime)),
         Some(session) => {
             let endpoint = session.client_socket_path();
-            let server =
-                match crate::cli::server_metadata::read(endpoint, deadline, signals.poll_fd()) {
-                    Ok(metadata) => Server::Observed(metadata),
-                    Err(ConnectClientError::ConnectFailed(error))
-                        if matches!(
-                            error.kind(),
-                            io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
-                        ) =>
-                    {
-                        Server::Absent(Absence::Endpoint)
-                    }
-                    Err(error) => return Err(classify(error)),
-                };
+            let server = match crate::cli::server_query::read(endpoint, deadline, signals.poll_fd())
+            {
+                Ok(result) => Server::Observed(result),
+                Err(ConnectClientError::ConnectFailed(error))
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+                    ) =>
+                {
+                    Server::Absent(Absence::Endpoint)
+                }
+                Err(error) => return Err(classify(error)),
+            };
             (
                 session.runtime_directory().to_owned(),
                 Some(endpoint.to_owned()),
@@ -119,15 +119,9 @@ fn collect(
         runtime,
         endpoint,
         server,
-        cohort: local_cohort(deadline),
     }))
 }
 
-fn local_cohort(deadline: Instant) -> Cohort {
-    project_cohort(
-        runtime::Cohort::current(deadline).map_err(|error| (cohort_issue(error.kind()), None)),
-    )
-}
 fn project_cohort(
     admitted: Result<runtime::Cohort, (CohortIssue, Option<CohortDiagnostic>)>,
 ) -> Cohort {
@@ -168,12 +162,8 @@ fn classify(error: ConnectClientError) -> Failure {
         {
             Failure::new(FailureKind::Denied)
         }
-        // Old OBLC readers reject the new, fixed request before dispatch.
-        ConnectClientError::Rejected(
-            RejectionReason::WrongMessage | RejectionReason::MalformedFrame,
-        ) => {
-            Failure::new(FailureKind::Incompatible).details(crate::cli::stage_details("admission"))
-        }
+        // A Session that predates the handshake, or belongs to another environment, is
+        // incompatible rather than absent.
         other => query::classify_connect(crate::local_client::LocalClientConnectError::Admission(
             other,
         )),

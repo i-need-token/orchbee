@@ -188,7 +188,7 @@ fn exercise(cut: Cut) -> TestResult {
         );
         Ok(())
     })?;
-    let client = LocalClient::connect(server.endpoint(), "native-control-test")?;
+    let client = LocalClient::connect(server.endpoint())?;
     let worker_mailbox = Arc::clone(&mailbox);
     let pane = operation.key.clone();
     let worker = thread::spawn(move || {
