@@ -32,6 +32,16 @@ impl super::CliText {
         }
     }
 
+    /// Explains the `not-started` reason when a check reports it.
+    pub(crate) const fn cli_check_not_started_note(self) -> &'static str {
+        match self.locale {
+            Locale::EnUs => {
+                "This environment has not been started yet; `orchbee server start` creates its runtime base.\n"
+            }
+            Locale::ZhCn => "此环境尚未启动；`orchbee server start` 会创建其运行时基座。\n",
+        }
+    }
+
     pub(crate) const fn cli_check_headers(self) -> [&'static str; 3] {
         match self.locale {
             Locale::EnUs => ["CHECK", "STATUS", "DETAIL"],

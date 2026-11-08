@@ -456,13 +456,16 @@ fn failure(kind: io::ErrorKind, fallback: StartupFailure) -> StartupFailure {
     }
 }
 
-/// Whether the runtime base is this environment's default and nothing has created it yet. Read-only
-/// commands then report an unstarted environment instead of failing; an explicit base never qualifies.
+/// Whether the runtime base is a development or test environment's default and nothing has created
+/// it yet; activation creates it. Read-only commands then report an unstarted environment instead of
+/// failing. An explicit base never qualifies, and neither does release's default, the temporary
+/// directory, which activation never creates.
 pub fn runtime_base_unstarted() -> io::Result<bool> {
     #[cfg(windows)]
     {
         let location = windows_selection::location()?;
-        Ok(location.default_base
+        Ok(!orchbee_local_runtime::is_release()
+            && location.default_base
             && matches!(
                 std::fs::symlink_metadata(&location.base),
                 Err(error) if error.kind() == io::ErrorKind::NotFound

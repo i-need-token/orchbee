@@ -116,7 +116,7 @@ fn command(path: CommandPath, locale: Locale) -> Document {
             details
                 .notes
                 .split("\n\n")
-                .map(crate::cli_text::environment_configuration_text),
+                .map(crate::cli_text::fill_environment_placeholders),
         )
         .collect(),
     });

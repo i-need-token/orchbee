@@ -143,9 +143,12 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
         SessionScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope_directory = base.join(&scope_text);
     let session = ModeCheckedLocalSessionRendezvous::validate_mode_checked(&base, scope);
+    let unstarted = crate::local_activation::runtime_base_unstarted()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
 
     let mut checks = Vec::with_capacity(5);
-    let (base_check, directory_check) = classify_paths(&session, &base, &scope_directory);
+    let (base_check, directory_check) =
+        classify_paths(&session, &base, &scope_directory, unstarted);
     checks.push(base_check);
     checks.push(directory_check);
 
@@ -183,10 +186,13 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     Ok(checks)
 }
 
+/// `unstarted` marks a default runtime base that nothing has created yet: the environment has not
+/// been started, so an absent base and Session scope are not configuration faults.
 fn classify_paths(
     session: &Result<ModeCheckedLocalSessionRendezvous, RendezvousError>,
     base: &Path,
     scope_directory: &Path,
+    unstarted: bool,
 ) -> (CheckReport, CheckReport) {
     match session {
         Ok(_) => (
@@ -280,6 +286,22 @@ fn classify_paths(
                     base_pass(),
                     path_failure("runtime-directory", scope_directory),
                 ),
+                (false, true) if unstarted => {
+                    let not_started = |name: &'static str, target: &Path| {
+                        not_applicable(
+                            name,
+                            detail([
+                                native_path::detail(target),
+                                ("exists".to_owned(), json!(false)),
+                                ("reason".to_owned(), json!("not-started")),
+                            ]),
+                        )
+                    };
+                    (
+                        not_started("runtime-base", base),
+                        not_started("runtime-directory", scope_directory),
+                    )
+                }
                 (false, _) => (
                     path_failure("runtime-base", base),
                     not_applicable("runtime-directory", Map::new()),

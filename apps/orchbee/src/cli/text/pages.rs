@@ -137,7 +137,7 @@ pub(crate) fn root(locale: Locale) -> String {
             CliText::new(locale)
                 .cli_help_text(HelpText::FormatScope)
                 .into(),
-            crate::cli_text::environment_configuration_text(
+            crate::cli_text::fill_environment_placeholders(
                 CliText::new(locale).cli_help_text(HelpText::ConfigLocation),
             ),
         ],

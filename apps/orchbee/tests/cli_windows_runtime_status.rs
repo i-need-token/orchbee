@@ -121,6 +121,7 @@ fn document(output: Output, status: i32, schema: &str) -> Value {
         "orchbee.status.client" => include_str!("../src/cli/schemas/orchbee.status.client.json"),
         "orchbee.status.server" => include_str!("../src/cli/schemas/orchbee.status.server.json"),
         "orchbee.cli.failure" => include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+        "orchbee.config.check" => include_str!("../src/cli/schemas/orchbee.config.check.json"),
         _ => panic!("unexpected status schema: {schema}"),
     };
     support::validate(&doc, source);
@@ -204,6 +205,24 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
     );
     assert!(server["result"]["compatibility"]["restartRequired"].is_null());
     assert!(!fixture.0.join("runtime").exists());
+    // A fresh environment's default runtime base reads as not started, not as a failed check.
+    let mut command = fixture.command(&["config", "check", "--format=json"], None, None, &[]);
+    command.env_remove("ORCHBEE_RUNTIME_BASE");
+    let check = document(
+        fixture.run_command(command, None, Duration::from_secs(45), 8 * 1024 * 1024),
+        0,
+        "orchbee.config.check",
+    );
+    for path in &check["result"]["checks"].as_array().unwrap()[..2] {
+        assert_eq!(path["status"], "not-applicable", "{path}");
+        assert_eq!(path["details"]["reason"], "not-started", "{path}");
+    }
+    let profile = fixture.profile();
+    let default_base = orchbee_local_runtime::default_runtime_base(|name| {
+        (name == "USERPROFILE").then(|| profile.clone().into_os_string())
+    })
+    .unwrap();
+    assert!(!default_base.exists(), "{}", default_base.display());
     let session = fixture.rendezvous();
     let server = success(
         fixture.run(&["status", "server", "--format=json"]),

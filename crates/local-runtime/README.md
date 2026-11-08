@@ -136,7 +136,8 @@ may be a home directory whose ACL other principals share. `PrivateCache` applies
 it creates a missing roaming or local state root whose parent exists, in every environment; a root
 whose parent is missing is created by the private recursive creation used for any other directory. Activation creates a
 non-release default runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must
-already exist. Until then, read-only `session list` and `server diagnose` report nothing started.
+already exist. Until then, read-only `session list`, `server diagnose` and `config check` report
+nothing started.
 Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
 its own endpoint id. Data written under earlier non-release locations is not migrated.
 

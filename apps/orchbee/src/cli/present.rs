@@ -1411,7 +1411,8 @@ pub(crate) fn columns(headers: &[&str], rows: &[Vec<String>]) -> String {
 }
 
 /// `config check` text: the conclusion, one aligned row per check, any
-/// settings warnings, the file in use, then where the full detail lives.
+/// settings warnings, a note when the environment has not been started, the
+/// file in use, then where the full detail lives.
 pub(crate) fn config_checks(
     out: &mut Bounded,
     checks: &[CheckReport],
@@ -1456,6 +1457,12 @@ pub(crate) fn config_checks(
                 diagnostic["disposition"].as_str().unwrap_or("?"),
             ))?;
         }
+    }
+    if checks
+        .iter()
+        .any(|check| check.details.get("reason").and_then(Value::as_str) == Some("not-started"))
+    {
+        out.push(CliText::new(locale).cli_check_not_started_note())?;
     }
     if let Some(path) = checks
         .iter()

@@ -27,7 +27,7 @@ const BASE: &str = "/ob-config-test-base";
 const SCOPE_DIR: &str = "/ob-config-test-base/orchbee-native-1000";
 
 fn classify(error: RendezvousError) -> (CheckReport, CheckReport) {
-    classify_paths(&Err(error), Path::new(BASE), Path::new(SCOPE_DIR))
+    classify_paths(&Err(error), Path::new(BASE), Path::new(SCOPE_DIR), false)
 }
 
 #[test]
@@ -162,6 +162,7 @@ fn non_utf8_paths_encode_as_path_bytes_hex() {
         }),
         &weird,
         Path::new(SCOPE_DIR),
+        false,
     );
     assert_eq!(base.status, "fail");
     assert_eq!(base.details["pathBytesHex"], json!(hex));

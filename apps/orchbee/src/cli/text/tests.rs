@@ -41,6 +41,7 @@ fn every_help_path_parses_and_renders_in_both_languages() {
                 "installed help must resolve offline: {text}"
             );
             assert!(text.ends_with('\n'));
+            assert_environment_paths(&text);
             assert!(text.contains("-h, --help"), "{text}");
             assert!(
                 text.lines()
@@ -73,6 +74,23 @@ fn every_help_path_parses_and_renders_in_both_languages() {
                     assert!(text.contains(flag), "{command:?} omitted {flag}");
                 }
             }
+        }
+    }
+}
+
+/// Help fills every environment placeholder, and a development or test build never names the
+/// release configuration file, since it reads its own.
+fn assert_environment_paths(text: &str) {
+    assert!(
+        !text.contains(crate::cli_text::CONFIGURATION_FILE_PLACEHOLDER),
+        "unfilled placeholder: {text}"
+    );
+    if !orchbee_local_runtime::is_release() {
+        for release in [
+            r"%APPDATA%\Orchbee\config.toml",
+            "APPDATA/Orchbee/config.toml",
+        ] {
+            assert!(!text.contains(release), "{text}");
         }
     }
 }
@@ -185,6 +203,7 @@ fn root_help_uses_the_same_bounded_plain_text_sink() {
         assert!(text.contains("orchbee workspace create"));
         assert!(text.contains("--skill"));
         assert!(text.contains("-v, -V, --version"));
+        assert_environment_paths(&text);
         assert!(!text.contains('\x1b'));
         assert!(
             text.lines()

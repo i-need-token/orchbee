@@ -884,8 +884,8 @@ impl super::CliText {
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",
             ),
             HelpText::ConfigLocation => (
-                "Configuration: Windows %APPDATA%\\Orchbee\\config.toml; macOS ~/Library/Application Support/Orchbee/config.toml; Linux $XDG_CONFIG_HOME/Orchbee/config.toml (default ~/.config). ORCHBEE_CONFIG_FILE overrides the path. Use orchbee config check to inspect it and orchbee server diagnose for runtime facts.",
-                "配置：Windows 为 %APPDATA%\\Orchbee\\config.toml；macOS 为 ~/Library/Application Support/Orchbee/config.toml；Linux 为 $XDG_CONFIG_HOME/Orchbee/config.toml（默认 ~/.config）。ORCHBEE_CONFIG_FILE 覆盖路径。使用 orchbee config check 检查配置，使用 orchbee server diagnose 查看运行时事实。",
+                "Configuration: Windows {config-file}; macOS ~/Library/Application Support/Orchbee/config.toml; Linux $XDG_CONFIG_HOME/Orchbee/config.toml (default ~/.config). ORCHBEE_CONFIG_FILE overrides the path. Use orchbee config check to inspect it and orchbee server diagnose for runtime facts.",
+                "配置：Windows 为 {config-file}；macOS 为 ~/Library/Application Support/Orchbee/config.toml；Linux 为 $XDG_CONFIG_HOME/Orchbee/config.toml（默认 ~/.config）。ORCHBEE_CONFIG_FILE 覆盖路径。使用 orchbee config check 检查配置，使用 orchbee server diagnose 查看运行时事实。",
             ),
             HelpText::Reference => (
                 "Offline guide: orchbee --skill. Command help: orchbee help <command>.",

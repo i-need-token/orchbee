@@ -429,7 +429,7 @@
 					"const": "runtime-base"
 				},
 				"status": {
-					"enum": ["pass", "fail"]
+					"enum": ["pass", "fail", "not-applicable"]
 				},
 				"details": {
 					"type": "object"
@@ -555,6 +555,42 @@
 										}
 									}
 								]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "not-applicable"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["exists", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"path": {
+										"type": "string",
+										"minLength": 1
+									},
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"reason": {
+										"const": "not-started"
+									},
+									"exists": {
+										"const": false
+									}
+								},
+								"$ref": "#/$defs/path"
 							}
 						}
 					}
@@ -713,7 +749,7 @@
 												"pattern": "^([0-9a-f]{2})+$"
 											},
 											"reason": {
-												"const": "absent"
+												"enum": ["absent", "not-started"]
 											},
 											"exists": {
 												"const": false
