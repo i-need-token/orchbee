@@ -11,6 +11,7 @@ const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const INTERNAL_DIRECTORY_NAME = 'internal';
 const DEVELOPMENT_SCOPE_MARKER_NAME = 'development-checkout.json';
 const ELECTRON_DIRECTORY_NAME = 'desktop';
+const LOG_DIRECTORY_NAME = 'logs';
 const STATE_DIRECTORY_NAME = 'state';
 const WINDOW_STATE_FILE_NAME = 'desktop-window.json';
 const VERSION_FILE_NAME = 'version.json';
@@ -38,6 +39,8 @@ export interface DesktopDataRootInput {
 interface DesktopDataRootLocations {
 	/** Electron `userData`: browser storage, Chromium caches, and the single-instance lock. */
 	readonly electronDirectory: string;
+	/** The daily diagnostic logs, created by the first record. */
+	readonly logDirectory: string;
 	readonly path: string;
 	readonly windowStateFile: string;
 }
@@ -108,6 +111,7 @@ function resolveDesktopDataRoot(input: DesktopDataRootInput): DesktopDataRoot {
 	const internal = platformPath.join(root, INTERNAL_DIRECTORY_NAME);
 	const locations: DesktopDataRootLocations = {
 		electronDirectory: platformPath.join(internal, ELECTRON_DIRECTORY_NAME),
+		logDirectory: platformPath.join(root, LOG_DIRECTORY_NAME),
 		path: root,
 		windowStateFile: platformPath.join(internal, STATE_DIRECTORY_NAME, WINDOW_STATE_FILE_NAME),
 	};

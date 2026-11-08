@@ -1,6 +1,7 @@
 import type { ActionAvailability, ActionDisposable } from '@orchbee/actions';
 import { Menu, type KeyboardEvent, type MenuItem, type MenuItemConstructorOptions } from 'electron';
 
+import type { DesktopDiagnosticsActionSource } from '../diagnostics';
 import type { DesktopSecureKeyboardEntryActionSource } from '../secure-keyboard-entry';
 import type { DesktopWindowActionSource } from '../window-actions';
 
@@ -8,6 +9,7 @@ const DESKTOP_APPLICATION_MENU_ITEM_IDS = {
 	closeWindow: 'desktop-window-close',
 	forceReload: 'desktop-view-force-reload',
 	reload: 'desktop-view-reload',
+	saveDiagnosticBundle: 'desktop-help-save-diagnostic-bundle',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
 	toggleMaximized: 'desktop-window-toggle-maximized',
@@ -21,6 +23,14 @@ export interface DesktopApplicationMenuLabels {
 	readonly toggleMaximized: string;
 }
 
+/** The Windows diagnostic bundle Action, placed in the Help menu. */
+export interface DesktopApplicationMenuDiagnostics {
+	readonly categoryLabel: string;
+	readonly label: string;
+	getAvailability(): ActionAvailability;
+	invoke(source: DesktopDiagnosticsActionSource): boolean;
+}
+
 export interface DesktopApplicationMenuTarget {
 	getSecureKeyboardEntryAvailability(): ActionAvailability;
 	getToggleFullScreenAvailability(): ActionAvailability;
@@ -28,6 +38,7 @@ export interface DesktopApplicationMenuTarget {
 	invokeToggleFullScreen(source: DesktopWindowActionSource): boolean;
 	invokeToggleMaximized(source: DesktopWindowActionSource): boolean;
 	invokeToggleSecureKeyboardEntry(source: DesktopSecureKeyboardEntryActionSource): boolean;
+	readonly saveDiagnosticBundle?: DesktopApplicationMenuDiagnostics | undefined;
 }
 
 interface DesktopApplicationMenuApi {
@@ -162,6 +173,25 @@ export function installDesktopApplicationMenu(
 		}
 	}
 
+	const diagnostics = platform === 'win32' ? actions.saveDiagnosticBundle : undefined;
+	if (diagnostics !== undefined) {
+		const saveDiagnosticBundleItem: MenuItemConstructorOptions & { readonly id: string } = {
+			click: () => diagnostics.invoke('menu'),
+			id: DESKTOP_APPLICATION_MENU_ITEM_IDS.saveDiagnosticBundle,
+			label: diagnostics.label,
+		};
+		const helpRoot = findRole(baseMenu, 'help');
+		if (helpRoot === undefined) {
+			appendedRoots.push({
+				id: 'desktop-help-menu',
+				label: diagnostics.categoryLabel,
+				submenu: [saveDiagnosticBundleItem],
+			});
+		} else {
+			planRoot(rootPlans, helpRoot, saveDiagnosticBundleItem);
+		}
+	}
+
 	let replacementOrdinal = 0;
 	const replacementRootIds: string[] = [];
 	const template: Array<MenuItemConstructorOptions | MenuItem> = [
@@ -210,6 +240,12 @@ export function installDesktopApplicationMenu(
 			projectAvailability(
 				menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.secureKeyboardEntry),
 				actions.getSecureKeyboardEntryAvailability(),
+			);
+		}
+		if (diagnostics !== undefined) {
+			projectAvailability(
+				menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.saveDiagnosticBundle),
+				diagnostics.getAvailability(),
 			);
 		}
 	};

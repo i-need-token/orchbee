@@ -2,6 +2,7 @@ export { applicationRoutingMessages } from './application-routing';
 export { agentIntegrationMessages } from './agent-integrations';
 export { agentObservationMessages } from './agent-observation';
 
+export { desktopDiagnosticsMessages } from './desktop-diagnostics';
 export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 
 export { desktopWindowMessages } from './desktop-window';

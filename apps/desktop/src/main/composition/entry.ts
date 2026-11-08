@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import {
 	createOrchbeeIntl,
+	desktopDiagnosticsMessages,
 	desktopSecureKeyboardEntryMessages,
 	desktopWindowMessages,
 	resolveOrchbeeLocale,
@@ -15,6 +16,12 @@ import { app, net, protocol } from 'electron';
 import { DesktopDevelopmentRestartRequestSchema } from '../../development';
 import { resolveDesktopCohortArtifactStem, resolveDesktopSessionName } from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
+import {
+	DesktopDiagnosticLog,
+	DesktopDiagnosticsActions,
+	DesktopDiagnosticsRuntime,
+	type DesktopDiagnosticRecorder,
+} from '../diagnostics';
 import {
 	DESKTOP_RENDERER_URL,
 	installDesktopRendererScheme,
@@ -36,6 +43,8 @@ const RENDERER_ROOT_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_ROOT';
 const RENDERER_URL_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_RENDERER_URL';
 const SESSION_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_SESSION';
 const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
+/** What the Windows taskbar's Save Diagnostic Bundle task starts Orchbee with. */
+const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
 // Cross-runtime contract: search for `packaged-desktop-resources` before changing these values.
 const PACKAGED_COHORT_DIRECTORY = 'cohort';
 const PACKAGED_RENDERER_DIRECTORY = 'dist';
@@ -56,6 +65,11 @@ const dataRoot = prepareDesktopDataRoot({
 	platform: process.platform,
 });
 app.setPath('userData', dataRoot.electronDirectory);
+// The natives write the same daily logs on Windows only until ORC-328, and so does Main.
+const recordEvent: DesktopDiagnosticRecorder =
+	process.platform === 'win32'
+		? new DesktopDiagnosticLog(dataRoot.logDirectory).recorder()
+		: () => undefined;
 
 /**
  * What `orchbee` runs under: the same data root as Desktop, so a Session it starts keeps this
@@ -99,10 +113,38 @@ async function resolveRendererUrl(): Promise<URL> {
 	return new URL(DESKTOP_RENDERER_URL);
 }
 
-/** The menu, its window Actions, and macOS Secure Keyboard Entry; returns their removal. */
+/**
+ * The menu, its window Actions, macOS Secure Keyboard Entry, and the Windows diagnostic bundle with
+ * its taskbar task; returns their removal.
+ */
 function installPlatformActions(application: DesktopServerClientApplication): () => void {
 	const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
 	const windowActions = new DesktopWindowActions(application);
+	const diagnosticsActions = new DesktopDiagnosticsActions(
+		new DesktopDiagnosticsRuntime({
+			clientEnvironment: resolveClientEnvironment(dataRoot),
+			clientExecutable: resolveClientExecutable(),
+			intl,
+			recordEvent,
+			window: () => application.window,
+		}),
+		process.platform,
+	);
+	saveDiagnosticBundle = () => diagnosticsActions.invokeSaveBundle('menu');
+	// The title bar overlay hides the Windows menu bar, so the taskbar's Jump List holds the same
+	// Action; a checkout's Electron has no identity of its own to hold one.
+	if (process.platform === 'win32' && app.isPackaged) {
+		app.setUserTasks([
+			{
+				arguments: SAVE_DIAGNOSTIC_BUNDLE_SWITCH,
+				description: intl.formatMessage(desktopDiagnosticsMessages.taskDescription),
+				iconIndex: 0,
+				iconPath: process.execPath,
+				program: process.execPath,
+				title: intl.formatMessage(desktopDiagnosticsMessages.saveBundle),
+			},
+		]);
+	}
 	const secureKeyboardEntry = new DesktopSecureKeyboardEntry(
 		process.platform,
 		{
@@ -124,6 +166,12 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 			invokeToggleFullScreen: (source) => windowActions.invokeToggleFullScreen(source),
 			invokeToggleMaximized: (source) => windowActions.invokeToggleMaximized(source),
 			invokeToggleSecureKeyboardEntry: (source) => secureKeyboardEntryActions.invokeToggle(source),
+			saveDiagnosticBundle: {
+				categoryLabel: intl.formatMessage(desktopDiagnosticsMessages.category),
+				getAvailability: () => diagnosticsActions.getSaveBundleAvailability(),
+				invoke: (source) => diagnosticsActions.invokeSaveBundle(source),
+				label: intl.formatMessage(desktopDiagnosticsMessages.saveBundle),
+			},
 		},
 		{
 			secureKeyboardEntry: intl.formatMessage(desktopSecureKeyboardEntryMessages.toggle),
@@ -138,6 +186,8 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 		app.off('browser-window-focus', activateSecureKeyboardEntry);
 		app.off('browser-window-blur', deactivateSecureKeyboardEntry);
 		menu.dispose();
+		saveDiagnosticBundle = undefined;
+		diagnosticsActions.dispose();
 		secureKeyboardEntryActions.dispose();
 		windowActions.dispose();
 		secureKeyboardEntry.dispose();
@@ -146,7 +196,20 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 
 let application: DesktopServerClientApplication | undefined;
 let removePlatformActions: (() => void) | undefined;
+let saveDiagnosticBundle: (() => boolean) | undefined;
+/** A Save Diagnostic Bundle task that started Orchbee waits for the Action to be installed. */
+let diagnosticBundleRequested = process.argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH);
 let windowStateSettled = false;
+
+/** Brings the window forward, so the save dialog opens over it, then starts the save. */
+function requestDiagnosticBundle(): void {
+	const save = saveDiagnosticBundle;
+	if (save === undefined) {
+		diagnosticBundleRequested = true;
+		return;
+	}
+	void (application?.openWindow() ?? Promise.resolve()).then(save, save);
+}
 
 async function start(): Promise<void> {
 	const rendererUrl = await resolveRendererUrl();
@@ -160,6 +223,7 @@ async function start(): Promise<void> {
 		distribution: distribution.dataScope.kind,
 		platform: process.platform,
 		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
+		recordEvent,
 		rendererUrl,
 		sessionArguments: session === undefined ? [] : ['--session', session],
 		windowHidden: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined,
@@ -174,15 +238,25 @@ async function start(): Promise<void> {
 	// The menu reads each Action's availability when it is installed and when it opens; a hidden
 	// title bar never opens it, so it waits for the window its accelerators act on.
 	removePlatformActions = installPlatformActions(started);
+	if (diagnosticBundleRequested) {
+		diagnosticBundleRequested = false;
+		requestDiagnosticBundle();
+	}
 }
 
 if (app.requestSingleInstanceLock()) {
-	// Starting Orchbee again brings this window forward, or opens one where macOS kept none.
-	app.on('second-instance', () => void application?.openWindow().catch(() => undefined));
+	// Starting Orchbee again brings this window forward, or opens one where macOS kept none; the
+	// taskbar's task also starts a diagnostic bundle save.
+	app.on('second-instance', (_event, argv) => {
+		if (argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWITCH)) requestDiagnosticBundle();
+		else void application?.openWindow().catch(() => undefined);
+	});
+	recordEvent('info', 'started');
 	void app
 		.whenReady()
 		.then(start)
 		.catch((error: unknown) => {
+			recordEvent('error', 'startup-failed');
 			console.error('Orchbee Desktop startup failed.', error);
 			process.exitCode = 1;
 			windowStateSettled = true;
@@ -217,4 +291,5 @@ if (!app.isPackaged && process.send !== undefined) {
 app.once('will-quit', () => {
 	removePlatformActions?.();
 	removePlatformActions = undefined;
+	recordEvent('info', 'exited');
 });

@@ -4,6 +4,7 @@ import { zhCNAgentIntegrationMessages } from './agent-integrations';
 import { zhCNAgentObservationMessages } from './agent-observation';
 import { zhCNApplicationRoutingMessages } from './application-routing';
 
+import { zhCNDesktopDiagnosticsMessages } from './desktop-diagnostics';
 import { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 
 import { zhCNDesktopWindowMessages } from './desktop-window';
@@ -21,6 +22,7 @@ export const zhCNMessages = {
 	...zhCNAgentObservationMessages,
 	...zhCNApplicationRoutingMessages,
 
+	...zhCNDesktopDiagnosticsMessages,
 	...zhCNDesktopSecureKeyboardEntryMessages,
 
 	...zhCNDesktopWindowMessages,

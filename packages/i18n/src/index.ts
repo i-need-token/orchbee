@@ -4,6 +4,7 @@ export {
 	agentIntegrationMessages,
 	agentObservationMessages,
 	applicationRoutingMessages,
+	desktopDiagnosticsMessages,
 	desktopSecureKeyboardEntryMessages,
 	desktopWindowMessages,
 	keyboardShortcutMessages,

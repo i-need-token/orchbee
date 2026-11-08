@@ -20,6 +20,7 @@ import {
 } from 'electron';
 
 import { isSameDesktopRendererOrigin } from '../desktop-renderer-protocol';
+import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import {
 	DesktopProjectFolderAcquisitionBroker,
 	DesktopProjectFolderAcquisitionRuntime,
@@ -32,6 +33,8 @@ export interface DesktopServerClientApplicationOptions {
 	readonly clientEnvironment: NodeJS.ProcessEnv;
 	readonly clientExecutable: string;
 	readonly distribution: DesktopServerConnectionBootstrap['distribution'];
+	/** Appends one record to the daily diagnostic log; text values must be tokens. */
+	readonly recordEvent: DesktopDiagnosticRecorder;
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
 	readonly rendererUrl: URL;
@@ -88,6 +91,11 @@ export class DesktopServerClientApplication {
 
 	get hasWindow(): boolean {
 		return this.#window !== undefined && !this.#window.isDestroyed();
+	}
+
+	/** The open window, which a dialog of Main's belongs to. */
+	get window(): BrowserWindow | undefined {
+		return this.hasWindow ? this.#window : undefined;
 	}
 
 	focusWindow(): void {
@@ -184,6 +192,7 @@ export class DesktopServerClientApplication {
 		});
 		const endDocumentConnection = this.#serveDocuments(window);
 		window.webContents.on('render-process-gone', (_event, details) => {
+			options.recordEvent('warning', 'renderer-gone', { reason: details.reason });
 			endDocumentConnection();
 			if (details.reason !== 'clean-exit' && !window.isDestroyed()) window.reload();
 		});

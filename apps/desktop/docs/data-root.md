@@ -28,6 +28,13 @@ runtime; a relative value fails startup instead of falling back. Desktop keeps i
 | `internal/development-checkout.json` | Development scope marker                                        |
 | `internal/version.json`              | Layout record written when the root has none                    |
 
+On Windows Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason,
+diagnostic bundle outcomes, and `exited` to the data root's
+[daily diagnostic log](../../../crates/local-runtime/README.md#windows-diagnostic-log), creating
+`logs/` with its first record. It writes the natives' records with role `desktop-main` under their
+retention, cap, and exclusive-open rules; its event names and text values are string literals in
+the source.
+
 Electron 42 ignores `--disk-cache-dir`, and moving `sessionData` would move browser storage with
 the caches, so Chromium's caches stay in `internal/desktop/` rather than `internal/cache/`.
 
