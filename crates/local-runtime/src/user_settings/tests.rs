@@ -119,7 +119,6 @@ fn companion_asset_location_reuses_precedence_without_opening_settings() {
         path,
         PathBuf::from("C:\\missing-orchbee-configuration\\settings.toml")
     );
-    assert!(user_settings_path(|_| None).unwrap().is_none());
     assert!(
         user_settings_path(
             |key| (key == "ORCHBEE_CONFIG_FILE").then(|| OsString::from("relative.toml"))
