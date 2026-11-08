@@ -10,8 +10,10 @@ const repositoryRoot = resolve(import.meta.dirname, '..', '..', '..');
 const binaryName = platform() === 'win32' ? 'orchbee.exe' : 'orchbee';
 const binaryPath = resolve(repositoryRoot, 'target', 'release', binaryName);
 
+// The release baseline measures the release names; a build without a stem is a test build (ORC-382).
 execFileSync('cargo', ['build', '-p', 'orchbee', '--release', '--locked'], {
 	cwd: repositoryRoot,
+	env: { ...process.env, ORCHBEE_ARTIFACT_STEM: 'orchbee' },
 	stdio: 'inherit',
 });
 

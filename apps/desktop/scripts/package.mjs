@@ -49,6 +49,12 @@ const distributionProfile = (() => {
 })();
 // The Client's name in the cohort and, on Windows, the packaged executable. Other platforms keep `orchbee`.
 const cohortArtifactStem = resolveDesktopCohortArtifactStem(distributionProfile, process.platform);
+// Only a cohort compiled with the release stem may ship as release (ORC-382).
+if (distributionProfile.profileId === 'release' && cohortArtifactStem !== 'orchbee') {
+	throw new Error(
+		`Release packaging refuses the ${cohortArtifactStem} cohort; it requires orchbee.`,
+	);
+}
 const packagedExecutableName =
 	process.platform === 'win32' ? cohortArtifactStem : distributionProfile.applicationName;
 const usesDarwinApplicationIcon = process.platform === 'darwin';
@@ -99,6 +105,10 @@ try {
 		{ cwd: repositoryRoot, stdio: 'inherit' },
 	);
 	await access(path.join(cohortRoot, 'cohort.json'));
+	// Staging names the Client after the stem it compiled, so this proves the cohort's stem.
+	if (process.platform === 'win32') {
+		await access(path.join(cohortRoot, `${cohortArtifactStem}.exe`));
+	}
 	await mkdir(stagingRoot, { mode: 0o700 });
 	await cp(desktopBuild, path.join(stagingRoot, 'dist'), { recursive: true });
 	await writeFile(
