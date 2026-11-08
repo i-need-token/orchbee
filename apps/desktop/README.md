@@ -33,8 +33,11 @@ Before connecting, Main runs `orchbee server start --format json`, because wheth
 anything is known only to the activating process and the connection's bytes are opaque. It announces
 the result with the ports: whether the document may open a first Workspace, which only the first
 document a window connects may, along with the home directory, whether a login shell is available,
-and the host name. The announcement also says whether that start was refused until the Session is
-recovered, because the connection then ends before the page reads anything and only Main saw why.
+and the host name. The announcement also says why that start was refused, because the connection
+then ends before the page reads anything and only Main saw why: until the Session is recovered, or
+by the Session's handshake as the CLI reports it, with this Desktop too old, the Session too old,
+another environment, or a development build of another protocol. A version refusal carries the
+bundled Client's version and the Session's, which a Session older than the handshake never states.
 
 The page has the Client authority of the Session it joined. That adds nothing to what it could
 already do by typing into a terminal. A link the page opens asks for a window, which Main refuses,

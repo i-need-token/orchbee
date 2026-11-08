@@ -11,6 +11,7 @@ export {
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
 	type DesktopServerConnectionReply,
+	type DesktopSessionRefusal,
 } from './desktop-server-connection-contract';
 
 export {

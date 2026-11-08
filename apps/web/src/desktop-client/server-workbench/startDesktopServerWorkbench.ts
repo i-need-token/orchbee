@@ -8,6 +8,7 @@ import {
 	DesktopServerConnectionWindowMessageSchema,
 	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
+	type DesktopSessionRefusal,
 } from '@orchbee/desktop-client-protocol';
 import {
 	createOrchbeeIntl,
@@ -134,7 +135,7 @@ function showSessionUnavailable(
 	reactRoot: Root,
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
-	reason: 'recovery-required' | 'unavailable',
+	refusal: DesktopSessionRefusal | null,
 ): void {
 	const locale = resolveOrchbeeLocale(preferredLocales);
 	documentElement.lang = locale;
@@ -148,7 +149,7 @@ function showSessionUnavailable(
 			{ locale },
 			createElement(SessionUnavailable, {
 				onTryAgain: () => targetWindow.location.reload(),
-				reason,
+				refusal,
 			}),
 		),
 	);
@@ -173,7 +174,7 @@ async function run(
 			reactRoot,
 			documentElement,
 			preferredLocales,
-			bootstrap.sessionRecoveryRequired ? 'recovery-required' : 'unavailable',
+			bootstrap.sessionRefusal,
 		);
 		return;
 	}
@@ -377,12 +378,6 @@ export function startDesktopServerWorkbench(
 		shortcutPlatform,
 		storage,
 	).catch(() => {
-		showSessionUnavailable(
-			targetWindow,
-			reactRoot,
-			documentElement,
-			preferredLocales,
-			'unavailable',
-		);
+		showSessionUnavailable(targetWindow, reactRoot, documentElement, preferredLocales, null);
 	});
 }

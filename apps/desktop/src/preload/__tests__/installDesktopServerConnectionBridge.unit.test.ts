@@ -18,7 +18,7 @@ const BOOTSTRAP = {
 	defaultDirectory: 'C:\\Users\\someone',
 	distribution: 'release',
 	loginShellAvailable: false,
-	sessionRecoveryRequired: false,
+	sessionRefusal: null,
 	terminalHostName: 'host',
 };
 const ISOLATED = { contextIsolated: true, sandboxed: true };

@@ -243,12 +243,12 @@ export class DesktopServerClientApplication {
 				current = this.#connect(window, {
 					bootstrap: {
 						// A later document follows a person's own actions; an empty Session may be what they chose.
-						automaticWorkspaceAllowed: !everConnected && restore === 'intact',
+						automaticWorkspaceAllowed: !everConnected && restore.kind === 'intact',
 						checkoutName: options.checkoutName,
 						defaultDirectory: app.getPath('home'),
 						distribution: options.distribution,
 						loginShellAvailable: options.platform !== 'win32',
-						sessionRecoveryRequired: restore === 'recovery-required',
+						sessionRefusal: restore.kind === 'refused' ? restore.refusal : null,
 						terminalHostName: hostname(),
 					},
 					document: document.data,

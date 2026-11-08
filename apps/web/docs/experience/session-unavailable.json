@@ -4,7 +4,7 @@
 	"kind": "experience",
 	"status": "candidate",
 	"name": "Session Unavailable",
-	"description": "Takes the place of a window that never reached its Session, says whether the Session needs recovery, and offers an explicit retry.",
+	"description": "Takes the place of a window that never reached its Session, says why when the start was refused, with the same meaning and remedy as the TUI and CLI, and offers an explicit retry.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["explain-unavailable-session", "retry-session-connection"],
@@ -15,7 +15,7 @@
 			"file": "apps/web/stories/session-unavailable.stories.tsx",
 			"id": "applications-web-desktop-session-unavailable--recovery-required",
 			"states": [
-				"Inspect the generic and recovery-required explanations and the Try Again action in English and Simplified Chinese."
+				"Inspect the generic, recovery-required, Desktop too old, Session too old (with and without its version), other environment, and development build explanations and the Try Again action in English and Simplified Chinese."
 			]
 		}
 	],
@@ -29,7 +29,8 @@
 	],
 	"invariants": [
 		"Trying again is the only effect; nothing retries or recovers automatically.",
-		"Recovery stays an explicit command that the surface names but never runs.",
+		"Recovering or stopping the Session stays an explicit command that the surface names but never runs.",
+		"A refused version names both the Desktop and the Session version, leaving out one the Session did not state.",
 		"The window stays movable through a title-bar strip, because no Workbench draws one.",
 		"All user-facing copy is provided by the Orchbee localization catalog."
 	],
