@@ -19,7 +19,7 @@
 - **`AGENTS.md` is a symlink to `CLAUDE.md`.** Only edit `CLAUDE.md`.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
 - **Desktop development diagnostics target the development application identity.** When inspecting `pnpm desktop`, target the generated `Orchbee Dev.app` by its exact path or checkout-scoped bundle identifier. Never open, focus, quit, replace, or fall back to `/Applications/Orchbee.app` unless the human explicitly requests the installed release application in the current task.
-- **Process termination is identity-checked.** Agents never run raw termination commands (`taskkill`, `Stop-Process`, `kill`, `Process.Kill`); the PreToolUse guard refuses them. Stop only a process this task started: run `node scripts/process-guard.mjs check --pid <PID> --started <UTC-START>`, then `stop` with the same arguments. Agents never stop the installed production Orchbee under `%LOCALAPPDATA%\Programs\Orchbee`; ask the human.
+- **Stop processes by PID, never by image name.** Image names do not identify an environment: test cohorts run the shipped `orchbee*` names, and so does the installed production Orchbee. An agent stops only a PID it started, after confirming its start time still matches, and never stops the installed production Orchbee under `%LOCALAPPDATA%\Programs\Orchbee`; ask the human.
 
 ## Key Docs Index
 

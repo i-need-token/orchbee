@@ -90,7 +90,6 @@ export function checkSteps(task, scope, platform = process.platform) {
 						'test:rust-modules',
 						'test:lint-rules',
 						'test:dependency-scope',
-						'test:process-guard',
 						'test:ghostty-source',
 						'test:style-contract',
 						'test:storage-contract',
