@@ -1,5 +1,12 @@
 use super::*;
 use crate::machines::{Draft, ProfileId};
+/// The packet and input of an admission that runs the routed command.
+fn admitted(bytes: &[u8]) -> (Packet, Vec<u8>) {
+    match admit_packet(bytes) {
+        Some(Admission::Run(packet, input)) => (packet, input),
+        _ => panic!("packet was not admitted to run"),
+    }
+}
 #[test]
 fn routed_path_packets_retain_the_exact_unresolved_operand() {
     for arguments in [
@@ -11,7 +18,7 @@ fn routed_path_packets_retain_the_exact_unresolved_operand() {
         ["worktree", "open", "--path", r"~\remote", "--format=json"].as_slice(),
     ] {
         let packet = serde_json::json!({"version":1,"session":"work","arguments":arguments,"input":null,"locale":"en_US.UTF-8"});
-        let (admitted, input) = admit_packet(&serde_json::to_vec(&packet).unwrap()).unwrap();
+        let (admitted, input) = admitted(&serde_json::to_vec(&packet).unwrap());
         assert_eq!(admitted.arguments, arguments);
         assert!(input.is_empty());
     }
@@ -54,7 +61,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
         extensions: Extensions::new(),
     };
     let bytes = serde_json::to_vec(&packet).unwrap();
-    assert_eq!(admit_packet(&bytes).unwrap().1, [0, 255, 13, 10]);
+    assert_eq!(admitted(&bytes).1, [0, 255, 13, 10]);
     for args in [
         vec!["--machine=x", "workspace", "list"],
         vec!["--machine-relay-v1"],
@@ -109,7 +116,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
 fn packets_and_replies_ignore_extension_content_and_read_only_their_generations() {
     let packet = serde_json::json!({"version":1,"session":"work","arguments":["workspace","list"],
         "input":null,"locale":"zh_CN.UTF-8","extensions":{"future-member":{"nested":[1,"x"]}}});
-    let (admitted, _) = admit_packet(&serde_json::to_vec(&packet).unwrap()).unwrap();
+    let (admitted, _) = admitted(&serde_json::to_vec(&packet).unwrap());
     assert_eq!(admitted.arguments, ["workspace", "list"]);
     for (member, value) in [
         ("extensions", serde_json::json!({"Bad Name":1})),
@@ -129,4 +136,28 @@ fn packets_and_replies_ignore_extension_content_and_read_only_their_generations(
         "stderr":""});
     let reply: Reply = serde_json::from_value(reply).unwrap();
     assert!(matches!(reply.output(), Err(Outcome::Unknown)));
+}
+
+#[test]
+fn routed_arguments_this_grammar_refuses_answer_its_usage_failure_without_running() {
+    for (locale, expected) in [("en_US.UTF-8", Locale::EnUs), ("zh_CN.UTF-8", Locale::ZhCn)] {
+        let arguments = ["workspace", "list", "--no-such-option"];
+        let packet = serde_json::json!({"version":1,"session":"work","arguments":arguments,
+            "input":null,"locale":locale});
+        let Some(Admission::Usage(usage)) = admit_packet(&serde_json::to_vec(&packet).unwrap())
+        else {
+            panic!("an unparseable routed argument must answer the usage failure");
+        };
+        let Err(failure) = invocation::parse_selected_request(arguments.iter().map(Into::into))
+        else {
+            panic!("the routed argument must be unparseable");
+        };
+        let local = cli::parse_failure(failure, expected);
+        assert_eq!(usage.status, 2);
+        assert_eq!(
+            (usage.status, &usage.stdout, &usage.stderr),
+            (local.status, &local.stdout, &local.stderr)
+        );
+        assert!(!usage.stderr.is_empty());
+    }
 }

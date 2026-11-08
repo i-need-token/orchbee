@@ -102,7 +102,7 @@ reply are closed objects whose `version` is their `machine-route` generation in 
 receiver ignores. Neither carries a cohort. A private relay entry point refuses a generation it
 does not read, then revalidates the Session, argument grammar and command allowlist under its own
 grammar before spawning its own executable with literal arguments in an owned Windows Job.
-Arguments the remote grammar cannot parse are refused as not submitted. The existing remote CLI remains the
+When the remote grammar cannot parse the routed arguments, the reply carries the remote's ordinary usage failure in the packet's locale and with the usage exit status, rendered by the relay entry point without spawning a command. A parsed request outside the routed scope, a packet that names a Session, and invalid input are refused as not submitted. The existing remote CLI remains the
 business-operation owner. No local peer credential admission is bypassed.
 Terminal file and stdin sources are acquired on the caller once and sent as raw
 bytes; directories and executable paths are interpreted by the remote command.

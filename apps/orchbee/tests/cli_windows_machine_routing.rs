@@ -235,12 +235,12 @@ fn relay_refuses_recursion_unread_generations_and_local_file_authority() {
         vec!["--machine-relay-v1"],
         vec!["machine", "remove", "11111111111111111111111111111111"],
         vec!["terminal", "send", "@terminal:0x22", "--file=secret"],
-        vec!["workspace", "create", "--cwd=C:relative"],
         vec!["tui"],
     ] {
         assert_eq!(
             relay(&fixture, &packet(&args), false)["outcome"],
-            "not-submitted"
+            "not-submitted",
+            "{args:?}"
         );
     }
     assert!(!fixture.0.join("runtime").exists());

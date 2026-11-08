@@ -402,8 +402,24 @@ fn encoded(reply: Reply) -> Output {
         },
     }
 }
-/// Admits one packet of a generation this build reads; `extensions` content is ignored.
-fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
+/// An admitted packet: a routable request to run, or arguments this build's grammar refuses.
+enum Admission {
+    Run(Packet, Vec<u8>),
+    /// The ordinary usage failure for the routed arguments, rendered without running anything.
+    Usage(Output),
+}
+/// The locale of an admitted packet.
+fn packet_locale(locale: &str) -> Locale {
+    if locale == "zh_CN.UTF-8" {
+        Locale::ZhCn
+    } else {
+        Locale::EnUs
+    }
+}
+/// Admits one packet of a generation this build reads; `extensions` content is ignored. The
+/// routed arguments are parsed under this build's own grammar: a parse failure is answered as the
+/// usual usage failure, while a parsed request that is not routable is refused.
+fn admit_packet(bytes: &[u8]) -> Option<Admission> {
     if bytes.len() > REQUEST_LIMIT {
         return None;
     }
@@ -416,8 +432,15 @@ fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
     {
         return None;
     }
-    let parsed =
-        invocation::parse_selected_request(packet.arguments.iter().map(Into::into)).ok()?;
+    let parsed = match invocation::parse_selected_request(packet.arguments.iter().map(Into::into)) {
+        Ok(parsed) => parsed,
+        Err(failure) => {
+            return Some(Admission::Usage(cli::parse_failure(
+                failure,
+                packet_locale(&packet.locale),
+            )));
+        }
+    };
     if parsed.session.is_some() {
         return None;
     }
@@ -438,11 +461,15 @@ fn admit_packet(bytes: &[u8]) -> Option<(Packet, Vec<u8>)> {
         }
         _ => return None,
     };
-    Some((packet, input))
+    Some(Admission::Run(packet, input))
 }
 fn serve_packet(bytes: &[u8], signals: &mut ArmedSignals) -> Reply {
-    let Some((packet, input)) = admit_packet(bytes) else {
-        return Reply::failure(Outcome::NotSubmitted);
+    let (packet, input) = match admit_packet(bytes) {
+        Some(Admission::Run(packet, input)) => (packet, input),
+        Some(Admission::Usage(usage)) => {
+            return Reply::completed(usage.status, &usage.stdout, usage.stderr.as_bytes());
+        }
+        None => return Reply::failure(Outcome::NotSubmitted),
     };
     let Ok(executable) = std::env::current_exe() else {
         return Reply::failure(Outcome::NotSubmitted);
