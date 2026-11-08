@@ -102,6 +102,8 @@
 						"source-not-absolute",
 						"recorded-root-inconsistent",
 						"recorded-root-absent",
+						"recorded-root-stale",
+						"other-environment",
 						"recorded-root-uninspectable",
 						"provider-command-inspection-required",
 						"unreadable",
@@ -204,7 +206,9 @@
 						"absent",
 						"path-too-long",
 						"budget-exhausted",
-						"not-inspected"
+						"not-inspected",
+						"stale",
+						"other-environment"
 					]
 				},
 				"detail": {
@@ -234,6 +238,7 @@
 				"id": {
 					"enum": [
 						"hook-conflict",
+						"hook-other-environment",
 						"hook-unknown",
 						"hook-disabled",
 						"hook-update-required",
@@ -246,6 +251,7 @@
 						"env-override-invalid",
 						"root-anomaly",
 						"root-uninspectable",
+						"root-stale",
 						"partial-document",
 						"windows-hook-transport-unavailable",
 						"windows-endpoint-not-inspected"

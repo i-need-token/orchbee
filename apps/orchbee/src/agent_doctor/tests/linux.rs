@@ -657,10 +657,21 @@ fn guarded_probe_through_filesystem() {
     let payload = b"payload-bytes";
     std::fs::write(target.join("index.js"), payload).expect("write payload");
     let sha = probes::hex_digest(payload);
+    // The copy this environment installed names it in its owner record.
+    let owner = |environment: &str| {
+        format!(r#"{{"environment":"{environment}","version":1}}"#).into_bytes()
+    };
+    std::fs::create_dir_all(target.join("scripts")).expect("mkdir scripts");
+    let record = owner(orchbee_local_runtime::environment_stem());
+    std::fs::write(target.join("scripts/environment.json"), &record).expect("write owner");
+    let record_sha = probes::hex_digest(&record);
+    let marker = |contract_version: u32, record_sha: &str| {
+        format!(
+            r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":{contract_version},"files":[{{"path":"index.js","sha256":"{sha}"}},{{"path":"scripts/environment.json","sha256":"{record_sha}"}}]}}"#
+        )
+    };
     for contract_version in [1, 2, 3, 4] {
-        let marker = format!(
-            r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":{contract_version},"files":[{{"path":"index.js","sha256":"{sha}"}}]}}"#
-        );
+        let marker = marker(contract_version, &record_sha);
         std::fs::write(target.join(probes::GUARDED_MARKER_NAME), marker).expect("write marker");
         let mut budget = Budget::new(observation());
         let probe = probe_guarded(provider("gemini"), &home, &mut budget);
@@ -671,6 +682,19 @@ fn guarded_probe_through_filesystem() {
         };
         assert_eq!(verdict(&probe), expected);
     }
+    // Another environment's copy is its own, even when its marker is consistent.
+    let other = owner("ob-dev-0123456789abcdef");
+    std::fs::write(target.join("scripts/environment.json"), &other).expect("write owner");
+    std::fs::write(
+        target.join(probes::GUARDED_MARKER_NAME),
+        marker(1, &probes::hex_digest(&other)),
+    )
+    .expect("write marker");
+    let mut budget = Budget::new(observation());
+    assert_eq!(
+        verdict(&probe_guarded(provider("gemini"), &home, &mut budget)),
+        (HookState::Conflict, HookReason::OtherEnvironment)
+    );
     // Marker declaring a payload that differs → contradiction.
     std::fs::write(target.join("index.js"), b"different").expect("rewrite payload");
     let mut budget = Budget::new(observation());
@@ -730,7 +754,14 @@ fn cline_package_versions() {
     let home = scratch("cline-owned");
     let installed = home.join(".cline/plugins/_installed/local/owned/package");
     std::fs::create_dir_all(installed.join("cline")).unwrap();
+    std::fs::create_dir_all(installed.join("scripts")).unwrap();
     std::fs::write(installed.join(probes::CLINE_ENTRY_PATH), b"// owned").unwrap();
+    let owner = |environment: &str| format!(r#"{{"environment":"{environment}","version":1}}"#);
+    std::fs::write(
+        installed.join("scripts/environment.json"),
+        owner(orchbee_local_runtime::environment_stem()),
+    )
+    .unwrap();
     for contract_version in [1, 2, 3, 4] {
         std::fs::write(
             installed.join("package.json"),
@@ -746,6 +777,23 @@ fn cline_package_versions() {
         };
         assert_eq!(verdict(&probe), expected);
     }
+    // A copy without an owner record is release's; another environment reads it as its owner's.
+    std::fs::write(
+        installed.join("scripts/environment.json"),
+        owner("ob-dev-0123456789abcdef"),
+    )
+    .unwrap();
+    let mut budget = Budget::new(observation());
+    assert_eq!(
+        verdict(&probe_cline(provider("cline"), &home, &mut budget)),
+        (HookState::Conflict, HookReason::OtherEnvironment)
+    );
+    std::fs::remove_file(installed.join("scripts/environment.json")).unwrap();
+    let mut budget = Budget::new(observation());
+    assert_eq!(
+        verdict(&probe_cline(provider("cline"), &home, &mut budget)),
+        (HookState::Conflict, HookReason::OtherEnvironment)
+    );
     let external = home.join("external-package");
     std::fs::rename(&installed, &external).unwrap();
     std::os::unix::fs::symlink(&external, &installed).unwrap();
@@ -1025,6 +1073,8 @@ fn emitted_vocabularies_are_closed() {
         "plugin-without-marketplace",
         "recorded-root-inconsistent",
         "recorded-root-absent",
+        "recorded-root-stale",
+        "other-environment",
         "provider-command-inspection-required",
         "unreadable",
         "malformed",
@@ -1053,6 +1103,8 @@ fn emitted_vocabularies_are_closed() {
         HookReason::PluginWithoutMarketplace,
         HookReason::RecordedRootInconsistent,
         HookReason::RecordedRootAbsent,
+        HookReason::RecordedRootStale,
+        HookReason::OtherEnvironment,
         HookReason::ProviderCommandInspectionRequired,
         HookReason::Unreadable,
         HookReason::Malformed,
@@ -1079,6 +1131,8 @@ fn emitted_vocabularies_are_closed() {
         (RootState::PathTooLong, "path-too-long"),
         (RootState::BudgetExhausted, "budget-exhausted"),
         (RootState::NotInspected, "not-inspected"),
+        (RootState::Stale, "stale"),
+        (RootState::OtherEnvironment, "other-environment"),
     ] {
         assert_eq!(variant.as_str(), spelling);
     }

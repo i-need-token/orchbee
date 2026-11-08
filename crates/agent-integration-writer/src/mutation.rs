@@ -620,7 +620,7 @@ pub(crate) struct PublishResult {
     pub(crate) residual: Option<PathBuf>,
 }
 
-/// Stage → copy → validate staged → no-replace publish → cleanup staging.
+/// Stage → copy → validate staged → owner record → no-replace publish → cleanup staging.
 pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
     let parent = match target.parent() {
         Some(parent) => parent,
@@ -631,6 +631,15 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
             };
         }
     };
+    // The Capsule folder sits in the data root, whose folders are private and whose first writer
+    // records the layout.
+    #[cfg(windows)]
+    if orchbee_local_runtime::create_private_directory(parent).is_err() {
+        return PublishResult {
+            outcome: StepOutcome::Failed,
+            residual: None,
+        };
+    }
     let staging = match files::stage_directory(parent, "capsule") {
         Ok(staging) => staging,
         Err(_) => {
@@ -650,6 +659,16 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
         super::test_support::fault_injection::boundary("capsule-verify", &staged_root);
         if capsule::validate(&staged_root) != CapsuleValidity::Ready {
             verify_failed = true;
+            return StepOutcome::Failed;
+        }
+        // The owner record names this environment even when the source carried one.
+        let record = staged_root.join(capsule::OWNER_RECORD);
+        if std::fs::symlink_metadata(&record).is_ok()
+            && files::remove_owned(&record, false) != FsStep::Done
+        {
+            return StepOutcome::Failed;
+        }
+        if files::write_file_exclusive(&record, &capsule::owner_record()).is_err() {
             return StepOutcome::Failed;
         }
         #[cfg(all(any(test, feature = "test-support"), unix))]

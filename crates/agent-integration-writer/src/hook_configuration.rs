@@ -8,6 +8,7 @@ use serde::{
 use serde_json::{Value, json, value::RawValue};
 use std::{
     collections::BTreeMap,
+    ffi::OsStr,
     fmt,
     path::{Path, PathBuf},
 };
@@ -67,9 +68,76 @@ pub fn configuration_kinds(id: &str) -> Option<&'static [HookConfigurationKind]>
 /// The owning Windows adapter supplies exact path grammar and equality; the scanner never
 /// interprets a decoded Windows root through the host's path rules.
 #[derive(Clone, Copy)]
-pub struct RootPolicy {
+pub struct RootPolicy<'a> {
     pub(super) admitted: fn(&Path) -> bool,
     pub(super) same: fn(&Path, &Path) -> bool,
+    /// Roots another environment owns. Their entries stay as they are and outside this scan, so
+    /// entries of several environments coexist in one document.
+    pub(super) elsewhere: &'a dyn Fn(&Path) -> bool,
+}
+
+impl RootPolicy<'_> {
+    /// This policy, reading the entries whose root `elsewhere` accepts as another environment's.
+    pub fn owned_elsewhere<'b>(self, elsewhere: &'b dyn Fn(&Path) -> bool) -> RootPolicy<'b> {
+        RootPolicy {
+            admitted: self.admitted,
+            same: self.same,
+            elsewhere,
+        }
+    }
+}
+
+/// Where a Capsule root named by an Agent entry sits, which decides the environment owning the
+/// entry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CapsuleLocation {
+    /// A version folder in a data root, `internal/integrations/agent-observation/<version>`; the
+    /// environment of that data root owns the entry.
+    DataRoot,
+    /// A folder of `~/.orchbee/agent-observation-adapters`, which every environment shared before
+    /// each kept its own Capsules. Release, whose folder it is, owns the entry.
+    Shared,
+    /// Anywhere else: content Orchbee does not own.
+    Other,
+}
+
+/// Whether an Agent entry naming `root` belongs to another environment than the one whose
+/// Capsules sit in `own_capsules`: a Capsule folder of another data root, or, outside release, a
+/// folder of the shared location release owns. Such an entry stays as it is.
+pub fn owned_by_another_environment(
+    root: &Path,
+    own_capsules: Option<&Path>,
+    release: bool,
+) -> bool {
+    match capsule_location(root) {
+        CapsuleLocation::DataRoot => root.parent() != own_capsules,
+        CapsuleLocation::Shared => !release,
+        CapsuleLocation::Other => false,
+    }
+}
+
+/// Classifies `root` by its last folder names alone.
+pub fn capsule_location(root: &Path) -> CapsuleLocation {
+    fn name(path: Option<&Path>) -> Option<&str> {
+        path.and_then(Path::file_name).and_then(OsStr::to_str)
+    }
+    let parent = root.parent();
+    let grandparent = parent.and_then(Path::parent);
+    if root.file_name().is_none() {
+        return CapsuleLocation::Other;
+    }
+    if name(parent) == Some("agent-observation")
+        && name(grandparent) == Some("integrations")
+        && name(grandparent.and_then(Path::parent)) == Some("internal")
+    {
+        CapsuleLocation::DataRoot
+    } else if name(parent) == Some("agent-observation-adapters")
+        && name(grandparent) == Some(".orchbee")
+    {
+        CapsuleLocation::Shared
+    } else {
+        CapsuleLocation::Other
+    }
 }
 
 const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
@@ -134,7 +202,7 @@ pub(super) fn command(id: &str, root: &Path) -> Option<String> {
     Some(format!("{PREFIX}{}", STANDARD.encode(utf16)))
 }
 
-fn entry_root(id: &str, entry: &RawValue, policy: RootPolicy) -> Result<Option<PathBuf>, ()> {
+fn entry_root(id: &str, entry: &RawValue, policy: RootPolicy<'_>) -> Result<Option<PathBuf>, ()> {
     let object: Object = serde_json::from_str(entry.get()).map_err(|_| ())?;
     let Some(command) = object.0.get("command") else {
         return Ok(None);
@@ -153,7 +221,7 @@ fn entry_root(id: &str, entry: &RawValue, policy: RootPolicy) -> Result<Option<P
     Ok(Some(root))
 }
 
-fn command_root(id: &str, command: &str, policy: RootPolicy) -> Result<Option<PathBuf>, ()> {
+fn command_root(id: &str, command: &str, policy: RootPolicy<'_>) -> Result<Option<PathBuf>, ()> {
     let Some(encoded) = command.strip_prefix(PREFIX) else {
         return Ok(None);
     };
@@ -187,6 +255,9 @@ fn command_root(id: &str, command: &str, policy: RootPolicy) -> Result<Option<Pa
     if self::command(id, &root).as_deref() != Some(command) {
         return Err(());
     }
+    if (policy.elsewhere)(&root) {
+        return Ok(None);
+    }
     Ok(Some(root))
 }
 
@@ -199,7 +270,7 @@ pub(super) fn event_name(id: &str) -> Option<&'static str> {
     }
 }
 
-fn item_root(id: &str, value: &RawValue, policy: RootPolicy) -> Result<Option<PathBuf>, ()> {
+fn item_root(id: &str, value: &RawValue, policy: RootPolicy<'_>) -> Result<Option<PathBuf>, ()> {
     if id == "cursor" {
         return entry_root(id, value, policy);
     }
@@ -235,7 +306,7 @@ pub(super) type ParsedHooks = (Object, Object, Vec<Box<RawValue>>, Option<(usize
 
 pub(super) fn parse_named(
     bytes: &[u8],
-    policy: RootPolicy,
+    policy: RootPolicy<'_>,
 ) -> Result<ParsedNamed, HookConfigurationScan> {
     let object: Object =
         serde_json::from_slice(bytes).map_err(|_| HookConfigurationScan::Malformed)?;
@@ -272,7 +343,7 @@ pub(super) fn parse_named(
     Ok((object, Some((root, enabled))))
 }
 
-fn scan_named(bytes: &[u8], policy: RootPolicy) -> HookConfigurationScan {
+fn scan_named(bytes: &[u8], policy: RootPolicy<'_>) -> HookConfigurationScan {
     match parse_named(bytes, policy) {
         Ok((_, owned)) => match owned {
             Some((root, true)) => HookConfigurationScan::Owned(root),
@@ -286,7 +357,7 @@ fn scan_named(bytes: &[u8], policy: RootPolicy) -> HookConfigurationScan {
 pub(super) fn parse(
     kind: HookConfigurationKind,
     bytes: &[u8],
-    policy: RootPolicy,
+    policy: RootPolicy<'_>,
 ) -> Result<ParsedHooks, HookConfigurationScan> {
     let id = kind.id();
     let own_event = event_name(id).ok_or(HookConfigurationScan::Malformed)?;
@@ -349,7 +420,7 @@ pub(super) fn parse(
 pub fn scan_hook_configuration(
     kind: HookConfigurationKind,
     bytes: &[u8],
-    policy: RootPolicy,
+    policy: RootPolicy<'_>,
 ) -> HookConfigurationScan {
     if kind == HookConfigurationKind::Kimi {
         return kimi::scan(bytes, policy);

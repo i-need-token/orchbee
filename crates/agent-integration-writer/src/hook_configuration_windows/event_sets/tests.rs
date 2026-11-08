@@ -5,6 +5,10 @@ use super::*;
 use crate::hook_configuration::Object;
 use serde_json::{Value, json};
 
+fn patch(set: EventSet, bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
+    super::patch(set, bytes, root, enable, super::super::ROOT_POLICY)
+}
+
 fn scan(set: EventSet, bytes: &[u8]) -> HookConfigurationScan {
     let kind = match set {
         EventSet::Mastracode => HookConfigurationKind::Mastracode,

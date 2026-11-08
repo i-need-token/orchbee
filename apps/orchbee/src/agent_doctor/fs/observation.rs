@@ -71,6 +71,10 @@ impl Observation {
     pub(crate) fn bootstrap_target(self, provider: &Provider, home: &Path) -> Option<PathBuf> {
         (self.0.bootstrap_target)(provider, home)
     }
+    /// This environment's Capsule folder in its data root.
+    pub(crate) fn capsule_folder(self) -> Option<PathBuf> {
+        (self.0.capsule_folder)()
+    }
     pub(crate) fn configuration_targets(
         self,
         provider: &Provider,

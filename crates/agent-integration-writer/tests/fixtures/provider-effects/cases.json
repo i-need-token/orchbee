@@ -74,7 +74,7 @@
 	},
 	"pathVars": {
 		"$HOME": "isolated injected home (never the real HOME)",
-		"$PARENT": "$HOME/.orchbee/agent-observation-adapters",
+		"$PARENT": "$HOME/.<environment stem>/internal/integrations/agent-observation, the replay environment's Capsule folder",
 		"$CAPSULE_ROOT": "$PARENT/<supportedPayloadVersion>",
 		"$TARGET": "the managed destination under test (file or dir per case)",
 		"$STAGE": "fresh sibling staging dir, prefix .orchbee-agent-{capsule,entry}-*",

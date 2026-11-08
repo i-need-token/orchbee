@@ -60,7 +60,7 @@ pub(crate) type Parsed = (
 pub(crate) fn parse(
     set: EventSet,
     bytes: &[u8],
-    policy: RootPolicy,
+    policy: RootPolicy<'_>,
 ) -> Result<Parsed, HookConfigurationScan> {
     let object: Object =
         serde_json::from_slice(bytes).map_err(|_| HookConfigurationScan::Malformed)?;
@@ -110,7 +110,7 @@ pub(crate) fn parse(
     Ok((parent, object, entries, owned, root))
 }
 
-pub(super) fn scan(set: EventSet, bytes: &[u8], policy: RootPolicy) -> HookConfigurationScan {
+pub(super) fn scan(set: EventSet, bytes: &[u8], policy: RootPolicy<'_>) -> HookConfigurationScan {
     match parse(set, bytes, policy) {
         Ok((_, _, _, owned, root)) => match root {
             None => HookConfigurationScan::Absent,

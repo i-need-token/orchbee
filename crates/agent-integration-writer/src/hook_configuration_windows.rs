@@ -6,7 +6,7 @@ use super::{
         self as grammar, HookConfigurationKind, HookConfigurationScan, NAMED_HOOK, Object,
         RootPolicy, command, declaration, event_name,
     },
-    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root},
+    inspect::{ResourceOptions, ResourceOwnership, classify_resource_root, owned_elsewhere},
     model::State,
 };
 use crate::configuration_windows::{HookConfigurationTarget, hook_configuration_candidates};
@@ -17,13 +17,29 @@ mod event_sets;
 mod kimi;
 
 pub(super) const LIMIT: u64 = 512 * 1024;
-pub const ROOT_POLICY: RootPolicy = RootPolicy {
+/// No root belongs to another environment: every Orchbee entry counts as this environment's.
+fn nowhere(_: &Path) -> bool {
+    false
+}
+
+/// The Windows path grammar; a reader sets which roots another environment owns with
+/// [`RootPolicy::owned_elsewhere`].
+pub const ROOT_POLICY: RootPolicy<'static> = RootPolicy {
     admitted: files::path_admitted,
     same: |left, right| left == right,
+    elsewhere: &nowhere,
 };
 
+/// Scans with no other environment's entries, as the grammar tests read documents.
+#[cfg(test)]
 fn scan_hook_configuration(kind: HookConfigurationKind, bytes: &[u8]) -> HookConfigurationScan {
     grammar::scan_hook_configuration(kind, bytes, ROOT_POLICY)
+}
+
+/// Calls `read` with the policy that leaves the entries of other environments out.
+fn with_policy<T>(options: &ResourceOptions, read: impl FnOnce(RootPolicy<'_>) -> T) -> T {
+    let elsewhere = |root: &Path| owned_elsewhere(root, options);
+    read(ROOT_POLICY.owned_elsewhere(&elsewhere))
 }
 
 impl Object {
@@ -37,8 +53,13 @@ impl Object {
     }
 }
 
-fn patch_named(bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
-    let (mut object, _) = grammar::parse_named(bytes.unwrap_or(b"{}"), ROOT_POLICY).ok()?;
+fn patch_named(
+    bytes: Option<&[u8]>,
+    root: &Path,
+    enable: bool,
+    policy: RootPolicy<'_>,
+) -> Option<Vec<u8>> {
+    let (mut object, _) = grammar::parse_named(bytes.unwrap_or(b"{}"), policy).ok()?;
     if enable {
         object.set(
             NAMED_HOOK,
@@ -67,7 +88,9 @@ pub(super) fn state(
     let Some(bytes) = bytes else {
         return State::NotInstalled;
     };
-    let scan = scan_hook_configuration(kind, bytes);
+    let scan = with_policy(options, |policy| {
+        grammar::scan_hook_configuration(kind, bytes, policy)
+    });
     let disabled = matches!(&scan, HookConfigurationScan::Disabled(_));
     let incomplete = matches!(&scan, HookConfigurationScan::Incomplete(_));
     match scan {
@@ -119,27 +142,47 @@ pub(super) fn inspect(id: &str, home: &Path, options: &ResourceOptions) -> State
     }
 }
 
+/// Rewrites this environment's entries to name `options.resource_root`, or removes them; entries
+/// of other environments stay as they are.
 pub(super) fn patch(
+    kind: HookConfigurationKind,
+    bytes: Option<&[u8]>,
+    options: &ResourceOptions,
+    enable: bool,
+) -> Option<Vec<u8>> {
+    with_policy(options, |policy| {
+        patch_with(kind, bytes, options.resource_root, enable, policy)
+    })
+}
+
+fn patch_with(
     kind: HookConfigurationKind,
     bytes: Option<&[u8]>,
     root: &Path,
     enable: bool,
+    policy: RootPolicy<'_>,
 ) -> Option<Vec<u8>> {
     if kind == HookConfigurationKind::Kimi {
-        return kimi::patch(bytes, root, enable);
+        return kimi::patch(bytes, root, enable, policy);
     }
     let id = kind.id();
     if id == "mastracode" {
-        return event_sets::patch(event_sets::EventSet::Mastracode, bytes, root, enable);
+        return event_sets::patch(
+            event_sets::EventSet::Mastracode,
+            bytes,
+            root,
+            enable,
+            policy,
+        );
     }
     if id == "devin" {
-        return event_sets::patch(event_sets::EventSet::Devin, bytes, root, enable);
+        return event_sets::patch(event_sets::EventSet::Devin, bytes, root, enable, policy);
     }
     if id == "antigravity-cli" {
-        return patch_named(bytes, root, enable);
+        return patch_named(bytes, root, enable, policy);
     }
     let (mut object, mut hooks, mut entries, owned) =
-        grammar::parse(kind, bytes.unwrap_or(b"{}"), ROOT_POLICY).ok()?;
+        grammar::parse(kind, bytes.unwrap_or(b"{}"), policy).ok()?;
     if let Some((index, _)) = owned {
         entries.remove(index);
     }

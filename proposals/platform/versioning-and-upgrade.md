@@ -278,6 +278,10 @@ every combination inside the window has [cross-version tests](#cross-version-tes
 - The envelope and the hint gain an optional `extensions` object; their other members stay closed.
 - The private APC prefix `orchbee.agent.v1;` is a permanent channel name, not a generation. Host
   forwards the payload unread, so only Server judges a hook's generation.
+- Before any delivery the hook compares its Capsule's owner record with the inherited
+  `ORCHBEE_ENVIRONMENT` and stays silent for another environment, as
+  [environment isolation](environment-isolation.md#agent-integrations) describes; the check changes
+  no generation.
 
 ## Saved machines
 

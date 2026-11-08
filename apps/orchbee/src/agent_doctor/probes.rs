@@ -307,6 +307,30 @@ const MODULE_URL_LINE_PREFIX: &[u8] = b"const orchbeeAgentObservationModuleUrl =
 pub(crate) const GUARDED_MARKER_NAME: &str = ".orchbee-agent-observation.json";
 /// The capsule manifest filename inside an asset root.
 pub(crate) const CAPSULE_MANIFEST_NAME: &str = "capsule.json";
+/// The record naming the environment that installed a Capsule; like the manifest, it is outside
+/// the payload identity.
+pub(crate) const CAPSULE_OWNER_RECORD: &str = "bundle/scripts/environment.json";
+/// The owner record's name in a copied scripts folder, and its size bound.
+pub(crate) const OWNER_RECORD_NAME: &str = "environment.json";
+pub(crate) const OWNER_RECORD_BYTES: u64 = 256;
+/// The environment owning a copy that carries no owner record: every copy made before each
+/// environment kept its own Capsules is release's.
+pub(crate) const RELEASE_ENVIRONMENT: &str = "orchbee";
+
+/// The environment an owner record names, `{"environment":"<stem>","version":1}`; `None` for any
+/// other shape.
+pub(crate) fn parse_owner_record(bytes: &[u8]) -> Option<String> {
+    let Ok(Value::Object(record)) = serde_json::from_slice::<Value>(bytes) else {
+        return None;
+    };
+    if record.len() != 2 || record.get("version").and_then(Value::as_u64) != Some(1) {
+        return None;
+    }
+    record
+        .get("environment")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
 /// The cline managed package name — `CLINE_PLUGIN_NAME`.
 pub(crate) const CLINE_PACKAGE_NAME: &str = "orchbee-agent-observation";
 /// The cline payload entry path inside a managed `package/` directory.
@@ -364,6 +388,10 @@ pub(crate) enum HookReason {
     PluginWithoutMarketplace,
     RecordedRootInconsistent,
     RecordedRootAbsent,
+    /// The entry names the Capsule folder every environment shared before each kept its own.
+    RecordedRootStale,
+    /// The entry runs another environment's Capsule.
+    OtherEnvironment,
     ProviderCommandInspectionRequired,
     Unreadable,
     Malformed,
@@ -394,6 +422,8 @@ impl HookReason {
             Self::PluginWithoutMarketplace => "plugin-without-marketplace",
             Self::RecordedRootInconsistent => "recorded-root-inconsistent",
             Self::RecordedRootAbsent => "recorded-root-absent",
+            Self::RecordedRootStale => "recorded-root-stale",
+            Self::OtherEnvironment => "other-environment",
             Self::ProviderCommandInspectionRequired => "provider-command-inspection-required",
             Self::Unreadable => "unreadable",
             Self::Malformed => "malformed",
@@ -418,6 +448,11 @@ pub(crate) enum RootState {
     PathTooLong,
     BudgetExhausted,
     NotInspected,
+    /// A folder of `~/.orchbee/agent-observation-adapters`, which every environment shared before
+    /// each kept its own Capsules; only release changes the entries naming it.
+    Stale,
+    /// A Capsule folder in another environment's data root.
+    OtherEnvironment,
 }
 
 impl RootState {
@@ -432,6 +467,8 @@ impl RootState {
             Self::PathTooLong => "path-too-long",
             Self::BudgetExhausted => "budget-exhausted",
             Self::NotInspected => "not-inspected",
+            Self::Stale => "stale",
+            Self::OtherEnvironment => "other-environment",
         }
     }
 
@@ -445,6 +482,12 @@ impl RootState {
             Self::UpdateRequired => Some((HookState::UpdateRequired, HookReason::MarkerMismatch)),
             Self::Inconsistent => Some((HookState::Conflict, HookReason::RecordedRootInconsistent)),
             Self::Absent => Some((HookState::Conflict, HookReason::RecordedRootAbsent)),
+            // Release replaces or removes its stale entry; any other environment leaves it.
+            Self::Stale if orchbee_local_runtime::is_release() => {
+                Some((HookState::UpdateRequired, HookReason::RecordedRootStale))
+            }
+            Self::Stale => Some((HookState::Conflict, HookReason::RecordedRootStale)),
+            Self::OtherEnvironment => Some((HookState::Conflict, HookReason::OtherEnvironment)),
             Self::Unreadable
             | Self::Unsafe
             | Self::PathTooLong

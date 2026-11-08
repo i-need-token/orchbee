@@ -2,6 +2,10 @@ use super::super::{HookConfigurationKind, HookConfigurationScan, scan_hook_confi
 use super::*;
 use toml_edit::DocumentMut;
 
+fn patch(bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
+    super::patch(bytes, root, enable, super::super::ROOT_POLICY)
+}
+
 fn scan(bytes: &[u8]) -> HookConfigurationScan {
     scan_hook_configuration(HookConfigurationKind::Kimi, bytes)
 }

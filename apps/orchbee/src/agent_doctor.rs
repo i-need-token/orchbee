@@ -334,12 +334,25 @@ fn inspect(
         complete = false;
         Err(RootState::BudgetExhausted)
     };
+    let capsules = budget.observation.capsule_folder();
     for (path_bytes, origin) in &ordered {
         if signal.requested() {
             return Err(Failure::new(FailureKind::Cancelled).details(stage_details("agent-doctor")));
         }
         let mut outcome = if budget.take_item() {
-            probe_root(path_bytes, &mut budget)
+            // An entry's root names the environment owning it; only this environment's own
+            // Capsules, and roots outside every Capsule folder, are probed.
+            match origin
+                .starts_with("recorded:")
+                .then(|| recorded_root_owner(path_bytes, capsules.as_deref()))
+                .flatten()
+            {
+                Some(state) => RootOutcome {
+                    state,
+                    detail: Map::new(),
+                },
+                None => probe_root(path_bytes, &mut budget),
+            }
         } else {
             complete = false;
             RootOutcome {
@@ -555,7 +568,14 @@ fn probe_hook_configuration(
     let Some((target, bytes)) = selected else {
         return final_verdict(HookState::Absent, HookReason::TargetMissing);
     };
-    let scan = target.scan(&bytes);
+    let capsules = budget.observation.capsule_folder();
+    let scan = target.scan(&bytes, &|root| {
+        orchbee_agent_integration_writer::owned_by_another_environment(
+            root,
+            capsules.as_deref(),
+            orchbee_local_runtime::is_release(),
+        )
+    });
     let disabled = matches!(&scan, HookConfigurationScan::Disabled(_));
     let incomplete = matches!(&scan, HookConfigurationScan::Incomplete(_));
     match scan {
@@ -749,6 +769,9 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
     if !probes::fingerprint_matches(&mut computed, &declared) {
         return final_verdict(HookState::Conflict, HookReason::MarkerMismatch);
     }
+    if let Some(probe) = foreign_owner(&target.join("scripts"), budget) {
+        return probe;
+    }
     if contract_version == probes::SUPPORTED_CONTRACT_VERSION {
         final_verdict(HookState::Present, HookReason::MarkerConsistent)
     } else {
@@ -761,6 +784,30 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
             )]),
         }
     }
+}
+
+/// The verdict for a copied scripts folder this environment does not own, by the owner record
+/// the copy carries; `None` when it is this environment's.
+fn foreign_owner(scripts: &Path, budget: &mut Budget) -> Option<HookProbe> {
+    let path = scripts.join(probes::OWNER_RECORD_NAME);
+    if !fs::path_admitted(&path) {
+        return Some(target_too_long(&path));
+    }
+    let owner = match fs::read_regular(&path, probes::OWNER_RECORD_BYTES, budget) {
+        FileRead::Bytes(bytes) => match probes::parse_owner_record(&bytes) {
+            Some(owner) => owner,
+            None => {
+                return Some(final_verdict(
+                    HookState::Conflict,
+                    HookReason::MarkerMismatch,
+                ));
+            }
+        },
+        FileRead::Absent => probes::RELEASE_ENVIRONMENT.to_owned(),
+        read => return Some(read_uninspectable(read)),
+    };
+    (owner != orchbee_local_runtime::environment_stem())
+        .then(|| final_verdict(HookState::Conflict, HookReason::OtherEnvironment))
 }
 
 /// A bootstrap module file (`opencode`, `pi`, `omp`): marker + exact
@@ -954,12 +1001,18 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
             }
             read => return read_uninspectable(read),
         };
-        match probes::parse_cline_package(&bytes) {
+        let package_state = probes::parse_cline_package(&bytes);
+        if package_state == ClinePackage::Conflict {
+            return final_verdict(HookState::Conflict, HookReason::MarkerMismatch);
+        }
+        // Cline copies `bundle/`, the owner record included.
+        if let Some(probe) = foreign_owner(&package.join("scripts"), budget) {
+            return probe;
+        }
+        match package_state {
             ClinePackage::Current => current += 1,
             ClinePackage::UpdateRequired => outdated += 1,
-            ClinePackage::Conflict => {
-                return final_verdict(HookState::Conflict, HookReason::MarkerMismatch);
-            }
+            ClinePackage::Conflict => {}
         }
     }
     match (current, outdated) {
@@ -1016,6 +1069,22 @@ fn read_uninspectable(read: FileRead) -> HookProbe {
         FileRead::Absent | FileRead::Bytes(_) => unreachable!(),
     };
     final_verdict(HookState::Unknown, reason)
+}
+
+/// The state of a recorded root that names a Capsule folder this environment does not own:
+/// the shared folder every environment used before each kept its own, or another environment's
+/// data root. `None` for this environment's Capsules and for roots outside every Capsule folder.
+fn recorded_root_owner(path_bytes: &[u8], capsules: Option<&Path>) -> Option<RootState> {
+    use orchbee_agent_integration_writer::{CapsuleLocation, capsule_location};
+    if path_bytes.is_empty() || path_bytes.len() > fs::MAX_PATH_BYTES {
+        return None;
+    }
+    let path = fs::path_from_bytes(path_bytes);
+    match capsule_location(&path) {
+        CapsuleLocation::Shared => Some(RootState::Stale),
+        CapsuleLocation::DataRoot if path.parent() != capsules => Some(RootState::OtherEnvironment),
+        CapsuleLocation::DataRoot | CapsuleLocation::Other => None,
+    }
 }
 
 /// One asset-root probe: `lstat` → bounded manifest → bounded payload walk
@@ -1325,7 +1394,8 @@ fn path_bytes_field(bytes: &[u8]) -> Map<String, Value> {
 /// Deterministic observation-only hints: `evidence` names the concrete fact
 /// rows the hint cites, and `subjects` are what its statement names. The
 /// statement is the observed condition and its direct consequence only —
-/// never a remedy, never a trust or currentness claim. The machine document
+/// never a remedy beyond naming which environment may change an entry, never
+/// a trust or currentness claim. The machine document
 /// carries the canonical `en-US` statement; text output re-localizes it from
 /// `id` and `subjects`. Capped at `MAX_HINTS`.
 fn build_hints(run: &Report) -> Vec<Hint> {
@@ -1342,6 +1412,7 @@ fn build_hints(run: &Report) -> Vec<Hint> {
     };
 
     let mut conflict = Vec::new();
+    let mut other_environment = Vec::new();
     let mut unknown = Vec::new();
     let mut disabled = Vec::new();
     let mut update_required = Vec::new();
@@ -1360,6 +1431,11 @@ fn build_hints(run: &Report) -> Vec<Hint> {
         let exe_state = provider["executable"]["state"].as_str().unwrap_or_default();
         let hook_row = fact(id, "hook");
         match hook_state {
+            "conflict" if provider["hook"]["reason"] == "other-environment" => {
+                other_environment.push((id, hook_row));
+            }
+            // The root-stale hint cites the stale root itself.
+            "conflict" if provider["hook"]["reason"] == "recorded-root-stale" => {}
             "conflict" => conflict.push((id, hook_row)),
             "unknown" => unknown.push((id, hook_row)),
             "disabled" => disabled.push((id, hook_row)),
@@ -1392,6 +1468,8 @@ fn build_hints(run: &Report) -> Vec<Hint> {
     };
     let (subjects, evidence) = split(conflict);
     push("hook-conflict", evidence, subjects);
+    let (subjects, evidence) = split(other_environment);
+    push("hook-other-environment", evidence, subjects);
     let (subjects, evidence) = split(unknown);
     push("hook-unknown", evidence, subjects);
     let (subjects, evidence) = split(disabled);
@@ -1457,6 +1535,7 @@ fn build_hints(run: &Report) -> Vec<Hint> {
             "inconsistent" | "absent" => {
                 push("root-anomaly", vec![row], vec![subject]);
             }
+            "stale" => push("root-stale", vec![row], vec![subject]),
             "unsafe" | "unreadable" | "path-too-long" | "not-inspected" | "budget-exhausted" => {
                 push("root-uninspectable", vec![row], vec![subject]);
             }

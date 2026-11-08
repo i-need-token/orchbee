@@ -23,12 +23,7 @@ pub(super) fn update(
     ) {
         return Attempt::Conflict;
     }
-    let Some(replacement) = hooks::patch(
-        target.kind,
-        expected.as_deref(),
-        context.capsule_root,
-        enable,
-    ) else {
+    let Some(replacement) = hooks::patch(target.kind, expected.as_deref(), options, enable) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
     super::file_publication_windows::replace(

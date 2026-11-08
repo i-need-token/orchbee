@@ -57,6 +57,8 @@ impl Fixture {
             .env("USERPROFILE", self.0.join("用户 home"))
             .env("APPDATA", self.0.join("roaming"))
             .env("LOCALAPPDATA", self.0.join("local"))
+            .env_remove("ORCHBEE_HOME")
+            .env_remove("ORCHBEE_ENVIRONMENT")
             .env_remove("HERMES_HOME")
             .env_remove("HERMES_DATA_DIR_SUFFIX")
             .env("HOME", self.0.join("wrong-posix-home"))
@@ -159,6 +161,11 @@ fn copy_tree(source: &Path, destination: &Path) {
             fs::copy(entry.path(), target).unwrap();
         }
     }
+}
+/// This test build's Capsule folder in its data root under the fixture home.
+fn capsule_folder(fixture: &Fixture) -> PathBuf {
+    orchbee_local_runtime::DataRoot::under_home(&fixture.0.join("用户 home"))
+        .agent_observation_capsules()
 }
 fn config(root: &Path, enabled: bool) -> String {
     format!(
@@ -326,6 +333,62 @@ fn codex_installation_disabled_and_corrupt_capsule_facts_do_not_claim_delivery()
     );
 }
 
+/// An entry naming the Capsule folder every environment shared before each kept its own reads as
+/// stale, and one naming another environment's Capsules as that environment's; the doctor changes
+/// neither.
+#[test]
+fn shared_folder_and_other_environment_entries_are_reported_unchanged() {
+    let fixture = Fixture::new();
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/agent-integration-writer/agent-observation-adapters");
+    let home = fixture.0.join("用户 home");
+    let explicit = fixture.0.join("explicit Codex home");
+    let other =
+        home.join(".ob-dev-0123456789abcdef/internal/integrations/agent-observation/0.4.17");
+    for (root, root_state, reason, hint) in [
+        (
+            home.join(".orchbee/agent-observation-adapters")
+                .join("b".repeat(64)),
+            "stale",
+            "recorded-root-stale",
+            "root-stale",
+        ),
+        (
+            other,
+            "other-environment",
+            "other-environment",
+            "hook-other-environment",
+        ),
+    ] {
+        fs::create_dir_all(root.parent().unwrap()).unwrap();
+        copy_tree(&source, &root);
+        fs::write(explicit.join("config.toml"), config(&root, true)).unwrap();
+        // The document helper also proves that diagnosis writes nothing.
+        let document = fixture.document(Some(&explicit));
+        let result = &document["result"];
+        assert_eq!(
+            result["asset"]["roots"][0]["state"], root_state,
+            "{document}"
+        );
+        assert_eq!(
+            result["providers"][0]["hook"]["state"], "conflict",
+            "{document}"
+        );
+        assert_eq!(
+            result["providers"][0]["hook"]["reason"], reason,
+            "{document}"
+        );
+        let hints: Vec<&str> = result["hints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|row| row["id"].as_str())
+            .collect();
+        assert!(hints.contains(&hint), "{document}");
+        assert!(!hints.contains(&"hook-conflict"), "{document}");
+    }
+}
+
 #[test]
 fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
     use std::os::windows::process::CommandExt;
@@ -334,10 +397,7 @@ fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
         .join("../../crates/agent-integration-writer/agent-observation-adapters");
     let manifest: Value =
         serde_json::from_slice(&fs::read(source.join("capsule.json")).unwrap()).unwrap();
-    let installed = fixture
-        .0
-        .join("用户 home/.orchbee/agent-observation-adapters")
-        .join(manifest["payloadSha256"].as_str().unwrap());
+    let installed = capsule_folder(&fixture).join("0.4.17");
     fs::create_dir_all(installed.parent().unwrap()).unwrap();
     copy_tree(&source, &installed);
     let explicit = fixture.0.join("explicit Codex home");

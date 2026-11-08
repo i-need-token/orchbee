@@ -106,20 +106,21 @@ and `HOME` elsewhere. Resolution reads only the environment its caller supplies 
 file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back to home. The
 [layout proposal](../../proposals/platform/data-root-layout.md) owns the tree and its later phases.
 
-| Path                                  | Owner and use                                                      |
-| ------------------------------------- | ------------------------------------------------------------------ |
-| `config.toml`                         | Default settings file; `ORCHBEE_CONFIG_FILE` moves only this file  |
-| `agent-detection/<provider>.toml`     | Detection rule overrides a person writes                           |
-| `logs/destructive-commands.jsonl`     | Destructive request log and its `.1` generation                    |
-| `internal/version.json`               | Layout record, written once by the writer that creates the root    |
-| `internal/config.lock`                | Writer lock of the default settings file                           |
-| `internal/state/<record>.json`        | `StateRecord`: preferences, onboarding, and the machine catalog    |
-| `internal/cache/agent-detection/`     | Downloaded detection rules and `catalog.json`, which names the URL |
-| `internal/backups/<date>-reset-keys/` | Copy of the settings file taken by `config reset-keys`             |
-| `internal/plugins/registry.json`      | Plugin registry, folder assignments, and recorded cleanup          |
-| `internal/plugins/<folder>/`          | One plugin's `config/`, `data/`, and `source/<version>/`           |
-| `internal/plugins/source.pending/`    | The source a running install fetches before it moves               |
-| `internal/runtime/`                   | Default runtime base of a development or test environment          |
+| Path                                                 | Owner and use                                                                                                                                |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config.toml`                                        | Default settings file; `ORCHBEE_CONFIG_FILE` moves only this file                                                                            |
+| `agent-detection/<provider>.toml`                    | Detection rule overrides a person writes                                                                                                     |
+| `logs/destructive-commands.jsonl`                    | Destructive request log and its `.1` generation                                                                                              |
+| `internal/version.json`                              | Layout record, written once by the writer that creates the root                                                                              |
+| `internal/config.lock`                               | Writer lock of the default settings file                                                                                                     |
+| `internal/state/<record>.json`                       | `StateRecord`: preferences, onboarding, and the machine catalog                                                                              |
+| `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
+| `internal/backups/<date>-reset-keys/`                | Copy of the settings file taken by `config reset-keys`                                                                                       |
+| `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
+| `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
+| `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |
+| `internal/integrations/agent-observation/<version>/` | Agent observation Capsules the [integration writer](../agent-integration-writer/README.md#capsule-location-and-ownership) installs and names |
+| `internal/runtime/`                                  | Default runtime base of a development or test environment                                                                                    |
 
 Only the top level holds what a person reads, edits, or keeps. Every writer that creates a folder
 inside the root also writes `internal/version.json` when it is absent, so a root that holds anything

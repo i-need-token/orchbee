@@ -9,6 +9,7 @@ fn exact_members_partial_repair_versions_and_provider_rows() {
         Path::new(r"C:\owned\cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
     let options = ResourceOptions {
         resource_root: current,
+        legacy_capsules: None,
     };
     let init = member_bytes(Member::Entry, current).unwrap();
     let manifest = member_bytes(Member::Manifest, current).unwrap();

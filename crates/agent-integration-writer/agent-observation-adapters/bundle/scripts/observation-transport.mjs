@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { constants as fileSystemConstants } from 'node:fs';
-import { lstat, open, readdir, unlink } from 'node:fs/promises';
+import { lstat, open, readFile, readdir, unlink } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -16,6 +16,13 @@ const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v1-[A-Za-z0-9_-]{16,64}\.soc
 const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET';
 const RUN_TOKEN_ENVIRONMENT_NAME = 'ORCHBEE_RUN_TOKEN';
 const RUN_TOKEN_PATTERN = /^(?!0{32}$)[0-9a-f]{32}$/u;
+// The environment a managed terminal belongs to. A hook reports only to the environment that
+// installed its Capsule, named by the owner record beside this module.
+const ENVIRONMENT_NAME = 'ORCHBEE_ENVIRONMENT';
+const RELEASE_ENVIRONMENT = 'orchbee';
+const ENVIRONMENT_PATTERN = /^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})$/u;
+const OWNER_RECORD_URL = new URL('./environment.json', import.meta.url);
+const MAX_OWNER_RECORD_BYTES = 256;
 const WINDOWS_OBSERVATION_PIPE_PATTERN =
 	/^\\\\\.\\pipe\\orchbee-[a-f0-9]{32}-observation$(?![\s\S])/u;
 const WINDOWS_CONSOLE_TARGET = String.raw`\\.\CONOUT$`;
@@ -86,6 +93,8 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 	if (!ADAPTER_IDS.has(adapterId)) return;
 	if (observation === null) return;
 	const environment = options.environment ?? process.env;
+	const owner = await (options.readOwner ?? readCapsuleOwner)();
+	if (!reportsTo(owner, environment)) return;
 	const allocateIdentity = options.allocateIdentity ?? allocateTransportIdentity;
 	const resolveTargets = options.resolveTargets ?? resolveObservationTargets;
 	const writeHint = options.writeHint ?? writeCorrelationHint;
@@ -424,6 +433,43 @@ function sanitizeNormalizedObservation(value) {
 
 // The Agent inherits the Server-minted run token from its managed launch command. A missing or
 // malformed value is omitted so the observation still reaches the newest-run fallback.
+/**
+ * The environment that installed this Capsule: its owner record's, or release when the Capsule has
+ * none, as every Capsule installed before each environment kept its own. `null` when a record
+ * exists but cannot be read, so the hook reports nowhere.
+ */
+export async function readCapsuleOwner(recordUrl = OWNER_RECORD_URL) {
+	try {
+		const metadata = await lstat(recordUrl);
+		if (!metadata.isFile() || metadata.size > MAX_OWNER_RECORD_BYTES) return null;
+		const record = JSON.parse(await readFile(recordUrl, 'utf8'));
+		if (
+			record === null ||
+			typeof record !== 'object' ||
+			Array.isArray(record) ||
+			Object.keys(record).length !== 2 ||
+			record.version !== 1 ||
+			typeof record.environment !== 'string' ||
+			!ENVIRONMENT_PATTERN.test(record.environment)
+		) {
+			return null;
+		}
+		return record.environment;
+	} catch (error) {
+		return error?.code === 'ENOENT' ? RELEASE_ENVIRONMENT : null;
+	}
+}
+
+/**
+ * Whether a hook running in `environment` reports to `owner`: the terminal names that environment,
+ * or names none and the owner is release. Any other hook stays silent and succeeds.
+ */
+export function reportsTo(owner, environment) {
+	if (owner === null) return false;
+	const tag = environment[ENVIRONMENT_NAME];
+	return tag === undefined ? owner === RELEASE_ENVIRONMENT : tag === owner;
+}
+
 export function runTokenFrom(environment) {
 	const value = environment[RUN_TOKEN_ENVIRONMENT_NAME];
 	return typeof value === 'string' && RUN_TOKEN_PATTERN.test(value) ? value : null;

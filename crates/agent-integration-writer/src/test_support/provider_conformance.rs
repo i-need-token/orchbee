@@ -146,9 +146,9 @@ fn make_dirs() -> Dirs {
     ));
     let home = root.join("home");
     let dirs = Dirs {
-        capsule_root: home
-            .join(".orchbee/agent-observation-adapters")
-            .join("a".repeat(64)),
+        capsule_root: orchbee_local_runtime::DataRoot::under_home(&home)
+            .agent_observation_capsules()
+            .join("0.5.0"),
         adapter_source: root.join("adapter-source"),
         bin: root.join("bin"),
         root,
@@ -185,14 +185,19 @@ fn substitutions(dirs: &Dirs, id: IntegrationId) -> Vec<(String, String)> {
             "${BUNDLE_URL}".into(),
             format!("file://{}", dirs.capsule_root.join("bundle").display()),
         ),
-        // A different managed content identity, without ordering between siblings.
+        // Another Capsule version of this environment, without ordering between siblings.
         (
             "${OUTDATED_ROOT}".into(),
-            capsule_parent.join("b".repeat(64)).display().to_string(),
+            capsule_parent.join("0.4.0").display().to_string(),
         ),
         (
             "${OTHER_SIBLING}".into(),
-            capsule_parent.join("b".repeat(64)).display().to_string(),
+            capsule_parent.join("0.4.0").display().to_string(),
+        ),
+        // The environment the replay runs as, which every owner record it installs names.
+        (
+            "${ENVIRONMENT}".into(),
+            orchbee_local_runtime::environment_stem().to_owned(),
         ),
         (
             "${FOREIGN_ROOT}".into(),
@@ -348,6 +353,11 @@ fn materialize_capsule(
     fs::write(root.join("capsule.json"), manifest.to_string()).unwrap();
 }
 
+/// Marks an installed root as this environment's, as publishing does; sources carry no record.
+fn install_owner_record(root: &Path) {
+    fs::write(root.join(capsule::OWNER_RECORD), capsule::owner_record()).unwrap();
+}
+
 fn make_executable(dirs: &Dirs, name: &str) {
     let path = dirs.bin.join(name);
     fs::write(&path, b"#!/bin/sh\n").unwrap();
@@ -375,6 +385,13 @@ fn materialize_owned_dir(
     }
     if let Some(runtime) = spec.runtime_relative {
         copy_contents(&dirs.capsule_root.join(runtime), &target.join("scripts"));
+        // The copy this environment installed carries its owner record.
+        fs::create_dir_all(target.join("scripts")).unwrap();
+        fs::write(
+            target.join("scripts").join(capsule::OWNER_RECORD_NAME),
+            capsule::owner_record(),
+        )
+        .unwrap();
     }
     let files = inspect::fingerprint_directory(target).expect("owned dir fingerprints");
     let marker = serde_json::json!({
@@ -507,7 +524,7 @@ fn materialize_fs(
 }
 
 /// A snapshot of the provider-visible filesystem — every path under HOME
-/// except the Orchbee-owned capsule/staging space (`.orchbee/**` and any
+/// except the Orchbee-owned capsule/staging space (the data root and any
 /// `.orchbee-agent-*` residue), which `mustNotMutate` excludes by
 /// definition (the publish residue is Orchbee's own and reported).
 fn home_scan(home: &Path) -> BTreeMap<String, String> {
@@ -520,7 +537,9 @@ fn home_scan(home: &Path) -> BTreeMap<String, String> {
         for entry in read.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             let path = entry.path();
-            if path == home.join(".orchbee") || name.starts_with(".orchbee-agent-") {
+            if path == orchbee_local_runtime::DataRoot::under_home(home).path()
+                || name.starts_with(".orchbee-agent-")
+            {
                 continue;
             }
             let relative = path
@@ -567,6 +586,7 @@ fn install_injections(case: &Case, dirs: &Dirs, plan: &mut Plan) {
                 "capsule-verify",
                 BoundaryAction::Act(Box::new(move |_| {
                     materialize_capsule(&capsule_root, &[], None, false);
+                    install_owner_record(&capsule_root);
                     true
                 })),
             );
@@ -904,6 +924,7 @@ fn run_case(case: &Case, cli_status: CliStatus) {
                 bundle.as_ref(),
                 false,
             );
+            install_owner_record(&dirs.capsule_root);
             materialize_capsule(
                 &dirs.adapter_source,
                 &case.capsule_sources_missing,
@@ -939,6 +960,7 @@ fn run_case(case: &Case, cli_status: CliStatus) {
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
+        legacy_capsules: None,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline,

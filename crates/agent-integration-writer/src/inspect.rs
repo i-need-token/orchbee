@@ -48,18 +48,23 @@ pub(crate) const OPENCODE_CLIENT_FILES: [&str; 2] = ["server.js", "tui.js"];
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ResourceOwnership {
     Current,
-    /// A different content identity under the same managed installation parent.
+    /// Another Capsule this environment installed: a sibling version, or in release a folder of
+    /// the shared location every environment used before each kept its own.
     Outdated,
+    /// Another environment's Capsule, or content Orchbee does not own.
     Foreign,
 }
 
-/// The classifier's current content-addressed capsule root.
+/// The classifier's current capsule root and the earlier location this environment owns.
 pub(crate) struct ResourceOptions<'a> {
     pub(crate) resource_root: &'a Path,
+    /// `~/.orchbee/agent-observation-adapters` in release, where every environment installed its
+    /// Capsules before each kept its own; `None` in every other environment.
+    pub(crate) legacy_capsules: Option<&'a Path>,
 }
 
-/// Exact current identity or an outdated sibling; paths outside the managed
-/// installation parent never establish ownership.
+/// Exact current root or another Capsule of this environment; paths outside its Capsule folders
+/// never establish ownership.
 pub(crate) fn classify_resource_root(value: &str, options: &ResourceOptions) -> ResourceOwnership {
     let candidate = Path::new(value);
     if !candidate.is_absolute() {
@@ -70,10 +75,29 @@ pub(crate) fn classify_resource_root(value: &str, options: &ResourceOptions) -> 
     if resolved == current {
         return ResourceOwnership::Current;
     }
-    if resolved.parent() == current.parent() {
+    if resolved.parent() == current.parent()
+        || options
+            .legacy_capsules
+            .is_some_and(|legacy| resolved.parent() == Some(normalize(legacy).as_path()))
+    {
         return ResourceOwnership::Outdated;
     }
     ResourceOwnership::Foreign
+}
+
+/// Whether an Agent entry naming `root` belongs to another environment, which this environment
+/// leaves as it is.
+#[cfg(windows)]
+pub(crate) fn owned_elsewhere(root: &Path, options: &ResourceOptions) -> bool {
+    let current = normalize(options.resource_root);
+    let root = normalize(root);
+    root.is_absolute()
+        && root != current
+        && crate::hook_configuration::owned_by_another_environment(
+            &root,
+            current.parent(),
+            options.legacy_capsules.is_some(),
+        )
 }
 
 fn normalize(path: &Path) -> PathBuf {
@@ -737,6 +761,10 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
         }
         match cline_package_state(&candidate_root) {
             ClinePackage::Conflict => return State::Conflict,
+            // Cline copies `bundle/`, the owner record included.
+            _ if !super::capsule::owned_here(&candidate_root.join("scripts")) => {
+                return State::Conflict;
+            }
             ClinePackage::UpdateRequired => outdated += 1,
             ClinePackage::Current => exact += 1,
         }
@@ -1134,6 +1162,10 @@ pub(crate) fn inspect_owned_directory(root: &Path, integration_id: IntegrationId
         return TargetState::Conflict;
     };
     if files != marker.files {
+        return TargetState::Conflict;
+    }
+    // The copied scripts carry the owner record of the environment that installed the extension.
+    if !super::capsule::owned_here(&root.join("scripts")) {
         return TargetState::Conflict;
     }
     if marker.contract_version == ENTRY_CONTRACT_VERSION {

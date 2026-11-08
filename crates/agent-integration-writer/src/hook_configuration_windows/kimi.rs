@@ -1,11 +1,16 @@
 //! Windows Kimi byte mutation; parsing and ownership proofs are shared.
-use super::{LIMIT, ROOT_POLICY, command, grammar};
+use super::{LIMIT, RootPolicy, command, grammar};
 use grammar::kimi::EVENTS;
 use std::path::Path;
 use toml_edit::{ArrayOfTables, Item, Table, value};
 
-pub(super) fn patch(bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
-    let (mut document, owned, _) = grammar::kimi::parse(bytes.unwrap_or(b""), ROOT_POLICY).ok()?;
+pub(super) fn patch(
+    bytes: Option<&[u8]>,
+    root: &Path,
+    enable: bool,
+    policy: RootPolicy<'_>,
+) -> Option<Vec<u8>> {
+    let (mut document, owned, _) = grammar::kimi::parse(bytes.unwrap_or(b""), policy).ok()?;
     if !document.contains_key("hooks") {
         if !enable {
             return Some(bytes.unwrap_or(b"").to_vec());

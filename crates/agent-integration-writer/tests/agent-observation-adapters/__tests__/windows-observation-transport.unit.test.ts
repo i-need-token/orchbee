@@ -219,7 +219,13 @@ describe('Windows Agent observation transport', () => {
 						process.env['COMSPEC'] ?? 'cmd.exe',
 						['/d', '/s', '/c', `"${command}"`],
 						{
-							env: { ...process.env, PLUGIN_ROOT: resourceRoot, [endpointName]: pipe },
+							// The source Capsule has no owner record, so it is release's.
+							env: {
+								...process.env,
+								ORCHBEE_ENVIRONMENT: 'orchbee',
+								PLUGIN_ROOT: resourceRoot,
+								[endpointName]: pipe,
+							},
 							timeout: 5_000,
 							windowsHide: true,
 							windowsVerbatimArguments: true,

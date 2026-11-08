@@ -64,8 +64,8 @@ Agent configuration, or runs remote setup; remote installation remains manual.
 Use a durable standalone copy of this directory as `<adapter-root>`. Do not persist a path into an
 Orchbee application bundle: deleting or replacing the application must not break Agent startup.
 A managed enable first publishes a validated Capsule under
-`~/.orchbee/agent-observation-adapters/<payloadSha256>` and points the provider's entry at that
-durable copy. Provider-local module entries
+`internal/integrations/agent-observation/<version>` in its environment's data root (`~/.orchbee`
+for release) and points the provider's entry at that durable copy. Provider-local module entries
 catch a missing Capsule, shell command hooks test that their runtime still exists, and Gemini/Qwen entries
 are self-contained copies. An uninstaller must retain every Capsule still referenced by any
 provider declaration; explicit disable owns removal of the corresponding provider entry.
@@ -229,7 +229,15 @@ a non-persistent environment overlay. Before transport, each entry selects only 
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
 transcript paths, working directories, error text, notification text, and unknown fields. When the
 Agent inherited a well-formed `ORCHBEE_RUN_TOKEN` from its managed launch command, the envelope
-carries it as the optional `runToken`; a missing or malformed value is omitted. The rich
+carries it as the optional `runToken`; a missing or malformed value is omitted.
+
+Publishing adds the owner record `bundle/scripts/environment.json`,
+`{"environment":"<stem>","version":1}`, which names the environment that installed the Capsule
+and travels with every copy a provider makes of `bundle/`. Before any transport, a hook acts only
+when the inherited `ORCHBEE_ENVIRONMENT` equals that environment, or when the variable is absent
+and the environment is release (`orchbee`). A Capsule without the record is release's. Otherwise,
+or when the record cannot be read, the hook exits silently and successfully, so an Agent reports
+only to the environment whose terminal runs it. The rich
 half goes to same-user private Unix-domain sockets or the injected native Windows observation pipe. A local process uses only the exact endpoint in
 its environment; only a remote process without that overlay discovers same-user forwarded
 candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH_CLIENT`, or
@@ -319,15 +327,16 @@ Hermes supplies a stdlib-only Python plugin that registers three identity callba
 ## Packaged payload identity
 
 The current Capsule uses contract version 1. Its manifest contains exactly
-`{contractVersion: 1, payloadSha256: "<64 lowercase hex>"}`. Its identity and
-installation directory are the digest: `~/.orchbee/agent-observation-adapters/<payloadSha256>`.
-Provider package versions remain provider metadata and do not identify an installation.
+`{contractVersion: 1, payloadSha256: "<64 lowercase hex>"}`. Its identity is the digest. Its
+installation folder is named by `bundle/package.json`'s `version`, so a person reads which Capsule
+an Agent entry runs: `<data root>/internal/integrations/agent-observation/<version>`, where a
+name already holding a different payload takes `-2`, `-3`, and so on.
 
 Compute SHA-256 over the UTF-8 encoding of `JSON.stringify(entries)`. Entries use
 `/`-separated relative paths, ordered by UTF-16 code units; directories serialize
 as `{kind,path}`, files as `{kind,path,sha256,size}` in that member order. Exclude
-only `capsule.json`; include both documentation files and every other packaged
-file and directory. Every byte change, including formatting, requires recomputing
+only `capsule.json` and the owner record `bundle/scripts/environment.json`; include both
+documentation files and every other packaged file and directory. Every byte change, including formatting, requires recomputing
 `payloadSha256` over the final tree. The Rust writer and native staging recompute
 this digest before admitting the payload, with the same bounds and required files.
 
@@ -337,8 +346,13 @@ its embedded sidecar identity. A different digest is `update-required`; corrupt
 bytes and uninspectable reads retain their distinct existing outcomes. Integration
 CLI documents expose `capsule.payloadSha256`. Reinstall explicitly with
 `orchbee agent integration enable --provider codex` (select the relevant provider).
-Old directories are retained; disable removes provider entries under their existing
-ownership guards and does not sweep capsules. Non-current capsule metadata is
+After a completed enable or disable, the writer removes every other version folder of its own
+Capsule folder when a fresh inspection shows that no Agent entry can name one: no provider reads
+`update-required`, and every provider whose command is on PATH was inspected. Otherwise it keeps
+them all, and it always keeps the current version. Disable removes provider entries under their
+existing ownership guards. Another environment's Capsules, and the folders of
+`~/.orchbee/agent-observation-adapters` where every environment installed before each kept its
+own, are never swept. Non-current capsule metadata is
 diagnosed as outdated only after verifying its actual digest, required runtime
 files and named Orchbee package marker. This read-only diagnosis never admits a
 non-current source as ready or authorizes replacing unknown files. There is no

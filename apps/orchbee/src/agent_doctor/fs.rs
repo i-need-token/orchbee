@@ -339,7 +339,9 @@ pub(crate) fn capsule_walk(root: &Path, budget: &mut Budget) -> CapsuleWalk {
             if !file_type.is_file() {
                 return CapsuleWalk::UnsafeKind;
             }
-            if relative == super::probes::CAPSULE_MANIFEST_NAME {
+            if relative == super::probes::CAPSULE_MANIFEST_NAME
+                || relative == super::probes::CAPSULE_OWNER_RECORD
+            {
                 continue;
             }
             let bytes = match read_regular(&entry.path(), CAPSULE_MAX_FILE_BYTES, budget) {

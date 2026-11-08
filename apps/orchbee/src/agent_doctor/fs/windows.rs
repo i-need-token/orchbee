@@ -7,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf, Prefix},
 };
 
-use super::native::{ConfigurationTarget, Native};
+use super::native::{ConfigurationTarget, Native, capsule_folder};
 use super::{Budget, EntryKind, EnvValue, FileRead, Lstat, MAX_PATH_BYTES, PathScan};
 
 pub(super) static NATIVE: Native = Native {
@@ -51,6 +51,7 @@ pub(super) static NATIVE: Native = Native {
                 .collect()
         })
     }),
+    capsule_folder,
 };
 
 const REPARSE_POINT: u32 = 0x400;

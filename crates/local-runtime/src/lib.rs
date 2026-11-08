@@ -63,7 +63,7 @@ pub use environment::{
 #[cfg(windows)]
 mod destructive_log;
 #[cfg(windows)]
-pub use data_root::prepare_default_runtime_base;
+pub use data_root::{create_private_directory, prepare_default_runtime_base};
 #[cfg(windows)]
 pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
 #[cfg(windows)]

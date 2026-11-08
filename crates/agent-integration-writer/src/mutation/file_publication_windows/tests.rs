@@ -33,6 +33,7 @@ fn changed_preimages_arrivals_and_cancellation_preserve_user_data() {
         let context = ProviderContext {
             home: &fixture.0,
             capsule_root: &capsule,
+            legacy_capsules: None,
             adapter_source: None,
             path_env: None,
             deadline: Instant::now() + Duration::from_secs(10),
@@ -48,7 +49,10 @@ fn changed_preimages_arrivals_and_cancellation_preserve_user_data() {
             hook_configuration_windows::patch(
                 HookConfigurationKind::Cursor,
                 Some(original),
-                &capsule,
+                &crate::inspect::ResourceOptions {
+                    resource_root: &capsule,
+                    legacy_capsules: None,
+                },
                 true,
             )
             .unwrap(),

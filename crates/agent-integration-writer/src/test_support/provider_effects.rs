@@ -94,9 +94,9 @@ fn make_dirs() -> Dirs {
             .unwrap_or(0)
     ));
     let home = root.join("home");
-    let parent = home.join(".orchbee/agent-observation-adapters");
+    let parent = orchbee_local_runtime::DataRoot::under_home(&home).agent_observation_capsules();
     let dirs = Dirs {
-        capsule_root: parent.join("a".repeat(64)),
+        capsule_root: parent.join("0.5.0"),
         target: home.join("managed-target"),
         provider_cfg: home.join("provider.cfg"),
         cohort_dir: root.join("cohort"),
@@ -274,6 +274,11 @@ fn materialize_capsule(dir: &Path, sabotage: bool) {
         "payloadSha256": digest,
     });
     fs::write(dir.join("capsule.json"), manifest.to_string()).unwrap();
+}
+
+/// Marks an installed root as this environment's, as publishing does; sources carry no record.
+fn install_owner_record(dir: &Path) {
+    fs::write(dir.join(capsule::OWNER_RECORD), capsule::owner_record()).unwrap();
 }
 
 /// A runnable stub on the harness PATH so `resolve_executable` admits it.
@@ -1199,6 +1204,7 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
+        legacy_capsules: None,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline,
@@ -1210,6 +1216,7 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
     // the attempted[] these cases assert.
     if !dirs.capsule_root.exists() {
         materialize_capsule(&dirs.capsule_root, false);
+        install_owner_record(&dirs.capsule_root);
     }
 
     let direction = match case.drive["op"].as_str().unwrap() {
@@ -1793,6 +1800,7 @@ fn run_case(case: &Case, cli_status: CliStatus) {
         });
     let setup_fs: Vec<Value> = if capsule_occupied {
         materialize_capsule(&dirs.capsule_root, false);
+        install_owner_record(&dirs.capsule_root);
         case.setup_fs
             .iter()
             .filter(|entry| entry["path"].as_str() != Some("$CAPSULE_ROOT"))
@@ -2066,6 +2074,7 @@ fn run_static(case: &Case, cli_status: CliStatus) {
             let context = ProviderContext {
                 home: &dirs.home,
                 capsule_root: &dirs.capsule_root,
+                legacy_capsules: None,
                 adapter_source: Some(dirs.adapter_source.as_path()),
                 path_env: Some(dirs.bin.as_os_str()),
                 deadline: inject::now() + Duration::from_secs(40),
@@ -2130,6 +2139,7 @@ fn drive_provider_at(
     let context = ProviderContext {
         home: &dirs.home,
         capsule_root: &dirs.capsule_root,
+        legacy_capsules: None,
         adapter_source: Some(dirs.adapter_source.as_path()),
         path_env: Some(dirs.bin.as_os_str()),
         deadline: inject::now() + Duration::from_secs(40),

@@ -666,6 +666,55 @@ describe('Agent observation adapter resources', () => {
 		}
 	});
 
+	it('reports only to the environment that installed the Capsule', async () => {
+		const transport = await import(transportUrl);
+		const delivered = async (owner: string | null, environment: Record<string, string>) => {
+			const sendEnvelope = vi.fn<() => Promise<boolean>>(async () => true);
+			await transport.forwardSanitizedObservation('codex', normalizedObservation(), {
+				discoverSockets: async () => ['/tmp/orchbee-agent-v1-forwarded.sock'],
+				environment,
+				readOwner: async () => owner,
+				resolveTargets: async () => [{ tty: '/dev/pts/4', visibility: 'unknown' }],
+				sendEnvelope,
+				writeHint: async () => undefined,
+			});
+			return sendEnvelope.mock.calls.length > 0;
+		};
+		const development = 'ob-dev-0123456789abcdef';
+
+		await expect(delivered('orchbee', {})).resolves.toBe(true);
+		await expect(delivered('orchbee', { ORCHBEE_ENVIRONMENT: 'orchbee' })).resolves.toBe(true);
+		await expect(delivered('orchbee', { ORCHBEE_ENVIRONMENT: development })).resolves.toBe(false);
+		await expect(delivered(development, { ORCHBEE_ENVIRONMENT: development })).resolves.toBe(true);
+		await expect(delivered(development, {})).resolves.toBe(false);
+		await expect(delivered(development, { ORCHBEE_ENVIRONMENT: '' })).resolves.toBe(false);
+		await expect(delivered(null, {})).resolves.toBe(false);
+	});
+
+	it('reads the owner record beside the transport and treats a missing one as release', async () => {
+		const transport = await import(transportUrl);
+		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-capsule-owner-'));
+		try {
+			const record = path.join(directory, 'environment.json');
+			const owner = () => transport.readCapsuleOwner(pathToFileURL(record));
+			await expect(owner()).resolves.toBe('orchbee');
+			await writeFile(record, '{"environment":"ob-test-0123456789abcdef","version":1}\n');
+			await expect(owner()).resolves.toBe('ob-test-0123456789abcdef');
+			for (const unreadable of [
+				'{"environment":"ob-test-0123456789abcdef"}',
+				'{"environment":"elsewhere","version":1}',
+				'{"environment":"orchbee","version":1,"extra":true}',
+				'not json',
+				`{"environment":"orchbee","version":1}${' '.repeat(256)}`,
+			]) {
+				await writeFile(record, unreadable);
+				await expect(owner()).resolves.toBeNull();
+			}
+		} finally {
+			await rm(directory, { force: true, recursive: true });
+		}
+	});
+
 	it('writes no terminal hint when no Orchbee observation endpoint is available', async () => {
 		const transport = await import(transportUrl);
 		const resolveTargets = vi.fn<

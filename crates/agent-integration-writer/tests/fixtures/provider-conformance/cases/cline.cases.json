@@ -2,7 +2,7 @@
 	"provider": "cline",
 	"executableName": "cline",
 	"readSlots": 0,
-	"dimensions": "directNames ∈ {none, present('.js'|'.ts'|bare dir under ~/.cline/plugins)} × installCount(_installed/local/*/package with cline/orchbee-agent-observation.js) ∈ {0,1,>1} × package.json {name==='${PLUGIN_NAME}', marker.orchbeeAgentObservation.contractVersion ∈ {=3, positive int ≠3, absent/malformed}} × sourceReady(bundle package contract==3); bounds ≤128 dirs, manifest ≤16KiB",
+	"dimensions": "directNames ∈ {none, present('.js'|'.ts'|bare dir under ~/.cline/plugins)} × installCount(_installed/local/*/package with cline/orchbee-agent-observation.js) ∈ {0,1,>1} × package.json {name==='${PLUGIN_NAME}', marker.orchbeeAgentObservation.contractVersion ∈ {=3, positive int ≠3, absent/malformed}} × sourceReady(bundle package contract==3) × owner(copied package/scripts/environment.json, absent = release) ∈ {this environment, another}; bounds ≤128 dirs, manifest ≤16KiB",
 	"cases": [
 		{
 			"id": "cline.inspect.enabled-current",
@@ -32,6 +32,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -47,6 +55,102 @@
 			},
 			"anchors": ["cline-adapter:114-155,163-175"],
 			"notes": "capsuleBundle = the adapter's own resource bundle at <resourceRoot>/bundle/package.json — required for sourceReady. ZERO provider commands."
+		},
+		{
+			"id": "cline.inspect.other-environment",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict", "other-environment"],
+			"dims": {
+				"installCount": 1,
+				"contractVersion": 3,
+				"owner": "other-environment"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
+				"fs": [
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json",
+						"kind": "file",
+						"contentJson": "@cline.package.current"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
+						"kind": "file",
+						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "ob-dev-0123456789abcdef",
+							"version": 1
+						}
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": []
+			},
+			"anchors": ["cline-adapter:114-155,163-175"],
+			"notes": "The copied owner record names another environment, which alone changes the install; the replay's own environment reads it as conflict. ZERO provider commands."
+		},
+		{
+			"id": "cline.inspect.copy-without-owner-record",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict", "other-environment"],
+			"dims": {
+				"installCount": 1,
+				"contractVersion": 3,
+				"owner": "other-environment"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
+				"fs": [
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json",
+						"kind": "file",
+						"contentJson": "@cline.package.current"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
+						"kind": "file",
+						"content": "// owned"
+					}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": []
+			},
+			"anchors": ["cline-adapter:114-155,163-175"],
+			"notes": "A copy without an owner record was installed by release before each environment kept its own Capsules, so it is release's; the replay runs as a test environment and reads it as conflict. ZERO provider commands."
 		},
 		{
 			"id": "cline.inspect.not-installed",
@@ -142,6 +246,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-new/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-new/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -187,6 +299,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-bad/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-bad/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -229,6 +349,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-bad/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-bad/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -362,6 +490,22 @@
 						"path": ".cline/plugins/_installed/local/b/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// b"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/a/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
+					},
+					{
+						"path": ".cline/plugins/_installed/local/b/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -472,6 +616,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -515,6 +667,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -595,6 +755,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-old/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": [
@@ -654,6 +822,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": []
@@ -799,6 +975,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-new/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-new/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": [
@@ -861,6 +1045,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": [
@@ -941,6 +1133,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-old/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": [
@@ -1026,6 +1226,14 @@
 						"path": ".cline/plugins/_installed/local/bundle-new/package/cline/orchbee-agent-observation.js",
 						"kind": "file",
 						"content": "// owned"
+					},
+					{
+						"path": ".cline/plugins/_installed/local/bundle-new/package/scripts/environment.json",
+						"kind": "file",
+						"contentJson": {
+							"environment": "${ENVIRONMENT}",
+							"version": 1
+						}
 					}
 				],
 				"commands": [

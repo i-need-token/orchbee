@@ -1,5 +1,5 @@
 //! Windows event-set byte mutation; parsing and ownership proofs are shared.
-use super::{LIMIT, ROOT_POLICY, declaration, grammar};
+use super::{LIMIT, RootPolicy, declaration, grammar};
 pub(super) use grammar::event_sets::EventSet;
 use std::path::Path;
 
@@ -8,9 +8,10 @@ pub(super) fn patch(
     bytes: Option<&[u8]>,
     root: &Path,
     enable: bool,
+    policy: RootPolicy<'_>,
 ) -> Option<Vec<u8>> {
     let (parent, mut object, mut entries_by_event, owned, _) =
-        grammar::event_sets::parse(set, bytes.unwrap_or(b"{}"), ROOT_POLICY).ok()?;
+        grammar::event_sets::parse(set, bytes.unwrap_or(b"{}"), policy).ok()?;
     for event in set.events() {
         let mut entries = entries_by_event.remove(*event).unwrap_or_default();
         if let Some(index) = owned.get(*event) {

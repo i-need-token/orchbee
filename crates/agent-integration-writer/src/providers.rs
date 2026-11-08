@@ -23,8 +23,12 @@ use super::model::{Availability, IntegrationId, Issue, ManagementMode, SnapshotI
 pub(crate) struct ProviderContext<'a> {
     /// The user's home directory (HOME-isolated in tests).
     pub(crate) home: &'a Path,
-    /// The managed capsule root `~/.orchbee/agent-observation-adapters/<payloadSha256>`.
+    /// The managed capsule root, `internal/integrations/agent-observation/<version>` in this
+    /// environment's data root.
     pub(crate) capsule_root: &'a Path,
+    /// `~/.orchbee/agent-observation-adapters` in release, whose entries naming it are release's
+    /// own; `None` in every other environment.
+    pub(crate) legacy_capsules: Option<&'a Path>,
     /// The declared adapter source: the cohort sidecar directory or the
     /// `--adapter-source` override — `None` when no source exists.
     pub(crate) adapter_source: Option<&'a Path>,
@@ -45,6 +49,7 @@ pub(crate) struct ProviderContext<'a> {
 pub(crate) fn resource_options<'a>(context: &ProviderContext<'a>) -> ResourceOptions<'a> {
     ResourceOptions {
         resource_root: context.capsule_root,
+        legacy_capsules: context.legacy_capsules,
     }
 }
 

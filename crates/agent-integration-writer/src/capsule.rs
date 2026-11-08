@@ -1,9 +1,12 @@
-//! The content-addressed adapter payload capsule. Its digest is contractual with the verifier in
-//! `scripts/stage-local-runtime.mjs`:
+//! The adapter payload capsule. Its payload digest is its identity and is contractual with the
+//! verifier in `scripts/stage-local-runtime.mjs`:
 //! the canonical sha256 is computed over `JSON.stringify` of the sorted
 //! payload entry array with the exact member order `{kind,path,sha256,size}`
 //! for files and `{kind,path}` for directories, so the field order and the
-//! compact separators below are load-bearing.
+//! compact separators below are load-bearing. An installed Capsule's folder is
+//! named by its version, `bundle/package.json`'s `version`, so a person reads
+//! which Capsule an Agent entry runs, and its owner record names the environment
+//! that installed it.
 
 use std::{
     fs,
@@ -18,6 +21,19 @@ const MAX_CAPSULE_DEPTH: usize = 8;
 const MAX_CAPSULE_FILE_BYTES: u64 = 512 * 1024;
 const MAX_CAPSULE_TOTAL_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 1024;
+const MAX_PACKAGE_BYTES: u64 = 64 * 1024;
+/// The last `-<n>` suffix a version folder may take before the name counts as exhausted.
+const MAX_VERSION_SUFFIX: usize = 64;
+const PACKAGE_MANIFEST: &str = "bundle/package.json";
+/// The record naming the environment that installed a Capsule, beside the transport that reads it
+/// at hook time. The writer adds it to every Capsule it publishes and the payload digest leaves it
+/// out, so the identity stays the source's while every copy a provider makes of `bundle/` keeps
+/// it.
+pub(crate) const OWNER_RECORD: &str = "bundle/scripts/environment.json";
+/// The owner record's name inside a copied scripts folder.
+pub(crate) const OWNER_RECORD_NAME: &str = "environment.json";
+const MAX_OWNER_RECORD_BYTES: u64 = 256;
+const RELEASE_ENVIRONMENT: &str = "orchbee";
 const REQUIRED_RUNTIME_FILES: [&str; 4] = [
     "bundle/package.json",
     "bundle/scripts/forward-hook.mjs",
@@ -117,7 +133,7 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
             if !file_type.is_file() {
                 return None;
             }
-            if relative == "capsule.json" {
+            if relative == "capsule.json" || relative == OWNER_RECORD {
                 continue;
             }
             let metadata = entry.metadata().ok()?;
@@ -182,6 +198,118 @@ pub fn bundled_payload_sha256() -> String {
         .filter(|digest| valid_sha256(&Value::String((*digest).to_owned())))
         .expect("the checked-in capsule manifest declares a canonical digest")
         .to_owned()
+}
+
+/// Whether `version` can name a Capsule folder on every file system: 1–64 ASCII letters, digits,
+/// `.`, `_`, and `-`, starting with a digit, so it is never a Windows device name, and not ending
+/// with `.`.
+fn folder_version(version: &str) -> bool {
+    (1..=64).contains(&version.len())
+        && version.starts_with(|first: char| first.is_ascii_digit())
+        && !version.ends_with('.')
+        && version
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn package_version(bytes: &[u8]) -> Option<String> {
+    let manifest: Value = serde_json::from_slice(bytes).ok()?;
+    manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .filter(|version| folder_version(version))
+        .map(str::to_owned)
+}
+
+/// The version a Capsule source declares in `bundle/package.json`, when it can name a folder.
+pub(crate) fn declared_version(root: &Path) -> Option<String> {
+    let path = root.join(PACKAGE_MANIFEST);
+    let metadata = fs::symlink_metadata(&path).ok()?;
+    if !metadata.is_file() || metadata.len() > MAX_PACKAGE_BYTES {
+        return None;
+    }
+    #[cfg(unix)]
+    let bytes = fs::read(&path).ok()?;
+    #[cfg(windows)]
+    let bytes = super::files::read_bounded(&path, MAX_PACKAGE_BYTES).ok()?;
+    package_version(&bytes)
+}
+
+/// The build's bundled Capsule version, also available when no cohort is staged.
+pub(crate) fn bundled_version() -> String {
+    package_version(include_bytes!(
+        "../agent-observation-adapters/bundle/package.json"
+    ))
+    .expect("the checked-in capsule package declares a folder version")
+}
+
+/// The folder in `capsules` that holds the payload `digest`: the first of `<version>`,
+/// `<version>-2`, `<version>-3`, ... whose manifest declares it, or else the first free name. A
+/// name already taken by other content keeps that content, as the data root's naming rule
+/// requires. Reading never creates anything.
+pub(crate) fn installation_root(capsules: &Path, version: &str, digest: &str) -> PathBuf {
+    for index in 1..=MAX_VERSION_SUFFIX {
+        let candidate = if index == 1 {
+            capsules.join(version)
+        } else {
+            capsules.join(format!("{version}-{index}"))
+        };
+        match fs::symlink_metadata(&candidate) {
+            Ok(_) if manifest_declared_digest(&candidate).as_deref() != Some(digest) => {}
+            // The payload's own folder, or a free name, or one whose state a later validation
+            // reports.
+            Ok(_) | Err(_) => return candidate,
+        }
+    }
+    capsules.join(version)
+}
+
+/// This environment's owner record: `{"environment":"<stem>","version":1}` and LF.
+pub(crate) fn owner_record() -> Vec<u8> {
+    let mut bytes = json!({
+        "environment": orchbee_local_runtime::environment_stem(),
+        "version": 1,
+    })
+    .to_string()
+    .into_bytes();
+    bytes.push(b'\n');
+    bytes
+}
+
+/// The environment owning a scripts folder: its owner record's environment, or release when the
+/// folder has none, like every Capsule installed before each environment kept its own. `None` when
+/// a record exists but cannot be read.
+pub(crate) fn recorded_owner(scripts: &Path) -> Option<String> {
+    let path = scripts.join(OWNER_RECORD_NAME);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Some(RELEASE_ENVIRONMENT.to_owned());
+        }
+        Err(_) => return None,
+    };
+    if !metadata.is_file() || metadata.len() > MAX_OWNER_RECORD_BYTES {
+        return None;
+    }
+    #[cfg(unix)]
+    let bytes = fs::read(&path).ok()?;
+    #[cfg(windows)]
+    let bytes = super::files::read_bounded(&path, MAX_OWNER_RECORD_BYTES).ok()?;
+    let Value::Object(record) = serde_json::from_slice::<Value>(&bytes).ok()? else {
+        return None;
+    };
+    if record.len() != 2 || record.get("version").and_then(Value::as_u64) != Some(1) {
+        return None;
+    }
+    record
+        .get("environment")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
+
+/// Whether this environment owns the scripts folder `scripts`.
+pub(crate) fn owned_here(scripts: &Path) -> bool {
+    recorded_owner(scripts).as_deref() == Some(orchbee_local_runtime::environment_stem())
 }
 
 /// Validate one capsule root: strict manifest keys and current contract, the four required runtime files, and the canonical digest

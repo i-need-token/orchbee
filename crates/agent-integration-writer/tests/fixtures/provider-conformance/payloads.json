@@ -1,15 +1,16 @@
 {
 	"meta": {
 		"purpose": "Shared substitution variables and named provider-output payloads referenced by cases. '${NAME}' tokens inside any string (argv, fs paths, serialized stdoutJson/contentJson) are substituted with vars values before use. A case using 'stdoutJson' means: JSON.stringify the value, substitute tokens, feed the resulting string as the command's stdout. A case using 'stdout' is a raw string fed verbatim (for malformed-output cases). 'contentJson'/'content' behave identically for filesystem bodies.",
-		"fixtureEnvironment": "home=${HOME}; resourceRoot=${CAPSULE_ROOT}; outdated identity=${OUTDATED_ROOT}; current capsule contractVersion=1. Provider version metadata does not identify a capsule."
+		"fixtureEnvironment": "home=${HOME}; resourceRoot=${CAPSULE_ROOT}, a version folder of the replay environment's data root; outdated version=${OUTDATED_ROOT}; environment=${ENVIRONMENT}, which every owner record the replay installs names; current capsule contractVersion=1. Provider version metadata does not identify a capsule."
 	},
 	"vars": {
-		"CAPSULE_ROOT": "/home/person/.orchbee/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		"BUNDLE": "/home/person/.orchbee/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bundle",
-		"OUTDATED_ROOT": "/home/person/.orchbee/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		"OTHER_SIBLING": "/home/person/.orchbee/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"CAPSULE_ROOT": "/home/person/.ob-test-0123456789abcdef/internal/integrations/agent-observation/0.5.0",
+		"BUNDLE": "/home/person/.ob-test-0123456789abcdef/internal/integrations/agent-observation/0.5.0/bundle",
+		"OUTDATED_ROOT": "/home/person/.ob-test-0123456789abcdef/internal/integrations/agent-observation/0.4.0",
+		"OTHER_SIBLING": "/home/person/.ob-test-0123456789abcdef/internal/integrations/agent-observation/0.4.0",
+		"ENVIRONMENT": "ob-test-0123456789abcdef",
 		"FOREIGN_ROOT": "/third-party/agent-observation-adapters",
-		"BUNDLE_URL": "file:///home/person/.orchbee/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bundle",
+		"BUNDLE_URL": "file:///home/person/.ob-test-0123456789abcdef/internal/integrations/agent-observation/0.5.0/bundle",
 		"VERSION": "1.0.0",
 		"OLDER_VERSION": "0.3.0",
 		"MARKETPLACE": "orchbee-local",

@@ -7,7 +7,7 @@ pub(crate) const EVENTS: [&str; 2] = ["SessionStart", "SessionEnd"];
 /// The unchanged TOML document, owned indices and the agreed declaration root.
 pub(crate) type Parsed = (DocumentMut, Vec<usize>, Option<PathBuf>);
 
-pub(crate) fn parse(bytes: &[u8], policy: RootPolicy) -> Result<Parsed, HookConfigurationScan> {
+pub(crate) fn parse(bytes: &[u8], policy: RootPolicy<'_>) -> Result<Parsed, HookConfigurationScan> {
     let source = std::str::from_utf8(bytes).map_err(|_| HookConfigurationScan::Malformed)?;
     let value = source
         .parse::<DocumentMut>()
@@ -63,7 +63,7 @@ pub(crate) fn parse(bytes: &[u8], policy: RootPolicy) -> Result<Parsed, HookConf
     Ok((value, owned, root))
 }
 
-pub(super) fn scan(bytes: &[u8], policy: RootPolicy) -> HookConfigurationScan {
+pub(super) fn scan(bytes: &[u8], policy: RootPolicy<'_>) -> HookConfigurationScan {
     match parse(bytes, policy) {
         Ok((_, owned, root)) => match root {
             None => HookConfigurationScan::Absent,

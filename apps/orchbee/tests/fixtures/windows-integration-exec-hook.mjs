@@ -84,7 +84,8 @@ await new Promise((resolve, reject) => {
 	server.once('error', reject);
 	server.listen(pipe, resolve);
 });
-async function run(hook, input, scriptRoot = root) {
+// `environment` is the terminal's ORCHBEE_ENVIRONMENT, `null` for a terminal naming none.
+async function run(hook, input, scriptRoot = root, environment = process.env.ORCHBEE_ENVIRONMENT) {
 	let command = process.execPath;
 	let args;
 	if (provider === 'grok' || extensionProvider || encodedProvider) {
@@ -134,6 +135,7 @@ async function run(hook, input, scriptRoot = root) {
 				GROK_PLUGIN_ROOT: scriptRoot,
 				COPILOT_PLUGIN_ROOT: scriptRoot,
 				ORCHBEE_AGENT_OBSERVATION_SOCKET: pipe,
+				...(typeof environment === 'string' ? { ORCHBEE_ENVIRONMENT: environment } : {}),
 			},
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
@@ -224,45 +226,45 @@ function expectedEvents() {
 	if (encodedProvider) return ['session-identified'];
 	return ['session-started', 'turn-started', 'turn-stopped', 'session-ended'];
 }
+function inputFor(event) {
+	return JSON.stringify({
+		...(provider === 'grok'
+			? { hookEventName: event, sessionId: 'literal-path-session', reason: 'end_turn' }
+			: {}),
+		...(provider === 'qwen-code' && event === 'UserPromptSubmit'
+			? { submitted_prompt: 'PRIVATE_SUBMITTED_PROMPT' }
+			: {}),
+		...(provider === 'antigravity-cli' ? { conversationId: 'literal-path-session' } : {}),
+		...(provider === 'mastracode'
+			? {
+					run_id: 'run-1',
+					tool_name: 'shell',
+					tool_call_id: 'call-1',
+					permission_kind: 'tool_approval',
+					decision: 'approved',
+					stop_reason: 'complete',
+				}
+			: {}),
+		...(provider === 'letta'
+			? {
+					event_type: event,
+					is_new_session: true,
+					conversation_id: 'literal-path-session',
+					agent_id: 'agent-1',
+				}
+			: {}),
+		hook_event_name: event,
+		session_id: 'literal-path-session',
+		prompt: 'PRIVATE_PROMPT',
+		cwd: 'PRIVATE_CWD',
+		transcript_path: 'PRIVATE_TRANSCRIPT',
+	});
+}
 const expected = expectedEvents();
 try {
 	const events = eventNames();
 	for (const event of events) {
-		await run(
-			hookFor(event),
-			JSON.stringify({
-				...(provider === 'grok'
-					? { hookEventName: event, sessionId: 'literal-path-session', reason: 'end_turn' }
-					: {}),
-				...(provider === 'qwen-code' && event === 'UserPromptSubmit'
-					? { submitted_prompt: 'PRIVATE_SUBMITTED_PROMPT' }
-					: {}),
-				...(provider === 'antigravity-cli' ? { conversationId: 'literal-path-session' } : {}),
-				...(provider === 'mastracode'
-					? {
-							run_id: 'run-1',
-							tool_name: 'shell',
-							tool_call_id: 'call-1',
-							permission_kind: 'tool_approval',
-							decision: 'approved',
-							stop_reason: 'complete',
-						}
-					: {}),
-				...(provider === 'letta'
-					? {
-							event_type: event,
-							is_new_session: true,
-							conversation_id: 'literal-path-session',
-							agent_id: 'agent-1',
-						}
-					: {}),
-				hook_event_name: event,
-				session_id: 'literal-path-session',
-				prompt: 'PRIVATE_PROMPT',
-				cwd: 'PRIVATE_CWD',
-				transcript_path: 'PRIVATE_TRANSCRIPT',
-			}),
-		);
+		await run(hookFor(event), inputFor(event));
 	}
 	assert.equal(observations.length, expected.length);
 	assert.deepEqual(
@@ -304,6 +306,12 @@ try {
 			}),
 		);
 	}
+
+	// A hook reports only to the environment that installed its Capsule: another environment's
+	// terminal, and one naming no environment unless the owner is release, stay silent.
+	await run(hookFor(events[0]), inputFor(events[0]), root, 'ob-dev-0123456789abcdef');
+	if (process.env.ORCHBEE_ENVIRONMENT !== 'orchbee')
+		await run(hookFor(events[0]), inputFor(events[0]), root, null);
 
 	assert.equal(observations.length, expected.length);
 	process.stdout.write(JSON.stringify({ events: observations.length, silent: true }));

@@ -12,9 +12,9 @@ use std::{
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub(crate) use windows::{create_state_directory, open_state_root};
+pub use windows::{create_private_directory, local_state_root, prepare_default_runtime_base};
 #[cfg(windows)]
-pub use windows::{local_state_root, prepare_default_runtime_base};
+pub(crate) use windows::{create_state_directory, open_state_root};
 
 /// The variable that names another data root for every environment that reads it.
 pub const HOME_VARIABLE: &str = "ORCHBEE_HOME";
@@ -241,6 +241,17 @@ impl DataRoot {
     /// The plugin store; `PluginStorePaths` places what it holds.
     pub fn plugins(&self) -> PathBuf {
         self.internal().join("plugins")
+    }
+
+    /// What Agent integrations install for this environment.
+    pub fn integrations(&self) -> PathBuf {
+        self.internal().join("integrations")
+    }
+
+    /// The Agent observation Capsules this environment's Agent entries run, one folder per
+    /// version; the integration writer chooses the version names.
+    pub fn agent_observation_capsules(&self) -> PathBuf {
+        self.integrations().join("agent-observation")
     }
 
     /// The default runtime base of a development or test environment.

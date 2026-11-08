@@ -4,6 +4,23 @@ use serde_json::Value;
 
 const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
 
+/// Patches as an environment whose current Capsule is `root`.
+fn patch(
+    kind: HookConfigurationKind,
+    bytes: Option<&[u8]>,
+    root: &Path,
+    enable: bool,
+) -> Option<Vec<u8>> {
+    super::patch(kind, bytes, &options(root), enable)
+}
+
+fn options(root: &Path) -> ResourceOptions<'_> {
+    ResourceOptions {
+        resource_root: root,
+        legacy_capsules: None,
+    }
+}
+
 #[test]
 fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values() {
     let root = Path::new(r"C:\owned\0.4.17");
@@ -50,10 +67,71 @@ fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values(
         HookConfigurationScan::Conflict
     ));
 }
+/// Entries of several environments share one document: each environment changes only the entries
+/// naming its own Capsules, and a provider with one named block refuses another environment's.
+#[test]
+fn entries_of_other_environments_stay_as_they_are() {
+    let own = Path::new(
+        r"C:\Users\u\.ob-dev-0123456789abcdef\internal\integrations\agent-observation\0.4.17",
+    );
+    let release = Path::new(r"C:\Users\u\.orchbee\internal\integrations\agent-observation\0.4.17");
+    let shared = Path::new(r"C:\Users\u\.orchbee\agent-observation-adapters\0.4.16");
+    for kind in [HookConfigurationKind::Cursor, HookConfigurationKind::Kimi] {
+        for other in [release, shared] {
+            let theirs = patch(kind, None, other, true).unwrap();
+            let both = patch(kind, Some(&theirs), own, true).unwrap();
+            let mine = with_policy(&options(own), |policy| {
+                grammar::scan_hook_configuration(kind, &both, policy)
+            });
+            assert!(
+                matches!(mine, HookConfigurationScan::Owned(found) if found == own),
+                "{kind:?}"
+            );
+            assert_eq!(
+                patch(kind, Some(&both), own, false).unwrap(),
+                theirs,
+                "{kind:?}"
+            );
+        }
+        // The shared folder's entries are release's, so release replaces them.
+        let theirs = patch(kind, None, shared, true).unwrap();
+        let release_options = ResourceOptions {
+            resource_root: release,
+            legacy_capsules: shared.parent(),
+        };
+        let replaced = super::patch(kind, Some(&theirs), &release_options, true).unwrap();
+        assert!(
+            matches!(scan_hook_configuration(kind, &replaced), HookConfigurationScan::Owned(found) if found == release),
+            "{kind:?}"
+        );
+    }
+    let theirs = patch(HookConfigurationKind::Antigravity, None, release, true).unwrap();
+    for enable in [true, false] {
+        assert!(
+            patch(
+                HookConfigurationKind::Antigravity,
+                Some(&theirs),
+                own,
+                enable
+            )
+            .is_none()
+        );
+    }
+    assert!(matches!(
+        state(
+            HookConfigurationKind::Antigravity,
+            Some(&theirs),
+            &options(own),
+        ),
+        State::Conflict
+    ));
+}
+
 #[test]
 fn raw_user_values_survive_enable_repair_and_disable() {
     let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-    let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.17");
+    let root =
+        Path::new(r"C:\Users\用户 & ' $ `\.orchbee\internal\integrations\agent-observation\0.4.17");
     let installed = patch(HookConfigurationKind::Cursor, Some(input), root, true).unwrap();
     assert!(
         matches!(scan_hook_configuration(HookConfigurationKind::Cursor, &installed), HookConfigurationScan::Owned(found) if found == root)
@@ -176,9 +254,7 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
 fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
     let id = HookConfigurationKind::Antigravity;
     let root = Path::new(r"C:\owned\0.4.17");
-    let options = ResourceOptions {
-        resource_root: root,
-    };
+    let options = options(root);
     for (version, expected) in [
         ("0.4.17", State::Disabled),
         ("0.4.9", State::UpdateRequired),

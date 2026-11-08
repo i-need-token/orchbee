@@ -162,6 +162,11 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
                 .join("tests/fixtures/windows-hermes-exec-plugin.mjs"),
         )
         .arg(&directory)
+        .env("USERPROFILE", fixture.home())
+        .env(
+            "ORCHBEE_ENVIRONMENT",
+            orchbee_local_runtime::environment_stem(),
+        )
         .creation_flags(0x0800_0000)
         .output()
         .unwrap();
@@ -620,6 +625,10 @@ fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
             .arg(witness.file_name().unwrap())
             .env("USERPROFILE", fixture.home())
             .stdin(Stdio::null())
+            .env(
+                "ORCHBEE_ENVIRONMENT",
+                orchbee_local_runtime::environment_stem(),
+            )
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();
@@ -899,6 +908,11 @@ fn exercise_installed_json_hooks(provider: &str, target: &Path) {
                 shell,
                 target.file_name().unwrap().to_str().unwrap(),
             ])
+            .env("USERPROFILE", target.parent().unwrap())
+            .env(
+                "ORCHBEE_ENVIRONMENT",
+                orchbee_local_runtime::environment_stem(),
+            )
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();
@@ -1008,10 +1022,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         ("// foreign user module".to_string(), "conflict"),
         (
             String::from_utf8(bytes.clone()).unwrap().replace(
-                &format!(
-                    "/agent-observation-adapters/{}/",
-                    fixture.payload_identity()
-                ),
+                &format!("/agent-observation/{}/", fixture.capsule_version()),
                 "/foreign/identity/",
             ),
             "conflict",
@@ -1026,10 +1037,9 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     }
     fs::write(
         &obsolete,
-        String::from_utf8(bytes.clone()).unwrap().replace(
-            &format!("/{}/", fixture.payload_identity()),
-            &format!("/{}/", "b".repeat(64)),
-        ),
+        String::from_utf8(bytes.clone())
+            .unwrap()
+            .replace(&format!("/{}/", fixture.capsule_version()), "/0.0.1/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -1180,6 +1190,10 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
                 .arg(shell)
                 .env("USERPROFILE", fixture.home())
                 .stdin(Stdio::null())
+                .env(
+                    "ORCHBEE_ENVIRONMENT",
+                    orchbee_local_runtime::environment_stem(),
+                )
                 .creation_flags(0x0800_0000)
                 .output()
                 .unwrap();
@@ -1395,7 +1409,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
             .capsule()
             .parent()
             .unwrap()
-            .join("b".repeat(64))
+            .join("0.0.1")
             .join("bundle")
     );
     fs::write(&state_path, old.to_string()).unwrap();
@@ -1413,6 +1427,10 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
             .arg(shell)
             .env("USERPROFILE", fixture.home())
             .stdin(Stdio::null())
+            .env(
+                "ORCHBEE_ENVIRONMENT",
+                orchbee_local_runtime::environment_stem(),
+            )
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();
@@ -1597,6 +1615,8 @@ impl Fixture {
             .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_TERMINAL_ID")
             .env_remove("ORCHBEE_WORKER_ID")
+            .env_remove("ORCHBEE_HOME")
+            .env_remove("ORCHBEE_ENVIRONMENT")
             .env("USERPROFILE", self.home())
             .env("APPDATA", self.0.join("roaming"))
             .env("LOCALAPPDATA", self.0.join("local"))
@@ -1640,15 +1660,18 @@ impl Fixture {
             .canonicalize()
             .unwrap()
     }
-    fn payload_identity(&self) -> String {
-        let manifest: Value =
-            serde_json::from_slice(&fs::read(self.assets().join("capsule.json")).unwrap()).unwrap();
-        manifest["payloadSha256"].as_str().unwrap().to_owned()
+    /// The Capsule's version, which names its folder.
+    fn capsule_version(&self) -> String {
+        let package: Value =
+            serde_json::from_slice(&fs::read(self.assets().join("bundle/package.json")).unwrap())
+                .unwrap();
+        package["version"].as_str().unwrap().to_owned()
     }
+    /// The Capsule this test build installs, in its own data root under the fixture home.
     fn capsule(&self) -> PathBuf {
-        self.home()
-            .join(".orchbee/agent-observation-adapters")
-            .join(self.payload_identity())
+        orchbee_local_runtime::DataRoot::under_home(&self.home())
+            .agent_observation_capsules()
+            .join(self.capsule_version())
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1769,7 +1792,7 @@ fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
     inspect("enable");
     let state_path = fixture.config_home().join("copilot-state.json");
     let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
-    state["source"] = serde_json::json!(fixture.capsule().parent().unwrap().join("b".repeat(64)));
+    state["source"] = serde_json::json!(fixture.capsule().parent().unwrap().join("0.0.1"));
     fs::write(&state_path, state.to_string()).unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
     inspect("enable");
@@ -1807,6 +1830,10 @@ fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
         .arg(fixture.capsule().join("bundle"))
         .env("USERPROFILE", fixture.home())
         .stdin(Stdio::null())
+        .env(
+            "ORCHBEE_ENVIRONMENT",
+            orchbee_local_runtime::environment_stem(),
+        )
         .creation_flags(0x0800_0000)
         .output()
         .unwrap();
@@ -1852,6 +1879,10 @@ fn claude_plugin_lifecycle_and_shipped_exec_hooks_work_on_windows() {
         .arg(fixture.capsule().join("bundle"))
         .env("USERPROFILE", fixture.home())
         .stdin(Stdio::null())
+        .env(
+            "ORCHBEE_ENVIRONMENT",
+            orchbee_local_runtime::environment_stem(),
+        )
         .creation_flags(0x0800_0000)
         .output()
         .unwrap();
@@ -1956,6 +1987,10 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             .arg(&target)
             .env("USERPROFILE", fixture.home())
             .stdin(Stdio::null())
+            .env(
+                "ORCHBEE_ENVIRONMENT",
+                orchbee_local_runtime::environment_stem(),
+            )
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();
@@ -1984,6 +2019,10 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
                 .arg(&client)
                 .env("USERPROFILE", fixture.home())
                 .stdin(Stdio::null())
+                .env(
+                    "ORCHBEE_ENVIRONMENT",
+                    orchbee_local_runtime::environment_stem(),
+                )
                 .creation_flags(0x0800_0000)
                 .output()
                 .unwrap();
@@ -2074,10 +2113,9 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             assert_eq!(fs::read(&target).unwrap(), original);
         }
 
-        let old = String::from_utf8(original.clone()).unwrap().replace(
-            &format!("/{}/", fixture.payload_identity()),
-            &format!("/{}/", "b".repeat(64)),
-        );
+        let old = String::from_utf8(original.clone())
+            .unwrap()
+            .replace(&format!("/{}/", fixture.capsule_version()), "/0.0.1/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],
@@ -2191,7 +2229,9 @@ fn foreign_and_invalid_roots_are_refused_without_provider_commands() {
 
 #[test]
 fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
-    for case in ["absent", "version", "digest", "foreign", "unknown"] {
+    for case in [
+        "absent", "version", "digest", "shared", "foreign", "unknown",
+    ] {
         let fixture = Fixture::new();
         let config = fixture.config_home().join("config.toml");
         let content = match case {
@@ -2201,6 +2241,10 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
                 let root = match case {
                     "version" => fixture.capsule().parent().unwrap().join("0.3.0"),
                     "digest" => fixture.capsule().parent().unwrap().join("b".repeat(64)),
+                    "shared" => fixture
+                        .home()
+                        .join(".orchbee/agent-observation-adapters")
+                        .join("b".repeat(64)),
                     _ => fixture.0.join("foreign"),
                 };
                 format!(
@@ -2241,7 +2285,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
         );
         assert_eq!(
             result["blockedProviderIds"].as_array().unwrap().len(),
-            usize::from(case == "foreign")
+            usize::from(matches!(case, "foreign" | "shared"))
         );
         assert_eq!(fs::read_to_string(config).unwrap(), content);
         assert!(fixture.calls().is_empty());

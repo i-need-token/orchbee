@@ -48,6 +48,13 @@ pub fn prepare_default_runtime_base(env: impl Fn(&str) -> Option<OsString>) -> i
     create_state_directory(&base).map(drop)
 }
 
+/// Creates a directory inside this environment's data root as private, like every storage owner,
+/// for a writer in another crate that then places its own files there. The data root and
+/// `internal/version.json` are created as [`create_state_directory`] creates them.
+pub fn create_private_directory(path: &Path) -> io::Result<Vec<File>> {
+    create_state_directory(path)
+}
+
 /// Creates `path` and every missing directory above it as private directories and pins them all.
 /// A state root, whose parent may be a home directory that other ACL entries share, is created
 /// below that parent without admitting it: this environment's data root and, while release Session

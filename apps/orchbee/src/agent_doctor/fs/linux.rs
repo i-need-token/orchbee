@@ -32,6 +32,7 @@ pub(super) static NATIVE: Native = Native {
     guarded_target: |provider, home| Some(home.join(provider.home_target)),
     bootstrap_target: |provider, home| Some(home.join(provider.home_target)),
     configuration_targets: None,
+    capsule_folder: super::native::capsule_folder,
 };
 pub(crate) fn lstat(path: &Path) -> Lstat {
     use std::os::unix::fs::{FileTypeExt, MetadataExt};

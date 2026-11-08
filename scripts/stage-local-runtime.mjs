@@ -49,6 +49,7 @@ function readCapsuleManifest(filePath) {
 		return null;
 	}
 }
+const CAPSULE_OWNER_RECORD = 'bundle/scripts/environment.json';
 // Exported as the independent digest oracle the CLI's Windows doctor test checks Rust against.
 export function capsulePayloadDigest(rootPath) {
 	try {
@@ -80,7 +81,8 @@ export function capsulePayloadDigest(rootPath) {
 				continue;
 			}
 			if (!entry.isFile()) return null;
-			if (relativePath === 'capsule.json') continue;
+			// The manifest and the owner record that publishing adds are outside the payload identity.
+			if (relativePath === 'capsule.json' || relativePath === CAPSULE_OWNER_RECORD) continue;
 			let bytes;
 			try {
 				const metadata = lstatSync(entryPath);

@@ -72,6 +72,12 @@ impl super::CliText {
                 "conflicting managed-hook declarations were observed for"
             }
             (Locale::ZhCn, "hook-conflict") => "观察到以下提供方存在相互矛盾的托管钩子声明：",
+            (Locale::EnUs, "hook-other-environment") => {
+                "the managed hook belongs to another Orchbee environment, which alone changes it, for"
+            }
+            (Locale::ZhCn, "hook-other-environment") => {
+                "以下提供方的托管钩子属于另一个 Orchbee 环境，只有该环境能修改它："
+            }
             (Locale::EnUs, "hook-unknown") => {
                 "managed-hook declarations could not be fully inspected for"
             }
@@ -142,6 +148,12 @@ impl super::CliText {
             (Locale::ZhCn, "root-anomaly") => "某个资产根与其自身清单声明矛盾：",
             (Locale::EnUs, "root-uninspectable") => "an asset root could not be fully inspected:",
             (Locale::ZhCn, "root-uninspectable") => "某个资产根无法完整检查：",
+            (Locale::EnUs, "root-stale") => {
+                "an Agent entry still runs the Capsule folder all environments shared before each kept its own; only release Orchbee changes it, with agent integration enable or disable:"
+            }
+            (Locale::ZhCn, "root-stale") => {
+                "某个智能体条目仍在运行各环境改用各自胶囊之前共用的胶囊文件夹；只有正式版 Orchbee 能用 agent integration enable 或 disable 修改它："
+            }
             (Locale::EnUs, "partial-document") => {
                 "the document is partial: the diagnostic budget exhausted before every fact was probed."
             }

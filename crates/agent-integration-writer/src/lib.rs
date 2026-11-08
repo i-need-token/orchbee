@@ -1,7 +1,8 @@
 //! Owns explicit provider integration inspection, plans, and enable or disable effects using
-//! the cohort-admitted observation-adapter sidecar and retained mutation outcomes. Session
-//! startup does not materialize adapter capsules, and provider integration does not own Agent
-//! session state.
+//! the cohort-admitted observation-adapter sidecar and retained mutation outcomes. Each
+//! environment installs its Capsules in its own data root and changes only the Agent entries that
+//! name them. Session startup does not materialize adapter capsules, and provider integration does
+//! not own Agent session state.
 
 #[cfg(any(unix, windows))]
 mod capsule;
@@ -30,8 +31,8 @@ mod hook_configuration_windows;
 #[cfg(any(unix, windows))]
 mod inspect;
 pub use hook_configuration::{
-    HookConfigurationKind, HookConfigurationScan, RootPolicy, configuration_kinds,
-    scan_hook_configuration,
+    CapsuleLocation, HookConfigurationKind, HookConfigurationScan, RootPolicy, capsule_location,
+    configuration_kinds, owned_by_another_environment, scan_hook_configuration,
 };
 #[cfg(windows)]
 pub use hook_configuration_windows::ROOT_POLICY as CONFIGURATION_ROOT_POLICY;
@@ -60,10 +61,10 @@ mod imp {
         time::{Duration, Instant},
     };
 
-    use orchbee_local_runtime::Cohort;
+    use orchbee_local_runtime::{Cohort, DataRoot};
 
-    use super::model::{ManagementMode, Provenance};
-    use super::{IntegrationId, SnapshotItem, capsule, mutation, providers};
+    use super::model::{Availability, ManagementMode, Provenance, State};
+    use super::{IntegrationId, SnapshotItem, capsule, files, mutation, providers};
 
     pub use super::mutation::{
         AttemptedStep, Direction, FailureCode, MutationReport, PlannedStep, Refusal, StepKind,
@@ -123,7 +124,14 @@ mod imp {
     /// The assembled invocation environment.
     pub struct IntegrationContext {
         pub(crate) home: PathBuf,
+        /// This payload's folder among the environment's Capsules,
+        /// `internal/integrations/agent-observation/<version>` in its data root.
         pub(crate) capsule_root: PathBuf,
+        /// The payload identity the Capsule folder holds.
+        pub(crate) payload_sha256: String,
+        /// `~/.orchbee/agent-observation-adapters`, the folder every environment shared before
+        /// each kept its own Capsules, in release only: release owns the entries naming it.
+        pub(crate) legacy_capsules: Option<PathBuf>,
         pub(crate) source: AdapterSource,
         pub(crate) deadline: Instant,
         path_env: Option<OsString>,
@@ -137,6 +145,7 @@ mod imp {
             providers::ProviderContext {
                 home: &self.home,
                 capsule_root: &self.capsule_root,
+                legacy_capsules: self.legacy_capsules.as_deref(),
                 adapter_source: self.source.directory(),
                 path_env: self.path_env.as_deref(),
                 deadline: self.deadline,
@@ -206,8 +215,10 @@ mod imp {
     ) -> Result<IntegrationContext, ContextError> {
         let deadline = ceiling.min(Instant::now() + TOTAL_BUDGET);
         let home = std::env::home_dir().ok_or(ContextError::NoHome)?;
+        let data_root =
+            DataRoot::resolve(|name| std::env::var_os(name)).map_err(|_| ContextError::NoHome)?;
         #[cfg(windows)]
-        if !super::files::path_admitted(&home) {
+        if !files::path_admitted(&home) || !files::path_admitted(data_root.path()) {
             return Err(ContextError::NoHome);
         }
         let source = resolve_adapter_source(override_path, deadline);
@@ -221,13 +232,22 @@ mod imp {
                         .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
             })
             .unwrap_or_else(capsule::bundled_payload_sha256);
-        let capsule_root = home
-            .join(".orchbee")
-            .join("agent-observation-adapters")
-            .join(payload_sha256);
+        let version = source
+            .directory()
+            .and_then(capsule::declared_version)
+            .unwrap_or_else(capsule::bundled_version);
+        let capsule_root = capsule::installation_root(
+            &data_root.agent_observation_capsules(),
+            &version,
+            &payload_sha256,
+        );
+        let legacy_capsules = orchbee_local_runtime::is_release()
+            .then(|| home.join(".orchbee").join("agent-observation-adapters"));
         Ok(IntegrationContext {
             home,
             capsule_root,
+            payload_sha256,
+            legacy_capsules,
             source,
             deadline,
             path_env: std::env::var_os("PATH"),
@@ -249,12 +269,7 @@ mod imp {
             root: context.capsule_root.clone(),
             source_kind: context.source.kind_str(),
             binding_failure,
-            payload_sha256: context
-                .capsule_root
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_default()
-                .to_owned(),
+            payload_sha256: context.payload_sha256.clone(),
         }
     }
 
@@ -314,7 +329,66 @@ mod imp {
             };
         }
         let provider_context = context.provider_context();
-        mutation::mutate(id, direction, &provider_context)
+        let report = mutation::mutate(id, direction, &provider_context);
+        if matches!(report.verdict, Verdict::Completed) {
+            remove_unnamed_capsules(context);
+        }
+        report
+    }
+
+    /// After a completed enable or disable, removes this environment's other Capsule versions
+    /// once a fresh inspection shows that no Agent entry can name one: no provider reads
+    /// `update-required`, and every provider whose command is on PATH was inspected. A provider
+    /// whose command is missing runs no hook and holds no version. The current version stays even
+    /// when nothing names it, since an enable in another Session may be about to name it;
+    /// uninstall removes it. Removal is housekeeping outside the mutation receipt: a refused or
+    /// failed removal leaves the folder for the next completed change.
+    fn remove_unnamed_capsules(context: &IntegrationContext) {
+        let Some(capsules) = context.capsule_root.parent() else {
+            return;
+        };
+        let Ok(entries) = std::fs::read_dir(capsules) else {
+            return;
+        };
+        let current = context.capsule_root.file_name();
+        let earlier: Vec<PathBuf> = entries
+            .flatten()
+            .filter(|entry| Some(entry.file_name().as_os_str()) != current)
+            // Version names start with a digit; staging folders start with `.`.
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.starts_with(|first: char| first.is_ascii_digit()))
+            })
+            .map(|entry| entry.path())
+            .filter(|folder| capsule::manifest_declared_digest(folder).is_some())
+            .collect();
+        if earlier.is_empty() {
+            return;
+        }
+        let provider_context = context.provider_context();
+        if providers::snapshot(&provider_context)
+            .iter()
+            .any(may_name_another_version)
+        {
+            return;
+        }
+        for folder in earlier {
+            if Instant::now() >= context.deadline {
+                return;
+            }
+            let _ = files::remove_owned(&folder, true);
+        }
+    }
+
+    fn may_name_another_version(item: &SnapshotItem) -> bool {
+        item.timed_out
+            || match item.state {
+                State::UpdateRequired => true,
+                State::Unknown => item.availability != Availability::NotFound,
+                _ => false,
+            }
     }
 }
 

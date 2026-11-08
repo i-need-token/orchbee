@@ -27,6 +27,32 @@ tests run from the repository root:
 pnpm test:agent-observation-adapters
 ```
 
+## Capsule location and ownership
+
+Each environment installs Capsules in its own [data root](../local-runtime/README.md#data-root),
+under `internal/integrations/agent-observation/<version>/`. The version is
+`bundle/package.json`'s; a name that already holds a different payload takes the first free
+`<version>-2`, `<version>-3`, and so on, and an install whose manifest declares the current digest
+is reused. `capsule.json` keeps the digest as the identity. Publishing writes the owner record
+`bundle/scripts/environment.json`, `{"environment":"<stem>","version":1}`, which the digest
+excludes, so every copy a provider makes of `bundle/` names the environment that installed it.
+
+An Agent entry belongs to the environment whose Capsule root it names. A root in another data
+root's Capsule folder is that environment's, and a folder of `~/.orchbee/agent-observation-adapters`,
+where every environment installed before each kept its own, is release's. A copied scripts folder
+belongs to the environment its owner record names, and to release when it has none. Enable and
+disable add, update and remove only this environment's entries: hook-configuration documents keep
+other environments' entries in place, while a provider that admits one entry reports another
+environment's entry as `conflict` and refuses to replace it. Release treats the shared folder's
+entries as outdated, so its explicit enable replaces them and its disable removes them; no
+environment ever deletes that folder.
+
+At hook time the transport reads the owner record beside it and reports only when the inherited
+`ORCHBEE_ENVIRONMENT` equals the owner, or when the variable is absent and the owner is release;
+otherwise the hook exits silently and successfully. After a completed enable or disable the writer
+removes the other version folders of its own Capsule folder once a fresh inspection shows that no
+entry can name one; the current version stays until uninstall.
+
 ## Conformance fixtures
 
 `tests/fixtures/` holds the corpora replayed by this crate's harnesses. The `test-support`

@@ -73,6 +73,14 @@ inside one reaches that terminal's Session.
   environments therefore coexist without double reporting.
 - Where a provider admits only one hook command, an integration refuses to replace an entry another
   environment owns and reports the conflict.
+- Capsule roots carry their owner in `bundle/scripts/environment.json`, outside the payload digest,
+  so the copies Gemini, Qwen and Cline make name it too. A copy without the record is release's.
+- Entries naming `~/.orchbee/agent-observation-adapters/<digest>`, where every environment installed
+  before this slice, are release's. Release treats them as outdated, so its explicit enable or
+  disable replaces or removes them; other environments leave them and report a conflict. Doctor
+  reports their root as `stale`, and nothing deletes that folder.
+- The [integration writer](../../crates/agent-integration-writer/README.md#capsule-location-and-ownership)
+  owns the implemented rule.
 
 ## Release destructive commands
 
