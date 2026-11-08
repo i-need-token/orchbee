@@ -344,8 +344,9 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
 Before the first public release, persisted formats follow
 [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) without migration. Afterwards, a newer
 version backs up data before migrating it, and an older version refuses to open data in a newer
-format and never rewrites it, so rollback stays possible. ORCL-29 decides which formats freeze and
-owns their data format versions.
+format and never rewrites it, so rollback stays possible. The
+[data root layout](data-root-layout.md#persisted-data-versions-and-migration) gives every persisted
+file its version, migration owner, backups, and failure behavior (ORCL-29).
 
 ## Cross-version tests
 

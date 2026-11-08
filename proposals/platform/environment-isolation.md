@@ -27,21 +27,17 @@ development stem, and non-release builds refuse `update` and `channel set`.
 
 ## Environment data root
 
-Each non-release environment keeps all of its state under one data root, `<home>/.<stem>`. One
-owner in `crates/local-runtime` resolves the root from the compiled stem, and every caller derives
-its location from that owner.
-
-| State                                                     | Release (unchanged)                           | Non-release                             |
-| --------------------------------------------------------- | --------------------------------------------- | --------------------------------------- |
-| Configuration file                                        | `%APPDATA%/Orchbee/config.toml`               | `<root>/config.toml`                    |
-| Other roaming and local state, including Session catalogs | `%APPDATA%/Orchbee`, `%LOCALAPPDATA%/Orchbee` | `<root>`, with the same relative layout |
-| Default runtime base                                      | `%TEMP%`                                      | `<root>/runtime`                        |
-| Agent observation capsules                                | `~/.orchbee/agent-observation-adapters`       | `<root>/agent-observation-adapters`     |
-| Desktop user data                                         | `~/.orchbee`                                  | `<root>`                                |
+Every environment keeps all of its state under one data root, `<home>/.<stem>`, which is
+`~/.orchbee` for release. One owner in `crates/local-runtime` resolves the root from the compiled
+stem, and every caller derives its location from that owner. The
+[data root layout](data-root-layout.md) defines the tree in every environment and replaces the
+shipped release locations. On Windows, slice 1 already keeps non-release state in these roots, in
+the release relative layout, with the default runtime base at `<root>/runtime`.
 
 - `ORCHBEE_CONFIG_FILE` and an explicitly set `ORCHBEE_RUNTIME_BASE` keep their override meaning in
-  every environment. Desktop stops writing `ORCHBEE_CONFIG_FILE` for non-release profiles because
-  the Client derives the same file.
+  every environment; [open choice 1](data-root-layout.md#open-choices) settles what else the first
+  relocates. Desktop stops writing `ORCHBEE_CONFIG_FILE` for non-release profiles because the Client
+  derives the same file.
 - Runtime directories differ per environment, so Session scopes and pipe names cannot collide; the
   release `default` Session belongs only to release.
 - Pipe names keep the `orchbee-` prefix in every environment, because each environment's runtime
@@ -90,9 +86,9 @@ inside one reaches that terminal's Session.
 ## Destructive request log
 
 Every `server stop`, `session stop`, and `session delete` invocation that passes grammar, accepted
-or refused, appends one JSON line to `audit/destructive.jsonl` under the environment's local state
-root: time, environment, command, target Session, interactive state, parent PID and image path, and
-outcome. A grammar failure, such as a development stop without `--confirm`, is not a request and is
+or refused, appends one JSON line to the environment's destructive request log, which the
+[data root layout](data-root-layout.md#locations-replaced) places: time, environment, command,
+target Session, interactive state, parent PID and image path, and outcome. A grammar failure, such as a development stop without `--confirm`, is not a request and is
 not logged. The file rotates at a fixed size, and a failed write never blocks or changes the
 command.
 

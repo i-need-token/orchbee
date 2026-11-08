@@ -64,7 +64,9 @@ identifier instead of retaining an older contract.
 
 The accepted [versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md)
 replaces cohort admission with per-connection negotiation in its P0 phase and sets the
-compatibility rules that bind from the first public release.
+compatibility rules that bind from the first public release. The
+[data root layout](../proposals/platform/data-root-layout.md) places every file Orchbee writes on a
+person's machine and sets the persisted-data migration rules that bind from the same release.
 
 The language-neutral Terminal authority is [`schemas/terminal`](../schemas/terminal/README.md).
 Its reference, version policy, constant registry and canonical fixtures govern the independent
