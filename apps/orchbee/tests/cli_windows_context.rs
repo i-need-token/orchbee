@@ -5,7 +5,7 @@
 use std::process::{Command, Output, Stdio};
 
 fn run(arguments: &[&str], terminal: Option<&str>, worker: Option<&str>, locale: &str) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+    let mut command = Command::new(crate::staged_client::client());
     command
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")

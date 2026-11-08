@@ -299,13 +299,13 @@ fn completed_activation_is_pinned_idempotent_and_consumed_before_restart() {
 fn native_cohort_rejects_tampering_and_manifest_version() {
     let fixture = Fixture::new();
     let mut artifacts = serde_json::Map::new();
-    for name in [
-        "orchbee",
-        "orchbee-server",
-        "orchbee-worker",
-        "orchbee-terminal-host",
+    for (name, artifact) in [
+        ("orchbee", crate::CohortArtifact::Client),
+        ("orchbee-server", crate::CohortArtifact::Server),
+        ("orchbee-worker", crate::CohortArtifact::Worker),
+        ("orchbee-terminal-host", crate::CohortArtifact::TerminalHost),
     ] {
-        fs::write(fixture.0.join(format!("{name}.exe")), name.as_bytes()).unwrap();
+        fs::write(fixture.0.join(artifact.file_name()), name.as_bytes()).unwrap();
         artifacts.insert(
             name.to_owned(),
             format!("{:x}", Sha256::digest(name.as_bytes())).into(),
@@ -323,9 +323,10 @@ fn native_cohort_rejects_tampering_and_manifest_version() {
     .unwrap();
     let deadline = || Instant::now() + Duration::from_secs(3);
     assert!(Cohort::load(&fixture.0, deadline()).is_ok());
-    fs::write(fixture.0.join("orchbee-worker.exe"), b"tampered").unwrap();
+    let worker = fixture.0.join(crate::CohortArtifact::Worker.file_name());
+    fs::write(&worker, b"tampered").unwrap();
     assert!(Cohort::load(&fixture.0, deadline()).is_err());
-    fs::write(fixture.0.join("orchbee-worker.exe"), b"orchbee-worker").unwrap();
+    fs::write(&worker, b"orchbee-worker").unwrap();
     let mut invalid_version = manifest;
     invalid_version["schemaVersion"] = 2.into();
     fs::write(

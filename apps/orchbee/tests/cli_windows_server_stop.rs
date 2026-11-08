@@ -25,7 +25,7 @@ impl Fixture {
         Self(root)
     }
     fn run(&self, arguments: &[&str], locale: &str) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        Command::new(crate::staged_client::client())
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", &self.0)
             .env("LC_ALL", locale)
@@ -82,7 +82,7 @@ fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
     fs::write(&blocked_runtime, b"untouched").unwrap();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         let run = |arguments: &[&str]| {
-            Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            Command::new(crate::staged_client::client())
                 .args(arguments)
                 .env("ORCHBEE_RUNTIME_BASE", &blocked_runtime)
                 .env("ORCHBEE_SESSION", "invalid/session")

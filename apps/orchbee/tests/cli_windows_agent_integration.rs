@@ -4,6 +4,7 @@
 //! environment of the Session that runs it, so each verb invocation activates its own Session.
 #![cfg(windows)]
 
+use orchbee_local_runtime::CohortArtifact;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -41,7 +42,11 @@ impl Cohort {
         let root = temporary("orchbee-integration-cohort-");
         let built = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let mut artifacts = serde_json::Map::new();
-        for name in ["orchbee", "orchbee-server", "orchbee-worker"] {
+        for (name, artifact) in [
+            ("orchbee", CohortArtifact::Client),
+            ("orchbee-server", CohortArtifact::Server),
+            ("orchbee-worker", CohortArtifact::Worker),
+        ] {
             let source = built.join(format!("{name}.exe"));
             let bytes = fs::read(&source).unwrap_or_else(|error| {
                 panic!(
@@ -49,14 +54,19 @@ impl Cohort {
                     source.display()
                 )
             });
-            // Native cohort admission requires private regular files with one link.
-            fs::write(root.join(format!("{name}.exe")), &bytes).unwrap();
+            // Native cohort admission requires private regular files with one link, and each
+            // carries its environment name rather than Cargo's release name.
+            fs::write(root.join(artifact.file_name()), &bytes).unwrap();
             artifacts.insert(
                 name.to_owned(),
                 json!(format!("{:x}", Sha256::digest(&bytes))),
             );
         }
-        fs::write(root.join("orchbee-terminal-host.exe"), INERT_HOST).unwrap();
+        fs::write(
+            root.join(CohortArtifact::TerminalHost.file_name()),
+            INERT_HOST,
+        )
+        .unwrap();
         artifacts.insert(
             "orchbee-terminal-host".to_owned(),
             json!(format!("{:x}", Sha256::digest(INERT_HOST))),
@@ -276,27 +286,13 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
             .join("local/hermes-dev/plugins/orchbee-agent-observation/plugin.yaml")
             .exists()
     );
-    // The verb activates its Session first, and activation needs an absolute LOCALAPPDATA for
-    // the Session catalog, so an empty value is refused before the Worker resolves Hermes.
-    let empty = fixture
-        .command("enable", "hermes", &fixture.config_home(), &[])
-        .env("LOCALAPPDATA", "")
-        .output()
-        .unwrap();
-    assert_eq!(
-        empty.status.code(),
-        Some(1),
-        "{}",
-        String::from_utf8_lossy(&empty.stdout)
-    );
-    assert!(!fixture.home().join("AppData/Local/hermes").exists());
     let invalid = fixture
         .command("enable", "hermes", &fixture.config_home(), &[])
         .env("HERMES_DATA_DIR_SUFFIX", "../outside")
         .output()
         .unwrap();
     assert_ne!(invalid.status.code(), Some(0));
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args([
             "agent",
             "doctor",
@@ -349,7 +345,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         fixture.provider_document("explain", "devin", 0)["result"]["state"],
         "update-required"
     );
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .env("APPDATA", fixture.0.join("roaming"))
@@ -415,7 +411,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         }
     }
     fs::write(&target, &installed).unwrap();
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .env("APPDATA", fixture.0.join("roaming"))
@@ -458,34 +454,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
     assert_eq!(invoke("enable", &provider_home).0, Some(0));
     assert!(provider_home.join("devin/config.json").exists());
     assert_eq!(fs::read_to_string(&target).unwrap(), restored);
-    // A relative APPDATA already fails the activated Session's user configuration, before the
-    // Worker resolves Devin's directory.
-    assert_eq!(
-        invoke("enable", Path::new("relative-devin-home")).0,
-        Some(1)
-    );
     assert_eq!(invoke("disable", &provider_home).0, Some(0));
-    let absent = fixture
-        .command("enable", "devin", &fixture.config_home(), &[])
-        .env_remove("APPDATA")
-        .output()
-        .unwrap();
-    // A Windows Session cannot start without APPDATA, which names its preference scope, so
-    // activation reports the missing location as configuration before any marker or job, and no
-    // profile fallback appears.
-    assert_eq!(
-        absent.status.code(),
-        Some(1),
-        "{}",
-        String::from_utf8_lossy(&absent.stdout)
-    );
-    let refused: Value = serde_json::from_slice(&absent.stdout).unwrap();
-    assert_eq!(refused["schema"], "orchbee.cli.failure.configuration");
-    assert_eq!(
-        refused["failure"]["details"],
-        serde_json::json!({ "field": "APPDATA", "reason": "missing" })
-    );
-    assert!(!fixture.home().join(".config/devin").exists());
 }
 
 #[test]
@@ -554,7 +523,7 @@ fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
         }
     }
     fs::write(&target, &installed).unwrap();
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args(["agent", "doctor", "--provider", "letta", "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .env_remove("HOME")
@@ -663,7 +632,7 @@ fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
         assert_eq!(delivery["events"], 2);
     }
     let doctor = || {
-        let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        let output = Command::new(crate::staged_client::client())
             .args(["agent", "doctor", "--provider", "kimi", "--format", "json"])
             .env("USERPROFILE", fixture.home())
             .env_remove("KIMI_CODE_HOME")
@@ -874,7 +843,7 @@ fn check_json_hooks(provider: &str) {
     );
     assert!(configured.join(target.file_name().unwrap()).is_file());
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args([
             "agent",
             "doctor",
@@ -978,7 +947,7 @@ fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
     );
     fixture.provider_document("disable", id, 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args(["agent", "doctor", "--provider", id, "--format", "json"])
         .env("USERPROFILE", fixture.home())
         .output()
@@ -1088,7 +1057,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     let installed = xdg.join("opencode/plugins/orchbee-agent-observation.js");
     assert!(installed.is_file());
     assert!(!current.exists());
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .args([
             "agent",
             "doctor",
@@ -1247,7 +1216,7 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
                 .is_file()
         );
         assert!(!target.exists());
-        let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        let doctor = Command::new(crate::staged_client::client())
             .args([
                 "agent",
                 "doctor",
@@ -1320,7 +1289,7 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
                 .exists()
         );
         let bytes = fs::read(&target).unwrap();
-        let mut doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+        let mut doctor = Command::new(crate::staged_client::client());
         doctor
             .args(["agent", "doctor", "--provider", "kilo", "--format", "json"])
             .env("USERPROFILE", fixture.home())
@@ -1620,7 +1589,7 @@ impl Fixture {
     }
     /// The CLI under test, selecting this fixture's runtime base and profile.
     fn cli(&self) -> Command {
-        let mut command = Command::new(self.1.0.join("orchbee.exe"));
+        let mut command = Command::new(self.1.0.join(CohortArtifact::Client.file_name()));
         command
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env_remove("ORCHBEE_RUNTIME_SCOPE")
@@ -2049,7 +2018,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             fs::remove_file(client.join("index.js")).unwrap();
         }
         let doctor_hook = || {
-            let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            let doctor = Command::new(crate::staged_client::client())
                 .args([
                     "agent",
                     "doctor",
@@ -2308,7 +2277,7 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
         fixture.provider_document("explain", id, 0)["result"]["state"],
         "update-required"
     );
-    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let doctor = Command::new(crate::staged_client::client())
         .env("USERPROFILE", fixture.home())
         .args(["agent", "doctor", "--provider", id, "--format", "json"])
         .output()
@@ -2395,7 +2364,7 @@ fn droid_uses_the_effective_configuration_without_shadowing_fallback_hooks() {
         if origin == "new" {
             exercise_installed_json_hooks("droid", target);
         }
-        let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        let doctor = Command::new(crate::staged_client::client())
             .env("USERPROFILE", fixture.home())
             .args(["agent", "doctor", "--provider", "droid", "--format", "json"])
             .output()

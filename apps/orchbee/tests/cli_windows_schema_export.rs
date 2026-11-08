@@ -26,7 +26,7 @@ impl Fixture {
         Self(root)
     }
     fn command(&self, args: &[&str]) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+        let mut command = Command::new(crate::staged_client::client());
         command
             .args(args)
             .current_dir(&self.0)

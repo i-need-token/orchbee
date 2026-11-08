@@ -48,6 +48,7 @@ pub(super) fn enter_isolated_catalog() -> bool {
         .args(["--exact", name, "--nocapture"])
         .env(KEY, &root.0)
         .env("APPDATA", root.0.join("appdata"))
+        .env("USERPROFILE", root.0.join("appdata"))
         .env_remove("ORCHBEE_CONFIG_FILE");
     let result = orchbee_local_runtime::run_windows_command(
         command,

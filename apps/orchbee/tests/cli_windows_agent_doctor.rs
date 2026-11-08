@@ -42,12 +42,7 @@ impl Fixture {
         Self(root)
     }
     fn run(&self, words: &[&str], locale: &str, codex_home: Option<&Path>) -> Output {
-        self.run_binary(
-            Path::new(env!("CARGO_BIN_EXE_orchbee")),
-            words,
-            locale,
-            codex_home,
-        )
+        self.run_binary(crate::staged_client::client(), words, locale, codex_home)
     }
     fn run_binary(
         &self,
@@ -349,7 +344,7 @@ fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
     fs::write(explicit.join("config.toml"), config(&installed, true)).unwrap();
     let distribution = fixture.0.join("isolated distribution");
     fs::create_dir(&distribution).unwrap();
-    let binary = distribution.join("orchbee.exe");
+    let binary = distribution.join(orchbee_local_runtime::CohortArtifact::Client.file_name());
     fs::copy(env!("CARGO_BIN_EXE_orchbee"), &binary).unwrap();
     let current = distribution.join("agent-observation-adapters");
     copy_tree(&source, &current);

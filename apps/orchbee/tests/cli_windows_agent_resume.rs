@@ -1199,12 +1199,8 @@ impl Witness {
     }
 
     fn store(&self) -> UserPreferencesStore {
-        let roaming = self.fixture.path("roaming");
         UserPreferencesStore::new(
-            UserPreferencesScope::from_environment(|name| {
-                (name == "APPDATA").then(|| roaming.clone().into())
-            })
-            .unwrap(),
+            UserPreferencesScope::from_environment(self.fixture.state_environment()).unwrap(),
         )
     }
 

@@ -116,6 +116,19 @@ impl Fixture {
         self.2.executable()
     }
 
+    /// The roaming state root the CLI under test resolves in this fixture's environment.
+    #[allow(
+        dead_code,
+        reason = "Only configuration, machine and plugin suites seed roaming state."
+    )]
+    pub(super) fn roaming_root(&self) -> PathBuf {
+        let profile = self.0.join("appdata");
+        orchbee_local_runtime::roaming_state_root(|name| {
+            matches!(name, "APPDATA" | "USERPROFILE").then(|| profile.clone().into_os_string())
+        })
+        .unwrap()
+    }
+
     pub(super) fn rendezvous(&self) -> ModeCheckedLocalSessionRendezvous {
         let base = self.0.join("runtime");
         fs::create_dir_all(&base).unwrap();
@@ -164,6 +177,8 @@ impl Fixture {
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env("LC_ALL", "en_US.UTF-8")
             .env("APPDATA", self.0.join("appdata"))
+            // A development or test build keeps its state under the profile, not APPDATA.
+            .env("USERPROFILE", self.0.join("appdata"))
             .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_RUNTIME_SCOPE")
             .env_remove("ORCHBEE_SESSION")

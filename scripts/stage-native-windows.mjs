@@ -24,6 +24,7 @@ export const ARTIFACT_STEM_PATTERN = /^(?:orchbee|ob-(?:dev|test)-[0-9a-f]{16})$
  * The development stem of a checkout, so a cohort staged without `--artifact-stem` never carries the
  * release names. Mirrors `createDesktopDevelopmentScope` in desktop-distribution-profile.ts, so the
  * Desktop development cohort and a hand-staged cohort of one checkout share names and build outputs.
+ * `crates/local-runtime/build.rs` derives a plain Cargo build's `ob-test-` stem from the same digest.
  */
 export function developmentArtifactStem(sourceRoot) {
 	const normalized = path.win32.normalize(realpathSync.native(sourceRoot)).normalize('NFC');

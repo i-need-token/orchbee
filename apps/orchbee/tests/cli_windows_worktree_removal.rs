@@ -5,6 +5,7 @@
 //! reads or closes.
 #![cfg(windows)]
 
+use orchbee_local_runtime::CohortArtifact;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -176,12 +177,21 @@ impl Fixture {
     fn stage(&self) {
         let built = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let mut artifacts = serde_json::Map::new();
-        for (name, source) in [
-            ("orchbee", built.join("orchbee.exe")),
-            ("orchbee-server", built.join("orchbee-server.exe")),
-            ("orchbee-worker", built.join("orchbee-worker.exe")),
+        for (name, artifact, source) in [
+            ("orchbee", CohortArtifact::Client, built.join("orchbee.exe")),
+            (
+                "orchbee-server",
+                CohortArtifact::Server,
+                built.join("orchbee-server.exe"),
+            ),
+            (
+                "orchbee-worker",
+                CohortArtifact::Worker,
+                built.join("orchbee-worker.exe"),
+            ),
             (
                 "orchbee-terminal-host",
+                CohortArtifact::TerminalHost,
                 Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../terminal-host/zig-out/bin/orchbee-terminal-host.exe"),
             ),
@@ -193,8 +203,9 @@ impl Fixture {
                     source.display()
                 )
             });
-            // Native cohort admission requires private regular files with one link.
-            fs::write(self.0.join("cohort").join(format!("{name}.exe")), &bytes).unwrap();
+            // Native cohort admission requires private regular files with one link, and each
+            // carries its environment name rather than Cargo's release name.
+            fs::write(self.0.join("cohort").join(artifact.file_name()), &bytes).unwrap();
             artifacts.insert(
                 name.to_owned(),
                 json!(format!("{:x}", Sha256::digest(&bytes))),
@@ -214,24 +225,28 @@ impl Fixture {
     /// Runs one CLI verb against this fixture's Session with machine output.
     fn run(&self, words: &[&str]) -> Run {
         let started = Instant::now();
-        let output = Command::new(self.0.join("cohort/orchbee.exe"))
-            .args(words)
-            .arg("--format=json")
-            .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
-            .env_remove("ORCHBEE_RUNTIME_SCOPE")
-            .env_remove("ORCHBEE_SESSION")
-            .env_remove("ORCHBEE_CONFIG_FILE")
-            .env_remove("ORCHBEE_TERMINAL_ID")
-            .env_remove("ORCHBEE_WORKER_ID")
-            .env("USERPROFILE", self.0.join("home"))
-            .env("HOME", self.0.join("home"))
-            .env("APPDATA", self.0.join("roaming"))
-            .env("LOCALAPPDATA", self.0.join("local"))
-            .env("LC_ALL", "en-US")
-            .current_dir(&self.0)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
+        let output = Command::new(
+            self.0
+                .join("cohort")
+                .join(CohortArtifact::Client.file_name()),
+        )
+        .args(words)
+        .arg("--format=json")
+        .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
+        .env_remove("ORCHBEE_RUNTIME_SCOPE")
+        .env_remove("ORCHBEE_SESSION")
+        .env_remove("ORCHBEE_CONFIG_FILE")
+        .env_remove("ORCHBEE_TERMINAL_ID")
+        .env_remove("ORCHBEE_WORKER_ID")
+        .env("USERPROFILE", self.0.join("home"))
+        .env("HOME", self.0.join("home"))
+        .env("APPDATA", self.0.join("roaming"))
+        .env("LOCALAPPDATA", self.0.join("local"))
+        .env("LC_ALL", "en-US")
+        .current_dir(&self.0)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
         Run {
             words: words.join(" "),
             code: output.status.code(),

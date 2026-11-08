@@ -3,7 +3,7 @@
 use std::process::{Command, Output, Stdio};
 
 fn run(words: &[&str], locale: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    Command::new(crate::staged_client::client())
         .args(words)
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
         .env("LC_ALL", locale)
@@ -22,7 +22,7 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
                 vec!["worktree", "open", "--cwd", path, "--path", path],
             ] {
                 words.push("--format=json");
-                let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+                let output = Command::new(crate::staged_client::client())
                     .args(&words)
                     .env("USERPROFILE", "C:/nonexistent-caller-home")
                     .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
@@ -39,7 +39,7 @@ fn user_paths_parse_before_cohort_access_and_invalid_home_is_redacted() {
             }
         }
         for (verb, option) in [("list", "--cwd"), ("create", "--path"), ("open", "--path")] {
-            let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            let output = Command::new(crate::staged_client::client())
                 .args(["worktree", verb, option, "~", "--format=json"])
                 .env("USERPROFILE", "private-invalid-home-value")
                 .env("HOME", "C:/must-not-fall-back")

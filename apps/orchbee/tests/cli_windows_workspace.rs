@@ -3,7 +3,7 @@
 #![cfg(windows)]
 use std::process::{Command, Output, Stdio};
 fn run(words: &[&str], locale: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    Command::new(crate::staged_client::client())
         .args(words)
         .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
         .env("LC_ALL", locale)

@@ -286,11 +286,7 @@ fn release(column: u16, row: u16) -> Vec<u8> {
 /// Copy-on-select is off by default; this test needs its exports, so it saves the preference in
 /// the fixture's own configuration before the TUI starts.
 fn enable_copy_on_select(fixture: &Fixture) {
-    let roaming = fixture.path("roaming");
-    let scope = UserPreferencesScope::from_environment(|name| {
-        (name == "APPDATA").then(|| roaming.clone().into())
-    })
-    .unwrap();
+    let scope = UserPreferencesScope::from_environment(fixture.state_environment()).unwrap();
     let response = UserPreferencesStore::new(scope).execute(&UserPreferencesRequest::Update {
         source: "missing".to_owned(),
         changes: UserPreferencesPatch::set(PreferenceKey::CopyOnSelect, true.into()).unwrap(),

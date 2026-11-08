@@ -229,7 +229,10 @@ observation-adapter capsule. Keep them together. The file names start with the a
 Windows staging defaults to this checkout's development stem, `ob-dev-<16 lowercase hex>`, the same
 one `pnpm desktop` uses, so a development cohort never shares image names with the installed release.
 `--artifact-stem orchbee` stages the release names and `ob-test-<16 lowercase hex>` a test cohort;
-other platforms and WSL staging accept only `orchbee`. This is a native development cohort using Windows named pipes and
+other platforms and WSL staging accept only `orchbee`. A plain `cargo build` or `cargo test` on
+Windows compiles this checkout's test stem, `ob-test-<same 16 hex>`, so its binaries never act on
+the release installation; Cargo still writes them as `target\...\orchbee*.exe`, and they find their
+siblings only in a cohort staged under the stem's names. This is a native development cohort using Windows named pipes and
 ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
 selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell.
 See [Windows configuration](docs/windows-cli-configuration.md#automatic-windows-shell)

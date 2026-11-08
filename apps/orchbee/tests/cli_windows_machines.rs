@@ -17,7 +17,7 @@ fn document(output: std::process::Output, status: i32) -> Value {
 #[test]
 fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
     let fixture = Fixture::new();
-    let root = fixture.0.join("appdata/Orchbee/machines");
+    let root = fixture.roaming_root().join("machines");
     let list = document(fixture.run(&["machine", "list", "--json"]), 0);
     assert_eq!(list["result"]["profiles"], json!([]));
     assert!(!root.exists());
@@ -59,7 +59,7 @@ fn saved_machine_commands_round_trip_without_local_activation_or_remote_stop() {
 #[test]
 fn invalid_catalog_and_invalid_grammar_refuse_add_before_ssh_and_preserve_bytes() {
     let fixture = Fixture::new();
-    let root = fixture.0.join("appdata/Orchbee/machines");
+    let root = fixture.roaming_root().join("machines");
     let mut cache = PrivateCache::acquire(&root).unwrap();
     cache.replace("catalog.json", b"not json").unwrap();
     drop(cache);

@@ -450,13 +450,13 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
         .unwrap();
         let cohort_path = fixture.root.join("cohort");
         fs::create_dir(&cohort_path).unwrap();
-        for name in [
-            "orchbee",
-            "orchbee-server",
-            "orchbee-worker",
-            "orchbee-terminal-host",
+        for artifact in [
+            orchbee_local_runtime::CohortArtifact::Client,
+            orchbee_local_runtime::CohortArtifact::Server,
+            orchbee_local_runtime::CohortArtifact::Worker,
+            orchbee_local_runtime::CohortArtifact::TerminalHost,
         ] {
-            fs::write(cohort_path.join(format!("{name}.exe")), b"native fixture\n").unwrap();
+            fs::write(cohort_path.join(artifact.file_name()), b"native fixture\n").unwrap();
         }
         let digest = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
         fs::write(cohort_path.join("cohort.json"), format!(r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{digest}","orchbee-server":"{digest}","orchbee-worker":"{digest}","orchbee-terminal-host":"{digest}","agent-observation-adapters":"{digest}"}}}}"#)).unwrap();

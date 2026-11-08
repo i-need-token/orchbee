@@ -92,6 +92,12 @@ make real process or filesystem work a cheap unit test. Shared fixtures may reus
 preparation, but each test owns its mutable state and cleanup; fixture reuse must not make results
 depend on execution order.
 
+- A process test never runs a product binary under a release image name. On Windows it starts each
+  Orchbee binary from a staged copy named by the build's environment stem, never from Cargo's or
+  Zig's output directory, and points every state location variable, including `USERPROFILE`, into
+  its own fixture. The [Windows named runtime identity](../crates/local-runtime/README.md#windows-named-runtime-identity)
+  owns the names.
+
 - Prefer observable completion and controllable time over unconditional sleeps. Use real elapsed
   time when the claim concerns an operating-system deadline; retain a justified upper bound.
 - Explain why serialization or a concurrency limit is necessary and which resource it protects.

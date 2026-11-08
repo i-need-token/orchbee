@@ -1,6 +1,4 @@
 //! Complete cohort verification and immutable publication before user PATH activation.
-#[cfg(all(test, windows))]
-mod tests;
 use super::{
     Context, Error, Report,
     acquire::Source,

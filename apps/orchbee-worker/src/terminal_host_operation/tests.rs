@@ -574,6 +574,17 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         )
         .into());
     }
+    // Zig names its output with the release name, which a test process never carries (ORC-382).
+    #[cfg(windows)]
+    let staged = Directory::new()?;
+    #[cfg(windows)]
+    let binary = {
+        let copy = staged
+            .0
+            .join(orchbee_local_runtime::CohortArtifact::TerminalHost.file_name());
+        fs::copy(&binary, &copy)?;
+        copy
+    };
     let mut child = HostChild(
         Command::new(binary)
             .args(["serve", "--runtime-directory"])

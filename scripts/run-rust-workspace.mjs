@@ -5,6 +5,9 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { checkVerbose, runChecks } from './check-output.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
+// The gate compiles this checkout's test environment; an inherited stem, such as a release staging
+// shell's, would give the processes it tests another environment's names (ORC-382).
+delete process.env.ORCHBEE_ARTIFACT_STEM;
 const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-windows-console-host',

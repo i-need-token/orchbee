@@ -106,7 +106,20 @@ The portable grammar preserves Windows verbatim drive prefixes, including their 
 ## Windows named runtime identity
 
 The compiled artifact stem names this build's environment: `orchbee` for release, otherwise
-`ob-dev-<digest>` or `ob-test-<digest>`. `environment_stem` exposes it, and one owner derives every
+`ob-dev-<digest>` or `ob-test-<digest>`. `build.rs` takes it from `ORCHBEE_ARTIFACT_STEM`; a build
+that sets none, including every plain `cargo build` and `cargo test`, is this checkout's test
+environment, `ob-test-<checkout digest>`. Only a build that names `orchbee` carries the release names
+and may act on the release installation, so release staging and packaging pass it explicitly and
+release packaging refuses any other cohort. The checkout digest is the one
+`createDesktopDevelopmentScope` in `apps/desktop` defines and native staging mirrors: the first 16
+hex digits of SHA-256 over `orchbee-development-data-root-v1\0` and the checkout's canonical path
+with a lowercase drive letter, so one checkout's development and test stems share a digest. The
+build script hashes the path as the file system reports it; Node also applies NFC, which differs
+only for a path stored in decomposed form. Cohort file names derive from the stem, so Cargo's own
+`orchbee*.exe` outputs are never run as they are: tests and staging start a copy named by
+`CohortArtifact`. macOS and Linux keep the release names until ORC-328.
+
+`environment_stem` exposes the stem, and one owner derives every
 Orchbee state location from it, so applications never spell a state directory or choose an AppData
 variable themselves:
 

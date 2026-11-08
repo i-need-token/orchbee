@@ -4,6 +4,8 @@
 #[cfg(windows)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
+#[path = "support/staged_client.rs"]
+mod staged_client;
 #[cfg(target_os = "linux")]
 mod support;
 #[cfg(windows)]

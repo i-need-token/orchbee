@@ -1,5 +1,6 @@
 //! Immutable CLI artifacts shared while their test threads or fixtures are alive.
 
+use orchbee_local_runtime::CohortArtifact;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
@@ -9,6 +10,13 @@ use std::{
 };
 
 const UNUSED_ARTIFACT: &[u8] = b"unused cohort fixture";
+/// Each artifact's `cohort.json` key; its file name follows the environment stem.
+const ARTIFACTS: [(&str, CohortArtifact); 4] = [
+    ("orchbee", CohortArtifact::Client),
+    ("orchbee-server", CohortArtifact::Server),
+    ("orchbee-worker", CohortArtifact::Worker),
+    ("orchbee-terminal-host", CohortArtifact::TerminalHost),
+];
 
 thread_local! {
     // A thread retains preparation across its table-driven cases. The weak process-wide
@@ -42,8 +50,8 @@ impl Cohort {
         let cohort = Self(root);
         // Native cohort admission requires private regular files with one link.
         fs::copy(env!("CARGO_BIN_EXE_orchbee"), cohort.executable()).unwrap();
-        for name in ["orchbee-server", "orchbee-worker", "orchbee-terminal-host"] {
-            fs::write(cohort.0.join(format!("{name}.exe")), UNUSED_ARTIFACT).unwrap();
+        for (_, artifact) in &ARTIFACTS[1..] {
+            fs::write(cohort.0.join(artifact.file_name()), UNUSED_ARTIFACT).unwrap();
         }
         fs::write(cohort.0.join("cohort.json"), manifest()).unwrap();
         cohort
@@ -58,7 +66,7 @@ impl Cohort {
     }
 
     pub(super) fn executable(&self) -> PathBuf {
-        self.0.join("orchbee.exe")
+        self.0.join(CohortArtifact::Client.file_name())
     }
 }
 
@@ -72,12 +80,7 @@ fn manifest() -> &'static [u8] {
     static MANIFEST: OnceLock<Vec<u8>> = OnceLock::new();
     MANIFEST.get_or_init(|| {
         let mut artifacts = serde_json::Map::new();
-        for name in [
-            "orchbee",
-            "orchbee-server",
-            "orchbee-worker",
-            "orchbee-terminal-host",
-        ] {
+        for (name, _) in ARTIFACTS {
             let digest = if name == "orchbee" {
                 Sha256::digest(fs::read(env!("CARGO_BIN_EXE_orchbee")).unwrap())
             } else {

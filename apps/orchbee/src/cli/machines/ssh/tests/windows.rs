@@ -43,7 +43,7 @@ fn actual_powershell_remote_program_preserves_literal_path_session_and_exit_code
         else if a == ["--session","work-1","server","start","--format","json"] {std::process::exit(42);}
         else {std::process::exit(43);}
     }"#).unwrap();
-    let executable = directory.join("orchbee.exe");
+    let executable = directory.join("machine-fixture.exe");
     let mut rustc = Command::new("rustc");
     rustc
         .arg(&source)

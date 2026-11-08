@@ -13,11 +13,10 @@ const RUNTIME_DIRECTORY: &str = "runtime";
 
 /// The stem of this build's cohort file names and environment. Staging sets
 /// `ORCHBEE_ARTIFACT_STEM` while it compiles the cohort, so each environment ships its own names
-/// (ORC-382). A build without it keeps the shipped `orchbee` names.
-pub(super) const ARTIFACT_STEM: &str = match option_env!("ORCHBEE_ARTIFACT_STEM") {
-    Some(stem) => stem,
-    None => super::RELEASE_STEM,
-};
+/// (ORC-382). A build without it is this checkout's test environment, `ob-test-<checkout digest>`,
+/// so only a build that names `orchbee` can act on the release installation; `build.rs` resolves
+/// the stem.
+pub(super) const ARTIFACT_STEM: &str = env!("ORCHBEE_ENVIRONMENT_STEM");
 // A malformed stem would name files no staging produces, so it fails the build instead.
 const _: () = assert!(
     valid_artifact_stem(ARTIFACT_STEM.as_bytes()),

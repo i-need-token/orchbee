@@ -3,6 +3,7 @@
 //! and a `host` Session whose terminal runs a real TUI Client. A test owns its root, Sessions,
 //! controlling attachments and processes until they drop.
 
+use orchbee_local_runtime::CohortArtifact;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -79,16 +80,29 @@ impl Fixture {
     fn stage(&self) {
         let built = Path::new(env!("CARGO_BIN_EXE_orchbee")).parent().unwrap();
         let mut artifacts = serde_json::Map::new();
-        for (name, source) in [
-            ("orchbee", built.join("orchbee.exe")),
-            ("orchbee-server", current_peer(built, "orchbee-server")),
-            ("orchbee-worker", current_peer(built, "orchbee-worker")),
-            ("orchbee-terminal-host", self.build_host()),
+        for (name, artifact, source) in [
+            ("orchbee", CohortArtifact::Client, built.join("orchbee.exe")),
+            (
+                "orchbee-server",
+                CohortArtifact::Server,
+                current_peer(built, "orchbee-server"),
+            ),
+            (
+                "orchbee-worker",
+                CohortArtifact::Worker,
+                current_peer(built, "orchbee-worker"),
+            ),
+            (
+                "orchbee-terminal-host",
+                CohortArtifact::TerminalHost,
+                self.build_host(),
+            ),
         ] {
             let bytes =
                 fs::read(&source).unwrap_or_else(|error| panic!("{}: {error}", source.display()));
-            // Native cohort admission requires private regular files with one link.
-            fs::write(self.root.join("cohort").join(format!("{name}.exe")), &bytes).unwrap();
+            // Native cohort admission requires private regular files with one link, and each
+            // carries its environment name rather than Cargo's release name.
+            fs::write(self.root.join("cohort").join(artifact.file_name()), &bytes).unwrap();
             artifacts.insert(
                 name.to_owned(),
                 json!(format!("{:x}", Sha256::digest(&bytes))),
@@ -134,9 +148,31 @@ impl Fixture {
         prefix.join("bin/orchbee-terminal-host.exe")
     }
 
+    /// The staged CLI under test.
+    fn staged_client(&self) -> PathBuf {
+        self.root
+            .join("cohort")
+            .join(CohortArtifact::Client.file_name())
+    }
+
+    /// Answers the state variables of this fixture's isolated environment, so a test resolves the
+    /// state locations the CLI under test uses.
+    pub fn state_environment(&self) -> impl Fn(&str) -> Option<std::ffi::OsString> + use<> {
+        let root = self.root.clone();
+        move |name| {
+            let directory = match name {
+                "USERPROFILE" => "home",
+                "APPDATA" => "roaming",
+                "LOCALAPPDATA" => "local",
+                _ => return None,
+            };
+            Some(root.join(directory).into_os_string())
+        }
+    }
+
     /// The CLI under test in this fixture's isolated environment.
     pub fn command(&self, words: &[&str]) -> Command {
-        let mut command = Command::new(self.root.join("cohort/orchbee.exe"));
+        let mut command = Command::new(self.staged_client());
         command
             .args(words)
             .env("ORCHBEE_RUNTIME_BASE", self.root.join("runtime"))
@@ -265,7 +301,7 @@ impl Fixture {
             format!(
                 "@echo off\r\nset ORCHBEE_TERMINAL_ID=\r\nset ORCHBEE_WORKER_ID=\r\n\
                  set ORCHBEE_RUNTIME_SCOPE=\r\nset ORCHBEE_SESSION=\r\nset NO_COLOR=\r\nset COLORTERM=truecolor\r\n\"{}\" tui 2>\"{}\"\r\n",
-                self.root.join("cohort/orchbee.exe").display(),
+                self.staged_client().display(),
                 self.root.join(format!("tui-{}.stderr", existing.len())).display()
             ),
         )
@@ -533,7 +569,7 @@ impl Drop for Fixture {
         // Stopping each Session ends its terminals, Host, Worker and Server before cleanup. Only the
         // staged CLI starts Sessions; after a failed staging, running the missing CLI would panic
         // again and abort the test process before the staging failure is reported.
-        if self.root.join("cohort/orchbee.exe").is_file() {
+        if self.staged_client().is_file() {
             if thread::panicking() {
                 for entry in fs::read_dir(&self.root).into_iter().flatten().flatten() {
                     if entry

@@ -58,6 +58,7 @@ fn relay_with_environment(
     command
         .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))
         .env("APPDATA", fixture.0.join("appdata"))
+        .env("USERPROFILE", fixture.0.join("appdata"))
         .env_remove("ORCHBEE_CONFIG_FILE")
         .env("ORCHBEE_TERMINAL_ID", "invalid-caller")
         .env("ORCHBEE_WORKER_ID", "invalid-caller")
@@ -253,7 +254,7 @@ fn routing_help_and_selection_refuse_before_ssh_or_session_effects() {
             .status
             .success()
     );
-    let root = fixture.0.join("appdata/Orchbee/machines");
+    let root = fixture.roaming_root().join("machines");
     let mut cache = PrivateCache::acquire(&root).unwrap();
     cache.replace("catalog.json",&serde_json::to_vec(&json!({"schemaVersion":1,"revision":1,"profiles":[
         {"id":"11111111111111111111111111111111","label":"same","target":"example.invalid","session":"work","enabled":false},

@@ -101,6 +101,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             .stderr(Stdio::null())
             .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))
             .env("APPDATA", fixture.0.join("appdata"))
+            .env("USERPROFILE", fixture.0.join("appdata"))
             .env_remove("ORCHBEE_CONFIG_FILE");
         let mut child = Owned(CommandChild::spawn(command).map_err(|e| e.error).unwrap());
         let mut request = Vec::new();

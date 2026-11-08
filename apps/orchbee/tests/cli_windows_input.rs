@@ -11,7 +11,7 @@ use std::{
 const TERMINAL: &str = "00000000000000000000000000000001";
 
 fn invoke(source: &[&str], payload: &[u8]) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let mut child = Command::new(crate::staged_client::client())
         .args(["terminal", "send", TERMINAL])
         .args(source)
         .args(["--format", "json"])
@@ -58,7 +58,10 @@ fn pipe_validation_precedes_runtime_discovery() {
 #[test]
 fn actual_powershell_pipeline_reaches_the_same_post_source_boundary() {
     let control = invoke(&["--text", "ready"], &[]);
-    let binary = env!("CARGO_BIN_EXE_orchbee").replace('\'', "''");
+    let binary = crate::staged_client::client()
+        .to_str()
+        .unwrap()
+        .replace('\'', "''");
     let script = format!(
         "$OutputEncoding=[Text.UTF8Encoding]::new($false); '中文' | & '{binary}' terminal send {TERMINAL} --stdin --format json; exit $LASTEXITCODE"
     );

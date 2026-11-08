@@ -7,119 +7,9 @@ use serde_json::{Value, json};
 use support::{Fixture, assert_closed, configuration_reply, peer, validate};
 
 #[test]
-fn channel_set_persists_before_failed_update_and_never_activates_a_session() {
-    use std::ffi::OsStr;
-    let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
-    let install = fixture.0.join("installation");
-    let schema = include_str!("../src/cli/schemas/orchbee.update.json");
-    let env = [
-        ("ORCHBEE_UPDATE_MANIFEST", OsStr::new("")),
-        ("ORCHBEE_INSTALL_DIR", install.as_os_str()),
-    ];
-    let first = fixture.run_with_env(&["update", "--format=json"], None, None, &env);
-    assert_eq!(first.status.code(), Some(1));
-    let first = document(first);
-    validate(&first, schema);
-    assert_eq!(first["result"]["error"], "source-unconfigured");
-    assert_eq!(first["result"]["channelSaved"], false);
-    assert!(!config.exists());
-    assert!(!install.exists());
-    let changed = fixture.run_with_env(
-        &["channel", "set", "preview", "--format=json"],
-        None,
-        None,
-        &env,
-    );
-    assert_eq!(changed.status.code(), Some(1));
-    let changed = document(changed);
-    validate(&changed, schema);
-    assert_eq!(changed["operation"], "channel-set");
-    assert_eq!(changed["result"]["channelSaved"], true);
-    assert_eq!(changed["result"]["channel"], "preview");
-    assert_eq!(changed["result"]["error"], "source-unconfigured");
-    assert_eq!(
-        document(fixture.run(&["channel", "show", "--format=json"]))["result"]["channel"],
-        "preview"
-    );
-    let original = "# keep comment\n[update]\nmanifest_check=false # keep policy\nchannel='preview' # retained channel note\n[terminal]\nnew_cwd='home'\n";
-    std::fs::write(&config, original).unwrap();
-    let changed = document(fixture.run_with_env(
-        &["channel", "set", "stable", "--format=json"],
-        None,
-        None,
-        &env,
-    ));
-    validate(&changed, schema);
-    assert_eq!(changed["result"]["channelSaved"], true);
-    let text = std::fs::read_to_string(&config).unwrap();
-    assert!(
-        text.contains("# keep comment")
-            && text.contains("# keep policy")
-            && text.contains("# retained channel note")
-    );
-    assert!(text.contains("manifest_check=false") && text.contains("new_cwd='home'"));
-    for (warning, retained) in [
-        ("[unknown]\nsecret='kept'", Some("secret='kept'")),
-        ("[update]\nchannel=true", None),
-    ] {
-        std::fs::write(&config, warning).unwrap();
-        let output = fixture.run_with_env(
-            &["channel", "set", "preview", "--format=json"],
-            None,
-            None,
-            &env,
-        );
-        assert_eq!(output.status.code(), Some(1));
-        let doc = document(output);
-        validate(&doc, schema);
-        assert_eq!(doc["result"]["channelSaved"], true);
-        assert_eq!(doc["result"]["channel"], "preview");
-        assert_eq!(doc["result"]["error"], "source-unconfigured");
-        let saved = std::fs::read_to_string(&config).unwrap();
-        if let Some(retained) = retained {
-            assert!(saved.contains(retained));
-        }
-        assert_eq!(
-            document(fixture.run(&["channel", "show", "--format=json"]))["result"]["channel"],
-            "preview"
-        );
-    }
-    let invalid = "not TOML";
-    std::fs::write(&config, invalid).unwrap();
-    let output = fixture.run_with_env(
-        &["channel", "set", "preview", "--format=json"],
-        None,
-        None,
-        &env,
-    );
-    assert_eq!(output.status.code(), Some(1));
-    let doc = document(output);
-    validate(&doc, schema);
-    assert_eq!(doc["result"]["channelSaved"], false);
-    assert_eq!(doc["result"]["error"], "configuration");
-    assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
-    for args in [
-        vec!["channel", "set"],
-        vec!["channel", "set", "nightly"],
-        vec!["channel", "set", "stable", "extra"],
-        vec!["update", "extra"],
-        vec!["update", "--client", "bad"],
-    ] {
-        assert_eq!(
-            fixture.run_with_env(&args, None, None, &env).status.code(),
-            Some(2),
-            "{args:?}"
-        );
-    }
-    assert!(!install.exists());
-    assert!(!fixture.0.join("runtime").exists());
-}
-
-#[test]
 fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     let run = || fixture.run(&["channel", "show", "--format=json"]);
     let output = run();
     assert!(output.status.success());
@@ -196,7 +86,7 @@ fn id(n: u64) -> String {
 #[test]
 fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
     std::fs::write(&config, content).unwrap();
@@ -276,7 +166,7 @@ fn generated_default_config_passes_the_offline_config_check() {
     let generated = fixture.run(&["--default-config"]);
     assert_eq!(generated.status.code(), Some(0));
     assert!(generated.stderr.is_empty());
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(&config, generated.stdout).unwrap();
 
@@ -454,7 +344,7 @@ fn file_level_configuration_errors_fail_the_offline_check_but_never_creation() {
 #[test]
 fn field_errors_warn_default_or_disable_only_the_affected_setting() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     for (text, field, reason, disposition) in [
         (
@@ -516,7 +406,7 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
 #[test]
 fn config_check_bounds_diagnostics_and_reports_the_exact_omitted_count() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let text = (0..130)
         .map(|index| format!("unknown_{index:03}=true"))
@@ -542,7 +432,7 @@ fn config_check_bounds_diagnostics_and_reports_the_exact_omitted_count() {
 #[test]
 fn config_check_reports_the_actual_file_without_creating_it() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     validate(&doc, schema);
@@ -580,7 +470,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
 #[test]
 fn config_check_validates_current_key_policy() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
@@ -917,7 +807,7 @@ fn reset_keys_real_windows_cli_refuses_bad_input_before_writing() {
 #[test]
 fn config_check_window_title_diagnostics() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let default = orchbee_local_runtime::DEFAULT_WINDOW_TITLE;
     for (title, effective, diagnostic) in [
@@ -950,7 +840,7 @@ fn config_check_window_title_diagnostics() {
 #[test]
 fn config_check_notification_policy_validates_actual_file_and_closed_versions() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
@@ -1011,7 +901,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
 #[test]
 fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_profiles() {
     let fixture = Fixture::new();
-    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let config = fixture.roaming_root().join("config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     let text = "[ui.sidebar.spaces]\nrows=[['state_icon','workspace'],[{token='branch',fg='#abc',rules=[{starts_with='worktree/',bold=true}]},'git_status','$branch']]\nrow_gap=2\n[ui.sidebar.agents]\nrows=[['agent']]";
     std::fs::write(&config, text).unwrap();

@@ -32,7 +32,7 @@ impl Fixture {
     }
 
     fn run(&self, format: &str, locale: &str) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        Command::new(crate::staged_client::client())
             .args(["server", "diagnose", "--format", format])
             .env("ORCHBEE_RUNTIME_BASE", &self.0)
             .env("LC_ALL", locale)
@@ -218,7 +218,7 @@ fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
     fs::write(&identity, br#"{"version":1,"name":"work"}"#).unwrap();
     let entries = fs::read_dir(&base).unwrap().count();
     let run = |session: &str, format: &str, locale: &str| {
-        Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        Command::new(crate::staged_client::client())
             .args([
                 "--session",
                 session,
@@ -229,6 +229,8 @@ fn obsolete_identity_records_are_reported_only_for_the_session_they_name() {
             ])
             .env("ORCHBEE_RUNTIME_BASE", &base)
             .env("LOCALAPPDATA", &local)
+            // A development or test build keeps its catalog under the profile.
+            .env("USERPROFILE", &local)
             .env("LC_ALL", locale)
             .env_remove("ORCHBEE_SESSION")
             .env_remove("ORCHBEE_RUNTIME_SCOPE")

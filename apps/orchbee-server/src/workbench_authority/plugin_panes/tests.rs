@@ -234,7 +234,7 @@ fn plugin_pane_admission_publication_replay_and_membership_lifetime() {
     fs::write(root.0.join("pane.exe"), b"not launched in admission test").unwrap();
     let mut process = std::process::Command::new(std::env::current_exe().unwrap());
     process.args(["--exact", "workbench_authority::plugin_panes::tests::plugin_pane_admission_publication_replay_and_membership_lifetime", "--nocapture"])
-        .env(CHILD, &root.0).env("APPDATA", root.0.join("appdata")).env_remove("ORCHBEE_CONFIG_FILE");
+        .env(CHILD, &root.0).env("APPDATA", root.0.join("appdata")).env("USERPROFILE", root.0.join("appdata")).env_remove("ORCHBEE_CONFIG_FILE");
     let result = orchbee_local_runtime::run_windows_command(
         process,
         Some(std::time::Instant::now() + std::time::Duration::from_secs(30)),

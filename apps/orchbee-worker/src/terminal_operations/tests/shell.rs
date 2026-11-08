@@ -577,13 +577,22 @@ impl CohortFixture {
         let owner = Self(root);
         let hash = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
         let mut entries = Vec::new();
-        for name in [
-            "orchbee",
-            "orchbee-server",
-            "orchbee-worker",
-            "orchbee-terminal-host",
+        for (name, artifact) in [
+            ("orchbee", orchbee_local_runtime::CohortArtifact::Client),
+            (
+                "orchbee-server",
+                orchbee_local_runtime::CohortArtifact::Server,
+            ),
+            (
+                "orchbee-worker",
+                orchbee_local_runtime::CohortArtifact::Worker,
+            ),
+            (
+                "orchbee-terminal-host",
+                orchbee_local_runtime::CohortArtifact::TerminalHost,
+            ),
         ] {
-            std::fs::write(owner.0.join(format!("{name}.exe")), b"native fixture\n").unwrap();
+            std::fs::write(owner.0.join(artifact.file_name()), b"native fixture\n").unwrap();
             entries.push(format!("\"{name}\":\"{hash}\""));
         }
         entries.push(format!("\"agent-observation-adapters\":\"{hash}\""));
