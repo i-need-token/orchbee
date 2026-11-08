@@ -1,11 +1,11 @@
 # Data Root Layout
 
-| Field             | Value                                                                                                                                                                                                                                                                                                                                          |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | The product owner accepted the [decisions](#accepted-decisions) on 2026-11-08 (ORC-381 item 2, ORCL-29). ORC-397 proposes the tree, names, migration mechanism, and phases; [open choices](#open-choices) await the product owner. Windows first; macOS and Linux follow with ORC-328.                                                         |
-| Owner             | Maintainers of `crates/local-runtime`, `apps/orchbee`, `apps/orchbee-server`, `apps/orchbee-worker`, `apps/terminal-host`, `apps/desktop`, and `crates/agent-integration-writer`                                                                                                                                                               |
-| Current authority | [Windows named runtime identity](../../crates/local-runtime/README.md#windows-named-runtime-identity), [Windows CLI configuration](../../apps/orchbee/docs/windows-cli-configuration.md#file-and-validation), the [Desktop data root](../../apps/desktop/docs/data-root.md), and [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries) |
-| Exit condition    | Delete this proposal once every phase ships and its rules live in those owners.                                                                                                                                                                                                                                                                |
+| Field             | Value                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status            | The product owner accepted the [decisions](#accepted-decisions) on 2026-11-08 (ORC-381 item 2, ORCL-29), chose the [tree](#tree) with its `internal/` folder on 2026-11-08, and did not veto the [accepted choices](#accepted-choices), which stay revisable. ORC-397 proposes the names, migration mechanism, and phases. Windows first; macOS and Linux follow with ORC-328. |
+| Owner             | Maintainers of `crates/local-runtime`, `apps/orchbee`, `apps/orchbee-server`, `apps/orchbee-worker`, `apps/terminal-host`, `apps/desktop`, and `crates/agent-integration-writer`                                                                                                                                                                                               |
+| Current authority | [Windows named runtime identity](../../crates/local-runtime/README.md#windows-named-runtime-identity), [Windows CLI configuration](../../apps/orchbee/docs/windows-cli-configuration.md#file-and-validation), the [Desktop data root](../../apps/desktop/docs/data-root.md), and [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries)                                 |
+| Exit condition    | Delete this proposal once every phase ships and its rules live in those owners.                                                                                                                                                                                                                                                                                                |
 
 ## Accepted decisions
 
@@ -16,6 +16,9 @@
   hash.
 - Whatever Orchbee puts on a machine is necessary, complete, and free of redundancy, and a person
   browsing the folders understands them (ORCL-29).
+- The top level holds only what a person reads, edits, or keeps: settings, Sessions, logs, and
+  detection rules they write. Everything Orchbee manages for itself goes under `internal/`
+  (product owner, 2026-11-08).
 - From the first public release, a persisted format change migrates automatically after a backup; a
   failed migration keeps the old file and tells the person. Before then nothing migrates, including
   today's release locations and pre-release data.
@@ -28,13 +31,6 @@
 ```text
 ~/.orchbee/
 ├── config.toml
-├── version.json
-├── agent-detection/<provider>.toml
-├── state/
-│   ├── preferences.json
-│   ├── onboarding.json
-│   ├── machines.json
-│   └── desktop-window.json
 ├── sessions/<session>/
 │   ├── session.json
 │   ├── checkpoint.json, checkpoint.previous-1.json, checkpoint.previous-2.json
@@ -42,39 +38,52 @@
 │   ├── tui-position.json
 │   ├── layouts/<time>.json
 │   └── terminal-output/<number>.bin
-├── plugins/
-│   ├── registry.json
-│   └── <plugin id>/{config,data,source/<version>}/
-├── integrations/agent-observation/<version>/
-├── desktop/
-├── backups/<date>-<reason>/
 ├── logs/<date>.jsonl, logs/destructive-commands.jsonl
-├── cache/agent-detection/
-├── runtime/<session>/
-└── tmp/
+├── agent-detection/<provider>.toml
+└── internal/
+    ├── version.json
+    ├── state/
+    │   ├── preferences.json
+    │   ├── onboarding.json
+    │   ├── machines.json
+    │   └── desktop-window.json
+    ├── integrations/agent-observation/<version>/
+    ├── desktop/
+    ├── backups/<date>-<reason>/
+    ├── cache/agent-detection/
+    ├── runtime/<session>/
+    ├── tmp/
+    └── plugins/
+        ├── registry.json
+        └── <plugin id>/{config,data,source/<version>}/
 ```
 
-| Entry             | Holds                                                                                               | Default uninstall              | Safe to delete by hand                              |
-| ----------------- | --------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
-| `config.toml`     | Settings the person writes                                                                          | Kept                           | No                                                  |
-| `version.json`    | The layout version, and the newest Orchbee version that used the root so a refusal can name it      | Kept                           | No                                                  |
-| `agent-detection` | Detection rule overrides the person writes; absent unless created                                   | Kept                           | Yes; bundled rules return                           |
-| `state`           | Device records: Settings preferences, onboarding dismissal, saved machines, Desktop window geometry | Kept                           | No                                                  |
-| `sessions`        | One folder per Session: lifecycle record, checkpoints, earlier layouts, kept output, TUI position   | Kept                           | Only through `session delete`                       |
-| `plugins`         | Plugin registry, managed sources, and each plugin's own configuration and data                      | Kept                           | No                                                  |
-| `integrations`    | The Agent observation Capsule that Agent configurations run                                         | Removed with the Agent entries | Only through `agent integration disable`            |
-| `desktop`         | Electron `userData`, in Chromium's own layout                                                       | Kept                           | While Desktop is closed; resets Desktop preferences |
-| `backups`         | Copies taken before a migration or a reset                                                          | Kept                           | Yes                                                 |
-| `logs`            | Daily logs and destructive-command records                                                          | Removed                        | Yes                                                 |
-| `cache`           | Downloaded detection rules                                                                          | Removed                        | Yes; rebuilt on demand                              |
-| `runtime`         | Locks, markers, Host registrations, and frame files of live Sessions                                | Removed                        | Only a stopped Session's folder                     |
-| `tmp`             | Scrollback documents opened in an editor                                                            | Removed                        | While no such document is open                      |
+| Entry                   | Holds                                                                                               | Default uninstall              | Safe to delete by hand                              |
+| ----------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
+| `config.toml`           | Settings the person writes                                                                          | Kept                           | No                                                  |
+| `sessions`              | One folder per Session: lifecycle record, checkpoints, earlier layouts, kept output, TUI position   | Kept                           | Only through `session delete`                       |
+| `logs`                  | Daily logs and destructive-command records                                                          | Removed                        | Yes                                                 |
+| `agent-detection`       | Detection rule overrides the person writes; absent unless created                                   | Kept                           | Yes; bundled rules return                           |
+| `internal`              | Everything below; a person has no reason to open it                                                 | Partly removed, as below       | No                                                  |
+| `internal/version.json` | The layout version, and the newest Orchbee version that used the root so a refusal can name it      | Kept                           | No                                                  |
+| `internal/state`        | Device records: Settings preferences, onboarding dismissal, saved machines, Desktop window geometry | Kept                           | No                                                  |
+| `internal/integrations` | The Agent observation Capsule that Agent configurations run                                         | Removed with the Agent entries | Only through `agent integration disable`            |
+| `internal/desktop`      | Electron `userData`, in Chromium's own layout                                                       | Kept                           | While Desktop is closed; resets Desktop preferences |
+| `internal/backups`      | Copies taken before a migration or a reset                                                          | Kept                           | Yes                                                 |
+| `internal/cache`        | Downloaded detection rules                                                                          | Removed                        | Yes; rebuilt on demand                              |
+| `internal/runtime`      | Locks, markers, Host registrations, and frame files of live Sessions                                | Removed                        | Only a stopped Session's folder                     |
+| `internal/tmp`          | Scrollback documents opened in an editor                                                            | Removed                        | While no such document is open                      |
+| `internal/plugins`      | Plugin registry, managed sources, and each plugin's own configuration and data                      | Kept                           | No                                                  |
 
 - Only `config.toml`, `agent-detection/*.toml`, and a plugin's `config/` folder are meant for hand
   editing. Every other file is internal, and Orchbee refuses an edited record instead of guessing.
-- Nothing is created until it has content, and reading never creates a file or directory.
+- Nothing is created until it has content, and reading never creates a file or directory. A native
+  writer that creates the root or `internal/` writes `internal/version.json` in the same step, so a
+  root that holds anything Orchbee wrote holds it.
 - Desktop's renderer keeps keyboard overrides and terminal appearance in browser storage, so
-  `desktop/` is not a cache.
+  `internal/desktop/` is not a cache. Chromium keeps its HTTP, code, and GPU caches beside that
+  storage: Electron 42 ignores `--disk-cache-dir`, and moving `sessionData` moves browser storage
+  with the caches, so they stay in `internal/desktop/` and `internal/cache/` holds no Desktop data.
 
 ## Naming
 
@@ -83,23 +92,28 @@
   `YYYY-MM-DD`, a UTC time `YYYY-MM-DDTHH-MM-SSZ`, or a sequence number. When such a name is already
   taken by different content, the next free `-2`, `-3`, and so on is appended.
 - Format versions, digests, random identifiers, and account SIDs live inside files, never in names;
-  `window-state-v1.json`, for example, becomes `desktop-window.json` with its version inside.
-- A writer lock and a staging file sit beside the file or store they protect, named after it with
-  `.lock` and `.pending`: `preferences.lock` and `preferences.pending` beside `preferences.json`.
-  Both are internal; delete neither while Orchbee runs.
+  `window-state-v1.json`, for example, becomes `internal/state/desktop-window.json` with its version
+  inside.
+- A writer lock and a staging file sit beside the record they protect, named after it with `.lock`
+  and `.pending`: `preferences.lock` and `preferences.pending` beside `preferences.json`. A record
+  made of several files names them after its index file, as `catalog.lock` beside
+  `internal/cache/agent-detection/catalog.json`. Both are internal; delete neither while Orchbee
+  runs.
+- `config.toml` keeps the top level clean: its writer lock is `internal/config.lock`, and its staging
+  file `config.pending` exists beside it only while a write runs.
 - A Session folder takes the Session name. Session names stay 1–64 ASCII letters, digits, `.`, `_`,
   and `-`, and additionally neither start nor end with `.` nor equal a Windows device name in any
   letter case (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`, with or without an
-  extension), so one name gives the same folder on every file system.
-  [Open choice 2](#open-choices) settles letter case.
+  extension), so one name gives the same folder on every file system. Letter case does not
+  distinguish Sessions ([accepted choice 2](#accepted-choices)).
 
 ## Runtime files
 
-- A Session's runtime folder is `runtime/<session>/` in every environment, created private on
-  activation. A stopped Session's folder may be removed; the next start recreates it.
-- An explicit `ORCHBEE_RUNTIME_BASE` keeps its meaning and replaces `runtime/`. `session.json`
-  records the runtime folder in use, and a start through another folder is refused while the
-  recorded one is live.
+- A Session's runtime folder is `internal/runtime/<session>/` in every environment, created private
+  on activation. A stopped Session's folder may be removed; the next start recreates it.
+- An explicit `ORCHBEE_RUNTIME_BASE` keeps its meaning and replaces `internal/runtime/`.
+  `session.json` records the runtime folder in use, and a start through another folder is refused
+  while the recorded one is live.
 - Windows named pipes keep their names; the endpoint id derived from the canonical runtime folder
   keeps them distinct per Session and environment.
 - Unix sockets cannot live in that folder: `sun_path` holds 104 bytes on macOS and 108 on Linux,
@@ -108,7 +122,7 @@
   `<endpoint id>-<role>.sock` with the endpoint id that names Windows pipes; with roles of at most
   eight characters, the longest such path is 95 bytes. The directory is created with mode 0700, and
   one with another owner or mode is refused, never repaired. Locks and markers stay in
-  `runtime/<session>/`, out of reach of temporary-directory cleaners.
+  `internal/runtime/<session>/`, out of reach of temporary-directory cleaners.
 - Because that folder then survives a machine restart on macOS and Linux, POSIX activation adopts
   the [Windows crash-recovery contract](../../crates/local-runtime/docs/windows-crash-recovery.md)
   with ORC-328.
@@ -116,8 +130,10 @@
 ## Environments
 
 - Development and test roots hold the same tree; only the root name differs. A development root
-  also holds `development-checkout.json`, the Desktop checkout marker now named
+  also holds `internal/development-checkout.json`, the Desktop checkout marker formerly named
   `development-scope-v1.json`.
+- `ORCHBEE_HOME` names another data root for every environment that reads it
+  ([accepted choice 1](#accepted-choices)); the stem still names files, pipes, and the environment.
 - POSIX socket directories take the stem, for example `/tmp/ob-dev-<digest>-<uid>/`.
 - A test that writes state points the data root at its own temporary directory, never at the
   developer's roots. A phase that changes how test builds name or locate state runs every affected
@@ -132,23 +148,24 @@ ships, and the person removes it.
 | Earlier location                                                                                                                                                                                                     | New location                                                                                                                                                    | Owner                                                |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `%APPDATA%\Orchbee\config.toml`; macOS `~/Library/Application Support/Orchbee/config.toml`; Linux `$XDG_CONFIG_HOME/Orchbee/config.toml`                                                                             | `config.toml`                                                                                                                                                   | `user_settings` in `crates/local-runtime`            |
-| `preferences-<sha256>/preferences.json` beside the configuration file                                                                                                                                                | `state/preferences.json`                                                                                                                                        | `user_preferences`                                   |
-| `config.toml.native-state/onboarding.json`                                                                                                                                                                           | `state/onboarding.json`                                                                                                                                         | `onboarding` in `workbench-client`                   |
-| `machines/catalog.json` beside the configuration file                                                                                                                                                                | `state/machines.json`                                                                                                                                           | `machines::store` in `workbench-client`              |
-| `plugins/` beside the configuration file: `registry.json`, `config/<id>`, `state/<id>`, `managed/i-<installation id>/checkout`                                                                                       | `plugins/registry.json`, `plugins/<id>/config`, `plugins/<id>/data`, `plugins/<id>/source/<version>`                                                            | `plugins::store`                                     |
+| `preferences-<sha256>/preferences.json` beside the configuration file                                                                                                                                                | `internal/state/preferences.json`                                                                                                                               | `user_preferences`                                   |
+| `config.toml.native-state/onboarding.json`                                                                                                                                                                           | `internal/state/onboarding.json`                                                                                                                                | `onboarding` in `workbench-client`                   |
+| `machines/catalog.json` beside the configuration file                                                                                                                                                                | `internal/state/machines.json`                                                                                                                                  | `machines::store` in `workbench-client`              |
+| `plugins/` beside the configuration file: `registry.json`, `config/<id>`, `state/<id>`, `managed/i-<installation id>/checkout`                                                                                       | `internal/plugins/registry.json`, `internal/plugins/<id>/config`, `internal/plugins/<id>/data`, `internal/plugins/<id>/source/<version>`                        | `plugins::store`                                     |
 | `agent-detection/<provider>.toml` beside the configuration file                                                                                                                                                      | `agent-detection/<provider>.toml`                                                                                                                               | `agent_screen::loading` in `orchbee-server`          |
-| `agent-detection/remote/<catalog URL digest>/` beside the configuration file                                                                                                                                         | `cache/agent-detection/`, with the catalog URL recorded inside; another URL discards it                                                                         | `agent_screen::updating` in `orchbee-server`         |
+| `agent-detection/remote/<catalog URL digest>/` beside the configuration file                                                                                                                                         | `internal/cache/agent-detection/`, with the catalog URL recorded inside; another URL discards it                                                                | `agent_screen::updating` in `orchbee-server`         |
 | `%LOCALAPPDATA%\Orchbee\session-catalog\<runtime base digest>\<scope>.json` and `<scope>.record.lock`                                                                                                                | `sessions/<session>/session.json` and `session.lock`                                                                                                            | `session_catalog`, `durable_sessions`                |
 | `%LOCALAPPDATA%\Orchbee\native-sessions\<runtime digest>\`: slots, `state.lock`, `checkpoint.restore-notice`, `checkpoint.corrupt-<hex>.raw`, `layout-history/layout-<hex>.json`, `terminal-output/output-<hex>.bin` | `sessions/<session>/`: slots, `state.lock`, `checkpoint.restore-notice`, `checkpoint.corrupt-<time>.raw`, `layouts/<time>.json`, `terminal-output/<number>.bin` | `session_store`, `layout_history`, `terminal_output` |
 | `%LOCALAPPDATA%\Orchbee\tui-position\<endpoint id>\position.json`, never removed                                                                                                                                     | `sessions/<session>/tui-position.json`, removed with its Session                                                                                                | `startup_preference::store` in `workbench-client`    |
-| `%LOCALAPPDATA%\Orchbee\audit\destructive.jsonl`                                                                                                                                                                     | `logs/destructive-commands.jsonl`                                                                                                                               | `destructive_log`                                    |
-| `%TEMP%\orchbee-native-<SID digest>`, `%TEMP%\orchbee-session-<digest>`, POSIX `/tmp/orchbee-native-<uid>`                                                                                                           | `runtime/<session>/`, with POSIX sockets under [Runtime files](#runtime-files)                                                                                  | `environment`, `rendezvous`, `session_name`          |
-| `%TEMP%\orchbee-scrollback-<hex>.txt`, never removed                                                                                                                                                                 | `tmp/scrollback-<time>.txt`; a Session start removes those older than one day                                                                                   | Host `editor_document`, folder from the Worker       |
-| `~/.orchbee/agent-observation-adapters/<payload SHA-256>/` in every environment, never removed                                                                                                                       | `integrations/agent-observation/<version>/` in each environment's root; a version no Agent entry names is removed                                               | `agent-integration-writer`                           |
-| The data root itself as Electron `userData`                                                                                                                                                                          | `desktop/`                                                                                                                                                      | Desktop main `entry`                                 |
-| `window-state-v1.json` in Electron `userData`                                                                                                                                                                        | `state/desktop-window.json`                                                                                                                                     | Desktop `window-state`                               |
-| `.orchbee-update.lock` and `.orchbee-update.pending` in each private store                                                                                                                                           | `<file>.lock` and `<file>.pending` beside each file                                                                                                             | `private_cache`                                      |
-| `config.toml.bak-keys-…` beside the configuration file                                                                                                                                                               | `backups/<date>-reset-keys/config.toml`                                                                                                                         | `user_settings::reset_keys`                          |
+| `%LOCALAPPDATA%\Orchbee\audit\destructive.jsonl` and `destructive.1.jsonl`                                                                                                                                           | `logs/destructive-commands.jsonl` and `destructive-commands.1.jsonl`                                                                                            | `destructive_log`                                    |
+| `%TEMP%\orchbee-native-<SID digest>`, `%TEMP%\orchbee-session-<digest>`, POSIX `/tmp/orchbee-native-<uid>`                                                                                                           | `internal/runtime/<session>/`, with POSIX sockets under [Runtime files](#runtime-files)                                                                         | `environment`, `rendezvous`, `session_name`          |
+| `%TEMP%\orchbee-scrollback-<hex>.txt`, never removed                                                                                                                                                                 | `internal/tmp/scrollback-<time>.txt`; a Session start removes those older than one day                                                                          | Host `editor_document`, folder from the Worker       |
+| `~/.orchbee/agent-observation-adapters/<payload SHA-256>/` in every environment, never removed                                                                                                                       | `internal/integrations/agent-observation/<version>/` in each environment's root; a version no Agent entry names is removed                                      | `agent-integration-writer`                           |
+| The data root itself as Electron `userData`                                                                                                                                                                          | `internal/desktop/`                                                                                                                                             | Desktop main `entry`                                 |
+| `window-state-v1.json` in Electron `userData`                                                                                                                                                                        | `internal/state/desktop-window.json`                                                                                                                            | Desktop `window-state`                               |
+| `development-scope-v1.json` in a development root                                                                                                                                                                    | `internal/development-checkout.json`                                                                                                                            | Desktop `prepareDesktopDataRoot`                     |
+| `.orchbee-update.lock` and `.orchbee-update.pending` in each private store                                                                                                                                           | `<record>.lock` and `<record>.pending` beside each record; `internal/config.lock` for `config.toml`                                                             | `private_cache`                                      |
+| `config.toml.bak-keys-…` beside the configuration file                                                                                                                                                               | `internal/backups/<date>-reset-keys/config.toml`                                                                                                                | `user_settings::reset_keys`                          |
 
 ## Outside the data root
 
@@ -173,9 +190,10 @@ ships, and the person removes it.
 ## Uninstall
 
 - The default uninstall stops the environment's Sessions after the person confirms, runs the
-  integration disable, removes program files and installer entries, and removes `integrations/`,
-  `logs/`, `cache/`, `runtime/`, and `tmp/`. Everything else stays, so a reinstall finds settings and
-  Sessions again; the person enables Agent integrations again.
+  integration disable, removes program files and installer entries, and removes `logs/`,
+  `internal/integrations/`, `internal/cache/`, `internal/runtime/`, and `internal/tmp/`. Everything
+  else stays, so a reinstall finds settings and Sessions again; the person enables Agent
+  integrations again.
 - Deleting all data additionally removes the whole data root.
 - Uninstall acts only on its own environment's root.
 - One CLI command performs these steps; each platform's uninstaller runs it, and ORC-381 decides how
@@ -192,47 +210,48 @@ ships, and the person removes it.
   day's file stops growing at 7 MiB after one `log-capped` record, so the folder holds at most
   51 MiB, the destructive log included.
 - `destructive-commands.jsonl` keeps the size rotation and fields of the
-  [destructive request log](environment-isolation.md#destructive-request-log); daily pruning skips it.
+  [destructive request log](environment-isolation.md#destructive-request-log); daily pruning skips it
+  and its rotated generation.
 - A CLI command and a Desktop menu action write the diagnostic bundle as one archive where the
   person chooses; nothing stays in the data root. It holds product and build versions of every
   component and running process, the operating system, architecture, locale, and terminal,
-  `config check` output, `config.toml` and `state/preferences.json` with every command, argument,
-  environment value, home path, and URL credential replaced by a placeholder, the Session list with
-  states, integration status, and the logs of the last 7 days. It excludes checkpoints, layouts,
-  terminal output, plugin data, and saved machines.
+  `config check` output, `config.toml` and `internal/state/preferences.json` with every command,
+  argument, environment value, home path, and URL credential replaced by a placeholder, the Session
+  list with states, integration status, and the logs of the last 7 days. It excludes checkpoints,
+  layouts, terminal output, plugin data, and saved machines.
 
 ## Persisted data versions and migration
 
 Until the first public release, [Data boundaries](../../docs/ARCHITECTURE.md#data-boundaries)
 applies and nothing migrates. From the first public release:
 
-| Data                                                                         | Version                           | On a format change                                                                                                                           |
-| ---------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config.toml`                                                                | None                              | Keys are only added. A key that must change is rewritten by the settings owner, comments preserved, under the backup and failure rules below |
-| `agent-detection/*.toml`                                                     | Each rule's `min_engine_version`  | Never rewritten; an override this version cannot read is reported, and the bundled rule applies                                              |
-| `version.json`                                                               | `layout`                          | Entries are only added. A release that must move one raises `layout` and moves it only while no Orchbee process of the environment runs      |
-| `state/*.json`, `plugins/registry.json`, `session.json`, `tui-position.json` | A top-level integer `version`     | Migrated                                                                                                                                     |
-| Checkpoint slots, the restore notice, earlier layouts, kept terminal output  | The frame header or record prefix | Migrated                                                                                                                                     |
-| `plugins/<id>/config/`, `plugins/<id>/data/`                                 | The plugin's own                  | The plugin's own                                                                                                                             |
-| `cache/`                                                                     | Each owner's version              | Discarded and rebuilt; never migrated or backed up                                                                                           |
-| `runtime/`                                                                   | Protocol generations              | Not migrated; [versioning and upgrade](versioning-and-upgrade.md) decides compatibility                                                      |
-| `integrations/`                                                              | The Capsule manifest              | Replaced by the integration writer, never migrated                                                                                           |
-| `desktop/`                                                                   | Chromium's own                    | Chromium's own                                                                                                                               |
-| `logs/`, `backups/`, `tmp/`, plugin sources                                  | None                              | Never migrated                                                                                                                               |
+| Data                                                                                           | Version                           | On a format change                                                                                                                           |
+| ---------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config.toml`                                                                                  | None                              | Keys are only added. A key that must change is rewritten by the settings owner, comments preserved, under the backup and failure rules below |
+| `agent-detection/*.toml`                                                                       | Each rule's `min_engine_version`  | Never rewritten; an override this version cannot read is reported, and the bundled rule applies                                              |
+| `internal/version.json`                                                                        | `layout`                          | Entries are only added. A release that must move one raises `layout` and moves it only while no Orchbee process of the environment runs      |
+| `internal/state/*.json`, `internal/plugins/registry.json`, `session.json`, `tui-position.json` | A top-level integer `version`     | Migrated                                                                                                                                     |
+| Checkpoint slots, the restore notice, earlier layouts, kept terminal output                    | The frame header or record prefix | Migrated                                                                                                                                     |
+| `internal/plugins/<id>/config/`, `internal/plugins/<id>/data/`                                 | The plugin's own                  | The plugin's own                                                                                                                             |
+| `internal/cache/`                                                                              | Each owner's version              | Discarded and rebuilt; never migrated or backed up                                                                                           |
+| `internal/runtime/`                                                                            | Protocol generations              | Not migrated; [versioning and upgrade](versioning-and-upgrade.md) decides compatibility                                                      |
+| `internal/integrations/`                                                                       | The Capsule manifest              | Replaced by the integration writer, never migrated                                                                                           |
+| `internal/desktop/`                                                                            | Chromium's own                    | Chromium's own                                                                                                                               |
+| `logs/`, `internal/backups/`, `internal/tmp/`, plugin sources                                  | None                              | Never migrated                                                                                                                               |
 
 - A build refuses to open a root whose `layout` is higher than its own, before any other read.
 - One migration module in `crates/local-runtime` owns every native step and the backup, retention,
   and failure behavior. Each store calls it when it opens a record, under the store's own writer
-  lock. `state/desktop-window.json` is the only record Desktop Main writes; its window-state owner
-  applies the same rules.
+  lock. `internal/state/desktop-window.json` is the only record Desktop Main writes; its
+  window-state owner applies the same rules.
 - A step is a pure function from version N to N+1. The result must pass the current strict parser
   before the store replaces the file through its flushed atomic replacement.
 - Before the first replacement, the module copies the original into
-  `backups/<YYYY-MM-DD>-upgrade-<product version>/` at the same relative path and flushes it; all
-  records that one product version migrates share that folder. Orchbee keeps the three newest
-  upgrade folders and deletes older ones when it creates another. A reset the person requests copies
-  the file into `backups/<YYYY-MM-DD>-<reset name>/` first, and those folders stay until the person
-  deletes them.
+  `internal/backups/<YYYY-MM-DD>-upgrade-<product version>/` at the same relative path and flushes
+  it; all records that one product version migrates share that folder. Orchbee keeps the three
+  newest upgrade folders and deletes older ones when it creates another. A reset the person requests
+  copies the file into `internal/backups/<YYYY-MM-DD>-<reset name>/` first, and those folders stay
+  until the person deletes them.
 - A failed step changes nothing: the original stays at its path, and the store treats it as a record
   in a newer format until a later release migrates it or the person resets it.
 - A record in a newer format is never rewritten, so rollback stays possible. The store works as it
@@ -248,14 +267,14 @@ applies and nothing migrates. From the first public release:
   older running process can no longer read a migrated record, the release raises that component's
   `recommendedFloor`, and the [restart decision](versioning-and-upgrade.md#restart-decision) offers
   Restart Session.
-- Records that two installed versions read at once, `state/*.json`, `plugins/registry.json`, and
-  `session.json`, follow [message evolution](versioning-and-upgrade.md#message-evolution): strictly
-  parsed known fields plus one declared extension object, so an added optional field needs no
-  migration.
+- Records that two installed versions read at once, `internal/state/*.json`,
+  `internal/plugins/registry.json`, and `session.json`, follow
+  [message evolution](versioning-and-upgrade.md#message-evolution): strictly parsed known fields plus
+  one declared extension object, so an added optional field needs no migration.
 
 The first public release already has:
 
-1. `version.json` with `layout` 1 and the refusal of a higher layout.
+1. `internal/version.json` with `layout` 1 and the refusal of a higher layout.
 2. A version in every persisted record at the place above, and none in any file name.
 3. A distinct newer-format outcome in every reader; no automatic repair replaces a newer-format
    record, and a reset the person requests backs it up first.
@@ -270,37 +289,38 @@ Each phase merges on its own and compiles for macOS and Linux, so its hand-back 
 crate it lists. "Real-home check" means running every affected test binary in full and confirming
 that the real home and the earlier release locations gained nothing.
 
-| Phase                      | Changes                                                                                                                                                                                                                                                                                                                | Crates                                                                                             | Tests                                                                                                  | Depends on                       |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| 1. Root and device records | `environment`, `user_settings`, `user_preferences`, `private_cache`, and `destructive_log`; `onboarding` and `machines`; `agent_screen`; `version.json`; Desktop main `entry`, `prepareDesktopDataRoot`, and `window-state`; [open choice 1](#open-choices); CLI help, failure, and configuration text; owning READMEs | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`                   | Real-home check; Desktop data-root and window-state tests                                              | ORC-391 merged                   |
-| 2. Plugins                 | `plugins::store` and provisioning: `registry.json`, per-plugin `config`, `data`, and `source/<version>`                                                                                                                                                                                                                | `orchbee-local-runtime`, `orchbee`                                                                 | Plugin store and provisioning tests                                                                    | 1                                |
-| 3. Sessions by name        | Session catalog, durable sessions, session store, layout history, terminal output, Windows rendezvous, Session name rules, TUI position; Windows release runtime in `runtime/<session>/`; checkpoint and crash-recovery references                                                                                     | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`, `orchbee-worker` | Real-home check; `WindowsCheckpointStorage` and `SessionCrashRecovery` models where their files change | 1, ORC-391 (Session name help)   |
-| 4. Capsule location        | `integrations/agent-observation/<version>/` per root, Agent doctor, removal of Capsules no entry names, both Agent skill texts; the Capsule-root part of [environment isolation](environment-isolation.md#delivery-slices) slice 4                                                                                     | `orchbee-agent-integration-writer`, `orchbee`                                                      | Real-home check; provider conformance and effect corpora                                               | 1                                |
-| 5. Editor documents        | The Worker passes `tmp/` to the Host for scrollback documents and removes day-old ones                                                                                                                                                                                                                                 | `orchbee-worker`                                                                                   | Real-home check; Host editor-document tests                                                            | 1                                |
-| 6. Logs and diagnostics    | Shared log writer with retention and cap, Desktop Main logging, the bundle command and Desktop action with localized text                                                                                                                                                                                              | `orchbee-local-runtime`, `orchbee`, `orchbee-server`, `orchbee-worker`                             | Real-home check; retention, cap, and redaction rules                                                   | 1, ORC-391 (help)                |
-| 7. Versions and migration  | Migration module, layout refusal, newer-format outcomes, extension objects, backups, retention, and messages in every store                                                                                                                                                                                            | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`                   | Synthetic-step migration with backup, newer-format refusal, failure keeping the original               | 1–3, 6, ORC-391 (`config check`) |
-| 8. Uninstall               | The cleanup command in both modes, integration disable for every integration, `PATH` entry removal, installer hooks                                                                                                                                                                                                    | `orchbee`, `orchbee-agent-integration-writer`                                                      | Uninstalling the test package on Windows in both modes, checking what stays                            | 1, 4, ORC-381 installer, ORC-391 |
+| Phase                      | Changes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Crates                                                                                             | Tests                                                                                                  | Depends on                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| 1. Root and device records | One `data_root` owner derives every path; `environment`, `user_settings` with `reset_keys` backups, `user_preferences`, `private_cache` lock names, and `destructive_log`; `onboarding` and `machines`; `agent_screen`; the plugin root moves to `internal/plugins/` with its inner layout unchanged; `internal/version.json`; `ORCHBEE_HOME`; Desktop main `entry`, `prepareDesktopDataRoot`, and `window-state`; CLI help, failure, and configuration text; owning READMEs. Session stores keep their release location, and a development or test root keeps them under `internal/` | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`                   | Real-home check; Desktop data-root and window-state tests                                              | ORC-391 merged                   |
+| 2. Plugins                 | `plugins::store` and provisioning: `internal/plugins/registry.json`, per-plugin `config`, `data`, and `source/<version>`                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `orchbee-local-runtime`, `orchbee`                                                                 | Plugin store and provisioning tests                                                                    | 1                                |
+| 3. Sessions by name        | Session catalog, durable sessions, session store, layout history, terminal output, Windows rendezvous, case-insensitive Session name rules, TUI position; `sessions/<session>/`; Windows release runtime in `internal/runtime/<session>/`; checkpoint and crash-recovery references                                                                                                                                                                                                                                                                                                   | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`, `orchbee-worker` | Real-home check; `WindowsCheckpointStorage` and `SessionCrashRecovery` models where their files change | 1, ORC-391 (Session name help)   |
+| 4. Capsule location        | `internal/integrations/agent-observation/<version>/` per root, Agent doctor, removal of Capsules no entry names, both Agent skill texts; the Capsule-root part of [environment isolation](environment-isolation.md#delivery-slices) slice 4                                                                                                                                                                                                                                                                                                                                           | `orchbee-agent-integration-writer`, `orchbee`                                                      | Real-home check; provider conformance and effect corpora                                               | 1                                |
+| 5. Editor documents        | The Worker passes `internal/tmp/` to the Host for scrollback documents and removes day-old ones                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `orchbee-worker`                                                                                   | Real-home check; Host editor-document tests                                                            | 1                                |
+| 6. Logs and diagnostics    | Shared log writer with retention and cap, Desktop Main logging, the bundle command and Desktop action with localized text                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `orchbee-local-runtime`, `orchbee`, `orchbee-server`, `orchbee-worker`                             | Real-home check; retention, cap, and redaction rules                                                   | 1, ORC-391 (help)                |
+| 7. Versions and migration  | Migration module, layout refusal, the newest version kept current in `internal/version.json`, newer-format outcomes, extension objects, backups, retention, and messages in every store                                                                                                                                                                                                                                                                                                                                                                                               | `orchbee-local-runtime`, `orchbee`, `orchbee-workbench-client`, `orchbee-server`                   | Synthetic-step migration with backup, newer-format refusal, failure keeping the original               | 1–3, 6, ORC-391 (`config check`) |
+| 8. Uninstall               | The cleanup command in both modes, integration disable for every integration, `PATH` entry removal, installer hooks                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `orchbee`, `orchbee-agent-integration-writer`                                                      | Uninstalling the test package on Windows in both modes, checking what stays                            | 1, 4, ORC-381 installer, ORC-391 |
 
 ORC-328 adds POSIX environment stems, the socket directory, the runtime folder in the root with the
 Windows recovery model, and file-system admission beyond ext4 and tmpfs for a Linux home.
 
-## Open choices
+## Accepted choices
 
-1. Moving the whole data folder. Proposed: a new `ORCHBEE_HOME` moves the whole root, as
-   `CODEX_HOME` does, and `ORCHBEE_CONFIG_FILE` names only another settings file; tests and macOS and
-   Linux Desktop development use `ORCHBEE_HOME` until ORC-328. Alternative: the folder of an explicit
-   `ORCHBEE_CONFIG_FILE` becomes the whole root, extending today's behavior for preferences,
-   plugins, saved machines, and detection rules.
-2. Letter case in Session names. Proposed: `Work` and `work` are one Session on every system, so
-   `session attach work` finds `Work`, which keeps the spelling it was created with. Alternative:
-   names stay case-sensitive, and creating `work` while `Work` exists is refused, because a Windows
-   or macOS folder cannot hold both.
+The product owner saw these choices on 2026-11-08 and did not veto them; each stays revisable until
+the phase that applies it ships.
+
+1. Moving the whole data folder: `ORCHBEE_HOME` moves the whole root, as `CODEX_HOME` does, and
+   `ORCHBEE_CONFIG_FILE` names only another settings file; tests and macOS and Linux Desktop
+   development use `ORCHBEE_HOME` until ORC-328. The rejected alternative made the folder of an
+   explicit `ORCHBEE_CONFIG_FILE` the whole root.
+2. Letter case in Session names: `Work` and `work` are one Session on every system, so
+   `session attach work` finds `Work`, which keeps the spelling it was created with. The rejected
+   alternative kept names case-sensitive and refused creating `work` while `Work` exists.
 3. Unix sockets live in `/tmp/<stem>-<uid>/`, the only Orchbee files outside the data root, because
-   a socket path must fit in 104 bytes. The alternative, short hashed names under `runtime/`, breaks
-   the readable-name rule and still fails for long home paths.
+   a socket path must fit in 104 bytes. The rejected alternative, short hashed names under
+   `internal/runtime/`, breaks the readable-name rule and still fails for long home paths.
 4. Every uninstall removes Orchbee's Agent integration entries and the Capsule, even when it keeps
-   data. The alternative keeps them, so Agents keep running hooks for a missing Orchbee until it
-   returns.
+   data. The rejected alternative kept them, so Agents keep running hooks for a missing Orchbee
+   until it returns.
 5. The default uninstall removes logs with the caches.
 6. Each day's log stops at 7 MiB, capping the log folder at 51 MiB, and the three newest upgrade
    backup folders are kept.
@@ -311,6 +331,8 @@ Windows recovery model, and file-system admission beyond ext4 and tmpfs for a Li
   location, the entries in [Outside the data root](#outside-the-data-root), and Windows' own pipe
   namespace; `%APPDATA%`, `%TEMP%`, and `%LOCALAPPDATA%` outside `Programs\Orchbee` gain nothing
   named Orchbee.
+- The top level of a root holds only `config.toml`, `sessions/`, `logs/`, `agent-detection/`, and
+  `internal/`.
 - Every name under the root reads as words, versions, dates, times, Session names, plugin ids, or
   sequence numbers.
 - A development checkout and the test package produce the same tree under their roots.

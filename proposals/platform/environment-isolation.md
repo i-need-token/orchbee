@@ -35,8 +35,8 @@ shipped release locations. On Windows, slice 1 already keeps non-release state i
 the release relative layout, with the default runtime base at `<root>/runtime`.
 
 - `ORCHBEE_CONFIG_FILE` and an explicitly set `ORCHBEE_RUNTIME_BASE` keep their override meaning in
-  every environment; [open choice 1](data-root-layout.md#open-choices) settles what else the first
-  relocates. Desktop stops writing `ORCHBEE_CONFIG_FILE` for non-release profiles because the Client
+  every environment; under [accepted choice 1](data-root-layout.md#accepted-choices),
+  `ORCHBEE_HOME` moves the whole root and `ORCHBEE_CONFIG_FILE` names only another settings file. Desktop stops writing `ORCHBEE_CONFIG_FILE` for non-release profiles because the Client
   derives the same file.
 - Runtime directories differ per environment, so Session scopes and pipe names cannot collide; the
   release `default` Session belongs only to release.
