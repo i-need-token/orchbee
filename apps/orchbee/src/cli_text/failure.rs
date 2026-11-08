@@ -496,6 +496,12 @@ impl super::CliText {
             (Locale::ZhCn, "command") if reason == Some("directory-unavailable") => {
                 "工作目录不可用：目录可能不存在或无法访问。请检查路径；未应用任何修改。\n".to_owned()
             }
+            (Locale::EnUs, "admission") if reason == Some("stopping") => {
+                "The local session is shutting down and accepts no new requests.\n".to_owned()
+            }
+            (Locale::ZhCn, "admission") if reason == Some("stopping") => {
+                "本地会话正在关闭，不再接受新请求。\n".to_owned()
+            }
             (Locale::EnUs, "platform") => {
                 "This command is unavailable on this platform.\n".to_owned()
             }

@@ -2014,10 +2014,9 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
             ConnectClientError::Rejected(reason) => match reason {
                 RejectionReason::CapacityExceeded => Failure::new(FailureKind::ConnectionCapacity)
                     .details(stage_details("admission")),
-                RejectionReason::HandshakeTimeout | RejectionReason::Stopping => {
-                    Failure::new(FailureKind::ServiceUnavailable)
-                        .details(stage_details("admission"))
-                }
+                RejectionReason::HandshakeTimeout => Failure::new(FailureKind::ServiceUnavailable)
+                    .details(stage_details("admission")),
+                RejectionReason::Stopping => stopping(),
                 RejectionReason::WrongMessage | RejectionReason::MalformedFrame => {
                     Failure::new(FailureKind::ProtocolInvalid).details(stage_details("admission"))
                 }
@@ -2052,7 +2051,8 @@ fn classify_refusal(rejection: &orchbee_connection_handshake::Rejection) -> Fail
         RejectionReason::Capacity => {
             Failure::new(FailureKind::ConnectionCapacity).details(stage_details("admission"))
         }
-        RejectionReason::Stopping | RejectionReason::Timeout => {
+        RejectionReason::Stopping => stopping(),
+        RejectionReason::Timeout => {
             Failure::new(FailureKind::ServiceUnavailable).details(stage_details("admission"))
         }
         RejectionReason::InitiatorTooOld => {
@@ -2069,6 +2069,12 @@ fn classify_refusal(rejection: &orchbee_connection_handshake::Rejection) -> Fail
             Failure::new(FailureKind::ProtocolInvalid).details(stage_details("admission"))
         }
     }
+}
+
+/// A Session that is draining, stopping or exiting accepts no new Client.
+fn stopping() -> Failure {
+    Failure::new(FailureKind::ServiceUnavailable)
+        .details(stage_reason_details("admission", "stopping"))
 }
 
 /// An incompatible admission, naming this Client's version and the Session's when it stated one.

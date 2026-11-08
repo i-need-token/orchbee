@@ -509,6 +509,19 @@
 				}
 			}
 		},
+		"stoppingAdmissionDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "admission"
+				},
+				"reason": {
+					"const": "stopping"
+				}
+			}
+		},
 		"socketBudgetDetails": {
 			"type": "object",
 			"required": ["stage", "reason"],
@@ -712,6 +725,9 @@
 									},
 									{
 										"$ref": "#/$defs/cohortStageDetails"
+									},
+									{
+										"$ref": "#/$defs/stoppingAdmissionDetails"
 									},
 									{
 										"$ref": "#/$defs/socketBudgetDetails"

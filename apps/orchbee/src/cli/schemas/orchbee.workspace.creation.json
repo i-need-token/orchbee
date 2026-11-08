@@ -543,6 +543,19 @@
 								}
 							}
 						},
+						"stoppingAdmissionDetails": {
+							"type": "object",
+							"required": ["stage", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"stage": {
+									"const": "admission"
+								},
+								"reason": {
+									"const": "stopping"
+								}
+							}
+						},
 						"socketBudgetDetails": {
 							"type": "object",
 							"required": ["stage", "reason"],
@@ -1017,6 +1030,9 @@
 															},
 															{
 																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/cohortStageDetails"
+															},
+															{
+																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/stoppingAdmissionDetails"
 															},
 															{
 																"$ref": "#/$defs/failureObservation/oneOf/0/$defs/socketBudgetDetails"
