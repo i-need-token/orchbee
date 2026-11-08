@@ -234,6 +234,7 @@ pub(crate) fn run_server(id: &WorkbenchRequestId, format: OutputFormat, locale: 
         .and_then(|r| {
             output::encode_text(&CliText::new(locale).cli_server_stop_result(
                 r.get("outcome")?.as_str()?,
+                r.get("reason").and_then(Value::as_str),
                 raw,
                 r.get("wait").and_then(Value::as_str),
             ))

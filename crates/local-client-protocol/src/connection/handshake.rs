@@ -63,6 +63,40 @@ pub(super) fn query(
     }
 }
 
+/// Sends one `exit` request; its reply follows the Server's settlement, so the caller reads it
+/// with [`exit_reply`] under its own deadline.
+#[cfg(windows)]
+pub(super) fn request_exit(
+    transport: &mut impl Write,
+    environment: EnvironmentName,
+) -> Result<(), ConnectClientError> {
+    send(
+        transport,
+        &InitiatorMessage::Request(ControlRequest {
+            kind: RequestKind::Exit,
+            environment,
+            extensions: Extensions::new(),
+        }),
+    )
+}
+
+/// Accepts the `exit-result`, or the Server's `unsupported` reply from a build that serves no
+/// `exit`.
+#[cfg(windows)]
+pub(super) fn exit_reply(
+    transport: &mut impl Read,
+) -> Result<super::ExitReply, ConnectClientError> {
+    match conclude_request(RequestKind::Exit, receive(transport)?) {
+        Ok(RequestReply::Exit(_)) => Ok(super::ExitReply::Ending),
+        Err(RequestFailure::Unsupported(_)) => Ok(super::ExitReply::Unsupported),
+        Err(RequestFailure::Rejected(rejection)) => {
+            Err(ConnectClientError::Refused(Box::new(rejection)))
+        }
+        Ok(RequestReply::Query(_) | RequestReply::Drain(_))
+        | Err(RequestFailure::UnexpectedReply) => Err(ConnectClientError::UnexpectedResponse),
+    }
+}
+
 /// Enters the Client phase on an answered connection and returns the Server's connection
 /// generation.
 pub(super) fn enter_client_phase(

@@ -23,7 +23,10 @@ pub use codec::{
 pub use connection::exchange_query_before;
 #[cfg(any(unix, windows))]
 pub use connection::{
-    ClientConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
+    ClientConnection, ConnectClientError, ExitReply, UNIX_SOCKET_PATH_CAPACITY,
+    unix_socket_path_fits,
 };
 #[cfg(windows)]
-pub use connection::{SessionStopExchangeError, exchange_session_stop_before};
+pub use connection::{
+    SessionStopExchangeError, exchange_exit_before, exchange_session_stop_before,
+};

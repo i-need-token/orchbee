@@ -51,6 +51,23 @@
 							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
 						},
 						"outcome": {
+							"const": "exited"
+						},
+						"wait": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome", "wait"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
 							"const": "not-recorded"
 						},
 						"wait": {
@@ -214,6 +231,10 @@
 								"activation-record",
 								"cohort",
 								"rejected",
+								"predates-handshake",
+								"exit-unsupported",
+								"terminals-open",
+								"draining",
 								"transport"
 							]
 						},
@@ -235,7 +256,7 @@
 							"const": "unknown"
 						},
 						"reason": {
-							"enum": ["transport", "activation-record"]
+							"enum": ["transport", "activation-record", "session-lifetime"]
 						},
 						"wait": {
 							"enum": [null, "timed-out", "cancelled"]

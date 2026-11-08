@@ -6,6 +6,8 @@ use serde_json::{Value, json};
 #[derive(Clone, Copy)]
 pub(super) enum Observation {
     Stopped,
+    /// The Server and its Worker ended through `exit` with no terminal open; no stop record exists.
+    Exited,
     Server(SessionStopStatus),
     Unavailable(&'static str),
     Unknown(&'static str),
@@ -49,6 +51,7 @@ impl Answer {
     fn result(&self) -> Value {
         let mut value = match self.observation {
             Observation::Stopped => json!({"outcome":"stopped"}),
+            Observation::Exited => json!({"outcome":"exited"}),
             Observation::Server(SessionStopStatus::NotRecorded) => {
                 json!({"outcome":"not-recorded"})
             }
@@ -86,7 +89,7 @@ impl Answer {
             return 7;
         }
         match self.observation {
-            Observation::Stopped => 0,
+            Observation::Stopped | Observation::Exited => 0,
             Observation::Unavailable(_) => 4,
             Observation::Unknown(_) => 8,
             Observation::Server(_) if self.query => 0,

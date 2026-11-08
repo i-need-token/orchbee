@@ -51,6 +51,17 @@ peer proof and deadlines as an offer. A rejection, an old Server, and EOF after 
 absence. The [CLI status contract](../../apps/orchbee/docs/native-runtime-status.md) owns the public
 output.
 
+## Server exit
+
+`exchange_exit_before(endpoint, environment, deadline, wake)` (Windows) sends one `exit` request,
+which the handshake answers whatever the Server's generation or development fingerprint, and
+returns `Ending` for the `exit-result` or `Unsupported` for a Server that serves no `exit`. The
+candidate deadline bounds the connection; once the request is written, the reply is due by the
+caller's deadline, because the Server replies only after it has settled its work and ended its
+Worker. A failure keeps whether the request was submitted, so a lost reply is never read as
+"nothing happened". The [CLI stop contract](../../apps/orchbee/docs/native-cli-query.md#windows-session-stop)
+owns when `server stop` sends it.
+
 ## Managed Session stop control
 
 Kinds 4 and 5 carry same-user Session stop requests and status responses after an answered offer,
@@ -185,7 +196,7 @@ Only the transport's typed preconnection pending result permits another wait. Di
 errors remain `ConnectFailed`; errors after opening a pipe remain `Io`, so neither
 authentication failure nor connected EOF can be reinterpreted as preconnect absence.
 Cancellation and total expiry after authentication release the candidate before the offer,
-without another dial or any renewal of the total budget. Query and Session stop use the
+without another dial or any renewal of the total budget. Query, exit and Session stop use the
 same connection boundary. No request or effect is retried.
 
 `src/connection/windows_admission/tests.rs` controls completion order and clock progress

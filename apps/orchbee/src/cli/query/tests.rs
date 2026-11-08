@@ -379,11 +379,12 @@ fn handshake_refusals_are_incompatible_with_their_reason_and_versions() {
             crate::localization::Locale::ZhCn,
         ] {
             let text = crate::cli_text::CliText::new(locale).cli_failure(&failure);
-            if reason.ends_with("-too-old") {
-                assert!(text.contains(client), "{text}");
-            }
+            // A version refusal names both versions; a Session from before the handshake states none.
             if let Some(session) = session {
                 assert!(text.contains(session), "{text}");
+                if reason.ends_with("-too-old") {
+                    assert!(text.contains(client), "{text}");
+                }
             }
             assert!(!text.contains("cohort"), "{text}");
         }

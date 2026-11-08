@@ -162,12 +162,15 @@ impl super::CliText {
     pub(crate) fn cli_server_stop_result(
         self,
         outcome: &str,
+        reason: Option<&str>,
         id: &str,
         wait: Option<&str>,
     ) -> String {
         let state = match (self.locale, outcome) {
             (Locale::EnUs, "stopped") => "stopped",
             (Locale::ZhCn, "stopped") => "已停止",
+            (Locale::EnUs, "exited") => "ended (no terminal was open)",
+            (Locale::ZhCn, "exited") => "已结束（没有打开的终端）",
             (Locale::EnUs, "pending") => "pending",
             (Locale::ZhCn, "pending") => "处理中",
             (Locale::EnUs, "failed") => "failed",
@@ -192,6 +195,13 @@ impl super::CliText {
             (Locale::ZhCn, Some("cancelled")) => "（已取消等待）",
             _ => "",
         };
+        // An outcome with no stop record names the next action instead of a status read.
+        if let Some(action) = self.cli_server_stop_action(outcome, reason) {
+            return match self.locale {
+                Locale::EnUs => format!("Session stop: {state}{waiting}\n{action}\n"),
+                Locale::ZhCn => format!("会话停止：{state}{waiting}\n{action}\n"),
+            };
+        }
         match self.locale {
             Locale::EnUs => format!(
                 "Session stop: {state}{waiting}\nRequest: {id}\nInspect: orchbee server stop-status {id} --format json\n"
@@ -200,5 +210,49 @@ impl super::CliText {
                 "会话停止：{state}{waiting}\n请求：{id}\n检查：orchbee server stop-status {id} --format json\n"
             ),
         }
+    }
+
+    /// The next action after a stop that left no record: an ended Session recovers at its next
+    /// start, and a Session this build cannot end goes back to the build that started it.
+    const fn cli_server_stop_action(
+        self,
+        outcome: &str,
+        reason: Option<&str>,
+    ) -> Option<&'static str> {
+        Some(match (self.locale, outcome.as_bytes(), reason) {
+            (Locale::EnUs, b"exited", _) => {
+                "The next start recovers this Session from its last checkpoint."
+            }
+            (Locale::ZhCn, b"exited", _) => "下次启动时会从最近的检查点恢复此会话。",
+            (Locale::EnUs, b"unavailable", Some(reason)) => match reason.as_bytes() {
+                b"predates-handshake" => {
+                    "This Session was started by an Orchbee from before version checks, which this build cannot stop. Run `server stop` with the Orchbee that started it, then try again."
+                }
+                b"exit-unsupported" => {
+                    "This Session was started by another Orchbee build, which this build cannot stop. Run `server stop` with the Orchbee that started it, then try again."
+                }
+                b"terminals-open" => {
+                    "This Session was started by another Orchbee build and has open terminals that only that build can end. Run `server stop` with the Orchbee that started it, then try again."
+                }
+                b"draining" => {
+                    "This Session is draining for a restart and accepts no new requests. Try again shortly."
+                }
+                _ => return None,
+            },
+            (Locale::ZhCn, b"unavailable", Some(reason)) => match reason.as_bytes() {
+                b"predates-handshake" => {
+                    "此会话由早于版本检查的 Orchbee 启动，当前构建无法停止它。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。"
+                }
+                b"exit-unsupported" => {
+                    "此会话由另一个 Orchbee 构建启动，当前构建无法停止它。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。"
+                }
+                b"terminals-open" => {
+                    "此会话由另一个 Orchbee 构建启动，且仍有打开的终端，只有该构建能结束它们。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。"
+                }
+                b"draining" => "此会话正在为重启排空，不再接受新请求。请稍后重试。",
+                _ => return None,
+            },
+            _ => return None,
+        })
     }
 }

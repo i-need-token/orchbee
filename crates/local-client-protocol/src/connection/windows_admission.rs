@@ -156,6 +156,33 @@ pub(super) fn session_stop(
     result.map_err(|failure| super::SessionStopExchangeError { failure, submitted })
 }
 
+pub(super) fn exit(
+    endpoint: &Path,
+    environment: orchbee_connection_handshake::EnvironmentName,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<super::ExitReply, super::SessionStopExchangeError> {
+    let mut submitted = false;
+    let result = (|| {
+        let mut transport =
+            Admission::candidate(connect_stream(endpoint, deadline, wake)?, deadline, wake);
+        let exchange = (|| {
+            handshake::request_exit(&mut transport, environment)?;
+            submitted = true;
+            // The Server replies once it has settled, so the reply is due by the caller's deadline.
+            transport.deadline = deadline;
+            handshake::exit_reply(&mut transport)
+        })();
+        if exchange.is_err()
+            && let Some(cancelled) = transport.cancelled
+        {
+            return Err(cancelled);
+        }
+        exchange
+    })();
+    result.map_err(|failure| super::SessionStopExchangeError { failure, submitted })
+}
+
 fn check_wake(wake: Option<LocalIo<'_>>) -> Result<(), ConnectClientError> {
     let Some(wake) = wake else {
         return Ok(());

@@ -36,7 +36,8 @@ pub fn exchange_query_before(
     return admission_deadline::query_before_cancellable(endpoint, environment, deadline, wake);
 }
 
-/// Retains whether a complete stop control record was submitted before exchange failure.
+/// Retains whether a complete stop control record, or an `exit` request, was submitted before
+/// exchange failure.
 #[cfg(windows)]
 #[derive(Debug)]
 pub struct SessionStopExchangeError {
@@ -55,6 +56,28 @@ pub fn exchange_session_stop_before(
     wake: Option<LocalIo<'_>>,
 ) -> Result<crate::SessionStopResult, SessionStopExchangeError> {
     windows_admission::session_stop(endpoint, offer, request, deadline, wake)
+}
+
+/// What a Server answered an `exit` request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExitReply {
+    /// The Server settled its work, ended its Worker and ends next; terminals keep running.
+    Ending,
+    /// The Server serves no `exit`.
+    Unsupported,
+}
+
+/// Asks the same-user Server to end itself and its Worker with one `exit` control request, which
+/// never ends a terminal. The connection never enters the Client phase; the reply arrives after
+/// the Server settles, inside `deadline`.
+#[cfg(windows)]
+pub fn exchange_exit_before(
+    endpoint: &Path,
+    environment: orchbee_connection_handshake::EnvironmentName,
+    deadline: std::time::Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<ExitReply, SessionStopExchangeError> {
+    windows_admission::exit(endpoint, environment, deadline, wake)
 }
 
 /// Byte capacity of a filesystem-path Unix socket address on this platform's

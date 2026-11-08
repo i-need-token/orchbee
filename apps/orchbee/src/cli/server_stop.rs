@@ -91,6 +91,7 @@ fn emit(
         ),
         OutputFormat::Text => output::encode_text(&CliText::new(locale).cli_server_stop_result(
             result["outcome"].as_str().expect("outcome"),
+            result["reason"].as_str(),
             &id_text(id),
             wait,
         )),

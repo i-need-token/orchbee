@@ -38,7 +38,8 @@ impl Locale {
     }
 
     /// The startup failure copy; a generation refusal names both versions, leaving out one the
-    /// Session did not state.
+    /// Session did not state. Only a Session from before the handshake states none, and only the
+    /// build that started it can stop it.
     pub fn startup_failure(
         self,
         failure: &crate::startup_status::StartupFailure,
@@ -63,6 +64,12 @@ impl Locale {
                 session(versions, "正在运行的会话")
             )
             .into(),
+            (Self::EnUs, StartupFailure::SessionTooOld(versions)) if versions.session.is_none() => {
+                "The running Session was started by an Orchbee from before version checks. Run `server stop` with the Orchbee that started it, then try again.\n".into()
+            }
+            (Self::ZhCn, StartupFailure::SessionTooOld(versions)) if versions.session.is_none() => {
+                "正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。\n".into()
+            }
             (Self::EnUs, StartupFailure::SessionTooOld(versions)) => format!(
                 "{} is too old for Orchbee {}. Stop it with `orchbee server stop`, which ends its terminals, then try again.\n",
                 session(versions, "The running Session"),
