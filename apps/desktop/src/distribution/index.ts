@@ -2,6 +2,7 @@ export {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
 	parseDesktopDistributionDescriptor,
+	resolveDesktopCheckoutName,
 	resolveDesktopCohortArtifactStem,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDevelopmentApplicationName,

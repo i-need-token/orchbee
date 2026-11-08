@@ -13,6 +13,7 @@ mod background_thread;
 mod client_actions;
 mod client_context;
 mod client_view;
+mod environment_marker;
 mod exchange_values;
 mod host_appearance;
 mod host_capabilities;

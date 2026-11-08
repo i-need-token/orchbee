@@ -181,6 +181,10 @@ async function run(
 	// A release withholds the entry points of features not yet polished; this is the renderer's one
 	// reading of the build. A Web Client a Server serves would take it from that Server's build.
 	const searchOffered = bootstrap.distribution !== 'release';
+	const environmentMarker =
+		bootstrap.distribution === 'release'
+			? undefined
+			: { checkoutName: bootstrap.checkoutName, environment: bootstrap.distribution };
 	const userPreferences = new ServerUserPreferencesClient(connection, session.snapshot.sessionId);
 	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userPreferences);
 	const terminalLaunchProfileClient = new ServerTerminalLaunchProfileClient(
@@ -298,6 +302,7 @@ async function run(
 			agentObservationSource: runtime.agentObservationSource,
 			applicationLocaleController,
 			authority: runtime.authority,
+			environmentMarker,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,

@@ -4,6 +4,7 @@ import {
 	type WorkbenchAgentNameSource,
 	type WorkbenchAgentSource,
 	type WorkbenchAuthority,
+	type WorkbenchEnvironmentMarker,
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
@@ -47,6 +48,8 @@ export interface WebApplicationProps {
 	readonly agentNameSource?: WorkbenchAgentNameSource | undefined;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
 	readonly authority: WorkbenchAuthority;
+	/** The build the sidebar marks; a release window and a served Web Client have none. */
+	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
@@ -76,6 +79,7 @@ export function WebApplication({
 	agentNameSource,
 	agentObservationSource,
 	authority,
+	environmentMarker,
 	keyboardShortcutSettingsController,
 	layoutStorage,
 	macosTerminalInputSettingsController,
@@ -150,6 +154,7 @@ export function WebApplication({
 					agentObservationSource={agentObservationSource}
 					authority={authority}
 					configuredCommandKeys={configuredCommandKeys}
+					environmentMarker={environmentMarker}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
 					navigation={navigation}

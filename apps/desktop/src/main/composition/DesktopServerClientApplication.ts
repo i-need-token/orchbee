@@ -30,6 +30,7 @@ import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../w
 
 /** What the window's Client processes run under, and where its page comes from. */
 export interface DesktopServerClientApplicationOptions {
+	readonly checkoutName: DesktopServerConnectionBootstrap['checkoutName'];
 	readonly clientEnvironment: NodeJS.ProcessEnv;
 	readonly clientExecutable: string;
 	readonly distribution: DesktopServerConnectionBootstrap['distribution'];
@@ -243,6 +244,7 @@ export class DesktopServerClientApplication {
 					bootstrap: {
 						// A later document follows a person's own actions; an empty Session may be what they chose.
 						automaticWorkspaceAllowed: !everConnected && restore === 'intact',
+						checkoutName: options.checkoutName,
 						defaultDirectory: app.getPath('home'),
 						distribution: options.distribution,
 						loginShellAvailable: options.platform !== 'win32',

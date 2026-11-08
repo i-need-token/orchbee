@@ -166,7 +166,11 @@ environment.
 `environment_stem` exposes the stem, and `environment_name` gives it as the handshake's
 `EnvironmentName`, which every negotiated connection compares with its peer's.
 `valid_environment_stem` checks another installation's stem against the same grammar, so a rule
-about a remote executable name never restates it. The [data root](#data-root) owner derives every Orchbee
+about a remote executable name never restates it. `environment_kind` reads release, development or
+test from the stem, and `checkout_name` gives the checkout's final directory name when the stem
+carries that checkout's digest: a development build, or a build that named no stem. Release and the
+packaged test build, whose digest names a home, have none. The TUI marks its environment from these
+two. The [data root](#data-root) owner derives every Orchbee
 state location from it, so applications never spell a state directory or choose a home variable
 themselves. On every platform the data root is `<home>/.orchbee` for release and `<home>/.<stem>`
 otherwise; the Windows locations are:

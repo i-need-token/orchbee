@@ -14,6 +14,7 @@ import {
 
 const BOOTSTRAP = {
 	automaticWorkspaceAllowed: true,
+	checkoutName: null,
 	defaultDirectory: 'C:\\Users\\someone',
 	distribution: 'release',
 	loginShellAvailable: false,

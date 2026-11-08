@@ -76,6 +76,11 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.items.search': 'Search',
 	'workbench.sidebar.items.settings': 'Settings',
 	'workbench.sidebar.items.shortcuts': 'Shortcuts',
+	'workbench.sidebar.environment.development': 'Dev',
+	'workbench.sidebar.environment.test': 'Test',
+	'workbench.sidebar.environment.developmentCheckout':
+		'Development build from the {checkout} checkout',
+	'workbench.sidebar.environment.testCheckout': 'Test build from the {checkout} checkout',
 	'workbench.sidebar.sections.project': 'Workspaces',
 	'workbench.sidebar.sections.recents': 'Recents',
 	'workbench.recents.actions.collapse': 'Collapse Recents',

@@ -176,6 +176,8 @@ pub enum SidebarSurface {
 pub struct ClientView {
     /// Compile-time host admission received once at construction; nothing writes it afterwards.
     capabilities: crate::tui_capabilities::Capabilities,
+    /// The build environment the sidebar marks; `None` for release and in pure UI traces.
+    environment_marker: Option<crate::environment_marker::EnvironmentMarker>,
     pub onboarding: crate::onboarding::State,
     /// Confirmed shared preferences. `apply_user_preferences` is the single writer;
     /// `WorkbenchClientUi` receives its copy from here in the same settlement.
@@ -232,6 +234,7 @@ impl ClientView {
     ) -> Self {
         Self {
             capabilities,
+            environment_marker: None,
             user_preferences: None,
             machines: crate::machine_picker::Picker::default(),
             bindings: std::sync::Arc::new(Bindings::default()),
@@ -299,6 +302,26 @@ impl ClientView {
             return Some(Notice::ConfigurationWarning);
         }
         None
+    }
+
+    /// Marks this build's environment in the sidebar, as the Shell does once at startup; release
+    /// stays unmarked.
+    pub fn mark_build_environment(&mut self) {
+        self.environment_marker = crate::environment_marker::EnvironmentMarker::for_build();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_environment_marker(
+        &mut self,
+        marker: Option<crate::environment_marker::EnvironmentMarker>,
+    ) {
+        self.environment_marker = marker;
+    }
+
+    pub(crate) const fn environment_marker(
+        &self,
+    ) -> Option<crate::environment_marker::EnvironmentMarker> {
+        self.environment_marker
     }
 
     /// Host capabilities are sampled by the Shell, never by a render consumer.

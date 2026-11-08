@@ -541,6 +541,22 @@ export const SimplifiedChineseSidebar: Story = {
 	),
 };
 
+/** A development build's sidebar footer: the environment word and checkout name beside Settings. */
+export const DevelopmentEnvironmentMarker: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		environmentMarker: { checkoutName: 'orchbee', environment: 'development' },
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createTerminalTabsRuntime(['Terminal 1']),
+		shortcutPlatform: 'standard',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
 export const NativeProjectFolderAcquisition: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),

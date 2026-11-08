@@ -6,6 +6,7 @@
 //! list; Settings and Help take the line above the last, which their targets share. A build that
 //! withholds Search leaves its lines blank.
 
+use super::super::environment_marker;
 use super::super::sidebar_chrome::{self, TRAILING_GAP, TouchRow};
 use super::super::sidebar_touch::{Halos, Painted, TouchAction, paint_action, resolve};
 use super::{ActionKind, Rect, Role, SidebarArea, SidebarInput, Theme, display_width};
@@ -217,15 +218,29 @@ pub(super) fn render(
     };
     let resolved = resolve(frame, &settings, theme);
     let help_x = resolved.and_then(|_| sidebar_chrome::touch_trailing_x(settings_row, resolved));
+    // The environment marker takes only what Settings and Help leave, and Settings' target ends a
+    // cell before it, so a press on the marker never opens Settings.
+    let marker = resolved.zip(help_x).and_then(|(action, help_x)| {
+        let (start, end) = environment_marker::bounds(action.right(), help_x);
+        environment_marker::layout(controls, settings_line, start, end)
+    });
+    let settings_end = match (&marker, help_x) {
+        (Some(marker), _) => marker.rect.x - 1,
+        (None, Some(x)) => x - 1,
+        (None, None) => edge,
+    };
     let painted = paint_action(
         frame,
         settings,
-        help_x.map_or(edge, |x| x - 1),
+        settings_end,
         theme,
         layer,
         &mut halos,
         hits.as_deref_mut(),
     );
+    if let Some(marker) = marker {
+        environment_marker::paint(frame, marker, sidebar.area, controls, hits.as_deref_mut());
+    }
     halos.text(settings_row);
     if help_x.is_some() {
         let _ = sidebar_chrome::render_touch_help(

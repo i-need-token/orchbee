@@ -155,9 +155,61 @@
 	padding: var(--ob-ref-space-2);
 }
 
+/* Settings starts from its content's width and never shrinks below it while the environment marker
+   beside it has width to give; it gives up width, ellipsizing its label, only past the row minus
+   Shortcuts and the marker's spacing. Any shrink, even a fraction of a pixel, would ellipsize it. */
 .footer .primaryItem {
-	flex: 1;
+	flex: 1 0 auto;
+	width: auto;
 	min-width: var(--ob-ref-space-0);
+	max-width: calc(
+		100% - var(--ob-ref-size-control-sm) - var(--ob-ref-space-0-5) - var(--ob-ref-space-0-5) -
+			var(--ob-ref-space-2) - var(--ob-ref-space-1)
+	);
+}
+
+/* A development or test build's marker between Settings and Shortcuts: its word, then the checkout
+   name. It alone shrinks, and whatever no longer fits wraps onto a second line it clips, so the name
+   drops whole, then the word, before Settings gives up width. It is no target and carries no fill. */
+.environment {
+	display: flex;
+	box-sizing: border-box;
+	flex: 0 1 auto;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	justify-content: flex-end;
+	height: var(--ob-ref-size-control-navigation);
+	min-width: var(--ob-ref-space-0);
+	margin-inline: var(--ob-ref-space-2) var(--ob-ref-space-1);
+	overflow: hidden;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	white-space: nowrap;
+	user-select: none;
+}
+
+.environmentAnchor {
+	width: var(--ob-ref-space-0);
+	height: 100%;
+}
+
+/* Each part fills the marker's one visible line. */
+.environmentPart {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	height: 100%;
+}
+
+.environmentPart[data-checkout] {
+	padding-inline-start: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-muted);
+}
+
+/* The marker's text sits on the Settings label's line, as that label sits on its icon's (G19). */
+.environmentText {
+	text-box: trim-both cap alphabetic;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
 }
 
 /* Shortcuts: a 28 px square beside Settings. */
@@ -237,6 +289,17 @@
 }
 
 :global([data-workbench-touch]) .primaryItem {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .footer .primaryItem {
+	max-width: calc(
+		100% - var(--ob-ref-size-control-lg) - var(--ob-ref-space-2) - var(--ob-ref-space-0-5) -
+			var(--ob-ref-space-0-5) - var(--ob-ref-space-2) - var(--ob-ref-space-1)
+	);
+}
+
+:global([data-workbench-touch]) .environment {
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 

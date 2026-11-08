@@ -55,6 +55,40 @@ pub const fn is_release() -> bool {
     true
 }
 
+/// The three environments one machine runs side by side, as the TUI and Desktop mark them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EnvironmentKind {
+    /// `orchbee`, which shows no marker.
+    Release,
+    /// `ob-dev-<digest>`: `pnpm desktop` and default native staging.
+    Development,
+    /// `ob-test-<digest>`: the packaged test build and every build that names no stem.
+    Test,
+}
+
+/// The kind of this build's environment, read from its compiled stem.
+pub const fn environment_kind() -> EnvironmentKind {
+    match ENVIRONMENT_STEM.as_bytes() {
+        [b'o', b'b', b'-', b'd', b'e', b'v', b'-', ..] => EnvironmentKind::Development,
+        [b'o', b'b', b'-', b't', b'e', b's', b't', b'-', ..] => EnvironmentKind::Test,
+        _ => EnvironmentKind::Release,
+    }
+}
+
+/// The checkout directory name `build.rs` compiled in, empty when the stem names no checkout.
+const CHECKOUT_NAME: &str = env!("ORCHBEE_CHECKOUT_NAME");
+
+/// The final directory name of the checkout this build came from, when its stem carries that
+/// checkout's digest: a development build, or a test build that named no stem. Release and the
+/// packaged test build, whose digest names a home, have none.
+pub const fn checkout_name() -> Option<&'static str> {
+    if CHECKOUT_NAME.is_empty() {
+        None
+    } else {
+        Some(CHECKOUT_NAME)
+    }
+}
+
 /// The environment a Session route reader consults. When `ORCHBEE_ENVIRONMENT` names another
 /// environment, inherited `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` read as unset, so a
 /// build started in another environment's terminal reaches its own Session. Every other variable,

@@ -14,7 +14,11 @@ import {
 import { app, net, protocol } from 'electron';
 
 import { DesktopDevelopmentRestartRequestSchema } from '../../development';
-import { resolveDesktopCohortArtifactStem, resolveDesktopSessionName } from '../../distribution';
+import {
+	resolveDesktopCheckoutName,
+	resolveDesktopCohortArtifactStem,
+	resolveDesktopSessionName,
+} from '../../distribution';
 import { installDesktopApplicationMenu } from '../application-menu';
 import {
 	DesktopDiagnosticLog,
@@ -218,6 +222,7 @@ async function start(): Promise<void> {
 	}
 	const session = process.env[SESSION_ENVIRONMENT_KEY] ?? resolveDesktopSessionName(distribution);
 	const started = new DesktopServerClientApplication({
+		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
 		clientEnvironment: resolveClientEnvironment(dataRoot),
 		clientExecutable: resolveClientExecutable(),
 		distribution: distribution.dataScope.kind,

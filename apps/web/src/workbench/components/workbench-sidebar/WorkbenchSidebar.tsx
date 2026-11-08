@@ -41,6 +41,17 @@ interface WorkbenchSidebarProps {
 	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
 	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
 	readonly deleteWorkspace: (workspaceId: string) => void;
+	/**
+	 * A development or test build's marker beside Settings: its word, the checkout name when the
+	 * build came from one, and the tooltip that names both in full.
+	 */
+	readonly environmentMarker?:
+		| {
+				readonly checkout: string | null;
+				readonly description: string | null;
+				readonly label: string;
+		  }
+		| undefined;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
@@ -96,6 +107,7 @@ export function WorkbenchSidebar({
 	setWorkspaceProject,
 	createWorkspaceProject,
 	deleteWorkspace,
+	environmentMarker,
 	closeAgentPanel,
 	navigateAgent,
 	renameAgentPanel,
@@ -351,6 +363,33 @@ export function WorkbenchSidebar({
 							<Kbd className={styles['shortcut']}>{settingsShortcutLabel}</Kbd>
 						)}
 					</Button>
+					{environmentMarker === undefined ? null : (
+						<Tooltip disabled={environmentMarker.description === null}>
+							<TooltipTrigger
+								render={
+									<span
+										className={styles['environment']}
+										data-slot='workbench-sidebar-environment'
+									/>
+								}
+							>
+								{/* Anchors the first line, so even the word wraps out of sight when it cannot fit. */}
+								<span aria-hidden='true' className={styles['environmentAnchor']} />
+								<span className={styles['environmentPart']}>
+									<span className={styles['environmentText']}>{environmentMarker.label}</span>
+								</span>
+								{environmentMarker.checkout === null ? null : (
+									<span className={styles['environmentPart']} data-checkout=''>
+										<span aria-hidden='true' className={styles['environmentText']}>
+											·
+										</span>
+										<span className={styles['environmentText']}>{environmentMarker.checkout}</span>
+									</span>
+								)}
+							</TooltipTrigger>
+							<TooltipContent side='top'>{environmentMarker.description}</TooltipContent>
+						</Tooltip>
+					)}
 					{/* The shortcut reference: the Settings section that lists every key. */}
 					<Tooltip>
 						<TooltipTrigger

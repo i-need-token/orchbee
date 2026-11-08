@@ -390,13 +390,26 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
-    super::sidebar_chrome::render_help(
+    let help = super::sidebar_chrome::render_help(
         frame,
         settings,
         settings_action,
         &controls,
         hits.as_deref_mut(),
     );
+    // The environment marker yields first: it takes only what Settings and Help leave.
+    if let (Some(action), Some(help)) = (settings_action, help) {
+        let (start, end) = super::environment_marker::bounds(action.right(), help.x);
+        if let Some(marker) = super::environment_marker::layout(&controls, settings.y, start, end) {
+            super::environment_marker::paint(
+                frame,
+                marker,
+                sidebar.area,
+                &controls,
+                hits.as_deref_mut(),
+            );
+        }
+    }
     area.height = area.height.saturating_sub(footer_rows);
     if view.onboarding.visible
         && input == SidebarInput::Terminal

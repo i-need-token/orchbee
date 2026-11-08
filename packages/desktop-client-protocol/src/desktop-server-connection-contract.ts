@@ -22,6 +22,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	/** The first document of a window on a Session with no sign of damage may open a Workspace. */
 	automaticWorkspaceAllowed: z.boolean(),
 	/**
+	 * The final directory name of the checkout a development build came from, which the window marks
+	 * beside its environment; null for a release and for a test build packaged from a home.
+	 */
+	checkoutName: z.string().min(1).nullable(),
+	/**
 	 * The person's home folder on this machine, where the Session's Server also runs: where a terminal
 	 * without a directory starts, and what a Workspace folder under it shows as `~`.
 	 */

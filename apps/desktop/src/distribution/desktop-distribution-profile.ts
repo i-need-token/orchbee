@@ -226,6 +226,22 @@ export function resolveDesktopSessionName(profile: DesktopDistributionProfile): 
 	}
 }
 
+/**
+ * The checkout a distribution came from, by its final directory name: only a development build has
+ * one. The window marks it beside the environment, as the TUI marks a build whose stem carries its
+ * checkout's digest.
+ */
+export function resolveDesktopCheckoutName(
+	profile: DesktopDistributionProfile,
+	platform: NodeJS.Platform,
+): string | null {
+	if (profile.dataScope.kind !== 'development') return null;
+	const name = (platform === 'win32' ? path.win32 : path.posix).basename(
+		profile.dataScope.sourceRoot,
+	);
+	return name.length === 0 ? null : name;
+}
+
 export function resolveDesktopDevelopmentApplicationName(
 	environment: Readonly<Record<string, string | undefined>>,
 ): string {

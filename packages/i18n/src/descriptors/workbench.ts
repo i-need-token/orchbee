@@ -1240,6 +1240,29 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Command and sidebar footer button that opens the keyboard shortcut reference in Settings.',
 	},
+	environmentDevelopment: {
+		id: 'workbench.sidebar.environment.development',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.environment.development'],
+		description:
+			'Sidebar footer marker, a word or two, shown only in a development build of Orchbee.',
+	},
+	environmentDevelopmentCheckout: {
+		id: 'workbench.sidebar.environment.developmentCheckout',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.environment.developmentCheckout'],
+		description:
+			'Tooltip of the development marker; checkout is the folder name of the source checkout the build came from.',
+	},
+	environmentTest: {
+		id: 'workbench.sidebar.environment.test',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.environment.test'],
+		description: 'Sidebar footer marker, a word or two, shown only in a test build of Orchbee.',
+	},
+	environmentTestCheckout: {
+		id: 'workbench.sidebar.environment.testCheckout',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.environment.testCheckout'],
+		description:
+			'Tooltip of the test marker; checkout is the folder name of the source checkout the build came from.',
+	},
 	showSidebar: {
 		id: 'workbench.sidebar.actions.show',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.show'],

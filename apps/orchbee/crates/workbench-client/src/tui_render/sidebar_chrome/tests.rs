@@ -6,9 +6,10 @@ use crate::{
     client_view::{
         ClientAction, ClientActionDisposition, ClientView, PrefixAction, SidebarSurface,
     },
+    environment_marker::{EnvironmentMarker, MarkedEnvironment},
     localization::{Locale, TooltipLabel},
     terminal_text::display_width,
-    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, TooltipContent},
+    tui_hit_map::{FrameHitMap, HitMapBuilder, HitTarget, TooltipContent, TooltipText},
     tui_layout::SidebarWidth,
     tui_theme::{GlyphSet, Role, Theme},
 };
@@ -331,4 +332,143 @@ fn narrow_sidebar_regions_drop_the_icons_before_their_actions_without_overlap() 
             }
         }
     }
+}
+
+/// Paints the sidebar alone into `area` for `view`, returning the buffer and the candidate map.
+fn paint_sidebar(
+    view: &ClientView,
+    locale: Locale,
+    area: Rect,
+    layer: SidebarLayer,
+) -> (Buffer, HitMapBuilder) {
+    let theme = Theme::terminal_native();
+    let mut terminal = Terminal::new(TestBackend::new(area.width, area.height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            agent_sidebar::render(
+                frame,
+                SidebarArea { area, layer },
+                RenderContext {
+                    native: None,
+                    view,
+                    sidebar_surface: view.sidebar_surface(),
+                    locale,
+                    backend_status: SessionStatus {
+                        text: "",
+                        role: Role::StatusSuccess,
+                    },
+                    theme: &theme,
+                    input: SidebarInput::Terminal,
+                    creation: None,
+                    held: None,
+                },
+                Some(&mut hits),
+            );
+        })
+        .unwrap();
+    (terminal.backend().buffer().clone(), hits)
+}
+
+/// The environment marker takes only the cells Settings and Help leave on their row: it never
+/// moves or drops either, keeps two blank cells from each, and shows the checkout name only whole.
+/// It is not part of Settings' target, and its tooltip names the build and the checkout.
+#[test]
+fn environment_marker_takes_only_what_settings_and_help_leave() {
+    let development = EnvironmentMarker {
+        environment: MarkedEnvironment::Development,
+        checkout: Some("orchbee"),
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let word = locale.environment_label(MarkedEnvironment::Development);
+        let named = format!("{word} · orchbee");
+        let tooltip = TooltipContent::Describe {
+            text: Some(TooltipText {
+                text: locale.environment_checkout(MarkedEnvironment::Development, "orchbee"),
+                middle: false,
+            }),
+            legend: Vec::new(),
+        };
+        let settings_width = u16::try_from(display_width(locale.settings_title())).unwrap() + 4;
+        for width in 3..=40 {
+            let mut view = visible_view(120, 40, 30);
+            view.set_environment_marker(Some(development));
+            let area = Rect::new(0, 0, width, 12);
+            let (buffer, hits) = paint_sidebar(&view, locale, area, SidebarLayer::Docked);
+            let last = area.bottom() - 1;
+            let list = width - 2;
+            let expected = (list >= settings_width + 2 + 3).then(|| {
+                let room = usize::from((list - 3 - 2).saturating_sub(settings_width + 2));
+                [named.as_str(), word]
+                    .into_iter()
+                    .find(|text| display_width(text) <= room)
+                    .unwrap_or("")
+            });
+            let case = format!("{locale:?} width {width}");
+            let offered = expected.filter(|text| !text.is_empty()).map(|_| {
+                hits.tooltip_content_at(list - 3 - 2 - 1, last)
+                    .cloned()
+                    .unwrap_or_else(|| panic!("{case}: tooltip"))
+            });
+            let map = hits.finish();
+            let settings = extent(&map, area, &HitTarget::SettingsButton);
+            let help = extent(&map, area, &HitTarget::ShortcutHelpButton);
+            assert_eq!(settings.is_some(), list >= settings_width, "{case}");
+            assert_eq!(help.is_some(), expected.is_some(), "{case}");
+            let (Some(settings), Some(help), Some(expected)) = (settings, help, expected) else {
+                continue;
+            };
+            assert_eq!(help, Rect::new(list - 3, last, 3, 1), "{case}");
+            let between = text(&buffer, last, settings.right(), help.x);
+            assert_eq!(between.trim(), expected, "{case}");
+            assert!(
+                between.starts_with("  ") && between.ends_with("  "),
+                "{case}"
+            );
+            if let Some(offered) = offered {
+                assert_eq!(offered, tooltip, "{case}");
+            }
+        }
+
+        // On the touch-spaced list Settings' target stops a blank cell short of the marker.
+        let mut view = visible_view(120, 40, 30);
+        view.set_environment_marker(Some(development));
+        let area = Rect::new(0, 0, 46, 28);
+        let (buffer, hits) = paint_sidebar(&view, locale, area, SidebarLayer::Screen);
+        let map = hits.finish();
+        let row = area.bottom() - 2;
+        let line = text(&buffer, row, 0, area.width);
+        let at = line
+            .find(&named)
+            .unwrap_or_else(|| panic!("{locale:?}: {line:?}"));
+        let marker_x = u16::try_from(display_width(&line[..at])).unwrap();
+        for x in marker_x - 1..marker_x + u16::try_from(display_width(&named)).unwrap() {
+            assert_ne!(
+                map.hit_target_at(x, row),
+                Some(&HitTarget::SettingsButton),
+                "{locale:?} at {x}"
+            );
+        }
+        assert_eq!(
+            map.hit_target_at(0, row),
+            Some(&HitTarget::SettingsButton),
+            "{locale:?}"
+        );
+    }
+}
+
+/// A test build packaged from a home, not a checkout, shows only its word and offers no tooltip.
+#[test]
+fn environment_marker_without_a_checkout_shows_only_its_word() {
+    let mut view = visible_view(120, 40, 30);
+    view.set_environment_marker(Some(EnvironmentMarker {
+        environment: MarkedEnvironment::Test,
+        checkout: None,
+    }));
+    let area = Rect::new(0, 0, 30, 12);
+    let (buffer, hits) = paint_sidebar(&view, Locale::EnUs, area, SidebarLayer::Docked);
+    let last = area.bottom() - 1;
+    // The list's 28 columns end with Help in the last three, two blank cells after the word.
+    assert_eq!(text(&buffer, last, 17, 25), "  Test  ");
+    assert_eq!(hits.tooltip_content_at(22, last), None);
 }

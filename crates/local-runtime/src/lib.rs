@@ -62,8 +62,8 @@ pub use data_root::{
 };
 mod environment;
 pub use environment::{
-    ENVIRONMENT_VARIABLE, environment_name, environment_stem, is_release,
-    session_route_environment, valid_environment_stem,
+    ENVIRONMENT_VARIABLE, EnvironmentKind, checkout_name, environment_kind, environment_name,
+    environment_stem, is_release, session_route_environment, valid_environment_stem,
 };
 mod diagnostic_bundle;
 pub use diagnostic_bundle::{

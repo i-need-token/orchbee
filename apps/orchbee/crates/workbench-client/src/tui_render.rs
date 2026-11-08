@@ -88,6 +88,7 @@ mod contexts;
 pub(crate) mod controls;
 mod copy_mode;
 mod divider_resize;
+mod environment_marker;
 mod held_restore;
 mod help;
 mod machine_picker;

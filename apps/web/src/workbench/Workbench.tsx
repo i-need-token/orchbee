@@ -58,6 +58,8 @@ import type {
 import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspace-location';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
+import { workbenchEnvironmentMarkerView } from './model/workbenchEnvironmentMarkerView';
+import type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
@@ -83,6 +85,8 @@ interface WorkbenchProps {
 	 * shortcut settings read the same result; without it the window offers no configured command.
 	 */
 	readonly configuredCommandKeys?: WorkbenchConfiguredCommandKeysView | undefined;
+	/** The build the sidebar marks beside Settings; a release has none. */
+	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
 	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
@@ -110,6 +114,7 @@ export function Workbench({
 	agentObservationSource,
 	authority,
 	configuredCommandKeys = NO_CONFIGURED_COMMAND_KEYS,
+	environmentMarker,
 	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
@@ -191,6 +196,11 @@ export function Workbench({
 				setWorkspaceProject={view.setWorkspaceProject}
 				createWorkspaceProject={view.createWorkspaceProject}
 				deleteWorkspace={view.deleteWorkspace}
+				environmentMarker={
+					environmentMarker === undefined
+						? undefined
+						: workbenchEnvironmentMarkerView(environmentMarker, intl)
+				}
 				navigateAgent={view.navigateAgent}
 				closeAgentPanel={view.closeAgentPanel}
 				renameAgentPanel={view.renameAgentPanel}

@@ -326,6 +326,7 @@ fn run_prepared_surface(
         dimensions.columns,
         crate::tui_capabilities::Capabilities::for_host(),
     );
+    initial_view.mark_build_environment();
     if let Some(notice) = notice {
         initial_view.startup_notice(notice);
     }

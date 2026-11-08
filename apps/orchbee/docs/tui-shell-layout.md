@@ -698,8 +698,31 @@ keep them after Settings. Neither overlaps New workspace, Search, Settings or ro
 [list screen](#mobile-sidebar-list) paints both at touch size. The GUI does not present these
 controls yet.
 
+### Environment marker
+
+A development or test build names its environment on the Settings row, right-aligned two cells
+before Help with two blank cells after Settings: `Dev` or `Test` (`开发版` or `测试版`) in secondary
+text, then, for a build from a checkout, a middle dot and the checkout directory's name in muted
+text. Release paints nothing there.
+
+```text
+[ Settings ]   Dev · orchbee  [?]     room for the name
+[ Settings ]       Dev  [?]           default 30 columns: the name dropped
+[ Settings ]  [?]                     no room for the word
+```
+
+The marker is the row's last claim: the checkout name drops whole first, then the word, before
+Settings or Help gives up a cell, and neither is cut with an ellipsis. It is no target. With a
+checkout name, hovering it shows the tooltip "Development build from the orchbee checkout" from
+the sidebar surface; without one it offers none. The checkout name is compiled in only when the
+build's stem carries the digest of the checkout that built it, so a staged cohort from another
+checkout never names this one. The marker hides with the sidebar, and the touch Settings row
+places it the same way, ending Settings' target, which otherwise reaches R-7, one cell before it. The GUI sidebar footer shows
+the same marker between Settings and Shortcuts.
+
 The [sidebar chrome renders](../crates/workbench-client/src/tui_render/sidebar_chrome/tests.rs)
-cover 120x40, 80x24 and 60x12 at widths 24, 30 and 60 in both locales with native, RGB and
+cover the marker's drop order in 3- to 40-column regions in both locales, and 120x40, 80x24 and
+60x12 at widths 24, 30 and 60 in both locales with native, RGB and
 simplified glyphs, the hidden strip toggle and the drop order in 3- to 24-column regions. The
 [dispatcher trace](../crates/workbench-client/src/terminal_input/dispatcher/tests/sidebar_width.rs)
 clicks the painted controls: hide, show at the retained width, and Help.
@@ -731,7 +754,7 @@ cell, and line B the window's last:
 | 3–4      | Line 3: `[ Search ]`, its shortcut hint ending at R-1                                      | both lines, left edge to R                             |
 | 5        | blank                                                                                      | none                                                   |
 | 6 to B-3 | the list; each entry is its text and one touch line below it                               | the entry's own columns over its text and touch line   |
-| B-2, B-1 | Line B-2: `[ Settings ]`, then `[ ? ]` at R-5..R-1                                         | Settings from the left edge to R-7; Help R-6..R        |
+| B-2, B-1 | Line B-2: `[ Settings ]`, any [marker](#environment-marker), then `[ ? ]` at R-5..R-1      | Settings from the left edge to R-7; Help R-6..R        |
 
 A group after the first keeps one inert blank line before it, and touch spacing replaces the
 configured item gaps. On overflow the footer takes the list's last two lines, its action and count

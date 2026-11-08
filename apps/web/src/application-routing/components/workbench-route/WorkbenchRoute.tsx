@@ -13,6 +13,7 @@ export function WorkbenchRoute(): ReactNode {
 			agentObservationSource={application.agentObservationSource}
 			applicationLocaleController={application.applicationLocaleController}
 			authority={application.authority}
+			environmentMarker={application.environmentMarker}
 			keyboardShortcutSettingsController={application.keyboardShortcutSettingsController}
 			layoutStorage={application.layoutStorage}
 			macosTerminalInputSettingsController={application.macosTerminalInputSettingsController}
