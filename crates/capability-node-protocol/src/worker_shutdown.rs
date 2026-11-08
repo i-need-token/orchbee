@@ -20,6 +20,15 @@ impl ShutdownBudget {
     }
 }
 
+/// What a shutdown does to the Worker's Host and its terminals.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ShutdownTerminals {
+    /// Contain and dispose every terminal, then wait for the owned Host to exit.
+    Dispose,
+    /// Leave the Host and every terminal running; the Worker only releases its Host connection.
+    Keep,
+}
+
 /// Explicit shutdown fenced to one admitted Worker generation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorkerShutdownRequest {
@@ -27,6 +36,7 @@ pub struct WorkerShutdownRequest {
     pub worker_id: WorkerId,
     pub worker_generation: WorkerGeneration,
     pub budget: ShutdownBudget,
+    pub terminals: ShutdownTerminals,
 }
 
 /// Cleanup stage at which an attempt stopped without confirming completion.
@@ -56,7 +66,8 @@ pub enum ShutdownRefusal {
     Unmanaged,
 }
 
-/// Stopped proves empty Host inventory and retained Host-child exit, not Worker exit.
+/// Stopped proves empty Host inventory and retained Host-child exit, not Worker exit; Released
+/// proves only that a `Keep` shutdown closed the Host connection without touching a terminal.
 /// Disposal counts include only acknowledged disposals in this attempt.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkerShutdownOutcome {
@@ -66,6 +77,9 @@ pub enum WorkerShutdownOutcome {
         disposed_terminals: u32,
     },
     Refused(ShutdownRefusal),
+    Released {
+        host_epoch: HostEpoch,
+    },
     Incomplete {
         host_epoch: Option<HostEpoch>,
         disposed_terminals: u32,

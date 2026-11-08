@@ -18,10 +18,10 @@ use super::{ServerIdentity, diagnostic, send_handshake};
 pub(super) fn respond(
     stream: &mut LocalStream,
     identity: &ServerIdentity,
-    stopping: bool,
+    state: ProcessState,
     terminals: u32,
 ) {
-    match result(identity, stopping, terminals) {
+    match result(identity, state, terminals) {
         Ok(result) => {
             let _delivered = send_handshake(stream, &AcceptorMessage::QueryResult(result));
         }
@@ -31,19 +31,14 @@ pub(super) fn respond(
     }
 }
 
-/// The reply for `identity`: a recorded Session stop reports `stopping`, and Restart Session does
-/// not keep terminals yet.
+/// The reply for `identity` in `state`, which its Worker shares; Restart Session does not keep
+/// terminals yet.
 pub(super) fn result(
     identity: &ServerIdentity,
-    stopping: bool,
+    state: ProcessState,
     terminals: u32,
 ) -> Result<QueryResult, InvalidValue> {
     let profile = &identity.profile;
-    let state = if stopping {
-        ProcessState::Stopping
-    } else {
-        ProcessState::Ready
-    };
     let process = |role, pid, connections| ProcessEntry {
         role,
         product_version: profile.product_version.clone(),

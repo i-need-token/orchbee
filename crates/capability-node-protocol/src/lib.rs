@@ -32,8 +32,8 @@ pub use worker_handoff::{
     WorkerHandoffRequest, WorkerHandoffResult, WorkerHandoffTarget,
 };
 pub use worker_shutdown::{
-    ShutdownBudget, ShutdownFailure, ShutdownRefusal, ShutdownStage, WorkerShutdownOutcome,
-    WorkerShutdownRequest, WorkerShutdownResult,
+    ShutdownBudget, ShutdownFailure, ShutdownRefusal, ShutdownStage, ShutdownTerminals,
+    WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,
 };
 mod terminal_cwd_validation;
 mod terminal_editor;

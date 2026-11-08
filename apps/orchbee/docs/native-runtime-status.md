@@ -47,8 +47,9 @@ Server first, then the Worker it started, each with role, product version, build
 state, terminal count and connections, plus whether Restart Session keeps terminals. Hosts join the
 reply once the Worker reports them. The [local Client protocol](../../../crates/local-client-protocol/README.md#process-query)
 owns the exchange on every platform, and the [Server guide](../../orchbee-server/README.md) owns
-the reply. The Server answers before Client admission and while a Session stop is recorded,
-reporting `stopping`; the request grants no capability and cannot enter a Client phase.
+the reply. The Server answers before Client admission, after a `drain` (reporting `draining`), and
+while a Session stop or an `exit` is underway (reporting `stopping`); the request grants no
+capability and cannot enter a Client phase.
 
 A Session in another environment refuses the request: the CLI reports `incompatible` with reason
 `environment-mismatch` (exit 6). A Session older than the handshake answers with its old OBLC

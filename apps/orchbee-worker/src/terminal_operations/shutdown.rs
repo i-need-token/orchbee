@@ -3,7 +3,7 @@ use super::{background_jobs::BackgroundJobs, server_transport};
 use crate::host_connection::HostBrokerConnection;
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostEpoch, ShutdownFailure, ShutdownRefusal, ShutdownStage,
-    WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,
+    ShutdownTerminals, WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,
 };
 use orchbee_local_ipc::LocalStream;
 use orchbee_local_runtime::RetainedChild;
@@ -155,13 +155,18 @@ pub(super) fn run(
                 },
             }
         } else if let Some((host, owner)) = managed.as_mut() {
-            owner.stop(host, server, request, deadline)
+            match request.terminals {
+                ShutdownTerminals::Dispose => owner.stop(host, server, request, deadline),
+                ShutdownTerminals::Keep => release(host),
+            }
         } else {
             WorkerShutdownOutcome::NoHost
         };
         let completed = matches!(
             outcome,
-            WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
+            WorkerShutdownOutcome::NoHost
+                | WorkerShutdownOutcome::Stopped { .. }
+                | WorkerShutdownOutcome::Released { .. }
         );
         let _no_host_monitor = server_transport::send(
             server,
@@ -180,6 +185,17 @@ pub(super) fn run(
                 );
             }
         }
+    }
+}
+
+/// A Server `exit` ends this Worker without ending any terminal: closing the broker connection
+/// leaves the Host with every terminal unchanged, and the retained Host child is dropped without
+/// a wait or a termination.
+fn release(host: &HostBrokerConnection) -> WorkerShutdownOutcome {
+    let _closed = host.stream().shutdown(Shutdown::Both);
+    WorkerShutdownOutcome::Released {
+        host_epoch: HostEpoch::from_bytes(*host.host_epoch().as_bytes())
+            .expect("admitted nonzero epoch"),
     }
 }
 

@@ -24,7 +24,7 @@ use std::{
 fn the_reply_lists_the_server_first_then_the_worker_it_started() {
     let cohort = "ab".repeat(32);
     let identity = ServerIdentity::local(Some(&cohort), Some(4242));
-    let result = result(&identity, false, 3).unwrap();
+    let result = result(&identity, ProcessState::Ready, 3).unwrap();
     assert_eq!(result.restart_keeps_terminals(), Some(false));
     let [server, worker] = result.processes() else {
         panic!("expected the Server and its Worker")
@@ -70,7 +70,12 @@ fn the_reply_lists_the_server_first_then_the_worker_it_started() {
             .any(|entry| entry.kind.as_str() == ConnectionKind::WorkerHost.name())
     );
 
-    let alone = super::result(&ServerIdentity::local(None, None), true, 0).unwrap();
+    let alone = super::result(
+        &ServerIdentity::local(None, None),
+        ProcessState::Stopping,
+        0,
+    )
+    .unwrap();
     let [server] = alone.processes() else {
         panic!("an unmanaged Server lists only itself")
     };

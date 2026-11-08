@@ -23,6 +23,7 @@ fn request() -> WorkerShutdownRequest {
         worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([2; 16]).unwrap(),
         worker_generation: WorkerGeneration::new(NonZeroU64::new(3).unwrap()),
         budget: ShutdownBudget::new(1_000).unwrap(),
+        terminals: ShutdownTerminals::Dispose,
     }
 }
 
@@ -429,6 +430,73 @@ fn empty_inventory_is_insufficient_until_retained_child_exits() {
             ..
         }
     ));
+}
+
+/// A Server `exit` reaches the Worker as a Keep shutdown: the Host receives no inventory,
+/// containment or disposal request, only the closed broker connection, and its process is neither
+/// awaited nor ended.
+#[test]
+fn keep_shutdown_releases_the_host_without_a_terminal_request() {
+    let (host, mut peer) = connected_host();
+    let (server, mut server_peer) = LocalStream::pair().unwrap();
+    server.set_nonblocking(true).unwrap();
+    server_peer
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    let host_side = thread::spawn(move || {
+        let mut byte = [0];
+        assert_eq!(
+            peer.read(&mut byte).unwrap(),
+            0,
+            "the Host received a request"
+        );
+    });
+    let executable = std::env::current_exe().unwrap();
+    let fixture_name = concat!(module_path!(), "::retained_host_fixture")
+        .split_once("::")
+        .unwrap()
+        .1;
+    let arguments: Vec<_> = ["--ignored", "--exact", fixture_name, "--nocapture"]
+        .into_iter()
+        .map(std::ffi::OsStr::new)
+        .collect();
+    let mut owner =
+        ManagedHost::new(orchbee_local_runtime::spawn_retained(&executable, &arguments).unwrap());
+    let request = WorkerShutdownRequest {
+        terminals: ShutdownTerminals::Keep,
+        ..request()
+    };
+    run(
+        &server,
+        request,
+        WorkerId::from_bytes([2; 16]),
+        NonZeroU64::new(3).unwrap(),
+        BackgroundJobs {
+            discovery: &WorktreeDiscoverySlot::new(),
+            integrations: &crate::agent_integration_jobs::AgentIntegrationJobs::new(),
+            mutations: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
+                crate::worktree_mutation_windows::run,
+            ),
+            plugins: &crate::plugin_jobs::PluginJobs::new(),
+        },
+        Some((&host, &mut owner)),
+    )
+    .unwrap();
+    assert_eq!(
+        read_message(&mut server_peer).unwrap(),
+        CapabilityNodeMessage::WorkerShutdownResult(WorkerShutdownResult {
+            request,
+            outcome: WorkerShutdownOutcome::Released {
+                host_epoch: HostEpoch::from_bytes([4; 16]).unwrap(),
+            },
+        })
+    );
+    host_side.join().unwrap();
+    // The Host child outlives the shutdown it was not asked to end.
+    assert!(owner.child.try_wait().unwrap().is_none());
+    while owner.child.try_wait().unwrap().is_none() {
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 #[test]

@@ -119,6 +119,11 @@ continue a healthy connection or wait for an already-disconnected, empty Host; p
 uncertainty retires the Host connection and never authorizes mutation replay, reconnection or adoption.
 Unknown background job cleanup prevents success. A no-Host or confirmed Host-exit result ends the
 Worker after its bounded result-write attempt; ordinary Server loss retains its existing semantics.
+
+A shutdown with the Keep terminal disposition, sent for a Server `exit`, stops the same background
+job owners and then only closes the Host broker connection: no inventory, force, dispose or Host
+exit wait follows, and the retained Host child is released without termination. The Host keeps
+every terminal, and the Worker ends after answering Released, or NoHost before any Host started.
 This Windows lifecycle does not add a Linux or macOS stop path.
 
 ## Managed Linux lazy Host startup

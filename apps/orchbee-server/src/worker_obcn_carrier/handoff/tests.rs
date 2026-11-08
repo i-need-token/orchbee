@@ -279,6 +279,7 @@ fn handoff_prepare_releases_blocked_cleanup_and_refuses_concurrent_shutdown() {
         worker_id: request(Action::Prepare).worker_id,
         worker_generation: request(Action::Prepare).worker_generation,
         budget: ShutdownBudget::new(100).unwrap(),
+        terminals: orchbee_capability_node_protocol::ShutdownTerminals::Dispose,
     };
     assert_eq!(
         queue.admit_shutdown(pending(WorkerOperationRequest::Shutdown(stop)).0),

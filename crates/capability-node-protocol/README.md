@@ -607,15 +607,20 @@ pnpm lint:projects
 
 The Windows managed Session lifecycle adds kinds 19/20 under frame version 1 and the
 existing 40 KiB bound. The request contains operation ID and Worker ID (16 nonzero
-bytes each), positive Worker generation (u64), and a cooperative budget (u32,
-1..15000 ms), all integers big-endian. Only the exact admitted managed Worker may
+bytes each), positive Worker generation (u64), a cooperative budget (u32,
+1..15000 ms), all integers big-endian, and a terminal disposition byte: 1 Dispose
+contains and disposes every terminal, 2 Keep leaves the Host and every terminal running
+for a Server `exit`. Only the exact admitted managed Worker may
 act; unmanaged or mismatched identity is a pre-effect refusal. The existing 20-second
 carrier reply window is unchanged. A reply echoes the complete request.
 
 Outcome tags are 1 NoHost, 2 Stopped (Host epoch, u32 disposed count), 3 Refused
-(1 wrong Worker, 2 unmanaged), and 4 Incomplete (optional Host epoch, u32 disposed
-count, stage and failure). NoHost means no owned Host was started and background
-jobs settled; Stopped requires the owned Host's exit after containment/disposal.
+(1 wrong Worker, 2 unmanaged), 4 Incomplete (optional Host epoch, u32 disposed
+count, stage and failure), and 5 Released (Host epoch). NoHost means no owned Host was
+started and background jobs settled; Stopped requires the owned Host's exit after
+containment/disposal. Released answers only Keep: background jobs settled and the
+Worker closed its Host connection without inventory, containment, disposal or a Host
+exit wait, so the Host keeps every terminal; the Worker then ends.
 Neither claims that the Worker has already exited; its Server must wait on the
 retained creation handle. Counts describe only this attempt. Stages 1..5 are
 background jobs, inventory, force, dispose and Host exit. Failures 1..5 are deadline,

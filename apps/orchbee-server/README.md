@@ -24,19 +24,36 @@ acceptor profile from its product version, startup cohort, and compiled environm
 offer in the handshake's order: connection kind, environment, generation in the release
 environment or development fingerprint elsewhere, Client capacity, then state. A refusal carries
 Server's facts so the Client can name the older side. A frame that is not `OBHS` gets `malformed`,
-and an offer that stays silent past the two-second candidate deadline gets `timeout`. After a
-recorded Session stop, offers are still answered and the following Client hello gets the typed
-stopping rejection; `drain` and `exit` are answered `unsupported` until the restart phases add them.
+and an offer that stays silent past the two-second candidate deadline gets `timeout`. A drained or
+exiting Server refuses every offer with `stopping`. After a recorded Session stop, offers are still
+answered, so the stop's status and retry exchanges reach its owner, and the following Client hello
+gets the typed stopping rejection.
 
 A `query` request, on every platform, checks only the environment and replies with this Server
 first and then the Worker it started, each with product version, build, environment, PID, state
-(`stopping` after a recorded stop), terminal count, and connections; `restartKeepsTerminals` is
+(`draining` after a drain, `stopping` after a recorded stop or an exit), terminal count, and
+connections; `restartKeepsTerminals` is
 false. Hosts join once the Worker reports them. The query creates no Connection generation or
 Workbench/viewer state, acquires no shutdown record lease, and closes after one reply, including
 when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
 future availability. The [runtime status contract](../orchbee/docs/native-runtime-status.md) owns
 CLI behavior and evidence; the [local Client protocol](../../crates/local-client-protocol/README.md)
 owns the exchange.
+
+`drain` and `exit` are checked like `query` and served only by the managed Windows lifecycle owner;
+any other Server answers both `unsupported`. `drain` is repeatable and answers `drain-result` with
+the state. It closes new application-record and Client admission, while records already admitted
+run to their result; with no new record, the Worker receives no new work, so no separate Worker
+message drains it. `exit` closes the same admission, waits for admitted records, stops the Server's
+background jobs, publishes the final checkpoint, and sends the Worker a Keep shutdown that releases
+its Host connection without inventory, containment or disposal, then waits for the Worker to exit.
+With no terminal left, the Server also waits up to three seconds for the Host to end on its own.
+`exit-result` is written before the process ends, within a 30-second settlement budget; a settling
+failure is reported and the process still ends. The Host and every terminal keep running. `exit`
+publishes no Stopped record or receipt, so until P1 records this end the next activation treats the
+Session as an unclean end: it recovers once every recorded process is gone, and refuses while the
+Host still runs. A queued Session stop goes before a pending `exit`; either one ending the process
+first answers waiting `exit` requesters.
 
 ## Durable Windows session lifecycle
 

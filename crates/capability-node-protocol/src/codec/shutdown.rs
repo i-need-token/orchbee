@@ -4,8 +4,8 @@
 use super::PayloadReader;
 use crate::{
     HostEpoch, OperationId, ProtocolError, ShutdownBudget, ShutdownFailure, ShutdownRefusal,
-    ShutdownStage, WorkerGeneration, WorkerId, WorkerShutdownOutcome, WorkerShutdownRequest,
-    WorkerShutdownResult,
+    ShutdownStage, ShutdownTerminals, WorkerGeneration, WorkerId, WorkerShutdownOutcome,
+    WorkerShutdownRequest, WorkerShutdownResult,
 };
 use std::num::NonZeroU64;
 
@@ -14,6 +14,10 @@ fn encode_body(bytes: &mut Vec<u8>, request: WorkerShutdownRequest) {
     bytes.extend(request.worker_id.as_bytes());
     bytes.extend(request.worker_generation.get().to_be_bytes());
     bytes.extend(request.budget.milliseconds().to_be_bytes());
+    bytes.push(match request.terminals {
+        ShutdownTerminals::Dispose => 1,
+        ShutdownTerminals::Keep => 2,
+    });
 }
 
 fn decode_body(reader: &mut PayloadReader<'_>) -> Result<WorkerShutdownRequest, ProtocolError> {
@@ -24,6 +28,11 @@ fn decode_body(reader: &mut PayloadReader<'_>) -> Result<WorkerShutdownRequest, 
             NonZeroU64::new(reader.read_u64()?).ok_or(ProtocolError::InvalidPayload)?,
         ),
         budget: ShutdownBudget::new(u32::from_be_bytes(reader.read_array()?))?,
+        terminals: match reader.read_u8()? {
+            1 => ShutdownTerminals::Dispose,
+            2 => ShutdownTerminals::Keep,
+            _ => return Err(ProtocolError::InvalidPayload),
+        },
     })
 }
 
@@ -59,6 +68,10 @@ pub(super) fn encode_result(result: WorkerShutdownResult) -> Vec<u8> {
                 ShutdownRefusal::WrongWorker => 1,
                 ShutdownRefusal::Unmanaged => 2,
             });
+        }
+        WorkerShutdownOutcome::Released { host_epoch } => {
+            bytes.push(5);
+            bytes.extend(host_epoch.as_bytes());
         }
         WorkerShutdownOutcome::Incomplete {
             host_epoch,
@@ -135,6 +148,9 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<WorkerShutdownResult, Protoc
                 failure,
             }
         }
+        5 => WorkerShutdownOutcome::Released {
+            host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
+        },
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;

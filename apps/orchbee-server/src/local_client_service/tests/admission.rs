@@ -223,7 +223,8 @@ fn a_pre_handshake_peer_and_unserved_requests_close_with_one_reply() {
     handler.join().unwrap();
     assert_eq!(refused(reply).reason, Refusal::Malformed);
 
-    // Drain and exit arrive with Server drain; an unknown request type is unsupported too.
+    // A Server without a lifecycle owner serves neither drain nor exit; an unknown request type
+    // is unsupported too.
     let environment = orchbee_local_runtime::environment_name();
     let unknown = UnknownRequest::new(RequestName::new("rotate").unwrap(), environment.clone());
     for (name, request) in [
@@ -256,4 +257,116 @@ fn a_silent_candidate_is_refused_with_timeout() {
     let reply = orchbee_connection_handshake::read_acceptor_message(&mut client).unwrap();
     handler.join().unwrap();
     assert_eq!(refused(reply).reason, Refusal::Timeout);
+}
+
+/// Runs one candidate against a managed lifecycle owner; the returned stream is the Client side.
+#[cfg(windows)]
+fn managed_candidate(
+    shutdown: Arc<crate::session_shutdown::SessionShutdown>,
+) -> (UnixStream, thread::JoinHandle<()>) {
+    let (client, server) = UnixStream::pair().unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let handler = thread::spawn(move || {
+        let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+            WorkerRegistry::new(),
+        ))));
+        let workbench = WorkbenchService::new(
+            WorkbenchPolicy {
+                read: true,
+                manage_navigation: false,
+                associate_directory: false,
+                create_terminal: false,
+                manage_terminal_lifecycle: false,
+            },
+            Arc::clone(&terminals),
+        );
+        let agents = AgentService::open(AgentPolicy {
+            read: true,
+            manage: false,
+        })
+        .unwrap();
+        let slots = Arc::new(ConnectionSlots::new());
+        super::super::handle_candidate_control(
+            server,
+            &fresh(),
+            &ServerIdentity::local(None, None),
+            slots.acquire().unwrap(),
+            &terminals,
+            &workbench,
+            super::super::stop_control::StopControl {
+                agents: &agents,
+                shutdown: Some(&shutdown),
+            },
+        );
+    });
+    (client, handler)
+}
+
+#[cfg(windows)]
+#[test]
+fn a_drained_server_refuses_offers_with_stopping_and_drain_repeats() {
+    use orchbee_connection_handshake::ProcessState;
+    let shutdown = Arc::new(crate::session_shutdown::SessionShutdown::default());
+    let environment = orchbee_local_runtime::environment_name();
+    let in_flight = shutdown.enter().unwrap();
+    for _ in 0..2 {
+        let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+        let reply =
+            handshake_client::exchange(&mut client, &control(RequestKind::Drain, &environment))
+                .unwrap();
+        handler.join().unwrap();
+        assert!(
+            matches!(&reply, AcceptorMessage::DrainResult(result) if result.state == ProcessState::Draining),
+            "{reply:?}"
+        );
+    }
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+    let reply = handshake_client::exchange(
+        &mut client,
+        &InitiatorMessage::Offer(handshake_client::offer()),
+    )
+    .unwrap();
+    handler.join().unwrap();
+    assert_eq!(refused(reply).reason, Refusal::Stopping);
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+    let reply = handshake_client::query(&mut client, environment).unwrap();
+    handler.join().unwrap();
+    let result = handshake_client::query_result(reply).unwrap();
+    assert_eq!(result.processes()[0].state, ProcessState::Draining);
+    // Work admitted before the drain still settles.
+    assert!(!shutdown.settle_records(std::time::Instant::now()));
+    drop(in_flight);
+    assert!(shutdown.settle_records(std::time::Instant::now()));
+}
+
+#[cfg(windows)]
+#[test]
+fn exit_replies_only_once_the_owner_ends_the_process() {
+    use crate::session_shutdown::Work;
+    let shutdown = Arc::new(crate::session_shutdown::SessionShutdown::default());
+    let environment = orchbee_local_runtime::environment_name();
+    let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+    let owner = {
+        let shutdown = Arc::clone(&shutdown);
+        thread::spawn(move || {
+            while shutdown.take_within(Duration::from_millis(10)) != Some(Work::Exit) {}
+            // Offers meet an exiting Server before its end.
+            let (mut client, handler) = managed_candidate(Arc::clone(&shutdown));
+            let reply = handshake_client::exchange(
+                &mut client,
+                &InitiatorMessage::Offer(handshake_client::offer()),
+            )
+            .unwrap();
+            handler.join().unwrap();
+            assert_eq!(refused(reply).reason, Refusal::Stopping);
+            assert!(shutdown.end(std::time::Instant::now() + Duration::from_secs(5)));
+        })
+    };
+    let reply =
+        handshake_client::exchange(&mut client, &control(RequestKind::Exit, &environment)).unwrap();
+    assert!(matches!(reply, AcceptorMessage::ExitResult(_)), "{reply:?}");
+    handler.join().unwrap();
+    owner.join().unwrap();
 }

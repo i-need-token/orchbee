@@ -335,6 +335,7 @@ fn shutdown_freezes_both_lanes_and_preserves_the_in_flight_request() -> TestResu
         worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
         worker_generation: WorkerGeneration::new(GENERATION),
         budget: ShutdownBudget::new(15_000)?,
+        terminals: orchbee_capability_node_protocol::ShutdownTerminals::Dispose,
     };
     let stopping = handle.admit(WorkerOperationRequest::Shutdown(request), false)?;
     assert!(matches!(

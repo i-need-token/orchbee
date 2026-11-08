@@ -526,6 +526,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
                     worker_id: start.worker_id,
                     worker_generation: start.worker_generation,
                     budget: ShutdownBudget::new(8_000).unwrap(),
+                    terminals: orchbee_capability_node_protocol::ShutdownTerminals::Dispose,
                 }),
             )
             .unwrap();

@@ -8,6 +8,7 @@ fn request() -> WorkerShutdownRequest {
         worker_id: WorkerId::from_bytes([2; 16]).unwrap(),
         worker_generation: WorkerGeneration::new(NonZeroU64::new(3).unwrap()),
         budget: ShutdownBudget::new(15_000).unwrap(),
+        terminals: ShutdownTerminals::Dispose,
     }
 }
 
@@ -27,6 +28,12 @@ fn round_trip(message: CapabilityNodeMessage) {
 #[test]
 fn closed_shutdown_wire_preserves_identity_progress_and_failure() {
     round_trip(CapabilityNodeMessage::WorkerShutdownRequest(request()));
+    round_trip(CapabilityNodeMessage::WorkerShutdownRequest(
+        WorkerShutdownRequest {
+            terminals: ShutdownTerminals::Keep,
+            ..request()
+        },
+    ));
     let epoch = HostEpoch::from_bytes([4; 16]).unwrap();
     let result = |outcome| {
         CapabilityNodeMessage::WorkerShutdownResult(WorkerShutdownResult {
@@ -42,6 +49,7 @@ fn closed_shutdown_wire_preserves_identity_progress_and_failure() {
         },
         WorkerShutdownOutcome::Refused(ShutdownRefusal::WrongWorker),
         WorkerShutdownOutcome::Refused(ShutdownRefusal::Unmanaged),
+        WorkerShutdownOutcome::Released { host_epoch: epoch },
     ] {
         round_trip(result(outcome));
     }
@@ -75,6 +83,11 @@ fn closed_shutdown_wire_preserves_identity_progress_and_failure() {
         zero[range].fill(0);
         assert!(decode_message(&zero).is_err());
     }
+    for terminals in [0, 3] {
+        let mut invalid = bytes.clone();
+        invalid[53] = terminals;
+        assert!(decode_message(&invalid).is_err());
+    }
     let mut over = bytes;
     over[49..53].copy_from_slice(&15_001_u32.to_be_bytes());
     assert!(decode_message(&over).is_err());
@@ -88,7 +101,7 @@ fn closed_shutdown_wire_preserves_identity_progress_and_failure() {
         failure: ShutdownFailure::Deadline,
     }))
     .unwrap();
-    for index in [53, 54, 59, 60] {
+    for index in [54, 55, 60, 61] {
         let mut invalid = bytes.clone();
         invalid[index] = 255;
         assert!(decode_message(&invalid).is_err());

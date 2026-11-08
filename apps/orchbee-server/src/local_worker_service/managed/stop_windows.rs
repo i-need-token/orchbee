@@ -1,17 +1,18 @@
-//! Managed Windows shutdown settles creation-owned resources before publishing restart authority.
+//! Managed Windows shutdown settles creation-owned resources before publishing restart authority;
+//! an `exit` settles the same work but ends only this Server and its Worker.
 use super::super::agent_observation_endpoint::AgentObservationEndpoint;
 use crate::{
     agent_service::AgentService,
     local_client_service,
     local_terminal_service::LocalTerminalService,
-    session_shutdown::{Attempt, SessionShutdown},
+    session_shutdown::{Attempt, SessionShutdown, Work},
     worker_obcn_carrier::{
         WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
     },
 };
 use orchbee_capability_node_protocol::{
-    OperationId, ShutdownBudget, ShutdownFailure, ShutdownStage, WorkerGeneration, WorkerId,
-    WorkerShutdownOutcome, WorkerShutdownRequest,
+    OperationId, ShutdownBudget, ShutdownFailure, ShutdownStage, ShutdownTerminals,
+    WorkerGeneration, WorkerId, WorkerShutdownOutcome, WorkerShutdownRequest,
 };
 use orchbee_local_client_protocol::{StopFailure, StopId, StopPhase};
 use orchbee_local_runtime::{
@@ -119,7 +120,10 @@ pub(super) fn run(
     owners.terminals.start_plugin_hooks();
     let mut worker_completed = false;
     loop {
-        let attempt = next_attempt(&mut owners, &shutdown);
+        let attempt = match next_work(&mut owners, &shutdown) {
+            Work::Stop(attempt) => attempt,
+            Work::Exit => return exit(owners, clients, &shutdown),
+        };
         let deadline = Instant::now() + Duration::from_secs(60);
         let result = settle(
             &mut owners,
@@ -160,6 +164,8 @@ pub(super) fn run(
             .join()
             .map_err(|_| io::Error::other("Worker carrier panicked"))?;
         shutdown.phase(attempt, StopPhase::Clients);
+        // The process ends from here on, so a waiting `exit` requester replies first.
+        shutdown.end(deadline);
         // After control-listener closure, only a valid durable record can prove success. A failure
         // exits with the active/invalid record intact; it never silently authorizes restart.
         clients.stop_before(deadline)?;
@@ -191,52 +197,7 @@ fn settle(
             io::ErrorKind::TimedOut.into(),
         ));
     }
-    // Hooks submit Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs
-    // end with the Worker's own shutdown.
-    owners
-        .terminals
-        .stop_plugin_hooks_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    // A resume types through the Worker and reads through the observer, so it stops first; one
-    // not yet attempted stays pending for the final capture.
-    owners
-        .terminals
-        .stop_agent_resume_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    if let Some(saver) = &mut owners.checkpoint_saver {
-        saver
-            .stop_before(deadline)
-            .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    }
-    owners
-        .terminals
-        .stop_process_observer_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    owners
-        .terminals
-        .stop_worktrees_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    owners
-        .terminals
-        .stop_workspace_groups_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    // A duplication launches terminals through the Worker, so it stops while the Worker runs.
-    owners
-        .terminals
-        .stop_tab_duplicates_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    // A Tab set waits on its members' Closes, so it stops before Close maintenance freezes them.
-    owners
-        .terminals
-        .stop_tab_sets_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    owners
-        .terminals
-        .stop_close_before(deadline)
-        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    owners
-        .terminals
-        .stop_graphics_before(deadline)
+    stop_background_jobs(owners, deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     let worker_exited = owners
         .worker
@@ -260,10 +221,8 @@ fn settle(
             .terminals
             .checkpoint(&worker, deadline)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-        super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
+        publish_final_checkpoint(owners, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-        owners.terminals.terminal_output_after_save(&bytes);
-        super::checkpoint_windows::autosave::record_history(&owners.terminals, &bytes, &mut None);
         shutdown.phase(attempt, StopPhase::Worker);
         let budget = deadline
             .saturating_duration_since(Instant::now())
@@ -277,6 +236,7 @@ fn settle(
             worker_generation: WorkerGeneration::new(owners.handle.generation()),
             budget: ShutdownBudget::new(budget)
                 .map_err(|_| failure(StopPhase::Worker, io::ErrorKind::TimedOut.into()))?,
+            terminals: ShutdownTerminals::Dispose,
         };
         match owners
             .handle
@@ -294,6 +254,14 @@ fn settle(
                     return Err(Failure {
                         phase: StopPhase::Worker,
                         failure: StopFailure::Refused,
+                        disposed: 0,
+                    });
+                }
+                // Only a Keep shutdown is released, and this request disposes.
+                WorkerShutdownOutcome::Released { .. } => {
+                    return Err(Failure {
+                        phase: StopPhase::Worker,
+                        failure: StopFailure::Protocol,
                         disposed: 0,
                     });
                 }
@@ -366,13 +334,14 @@ fn settle(
     Ok(())
 }
 
-/// Waits for a stop request. The managed Session never enrolls a replacement Worker, so once its
-/// Worker has exited and that Worker's Host is gone too, no terminal can run here again and the
-/// Server begins its own stop. While that Host still runs, the Server keeps running beside it.
-fn next_attempt(owners: &mut Owners, shutdown: &SessionShutdown) -> Attempt {
+/// Waits for a stop request or an `exit`. The managed Session never enrolls a replacement Worker,
+/// so once its Worker has exited and that Worker's Host is gone too, no terminal can run here again
+/// and the Server begins its own stop. While that Host still runs, the Server keeps running beside
+/// it.
+fn next_work(owners: &mut Owners, shutdown: &SessionShutdown) -> Work {
     loop {
-        if let Some(attempt) = shutdown.take_within(Duration::from_secs(1)) {
-            return attempt;
+        if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
+            return work;
         }
         if !shutdown.stopping()
             && matches!(owners.worker.try_wait(), Ok(Some(_)))
@@ -413,10 +382,125 @@ fn settle_without_worker(
             io::ErrorKind::TimedOut.into(),
         ));
     }
-    super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
+    publish_final_checkpoint(owners, &bytes)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-    owners.terminals.terminal_output_after_save(&bytes);
-    super::checkpoint_windows::autosave::record_history(&owners.terminals, &bytes, &mut None);
+    Ok(())
+}
+
+/// Stops every Server background job that could start new work through the Worker. Hooks submit
+/// Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs end with the Worker.
+fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
+    owners.terminals.stop_plugin_hooks_before(deadline)?;
+    // A resume types through the Worker and reads through the observer, so it stops first; one
+    // not yet attempted stays pending for the final capture.
+    owners.terminals.stop_agent_resume_before(deadline)?;
+    if let Some(saver) = &mut owners.checkpoint_saver {
+        saver.stop_before(deadline)?;
+    }
+    owners.terminals.stop_process_observer_before(deadline)?;
+    owners.terminals.stop_worktrees_before(deadline)?;
+    owners.terminals.stop_workspace_groups_before(deadline)?;
+    // A duplication launches terminals through the Worker, so it stops while the Worker runs.
+    owners.terminals.stop_tab_duplicates_before(deadline)?;
+    // A Tab set waits on its members' Closes, so it stops before Close maintenance freezes them.
+    owners.terminals.stop_tab_sets_before(deadline)?;
+    owners.terminals.stop_close_before(deadline)?;
+    owners.terminals.stop_graphics_before(deadline)
+}
+
+fn publish_final_checkpoint(owners: &Owners, bytes: &[u8]) -> io::Result<()> {
+    super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, bytes)?;
+    owners.terminals.terminal_output_after_save(bytes);
+    super::checkpoint_windows::autosave::record_history(&owners.terminals, bytes, &mut None);
+    Ok(())
+}
+
+/// How long an `exit` may spend settling before the process ends regardless.
+const EXIT_BUDGET: Duration = Duration::from_secs(30);
+
+/// Ends this Server and its Worker for an `exit`, leaving the Host and every terminal running.
+/// In-flight records and background jobs settle and the final checkpoint is published first; a
+/// settling failure is reported and the process still ends. No receipt is published, so until P1
+/// records this end the next activation recovers the Session as an unclean end.
+fn exit(
+    mut owners: Owners,
+    mut clients: local_client_service::ManagedClients,
+    shutdown: &SessionShutdown,
+) -> io::Result<()> {
+    let deadline = Instant::now() + EXIT_BUDGET;
+    if let Err(error) = settle_for_exit(&mut owners, shutdown, deadline) {
+        eprintln!(
+            "orchbee-server diagnostic component=lifecycle operation=exit stage=settle cause=io:{:?}",
+            error.kind()
+        );
+    }
+    shutdown.end(deadline);
+    clients.stop_before(deadline)
+}
+
+fn settle_for_exit(
+    owners: &mut Owners,
+    shutdown: &SessionShutdown,
+    deadline: Instant,
+) -> io::Result<()> {
+    if !shutdown.settle_records(deadline) {
+        return Err(io::ErrorKind::TimedOut.into());
+    }
+    stop_background_jobs(owners, deadline)?;
+    let worker = checkpoint_worker(&owners.handle)?;
+    if owners.worker.try_wait()?.is_some() {
+        owners
+            .terminals
+            .finish_process_observer_after_worker_exit(&owners.handle)?;
+        let bytes = owners.terminals.checkpoint_without_worker(&worker)?;
+        publish_final_checkpoint(owners, &bytes)?;
+    } else {
+        let bytes = owners.terminals.checkpoint(&worker, deadline)?;
+        publish_final_checkpoint(owners, &bytes)?;
+        let mut operation = [0; 16];
+        getrandom::fill(&mut operation).map_err(|error| io::Error::other(error.to_string()))?;
+        let budget = deadline
+            .saturating_duration_since(Instant::now())
+            .as_millis()
+            .min(15_000) as u32;
+        let request = WorkerShutdownRequest {
+            operation_id: OperationId::from_bytes(operation).map_err(io::Error::other)?,
+            worker_id: WorkerId::from_bytes(owners.handle.worker_id().as_bytes())
+                .map_err(io::Error::other)?,
+            worker_generation: WorkerGeneration::new(owners.handle.generation()),
+            budget: ShutdownBudget::new(budget).map_err(|_| io::ErrorKind::TimedOut)?,
+            terminals: ShutdownTerminals::Keep,
+        };
+        match owners
+            .handle
+            .request(WorkerOperationRequest::Shutdown(request))
+        {
+            Ok(WorkerOperationResult::Shutdown(result))
+                if matches!(
+                    result.outcome,
+                    WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Released { .. }
+                ) => {}
+            _ => return Err(io::Error::other("Worker exit unconfirmed")),
+        }
+        while owners.worker.try_wait()?.is_none() || !owners.carrier.is_finished() {
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        owners
+            .terminals
+            .finish_process_observer_after_worker_exit(&owners.handle)?;
+    }
+    owners.ingress.stop_before(deadline)?;
+    // A Host left without a terminal ends once its broker is gone; waiting for it lets the next
+    // activation recover the Session at once instead of finding a live process.
+    if owners.terminals.terminal_count() == 0 {
+        let host_deadline = deadline.min(Instant::now() + Duration::from_secs(3));
+        while !host_absent(owners) && Instant::now() < host_deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
     Ok(())
 }
 
@@ -464,6 +548,7 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
                 .map_err(io::Error::other)?,
             worker_generation: WorkerGeneration::new(owners.handle.generation()),
             budget: ShutdownBudget::new(15_000).map_err(io::Error::other)?,
+            terminals: ShutdownTerminals::Dispose,
         };
         match owners
             .handle

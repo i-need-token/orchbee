@@ -20,8 +20,8 @@ use std::{
 
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE, CohortIdentity,
-    ConnectionKind, Decision, Extensions, ProcessState, ProductVersion, ReadError, RequestKind,
-    RequestName, Unsupported, encode_acceptor_frame, read_initiator_message,
+    ConnectionKind, Decision, DrainResult, ExitResult, Extensions, ProductVersion, ReadError,
+    RequestKind, RequestName, Unsupported, encode_acceptor_frame, read_initiator_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, ReadMessageError, RejectionReason, read_message, write_message,
@@ -49,6 +49,10 @@ mod stop_control;
 pub(crate) use managed_windows::{ManagedClients, start as start_managed_windows};
 
 const MAXIMUM_CLIENT_CONNECTIONS: usize = 48;
+
+/// How long an `exit` requester waits for the lifecycle owner to end the process; the owner's own
+/// budget is shorter, so a reply arrives unless the owner stalls.
+const EXIT_REPLY_WINDOW: std::time::Duration = std::time::Duration::from_secs(40);
 
 /// What the Client endpoint states about this Server in the handshake, and the Worker it lists in
 /// a `query` reply.
@@ -316,12 +320,13 @@ fn handle_candidate_control(
             return;
         }
     };
-    // A recorded Session stop still answers offers, so its status and retry exchanges reach the
-    // stop owner; it refuses only the Client phase below.
+    // A drained or exiting Server refuses offers with `stopping`. A recorded Session stop still
+    // answers them, so its status and retry exchanges reach the stop owner; it refuses only the
+    // Client phase below.
     let load = AcceptorLoad {
         session_slot_free,
         control_slot_free: true,
-        state: ProcessState::Ready,
+        state: control.offer_state(),
     };
     match profile.decide(&message, load) {
         Decision::Accept(answer) => {
@@ -341,19 +346,37 @@ fn handle_candidate_control(
             query::respond(
                 &mut stream,
                 identity,
-                control.stopping(),
+                control.process_state(),
                 terminals.terminal_count(),
             );
             return;
         }
-        // Server drain and exit arrive later; until then this Server serves neither request.
-        Decision::Serve(kind @ (RequestKind::Drain | RequestKind::Exit)) => {
-            if let Ok(request) = RequestName::new(kind.as_str()) {
-                let reply = Unsupported {
-                    request,
+        Decision::Serve(RequestKind::Drain) => {
+            match control.drain() {
+                Some(state) => {
+                    let result = DrainResult {
+                        state,
+                        extensions: Extensions::new(),
+                    };
+                    let _delivered =
+                        send_handshake(&mut stream, &AcceptorMessage::DrainResult(result));
+                }
+                None => send_unsupported(&mut stream, RequestKind::Drain),
+            }
+            return;
+        }
+        // The reply goes out once the lifecycle owner has settled in-flight work and ended the
+        // Worker, and before this process ends.
+        Decision::Serve(RequestKind::Exit) => {
+            let deadline = std::time::Instant::now() + EXIT_REPLY_WINDOW;
+            let served = control.exit_before(deadline, || {
+                let result = ExitResult {
                     extensions: Extensions::new(),
                 };
-                let _delivered = send_handshake(&mut stream, &AcceptorMessage::Unsupported(reply));
+                let _delivered = send_handshake(&mut stream, &AcceptorMessage::ExitResult(result));
+            });
+            if !served {
+                send_unsupported(&mut stream, RequestKind::Exit);
             }
             return;
         }
@@ -521,6 +544,17 @@ fn report_connection_end(
             .caused_by(failure)
             .connection(generation),
     );
+}
+
+/// A Server without a lifecycle owner serves neither `drain` nor `exit`.
+fn send_unsupported(stream: &mut UnixStream, kind: RequestKind) {
+    if let Ok(request) = RequestName::new(kind.as_str()) {
+        let reply = Unsupported {
+            request,
+            extensions: Extensions::new(),
+        };
+        let _delivered = send_handshake(stream, &AcceptorMessage::Unsupported(reply));
+    }
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {

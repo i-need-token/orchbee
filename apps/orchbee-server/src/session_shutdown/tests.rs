@@ -1,5 +1,13 @@
 use super::*;
 
+/// The queued stop attempt the lifecycle owner takes next.
+fn attempt(state: &SessionShutdown) -> Attempt {
+    match state.take_within(Duration::ZERO) {
+        Some(Work::Stop(attempt)) => attempt,
+        other => panic!("expected a stop attempt: {other:?}"),
+    }
+}
+
 fn request(id: u8, action: StopAction) -> SessionStopRequest {
     SessionStopRequest {
         id: StopId::new([id; 16]).unwrap(),
@@ -29,7 +37,7 @@ fn stop_freezes_admission_without_losing_existing_record_ownership() {
     assert!(!state.settle_records(Instant::now()));
     drop(record);
     assert!(state.settle_records(Instant::now()));
-    let attempt = state.take_within(Duration::ZERO).unwrap();
+    let attempt = attempt(&state);
     assert_eq!(attempt.number.get(), 1);
     state.phase(attempt, StopPhase::Worker);
     assert_eq!(
@@ -55,12 +63,12 @@ fn stop_freezes_admission_without_losing_existing_record_ownership() {
 fn retries_are_explicit_fenced_and_bounded_and_preserve_failure_progress() {
     let state = SessionShutdown::default();
     state.request(&request(1, StopAction::Start));
-    let first = state.take_within(Duration::ZERO).unwrap();
+    let first = attempt(&state);
     for number in 1..=64 {
         let attempt = if number == 1 {
             first
         } else {
-            state.take_within(Duration::ZERO).unwrap()
+            self::attempt(&state)
         };
         assert_eq!(attempt.number.get(), number);
         state.fail(first, StopPhase::Dispose, StopFailure::OutcomeUnknown, 9);
@@ -86,4 +94,71 @@ fn retries_are_explicit_fenced_and_bounded_and_preserve_failure_progress() {
             assert_eq!(retry, failed);
         }
     }
+}
+
+#[test]
+fn drain_is_repeatable_and_closes_only_new_work() {
+    let state = SessionShutdown::default();
+    assert_eq!(state.offer_state(), ProcessState::Ready);
+    let in_flight = state.enter().unwrap();
+    assert_eq!(state.drain(), ProcessState::Draining);
+    assert_eq!(state.drain(), ProcessState::Draining);
+    assert_eq!(state.process_state(), ProcessState::Draining);
+    // An offer meets a state other than `ready`, so the handshake refuses it with `stopping`.
+    assert_eq!(state.offer_state(), ProcessState::Draining);
+    assert!(state.enter().is_none());
+    // The admitted record still runs to its result; a drain alone gives the owner no work.
+    assert!(!state.settle_records(Instant::now()));
+    assert_eq!(state.take_within(Duration::ZERO), None);
+    drop(in_flight);
+    assert!(state.settle_records(Instant::now()));
+}
+
+#[test]
+fn exit_follows_a_queued_stop_and_never_returns_to_serving() {
+    let state = SessionShutdown::default();
+    state.request(&request(1, StopAction::Start));
+    let reply = state.exit();
+    assert!(matches!(
+        state.take_within(Duration::ZERO),
+        Some(Work::Stop(_))
+    ));
+    assert_eq!(state.take_within(Duration::ZERO), Some(Work::Exit));
+    assert_eq!(state.drain(), ProcessState::Stopping);
+    assert_eq!(state.offer_state(), ProcessState::Stopping);
+    assert!(state.enter().is_none());
+    drop(reply);
+
+    let state = SessionShutdown::default();
+    let _reply = state.exit();
+    assert_eq!(state.process_state(), ProcessState::Stopping);
+    assert_eq!(state.drain(), ProcessState::Stopping);
+    assert_eq!(state.take_within(Duration::ZERO), Some(Work::Exit));
+}
+
+#[test]
+fn the_process_ends_only_after_each_exit_requester_replies() {
+    let state = SessionShutdown::default();
+    assert!(state.end(Instant::now()));
+
+    let state = std::sync::Arc::new(SessionShutdown::default());
+    let reply_written = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let requester = {
+        let state = std::sync::Arc::clone(&state);
+        let reply_written = std::sync::Arc::clone(&reply_written);
+        std::thread::spawn(move || {
+            let reply = state.exit();
+            assert!(reply.ended_before(Instant::now() + Duration::from_secs(5)));
+            reply_written.store(true, std::sync::atomic::Ordering::Release);
+        })
+    };
+    while state.take_within(Duration::from_millis(10)) != Some(Work::Exit) {}
+    assert!(state.end(Instant::now() + Duration::from_secs(5)));
+    assert!(reply_written.load(std::sync::atomic::Ordering::Acquire));
+    requester.join().unwrap();
+
+    // A requester that never replies delays the end only until the owner's deadline.
+    let state = SessionShutdown::default();
+    let _silent = state.exit();
+    assert!(!state.end(Instant::now() + Duration::from_millis(20)));
 }
