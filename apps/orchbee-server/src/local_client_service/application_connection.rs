@@ -27,6 +27,13 @@ pub(super) use effect::Effect;
 
 /// Why the lifecycle owner admitted no record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(windows),
+    expect(
+        dead_code,
+        reason = "only the managed Windows lifecycle owner refuses records"
+    )
+)]
 pub(super) enum Refusal {
     /// A `drain` refuses intents; the connection keeps serving reads.
     Draining,
