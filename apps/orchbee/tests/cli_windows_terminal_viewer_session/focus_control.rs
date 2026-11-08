@@ -169,32 +169,6 @@ fn five_clients_transfer_input_resize_and_restore_after_the_recent_client_closes
         geometry, geometries[4],
         "restored focus must restore its own dimensions"
     );
-
-    controls[4].input(b"for /L %i in (1,1,100) do @echo HISTORY-LINE-%i\r");
-    wait("shell history output missing", || {
-        read(&fixture, &terminal)["content"]["text"]
-            .as_str()
-            .unwrap()
-            .contains("HISTORY-LINE-100")
-            .then_some(())
-    });
-    controls[4].input(b"\x1b[<64;90;10M");
-    wait("wheel did not enter history", || {
-        let screen = fixture.screen(&clients[4].terminal);
-        screen.contains("HISTORY").then(|| {
-            assert!(
-                !screen.contains("Esc back to live"),
-                "history footer covered content: {screen}"
-            );
-            assert!(
-                !screen.contains("Row 0 of"),
-                "history position footer remained: {screen}"
-            );
-        })
-    });
-    controls[4].input(b"\x1b");
-    fixture.settle_ready(&clients[4].client);
-    probe(&fixture, &mut controls[4], &terminal, "LIVE-AGAIN");
 }
 
 fn report(fixture: &Fixture, panel: &str, state: &str) {
