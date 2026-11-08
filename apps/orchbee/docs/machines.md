@@ -259,7 +259,9 @@ Local IPC fixtures do not establish remote SSH authentication or network recover
 ## Cross-machine workspace navigation
 
 The machine picker has Machines, Workspaces and Agents modes, switched with Tab or their
-painted mode controls. The sidebar Search entry opens Workspaces with an empty, focused name query,
+painted mode controls. A release build withholds the sidebar Search entry and its key until search
+is polished, while the Machines action and All Workspaces keep opening the whole picker; see
+[release-withheld search](tui-shell-layout.md#release-withheld-search). The sidebar Search entry opens Workspaces with an empty, focused name query,
 so existing Workspaces remain discoverable without any Agents. Typing filters Workspace names with
 Unicode lowercase matching, including spaces and parentheses; printable `j`/`k` are text, while
 Up/Down move the provisional result. Enter opens its exact target and Escape closes directly.

@@ -166,7 +166,7 @@ fn render_actions(
         hint_right,
         controls,
     } = context;
-    for (offset, (command, action, kind)) in [
+    let actions = [
         (
             SidebarCommand::NewWorkspace,
             SidebarFixedAction::NewWorkspace,
@@ -179,14 +179,21 @@ fn render_actions(
         ),
     ]
     .into_iter()
-    .filter(|(command, _, _)| {
-        *command != SidebarCommand::NewWorkspace
-            || view
-                .capabilities()
-                .supports(crate::tui_capabilities::Capability::DirectoryInput)
+    .filter(|(command, _, _)| match command {
+        SidebarCommand::NewWorkspace => view
+            .capabilities()
+            .supports(crate::tui_capabilities::Capability::DirectoryInput),
+        SidebarCommand::Search => view.capabilities().offers_search(),
+        _ => true,
     })
-    .enumerate()
-    {
+    .collect::<Vec<_>>();
+    // Without a fixed action the toggle keeps the first row on its own.
+    if actions.is_empty() && area.height > 0 {
+        let row = Rect::new(area.x, area.y, area.width, 1);
+        super::sidebar_chrome::render_sidebar_toggle(frame, row, None, controls, hits);
+        return;
+    }
+    for (offset, (command, action, kind)) in actions.into_iter().enumerate() {
         if offset >= usize::from(area.height) {
             break;
         }
@@ -348,9 +355,11 @@ pub(super) fn render(
         },
         hits.as_deref_mut(),
     );
-    let action_rows = inner
-        .height
-        .min(if frame.area().height >= 24 { 3 } else { 2 });
+    // A withheld Search row gives its line back to the list.
+    let action_rows = inner.height.min(
+        if frame.area().height >= 24 { 3 } else { 2 }
+            - u16::from(!view.capabilities().offers_search()),
+    );
     inner.y += action_rows;
     inner.height -= action_rows;
     // Build the exact Workspace -> Agent projection once for this frame. The same

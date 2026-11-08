@@ -157,6 +157,7 @@ fn append_contextual_entries(
     if view.machines.sidebar_navigation_active() {
         for (binding, command) in SIDEBAR_BINDINGS {
             if *command == SidebarCommand::Exit
+                || (*command == SidebarCommand::Search && !view.capabilities().offers_search())
                 || (*command == SidebarCommand::NewWorkspace
                     && !view
                         .capabilities()

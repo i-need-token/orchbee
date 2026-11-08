@@ -515,6 +515,19 @@ cover both locales, themes, configured rows, tree connectors, picker/Settings en
 points and the Full/Compact/Minimal/Mobile/TooSmall matrix. Host interaction requires
 separate native evidence.
 
+### Release-withheld search
+
+A release build withholds sidebar search until it is polished; development and test builds offer
+it. The composition input `Capabilities` carries that build policy beside the host effects, so pure
+UI traces still compose every entry point. A release leaves out the fixed Search row, whose
+plain-layout line then joins the list while a touch-spaced list leaves its lines blank, and the `/`
+key, which then behaves as an unbound sidebar key and leaves F1. Without New workspace either,
+the toggle keeps the first row on its own. The machine picker itself is the remote-machines feature
+and stays whole: `Ctrl+B Shift+M`, its action-menu row and F1 entry, and the overflow footer's
+`[ All Workspaces ]` open it as in development builds, with all three modes and Tab switching. The
+GUI withholds its Search the same way; see the
+[Web Workbench](../../web/docs/workbench.md#release-withheld-search).
+
 ## Sidebar navigation model
 
 Clicking or pressing Enter on a Workspace activates its exact target directly,

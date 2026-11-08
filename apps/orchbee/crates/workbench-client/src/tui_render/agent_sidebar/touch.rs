@@ -3,7 +3,8 @@
 //! toggle and Help take their touch size.
 //!
 //! Lines from the top: blank, New workspace and the toggle, blank, Search, blank, blank, then the
-//! list; Settings and Help take the line above the last, which their targets share.
+//! list; Settings and Help take the line above the last, which their targets share. A build that
+//! withholds Search leaves its lines blank.
 
 use super::super::sidebar_chrome::{self, TRAILING_GAP, TouchRow};
 use super::super::sidebar_touch::{Halos, Painted, TouchAction, paint_action, resolve};
@@ -109,13 +110,32 @@ pub(super) fn render(
         ),
     ]
     .into_iter()
-    .filter(|(command, _, _)| {
-        *command != SidebarCommand::NewWorkspace
-            || view
-                .capabilities()
-                .supports(crate::tui_capabilities::Capability::DirectoryInput)
-    });
-    for (slot, (command, fixed, kind)) in actions.enumerate() {
+    .filter(|(command, _, _)| match command {
+        SidebarCommand::NewWorkspace => view
+            .capabilities()
+            .supports(crate::tui_capabilities::Capability::DirectoryInput),
+        // A withheld Search leaves its lines blank, so the list keeps its place.
+        SidebarCommand::Search => view.capabilities().offers_search(),
+        _ => true,
+    })
+    .collect::<Vec<_>>();
+    if actions.is_empty() {
+        // Without a fixed action the toggle keeps the first action's place on its own.
+        let row = Rect::new(inner.x, top + FIRST_ACTION_LINE, inner.width, 1);
+        sidebar_chrome::render_touch_sidebar_toggle(
+            frame,
+            TouchRow {
+                row,
+                top,
+                height: 3,
+            },
+            None,
+            controls,
+            &mut halos,
+            hits.as_deref_mut(),
+        );
+    }
+    for (slot, (command, fixed, kind)) in actions.into_iter().enumerate() {
         // The first action also owns the window's first line, so the top edge has no dead line.
         let (line, place_top, height) = if slot == 0 {
             (FIRST_ACTION_LINE, 0, 3)

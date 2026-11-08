@@ -29,22 +29,31 @@ pub(crate) const fn login_shell_supported() -> bool {
 pub struct Capabilities {
     effects: u16,
     pub(crate) login_shell: bool,
+    /// Whether this build offers sidebar search: the fixed Search row and its key. A release build
+    /// withholds them until search is polished (ORC-398); the machine picker they open stays
+    /// reachable through the Machines action and All Workspaces. This is a build policy,
+    /// independent of the host effects above.
+    search: bool,
 }
 impl Capabilities {
+    /// No optional host effect; build policy still offers every entry point.
     pub(crate) const fn none() -> Self {
         Self {
             effects: 0,
             login_shell: false,
+            search: true,
         }
     }
     pub(crate) const fn all() -> Self {
         Self {
             effects: (1 << 10) - 1,
             login_shell: true,
+            search: true,
         }
     }
-    /// Admits exactly the effects whose host adapters exist on this build.
-    pub const fn for_host() -> Self {
+    /// Admits exactly the effects whose host adapters exist on this build, and the entry points
+    /// this build releases.
+    pub fn for_host() -> Self {
         let mut effects = Self::none().effects;
         let mut index = 0;
         while index < Capability::ALL.len() {
@@ -57,9 +66,14 @@ impl Capabilities {
         Self {
             effects,
             login_shell: login_shell_supported(),
+            search: !orchbee_local_runtime::is_release(),
         }
     }
     pub const fn supports(self, capability: Capability) -> bool {
         self.effects & (1 << capability as u8) != 0
+    }
+    /// Whether the sidebar Search row and its key are offered.
+    pub(crate) const fn offers_search(self) -> bool {
+        self.search
     }
 }

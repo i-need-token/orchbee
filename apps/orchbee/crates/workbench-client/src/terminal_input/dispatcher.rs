@@ -1818,7 +1818,9 @@ impl InputDispatcher {
                             mode,
                         );
                     }
-                    crate::machine_picker::SidebarIntent::Search => {
+                    crate::machine_picker::SidebarIntent::Search
+                        if view.capabilities().offers_search() =>
+                    {
                         view.machines.leave_sidebar_navigation();
                         view.dismiss_overlay();
                         view.machines.show_workspaces();
@@ -1836,7 +1838,9 @@ impl InputDispatcher {
                             after_layout(view, port)?;
                         }
                     }
-                    crate::machine_picker::SidebarIntent::None => {
+                    // A withheld Search key behaves as an unbound key.
+                    crate::machine_picker::SidebarIntent::None
+                    | crate::machine_picker::SidebarIntent::Search => {
                         // Focus/window changes invalidate the row geometry until repaint.
                         self.pointer.invalidate_map_with_port(port);
                     }
@@ -2162,7 +2166,9 @@ impl InputDispatcher {
                                                 mode,
                                             );
                                         }
-                                        Some(SidebarFixedActivation::Search) => {
+                                        Some(SidebarFixedActivation::Search)
+                                            if view.capabilities().offers_search() =>
+                                        {
                                             view.machines.leave_sidebar_navigation();
                                             view.dismiss_overlay();
                                             view.machines.show_workspaces();
@@ -2189,7 +2195,7 @@ impl InputDispatcher {
                                             self.reconcile(view, port, now);
                                             after_layout(view, port)?;
                                         }
-                                        None => {}
+                                        Some(SidebarFixedActivation::Search) | None => {}
                                     }
                                 }
                                 _ => {}
