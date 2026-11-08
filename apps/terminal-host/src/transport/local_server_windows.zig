@@ -55,7 +55,7 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
     pub fn serveUntilIdle(self: *Server, service: *host_service.HostService) !void {
         return connection.serveUntilIdleLoop(self, service, struct {
             fn recoverable(err: anyerror) bool {
-                return err == error.ConnectionClosed or err == error.PeerIdentityMismatch;
+                return err == error.ConnectionClosed;
             }
         }.recoverable);
     }
@@ -139,9 +139,18 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
 const Lanes = control_lanes.ControlLanes(LaneEndpoint);
 
 /// Each control lane listens on its own instance of the endpoint's pipe, created when the Worker
-/// session starts and closed when it ends, so no idle instance can take a Worker's connection.
+/// session starts and closed when it ends, so no idle instance can take a Worker's connection. A
+/// lane waits for a connection until the primary stops its instances, so an idle lane never wakes.
 const LaneEndpoint = if (builtin.os.tag != .windows) void else struct {
     primary: *windows_c.ObWindowsLocalServer,
+
+    pub fn armStop(self: *LaneEndpoint) void {
+        windows_c.ob_windows_local_server_resume_instances(self.primary);
+    }
+
+    pub fn signalStop(self: *LaneEndpoint) void {
+        windows_c.ob_windows_local_server_stop_instances(self.primary);
+    }
 
     pub const Lane = struct {
         instance: Server,
@@ -159,18 +168,14 @@ const LaneEndpoint = if (builtin.os.tag != .windows) void else struct {
             windows_c.ob_windows_local_server_destroy(self.instance.handle);
         }
 
-        /// Whether a same-user connection is ready; a peer that left or belongs to another user
-        /// is dropped like on the primary instance.
-        pub fn acceptBefore(self: *Lane, timeout_ms: u32) !bool {
-            const status = windows_c.ob_windows_local_server_accept_before(
-                self.instance.handle,
-                timeout_ms,
-            );
+        /// Whether a client connected before the lanes stopped; one that left before the listen
+        /// is dropped like on the primary instance. Its identity is checked at its first byte.
+        pub fn accept(self: *Lane) !bool {
+            const status = windows_c.ob_windows_local_server_accept(self.instance.handle);
             return switch (status) {
                 windows_c.OB_WINDOWS_IPC_OK => true,
                 windows_c.OB_WINDOWS_IPC_ACCEPT_TIMEOUT,
                 windows_c.OB_WINDOWS_IPC_CONNECTION_CLOSED,
-                windows_c.OB_WINDOWS_IPC_PEER_IDENTITY_MISMATCH,
                 => false,
                 else => statusError(status),
             };

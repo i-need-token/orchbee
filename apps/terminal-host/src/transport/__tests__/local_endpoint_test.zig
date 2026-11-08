@@ -285,7 +285,7 @@ test "Windows pipe recovers when a client closes before accept" {
     server_thread.join();
     if (context.failure) |failure| return failure;
 }
-test "Windows pipe requires a first byte within the accept deadline" {
+test "Windows pipe keeps listening between accept waits and gives a late first frame its deadline" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var runtime = try TestRuntimeDirectory.init(std.testing.allocator);
     defer runtime.deinit();
@@ -299,28 +299,28 @@ test "Windows pipe requires a first byte within the accept deadline" {
     var service = host_service.HostService.init(std.testing.allocator);
     defer service.deinit();
 
-    var silent = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
-    var silent_open = true;
-    defer if (silent_open) silent.close();
-    try std.testing.expect(!try server.serveOneBefore(&service, 20));
-    try std.testing.expectEqual(@as(usize, 0), serviceCore(&service).connectionCount());
-    silent.close();
-    silent_open = false;
+    // An accept wait that ends without a client leaves the pipe listening, so the next client
+    // connects at once instead of waiting for the pipe to become available again.
+    try std.testing.expect(!try server.serveOneBefore(&service, 1));
+    var client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var client_open = true;
+    defer if (client_open) client.close();
 
+    // The first frame arrives ten accept waits later, as from a peer that checks the Host before
+    // it writes; the candidate deadline, not the accept wait, bounds it.
     var context: ServeThreadContext = .{
         .server = &server,
         .service = &service,
+        .accept_timeout_ms = 20,
     };
     var server_thread = ThreadJoinGuard.init(
         try std.Thread.spawn(.{}, serveTestConnection, .{&context}),
     );
     defer server_thread.join();
-    var replacement = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
-    var replacement_open = true;
-    defer if (replacement_open) replacement.close();
-    try expectHandshakeAccepted(&replacement);
-    replacement.close();
-    replacement_open = false;
+    monotonic.sleep(200 * std.time.ns_per_ms);
+    try expectHandshakeAccepted(&client);
+    client.close();
+    client_open = false;
     server_thread.join();
     if (context.failure) |failure| return failure;
 }

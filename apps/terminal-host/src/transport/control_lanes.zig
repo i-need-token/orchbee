@@ -15,12 +15,16 @@ const candidate_admission = service_boundary.candidate_admission;
 const host_lifecycle = service_boundary.host_lifecycle;
 
 pub const lane_count = 4;
-/// How long a lane waits for a connection before it rechecks its stop flag.
+/// How long a lane whose endpoint cannot wake it waits for a connection before it rechecks its
+/// stop flag.
 pub const accept_poll_ms = 50;
 
 /// Starts and stops the lanes around one Worker session. `Endpoint` is the platform's shared lane
-/// context; its `Lane` opens with `open(*Endpoint) !Lane` and offers `acceptBefore(u32) !bool`,
-/// `transport()`, `finish()` for the accepted connection, and `close()`.
+/// context: `armStop()` runs before the lanes start and `signalStop()` once `stop` is set, ending a
+/// lane's wait in `accept()`. Its `Lane` opens with `open(*Endpoint) !Lane` and offers
+/// `accept() !bool`, false when the wait ended without a connection, then `transport()` and
+/// `finish()` for the accepted connection, and `close()`. Accepting never reads: the candidate's
+/// first frame has its own deadline however long the accept wait is.
 pub fn ControlLanes(comptime Endpoint: type) type {
     return struct {
         const Self = @This();
@@ -40,6 +44,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
         /// fewer control connections.
         pub fn start(self: *Self, facts: candidate_admission.Facts) void {
             self.handoff.publish(facts);
+            self.endpoint.armStop();
             for (&self.threads, 0..) |*thread, index| {
                 thread.* = std.Thread.spawn(.{}, run, .{ self, index }) catch |err| {
                     std.log.warn("terminal Host control lane did not start: {s}", .{@errorName(err)});
@@ -63,6 +68,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
         /// current reply, and a request a lane stopped waiting for still takes effect.
         pub fn stopAndJoin(self: *Self, service: anytype) void {
             self.stop.store(true, .release);
+            self.endpoint.signalStop();
             for (self.threads, &self.finished) |thread, *finished| {
                 if (thread == null) continue;
                 while (!finished.load(.acquire)) {
@@ -86,7 +92,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
             };
             defer lane.close();
             while (!self.stop.load(.acquire)) {
-                const accepted = lane.acceptBefore(accept_poll_ms) catch |err| {
+                const accepted = lane.accept() catch |err| {
                     std.log.warn("terminal Host control lane stopped accepting: {s}", .{@errorName(err)});
                     return;
                 };
@@ -96,9 +102,10 @@ pub fn ControlLanes(comptime Endpoint: type) type {
                 _ = candidate.admit(self.allocator, lane.transport(), .{
                     .host = .{ .lane = &self.handoff },
                     .session_slot_free = false,
-                }) catch |err| switch (err) {
-                    error.ConnectionClosed => {},
-                    else => std.log.warn("closing terminal Host control connection: {s}", .{@errorName(err)}),
+                }) catch |err| {
+                    if (!candidate.isSilentClose(err)) {
+                        std.log.warn("closing terminal Host control connection: {s}", .{@errorName(err)});
+                    }
                 };
             }
         }

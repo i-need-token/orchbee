@@ -30,6 +30,13 @@ ObWindowsLocalServer *ob_windows_local_server_create_instance(
     int *status
 );
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server);
+/* Ends every instance's accept wait, now and until resumed, as a timeout. Each instance waits on
+ * an event `primary` owns, so every instance is destroyed before `primary`. */
+void ob_windows_local_server_stop_instances(ObWindowsLocalServer *primary);
+void ob_windows_local_server_resume_instances(ObWindowsLocalServer *primary);
+/* Waits for a client to connect, at most `timeout_ms` for the bounded form; the listen stays armed
+ * across a timeout. The connection's first byte is not awaited here: the readiness wait delivers
+ * it, after checking the peer's identity, within the caller's own deadline. */
 int ob_windows_local_server_accept(ObWindowsLocalServer *server);
 int ob_windows_local_server_accept_before(
     ObWindowsLocalServer *server,

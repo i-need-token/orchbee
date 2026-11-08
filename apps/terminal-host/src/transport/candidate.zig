@@ -118,6 +118,12 @@ pub fn admit(allocator: std.mem.Allocator, transport: anytype, options: Options)
     };
 }
 
+/// Whether a connection ended without a dispatch failure worth logging: its peer left, or its
+/// first byte showed another user, which is dropped as silently.
+pub fn isSilentClose(err: anyerror) bool {
+    return err == error.ConnectionClosed or err == error.PeerIdentityMismatch;
+}
+
 /// Keeps a connection open after its final reply until the peer closes it, because closing the
 /// Host's end first can discard a reply the peer has not read: a Windows pipe disconnect drops
 /// unread bytes. A peer that sends more or stays past the linger ends it.

@@ -29,18 +29,25 @@ typedef enum {
 struct ObWindowsLocalServer {
     /* Held only by the primary instance, which owns the endpoint lifetime. */
     HANDLE mutex;
+    /* Owned by the primary: a manual-reset event that ends its instances' accept waits. */
+    HANDLE instances_stop;
+    /* An instance borrows its primary's `instances_stop`; the primary outlives its instances. */
+    HANDLE accept_wake;
     HANDLE pipe;
     BYTE *token_user;
     BYTE prefetched_byte;
     ObWindowsReadState read_state;
     OVERLAPPED readiness_read;
+    /* The listen for the next client stays armed across accept timeouts, so a client that
+     * connects between two waits is accepted by the next one instead of being disconnected. */
+    OVERLAPPED listen;
+    BOOL listening;
+    BOOL connected;
+    /* A pipe server can impersonate its client only after reading from the pipe, so the peer's
+     * identity is checked when its first byte arrives; nothing is written to it before. */
+    BOOL peer_verified;
     wchar_t pipe_name[OB_WINDOWS_PIPE_NAME_CHARACTERS];
 };
-
-typedef struct {
-    ULONGLONG started_ms;
-    DWORD timeout_ms;
-} ObWindowsDeadline;
 
 static int ob_connection_status(DWORD error) {
     switch (error) {
@@ -51,31 +58,6 @@ static int ob_connection_status(DWORD error) {
         default:
             return OB_WINDOWS_IPC_SYSTEM_ERROR;
     }
-}
-
-static ObWindowsDeadline ob_deadline_start(DWORD timeout_ms) {
-    ObWindowsDeadline deadline = {
-        .started_ms = GetTickCount64(),
-        .timeout_ms = timeout_ms,
-    };
-    return deadline;
-}
-
-static BOOL ob_deadline_remaining(
-    const ObWindowsDeadline *deadline,
-    DWORD *remaining_ms
-) {
-    if (deadline->timeout_ms == INFINITE) {
-        *remaining_ms = INFINITE;
-        return TRUE;
-    }
-    const ULONGLONG elapsed_ms = GetTickCount64() - deadline->started_ms;
-    if (elapsed_ms >= deadline->timeout_ms) {
-        *remaining_ms = 0;
-        return FALSE;
-    }
-    *remaining_ms = deadline->timeout_ms - (DWORD)elapsed_ms;
-    return TRUE;
 }
 
 static void ob_cancel_overlapped(HANDLE pipe, OVERLAPPED *overlapped) {
@@ -108,42 +90,18 @@ static int ob_wait_for_overlapped(
     return OB_WINDOWS_IPC_OK;
 }
 
-static int ob_wait_for_overlapped_before(
-    HANDLE pipe,
-    OVERLAPPED *overlapped,
-    const ObWindowsDeadline *deadline,
-    DWORD *transferred
-) {
-    DWORD remaining_ms = 0;
-    if (!ob_deadline_remaining(deadline, &remaining_ms)) {
-        ob_cancel_overlapped(pipe, overlapped);
-        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-    }
-    const int status = ob_wait_for_overlapped(
-        pipe,
-        overlapped,
-        remaining_ms,
-        transferred
-    );
-    if (status == OB_WINDOWS_IPC_WRITE_TIMEOUT) {
-        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-    }
-    if (status != OB_WINDOWS_IPC_OK) return status;
-    if (!ob_deadline_remaining(deadline, &remaining_ms)) {
-        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-    }
-    return OB_WINDOWS_IPC_OK;
-}
-
-static void ob_windows_local_server_reset_connection(
-    ObWindowsLocalServer *server
-) {
+/* Ends the accepted connection, if any; an armed listen stays armed. */
+static void ob_windows_local_server_end_connection(ObWindowsLocalServer *server) {
     if (server->read_state == OB_WINDOWS_READ_PENDING) {
         ob_cancel_overlapped(server->pipe, &server->readiness_read);
     }
     server->read_state = OB_WINDOWS_READ_IDLE;
     server->prefetched_byte = 0;
-    (void)DisconnectNamedPipe(server->pipe);
+    server->peer_verified = FALSE;
+    if (server->connected) {
+        (void)DisconnectNamedPipe(server->pipe);
+        server->connected = FALSE;
+    }
 }
 
 static int ob_overlapped_transfer_result(
@@ -324,7 +282,10 @@ static ObWindowsLocalServer *ob_windows_local_server_open_instance(
         return NULL;
     }
     server->readiness_read.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (server->readiness_read.hEvent == NULL) {
+    server->listen.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (server->readiness_read.hEvent == NULL || server->listen.hEvent == NULL) {
+        if (server->readiness_read.hEvent != NULL) CloseHandle(server->readiness_read.hEvent);
+        if (server->listen.hEvent != NULL) CloseHandle(server->listen.hEvent);
         HeapFree(GetProcessHeap(), 0, server);
         CloseHandle(pipe);
         HeapFree(GetProcessHeap(), 0, token_user);
@@ -408,6 +369,11 @@ ObWindowsLocalServer *ob_windows_local_server_create(
         return NULL;
     }
     server->mutex = mutex;
+    server->instances_stop = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (server->instances_stop == NULL) {
+        ob_windows_local_server_destroy(server);
+        return NULL;
+    }
     *status = OB_WINDOWS_IPC_OK;
     return server;
 }
@@ -440,15 +406,23 @@ ObWindowsLocalServer *ob_windows_local_server_create_instance(
         0
     );
     LocalFree(descriptor);
-    if (server != NULL) *status = OB_WINDOWS_IPC_OK;
+    if (server == NULL) return NULL;
+    server->accept_wake = primary->instances_stop;
+    *status = OB_WINDOWS_IPC_OK;
     return server;
 }
 
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
     if (server == NULL) return;
-    ob_windows_local_server_reset_connection(server);
+    if (server->listening) {
+        ob_cancel_overlapped(server->pipe, &server->listen);
+        server->listening = FALSE;
+    }
+    ob_windows_local_server_end_connection(server);
+    CloseHandle(server->listen.hEvent);
     CloseHandle(server->readiness_read.hEvent);
     CloseHandle(server->pipe);
+    if (server->instances_stop != NULL) CloseHandle(server->instances_stop);
     if (server->mutex != NULL) {
         ReleaseMutex(server->mutex);
         CloseHandle(server->mutex);
@@ -457,109 +431,17 @@ void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
     HeapFree(GetProcessHeap(), 0, server);
 }
 
-static int ob_windows_local_server_accept_with_timeout(
-    ObWindowsLocalServer *server,
-    DWORD timeout_ms
-) {
-    if (server->read_state != OB_WINDOWS_READ_IDLE) {
-        ob_windows_local_server_reset_connection(server);
-    }
-    const ObWindowsDeadline deadline = ob_deadline_start(timeout_ms);
-    DWORD remaining_ms = 0;
-    if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
-        ob_windows_local_server_reset_connection(server);
-        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-    }
+void ob_windows_local_server_stop_instances(ObWindowsLocalServer *primary) {
+    (void)SetEvent(primary->instances_stop);
+}
 
-    OVERLAPPED overlapped = {0};
-    overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) {
-        ob_windows_local_server_reset_connection(server);
-        return OB_WINDOWS_IPC_SYSTEM_ERROR;
-    }
-    const BOOL connected = ConnectNamedPipe(server->pipe, &overlapped);
-    if (!connected) {
-        const DWORD connect_error = GetLastError();
-        if (connect_error == ERROR_NO_DATA) {
-            CloseHandle(overlapped.hEvent);
-            ob_windows_local_server_reset_connection(server);
-            return OB_WINDOWS_IPC_CONNECTION_CLOSED;
-        }
-        if (connect_error == ERROR_IO_PENDING) {
-            DWORD ignored = 0;
-            const int status = ob_wait_for_overlapped_before(
-                server->pipe,
-                &overlapped,
-                &deadline,
-                &ignored
-            );
-            CloseHandle(overlapped.hEvent);
-            if (status != OB_WINDOWS_IPC_OK) {
-                ob_windows_local_server_reset_connection(server);
-                return status;
-            }
-        } else {
-            CloseHandle(overlapped.hEvent);
-            if (connect_error != ERROR_PIPE_CONNECTED) {
-                ob_windows_local_server_reset_connection(server);
-                return ob_connection_status(connect_error);
-            }
-        }
-    } else {
-        CloseHandle(overlapped.hEvent);
-    }
+void ob_windows_local_server_resume_instances(ObWindowsLocalServer *primary) {
+    (void)ResetEvent(primary->instances_stop);
+}
 
-    if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
-        ob_windows_local_server_reset_connection(server);
-        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-    }
-
-    BYTE first_byte = 0;
-    OVERLAPPED read_overlapped = {0};
-    read_overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (read_overlapped.hEvent == NULL) {
-        ob_windows_local_server_reset_connection(server);
-        return OB_WINDOWS_IPC_SYSTEM_ERROR;
-    }
-    const BOOL read_started = ReadFile(
-        server->pipe,
-        &first_byte,
-        1,
-        NULL,
-        &read_overlapped
-    );
-    const DWORD read_error = read_started ? ERROR_SUCCESS : GetLastError();
-    DWORD read_bytes = 0;
-    int read_status = OB_WINDOWS_IPC_OK;
-    if (read_started) {
-        if (!GetOverlappedResult(
-                server->pipe,
-                &read_overlapped,
-                &read_bytes,
-                FALSE
-            )) {
-            read_status = ob_connection_status(GetLastError());
-        } else if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
-            read_status = OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-        }
-    } else if (read_error == ERROR_IO_PENDING) {
-        read_status = ob_wait_for_overlapped_before(
-            server->pipe,
-            &read_overlapped,
-            &deadline,
-            &read_bytes
-        );
-    } else {
-        read_status = ob_connection_status(read_error);
-    }
-    CloseHandle(read_overlapped.hEvent);
-    if (read_status != OB_WINDOWS_IPC_OK || read_bytes != 1) {
-        ob_windows_local_server_reset_connection(server);
-        return read_status == OB_WINDOWS_IPC_OK
-                   ? OB_WINDOWS_IPC_CONNECTION_CLOSED
-                   : read_status;
-    }
-
+/* Whether the connected client runs as this process's user. Impersonation needs a byte already
+ * read from the pipe. A failed revert ends the process instead of continuing as the client. */
+static BOOL ob_windows_local_server_peer_is_same_user(ObWindowsLocalServer *server) {
     BOOL impersonating = ImpersonateNamedPipeClient(server->pipe);
     HANDLE client_token = NULL;
     BYTE *client_user = NULL;
@@ -584,16 +466,125 @@ static int ob_windows_local_server_accept_with_timeout(
         TerminateProcess(GetCurrentProcess(), exit_code);
         ExitProcess(exit_code);
     }
-    if (!same_user) {
-        ob_windows_local_server_reset_connection(server);
-        return OB_WINDOWS_IPC_PEER_IDENTITY_MISMATCH;
+    return same_user;
+}
+
+/* Keeps the byte a completed readiness read delivered; a connection's first byte is kept only
+ * from a peer that passes the identity check. */
+static int ob_windows_local_server_take_readiness_byte(
+    ObWindowsLocalServer *server,
+    DWORD transferred,
+    uint32_t *readable
+) {
+    server->read_state = OB_WINDOWS_READ_IDLE;
+    if (transferred != 1) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    if (!server->peer_verified) {
+        if (!ob_windows_local_server_peer_is_same_user(server)) {
+            server->prefetched_byte = 0;
+            return OB_WINDOWS_IPC_PEER_IDENTITY_MISMATCH;
+        }
+        server->peer_verified = TRUE;
     }
-    if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
-        ob_windows_local_server_reset_connection(server);
-        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-    }
-    server->prefetched_byte = first_byte;
     server->read_state = OB_WINDOWS_READ_PREFETCHED;
+    *readable = 1;
+    return OB_WINDOWS_IPC_OK;
+}
+
+/* Arms the one-byte readiness read from `idle`; a byte already queued completes it at once. */
+static int ob_windows_local_server_start_readiness_read(
+    ObWindowsLocalServer *server,
+    uint32_t *readable
+) {
+    HANDLE readiness_event = server->readiness_read.hEvent;
+    ZeroMemory(&server->readiness_read, sizeof(server->readiness_read));
+    server->readiness_read.hEvent = readiness_event;
+    if (!ResetEvent(readiness_event)) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+
+    if (ReadFile(server->pipe, &server->prefetched_byte, 1, NULL, &server->readiness_read)) {
+        DWORD transferred = 0;
+        if (!GetOverlappedResult(
+                server->pipe,
+                &server->readiness_read,
+                &transferred,
+                FALSE
+            )) {
+            return ob_connection_status(GetLastError());
+        }
+        return ob_windows_local_server_take_readiness_byte(server, transferred, readable);
+    }
+    const DWORD start_error = GetLastError();
+    if (start_error != ERROR_IO_PENDING) return ob_connection_status(start_error);
+    server->read_state = OB_WINDOWS_READ_PENDING;
+    return OB_WINDOWS_IPC_OK;
+}
+
+/* Arms the listen for the next client; `client_connected` reports a client that connected before
+ * it, which is then already accepted. */
+static int ob_windows_local_server_listen(
+    ObWindowsLocalServer *server,
+    BOOL *client_connected
+) {
+    *client_connected = FALSE;
+    HANDLE listen_event = server->listen.hEvent;
+    ZeroMemory(&server->listen, sizeof(server->listen));
+    server->listen.hEvent = listen_event;
+    if (!ResetEvent(listen_event)) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (ConnectNamedPipe(server->pipe, &server->listen)) {
+        *client_connected = TRUE;
+        return OB_WINDOWS_IPC_OK;
+    }
+    const DWORD listen_error = GetLastError();
+    switch (listen_error) {
+        case ERROR_IO_PENDING:
+            server->listening = TRUE;
+            return OB_WINDOWS_IPC_OK;
+        case ERROR_PIPE_CONNECTED:
+            *client_connected = TRUE;
+            return OB_WINDOWS_IPC_OK;
+        case ERROR_NO_DATA:
+            // A client connected and left before the listen; reset the instance for the next one.
+            (void)DisconnectNamedPipe(server->pipe);
+            return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+        default:
+            return ob_connection_status(listen_error);
+    }
+}
+
+/* Waits at most `timeout_ms` for a client, or until the accept wake is signalled; on either
+ * timeout the listen stays armed. Accepting reads nothing: the readiness wait on the serving
+ * thread awaits the first byte, and with it the peer check, under the caller's own deadline. */
+static int ob_windows_local_server_accept_with_timeout(
+    ObWindowsLocalServer *server,
+    DWORD timeout_ms
+) {
+    ob_windows_local_server_end_connection(server);
+    for (;;) {
+        BOOL client_connected = FALSE;
+        if (!server->listening) {
+            const int listen_status = ob_windows_local_server_listen(server, &client_connected);
+            if (listen_status != OB_WINDOWS_IPC_OK) return listen_status;
+            if (client_connected) break;
+        }
+        HANDLE events[2] = {server->listen.hEvent, server->accept_wake};
+        const DWORD event_count = server->accept_wake != NULL ? 2 : 1;
+        // A connection and a wake together return the connection: its index is lower.
+        const DWORD wait_result = WaitForMultipleObjects(event_count, events, FALSE, timeout_ms);
+        if (wait_result == WAIT_TIMEOUT ||
+            (event_count == 2 && wait_result == WAIT_OBJECT_0 + 1)) {
+            return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+        }
+        if (wait_result != WAIT_OBJECT_0) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+        server->listening = FALSE;
+        DWORD ignored = 0;
+        if (GetOverlappedResult(server->pipe, &server->listen, &ignored, FALSE)) break;
+        const DWORD listen_error = GetLastError();
+        // Windows cancels a thread's pending I/O when the thread exits, so a listen armed by an
+        // earlier caller's thread is armed again here.
+        if (listen_error == ERROR_OPERATION_ABORTED) continue;
+        (void)DisconnectNamedPipe(server->pipe);
+        return ob_connection_status(listen_error);
+    }
+    server->connected = TRUE;
     return OB_WINDOWS_IPC_OK;
 }
 
@@ -609,7 +600,7 @@ int ob_windows_local_server_accept_before(
 }
 
 int ob_windows_local_server_peek(ObWindowsLocalServer *server, uint32_t *available) {
-    if (server->read_state == OB_WINDOWS_READ_PENDING) {
+    if (server->read_state == OB_WINDOWS_READ_PENDING || !server->peer_verified) {
         uint32_t readable = 0;
         const int status = ob_windows_local_server_wait_readable(
             server,
@@ -670,11 +661,7 @@ static int ob_windows_local_server_finish_readiness_read(
         }
         return ob_connection_status(result_error);
     }
-    server->read_state = OB_WINDOWS_READ_IDLE;
-    if (transferred != 1) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
-    server->read_state = OB_WINDOWS_READ_PREFETCHED;
-    *readable = 1;
-    return OB_WINDOWS_IPC_OK;
+    return ob_windows_local_server_take_readiness_byte(server, transferred, readable);
 }
 
 int ob_windows_local_server_wait_readable(
@@ -713,48 +700,21 @@ int ob_windows_local_server_wait_readable_or_wake(
         );
     }
 
-    DWORD available_bytes = 0;
-    if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, &available_bytes, NULL)) {
-        return ob_connection_status(GetLastError());
-    }
-    if (available_bytes > 0) {
-        *readable = 1;
-        return OB_WINDOWS_IPC_OK;
-    }
-
-    HANDLE readiness_event = server->readiness_read.hEvent;
-    ZeroMemory(&server->readiness_read, sizeof(server->readiness_read));
-    server->readiness_read.hEvent = readiness_event;
-    if (!ResetEvent(readiness_event)) return OB_WINDOWS_IPC_SYSTEM_ERROR;
-
-    const BOOL started = ReadFile(
-        server->pipe,
-        &server->prefetched_byte,
-        1,
-        NULL,
-        &server->readiness_read
-    );
-    if (started) {
-        DWORD transferred = 0;
-        if (!GetOverlappedResult(
-                server->pipe,
-                &server->readiness_read,
-                &transferred,
-                FALSE
-            )) {
+    // Queued bytes stay available for one bulk read, but only after the peer is verified.
+    if (server->peer_verified) {
+        DWORD available_bytes = 0;
+        if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, &available_bytes, NULL)) {
             return ob_connection_status(GetLastError());
         }
-        if (transferred != 1) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
-        server->read_state = OB_WINDOWS_READ_PREFETCHED;
-        *readable = 1;
-        return OB_WINDOWS_IPC_OK;
+        if (available_bytes > 0) {
+            *readable = 1;
+            return OB_WINDOWS_IPC_OK;
+        }
     }
-
-    const DWORD start_error = GetLastError();
-    if (start_error != ERROR_IO_PENDING) {
-        return ob_connection_status(start_error);
+    const int start_status = ob_windows_local_server_start_readiness_read(server, readable);
+    if (start_status != OB_WINDOWS_IPC_OK || server->read_state != OB_WINDOWS_READ_PENDING) {
+        return start_status;
     }
-    server->read_state = OB_WINDOWS_READ_PENDING;
     return ob_windows_local_server_finish_readiness_read(
         server,
         timeout_ms,
@@ -770,7 +730,7 @@ int ob_windows_local_server_read(
     uint32_t capacity,
     uint32_t *read_bytes
 ) {
-    if (server->read_state == OB_WINDOWS_READ_PENDING) {
+    if (server->read_state == OB_WINDOWS_READ_PENDING || !server->peer_verified) {
         uint32_t readable = 0;
         const int status = ob_windows_local_server_wait_readable(
             server,
@@ -816,6 +776,7 @@ int ob_windows_local_server_write(
     uint32_t length,
     uint32_t *written_bytes
 ) {
+    if (!server->peer_verified) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) {
@@ -848,6 +809,7 @@ int ob_windows_local_server_write_before(
     uint32_t timeout_ms,
     uint32_t *written_bytes
 ) {
+    if (!server->peer_verified) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) {
@@ -874,7 +836,7 @@ int ob_windows_local_server_write_before(
 }
 
 void ob_windows_local_server_disconnect(ObWindowsLocalServer *server) {
-    ob_windows_local_server_reset_connection(server);
+    ob_windows_local_server_end_connection(server);
 }
 
 void *ob_windows_local_test_client_connect(const wchar_t *endpoint_id, int *status) {

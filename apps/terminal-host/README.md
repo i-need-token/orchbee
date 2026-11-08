@@ -44,7 +44,8 @@ The accepted contract requires these externally visible properties:
   protocol fingerprint continues as the broker session; a control request gets one reply and
   closes. While the session runs, at most four further control connections are served: another
   offer is refused with `capacity`, and `query` reports this Host's version, environment, terminal
-  count, and state. Control connections carry no attachment or broker authority.
+  count, and state. Control connections carry no attachment or broker authority. Every accepted
+  connection has 2 s for its frame, however long the Host had been waiting for it.
 - `drain` stops the Host taking new terminals: a `CreateTerminal` that would add one fails with
   `host-draining`, a new offer is refused with `stopping`, and retained terminals keep running. The
   Host exits on its own once it retains no terminal, closing its Worker session first. `exit` closes
@@ -162,7 +163,7 @@ The complete state model, retry classes, commit boundaries, invariants, and evid
 
 ## Trust and continuity boundary
 
-The runtime directory and endpoint are private to the operating-system user. POSIX uses a trusted per-user rendezvous, a no-follow directory descriptor, effective-UID ownership, private mode, removal and validation of extended and inheritable ACLs, a lifetime lock, and post-bind validation of the actual Unix-domain socket. Host and each current local broker require the connected peer's effective UID through kernel credentials on every connection. Windows uses an owned non-reparse runtime directory, protected DACLs, a singleton mutex, a local named pipe, and peer-SID validation.
+The runtime directory and endpoint are private to the operating-system user. POSIX uses a trusted per-user rendezvous, a no-follow directory descriptor, effective-UID ownership, private mode, removal and validation of extended and inheritable ACLs, a lifetime lock, and post-bind validation of the actual Unix-domain socket. Host and each current local broker require the connected peer's effective UID through kernel credentials on every connection. Windows uses an owned non-reparse runtime directory, protected DACLs, a singleton mutex, a local named pipe, and peer-SID validation when a connection's first byte arrives, before the Host writes to it.
 
 POSIX directory handles used for ACL inspection or mutation must be readable. Zig directory opens request `.iterate = true` alongside no-follow handling so Linux provides a descriptor that supports these operations instead of `O_PATH`; ownership, mode, and ACL rejection remain mandatory.
 

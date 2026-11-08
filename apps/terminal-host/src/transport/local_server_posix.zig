@@ -242,10 +242,15 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
 const Lanes = control_lanes.ControlLanes(LaneEndpoint);
 
 /// The control lanes share the endpoint's listener; one lane at a time polls and accepts, so an
-/// accept never blocks a lane that lost the race for a connection.
+/// accept never blocks a lane that lost the race for a connection. A lane rechecks its stop flag
+/// after every poll, so stopping needs no wake.
 const LaneEndpoint = if (builtin.os.tag == .windows) void else struct {
     server: *Server,
     accept_lock: thread_sync.Mutex = .{},
+
+    pub fn armStop(_: *LaneEndpoint) void {}
+
+    pub fn signalStop(_: *LaneEndpoint) void {}
 
     pub const Lane = struct {
         endpoint: *LaneEndpoint,
@@ -257,8 +262,11 @@ const LaneEndpoint = if (builtin.os.tag == .windows) void else struct {
 
         pub fn close(_: *Lane) void {}
 
-        /// Whether a same-user connection is ready; another user's connection is closed.
-        pub fn acceptBefore(self: *Lane, timeout_ms: u32) !bool {
+        /// Whether a same-user connection is ready within one poll; another user's connection is
+        /// closed. The peer credential check needs no byte, and the candidate's first frame keeps
+        /// its own deadline.
+        pub fn accept(self: *Lane) !bool {
+            const timeout_ms: u32 = control_lanes.accept_poll_ms;
             const io = thread_sync.io();
             const stream = stream: {
                 // A lane that finds another lane polling waits once and rechecks its stop flag.

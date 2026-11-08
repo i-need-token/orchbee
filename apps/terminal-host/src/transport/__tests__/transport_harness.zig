@@ -286,11 +286,12 @@ pub fn expectHandshakeAccepted(client: *TestClient) !void {
 pub const ServeThreadContext = struct {
     server: *LocalServer,
     service: *host_service.HostService,
+    accept_timeout_ms: u32 = 5_000,
     failure: ?anyerror = null,
 };
 
 pub fn serveTestConnection(context: *ServeThreadContext) void {
-    const served = context.server.serveOneBefore(context.service, 5_000) catch |err| {
+    const served = context.server.serveOneBefore(context.service, context.accept_timeout_ms) catch |err| {
         context.failure = err;
         return;
     };

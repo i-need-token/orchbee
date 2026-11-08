@@ -166,9 +166,8 @@ pub fn serveAcceptedConnection(
     lanes: anytype,
 ) Served {
     return serveWithLanes(transport, service, record_read_timeout_ns, lanes) catch |err| {
-        switch (err) {
-            error.ConnectionClosed => {},
-            else => std.log.warn("closing terminal Host connection after dispatch failure: {s}", .{@errorName(err)}),
+        if (!candidate.isSilentClose(err)) {
+            std.log.warn("closing terminal Host connection after dispatch failure: {s}", .{@errorName(err)});
         }
         return .worker;
     };
