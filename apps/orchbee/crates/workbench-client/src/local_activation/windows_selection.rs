@@ -31,7 +31,7 @@ pub(super) struct Location {
 pub(super) fn location() -> io::Result<Location> {
     resolve(
         SELECTED.get().and_then(Option::as_ref),
-        |key| std::env::var_os(key),
+        routed_environment(),
         &orchbee_local_ipc::current_user_sid()?,
         default_base()?,
     )
@@ -42,10 +42,15 @@ pub(super) fn location() -> io::Result<Location> {
 pub fn inside_selected_session() -> io::Result<bool> {
     inside_session(
         SELECTED.get().and_then(Option::as_ref),
-        |key| std::env::var_os(key),
+        routed_environment(),
         &orchbee_local_ipc::current_user_sid()?,
         default_base()?,
     )
+}
+
+/// The process environment with another environment's inherited Session route removed.
+fn routed_environment() -> impl Fn(&str) -> Option<OsString> {
+    orchbee_local_runtime::session_route_environment(|key| std::env::var_os(key))
 }
 
 fn default_base() -> io::Result<PathBuf> {

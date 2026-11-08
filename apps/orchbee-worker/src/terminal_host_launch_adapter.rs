@@ -278,9 +278,14 @@ fn launch_overlay(
                 .ok_or(HostLaunchAdapterError::InvalidSessionRoute)?;
             orchbee_local_runtime::SessionScope::parse(scope)
                 .map_err(|_| HostLaunchAdapterError::InvalidSessionRoute)?;
+            // The tag lets a Client of another environment ignore this route (ORC-382).
             for (name, value) in [
                 ("ORCHBEE_RUNTIME_BASE", base),
                 ("ORCHBEE_RUNTIME_SCOPE", scope),
+                (
+                    orchbee_local_runtime::ENVIRONMENT_VARIABLE,
+                    orchbee_local_runtime::environment_stem(),
+                ),
             ] {
                 if value.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
                     return Err(HostLaunchAdapterError::InvalidSessionRoute);

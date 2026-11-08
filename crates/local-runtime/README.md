@@ -124,6 +124,12 @@ runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must 
 Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
 its own endpoint id. Data written under earlier non-release locations is not migrated.
 
+A managed terminal's `ORCHBEE_ENVIRONMENT` names the environment of its inherited
+`ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE`. `session_route_environment` is the single
+reader rule: when the tag names another environment, both route variables read as unset and the
+Client uses its own defaults, without error. Without the tag they keep their explicit meaning, and
+`ORCHBEE_SESSION` and `--session` are never filtered.
+
 `SessionName` validates exact case-sensitive names of 1–64 ASCII letters, digits,
 dot, underscore or hyphen, excluding `.` and `..`. `default` retains the existing SID-derived
 scope. Other names derive a bounded hashed scope from a domain separator, SID and exact name.

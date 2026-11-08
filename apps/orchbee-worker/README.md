@@ -37,8 +37,14 @@ the existing pre-handoff receipt; post-handoff loss stays unknown without replay
 ## Windows child CLI routing
 
 Managed Windows launches overlay `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` from the
-admitted Session runtime directory, alongside the existing terminal and Worker identities.
-The overlay wins over inherited and launch-supplied values. Both deferred and immediate
+admitted Session runtime directory, plus `ORCHBEE_ENVIRONMENT` set to this build's environment
+stem (`orchbee` for release), alongside the existing terminal and Worker identities. Plugin jobs
+started with a Session route receive the same three variables. A Client whose own stem differs from
+`ORCHBEE_ENVIRONMENT` treats the inherited base and scope as unset and uses its own defaults, so a
+development build started in a release terminal reaches its own Session; `ORCHBEE_SESSION` and
+`--session` are unaffected. The
+[environment rules](../../crates/local-runtime/README.md#windows-named-runtime-identity) own that
+reader rule. The overlay wins over inherited and launch-supplied values. Both deferred and immediate
 launches use the same route; unavailable or invalid path text rejects preparation instead
 of silently routing child CLI commands to another Session. Explicit-endpoint launches without
 a managed runtime retain their existing behavior.

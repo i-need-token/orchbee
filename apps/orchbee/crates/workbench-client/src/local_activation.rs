@@ -463,11 +463,13 @@ pub fn runtime_location() -> io::Result<(PathBuf, String)> {
     }
     #[cfg(unix)]
     {
+        let environment =
+            orchbee_local_runtime::session_route_environment(|key| std::env::var_os(key));
         let fallback = orchbee_local_runtime::default_runtime_base(|key| std::env::var_os(key))
             .ok_or(io::ErrorKind::NotFound)?;
         let scope = format!("orchbee-native-{}", nix::unistd::geteuid());
         Ok((
-            std::env::var_os("ORCHBEE_RUNTIME_BASE")
+            environment("ORCHBEE_RUNTIME_BASE")
                 .map(PathBuf::from)
                 .unwrap_or(fallback),
             scope,

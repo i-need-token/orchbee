@@ -67,12 +67,14 @@ fn route(
                 .ok_or(())?;
             let scope = runtime.file_name().and_then(|p| p.to_str()).ok_or(())?;
             orchbee_local_runtime::SessionScope::parse(scope).map_err(|_| ())?;
+            let tag = orchbee_local_runtime::ENVIRONMENT_VARIABLE;
             environment.retain(|(k, _)| {
-                !matches!(k.as_str(), "ORCHBEE_RUNTIME_BASE" | "ORCHBEE_RUNTIME_SCOPE")
+                !matches!(k.as_str(), "ORCHBEE_RUNTIME_BASE" | "ORCHBEE_RUNTIME_SCOPE") && k != tag
             });
             environment.extend([
                 ("ORCHBEE_RUNTIME_BASE".into(), base.into()),
                 ("ORCHBEE_RUNTIME_SCOPE".into(), scope.into()),
+                (tag.into(), orchbee_local_runtime::environment_stem().into()),
             ]);
         }
     }
