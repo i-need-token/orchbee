@@ -36,7 +36,21 @@ export interface DesktopWindowState {
 export type DesktopWindowStateLoadResult =
 	| { readonly kind: 'available'; readonly state: DesktopWindowState }
 	| { readonly kind: 'missing' }
-	| { readonly kind: 'unavailable'; readonly reason: 'invalid' | 'read-failed' };
+	| { readonly kind: 'unavailable'; readonly reason: 'invalid' | 'read-failed' }
+	/**
+	 * The record's version is one this build cannot use: saved by a newer version, or not updated
+	 * from an earlier one. It is never rewritten.
+	 */
+	| {
+			readonly kind: 'unusable';
+			readonly problem: DesktopWindowStateRecordProblem;
+			readonly version: number;
+	  };
+
+export type DesktopWindowStateRecordProblem = 'newer-format' | 'not-updated';
+
+/** The only record version this build reads and writes. */
+export const DESKTOP_WINDOW_STATE_VERSION = 1;
 
 export interface DesktopWindowStateStore {
 	flush(): Promise<void>;

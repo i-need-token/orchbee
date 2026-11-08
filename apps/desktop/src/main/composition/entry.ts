@@ -11,7 +11,7 @@ import {
 	desktopWindowMessages,
 	resolveOrchbeeLocale,
 } from '@orchbee/i18n';
-import { app, net, protocol } from 'electron';
+import { app, dialog, net, protocol } from 'electron';
 
 import { DesktopDevelopmentRestartRequestSchema } from '../../development';
 import {
@@ -37,7 +37,12 @@ import {
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
 import { DesktopWindowActions } from '../window-actions';
-import { DesktopWindowStateOwner, FileDesktopWindowStateStore } from '../window-state';
+import {
+	DesktopWindowStateOwner,
+	type DesktopWindowStateRecordReporter,
+	FileDesktopWindowStateStore,
+} from '../window-state';
+import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
 import { type DesktopDataRoot, prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
@@ -61,19 +66,80 @@ const distribution = resolveDesktopApplicationDistribution({
 	platform: process.platform,
 });
 app.setName(distribution.applicationName);
-const dataRoot = prepareDesktopDataRoot({
-	applicationVersion: app.getVersion(),
-	distribution,
-	homeDirectory: app.getPath('home'),
-	homeOverride: process.env['ORCHBEE_HOME'],
-	platform: process.platform,
-});
+const dataRoot = prepareOrRefuseDesktopDataRoot();
 app.setPath('userData', dataRoot.electronDirectory);
 // The natives write the same daily logs on Windows only until ORC-328, and so does Main.
 const recordEvent: DesktopDiagnosticRecorder =
 	process.platform === 'win32'
 		? new DesktopDiagnosticLog(dataRoot.logDirectory).recorder()
 		: () => undefined;
+
+/**
+ * Prepares the data root, or, when its layout is one this version cannot open, explains why and
+ * exits before anything reads or writes it.
+ */
+function prepareOrRefuseDesktopDataRoot(): DesktopDataRoot {
+	try {
+		return prepareDesktopDataRoot({
+			applicationVersion: app.getVersion(),
+			distribution,
+			homeDirectory: app.getPath('home'),
+			homeOverride: process.env['ORCHBEE_HOME'],
+			platform: process.platform,
+		});
+	} catch (error: unknown) {
+		if (!(error instanceof DesktopDataRootRefusal)) throw error;
+		const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
+		let message: string;
+		if (error.layout === undefined) {
+			message = intl.formatMessage(desktopWindowMessages.dataFolderUnreadable, {
+				record: error.recordPath,
+				root: error.root,
+			});
+		} else if (error.newestVersion === undefined) {
+			message = intl.formatMessage(desktopWindowMessages.dataFolderLayoutNewerUnnamed, {
+				root: error.root,
+			});
+		} else {
+			message = intl.formatMessage(desktopWindowMessages.dataFolderLayoutNewer, {
+				root: error.root,
+				version: error.newestVersion,
+			});
+		}
+		dialog.showErrorBox(intl.formatMessage(desktopWindowMessages.dataFolderRefused), message);
+		app.exit(1);
+		throw error;
+	}
+}
+
+/** Shows and logs, once, that the window placement record is one this version cannot use. */
+const reportWindowStateRecord: DesktopWindowStateRecordReporter = (problem, version) => {
+	if (problem === 'newer-format') {
+		recordEvent('warning', 'record-unusable', {
+			problem: 'newer-format',
+			record: 'desktop-window',
+			version,
+		});
+	} else {
+		recordEvent('warning', 'record-unusable', {
+			problem: 'not-updated',
+			record: 'desktop-window',
+			version,
+		});
+	}
+	const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
+	void dialog
+		.showMessageBox({
+			buttons: [intl.formatMessage(desktopWindowMessages.recordNoticeClose)],
+			message: intl.formatMessage(
+				problem === 'newer-format'
+					? desktopWindowMessages.placementNewer
+					: desktopWindowMessages.placementNotUpdated,
+			),
+			type: 'info',
+		})
+		.catch(() => undefined);
+};
 
 /**
  * What `orchbee` runs under: the same data root as Desktop, so a Session it starts keeps this
@@ -235,6 +301,7 @@ async function start(): Promise<void> {
 		windowStateOwner: new DesktopWindowStateOwner(
 			new FileDesktopWindowStateStore(dataRoot.windowStateFile),
 			process.platform,
+			reportWindowStateRecord,
 		),
 	});
 	application = started;

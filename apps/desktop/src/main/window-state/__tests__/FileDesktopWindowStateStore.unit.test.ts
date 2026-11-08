@@ -68,6 +68,33 @@ describe('FileDesktopWindowStateStore', () => {
 		expect(await store.load()).toEqual({ kind: 'unavailable', reason: 'invalid' });
 	});
 
+	it('keeps extensions, and never rewrites a record whose version it cannot use', async () => {
+		const directory = await createTemporaryDirectory();
+		const filePath = path.join(directory, 'window.json');
+		const bounds = { height: 720, width: 1_024, x: 0, y: 0 };
+		await writeFile(
+			filePath,
+			JSON.stringify({ bounds, extensions: { later: [1] }, maximized: false, version: 1 }),
+		);
+		const store = new FileDesktopWindowStateStore(filePath);
+		expect((await store.load()).kind).toBe('available');
+		expect(await store.save(requiredState(bounds, true))).toBe(true);
+		expect(JSON.parse(await readFile(filePath, 'utf8'))).toMatchObject({
+			extensions: { later: [1] },
+			maximized: true,
+		});
+
+		const newer = JSON.stringify({ placement: 'later', version: 2 });
+		await writeFile(filePath, newer);
+		const kept = new FileDesktopWindowStateStore(filePath);
+		expect(await kept.load()).toEqual({ kind: 'unusable', problem: 'newer-format', version: 2 });
+		const moved = requiredState({ ...bounds, x: 40 }, false);
+		expect(await kept.save(moved)).toBe(true);
+		await kept.flush();
+		expect(await kept.load()).toEqual({ kind: 'available', state: moved });
+		expect(await readFile(filePath, 'utf8')).toBe(newer);
+	});
+
 	it('reports an atomic-write failure without replacing the current file', async () => {
 		const directory = await createTemporaryDirectory();
 		const filePath = path.join(directory, 'window.json');

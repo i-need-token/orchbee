@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -8,6 +8,7 @@ import {
 	createDesktopDevelopmentScope,
 	resolveDesktopDistributionProfile,
 } from '../../../distribution';
+import { DesktopDataRootRefusal } from '../data-root-version-record';
 import { prepareDesktopDataRoot } from '../prepareDesktopDataRoot';
 
 type DataRootDependencies = NonNullable<Parameters<typeof prepareDesktopDataRoot>[1]>;
@@ -86,11 +87,33 @@ describe('prepareDesktopDataRoot', () => {
 		expect(
 			JSON.parse(readFileSync(path.join(internal, 'development-checkout.json'), 'utf8')),
 		).toMatchObject(input.distribution.dataScope);
-		// The root records its layout once; a later start leaves the record as it is.
-		expect(JSON.parse(readFileSync(path.join(internal, 'version.json'), 'utf8'))).toEqual({
+	});
+
+	it('keeps the newest version current and refuses a higher or unreadable layout untouched', () => {
+		const home = temporaryDirectory();
+		const input = {
+			applicationVersion: '1.2.3',
+			distribution: developmentDistribution(realpathSync.native(home), process.platform),
+			homeDirectory: home,
+			homeOverride: undefined,
+			platform: process.platform,
+		} as const;
+		const root = prepareDesktopDataRoot(input);
+		const record = path.join(root.path, 'internal', 'version.json');
+		writeFileSync(record, '{"layout":1,"newestVersion":"1.2.3","later":[1]}\n');
+		for (const applicationVersion of ['2.0.0-beta.2', '2.0.0', '1.9.0', '2.0.0-beta.10']) {
+			prepareDesktopDataRoot({ ...input, applicationVersion });
+		}
+		expect(JSON.parse(readFileSync(record, 'utf8'))).toEqual({
+			later: [1],
 			layout: 1,
-			newestVersion: '1.2.3',
+			newestVersion: '2.0.0',
 		});
+		for (const text of ['{"layout":2,"newestVersion":"9.0.0"}', '{"layout":"1"}']) {
+			writeFileSync(record, text);
+			expect(() => prepareDesktopDataRoot(input)).toThrow(DesktopDataRootRefusal);
+			expect(readFileSync(record, 'utf8')).toBe(text);
+		}
 	});
 
 	it('rejects a development marker for another checkout', () => {
@@ -98,14 +121,16 @@ describe('prepareDesktopDataRoot', () => {
 		const dependencies: DataRootDependencies = {
 			chmod: vi.fn<DataRootDependencies['chmod']>(),
 			mkdir: vi.fn<DataRootDependencies['mkdir']>(),
-			readFile: vi.fn<DataRootDependencies['readFile']>(() =>
-				JSON.stringify({
+			readFile: vi.fn<DataRootDependencies['readFile']>((filePath) => {
+				if (filePath.endsWith('version.json')) throw missingFile();
+				return JSON.stringify({
 					digest: '0'.repeat(16),
 					digestVersion: 1,
 					kind: 'development',
 					sourceRoot: '/another/checkout',
-				}),
-			),
+				});
+			}),
+			rename: vi.fn<DataRootDependencies['rename']>(),
 			writeFile: vi.fn<DataRootDependencies['writeFile']>(() => {
 				const error = new Error('exists');
 				Object.assign(error, { code: 'EEXIST' });
@@ -140,12 +165,18 @@ function prepareWithoutFileSystem(
 		{
 			chmod: () => undefined,
 			mkdir: () => undefined,
-			readFile: () => {
+			readFile: (filePath) => {
+				if (filePath.endsWith('version.json')) throw missingFile();
 				throw new Error('Unexpected marker read.');
 			},
+			rename: () => undefined,
 			writeFile: () => undefined,
 		},
 	);
+}
+
+function missingFile(): Error {
+	return Object.assign(new Error('missing'), { code: 'ENOENT' });
 }
 
 function developmentDistribution(sourceRoot: string, platform: NodeJS.Platform = 'darwin') {

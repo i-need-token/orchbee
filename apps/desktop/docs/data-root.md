@@ -26,7 +26,7 @@ runtime; a relative value fails startup instead of falling back. Desktop keeps i
 | `internal/desktop/`                  | Electron `userData`: browser storage, Chromium caches, and lock |
 | `internal/state/desktop-window.json` | Window bounds and state, created by the first save              |
 | `internal/development-checkout.json` | Development scope marker                                        |
-| `internal/version.json`              | Layout record written when the root has none                    |
+| `internal/version.json`              | Layout record and the newest version that opened the root       |
 
 On Windows Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason,
 diagnostic bundle outcomes, and `exited` to the data root's
@@ -54,10 +54,13 @@ root remains untouched.
 ## Startup order and ownership
 
 Desktop Main resolves the explicit distribution profile and creates its data root, `internal/`, and
-`internal/desktop/` before requesting Electron's single-instance lock. When `internal/version.json`
-is absent it writes `{"layout":1,"newestVersion":"<version>"}` exclusively and leaves an existing
-record as it is; the native writers write the same shape, under the `data-root-version-record`
-contract. Live development accepts only the launcher-provided source root;
+`internal/desktop/` before requesting Electron's single-instance lock. Before it reads anything else
+in the root it reads `internal/version.json`: a `layout` above 1, or a record it cannot read, stops
+startup with the localized refusal in an error dialog, and nothing in the root is read, created, or
+logged. When the record is absent Main writes `{"layout":1,"newestVersion":"<version>"}`
+exclusively; when its own version takes Semantic Versioning precedence over `newestVersion`, it
+replaces the record with that entry raised and every other entry kept. The native writers apply
+the same rules under the `data-root-version-record` contract. Live development accepts only the launcher-provided source root;
 packaged applications accept only the strict descriptor inside `app.asar`, and process environment
 cannot override that profile; `ORCHBEE_HOME` moves only the folder. Main sets Electron `userData` to `internal/desktop/` first, so one profile scope
 controls both disk state and lock identity. The same checkout therefore admits one Dev instance,
@@ -73,6 +76,16 @@ with the environment unchanged. Main creates no configuration file.
 On POSIX, Main creates product-owned data directories with owner-only access. The renderer receives
 no data-root path, enumeration, location override, or generic filesystem capability. Tests use an
 explicitly injected temporary home and source root.
+
+## Window state record
+
+`internal/state/desktop-window.json` holds `version` 1, the normal bounds, the maximized state, and
+an optional `extensions` object that a later release fills; Main keeps it unread and writes it back
+unchanged. A record whose `version` is any other integer is never rewritten: the window opens at
+its default size, and placement changes last only until Main exits. The first launch that finds such
+a record logs `record-unusable` with record `desktop-window`, the problem `newer-format` or
+`not-updated`, and the version, and shows the matching localized message once in an information
+dialog.
 
 ## Invariants
 

@@ -1,9 +1,16 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { z } from 'zod';
 
 import type { DesktopDistributionProfile } from '../../distribution';
+import {
+	DATA_ROOT_LAYOUT,
+	DesktopDataRootRefusal,
+	type DataRootVersionRecord,
+	parseDataRootVersionRecord,
+	raiseDataRootVersionRecord,
+} from './data-root-version-record';
 
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 // Everything Desktop keeps for itself lives under `internal/`; the top level of a data root holds
@@ -15,9 +22,6 @@ const LOG_DIRECTORY_NAME = 'logs';
 const STATE_DIRECTORY_NAME = 'state';
 const WINDOW_STATE_FILE_NAME = 'desktop-window.json';
 const VERSION_FILE_NAME = 'version.json';
-// Cross-runtime contract: search for `data-root-version-record` before changing this shape; native
-// writers write the same record when they create the root.
-const DATA_ROOT_LAYOUT = 1;
 
 const developmentScopeMarkerSchema = z.strictObject({
 	digest: z.string().regex(/^[0-9a-f]{16}$/u),
@@ -64,6 +68,7 @@ interface DesktopDataRootDependencies {
 		options: { readonly mode: number; readonly recursive: true },
 	) => void;
 	readonly readFile: (filePath: string, encoding: 'utf8') => string;
+	readonly rename: (fromPath: string, toPath: string) => void;
 	readonly writeFile: (
 		filePath: string,
 		data: string,
@@ -75,13 +80,15 @@ const defaultDependencies: DesktopDataRootDependencies = {
 	chmod: (filePath, mode) => chmodSync(filePath, mode),
 	mkdir: (filePath, options) => void mkdirSync(filePath, options),
 	readFile: (filePath, encoding) => readFileSync(filePath, encoding),
+	rename: (fromPath, toPath) => renameSync(fromPath, toPath),
 	writeFile: (filePath, data, options) => writeFileSync(filePath, data, options),
 };
 
 /**
- * Creates the root, `internal/`, and Electron's folder, then records the layout in
- * `internal/version.json` when the root has no record yet. The window state's folder is left to
- * the first save.
+ * Admits the root's layout before reading anything else, throwing {@link DesktopDataRootRefusal}
+ * for a higher or unreadable one; then creates the root, `internal/`, and Electron's folder, and
+ * records the layout in `internal/version.json`, raising its `newestVersion` to this version when
+ * this version is newer. The window state's folder is left to the first save.
  */
 export function prepareDesktopDataRoot(
 	input: DesktopDataRootInput,
@@ -90,11 +97,14 @@ export function prepareDesktopDataRoot(
 	const resolved = resolveDesktopDataRoot(input);
 	const platformPath = input.platform === 'win32' ? path.win32 : path.posix;
 	const internal = platformPath.join(resolved.path, INTERNAL_DIRECTORY_NAME);
+	const recordPath = platformPath.join(internal, VERSION_FILE_NAME);
+	const record = admitLayout(resolved.path, recordPath, dependencies);
 	for (const directory of [resolved.path, internal, resolved.electronDirectory]) {
 		dependencies.mkdir(directory, { mode: 0o700, recursive: true });
 		if (input.platform !== 'win32') dependencies.chmod(directory, 0o700);
 	}
-	ensureVersionRecord(platformPath.join(internal, VERSION_FILE_NAME), input, dependencies);
+	if (record === undefined) ensureVersionRecord(recordPath, input, dependencies);
+	else raiseNewestVersion(recordPath, record, input.applicationVersion, dependencies);
 	if (resolved.scope.kind === 'development') {
 		ensureDevelopmentScopeMarker(
 			platformPath.join(internal, DEVELOPMENT_SCOPE_MARKER_NAME),
@@ -150,7 +160,40 @@ function resolveRootPath(input: DesktopDataRootInput, platformPath: typeof path.
 	return platformPath.join(normalizedHome, directoryName);
 }
 
-/** Writes the layout record only when it is absent; an existing record stays as it is. */
+/** The root's record, `undefined` when it has none; a higher or unreadable layout is refused. */
+function admitLayout(
+	root: string,
+	recordPath: string,
+	dependencies: DesktopDataRootDependencies,
+): DataRootVersionRecord | undefined {
+	let text: string;
+	try {
+		text = dependencies.readFile(recordPath, 'utf8');
+	} catch (error: unknown) {
+		if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined;
+		throw new DesktopDataRootRefusal(root, recordPath, undefined);
+	}
+	const record = parseDataRootVersionRecord(text);
+	if (record === null) throw new DesktopDataRootRefusal(root, recordPath, undefined);
+	if (record.layout > DATA_ROOT_LAYOUT) throw new DesktopDataRootRefusal(root, recordPath, record);
+	return record;
+}
+
+/** Replaces the record with `newestVersion` raised, keeping every other entry. */
+function raiseNewestVersion(
+	recordPath: string,
+	record: DataRootVersionRecord,
+	version: string,
+	dependencies: DesktopDataRootDependencies,
+): void {
+	const raised = raiseDataRootVersionRecord(record, version);
+	if (raised === null) return;
+	const temporaryPath = `${recordPath}.desktop-${process.pid}.tmp`;
+	dependencies.writeFile(temporaryPath, raised, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+	dependencies.rename(temporaryPath, recordPath);
+}
+
+/** Writes the layout record when it is absent; another writer's record stays as it is. */
 function ensureVersionRecord(
 	recordPath: string,
 	input: DesktopDataRootInput,
