@@ -739,6 +739,26 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 	}),
 ] as const satisfies readonly KeyboardShortcutDeclaration[]);
 
+/**
+ * A release withholds Search across Agents, Actions and Settings until it is polished; the Actions
+ * shortcut stays, as the TUI keeps its action menu.
+ */
+const SHORTCUTS_WITHOUT_SEARCH: readonly KeyboardShortcutDeclaration[] = Object.freeze(
+	KEYBOARD_SHORTCUT_CATALOG.filter(
+		(declaration) => declaration.shortcutId !== WORKBENCH_SHORTCUTS.search.shortcutId,
+	),
+);
+
+/**
+ * The shortcuts a window lists and offers, in catalog order. A withheld shortcut keeps its default
+ * chord reserved, so a later build that offers it again meets no conflicting personal chord.
+ */
+export function offeredKeyboardShortcutDeclarations(
+	searchOffered: boolean,
+): readonly KeyboardShortcutDeclaration[] {
+	return searchOffered ? KEYBOARD_SHORTCUT_CATALOG : SHORTCUTS_WITHOUT_SEARCH;
+}
+
 export const KEYBOARD_SHORTCUT_IDS = Object.freeze(
 	KEYBOARD_SHORTCUT_CATALOG.map((declaration) => declaration.shortcutId),
 );

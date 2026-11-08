@@ -10,7 +10,9 @@ import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
 import {
 	defaultKeyboardShortcutBindings,
 	findKeyboardShortcutConflict,
+	offeredKeyboardShortcutDeclarations,
 	type KeyboardShortcutBindings,
+	type KeyboardShortcutDeclaration,
 	type KeyboardShortcutId,
 } from './keyboard-shortcut-catalog';
 import {
@@ -48,12 +50,16 @@ type KeyboardShortcutUpdateResult =
 
 interface KeyboardShortcutSettingsControllerOptions {
 	readonly platform: KeyboardShortcutPlatform;
+	/** Whether the window offers Search; a release withholds it. Defaults to offered. */
+	readonly searchOffered?: boolean | undefined;
 	readonly storage: KeyboardShortcutStorage;
 }
 
 type Listener = () => void;
 
 export class KeyboardShortcutSettingsController implements ProjectedTerminalShortcutBindingSource {
+	/** The shortcuts this window lists and offers, in catalog order. */
+	readonly declarations: readonly KeyboardShortcutDeclaration[];
 	readonly #listeners = new Set<Listener>();
 	readonly #platform: KeyboardShortcutPlatform;
 	readonly #persistence = new PreferenceWriteQueue();
@@ -62,7 +68,12 @@ export class KeyboardShortcutSettingsController implements ProjectedTerminalShor
 	#revision = 0;
 	#snapshot: KeyboardShortcutSettingsSnapshot;
 
-	constructor({ platform, storage }: KeyboardShortcutSettingsControllerOptions) {
+	constructor({
+		platform,
+		searchOffered = true,
+		storage,
+	}: KeyboardShortcutSettingsControllerOptions) {
+		this.declarations = offeredKeyboardShortcutDeclarations(searchOffered);
 		this.#platform = platform;
 		this.#storage = storage;
 		const restored = readKeyboardShortcutOverrides(storage, platform);

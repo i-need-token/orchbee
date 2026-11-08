@@ -93,6 +93,8 @@ interface WorkbenchProps {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
+	/** Whether the window offers Search; a release withholds every entry point. Defaults to offered. */
+	readonly searchOffered?: boolean | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
@@ -118,6 +120,7 @@ export function Workbench({
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
+	searchOffered = true,
 	shortcutBindings,
 	shortcutPlatform,
 	terminalActionShortcutLabels,
@@ -147,6 +150,7 @@ export function Workbench({
 		onTerminalFontSizeChange,
 		projectFolderAcquisition,
 		projectWorkspaceRuntime,
+		searchOffered,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
@@ -527,6 +531,7 @@ export function Workbench({
 					actionRuntime={actionRuntime}
 					actionScope={view.actionScope}
 					argumentPickerForAction={view.searchArgumentPickerForAction}
+					filters={view.searchFilters}
 					providers={searchProviders}
 					shortcutLabelForAction={shortcutLabelForAction}
 					state={view.searchState}

@@ -26,6 +26,11 @@ const DesktopServerConnectionBootstrapSchema = z.strictObject({
 	 * without a directory starts, and what a Workspace folder under it shows as `~`.
 	 */
 	defaultDirectory: z.string().min(1),
+	/**
+	 * Which build this Desktop is. A release withholds the entry points of features not yet polished;
+	 * development and test builds offer every one.
+	 */
+	distribution: z.enum(['development', 'release', 'test']),
 	/** Whether this machine's Host can start the system shell as a login shell; Windows cannot. */
 	loginShellAvailable: z.boolean(),
 	/**

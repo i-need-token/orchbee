@@ -8,7 +8,6 @@ import * as React from 'react';
 
 import {
 	INITIAL_KEYBOARD_SHORTCUT_SEARCH_STATE,
-	KEYBOARD_SHORTCUT_CATALOG,
 	formatKeyboardShortcutActionName,
 	keyboardShortcutSearchQueryValue,
 	keyboardShortcutBindingSource,
@@ -146,7 +145,7 @@ export function useKeyboardShortcutSettingsView({
 				? keyboardShortcutMessages.sourceCustom
 				: keyboardShortcutMessages.sourceDefault,
 		);
-	const projectedRows = KEYBOARD_SHORTCUT_CATALOG.map((declaration) => {
+	const projectedRows = controller.declarations.map((declaration) => {
 		const actionName = actionNameFor(declaration);
 		const scope = scopeNameFor(declaration.scope);
 		const availability = availabilityNameFor(declaration.availability);

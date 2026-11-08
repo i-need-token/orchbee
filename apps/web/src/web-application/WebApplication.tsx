@@ -53,6 +53,8 @@ export interface WebApplicationProps {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
+	/** Whether the window offers Search; a release withholds every entry point. Defaults to offered. */
+	readonly searchOffered?: boolean | undefined;
 
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 
@@ -80,6 +82,7 @@ export function WebApplication({
 	navigation,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
+	searchOffered,
 	shortcutPlatform,
 	terminalSettingsController,
 	terminalInteractionSettingsController,
@@ -158,6 +161,7 @@ export function WebApplication({
 					}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
+					searchOffered={searchOffered}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}

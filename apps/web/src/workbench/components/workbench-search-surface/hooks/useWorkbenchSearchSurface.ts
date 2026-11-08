@@ -24,6 +24,8 @@ import { useWorkbenchSearchProviders } from './useWorkbenchSearchProviders';
 
 interface UseWorkbenchSearchSurfaceOptions {
 	readonly argumentPickerForAction: (actionId: string) => WorkbenchSearchArgumentPicker | undefined;
+	/** The filters the window offers, in order; one filter shows no filter tabs. */
+	readonly filters: readonly WorkbenchSearchFilter[];
 	readonly providers: readonly WorkbenchSearchProvider[];
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
@@ -79,6 +81,8 @@ interface WorkbenchSearchSurfaceView {
 	readonly emptyMessage: string;
 	readonly filters: readonly WorkbenchSearchFilterView[];
 	readonly filtersLabel: string;
+	/** Filter tabs show only outside an argument picker and with more than one filter offered. */
+	readonly showsFilters: boolean;
 	readonly footerBackOrClose: string;
 	readonly footerRun: string;
 	readonly footerSelect: string;
@@ -108,6 +112,7 @@ const PICKER_STATUS_ID = 'argument-status';
 
 export function useWorkbenchSearchSurface({
 	argumentPickerForAction,
+	filters: offeredFilters,
 	providers,
 	runtime,
 	scope,
@@ -377,7 +382,7 @@ export function useWorkbenchSearchSurface({
 		all: intl.formatMessage(workbenchMessages.searchFilterAll),
 		settings: intl.formatMessage(workbenchMessages.searchFilterSettings),
 	};
-	const filterIds = ['all', 'agents', 'actions', 'settings'] as const;
+	const filterIds = offeredFilters;
 	const filters = filterIds.map((filter, index) => ({
 		id: filter,
 		label: filtersById[filter],
@@ -508,5 +513,6 @@ export function useWorkbenchSearchSurface({
 		resultsLabel: intl.formatMessage(workbenchMessages.searchResultsLabel),
 		sections,
 		showEmpty: sections.length === 0 && providerStatuses.length === 0,
+		showsFilters: state.kind !== 'picking-argument' && filters.length > 1,
 	};
 }

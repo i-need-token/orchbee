@@ -31,7 +31,7 @@ function isTreeKey(key: string): key is SidebarNavigationKey {
 interface UseWorkbenchSidebarKeyboardOptions {
 	readonly activateWorkspace: (workspaceId: string) => void;
 	readonly createWorkspace: () => void;
-	readonly onSearch: (returnFocus: HTMLElement) => void;
+	readonly onSearch: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly onShortcuts: (() => void) | undefined;
 	readonly reorderModifier: 'ctrl' | 'meta';
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => Promise<unknown>;
@@ -220,8 +220,11 @@ export function useWorkbenchSidebarKeyboard({
 		} else if (altKey || ctrlKey || metaKey) {
 			return;
 		} else if (key === '/') {
-			onSearch(target);
-			handled = true;
+			// A window that withholds Search leaves the key unbound.
+			if (onSearch !== undefined) {
+				onSearch(target);
+				handled = true;
+			}
 		} else if (shiftKey) {
 			if (key === 'ArrowLeft' || key === 'ArrowRight') {
 				resizeSidebar?.(key === 'ArrowLeft' ? -WIDTH_STEP : WIDTH_STEP);

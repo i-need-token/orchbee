@@ -3,11 +3,7 @@ import { useOrchbeeIntl } from '@orchbee/i18n';
 import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
 import * as React from 'react';
 
-import {
-	KEYBOARD_SHORTCUT_CATALOG,
-	useKeyboardShortcutSettings,
-	type KeyboardShortcutId,
-} from '../../keyboard-shortcuts';
+import { useKeyboardShortcutSettings, type KeyboardShortcutId } from '../../keyboard-shortcuts';
 import { useTerminalInteractionSettings } from '../../terminal-interaction-settings';
 import type { TerminalDefaultSettingsClientSnapshot } from '../../terminal-default-settings-control';
 import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
@@ -220,7 +216,7 @@ export function useTerminalSettingsSurface({
 	})).filter((group) => group.items.length > 0);
 	const enabledCategories = navigationGroups.flatMap((group) => group.items.map((item) => item.id));
 	const keyboardShortcutChords: Partial<Record<KeyboardShortcutId, string>> = {};
-	for (const declaration of KEYBOARD_SHORTCUT_CATALOG) {
+	for (const declaration of keyboardShortcutController.declarations) {
 		keyboardShortcutChords[declaration.shortcutId] = formatKeyboardShortcutChord(
 			keyboardShortcutSnapshot.bindings[declaration.shortcutId],
 			keyboardShortcutPlatform,
@@ -246,6 +242,7 @@ export function useTerminalSettingsSurface({
 		enabledCategories,
 		formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
 		keyboardShortcutChords,
+		keyboardShortcutDeclarations: keyboardShortcutController.declarations,
 	});
 	const resolvedSearchResults = resolveTerminalSettingsSearch({
 		entries: searchCatalog,

@@ -166,6 +166,7 @@ async function start(): Promise<void> {
 	const started = new DesktopServerClientApplication({
 		clientEnvironment: resolveClientEnvironment(dataRoot),
 		clientExecutable: resolveClientExecutable(),
+		distribution: distribution.dataScope.kind,
 		platform: process.platform,
 		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 		rendererUrl,

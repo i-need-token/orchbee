@@ -131,6 +131,19 @@ Workbench accepts host-normalized Directory descriptors and, without a native Fo
 
 The maintained behavior, ownership, transition, and correctness model lives in [`unified-search.md`](unified-search.md).
 
+### Release-withheld Search
+
+A release withholds Search across Agents, Actions and Settings until it is polished, as the TUI
+withholds its sidebar search; development and test builds offer everything. The sidebar Search row
+and its `/` key are absent, the All-search binding is neither registered nor listed in the shortcut
+settings or their search, and the Search Action is hidden for every filter except `Actions`.
+`Mod+Shift+P` still opens the surface with the `Actions` filter alone and no filter tabs, because it
+is the counterpart of the TUI's action menu, which stays, and the only route to Actions without a
+default key. Desktop Main names its distribution (`development`, `release` or `test`) in the
+document's connection bootstrap; the renderer derives `searchOffered` from it once and passes it to
+the shortcut settings controller and the Workbench. A Web Client that a Server serves will take
+release-ness from that Server's build.
+
 The sidebar Search control and the platform All-search binding—`Mod+Shift+F` on Apple and `Mod+Shift+K` on Standard—open one upper-viewport modal with the `All` filter and an empty query. `Mod+Shift+P` opens the same surface with the `Actions` filter. Each global open starts a new in-memory session; switching among `All`, `Agents`, `Actions`, and `Settings` preserves the current query, while closing discards the session. File search is intentionally absent.
 
 The current local provider projects Actions by requesting subtree discovery from the mounted application `ActionRuntime`. It keeps every runtime-owned prepared or unbound invocation intact, groups results by localized Action category, explains disabled capabilities, displays the composing application's current shortcut label for Workbench and descendant terminal Actions, and invokes a selected ready result through `executePrepared(...)`. The tab-strip-orientation Action demonstrates nested input: selecting the command opens an in-surface horizontal/vertical picker, binds the selected value through `prepareInvocation(...)`, and then executes that same scope-bound token. The Settings provider projects the stable root Settings destination through `workbench.settings.open`.

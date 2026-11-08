@@ -10,6 +10,7 @@ import type {
 	WorkbenchSearchEvent,
 	WorkbenchSearchState,
 } from '../../model/workbench-search-state';
+import { WORKBENCH_SEARCH_FILTERS } from '../../../../types/workbench-search';
 import type { WorkbenchSearchProvider } from '../../../../types/workbench-search-provider';
 import { useWorkbenchSearchSurface } from '../useWorkbenchSearchSurface';
 
@@ -57,6 +58,7 @@ describe('useWorkbenchSearchSurface', () => {
 			() =>
 				useWorkbenchSearchSurface({
 					argumentPickerForAction: () => undefined,
+					filters: WORKBENCH_SEARCH_FILTERS,
 					providers,
 					runtime,
 					scope,

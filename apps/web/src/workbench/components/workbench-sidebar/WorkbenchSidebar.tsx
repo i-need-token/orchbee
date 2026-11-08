@@ -49,7 +49,8 @@ interface WorkbenchSidebarProps {
 	readonly newWorkspaceLabel: string;
 	readonly newWorkspaceShortcutId: string;
 	readonly newWorkspaceShortcutLabel: string | undefined;
-	readonly onSearch: (returnFocus: HTMLElement) => void;
+	/** Absent when the window withholds Search, which removes its item and key. */
+	readonly onSearch?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly onSettings?: (() => void) | undefined;
 	readonly onShortcuts?: (() => void) | undefined;
 	readonly projectLabel: string;
@@ -234,24 +235,26 @@ export function WorkbenchSidebar({
 							)}
 						</Button>
 					</li>
-					<li>
-						<Button
-							className={styles['primaryItem']}
-							data-shortcut-action={searchShortcutId}
-							data-slot='workbench-sidebar-search'
-							size='sm'
-							variant='ghost'
-							onClick={(event) => onSearch(event.currentTarget)}
-						>
-							<span className={styles['icon']}>
-								<ProductIcon name='search' />
-							</span>
-							<span className={styles['label']}>{searchLabel}</span>
-							{searchShortcutLabel === undefined ? null : (
-								<Kbd className={styles['shortcut']}>{searchShortcutLabel}</Kbd>
-							)}
-						</Button>
-					</li>
+					{onSearch === undefined ? null : (
+						<li>
+							<Button
+								className={styles['primaryItem']}
+								data-shortcut-action={searchShortcutId}
+								data-slot='workbench-sidebar-search'
+								size='sm'
+								variant='ghost'
+								onClick={(event) => onSearch(event.currentTarget)}
+							>
+								<span className={styles['icon']}>
+									<ProductIcon name='search' />
+								</span>
+								<span className={styles['label']}>{searchLabel}</span>
+								{searchShortcutLabel === undefined ? null : (
+									<Kbd className={styles['shortcut']}>{searchShortcutLabel}</Kbd>
+								)}
+							</Button>
+						</li>
+					)}
 				</ul>
 				<div ref={scrollEdgesReference} className={styles['projectSection']}>
 					<div

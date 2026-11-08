@@ -1,6 +1,10 @@
 import { keyboardShortcutMessages, type MessageDescriptor } from '@orchbee/i18n';
 
-import { KEYBOARD_SHORTCUT_CATALOG, type KeyboardShortcutId } from '../../keyboard-shortcuts';
+import {
+	KEYBOARD_SHORTCUT_CATALOG,
+	type KeyboardShortcutDeclaration,
+	type KeyboardShortcutId,
+} from '../../keyboard-shortcuts';
 import {
 	KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY,
 	KEYBOARD_SHORTCUT_SEARCH_LABELS,
@@ -25,6 +29,8 @@ interface BuildTerminalSettingsSearchCatalogOptions {
 		values?: Readonly<Record<string, number | string>>,
 	) => string;
 	readonly keyboardShortcutChords: Readonly<Partial<Record<KeyboardShortcutId, string>>>;
+	/** The shortcuts the window offers, which settings search finds; defaults to every shortcut. */
+	readonly keyboardShortcutDeclarations?: readonly KeyboardShortcutDeclaration[] | undefined;
 }
 
 export function buildTerminalSettingsSearchCatalog({
@@ -32,6 +38,7 @@ export function buildTerminalSettingsSearchCatalog({
 	enabledCategories,
 	formatMessage,
 	keyboardShortcutChords,
+	keyboardShortcutDeclarations = KEYBOARD_SHORTCUT_CATALOG,
 }: BuildTerminalSettingsSearchCatalogOptions): readonly TerminalSettingsSearchEntry[] {
 	const capabilitySet = new Set(enabledCapabilities);
 	const categorySet = new Set(enabledCategories);
@@ -78,7 +85,7 @@ export function buildTerminalSettingsSearchCatalog({
 			}
 
 			if (category === 'keyboard-shortcuts') {
-				for (const declaration of KEYBOARD_SHORTCUT_CATALOG) {
+				for (const declaration of keyboardShortcutDeclarations) {
 					entries.push({
 						category,
 						categoryLabel,

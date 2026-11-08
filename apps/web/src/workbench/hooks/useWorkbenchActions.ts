@@ -67,6 +67,7 @@ import type { WorkbenchConfiguredCommandKeys } from '../model/workbench-configur
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import type { WorkbenchConfiguredCommand } from '../types/workbench-configured-commands';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
+import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
@@ -89,6 +90,8 @@ interface UseWorkbenchActionsOptions {
 		| undefined;
 	readonly openAgentBoard: () => void;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
+	/** The Search filters the window offers; a release offers only Actions. */
+	readonly searchFilters: readonly WorkbenchSearchFilter[];
 	readonly openTabTitleEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly openPanelNameEditor: (request: WorkbenchPanelNameEditorRequest) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -141,6 +144,7 @@ export function useWorkbenchActions({
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
 	runtime,
+	searchFilters,
 	setTabStripOrientation,
 	tabStripOrientation,
 	toggleSidebar,
@@ -431,7 +435,9 @@ export function useWorkbenchActions({
 				defineAction({
 					category: categoryNavigation,
 					execution,
-					getAvailability: () => ({ kind: 'enabled' }),
+					// A filter the window withholds is not offered, so no key, list or row opens it.
+					getAvailability: (_context, input) =>
+						searchFilters.includes(input.filter) ? { kind: 'enabled' } : { kind: 'hidden' },
 					handler: {
 						execute: (context, input) => {
 							context.markCommitted();
@@ -567,6 +573,7 @@ export function useWorkbenchActions({
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,
+		searchFilters,
 		setTabStripOrientation,
 		scope,
 		tabStripOrientation,

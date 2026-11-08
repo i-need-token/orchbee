@@ -64,6 +64,8 @@ those surfaces owns another binding copy.
 | `terminal.selection.select-all`               | Focused terminal                  | `Cmd+A`                  | `Ctrl+Shift+A`         |
 | `terminal.clear`                              | Focused terminal                  | `Cmd+K`                  | `Ctrl+Shift+L`         |
 
+A release does not offer `workbench.search.all.open`; see [release-withheld Search](workbench.md#release-withheld-search).
+
 The application registers separate defaults for new Tab, active-terminal close, Panel maximization, splits, paste and Tab navigation. Apple All search uses `Cmd+Shift+F`, leaving
 the familiar `Cmd+K` to clear only the focused terminal. Standard Clear uses `Ctrl+Shift+L`;
 Standard defaults deliberately leave unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available

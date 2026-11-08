@@ -40,7 +40,7 @@ import type {
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalFontSizeChangeCallback,
 } from '../types/workbench-host-actions';
-import type { WorkbenchSearchFilter } from '../types/workbench-search';
+import { WORKBENCH_SEARCH_FILTERS, type WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchSearchProviderArgumentPicker } from '../types/workbench-search-provider';
 import type {
 	WorkbenchProjectNavigationMessages,
@@ -133,6 +133,9 @@ import {
 	workbenchActiveLocationsEqual,
 	type WorkbenchTerminalLocationActivationOrigin,
 } from '../model/workbench-terminal-location-activation';
+
+/** A window that withholds Search keeps the Actions filter, the TUI's action menu counterpart. */
+const ACTION_SEARCH_FILTERS: readonly WorkbenchSearchFilter[] = ['actions'];
 
 const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
 
@@ -263,7 +266,10 @@ interface WorkbenchView {
 	) => Promise<unknown>;
 	readonly renameProject: (projectId: string, name: string) => void;
 	readonly searchLabel: string;
-	readonly search: (returnFocus: HTMLElement) => void;
+	/** Absent when the window withholds Search. */
+	readonly search: ((returnFocus: HTMLElement) => void) | undefined;
+	/** The filters Search offers; a window that withholds Search keeps only Actions. */
+	readonly searchFilters: readonly WorkbenchSearchFilter[];
 	readonly searchState: WorkbenchSearchState;
 	/** Pickers for Search's Actions whose choices the Workbench reads when the picker opens. */
 	readonly searchArgumentPickerForAction: (
@@ -338,6 +344,11 @@ interface UseWorkbenchOptions {
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	/**
+	 * Whether the window offers Search across Agents, Actions and Settings. A release withholds it
+	 * and keeps only the Actions filter, the TUI's action menu counterpart.
+	 */
+	readonly searchOffered: boolean;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
@@ -357,6 +368,7 @@ export function useWorkbench({
 	onTerminalFontSizeChange,
 	projectFolderAcquisition,
 	projectWorkspaceRuntime,
+	searchOffered,
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
@@ -442,6 +454,7 @@ export function useWorkbench({
 		| null
 	>(null);
 	const automaticNamePlaceholder = nameEditor?.unnamed === true ? nameEditor.title : undefined;
+	const searchFilters = searchOffered ? WORKBENCH_SEARCH_FILTERS : ACTION_SEARCH_FILTERS;
 	const openSearch = useMemoizedFn((input: { readonly filter: WorkbenchSearchFilter }) => {
 		searchHasOpened.current = true;
 		if (
@@ -674,6 +687,7 @@ export function useWorkbench({
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime: actionRuntime,
+		searchFilters,
 		setTabStripOrientation,
 		tabStripOrientation,
 		toggleSidebar,
@@ -1146,12 +1160,15 @@ export function useWorkbench({
 		renameProject: (projectId, name) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.renameProject, { name, projectId }, 'button');
 		},
-		search: (returnFocus) => {
-			closeSidebarOverlay();
-			searchReturnFocus.current = returnFocus;
-			actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
-		},
+		search: searchOffered
+			? (returnFocus) => {
+					closeSidebarOverlay();
+					searchReturnFocus.current = returnFocus;
+					actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
+				}
+			: undefined,
 		searchArgumentPickerForAction,
+		searchFilters,
 		searchState,
 		searchLabel: intl.formatMessage(workbenchMessages.search),
 		searchShortcutId: WORKBENCH_SHORTCUTS.search.id,

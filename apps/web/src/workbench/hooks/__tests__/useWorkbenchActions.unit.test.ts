@@ -25,6 +25,7 @@ import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthor
 import { WORKBENCH_ACTION_IDS } from '../../actions/workbench-action-ids';
 import type { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority } from '../../types/workbench-authority';
+import { WORKBENCH_SEARCH_FILTERS } from '../../types/workbench-search';
 import type {
 	WorkbenchNavigationPort,
 	WorkbenchTerminalFontSizeChangeCallback,
@@ -113,6 +114,7 @@ function WorkbenchActionsHarness({
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,
+		searchFilters: WORKBENCH_SEARCH_FILTERS,
 		setTabStripOrientation: () => undefined,
 		tabStripOrientation: 'horizontal',
 		toggleSidebar: () => setIsSidebarVisible((visible) => !visible),
@@ -400,6 +402,7 @@ describe('useWorkbenchActions', () => {
 				projectWorkspaceRuntime,
 				projectWorkspaceState: projectWorkspaceRuntime.getSnapshot(),
 				runtime,
+				searchFilters: WORKBENCH_SEARCH_FILTERS,
 				setTabStripOrientation: () => undefined,
 				tabStripOrientation: 'horizontal',
 				toggleSidebar: () => undefined,

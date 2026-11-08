@@ -178,6 +178,9 @@ async function run(
 		return;
 	}
 
+	// A release withholds the entry points of features not yet polished; this is the renderer's one
+	// reading of the build. A Web Client a Server serves would take it from that Server's build.
+	const searchOffered = bootstrap.distribution !== 'release';
 	const userPreferences = new ServerUserPreferencesClient(connection, session.snapshot.sessionId);
 	const terminalDefaultSettingsClient = new ServerTerminalDefaultSettingsClient(userPreferences);
 	const terminalLaunchProfileClient = new ServerTerminalLaunchProfileClient(
@@ -192,6 +195,7 @@ async function run(
 	// Shortcut overrides and Option-as-Alt are this device's own, so browser storage keeps them.
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
+		searchOffered,
 		storage: storage.preferences,
 	});
 	const macosTerminalInputSettingsController =
@@ -299,6 +303,7 @@ async function run(
 			macosTerminalInputSettingsController,
 			projectFolderAcquisition,
 			projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
+			searchOffered,
 			shortcutPlatform,
 			terminalDefaultSettingsControl: terminalDefaultSettingsClient,
 			terminalFeedbackSettingsController,

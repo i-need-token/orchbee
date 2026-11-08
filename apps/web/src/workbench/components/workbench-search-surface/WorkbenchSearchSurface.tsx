@@ -3,6 +3,7 @@ import { Dialog, DialogContent, Kbd, ProductIcon } from '@orchbee/ui/components'
 import * as React from 'react';
 
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from '../../constants/search-providers';
+import { WORKBENCH_SEARCH_FILTERS, type WorkbenchSearchFilter } from '../../types/workbench-search';
 import type {
 	WorkbenchSearchProvider,
 	WorkbenchSearchProviderArgumentPicker,
@@ -18,6 +19,8 @@ interface WorkbenchSearchSurfaceProps {
 	readonly argumentPickerForAction?:
 		| ((actionId: string) => WorkbenchSearchProviderArgumentPicker | undefined)
 		| undefined;
+	/** The filters the window offers, in order; one filter shows no filter tabs. */
+	readonly filters?: readonly WorkbenchSearchFilter[] | undefined;
 	readonly providers?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
@@ -32,6 +35,7 @@ export function WorkbenchSearchSurface({
 	actionRuntime,
 	actionScope,
 	argumentPickerForAction = noArgumentPicker,
+	filters = WORKBENCH_SEARCH_FILTERS,
 	providers = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutLabelForAction,
 	state,
@@ -39,6 +43,7 @@ export function WorkbenchSearchSurface({
 }: WorkbenchSearchSurfaceProps): React.ReactNode {
 	const view = useWorkbenchSearchSurface({
 		argumentPickerForAction,
+		filters,
 		providers,
 		runtime: actionRuntime,
 		scope: actionScope,
@@ -90,7 +95,8 @@ export function WorkbenchSearchSurface({
 						</button>
 						<span>{view.pickerPrompt}</span>
 					</div>
-				) : (
+				) : null}
+				{view.showsFilters ? (
 					<div
 						aria-label={view.filtersLabel}
 						className={styles['filters']}
@@ -114,7 +120,7 @@ export function WorkbenchSearchSurface({
 							</button>
 						))}
 					</div>
-				)}
+				) : null}
 				{view.providerStatuses.length === 0 ? null : (
 					<div
 						className={styles['providerStatuses']}

@@ -6,6 +6,7 @@ import {
 	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DesktopServerConnectionDocumentSchema,
+	type DesktopServerConnectionBootstrap,
 	type DesktopServerConnectionPortRole,
 	type DesktopServerConnectionReply,
 } from '@orchbee/desktop-client-protocol';
@@ -30,6 +31,7 @@ import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../w
 export interface DesktopServerClientApplicationOptions {
 	readonly clientEnvironment: NodeJS.ProcessEnv;
 	readonly clientExecutable: string;
+	readonly distribution: DesktopServerConnectionBootstrap['distribution'];
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
 	readonly rendererUrl: URL;
@@ -233,6 +235,7 @@ export class DesktopServerClientApplication {
 						// A later document follows a person's own actions; an empty Session may be what they chose.
 						automaticWorkspaceAllowed: !everConnected && restore === 'intact',
 						defaultDirectory: app.getPath('home'),
+						distribution: options.distribution,
 						loginShellAvailable: options.platform !== 'win32',
 						sessionRecoveryRequired: restore === 'recovery-required',
 						terminalHostName: hostname(),

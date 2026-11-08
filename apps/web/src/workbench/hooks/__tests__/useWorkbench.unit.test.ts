@@ -32,6 +32,7 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 		isShortcutScopeActive: true,
 		onSettings: undefined,
 		projectWorkspaceRuntime: createSnapshotRuntime(oneWorkspaceSnapshot(1, [snapshotTab(1)])),
+		searchOffered: true,
 		shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
 		shortcutPlatform: 'apple',
 		storage,
