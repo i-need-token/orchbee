@@ -26,6 +26,9 @@ fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output 
         Some(format),
         locale,
     );
-    result.stderr = CliText::new(locale).cli_runtime_status_failure(kind.as_str());
+    // A refusal keeps the shared copy that names the older side or the other environment.
+    if kind != FailureKind::Incompatible {
+        result.stderr = CliText::new(locale).cli_runtime_status_failure(kind.as_str());
+    }
     result
 }
