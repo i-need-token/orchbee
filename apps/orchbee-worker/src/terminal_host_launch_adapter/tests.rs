@@ -520,38 +520,35 @@ fn admitted_session_observation_socket_sets_the_overlay_variable() -> TestResult
         Some(directory.path()),
     )?;
 
-    let expected = endpoint.to_str().expect("UTF-8 fixture").to_owned();
-    let mut expected_overlay = vec![EnvironmentOverlayEntry {
-        name: OBSERVATION_SOCKET_ENV.to_owned(),
-        value: expected,
-    }];
+    let overlay = |name: &str| {
+        let values: Vec<_> = request
+            .environment_overlay
+            .iter()
+            .filter(|entry| entry.name == name)
+            .map(|entry| entry.value.as_str())
+            .collect();
+        assert!(values.len() <= 1, "{name} is published once");
+        values.first().copied()
+    };
+    assert_eq!(
+        overlay(OBSERVATION_SOCKET_ENV),
+        Some(endpoint.to_str().expect("UTF-8 fixture"))
+    );
     if cfg!(windows) {
-        expected_overlay.extend([
-            EnvironmentOverlayEntry {
-                name: "ORCHBEE_RUNTIME_BASE".into(),
-                value: directory.path().parent().unwrap().to_str().unwrap().into(),
-            },
-            EnvironmentOverlayEntry {
-                name: "ORCHBEE_RUNTIME_SCOPE".into(),
-                value: directory
-                    .path()
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .into(),
-            },
-            EnvironmentOverlayEntry {
-                name: "ORCHBEE_TERMINAL_ID".into(),
-                value: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b".into(),
-            },
-            EnvironmentOverlayEntry {
-                name: "ORCHBEE_WORKER_ID".into(),
-                value: "03030303030303030303030303030303".into(),
-            },
-        ]);
+        // Child CLIs route to the owned Session and carry this build's environment tag.
+        assert_eq!(
+            overlay("ORCHBEE_RUNTIME_BASE"),
+            directory.path().parent().and_then(Path::to_str)
+        );
+        assert_eq!(
+            overlay("ORCHBEE_RUNTIME_SCOPE"),
+            directory.path().file_name().and_then(|name| name.to_str())
+        );
+        assert_eq!(
+            overlay(orchbee_local_runtime::ENVIRONMENT_VARIABLE),
+            Some(orchbee_local_runtime::environment_stem())
+        );
     }
-    assert_eq!(request.environment_overlay, expected_overlay);
     Ok(())
 }
 

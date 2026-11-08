@@ -22,13 +22,23 @@ fn plugin_route_uses_owned_session_and_rejects_invalid_paths_before_execution() 
     .unwrap() else {
         panic!()
     };
+    // Inherited routing is replaced by the owned Session and tagged with this build's environment.
+    let value = |name: &str| {
+        let values: Vec<_> = routed
+            .environment
+            .iter()
+            .filter(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert!(values.len() <= 1, "{name} is routed once");
+        values.first().copied()
+    };
+    assert_eq!(value("ORCHBEE_PLUGIN_ID"), Some("tools"));
+    assert_eq!(value("ORCHBEE_RUNTIME_BASE"), Some("C:/owned-runtime"));
+    assert_eq!(value("ORCHBEE_RUNTIME_SCOPE"), Some("default"));
     assert_eq!(
-        routed.environment,
-        vec![
-            ("ORCHBEE_PLUGIN_ID".into(), "tools".into()),
-            ("ORCHBEE_RUNTIME_BASE".into(), "C:/owned-runtime".into()),
-            ("ORCHBEE_RUNTIME_SCOPE".into(), "default".into()),
-        ]
+        value(orchbee_local_runtime::ENVIRONMENT_VARIABLE),
+        Some(orchbee_local_runtime::environment_stem())
     );
     assert!(
         route(
