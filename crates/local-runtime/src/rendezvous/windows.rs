@@ -133,6 +133,11 @@ impl ModeCheckedLocalSessionRendezvous {
     pub fn runtime_directory(&self) -> &Path {
         &self.runtime
     }
+    /// The exact name recorded for a named scope, which admission already verified. The default
+    /// scope keeps no name record, so it reads as absent.
+    pub fn session_name(&self) -> io::Result<crate::SessionName> {
+        crate::session_name::read(&self.runtime)
+    }
     pub fn client_socket_path(&self) -> &Path {
         &self.client
     }

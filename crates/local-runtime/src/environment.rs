@@ -43,9 +43,9 @@ pub fn environment_stem() -> &'static str {
 }
 
 /// Whether this build is the release environment, the only one that may act on the release
-/// installation or use the shipped state locations.
-#[cfg(windows)]
-pub(crate) fn is_release() -> bool {
+/// installation or use the shipped state locations. POSIX cohorts keep the release stem until
+/// ORC-328, so this is true there; a rule that applies only on Windows gates on the platform too.
+pub fn is_release() -> bool {
     environment_stem() == RELEASE_STEM
 }
 

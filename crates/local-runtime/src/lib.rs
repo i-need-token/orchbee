@@ -54,9 +54,13 @@ mod activation_record;
 mod cohort;
 mod environment;
 pub use environment::{
-    ENVIRONMENT_VARIABLE, default_runtime_base, environment_stem, local_state_root,
+    ENVIRONMENT_VARIABLE, default_runtime_base, environment_stem, is_release, local_state_root,
     session_route_environment,
 };
+#[cfg(windows)]
+mod destructive_log;
+#[cfg(windows)]
+pub use destructive_log::{DESTRUCTIVE_LOG_ROTATION_BYTES, append_destructive_request};
 #[cfg(windows)]
 pub use environment::{prepare_default_runtime_base, roaming_state_root, roaming_state_variable};
 #[cfg(windows)]

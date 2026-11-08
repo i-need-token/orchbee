@@ -228,6 +228,20 @@ arbitrary trees or stops a process. The shared namespace lock intentionally outl
 sessions. This covers cooperating current-user invocations and ordinary process interruption;
 power-loss durability and inventory recovery after external removal of the runtime base are unclaimed.
 
+## Windows destructive request log
+
+`append_destructive_request` appends one caller-supplied JSON record as one line to
+`<local state root>\audit\destructive.jsonl`. It creates the state root, the private `audit`
+directory and the file on first use under the state root rules above, and admits existing ones only
+when they are private regular files and directories. Concurrent appends serialize on the file's own
+lock and give up after 500 ms. The current file never exceeds `DESTRUCTIVE_LOG_ROTATION_BYTES`,
+1 MiB: an append that would pass it first copies the current lines over `destructive.1.jsonl`,
+replacing the generation kept there, and empties the current file in place, so at most two
+generations remain. Nothing reads the log back. Callers treat every error as a non-event, so a
+failed append never blocks or changes their command. The
+[CLI release confirmation](../../apps/orchbee/README.md#windows-release-destructive-confirmation)
+owns the record fields.
+
 ## Local startup model
 
 Bare Linux and macOS `orchbee` admit their inherited input/output TTY and validate geometry before
