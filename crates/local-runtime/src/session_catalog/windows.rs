@@ -2,7 +2,9 @@
 use crate::{
     ActivationState, LockAttempt, ModeCheckedLocalSessionRendezvous as Rendezvous, SessionName,
     SessionScope,
-    durable_sessions::{self as durable, CatalogRecord, Directory, Lifecycle, Record},
+    durable_sessions::{
+        self as durable, CatalogRecord, Directory, Lifecycle, Record, checkpoint_path,
+    },
     private_filesystem as permissions,
     process_observation::ProcessSnapshot,
     process_registration::RecoveryVerdict,
@@ -695,7 +697,7 @@ impl SessionCatalog {
     pub fn delete(
         &self,
         name: &SessionName,
-        local_app_data: &Path,
+        local: &Path,
         deadline: Instant,
         mut interrupted: impl FnMut() -> io::Result<bool>,
     ) -> Result<NamedSessionDeleteOutcome, NamedSessionDeleteFailure> {
@@ -734,8 +736,9 @@ impl SessionCatalog {
                 return Err(io::ErrorKind::InvalidData.into());
             }
             check()?;
-            let _app_data = permissions::open_tree(local_app_data)?;
-            if local_app_data.canonicalize()? != self.local {
+            let _local =
+                crate::environment::open_state_root(local)?.ok_or(io::ErrorKind::NotFound)?;
+            if local.canonicalize()? != self.local {
                 return Err(io::ErrorKind::InvalidInput.into());
             }
             let mut session = match Rendezvous::for_named_deletion(
@@ -815,10 +818,7 @@ impl SessionCatalog {
                     return Err(io::ErrorKind::WouldBlock.into());
                 }
             }
-            let state_path = local_app_data
-                .join("Orchbee")
-                .join("native-sessions")
-                .join(Rendezvous::host_endpoint_id(&runtime));
+            let state_path = checkpoint_path(local, &runtime);
             let state = OwnedDirectory::open_optional(&state_path, CHECKPOINT_FILES, false)?;
             let runtime_directory = OwnedDirectory::open_optional(&runtime, RUNTIME_FILES, true)?;
             if session.is_none() && runtime_directory.is_some() && !pending {
@@ -1103,12 +1103,6 @@ fn stopped_checkpoint_evidence(path: &Path) -> io::Result<()> {
     Err(io::ErrorKind::NotFound.into())
 }
 
-fn checkpoint_path(local: &Path, runtime: &Path) -> PathBuf {
-    local
-        .join("Orchbee")
-        .join("native-sessions")
-        .join(Rendezvous::host_endpoint_id(runtime))
-}
 fn no_endpoints(runtime: &Path) -> io::Result<()> {
     for endpoint in Rendezvous::socket_budget_paths(runtime)
         .into_iter()

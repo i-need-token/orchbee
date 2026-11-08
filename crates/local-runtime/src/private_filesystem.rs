@@ -14,6 +14,8 @@ pub use windows::{
     file_identity, open_directory, open_file, open_snapshot_file, open_tree, protect_new,
     require_private,
 };
+#[cfg(windows)]
+pub(crate) use windows::{open_ancestors, require_exact_absolute};
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;
 #[cfg(target_os = "macos")]

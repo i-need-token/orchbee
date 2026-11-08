@@ -88,7 +88,7 @@ pub struct StartedSession {
     pub spawned: bool,
     /// The scope string parsed for this attempt (`orchbee-native-<euid>`).
     pub scope: String,
-    /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or `/tmp`), for
+    /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or the environment default), for
     /// machine-readable output.
     pub runtime_base: PathBuf,
     /// The admitted canonical runtime, used for per-Session Client preferences.
@@ -109,6 +109,13 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
     })?;
     #[cfg(windows)]
     let mut selection = windows_selection::location().map_err(runtime_location_failure)?;
+    // A development or test environment's default base lives in its data root, which may not
+    // exist yet; an explicit `ORCHBEE_RUNTIME_BASE` must already exist, as before.
+    #[cfg(windows)]
+    if selection.default_base {
+        orchbee_local_runtime::prepare_default_runtime_base(|name| std::env::var_os(name))
+            .map_err(runtime_location_failure)?;
+    }
     #[cfg(windows)]
     let (base, scope_text) = (selection.base.clone(), selection.scope.clone());
     #[cfg(not(windows))]
@@ -120,8 +127,7 @@ pub fn activate_local_session(deadline: Instant) -> Result<StartedSession, Activ
     let _named_catalog = if orchbee_local_runtime::SessionCatalog::supports_scope(&scope_text)
         .map_err(runtime_location_failure)?
     {
-        let local = std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
+        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
             .ok_or_else(|| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
         loop {
             check_deadline(deadline)?;
@@ -457,10 +463,8 @@ pub fn runtime_location() -> io::Result<(PathBuf, String)> {
     }
     #[cfg(unix)]
     {
-        #[cfg(target_os = "macos")]
-        let fallback = PathBuf::from("/private/tmp");
-        #[cfg(not(target_os = "macos"))]
-        let fallback = PathBuf::from("/tmp");
+        let fallback = orchbee_local_runtime::default_runtime_base(|key| std::env::var_os(key))
+            .ok_or(io::ErrorKind::NotFound)?;
         let scope = format!("orchbee-native-{}", nix::unistd::geteuid());
         Ok((
             std::env::var_os("ORCHBEE_RUNTIME_BASE")

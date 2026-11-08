@@ -22,20 +22,21 @@ mod layout_history;
 mod terminal_output;
 
 impl SessionStore {
-    /// `local_app_data` is an existing private absolute directory. The admitted runtime identity
-    /// separates Sessions, including isolated development bases, without putting data in temp files.
+    /// `local` is the environment's local state root, created private when missing. The admitted
+    /// runtime identity separates Sessions, including isolated development bases, without putting
+    /// data in temp files.
     pub fn open(
-        local_app_data: &Path,
+        local: &Path,
         session: &ModeCheckedLocalSessionRendezvous,
         maximum_bytes: usize,
     ) -> io::Result<Self> {
         if maximum_bytes == 0 || maximum_bytes.checked_add(HEADER_BYTES + 1).is_none() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        let mut directories = permissions::open_tree(local_app_data)?;
-        let mut directory = local_app_data.to_owned();
+        let mut directories = crate::environment::create_state_root(local)?;
+        let mut directory = local.to_owned();
         let key = ModeCheckedLocalSessionRendezvous::host_endpoint_id(session.runtime_directory());
-        for component in ["Orchbee", "native-sessions", key.as_str()] {
+        for component in [crate::durable_sessions::CHECKPOINT_DIRECTORY, key.as_str()] {
             directory.push(component);
             let created = match fs::create_dir(&directory) {
                 Ok(()) => true,

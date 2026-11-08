@@ -36,7 +36,7 @@ fn prepared(fixture: &Fixture, text: &str, stopped: bool) -> (SessionName, PathB
     let runtime = session.runtime_directory().to_owned();
     let state = fixture
         .0
-        .join("Orchbee/native-sessions")
+        .join("native-sessions")
         .join(Rendezvous::host_endpoint_id(&runtime));
     (name, runtime, state)
 }

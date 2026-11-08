@@ -8,4 +8,7 @@ pub use unsupported::RetainedSessionRecord;
 #[cfg(windows)]
 pub use windows::RetainedSessionRecord;
 #[cfg(windows)]
-pub(crate) use windows::{CatalogRecord, Directory, Lifecycle, Record, supports_scope};
+pub(crate) use windows::{
+    CHECKPOINT_DIRECTORY, CatalogRecord, Directory, Lifecycle, Record, checkpoint_path,
+    supports_scope,
+};

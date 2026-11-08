@@ -84,8 +84,7 @@ pub(super) fn run(
     ];
     #[cfg(windows)]
     let mut worker = orchbee_local_runtime::spawn_session_child(
-        &std::env::var_os("LOCALAPPDATA")
-            .map(std::path::PathBuf::from)
+        &orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
             .ok_or(io::ErrorKind::NotFound)?,
         runtime,
         orchbee_local_runtime::SessionChild::Worker,

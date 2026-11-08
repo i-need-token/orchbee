@@ -2,7 +2,7 @@
 use crate::{
     CheckpointRestoreNotice as Notice, ModeCheckedLocalSessionRendezvous as Rendezvous,
     RetainedSessionRecord, SessionStore,
-    durable_sessions::{Directory, Lifecycle, supports_scope},
+    durable_sessions::{Directory, Lifecycle, checkpoint_path, supports_scope},
     private_filesystem as permissions,
 };
 use std::{
@@ -70,7 +70,7 @@ impl SessionStore {
         notice: Option<Notice>,
     ) -> io::Result<()> {
         let generation = record.current_activation_id()?;
-        if self.directory != record.checkpoint_directory()? {
+        if self.directory != record.checkpoint_directory() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
         let bytes = encode(generation, notice)?;
@@ -155,12 +155,6 @@ impl Rendezvous {
             .then_some(notice)
             .flatten())
     }
-}
-fn checkpoint_path(local: &Path, runtime: &Path) -> std::path::PathBuf {
-    local
-        .join("Orchbee")
-        .join("native-sessions")
-        .join(Rendezvous::host_endpoint_id(runtime))
 }
 pub(crate) fn remove_pending(path: &Path) -> io::Result<()> {
     match permissions::open_file(path, false, false) {

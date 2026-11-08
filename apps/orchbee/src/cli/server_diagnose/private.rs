@@ -8,7 +8,7 @@ use orchbee_local_runtime::{
 use serde_json::{Map, Value, json};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -66,7 +66,7 @@ pub(super) fn collect() -> Result<DiagnoseDocument, Failure> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let (base, scope) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name));
     collect_at(&base, local.as_deref(), &scope, deadline)
 }
 

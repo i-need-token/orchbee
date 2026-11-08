@@ -8,7 +8,7 @@ use orchbee_local_runtime::{
 use orchbee_server::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpoint};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::Path,
     thread,
     time::{Duration, Instant},
 };
@@ -22,9 +22,8 @@ pub(super) fn load(
     Option<RetainedSessionRecord>,
     bool,
 )> {
-    let local = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .ok_or_else(|| io::Error::other("LOCALAPPDATA is unavailable"))?;
+    let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
+        .ok_or_else(|| io::Error::other("the local state root is unavailable"))?;
     load_from(&local, session)
 }
 

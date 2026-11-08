@@ -93,6 +93,13 @@ pub fn open_directory(path: &Path, writable_acl: bool) -> io::Result<File> {
 
 /// Pins every ancestor of an exact absolute path and requires the final directory to be private.
 pub fn open_tree(path: &Path) -> io::Result<Vec<File>> {
+    let handles = open_ancestors(path)?;
+    require_private(handles.last().ok_or_else(denied)?)?;
+    Ok(handles)
+}
+
+/// Refuses a relative path or one that spells a `.` or `..` component.
+pub(crate) fn require_exact_absolute(path: &Path) -> io::Result<()> {
     if path.as_os_str().to_str().is_none_or(|text| {
         text.split(['\\', '/'])
             .any(|part| matches!(part, "." | ".."))
@@ -103,6 +110,14 @@ pub fn open_tree(path: &Path) -> io::Result<Vec<File>> {
     {
         return Err(io::ErrorKind::InvalidInput.into());
     }
+    Ok(())
+}
+
+/// Pins every component of an exact absolute path without admitting the final directory's ACL.
+/// The caller admits or protects its own directory below it, as an environment data root below a
+/// home directory whose ACL other principals may share.
+pub(crate) fn open_ancestors(path: &Path) -> io::Result<Vec<File>> {
+    require_exact_absolute(path)?;
     let mut prefix = PathBuf::new();
     let mut handles = Vec::new();
     for component in path.components() {
@@ -127,7 +142,6 @@ pub fn open_tree(path: &Path) -> io::Result<Vec<File>> {
             _ => return Err(io::ErrorKind::InvalidInput.into()),
         }
     }
-    require_private(handles.last().ok_or_else(denied)?)?;
     Ok(handles)
 }
 

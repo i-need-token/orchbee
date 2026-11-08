@@ -15,7 +15,7 @@ fn scope(name: &SessionName) -> String {
 fn record_path(base: &Fixture, local: &Fixture, name: &SessionName) -> PathBuf {
     local
         .0
-        .join("Orchbee/session-catalog")
+        .join("session-catalog")
         .join(Rendezvous::host_endpoint_id(
             &base.0.canonicalize().unwrap(),
         ))
@@ -359,7 +359,7 @@ fn begin_activation_publishes_current_record_before_checkpoint_storage_can_write
         session.register_session_name(&activation, &name).unwrap();
         let state = local
             .0
-            .join("Orchbee/native-sessions")
+            .join("native-sessions")
             .join(Rendezvous::host_endpoint_id(session.runtime_directory()));
         assert!(!state.exists());
 
@@ -385,7 +385,7 @@ fn unsupported_catalog_refuses_activation_and_recovery_without_changing_retained
             let marker = session.runtime_directory().join("activation.started");
             let checkpoint = local
                 .0
-                .join("Orchbee/native-sessions")
+                .join("native-sessions")
                 .join(Rendezvous::host_endpoint_id(session.runtime_directory()))
                 .join("checkpoint.json");
             let retained = [&record, &marker, &checkpoint].map(|path| fs::read(path).unwrap());
@@ -429,7 +429,7 @@ fn assert_framed_stopped_checkpoint_evidence(leaf: &str, text: &str) {
     let runtime = session.runtime_directory().to_owned();
     let state = local
         .0
-        .join("Orchbee/native-sessions")
+        .join("native-sessions")
         .join(Rendezvous::host_endpoint_id(&runtime));
     drop(session);
     remove_runtime(&base, &runtime);
@@ -609,7 +609,7 @@ fn checkpoint_locks_endpoints_and_foreign_storage_roots_cannot_bypass_admission(
     let runtime = session.runtime_directory().to_owned();
     let state_path = local
         .0
-        .join("Orchbee/native-sessions")
+        .join("native-sessions")
         .join(Rendezvous::host_endpoint_id(&runtime));
     drop(session);
     remove_runtime(&base, &runtime);

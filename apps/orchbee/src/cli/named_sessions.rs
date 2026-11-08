@@ -20,7 +20,6 @@ use orchbee_local_runtime::{
 use serde_json::{Value, json};
 use std::{
     io,
-    path::PathBuf,
     time::{Duration, Instant},
 };
 
@@ -82,12 +81,11 @@ fn delete(
         signals.check_before(deadline)?;
         let (base, _) = crate::local_activation::runtime_location()
             .map_err(|error| local_error_at(error, "runtime-base"))?;
-        let local_app_data = std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
+        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
             .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
-        let catalog = Catalog::try_lock(&base, &local_app_data)
+        let catalog = Catalog::try_lock(&base, &local)
             .map_err(|error| local_error_at(error, "runtime-base"))?;
-        Ok::<_, Failure>(catalog.delete(name, &local_app_data, deadline, || {
+        Ok::<_, Failure>(catalog.delete(name, &local, deadline, || {
             signals.take().map(|signal| signal.is_some())
         }))
     })();
@@ -144,8 +142,7 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
     let collected = (|| {
         let (base, _) = crate::local_activation::runtime_location()
             .map_err(|error| local_error_at(error, "runtime-base"))?;
-        let local = std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
+        let local = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
             .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
         let entries = Catalog::list(&base, &local, deadline)
             .map_err(|error| local_error_at(error, "runtime-base"))?;

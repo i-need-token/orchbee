@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
     fs,
+    path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -59,14 +60,14 @@ impl Fixture {
     }
 
     fn state(&self, session: &ModeCheckedLocalSessionRendezvous) -> PathBuf {
-        self.local().join("Orchbee/native-sessions").join(
+        self.local().join("native-sessions").join(
             ModeCheckedLocalSessionRendezvous::host_endpoint_id(session.runtime_directory()),
         )
     }
 
     fn catalog(&self, session: &ModeCheckedLocalSessionRendezvous) -> PathBuf {
         self.local()
-            .join("Orchbee/session-catalog")
+            .join("session-catalog")
             .join(ModeCheckedLocalSessionRendezvous::host_endpoint_id(
                 self.local(),
             ))

@@ -399,8 +399,7 @@ fn start_host(
     ];
     #[cfg(windows)]
     let mut child = orchbee_local_runtime::spawn_session_child(
-        &std::env::var_os("LOCALAPPDATA")
-            .map(std::path::PathBuf::from)
+        &orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?,
         runtime,
         orchbee_local_runtime::SessionChild::Host,

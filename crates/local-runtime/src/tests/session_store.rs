@@ -6,7 +6,7 @@ use std::io;
 fn directory(fixture: &Fixture, session: &Rendezvous) -> std::path::PathBuf {
     fixture
         .0
-        .join("Orchbee/native-sessions")
+        .join("native-sessions")
         .join(Rendezvous::host_endpoint_id(session.runtime_directory()))
 }
 
@@ -362,7 +362,7 @@ fn redirected_state_directory_is_refused_before_writing_any_checkpoint() {
     let fixture = Fixture::new();
     let session = fixture.open("redirected");
     let target = fixture.0.join("elsewhere");
-    let link = fixture.0.join("Orchbee");
+    let link = fixture.0.join("native-sessions");
     fs::create_dir(&target).unwrap();
     let status = std::process::Command::new("powershell.exe")
         .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",

@@ -52,6 +52,10 @@ mod command;
 pub use command::{windows_encoded_command, windows_raw_command_encoded};
 mod activation_record;
 mod cohort;
+mod environment;
+pub use environment::{default_runtime_base, environment_stem};
+#[cfg(windows)]
+pub use environment::{local_state_root, prepare_default_runtime_base, roaming_state_root};
 #[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]

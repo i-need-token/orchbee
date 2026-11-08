@@ -130,7 +130,7 @@ fn wrong_direct_parent_and_failed_initial_publication_have_no_process_effect() {
     let executable = std::env::current_exe().unwrap();
     let record_path = local
         .0
-        .join("Orchbee/session-catalog")
+        .join("session-catalog")
         .join(Rendezvous::host_endpoint_id(
             &base.0.canonicalize().unwrap(),
         ))

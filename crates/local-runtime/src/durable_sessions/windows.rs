@@ -121,8 +121,19 @@ pub(crate) enum CatalogRecord {
     Unrecognized(Option<SessionName>),
 }
 
+/// The checkpoint directory a runtime derives below the environment's local state root.
+pub(crate) fn checkpoint_path(local: &Path, runtime: &Path) -> PathBuf {
+    local
+        .join(CHECKPOINT_DIRECTORY)
+        .join(Rendezvous::host_endpoint_id(runtime))
+}
+pub(crate) const CHECKPOINT_DIRECTORY: &str = "native-sessions";
+const CATALOG_DIRECTORY: &str = "session-catalog";
+
+/// `local` is the environment's local state root throughout; the layout below it is fixed.
 pub(crate) struct Directory {
     path: PathBuf,
+    local: PathBuf,
     base: PathBuf,
     sid: String,
     _pins: Vec<File>,
@@ -131,12 +142,13 @@ pub(crate) struct Directory {
 impl Directory {
     fn path(local: &Path, base: &Path) -> PathBuf {
         local
-            .join("Orchbee")
-            .join("session-catalog")
+            .join(CATALOG_DIRECTORY)
             .join(Rendezvous::host_endpoint_id(base))
     }
     pub(crate) fn open(local: &Path, base: &Path) -> io::Result<Option<Self>> {
-        let _local = permissions::open_tree(local)?;
+        let Some(_local) = crate::environment::open_state_root(local)? else {
+            return Ok(None);
+        };
         let path = Self::path(local, base);
         let pins = match permissions::open_tree(&path) {
             Ok(pins) => pins,
@@ -145,19 +157,16 @@ impl Directory {
         };
         Ok(Some(Self {
             path,
+            local: local.to_owned(),
             base: base.to_owned(),
             sid: orchbee_local_ipc::current_user_sid()?,
             _pins: pins,
         }))
     }
     pub(crate) fn create(local: &Path, base: &Path) -> io::Result<Self> {
-        let mut pins = permissions::open_tree(local)?;
+        let mut pins = crate::environment::create_state_root(local)?;
         let mut path = local.to_owned();
-        for component in [
-            "Orchbee",
-            "session-catalog",
-            &Rendezvous::host_endpoint_id(base),
-        ] {
+        for component in [CATALOG_DIRECTORY, &Rendezvous::host_endpoint_id(base)] {
             path.push(component);
             let created = match fs::create_dir(&path) {
                 Ok(()) => true,
@@ -174,6 +183,7 @@ impl Directory {
         }
         Ok(Self {
             path,
+            local: local.to_owned(),
             base: base.to_owned(),
             sid: orchbee_local_ipc::current_user_sid()?,
             _pins: pins,
@@ -395,19 +405,8 @@ pub struct RetainedSessionRecord {
     active: Record,
 }
 impl RetainedSessionRecord {
-    pub(crate) fn checkpoint_directory(&self) -> io::Result<PathBuf> {
-        let local = self
-            .directory
-            .path
-            .ancestors()
-            .nth(3)
-            .ok_or(io::ErrorKind::InvalidData)?;
-        Ok(local
-            .join("Orchbee")
-            .join("native-sessions")
-            .join(Rendezvous::host_endpoint_id(Path::new(
-                &self.active.runtime,
-            ))))
+    pub(crate) fn checkpoint_directory(&self) -> PathBuf {
+        checkpoint_path(&self.directory.local, Path::new(&self.active.runtime))
     }
     pub(crate) fn current_activation_id(&self) -> io::Result<[u8; 16]> {
         let current = self

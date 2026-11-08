@@ -35,7 +35,7 @@ fn directory(base: &Fixture, local: &Fixture) -> Directory {
 fn record_path(base: &Fixture, local: &Fixture, scope: &str) -> std::path::PathBuf {
     local
         .0
-        .join("Orchbee/session-catalog")
+        .join("session-catalog")
         .join(Rendezvous::host_endpoint_id(
             &base.0.canonicalize().unwrap(),
         ))

@@ -6,11 +6,9 @@ use std::{
 };
 
 pub(super) fn storage_path(runtime: &Path) -> io::Result<PathBuf> {
-    let root = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
+    let root = orchbee_local_runtime::local_state_root(|name| std::env::var_os(name))
         .ok_or(io::ErrorKind::NotFound)?;
     Ok(root
-        .join("Orchbee")
         .join("tui-position")
         .join(orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime)))
 }

@@ -105,6 +105,25 @@ The portable grammar preserves Windows verbatim drive prefixes, including their 
 
 ## Windows named runtime identity
 
+The compiled artifact stem names this build's environment: `orchbee` for release, otherwise
+`ob-dev-<digest>` or `ob-test-<digest>`. `environment_stem` exposes it, and one owner derives every
+Orchbee state location from it, so applications never spell a state directory or choose an AppData
+variable themselves:
+
+| Location             | Release                  | Development or test      |
+| -------------------- | ------------------------ | ------------------------ |
+| Roaming state root   | `%APPDATA%\Orchbee`      | `<home>\.<stem>`         |
+| Local state root     | `%LOCALAPPDATA%\Orchbee` | `<home>\.<stem>`         |
+| Default runtime base | `std::env::temp_dir()`   | `<home>\.<stem>\runtime` |
+
+Home follows `USERPROFILE` first, as Node's `os.homedir()` does, so Desktop derives the same data
+root. Resolving a location touches no file. Storage owners take the local state root, pin its
+ancestors and require the root itself to be private, creating it private on first write; its parent
+may be a home directory whose ACL other principals share. Activation creates a non-release default
+runtime base before admitting it, while an explicit `ORCHBEE_RUNTIME_BASE` must already exist.
+Pipe names keep the `orchbee-` prefix in every environment because each runtime directory derives
+its own endpoint id. Data written under earlier non-release locations is not migrated.
+
 `SessionName` validates exact case-sensitive names of 1–64 ASCII letters, digits,
 dot, underscore or hyphen, excluding `.` and `..`. `default` retains the existing SID-derived
 scope. Other names derive a bounded hashed scope from a domain separator, SID and exact name.
@@ -120,7 +139,8 @@ Current named scopes use the `orchbee.session-name.v1\0` domain separator. Befor
 ## Windows durable session catalog
 
 Native Windows named and default Sessions retain bounded private lifecycle records under
-`LOCALAPPDATA/Orchbee/session-catalog/<runtime-base-digest>`. Each record binds the exact name,
+`<local state root>/session-catalog/<runtime-base-digest>`, with checkpoints under
+`<local state root>/native-sessions/<runtime-digest>`. Each record binds the exact name,
 current-user scope and canonical runtime path to Active, Crashed, Stopped with a nonzero stop identity,
 or Deleting. Only current numeric version 1 with all fields, including the Server/Worker/Host
 PID and creation-FILETIME registry, is admitted. Other versions or shapes return InvalidData;
@@ -545,7 +565,7 @@ The same reader owns `UpdateChannel` (`stable`/`preview`, default stable) and de
 
 The shared bounded settings reader and pure Windows user-path adapter, which normalizes resolved relative and tilde operands lexically while keeping absolute literals verbatim, serve CLI configuration, common Client activation and direct managed Server startup. They own fatal file/path/environment admission, field-local fallback to existing safe defaults, resolved restore policy and a deterministic warning record; applications own wire projection, activation commit and private child arguments. The load result keeps effective settings and diagnostics together. Diagnostics are deduplicated before display truncation, sorted by field and reason, capped at 128 entries with an exact omitted count, and never retain source values or commands. See [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The pinned `toml` dependency parses at this file boundary. The reader has no Workbench dependency.
 
-The pure `user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `%APPDATA%/Orchbee/config.toml`; absent roots remain absent. The Server uses its parent for detection-rule inputs.
+The pure `user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `config.toml` in the environment's roaming state root; absent roots remain absent. The Server uses its parent for detection-rule inputs.
 
 ## Windows private update cache
 

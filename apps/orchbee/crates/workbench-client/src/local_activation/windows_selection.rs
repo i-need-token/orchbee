@@ -22,6 +22,8 @@ pub fn selected_session_name() -> Option<&'static str> {
 
 pub(super) struct Location {
     pub(super) base: PathBuf,
+    /// The base is this environment's default rather than `ORCHBEE_RUNTIME_BASE`.
+    pub(super) default_base: bool,
     pub(super) scope: String,
     pub(super) name: Option<SessionName>,
 }
@@ -31,7 +33,7 @@ pub(super) fn location() -> io::Result<Location> {
         SELECTED.get().and_then(Option::as_ref),
         |key| std::env::var_os(key),
         &orchbee_local_ipc::current_user_sid()?,
-        std::env::temp_dir(),
+        default_base()?,
     )
 }
 
@@ -42,8 +44,17 @@ pub fn inside_selected_session() -> io::Result<bool> {
         SELECTED.get().and_then(Option::as_ref),
         |key| std::env::var_os(key),
         &orchbee_local_ipc::current_user_sid()?,
-        std::env::temp_dir(),
+        default_base()?,
     )
+}
+
+fn default_base() -> io::Result<PathBuf> {
+    orchbee_local_runtime::default_runtime_base(|key| std::env::var_os(key)).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "this environment has no default runtime base",
+        )
+    })
 }
 
 fn inside_session(
@@ -86,9 +97,9 @@ fn resolve(
     sid: &str,
     fallback: PathBuf,
 ) -> io::Result<Location> {
-    let base = environment("ORCHBEE_RUNTIME_BASE")
-        .map(PathBuf::from)
-        .unwrap_or(fallback);
+    let explicit = environment("ORCHBEE_RUNTIME_BASE").map(PathBuf::from);
+    let default_base = explicit.is_none();
+    let base = explicit.unwrap_or(fallback);
     let name = if let Some(name) = selected {
         name.clone()
     } else if let Some(scope) = environment("ORCHBEE_RUNTIME_SCOPE") {
@@ -98,6 +109,7 @@ fn resolve(
         SessionScope::parse(text).map_err(|_| invalid("ORCHBEE_RUNTIME_SCOPE"))?;
         return Ok(Location {
             base,
+            default_base,
             scope: text.to_owned(),
             name: None,
         });
@@ -108,6 +120,7 @@ fn resolve(
     };
     Ok(Location {
         base,
+        default_base,
         scope: name.scope_for_user(sid),
         name: Some(name),
     })

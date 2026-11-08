@@ -38,13 +38,14 @@ its location from that owner.
 | Default runtime base                                      | `%TEMP%`                                      | `<root>/runtime`                        |
 | Agent observation capsules                                | `~/.orchbee/agent-observation-adapters`       | `<root>/agent-observation-adapters`     |
 | Desktop user data                                         | `~/.orchbee`                                  | `<root>`                                |
-| Named pipe prefix                                         | `orchbee-`                                    | `<stem>-`                               |
 
 - `ORCHBEE_CONFIG_FILE` and an explicitly set `ORCHBEE_RUNTIME_BASE` keep their override meaning in
   every environment. Desktop stops writing `ORCHBEE_CONFIG_FILE` for non-release profiles because
   the Client derives the same file.
 - Runtime directories differ per environment, so Session scopes and pipe names cannot collide; the
   release `default` Session belongs only to release.
+- Pipe names keep the `orchbee-` prefix in every environment, because each environment's runtime
+  directory, and so the endpoint id that names its pipes, differs.
 - Desktop development data moves from `~/.orchbee-dev-<digest>` to `~/.ob-dev-<digest>`, and the
   test package from `~/.orchbee-local` to `~/.ob-test-<digest>`. Pre-release data is not migrated.
 

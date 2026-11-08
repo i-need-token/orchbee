@@ -159,14 +159,33 @@ pub enum DirectoryPolicy {
     Explicit,
 }
 
+/// This environment's roaming state root, which holds the default `config.toml`, and the variable
+/// that diagnostics name for it.
+fn default_root(env: &impl Fn(&str) -> Option<OsString>) -> Option<(OsString, &'static str)> {
+    #[cfg(windows)]
+    {
+        crate::environment::roaming_state_root(env).map(|root| {
+            (
+                root.into_os_string(),
+                crate::environment::roaming_state_variable(),
+            )
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = env;
+        None
+    }
+}
+
 fn location(
     env: &impl Fn(&str) -> Option<OsString>,
 ) -> Result<Option<(PathBuf, bool)>, SettingsError> {
     source::require()?;
     let (value, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
         (value, "ORCHBEE_CONFIG_FILE", true)
-    } else if let Some(value) = env("APPDATA") {
-        (value, "APPDATA", false)
+    } else if let Some((root, field)) = default_root(env) {
+        (root, field, false)
     } else {
         return Ok(None);
     };
@@ -183,7 +202,7 @@ fn location(
     let path = if explicit {
         path
     } else {
-        path.join("Orchbee/config.toml")
+        path.join("config.toml")
     };
     if path
         .to_str()
