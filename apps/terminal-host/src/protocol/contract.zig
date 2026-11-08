@@ -1,5 +1,6 @@
-// Keep these synchronized with schemas/terminal/v1/constants.json, Rust and TypeScript. Released changes (>= 1.0.0) also update
-// schemas/terminal/docs/version-history.md in the same change.
+// Keep these synchronized with schemas/terminal/v1/constants.json, Rust and TypeScript. Each format
+// version is a generation in its major component, with minor and patch zero. After the first public
+// release, changes also update schemas/terminal/docs/version-history.md in the same change.
 pub const color_default: u32 = 0x01000000;
 pub const color_none: u32 = 0x02000000;
 pub const color_palette: u32 = 0x03000000;
@@ -12,8 +13,8 @@ pub fn validCellColor(value: u32) bool {
 
 pub const terminal_frame_header_bytes = 160;
 pub const terminal_frame_magic = "OBTF";
-pub const terminal_frame_format_major: u8 = 0;
-pub const terminal_frame_format_minor: u8 = 1;
+pub const terminal_frame_format_major: u8 = 1;
+pub const terminal_frame_format_minor: u8 = 0;
 pub const terminal_frame_format_patch: u8 = 0;
 pub const terminal_frame_extension_kitty_graphics: u16 = 2;
 pub const terminal_frame_extension_progress: u16 = 3;
@@ -23,8 +24,8 @@ pub const terminal_frame_extension_command_start: u16 = 6;
 pub const terminal_frame_extension_program_status: u16 = 7;
 pub const terminal_graphics_header_bytes = 40;
 pub const terminal_graphics_magic = "OBKG";
-pub const terminal_graphics_format_major: u8 = 0;
-pub const terminal_graphics_format_minor: u8 = 1;
+pub const terminal_graphics_format_major: u8 = 1;
+pub const terminal_graphics_format_minor: u8 = 0;
 pub const terminal_graphics_format_patch: u8 = 0;
 
 const frame_extension = @import("frame_extension.zig");
@@ -36,17 +37,17 @@ pub const TerminalProgramStatus = frame_extension.TerminalProgramStatus;
 pub const TerminalProgramStatusState = frame_extension.TerminalProgramStatusState;
 pub const terminal_projection_buffer_header_bytes = 320;
 pub const terminal_projection_buffer_magic = "OBPB";
-pub const terminal_projection_buffer_format_major: u8 = 0;
-pub const terminal_projection_buffer_format_minor: u8 = 1;
+pub const terminal_projection_buffer_format_major: u8 = 1;
+pub const terminal_projection_buffer_format_minor: u8 = 0;
 pub const terminal_projection_buffer_format_patch: u8 = 0;
 pub const terminal_row_window_header_bytes = 112;
 pub const terminal_row_window_magic = "OBRW";
-pub const terminal_row_window_format_major: u8 = 0;
-pub const terminal_row_window_format_minor: u8 = 1;
+pub const terminal_row_window_format_major: u8 = 1;
+pub const terminal_row_window_format_minor: u8 = 0;
 pub const terminal_row_window_format_patch: u8 = 0;
 pub const transport_envelope_header_bytes = 64;
-pub const current_protocol_major: u16 = 0;
-pub const current_protocol_minor: u16 = 1;
+pub const current_protocol_major: u16 = 1;
+pub const current_protocol_minor: u16 = 0;
 pub const current_protocol_patch: u16 = 0;
 
 pub const Limits = struct {

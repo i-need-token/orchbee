@@ -480,7 +480,7 @@ export interface ProjectedTerminalOptions {
 	readonly port: ProjectedTerminalCommandPort;
 	/** Previously painted, display-only state. It never participates in Host acknowledgement. */
 	readonly presentationSnapshot?: ProjectedTerminalPresentationSnapshot | undefined;
-	/** Trust boundary for OBPB 0.0.1 render buffers. Omitted means strict external validation. */
+	/** Trust boundary for OBPB render buffers. Omitted means strict external validation. */
 	readonly projectionBufferTrust?: 'external' | 'local-host';
 	readonly renderer?: RendererOptions;
 	readonly reviewPaste?: (

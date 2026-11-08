@@ -5,15 +5,16 @@ public release, their release history.
 
 ## Version domains
 
-Five independent business-contract versions are in scope:
+Five independent business contracts are in scope. Each carries a generation in the major
+component of its existing version field, with minor and patch zero; generation 1 replaced `0.1.0`.
 
-| Contract                  | Current version | Owns                                                                         |
-| ------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| Wire protocol             | `0.1.0`         | Handshake, transport envelope, control messages, input, and message registry |
-| `OBTF` terminal frame     | `0.1.0`         | Packed terminal-frame bytes                                                  |
-| `OBPB` projection buffer  | `0.1.0`         | Packed Host-to-render projection bytes                                       |
-| `OBRW` row window         | `0.1.0`         | Packed render/text history-window bytes and render-detail graphics           |
-| `OBKG` graphics extension | `0.1.0`         | Owned decoded images, resolved placements, layers, and animation tick        |
+| Contract                  | Current generation | Owns                                                                         |
+| ------------------------- | ------------------ | ---------------------------------------------------------------------------- |
+| Wire protocol             | 1 (`1.0.0`)        | Handshake, transport envelope, control messages, input, and message registry |
+| `OBTF` terminal frame     | 1 (`1.0.0`)        | Packed terminal-frame bytes                                                  |
+| `OBPB` projection buffer  | 1 (`1.0.0`)        | Packed Host-to-render projection bytes                                       |
+| `OBRW` row window         | 1 (`1.0.0`)        | Packed render/text history-window bytes and render-detail graphics           |
+| `OBKG` graphics extension | 1 (`1.0.0`)        | Owned decoded images, resolved placements, layers, and animation tick        |
 
 The NPM package version, Terminal Host executable version, Zig toolchain version, and third-party
 dependency versions belong to their own release owners. They are not wire-compatibility versions
@@ -27,11 +28,12 @@ current protocol reference together whenever the current contract changes.
 
 ## Public release and later
 
-The runtime accepts only its exact current version. The accepted
-[versioning and upgrade direction](../../../proposals/platform/versioning-and-upgrade.md) replaces
-the semantic versions above with negotiated generations and capability names in its P0 phase, and
-the first public release freezes the current generation of each domain. From then on, every
-externally observable change adds a release-history entry here in the same change:
+The runtime accepts only its exact current generation; a record of any other generation is
+malformed. The accepted
+[versioning and upgrade direction](../../../proposals/platform/versioning-and-upgrade.md) adds
+negotiated generations and capability names in its P0 phase, and the first public release freezes
+the current generation of each domain. From then on, every externally observable change adds a
+release-history entry here in the same change:
 
 - An incompatible change introduces the next generation of its domain.
 - A backward-compatible addition adds a capability name; the generation stays.

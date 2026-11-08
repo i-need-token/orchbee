@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"terminalFrameFormat": "0.1.0",
+	"terminalFrameFormat": "1.0.0",
 	"cases": [
 		{
 			"name": "rejected-recovery-snapshot-after-gap",

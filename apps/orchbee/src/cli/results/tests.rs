@@ -952,7 +952,7 @@ mod terminal_read {
         let route = &frame.route;
         let mut bytes = Vec::new();
         bytes.extend_from_slice(b"OBTF");
-        bytes.extend_from_slice(&[0, 1]); // format major/minor
+        bytes.extend_from_slice(&[1, 0]); // format major/minor
         bytes.push(1); // snapshot kind: no base revision
         bytes.push(0); // routing flags
         bytes.extend_from_slice(&[0; 4]); // total length, patched below

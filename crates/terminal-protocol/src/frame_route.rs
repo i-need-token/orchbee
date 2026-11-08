@@ -23,7 +23,7 @@ pub struct TerminalFrameRoute {
     pub base_revision: Option<u64>,
 }
 
-/// Inspect the OBTF 0.1.0 routing prefix without decoding or copying the terminal projection.
+/// Inspect the OBTF generation 1 routing prefix without decoding or copying the terminal projection.
 pub fn inspect_terminal_frame_route(bytes: &[u8]) -> Result<TerminalFrameRoute, ProtocolError> {
     if bytes.len() < TERMINAL_FRAME_HEADER_BYTES {
         return Err(error(ProtocolErrorCode::Truncated));

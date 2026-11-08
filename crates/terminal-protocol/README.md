@@ -25,7 +25,7 @@ ordinary success/failure codes retain their values. Wire and JSON numeric fields
 The text-frame decoder exposes each row's existing prompt class and the existing extension-4
 completion fact: exactly 25 bytes, with positive sequence and completion timestamp, duration in
 milliseconds, and one-byte exit code. Duplicate completion or graphics extensions reject the frame.
-Extension-2 carries one OBKG `0.1.0` Kitty graphics record, decoded strictly into
+Extension-2 carries one OBKG generation 1 Kitty graphics record, decoded strictly into
 `TerminalGraphics`: owned images (gray, gray-alpha, RGB or RGBA, shared behind an `Arc`) and absolute
 placements. A malformed record, an unknown image reference, an out-of-bounds crop, or a
 placement-only update inside a terminal snapshot rejects the whole frame, as the packaged

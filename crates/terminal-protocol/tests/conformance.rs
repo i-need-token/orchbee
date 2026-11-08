@@ -1,15 +1,20 @@
 use std::error::Error;
 
+use crate::encoded_fixture::base64;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MAXIMUM_ROW_WINDOW_BYTES,
     MAXIMUM_TRANSPORT_RECORD_BYTES, MessageRole, PayloadEncoding, ProtocolError, ProtocolErrorCode,
-    decode_transport_envelope, encode_transport_envelope,
+    ProtocolVersion, decode_terminal_graphics, decode_terminal_projection_buffer,
+    decode_terminal_text_frame, decode_terminal_text_row_window, decode_transport_envelope,
+    encode_transport_envelope,
 };
 
 const ENVELOPE_FIXTURE: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/transport-envelope.bin");
 const FRAME_FIXTURE: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
+const OTHER_GENERATION_CORPUS: &str =
+    include_str!("../../../schemas/terminal/v1/fixtures/other-generation-conformance.json");
 
 #[test]
 fn canonical_envelope_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>> {
@@ -268,6 +273,59 @@ fn aggregate_record_boundary_is_exact() -> Result<(), Box<dyn Error>> {
         decode_transport_envelope(&overlong_record),
         ProtocolErrorCode::LimitExceeded,
     );
+    Ok(())
+}
+
+#[test]
+fn every_boundary_refuses_a_record_of_another_generation() -> Result<(), Box<dyn Error>> {
+    let corpus: serde_json::Value = serde_json::from_str(OTHER_GENERATION_CORPUS)?;
+    assert_eq!(corpus["schemaVersion"], 1);
+    let mut codecs = Vec::new();
+    for case in corpus["cases"].as_array().ok_or("cases")? {
+        let name = case["name"].as_str().ok_or("name")?;
+        let codec = case["codec"].as_str().ok_or("codec")?;
+        let bytes = base64(case["bytesBase64"].as_str().ok_or("bytes")?)?;
+        let expected = &case["expected"];
+        codecs.push(codec);
+        if codec == "OBTP" {
+            // The envelope codec carries the peer version; the receiver refuses any version
+            // other than the current generation and answers with it.
+            assert_eq!(expected["result"], "receiver-refusal", "{name}");
+            let component = |field: &str| -> Result<u16, Box<dyn Error>> {
+                Ok(u16::try_from(
+                    expected["protocol"][field].as_u64().ok_or("protocol")?,
+                )?)
+            };
+            let protocol = decode_transport_envelope(&bytes)?.protocol;
+            assert_eq!(
+                protocol,
+                ProtocolVersion {
+                    major: component("major")?,
+                    minor: component("minor")?,
+                    patch: component("patch")?,
+                },
+                "{name}"
+            );
+            assert_ne!(protocol.major, CURRENT_PROTOCOL_VERSION.major, "{name}");
+            continue;
+        }
+        let error = match codec {
+            "OBTF" => decode_terminal_text_frame(&bytes).err(),
+            "OBPB" => decode_terminal_projection_buffer(&bytes).err(),
+            "OBRW" => decode_terminal_text_row_window(&bytes).err(),
+            "OBKG" => decode_terminal_graphics(&bytes).err(),
+            _ => return Err(format!("{name}: unknown codec {codec}").into()),
+        }
+        .ok_or_else(|| format!("{name}: accepted another generation"))?;
+        assert_eq!(expected["result"], "failure", "{name}");
+        assert_eq!(
+            error.code().to_string(),
+            expected["code"].as_str().ok_or("code")?,
+            "{name}"
+        );
+    }
+    codecs.sort_unstable();
+    assert_eq!(codecs, ["OBKG", "OBPB", "OBRW", "OBTF", "OBTP"]);
     Ok(())
 }
 

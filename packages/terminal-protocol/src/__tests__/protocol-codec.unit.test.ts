@@ -34,7 +34,8 @@ import { parseHostEpoch } from '../identifiers';
 import { decodeTerminalProjectionBuffer } from '../projection-buffer';
 import { ProtocolErrorCode } from '../protocol-result';
 import { decodeTerminalRowWindow, TerminalRowWindowDetail } from '../row-window';
-import { CURRENT_PROTOCOL_VERSION } from '../version';
+import { decodeTerminalGraphics } from '../terminal-graphics';
+import { CURRENT_PROTOCOL_VERSION, ProtocolVersionSchema } from '../version';
 
 const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
 if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
@@ -61,6 +62,10 @@ const malformedRowWindowFixtureUrl = new URL(
 );
 const packedProjectionConformanceFixtureUrl = new URL(
 	'../../../../schemas/terminal/v1/fixtures/packed-projection-conformance.json',
+	import.meta.url,
+);
+const otherGenerationConformanceFixtureUrl = new URL(
+	'../../../../schemas/terminal/v1/fixtures/other-generation-conformance.json',
 	import.meta.url,
 );
 
@@ -191,7 +196,7 @@ const packedProjectionCaseSchema = z.union([
 const packedProjectionCorpusSchema = z
 	.strictObject({
 		cases: z.array(packedProjectionCaseSchema).length(packedProjectionConformanceCaseNames.length),
-		formatVersion: z.literal('0.1.0'),
+		formatVersion: z.string(),
 		schemaVersion: z.literal(1),
 	})
 	.superRefine((corpus, context) => {
@@ -234,6 +239,61 @@ const packedProjectionCorpusSchema = z
 			});
 		}
 	});
+
+const otherGenerationCorpusSchema = z.strictObject({
+	cases: z.array(
+		z.union([
+			z.strictObject({
+				bytesBase64: canonicalBase64Schema,
+				codec: z.literal('OBTP'),
+				expected: z.strictObject({
+					protocol: ProtocolVersionSchema,
+					result: z.literal('receiver-refusal'),
+				}),
+				name: z.string(),
+			}),
+			z.strictObject({
+				bytesBase64: canonicalBase64Schema,
+				codec: z.enum(['OBTF', 'OBPB', 'OBRW', 'OBKG']),
+				expected: z.strictObject({
+					code: z.literal(ProtocolErrorCode.unsupportedVersion),
+					result: z.literal('failure'),
+				}),
+				name: z.string(),
+			}),
+		]),
+	),
+	schemaVersion: z.literal(1),
+});
+
+const otherGenerationDecoders = {
+	OBKG: decodeTerminalGraphics,
+	OBPB: decodeTerminalProjectionBuffer,
+	OBRW: decodeTerminalRowWindow,
+	OBTF: decodeTerminalFrame,
+} as const;
+
+function otherGenerationObservation(
+	codec: 'OBTP' | keyof typeof otherGenerationDecoders,
+	bytes: Uint8Array,
+) {
+	if (codec !== 'OBTP') {
+		const decoded = otherGenerationDecoders[codec](bytes);
+		return decoded.ok
+			? { result: 'success' as const }
+			: { code: decoded.code, result: 'failure' as const };
+	}
+	// The envelope codec carries the peer version so that the receiver can answer with it; every
+	// receiver refuses a version other than the current generation.
+	const decoded = decodeProtocolEnvelope(bytes);
+	if (!decoded.ok) return { code: decoded.code, result: 'failure' as const };
+	const { protocol } = decoded.value;
+	const current =
+		protocol.major === CURRENT_PROTOCOL_VERSION.major &&
+		protocol.minor === CURRENT_PROTOCOL_VERSION.minor &&
+		protocol.patch === CURRENT_PROTOCOL_VERSION.patch;
+	return { protocol, result: current ? ('accepted' as const) : ('receiver-refusal' as const) };
+}
 
 function projectionCorpusObservation(bytes: Uint8Array) {
 	const decoded = decodeTerminalProjectionBuffer(bytes);
@@ -757,6 +817,23 @@ describe('packed projection cross-language corpus', () => {
 				name: fixtureCase.name,
 				observed: fixtureCase.expected,
 			});
+		}
+	});
+});
+
+describe('other-generation cross-language corpus', () => {
+	it('refuses a record of another generation at every boundary', async () => {
+		const raw = await readFile(otherGenerationConformanceFixtureUrl, 'utf8');
+		const corpus = otherGenerationCorpusSchema.parse(JSON.parse(raw));
+		const codecs = corpus.cases.map((fixtureCase) => fixtureCase.codec);
+		expect(codecs).toHaveLength(5);
+		expect(new Set(codecs)).toEqual(new Set(['OBKG', 'OBPB', 'OBRW', 'OBTF', 'OBTP']));
+		for (const fixtureCase of corpus.cases) {
+			const bytes = new Uint8Array(Buffer.from(fixtureCase.bytesBase64, 'base64'));
+			expect({
+				name: fixtureCase.name,
+				observed: otherGenerationObservation(fixtureCase.codec, bytes),
+			}).toEqual({ name: fixtureCase.name, observed: fixtureCase.expected });
 		}
 	});
 });

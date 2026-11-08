@@ -125,7 +125,7 @@ fn obrw_window(
     let total = 112 + body.len();
     let mut record = Vec::with_capacity(total);
     record.extend_from_slice(b"OBRW");
-    record.extend_from_slice(&[0, 1]); // format major/minor
+    record.extend_from_slice(&[1, 0]); // format major/minor
     record.push(2); // detail: text
     record.push(0); // flags
     record.extend_from_slice(&(total as u32).to_le_bytes());

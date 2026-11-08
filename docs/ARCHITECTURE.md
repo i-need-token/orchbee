@@ -57,7 +57,7 @@ flowchart TB
 
 Before the first public release, each wire protocol, persisted format, and machine-readable
 document retains only its current contract. Integer versions stay at `1`; the five OBTP version
-domains stay at `0.1.0`. Shape changes update that current contract directly, without historical
+domains stay at generation 1, encoded `1.0.0`. Shape changes update that current contract directly, without historical
 versions, compatibility readers, or migrations. Cohort admission or strict parsing rejects peers
 and files with other shapes; where neither protects version reuse, replace the magic or schema
 identifier instead of retaining an older contract.

@@ -1,4 +1,4 @@
-//! Strictly decodes one OBKG `0.1.0` Kitty graphics record, shared by live frames and render
+//! Strictly decodes one OBKG generation 1 Kitty graphics record, shared by live frames and render
 //! windows. Owned pixels are copied once for consumers that keep them; this module never resolves
 //! a placement against retained resources, composes images, or paints.
 

@@ -22,6 +22,7 @@ const row_window_fixture = options.row_window_fixture;
 const terminal_failed_fixture = options.terminal_failed_fixture;
 const control_fixture = options.control_fixture;
 const utf8_bom_fixture = options.utf8_bom_fixture;
+const other_generation_fixture = options.other_generation_fixture;
 
 fn fixturePrefix(bytes: []const u8, length: usize) []const u8 {
     std.debug.assert(bytes.len >= length);
@@ -65,6 +66,32 @@ const PackedProjectionCorpus = struct {
     formatVersion: []const u8,
     schemaVersion: u8,
 };
+
+const OtherGenerationVersion = struct {
+    major: u16,
+    minor: u16,
+    patch: u16,
+};
+
+const OtherGenerationExpected = struct {
+    code: ?[]const u8 = null,
+    protocol: ?OtherGenerationVersion = null,
+    result: []const u8,
+};
+
+const OtherGenerationCase = struct {
+    bytesBase64: []const u8,
+    codec: []const u8,
+    expected: OtherGenerationExpected,
+    name: []const u8,
+};
+
+const OtherGenerationCorpus = struct {
+    cases: []const OtherGenerationCase,
+    schemaVersion: u8,
+};
+
+const other_generation_codecs = [_][]const u8{ "OBTP", "OBTF", "OBPB", "OBRW", "OBKG" };
 
 const ProjectionSuccessObservation = struct {
     kind: protocol.FrameKind,
@@ -894,7 +921,6 @@ test "shared packed projection corpus drives both native strict validators" {
     );
     defer parsed.deinit();
     try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
-    try std.testing.expectEqualStrings("0.1.0", parsed.value.formatVersion);
     try std.testing.expectEqual(@as(usize, 36), parsed.value.cases.len);
 
     var inventory = PackedProjectionInventory{};
@@ -973,6 +999,79 @@ test "shared packed projection corpus drives both native strict validators" {
         }
     }
     try inventory.validateComplete();
+}
+
+test "every native boundary refuses a record of another generation" {
+    const allocator = std.testing.allocator;
+    try std.testing.expect(other_generation_fixture.len > 0);
+    const parsed = try std.json.parseFromSlice(
+        OtherGenerationCorpus,
+        allocator,
+        other_generation_fixture,
+        .{},
+    );
+    defer parsed.deinit();
+    try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
+    try std.testing.expectEqual(other_generation_codecs.len, parsed.value.cases.len);
+
+    var seen = [_]bool{false} ** other_generation_codecs.len;
+    for (parsed.value.cases) |case| {
+        const codec_index = for (other_generation_codecs, 0..) |codec, index| {
+            if (std.mem.eql(u8, codec, case.codec)) break index;
+        } else return error.InvalidConformanceCorpus;
+        if (seen[codec_index]) return error.InvalidConformanceCorpus;
+        seen[codec_index] = true;
+        const bytes = try decodeCanonicalBase64(allocator, case.bytesBase64);
+        defer allocator.free(bytes);
+
+        if (codec_index == 0) {
+            // The envelope codec carries the peer version; the receiver refuses any version other
+            // than the current generation and answers with it.
+            if (!std.mem.eql(u8, case.expected.result, "receiver-refusal") or
+                case.expected.code != null)
+            {
+                return error.InvalidConformanceCorpus;
+            }
+            const expected = case.expected.protocol orelse return error.InvalidConformanceCorpus;
+            const summary = try protocol.validateTransportEnvelope(bytes);
+            try std.testing.expectEqual(expected.major, summary.protocol_major);
+            try std.testing.expectEqual(expected.minor, summary.protocol_minor);
+            try std.testing.expectEqual(expected.patch, summary.protocol_patch);
+            try std.testing.expect(summary.protocol_major != protocol.current_protocol_major);
+            continue;
+        }
+        if (!std.mem.eql(u8, case.expected.result, "failure") or
+            case.expected.protocol != null or
+            !std.mem.eql(u8, case.expected.code orelse "", "unsupported-version"))
+        {
+            return error.InvalidConformanceCorpus;
+        }
+        if (validateOtherGenerationRecord(allocator, case.codec, bytes)) |_| {
+            std.debug.print("other-generation case unexpectedly passed: {s}\n", .{case.name});
+            return error.TestExpectedError;
+        } else |err| {
+            try std.testing.expectEqual(@as(anyerror, error.UnsupportedVersion), err);
+        }
+    }
+    for (seen) |observed| try std.testing.expect(observed);
+}
+
+fn validateOtherGenerationRecord(
+    allocator: std.mem.Allocator,
+    codec: []const u8,
+    bytes: []const u8,
+) anyerror!void {
+    if (std.mem.eql(u8, codec, "OBTF")) {
+        _ = try protocol.validateTerminalFrame(allocator, bytes);
+    } else if (std.mem.eql(u8, codec, "OBPB")) {
+        _ = try protocol.validateTerminalProjectionBuffer(bytes);
+    } else if (std.mem.eql(u8, codec, "OBRW")) {
+        _ = try protocol.validateTerminalRowWindow(allocator, bytes);
+    } else if (std.mem.eql(u8, codec, "OBKG")) {
+        _ = try protocol.validateTerminalGraphics(bytes);
+    } else {
+        return error.InvalidConformanceCorpus;
+    }
 }
 
 test "render row window delegates to the strict projection scan" {
@@ -1520,8 +1619,8 @@ test "native control replies and events conform to TypeScript schemas" {
     try expectJsonEquivalent(allocator, outputs.empty, control_encode.empty_control);
     try expectOwnedJson(allocator, outputs.protocol_rejected, try control_encode.protocolRejected(
         allocator,
-        0,
         2,
+        0,
         0,
         protocol.current_protocol_major,
         protocol.current_protocol_minor,

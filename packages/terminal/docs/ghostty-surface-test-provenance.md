@@ -123,7 +123,7 @@ split whose new first glyph has a different signed ink bearing.
 
 Pinned Ghostty remains the state owner for decoded images, frame selection, virtual and relative
 placements, source intersection, and z ordering. Terminal Host resolves that state into bounded
-OBKG `0.1.0` owned pixels and absolute placements. No path, file descriptor, shared-memory name or
+OBKG owned pixels and absolute placements. No path, file descriptor, shared-memory name or
 mapping, compressed stream, encoded container, or unresolved pin reaches this package.
 
 The packed store commits image resources, placements, resource revision, and monotonic animation
@@ -131,7 +131,7 @@ tick atomically. Canvas2D and WebGPU cache one converted resource per image gene
 intersected source rectangle and destination geometry, and paint at three matching seams:
 `z < -1073741824` below cell backgrounds, `-1073741824 <= z < 0` between backgrounds and text, and
 `z >= 0` above text. Replacement and failure paths cannot retain an obsolete Canvas or GPU
-resource. Render-detail OBRW `0.1.0` carries an independent complete graphics snapshot rebased to
+resource. Render-detail OBRW carries an independent complete graphics snapshot rebased to
 the selected history window; text detail carries none.
 
 The upstream `src/renderer/image.zig` declarations map to the Host projection and client renderer

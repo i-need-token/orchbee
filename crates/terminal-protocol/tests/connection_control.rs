@@ -103,8 +103,8 @@ fn canonical_values_retain_typed_connection_facts() -> Result<(), Box<dyn Error>
         rejected,
         ConnectionControl::ProtocolRejected(ProtocolRejected {
             client: ProtocolVersion {
-                major: 0,
-                minor: 2,
+                major: 2,
+                minor: 0,
                 patch: 0,
             },
             host: CURRENT_PROTOCOL_VERSION,
@@ -217,8 +217,14 @@ fn identity_version_and_feature_boundaries_are_strict() -> Result<(), Box<dyn Er
         );
     }
 
+    let current = CURRENT_PROTOCOL_VERSION;
+    let current_protocol = format!(
+        "\"protocol\":{{\"major\":{},\"minor\":{},\"patch\":{}}}",
+        current.major, current.minor, current.patch
+    );
+    assert!(hello_payload.contains(&current_protocol));
     let version_boundary = hello_payload.replacen(
-        "\"protocol\":{\"major\":0,\"minor\":1,\"patch\":0}",
+        &current_protocol,
         "\"protocol\":{\"major\":65535,\"minor\":65535,\"patch\":65535}",
         1,
     );

@@ -494,7 +494,7 @@ fn row_window_record(
     };
     let mut payload = vec![0_u8; bytes];
     payload[..4].copy_from_slice(b"OBRW");
-    payload[5] = 1;
+    payload[4] = 1;
     payload[6] = 2;
     payload[8..12].copy_from_slice(&(bytes as u32).to_le_bytes());
     payload[12..14].copy_from_slice(&112_u16.to_le_bytes());

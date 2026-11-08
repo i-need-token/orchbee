@@ -73,7 +73,7 @@ The accepted contract requires these externally visible properties:
   configured slot; OSC 104 (one slot or all slots) restores tagging. This preserves existing VT
   behavior without a per-terminal wire override map. The
   [current cell encoding](../../schemas/terminal/references/protocol.md)
-  owns the codes and unchanged pre-release `0.1.0` contract.
+  owns the codes and the current pre-release generation 1 contract.
 - Terminal output becomes a normal exit only after child completion, normal PTY drain, and complete quiescence of the PTY writer.
 - Unrecoverable PTY read, PTY write, terminal-reply, resize, or worker-integrity failures become an explicit typed failed outcome. The Host fences unsafe I/O, contains the owned process tree, and continues bounded cleanup retries even while no broker is connected.
 - Graceful termination, force termination, and disposal are distinct. The broker owns escalation timing; disposal is explicit.
@@ -84,7 +84,7 @@ The accepted contract requires these externally visible properties:
 - Kitty graphics remain bounded native state. Ghostty owns direct, regular-file, temporary-file,
   and supported POSIX shared-memory media plus animation, virtual/relative placement, cropping,
   query/delete, and signed-z composition. Host projects only owned decoded pixels and resolved
-  placements through OBKG `0.1.0`; render-detail OBRW `0.1.0` includes a graphics snapshot, while
+  placements through OBKG; render-detail OBRW includes a graphics snapshot, while
   text detail excludes graphics. macOS and supported libc-backed Linux targets enable every medium;
   Windows enables direct, regular-file, and temporary-file media but not POSIX shared memory.
 - Terminal control queries, including DECRQSS, read that same canonical Ghostty state and enqueue their replies through the Host-owned bounded terminal-reply path; attachments never emulate a second VT reply surface.

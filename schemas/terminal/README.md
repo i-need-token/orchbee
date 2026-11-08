@@ -5,8 +5,9 @@
 This directory owns the language-neutral Terminal wire contract. The
 [current reference](references/protocol.md) defines layouts and semantics;
 [version policy](docs/version-history.md) governs the five independent OBTP version domains.
-The single `v1/` directory contains the current contract, whose five versions remain `0.1.0`.
-It does not introduce a sixth wire version.
+The single `v1/` directory contains the current contract. Each of its five domains is at
+generation 1, encoded `1.0.0`: the generation in the major component, minor and patch zero. It does
+not introduce a sixth wire version.
 
 [`v1/constants.json`](v1/constants.json) is the manually maintained registry for magic values,
 format versions and header sizes, message kinds and their role/encoding/success-response contracts,
@@ -40,9 +41,11 @@ required; agreement on constants alone does not prove codec or runtime behavior.
 unversioned; contents carry the current format. The TypeScript binding's existing
 `fixtures:generate` and `test:fixtures` commands produce and check the codec fixtures in this
 directory. `canonical.json` is generator input, and `control-conformance.json` contains payload
-cases rather than a second constant registry.
+cases rather than a second constant registry. `other-generation-conformance.json` holds one
+canonical record per domain with only its generation replaced: every frame decoder refuses it, and
+the envelope decoder reports the peer generation for the receiver to refuse.
 
 Terminal Host's existing `surface-fixtures:generate` and `test:surface-fixtures` commands produce
-and byte-compare the three `ghostty-*.bin` records. The terminal renderer consumes those same
+and byte-compare the `ghostty-*.bin` records. The terminal renderer consumes those same
 records for its semantic checks. Native production, fixture authority, and consumer assertions
 retain their separate responsibilities.

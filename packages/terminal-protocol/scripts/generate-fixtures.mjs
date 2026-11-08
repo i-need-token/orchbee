@@ -89,6 +89,10 @@ const packedProjectionConformancePath = path.join(
 	fixturesDirectory,
 	`packed-projection-conformance.json`,
 );
+const otherGenerationConformancePath = path.join(
+	fixturesDirectory,
+	`other-generation-conformance.json`,
+);
 const checkOnly = process.argv.includes('--check');
 
 function bytesFromBase64(value) {
@@ -946,7 +950,7 @@ function createControlConformanceFixture() {
 		),
 		protocol_rejected: controlText(
 			ProtocolRejectedSchema,
-			{ client: { major: 0, minor: 2, patch: 0 }, host: protocol, reason: 'version-mismatch' },
+			{ client: { major: 2, minor: 0, patch: 0 }, host: protocol, reason: 'version-mismatch' },
 			'ProtocolRejected',
 		),
 		resize_accepted: controlText(
@@ -1298,7 +1302,8 @@ function assembleTextRowWindowBytes({
 	const bytes = new Uint8Array(ROW_WINDOW_HEADER_BYTES + bodyLength);
 	const view = new DataView(bytes.buffer);
 	bytes.set([0x4f, 0x42, 0x52, 0x57], 0);
-	bytes[5] = 1;
+	bytes[4] = TERMINAL_ROW_WINDOW_FORMAT.major;
+	bytes[5] = TERMINAL_ROW_WINDOW_FORMAT.minor;
 	bytes[6] = 2; // text detail
 	bytes[7] = 0;
 	view.setUint32(8, bytes.byteLength, true);
@@ -1315,7 +1320,7 @@ function assembleTextRowWindowBytes({
 	view.setUint16(90, 0, true);
 	view.setUint32(92, entryCount, true);
 	view.setUint32(96, bodyLength, true);
-	bytes[100] = 0;
+	bytes[100] = TERMINAL_ROW_WINDOW_FORMAT.patch;
 	let offset = ROW_WINDOW_HEADER_BYTES;
 	for (const part of rowParts) {
 		bytes.set(part, offset);
@@ -2208,6 +2213,73 @@ function packedProjectionConformanceCorpus(
 	return { cases, formatVersion: rowWindowVersion, schemaVersion: 1 };
 }
 
+// A generation the bindings do not speak. Each case is a canonical record whose generation
+// component alone is replaced, so the refusal cannot come from any other field.
+const OTHER_GENERATION = 2;
+
+function otherGenerationConformanceCorpus({
+	envelopeBytes,
+	frameBytes,
+	projectionBytes,
+	renderRowWindowBytes,
+	rowWindowBytes,
+}) {
+	const base64 = (bytes) => Buffer.from(bytes).toString('base64');
+	const withFormatGeneration = (bytes) => {
+		const mutated = bytes.slice();
+		mutated[4] = OTHER_GENERATION;
+		return mutated;
+	};
+	const envelope = envelopeBytes.slice();
+	new DataView(envelope.buffer).setUint16(16, OTHER_GENERATION, true);
+	const renderView = rowWindowView(renderRowWindowBytes);
+	const graphicsOffset = ROW_WINDOW_HEADER_BYTES + renderView.getUint32(101, true);
+	const graphicsBytes = renderRowWindowBytes.slice(
+		graphicsOffset,
+		graphicsOffset + renderView.getUint32(105, true),
+	);
+	const refused = { code: 'unsupported-version', result: 'failure' };
+	return {
+		cases: [
+			{
+				bytesBase64: base64(envelope),
+				codec: 'OBTP',
+				// The envelope codec carries the version so the receiver can answer with it.
+				expected: {
+					protocol: { ...CURRENT_PROTOCOL_VERSION, major: OTHER_GENERATION },
+					result: 'receiver-refusal',
+				},
+				name: 'obtp-other-generation',
+			},
+			{
+				bytesBase64: base64(withFormatGeneration(frameBytes)),
+				codec: 'OBTF',
+				expected: refused,
+				name: 'obtf-other-generation',
+			},
+			{
+				bytesBase64: base64(withFormatGeneration(projectionBytes)),
+				codec: 'OBPB',
+				expected: refused,
+				name: 'obpb-other-generation',
+			},
+			{
+				bytesBase64: base64(withFormatGeneration(rowWindowBytes)),
+				codec: 'OBRW',
+				expected: refused,
+				name: 'obrw-other-generation',
+			},
+			{
+				bytesBase64: base64(withFormatGeneration(graphicsBytes)),
+				codec: 'OBKG',
+				expected: refused,
+				name: 'obkg-other-generation',
+			},
+		],
+		schemaVersion: 1,
+	};
+}
+
 function stringifyPackedProjectionConformance(corpus) {
 	const rowIndexArrays = [];
 	let text = JSON.stringify(
@@ -2364,6 +2436,19 @@ const packedProjectionConformanceBytes = new TextEncoder().encode(
 		),
 	),
 );
+const otherGenerationConformanceBytes = new TextEncoder().encode(
+	`${JSON.stringify(
+		otherGenerationConformanceCorpus({
+			envelopeBytes,
+			frameBytes,
+			projectionBytes,
+			renderRowWindowBytes,
+			rowWindowBytes,
+		}),
+		null,
+		'\t',
+	)}\n`,
+);
 
 if (checkOnly) {
 	await compareFile(framePath, frameBytes);
@@ -2384,6 +2469,7 @@ if (checkOnly) {
 	await compareFile(rowWindowPath, rowWindowBytes);
 	await compareFile(malformedRowWindowPath, malformedRowWindowBytes);
 	await compareFile(packedProjectionConformancePath, packedProjectionConformanceBytes);
+	await compareFile(otherGenerationConformancePath, otherGenerationConformanceBytes);
 } else {
 	await writeFile(framePath, frameBytes);
 	await writeFile(projectionPath, projectionBytes);
@@ -2403,4 +2489,5 @@ if (checkOnly) {
 	await writeFile(rowWindowPath, rowWindowBytes);
 	await writeFile(malformedRowWindowPath, malformedRowWindowBytes);
 	await writeFile(packedProjectionConformancePath, packedProjectionConformanceBytes);
+	await writeFile(otherGenerationConformancePath, otherGenerationConformanceBytes);
 }

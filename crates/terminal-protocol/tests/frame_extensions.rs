@@ -34,7 +34,7 @@ fn frame(extensions: &[(u16, u16, &[u8])]) -> Vec<u8> {
 fn graphics_record(kind: u8, image: bool, placement_image: u32) -> Vec<u8> {
     // Authored from the OBKG wire contract: one 2x1 RGB image and one placement.
     let mut bytes = vec![0_u8; 40];
-    bytes[..8].copy_from_slice(&[b'O', b'B', b'K', b'G', 0, 1, 0, kind]);
+    bytes[..8].copy_from_slice(&[b'O', b'B', b'K', b'G', 1, 0, 0, kind]);
     bytes[12..20].copy_from_slice(&7_u64.to_le_bytes());
     bytes[28..30].copy_from_slice(&u16::from(image).to_le_bytes());
     bytes[30..32].copy_from_slice(&1_u16.to_le_bytes());
@@ -73,7 +73,7 @@ fn graphics_record(kind: u8, image: bool, placement_image: u32) -> Vec<u8> {
 #[test]
 fn graphics_are_decoded_strictly_and_prompt_rows_cannot_be_mistaken_for_unstyled_blank_space() {
     let mut empty = vec![0_u8; 40];
-    empty[..7].copy_from_slice(b"OBKG\0\x01\0");
+    empty[..7].copy_from_slice(b"OBKG\x01\0\0");
     empty[7] = 1;
     empty[8..12].copy_from_slice(&40_u32.to_le_bytes());
     let decoded = decode_terminal_text_frame(&frame(&[(2, 0, &empty)])).unwrap();

@@ -353,7 +353,7 @@ function countByteSequence(bytes: Uint8Array, value: Uint8Array): number {
 }
 
 describe('packed terminal row windows', () => {
-	it('round-trips a render window through nested OBPB 0.1.0 and snapshot OBKG 0.1.0', () => {
+	it('round-trips a render window through nested OBPB and snapshot OBKG', () => {
 		const bytes = encodedRenderWindow();
 		const decoded = decodeTerminalRowWindow(bytes);
 		if (!decoded.ok) throw new Error(decoded.detail);
@@ -770,7 +770,6 @@ describe('packed terminal row windows', () => {
 			totalRows: 20n,
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
-		expect(encoded.value[5]).toBe(1);
 		expect(encoded.value[112]).toBe(0x04);
 		expect(new DataView(encoded.value.buffer).getUint32(92, true)).toBe(3);
 		expect(new DataView(encoded.value.buffer).getUint32(120, true)).toBe(0);

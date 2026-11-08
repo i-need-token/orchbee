@@ -21,11 +21,11 @@ and observations for kinds 12 through 19, attachment controls for kinds 20 throu
 and feedback codecs for its actual Host broker. Worker owns socket authentication, handshake state,
 connection liveness, and viewer relay behavior. The binding includes kind-11 `CreateTerminal` and
 kind-12 `TerminalCreated` launch controls. Its `inspect_terminal_frame_route` reads only the OBTF
-0.1.0 routing prefix: exact framing/version, kind/base-revision relationship, nonzero Host/attachment
+routing prefix: exact framing/version, kind/base-revision relationship, nonzero Host/attachment
 identity, sequence, generation, and revision. It does not validate presentation fields, tables,
 cells, or extensions; Client projection decoding remains a separate boundary. Existing TypeScript
 and real Ghostty fixtures verify this zero-copy route inspection. Beyond route inspection, the
-binding decodes bounded OBRW 0.1.0 text-detail row windows into `TerminalTextRowWindow`; a legal
+binding decodes bounded OBRW text-detail row windows into `TerminalTextRowWindow`; a legal
 render window completes full header validation, then fails closed as outside the text-only API.
 The binding also covers the
 bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for kinds 43 and 44,
@@ -55,7 +55,7 @@ The independent Rust `ScreenControl` binding mirrors kinds 74–76: ClearTermina
 
 ## Rust text-frame binding
 
-`decode_terminal_text_frame` consumes the unchanged OBTF 0.1.0 encoding for the private native TUI.
+`decode_terminal_text_frame` consumes the current OBTF encoding for the private native TUI.
 It validates the routing/header, geometry, strict UTF-8 string bounds, styles, sorted row/cell tables,
 wide-cell and adjacent-wrap relationships, exact length, and bounded optional extension envelopes
 before returning `TerminalTextFrame`. The output carries rows of shared `Arc<str>` graphemes and
@@ -85,7 +85,7 @@ feedback after a successful draw. Worker and Server continue to use only route i
 
 ## Rust text row-window binding
 
-`decode_terminal_text_row_window` consumes unchanged OBRW 0.1.0 text detail for text-row consumers.
+`decode_terminal_text_row_window` consumes current OBRW text detail for text-row consumers.
 Interactive native history uses the render binding. The text binding validates the complete shared header — exact framing and
 version, total and body lengths, required flags and reserved fields, window shape, detail
 section lengths, and non-zero Host/attachment identities — before a legal render window fails
@@ -110,13 +110,13 @@ validator.
 | Area                 | Public contract                                                                                                                                                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                                                                  |
-| Compatibility        | Exact current protocol `0.1.0` validation; a different version is rejected rather than adapted                                                                                                                                              |
+| Compatibility        | Exact current generation validation; any other generation is rejected rather than adapted                                                                                                                                                   |
 | Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                                                               |
 | Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle/launch-overlay, attachment, projection/history, bell, clipboard-write, metadata, application-signal, selection, and failure schemas |
 | Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                                                                         |
-| Projection           | OBTF format `0.1.0` and OBPB format `0.1.0` buffers with strict external decode and an explicit immutable-local zero-repack view                                                                                                            |
-| Graphics             | OBKG format `0.1.0` owned decoded images, resolved placements, signed-z layers, animation ticks, and strict snapshot/placement-update admission                                                                                             |
-| History              | OBRW format `0.1.0` render/text row windows, render-detail graphics snapshots, stable origins, applied anchors, and explicit eviction vocabulary                                                                                            |
+| Projection           | OBTF and OBPB buffers with strict external decode and an explicit immutable-local zero-repack view                                                                                                                                          |
+| Graphics             | OBKG owned decoded images, resolved placements, signed-z layers, animation ticks, and strict snapshot/placement-update admission                                                                                                            |
+| History              | OBRW render/text row windows, render-detail graphics snapshots, stable origins, applied anchors, and explicit eviction vocabulary                                                                                                           |
 | Selection            | Gesture, command, fixed-header chunk-routing, and bounded acknowledged plain-text-only export wire shapes                                                                                                                                   |
 | Input                | Message-kind-selected bounded raw, key, committed-text, mouse, focus, and reviewed-mode paste codecs scoped by `AttachmentId` and its positive capability revision                                                                          |
 | Lifecycle wire       | Mutually exclusive terminal phase, normal-exit, runtime-failure, containment, and failed-outcome schemas                                                                                                                                    |
@@ -171,7 +171,7 @@ value is `plain`. HTML and raw VT are rejected by both language decoders and are
 capabilities. Export chunks remain bounded raw bytes because framing is binary; consumers decode
 the admitted plain-text bytes as UTF-8 before a platform clipboard effect.
 
-OBPB format `0.1.0` has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted external bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
+OBPB has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted external bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
 
 Mouse motion reports either no pressed buttons and a null active button, or a complete `pressedButtons` set plus one active button contained in that set. Press and release always identify their button; a wheel report is a button press and need not mark that button as held.
 
@@ -208,7 +208,9 @@ Canonical fixtures live under [`schemas/terminal/v1/fixtures/`](../../schemas/te
 
 `canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance.json` contains schema-produced command, reply, event, discriminated-union and failure cases consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the protocol-`0.1.0` selection-export-chunk record, the current OBTF format-`0.1.0`, OBPB format-`0.1.0`, OBRW format-`0.1.0`, and OBKG format-`0.1.0` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Fixture names are stable and unversioned; their contents and implementation constants carry the exact owning wire or format version.
 
-`packed-projection-conformance.json` is the language-neutral strict-boundary oracle for OBPB format `0.1.0` and OBRW format `0.1.0`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` reads the language-neutral fixture path, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
+`packed-projection-conformance.json` is the language-neutral strict-boundary oracle for OBPB and OBRW. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` reads the language-neutral fixture path, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
+
+`other-generation-conformance.json` holds one canonical record per domain with only its generation replaced. The TypeScript, Rust, and Zig suites require each frame decoder to refuse its record as `unsupported-version`, and the envelope decoder to report the peer generation unchanged so that the receiver refuses it.
 
 `TerminalProfile` carries explicit `defaultCursorShape` and `defaultCursorBlinking` values. Missing
 fields normalize to `block` and `false` so previously persisted profile objects retain the product
@@ -233,7 +235,7 @@ wire-valid semantic mutations prove that strict admission alone cannot satisfy t
 terminal package owns consumer semantics. This evidence does not grant VT, lifecycle, history, or
 trust-boundary authority to the protocol package.
 
-Optional extension kind `2` is one strictly decoded OBKG format-`0.1.0` record for the bounded
+Optional extension kind `2` is one strictly decoded OBKG record for the bounded
 Kitty graphics projection. A resource snapshot carries Host-owned decoded gray, gray-alpha, RGB,
 or RGBA bytes, the monotonic Ghostty animation tick, and current placements after Host resolves
 file, temporary-file, shared-memory, virtual, relative, crop, and history relationships. A
@@ -299,7 +301,7 @@ checks compare tracked files without rewriting them.
 
 ## Rust render row-window binding
 
-`decode_terminal_projection_buffer` strictly validates borrowed OBPB 0.1.0 snapshots and deltas,
+`decode_terminal_projection_buffer` strictly validates borrowed OBPB snapshots and deltas,
 including every canonical section, metadata/string range, cell/style value and row/wide/wrap
 invariant. It exposes immutable borrowed rows/cells using the existing `TerminalTextStyle` colors
 and flags, plus the captured default foreground/background, without expanding repeated string aliases. This is a full decoder, not the trusted local

@@ -309,10 +309,7 @@ function graphicsExtension(
 
 describe('PackedTerminalStore', () => {
 	it('matches the shared OBTF presentation transition trace corpus', () => {
-		expect(presentationStoreTraceCorpus).toMatchObject({
-			schemaVersion: 1,
-			terminalFrameFormat: '0.1.0',
-		});
+		expect(presentationStoreTraceCorpus).toMatchObject({ schemaVersion: 1 });
 		expect(presentationStoreTraceCorpus.cases).toHaveLength(5);
 
 		for (const trace of presentationStoreTraceCorpus.cases) {
@@ -482,7 +479,7 @@ describe('PackedTerminalStore', () => {
 		).not.toThrow();
 	});
 
-	it('retains an OBPB 0.0.1 snapshot as direct typed views without per-cell repacking', () => {
+	it('retains an OBPB snapshot as direct typed views without per-cell repacking', () => {
 		const encoded = encodeTerminalProjectionBuffer(frame('snapshot', 1n, 1n, ['蜂', 'b']));
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const viewed = decodeTerminalProjectionBuffer(encoded.value);

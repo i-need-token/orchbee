@@ -1,4 +1,4 @@
-//! Deterministic OBTF 0.1.0 text frames for the benchmarks, wrapped in transport envelopes. The
+//! Deterministic OBTF generation 1 text frames for the benchmarks, wrapped in transport envelopes. The
 //! encoder mirrors the Terminal Host's table shape (one deduplicated string table, a small style
 //! table, full-width rows) and relies on the real decoder to reject any drift from the contract.
 
@@ -196,7 +196,7 @@ impl Record {
 
         let mut out = Vec::new();
         out.extend_from_slice(b"OBTF");
-        out.extend_from_slice(&[0, 1, if base.is_some() { 2 } else { 1 }, 0]);
+        out.extend_from_slice(&[1, 0, if base.is_some() { 2 } else { 1 }, 0]);
         out.extend_from_slice(&0_u32.to_le_bytes()); // Total length, patched below.
         put16(&mut out, u16::try_from(HEADER_BYTES).expect("header size"));
         put16(&mut out, 0);

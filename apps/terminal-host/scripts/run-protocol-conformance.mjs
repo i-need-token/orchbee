@@ -52,6 +52,12 @@ const utf8BomFixture = fileURLToPath(
 const rowWindowFixture = fileURLToPath(
 	new URL('../../../schemas/terminal/v1/fixtures/terminal-row-window.bin', import.meta.url),
 );
+const otherGenerationFixture = fileURLToPath(
+	new URL(
+		'../../../schemas/terminal/v1/fixtures/other-generation-conformance.json',
+		import.meta.url,
+	),
+);
 
 const child = spawn(
 	'zig',
@@ -74,6 +80,7 @@ const child = spawn(
 		`-Dcontrol-fixture=${controlFixture}`,
 		`-Dutf8-bom-fixture=${utf8BomFixture}`,
 		`-Drow-window-fixture=${rowWindowFixture}`,
+		`-Dother-generation-fixture=${otherGenerationFixture}`,
 	],
 	{ stdio: 'inherit' },
 );

@@ -25,7 +25,7 @@ const TERMINAL_FRAME_HEADER_BYTES = 160;
 const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
 // Keep this synchronized with schemas/terminal/v1/constants.json, Rust and Zig. Released changes (>= 1.0.0) also update
 // schemas/terminal/docs/version-history.md in the same change.
-const TERMINAL_FRAME_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
+const TERMINAL_FRAME_FORMAT = { major: 1, minor: 0, patch: 0 } as const;
 
 const MAX_UINT16 = 0xffff;
 const MAX_UINT32 = 0xffff_ffff;
@@ -1436,7 +1436,7 @@ function readExtensions(
 		if ((flags & 0x8000) !== 0) {
 			return protocolFailure(
 				ProtocolErrorCode.unknownRequiredFlag,
-				`Frame extension ${kind} is required but unknown to format 0.1.0`,
+				`Frame extension ${kind} is required but unknown to format generation ${TERMINAL_FRAME_FORMAT.major}`,
 			);
 		}
 		totalBytes += length;

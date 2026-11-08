@@ -10,7 +10,7 @@ fn render_window(start: u64, sequence: u64, uri: Option<&str>, wide: bool, text:
     let route = frame.route;
     let columns = usize::from(frame.geometry.columns);
     let mut projection = vec![0_u8; 320];
-    projection[..8].copy_from_slice(b"OBPB\0\x01\x01\0");
+    projection[..8].copy_from_slice(b"OBPB\x01\0\x01\0");
     projection[12..14].copy_from_slice(&320_u16.to_le_bytes());
     projection[14..16].copy_from_slice(&frame.geometry.columns.to_le_bytes());
     for at in [16, 18] {
@@ -117,11 +117,11 @@ fn render_window(start: u64, sequence: u64, uri: Option<&str>, wide: bool, text:
     projection[8..12].copy_from_slice(&length.to_le_bytes());
     decode_terminal_projection_buffer(&projection).expect("valid independent render row");
     let mut graphics = vec![0_u8; 40];
-    graphics[..8].copy_from_slice(b"OBKG\0\x01\0\x01");
+    graphics[..8].copy_from_slice(b"OBKG\x01\0\0\x01");
     graphics[8..12].copy_from_slice(&40_u32.to_le_bytes());
     let total = 112 + projection.len() + graphics.len();
     let mut window = vec![0_u8; 112];
-    window[..8].copy_from_slice(b"OBRW\0\x01\x01\0");
+    window[..8].copy_from_slice(b"OBRW\x01\0\x01\0");
     window[8..12].copy_from_slice(&(total as u32).to_le_bytes());
     window[12..14].copy_from_slice(&112_u16.to_le_bytes());
     window[14..16].copy_from_slice(&frame.geometry.columns.to_le_bytes());

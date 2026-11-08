@@ -819,6 +819,12 @@ pub fn build(builder: *std.Build) void {
         "UTF-8 BOM conformance fixture path",
         64 * 1024,
     ));
+    conformance_options.addOption([]const u8, "other_generation_fixture", readFixture(
+        builder,
+        "other-generation-fixture",
+        "Other-generation refusal conformance corpus path",
+        64 * 1024,
+    ));
     const conformance_module = builder.createModule(.{
         .root_source_file = builder.path("src/__tests__/protocol_conformance_test.zig"),
         .target = target,

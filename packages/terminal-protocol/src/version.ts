@@ -22,10 +22,11 @@ export const ProtocolVersionSchema = z.strictObject({
 
 export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
 
-// Keep this synchronized with schemas/terminal/v1/constants.json, Rust and Zig. Released changes (>= 1.0.0) also update
-// schemas/terminal/docs/version-history.md in the same change.
+// Generation 1, encoded in the major component with minor and patch zero. Keep this synchronized
+// with schemas/terminal/v1/constants.json, Rust and Zig. After the first public release, changes
+// also update schemas/terminal/docs/version-history.md in the same change.
 export const CURRENT_PROTOCOL_VERSION = {
-	major: 0,
-	minor: 1,
+	major: 1,
+	minor: 0,
 	patch: 0,
 } as const satisfies ProtocolVersion;

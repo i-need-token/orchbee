@@ -314,7 +314,7 @@ fn assembled_render_window(projection_length: u32, graphics_length: u32) -> Vec<
     let body_length = projection_length + graphics_length;
     let mut bytes = vec![0_u8; TERMINAL_ROW_WINDOW_HEADER_BYTES + body_length as usize];
     bytes[0..4].copy_from_slice(b"OBRW");
-    bytes[5] = 1;
+    bytes[4] = 1;
     bytes[6] = 1;
     let total_length = bytes.len() as u32;
     bytes[8..12].copy_from_slice(&total_length.to_le_bytes());

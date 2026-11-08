@@ -6,7 +6,7 @@
 | Wire owner      | `schemas/terminal`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes the language-neutral reference, registry and fixtures for bounded native dispatch and Zig conformance                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Rust binding    | The unpublished independent `crates/terminal-protocol` binding mirrors the complete message registry, fixed OBTP envelope, connection-control payloads, kind-10 terminal-inventory controls, kinds 12-19 non-creation lifecycle controls, kinds 20-25 attachment controls, the kind-30/31 raw-input exchange, the kind-32/33 resize-control exchange, kinds 34-39 semantic-input requests, the kind-43/44 projection-feedback controls, kind-45/50 row-access controls, kinds 47-49 projection demand, kinds 51-54 history controls, kinds 55-58 terminal-effect event representations, kinds 60-62 selection controls, kinds 63-68 selection-export representations, and kinds 70-73 terminal-configuration controls; the unshipped Rust Worker consumes only the envelope and connection-control subset for the existing Host handshake |
-| Reference scope | Exact protocol `0.1.0`; OBTF format `0.1.0`; OBPB format `0.1.0`; OBRW format `0.1.0`; OBKG format `0.1.0`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Reference scope | Protocol generation 1; OBTF, OBPB, OBRW, and OBKG format generation 1; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, Rust, Zig and TypeScript implementations, every producer/consumer, and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Modeling record
@@ -41,15 +41,19 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.1.0`. `Hello`, `HelloAccepted`, and every transport
-envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
-contract contains no negotiated range, compatibility mode, or historical message shape. Packed
-OBTF frame format is exactly `0.1.0`; OBPB projection-buffer format is exactly `0.1.0`; OBRW
-row-window format is exactly `0.1.0`; and OBKG graphics-extension format is exactly `0.1.0`. Their
-decoders accept only those exact formats and follow the repository
-[pre-release version rule](../../../docs/ARCHITECTURE.md#data-boundaries). The first public contract becomes `1.0.0`; every
-later externally observable contract change bumps the owning semantic version and records the
-change in [`../docs/version-history.md`](../docs/version-history.md). The Host build version is a
+Each of the five version domains carries a generation in the major component of its existing
+version field, with minor and patch zero. The current protocol is generation 1: `Hello`,
+`HelloAccepted`, and every transport envelope carry major `1`, minor `0`, and patch `0`. The
+envelope codec reports the carried version unchanged so that a receiver can answer with it; every
+receiver refuses any other version, and the Host answers such a `Hello` with `ProtocolRejected`.
+This pre-release contract contains no negotiated range, compatibility mode, or historical message
+shape. The packed OBTF frame, OBPB projection-buffer, OBRW row-window, and OBKG graphics-extension
+formats each carry their own generation in the format major byte and are at generation 1. Their
+decoders accept only that exact encoding, reject any other version as `unsupported-version`, and
+follow the repository [pre-release version rule](../../../docs/ARCHITECTURE.md#data-boundaries).
+Generation 1 replaced the pre-release `0.1.0` encoding of all five domains. After the first public
+release, an incompatible change introduces the next generation of its domain and is recorded in
+[`../docs/version-history.md`](../docs/version-history.md). The Host build version is a
 separate semantic version identifying the executable. `HelloAccepted.hostVersion` reports it for
 diagnostics without making build and protocol releases advance together.
 
@@ -193,7 +197,7 @@ and preserves its correlation.
 | `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                                                                  |
 | `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                                                               |
 | projection demand                 | Attachment identity plus accepted `active` or `paused` demand; an input-capable attachment without read capability holds it only for focus-claim eligibility                                                                                                                                         |
-| frame/recovery                    | OBTF format `0.1.0` snapshot/delta event carrying the committed Host theme revision, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                        |
+| frame/recovery                    | OBTF snapshot/delta event carrying the committed Host theme revision, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                       |
 | history/read rows                 | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                                                            |
 | selection/export                  | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                                                      |
 | terminal start / outcome          | `TerminalStarted` carries terminal identity after the child exists. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
@@ -458,8 +462,8 @@ The frame begins with a fixed 160-byte header:
 | Offset | Bytes | Field                                                                                              |
 | ------ | ----: | -------------------------------------------------------------------------------------------------- |
 | `0`    |     4 | ASCII `OBTF`                                                                                       |
-| `4`    |     1 | Format major `0`                                                                                   |
-| `5`    |     1 | Format minor `1`                                                                                   |
+| `4`    |     1 | Format major `1`                                                                                   |
+| `5`    |     1 | Format minor `0`                                                                                   |
 | `6`    |     1 | Snapshot `1` or delta `2`                                                                          |
 | `7`    |     1 | Frame flags; currently zero                                                                        |
 | `8`    |     4 | Total frame bytes                                                                                  |
@@ -516,8 +520,8 @@ Variable sections follow in this exact order:
    | `0x03000000`–`0x0300000f` | Client-effective ANSI palette index 0–15             |
 
    Other codes and nonzero reserved bits are rejected. Header defaults and cursor colors remain
-   RGB with their existing field-specific cursor sentinel. The current `0.1.0` contracts change in
-   place under the pre-release version policy; same-cohort admission prevents mixed bindings.
+   RGB with their existing field-specific cursor sentinel. The current generation 1 contracts change
+   in place under the pre-release version policy; same-cohort admission prevents mixed bindings.
    Clients resolve ANSI tags from their active palette before applying inverse. Bold stays a font
    attribute: the Host never adds a bright offset; SGR 90–97 already identifies indexes 8–15.
    Faint keeps its existing Client intensity treatment. Explicit underline colors follow the same
@@ -542,7 +546,7 @@ The current optional extension registry is:
 
 | Kind |        Bytes | Meaning                                                                                                                                              |
 | ---: | -----------: | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  `2` | `40..33 MiB` | One strictly decoded OBKG `0.1.0` Kitty graphics resource snapshot or placement-only update.                                                         |
+|  `2` | `40..33 MiB` | One strictly decoded OBKG Kitty graphics resource snapshot or placement-only update.                                                                 |
 |  `3` |          `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                               |
 |  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code. |
 |  `5` | `10` or `66` | Row-origin epoch and the latest correlated Shell invocation; see the extension contract below.                                                       |
@@ -570,7 +574,7 @@ OBKG begins with this fixed 40-byte header:
 | Offset | Bytes | Field                                                |
 | ------ | ----: | ---------------------------------------------------- |
 | `0`    |     4 | ASCII `OBKG`                                         |
-| `4`    |     3 | Format major, minor, and patch `0.1.0`               |
+| `4`    |     3 | Format major, minor, and patch `1.0.0`               |
 | `7`    |     1 | Resource snapshot `1` or placement-only update `2`   |
 | `8`    |     4 | Total OBKG bytes                                     |
 | `12`   |     8 | Resource revision reused by placement-only updates   |
@@ -622,8 +626,8 @@ The fixed-header inspector validates only the bounded header and never admits ce
 row, or extension data. A capability-scoped local client may use that inspector before full decode
 only to acknowledge a sequence it has already committed. This is sound because the Host delivery
 owner makes the complete encoded record immutable when it hands off that scoped sequence. Every
-higher OBTF format-`0.1.0` sequence, and every frame arriving outside that trusted local delivery path,
-still requires the full decoder before any payload data is exposed or committed. OBPB format `0.1.0`
+higher OBTF sequence, and every frame arriving outside that trusted local delivery path,
+still requires the full decoder before any payload data is exposed or committed. OBPB
 projection buffers provide separately named strict-decode and local structural-view boundaries
 below. A repeated sequence with different header commit metadata is a protocol-state conflict and
 requires recovery. The explicitly trusted local duplicate path may rely on immutable commit metadata
@@ -666,7 +670,7 @@ OSC 104 resets them. The current format versions remain unchanged.
 
 ## Current projection buffer
 
-OBPB format `0.1.0` is the packed Host-to-render data plane. `decodeTerminalProjectionBuffer` is the
+OBPB is the packed Host-to-render data plane. `decodeTerminalProjectionBuffer` is the
 default boundary and strictly scans row, cell, color, string-range, UTF-8, and wide-cell invariants
 before exposing typed views. A network peer, plugin, or persisted artifact must use that
 strict boundary. `viewTerminalProjectionBuffer` is reserved for the immutable, same-user,
@@ -679,7 +683,7 @@ establish those column invariants.
 `TerminalFrameSchema` validates equal string content once per parse and preserves an issue at every
 invalid occurrence path.
 
-The fixed header is 320 bytes. Bytes `0..159` contain `OBPB`, version `0.1.0`, snapshot/delta kind,
+The fixed header is 320 bytes. Bytes `0..159` contain `OBPB`, version `1.0.0`, snapshot/delta kind,
 total/header lengths, columns, grid rows, included rows/cells, Host and attachment identities,
 sequence/base/revision/generation, scrollback origin, cursor and pixel geometry, interaction flags,
 default colors, nullable title/current-directory blob ranges, total string bytes, and the committed
@@ -693,8 +697,8 @@ All integers are little-endian. The fixed header is:
 | Offset | Bytes | Field                                            |
 | -----: | ----: | ------------------------------------------------ |
 |      0 |     4 | Magic `OBPB`                                     |
-|      4 |     1 | Format major `0`                                 |
-|      5 |     1 | Format minor `1`                                 |
+|      4 |     1 | Format major `1`                                 |
+|      5 |     1 | Format minor `0`                                 |
 |      6 |     1 | Kind: snapshot `1`, delta `2`                    |
 |      7 |     1 | Optional flags; bit `7` is required/reserved     |
 |      8 |     4 | Total buffer bytes                               |
@@ -762,6 +766,12 @@ of this version.
 
 The language-neutral `v1/fixtures/packed-projection-conformance.json` is the generated, tracked evidence authority for shared OBPB and OBRW strict-admission cases. Its 23 OBPB cases contain the 17 canonical mutation classes, accepted sparse delta row indices `[0, 2]` with duplicate and descending rejections, and optional/required header-flag partitions; its eleven OBRW cases cover the equivalent header-flag partitions plus projection-section length, graphics-section length, and graphics-snapshot-kind failures, and five text-detail success witnesses: an identity-ASCII row with implicit cell mappings, one aggregate row whose total text exceeds 16 KiB while every per-cell span stays within the per-cell bound, an empty row, a three-row wrap chain, and a row whose text opens with U+FEFF. The fixture generator owns every complete canonical byte string and hard-codes each contract-authored outcome and success observation without asking either decoder for the oracle. `test:fixtures` rejects missing or byte-stale output. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` consume every matching case; the Host runner reads the language-neutral fixture path, supplies bounded corpus bytes, and makes both Zig strict validators consume the same cases while asserting only observations exposed by their public summaries.
 
+The language-neutral `v1/fixtures/other-generation-conformance.json` is the generated evidence that
+every boundary refuses another generation. It holds one canonical record per domain with only its
+generation replaced by `2`. The OBTF, OBPB, OBRW, and OBKG cases expect `unsupported-version` from
+the strict decoder; the OBTP case expects the envelope codec to report the peer version unchanged
+for the receiver to refuse. The Rust, TypeScript, and Zig conformance suites consume every case.
+
 ## Current packed terminal row-window
 
 `ReadRows` is scoped by attachment, observed revision, exact generation, positive request sequence,
@@ -800,8 +810,8 @@ Every row window begins with this fixed 112-byte little-endian header:
 | Offset | Bytes | Field                                                                 |
 | ------ | ----: | --------------------------------------------------------------------- |
 | `0`    |     4 | ASCII `OBRW`                                                          |
-| `4`    |     1 | Format major `0`                                                      |
-| `5`    |     1 | Format minor `1`                                                      |
+| `4`    |     1 | Format major `1`                                                      |
+| `5`    |     1 | Format minor `0`                                                      |
 | `6`    |     1 | Detail: render `1` or text `2`                                        |
 | `7`    |     1 | Optional flags; required bit `7` is currently zero                    |
 | `8`    |     4 | Total row-window bytes                                                |
@@ -824,9 +834,9 @@ Every row window begins with this fixed 112-byte little-endian header:
 | `109`  |     3 | Reserved zero                                                         |
 | `112`  |     N | Projection then graphics for render detail, or text rows              |
 
-Render detail concatenates one OBPB format-`0.1.0` snapshot and one complete OBKG format-`0.1.0`
-graphics snapshot. The OBPB identity, sequence, revision, generation, columns, rows, and
-scrollback-row origin agree with the outer window. Every graphics placement intersects the selected
+Render detail concatenates one OBPB snapshot and one complete OBKG graphics snapshot. The OBPB
+identity, sequence, revision, generation, columns, rows, and scrollback-row origin agree with the
+outer window. Every graphics placement intersects the selected
 row interval and is rebased to the window; every referenced image is included. Text detail requires
 both section lengths to be zero and stores each row as a 12-byte header followed by
 strict UTF-8 text and, when required, ordered 12-byte UTF-8/UTF-16/column/width mappings. Row flag

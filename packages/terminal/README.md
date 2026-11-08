@@ -462,7 +462,7 @@ the whole terminal frame and request a new snapshot before text or graphics can 
 committed. Canvas2D and WebGPU convert raw gray/gray-alpha/RGB/RGBA pixels once per image generation,
 reuse the resulting resource for crop, scale, and movement, and paint the exact three signed-z
 layers below cell backgrounds, between backgrounds and text, and above text. Render-detail OBRW
-`0.1.0` replaces rows and its independent graphics snapshot atomically; text detail carries no
+replaces rows and its independent graphics snapshot atomically; text detail carries no
 graphics. Text-only commits retain the same graphics identity, so a static placement does not turn
 an otherwise dirty-row Canvas2D update into a full-surface repaint. Empty snapshots, deletion,
 reset, replacement, and disposal release obsolete pixel,

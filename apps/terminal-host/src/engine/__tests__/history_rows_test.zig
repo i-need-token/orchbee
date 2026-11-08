@@ -62,7 +62,6 @@ test "text row window is bounded and cross-language valid" {
     const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
     try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
     try std.testing.expectEqual(@as(u16, 2), summary.row_count);
-    try std.testing.expectEqual(@as(u8, 1), rows.bytes[5]);
     try std.testing.expect(rows.bytes[112] & 0x04 != 0);
     try std.testing.expectEqual(
         @as(u32, 0),

@@ -135,7 +135,7 @@ fn graphics_snapshot() -> Vec<u8> {
     // One 2x1 RGBA image and two placements sharing the legal zero placement ID.
     // Fields are authored from the wire contract, independently of the decoder.
     let mut bytes = vec![0; 40];
-    bytes[..8].copy_from_slice(b"OBKG\0\x01\0\x01");
+    bytes[..8].copy_from_slice(b"OBKG\x01\0\0\x01");
     bytes[12..20].copy_from_slice(&1_u64.to_le_bytes());
     bytes[28..30].copy_from_slice(&1_u16.to_le_bytes());
     bytes[30..32].copy_from_slice(&2_u16.to_le_bytes());

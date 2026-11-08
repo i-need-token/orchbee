@@ -1726,9 +1726,9 @@ the terminal mutex, so a completion or failure that races after Core validation
 cannot admit stale input or resize authority.
 
 Core retains that admitted value as immutable attach-replay identity and initializes current
-capability revision `1`. Protocol `0.1.0` permits only the input bit to change live; read and resize
-remain equal to the admitted value. Every successful attach or update reply returns the complete
-current capabilities and revision.
+capability revision `1`. Protocol generation 1 permits only the input bit to change live; read
+and resize remain equal to the admitted value. Every successful attach or update reply returns the
+complete current capabilities and revision.
 
 | Current state  | Input                                                                   | Next state                    | Required effect                                                                                                     |
 | -------------- | ----------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |

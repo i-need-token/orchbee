@@ -10,8 +10,8 @@
 		"wire": {
 			"magic": "OBTP",
 			"version": {
-				"major": 0,
-				"minor": 1,
+				"major": 1,
+				"minor": 0,
 				"patch": 0
 			},
 			"header_bytes": 64
@@ -19,8 +19,8 @@
 		"frame": {
 			"magic": "OBTF",
 			"version": {
-				"major": 0,
-				"minor": 1,
+				"major": 1,
+				"minor": 0,
 				"patch": 0
 			},
 			"header_bytes": 160
@@ -28,8 +28,8 @@
 		"projection_buffer": {
 			"magic": "OBPB",
 			"version": {
-				"major": 0,
-				"minor": 1,
+				"major": 1,
+				"minor": 0,
 				"patch": 0
 			},
 			"header_bytes": 320
@@ -37,8 +37,8 @@
 		"row_window": {
 			"magic": "OBRW",
 			"version": {
-				"major": 0,
-				"minor": 1,
+				"major": 1,
+				"minor": 0,
 				"patch": 0
 			},
 			"header_bytes": 112
@@ -46,8 +46,8 @@
 		"graphics": {
 			"magic": "OBKG",
 			"version": {
-				"major": 0,
-				"minor": 1,
+				"major": 1,
+				"minor": 0,
 				"patch": 0
 			},
 			"header_bytes": 40

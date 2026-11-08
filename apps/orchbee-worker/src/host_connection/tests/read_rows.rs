@@ -79,7 +79,7 @@ fn read(maximum_bytes: u32, detail: ViewerRowDetail) -> TestResult<TerminalViewe
 fn row_window_payload(read: &ReadRows, bytes: usize) -> Vec<u8> {
     let mut payload = vec![0_u8; bytes];
     payload[..4].copy_from_slice(b"OBRW");
-    payload[5] = 1;
+    payload[4] = 1;
     payload[6] = 2;
     payload[8..12].copy_from_slice(&(bytes as u32).to_le_bytes());
     payload[12..14].copy_from_slice(&(ROW_WINDOW_HEADER_BYTES as u16).to_le_bytes());
