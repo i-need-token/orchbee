@@ -146,10 +146,18 @@ terminal identity. A bare ID that selects different resources across both kinds 
 - A command that closes, deletes, or otherwise discards user work requires an explicit `--confirm`
   option; its absence is a usage failure, and its presence on a non-destructive command is also a
   usage failure.
-- Commands never prompt on standard input or read the terminal. The only exception is a command
-  whose grammar authority declares it interactive setup, such as installation or trust review;
-  that command must accept `--yes` for non-interactive use and must refuse, not guess, when
-  `--yes` is absent and no interactive terminal exists.
+- A release build may instead guard a destructive command by a typed confirmation when its owning
+  guide declares it. The command then runs only when standard input and standard output are both
+  interactive consoles and the person types the target's exact name at a prompt on standard error.
+  It refuses `--confirm` and every non-interactive invocation, Agents and scripts included, with a
+  localized `denied` failure that names the command to run by hand. Development and test builds
+  keep `--confirm`. The guard slows unintended Agent actions and is not a security boundary.
+  Orchbee's Windows release `server stop`, `session stop`, and `session delete` are guarded; their
+  destructive admission in `apps/orchbee/src/cli/destructive_request.rs` enforces it.
+- Commands never prompt on standard input or read the terminal. The exceptions are the release
+  confirmation above and a command whose grammar authority declares it interactive setup, such as
+  installation or trust review; that command must accept `--yes` for non-interactive use and must
+  refuse, not guess, when `--yes` is absent and no interactive terminal exists.
 - A mutation that may take longer than its deadline declares `--detach`; the invocation then
   returns the request identity for a later `get` or `wait` instead of blocking.
 

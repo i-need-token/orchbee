@@ -240,7 +240,7 @@ fn main() -> ExitCode {
                 cli::runtime_status::run(scope, format, locale)
             }
             Ok(invocation::Request::ServerStop { command, format }) => {
-                cli::server_stop(&command, format, locale)
+                cli::server_stop_command(&command, format, locale)
             }
             Ok(invocation::Request::SchemaExport {
                 schema_id,

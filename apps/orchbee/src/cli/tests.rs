@@ -1930,6 +1930,7 @@ fn unsupported_commands_share_the_platform_failure_contract() {
                 super::server_stop::run(
                     &ServerStopCommand::Stop {
                         id: None,
+                        confirm: true,
                         retry: false,
                         detach: false,
                         timeout_ms: 1,

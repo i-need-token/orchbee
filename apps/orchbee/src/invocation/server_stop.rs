@@ -33,13 +33,20 @@ pub(super) fn stop_id(
     orchbee_local_client_protocol::StopId::new(bytes).map_err(|_| invalid())
 }
 
+/// Whether `server stop`, `session stop` and `session delete` require `--confirm`. A release
+/// Windows build parses them without it: destructive admission then asks a person in a console to
+/// type the Session name and refuses the option, after logging the request (ORC-382).
+pub(super) fn confirm_option_required() -> bool {
+    !(cfg!(windows) && orchbee_local_runtime::is_release())
+}
+
 pub(super) fn stop_command(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<ServerStopCommand, ParseFailure> {
     check_scope(options, context, envelope)?;
-    if !options.confirm {
+    if !options.confirm && confirm_option_required() {
         return Err(missing_required(context, "'--confirm'", envelope));
     }
     if options.retry && options.request_id.is_none() {
@@ -57,6 +64,7 @@ pub(super) fn stop_command(
     };
     Ok(ServerStopCommand::Stop {
         id,
+        confirm: options.confirm,
         retry: options.retry,
         detach: options.detach,
         timeout_ms,

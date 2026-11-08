@@ -80,7 +80,7 @@ orchbee api snapshot|schema      # machine snapshot and embedded schemas
 orchbee server start               # ensure the local Session is running (no TTY)
 orchbee server connect             # relay a Client connection over stdin and stdout (pipes only)
 orchbee server diagnose            # read-only local Session runtime facts
-orchbee server stop --confirm      # stop the Windows Session and its terminals
+orchbee server stop --confirm      # stop the Windows Session (release: type its name instead)
 orchbee server stop-status <id>    # inspect a retained stop attempt/receipt
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
@@ -930,7 +930,26 @@ The Client attaches only the snapshot's exact Session/Worker/Terminal binding th
 
 ## Windows explicit Session stop
 
-`server stop --confirm` ends the existing managed Windows Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `server stop-status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). No Linux/macOS stop runtime is implemented.
+`server stop --confirm` ends the existing managed Windows Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `server stop-status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). No Linux/macOS stop runtime is implemented. The release build replaces `--confirm` with the [release confirmation](#windows-release-destructive-confirmation).
+
+## Windows release destructive confirmation
+
+The Windows release build guards `server stop`, `session stop <name>` and `session delete <name>`. Each runs only when standard input and standard output are both consoles and the person types the target Session's exact, case-sensitive name at the prompt on standard error; surrounding whitespace is ignored. `server stop` names the Session the invocation selects: `--session`, an inherited Session route, `ORCHBEE_SESSION` or `default`. Release refuses `--confirm`, a stream that is not a console, a target it cannot name and a mismatched name with `denied` (exit 3), details `{stage:"confirmation",reason}` where `reason` is `confirm-option`, `not-interactive`, `session-unknown` or `name-mismatch`, and a localized message naming the command to run by hand. Ctrl+C at the prompt cancels with exit 130. Development and test builds require `--confirm` as before and never prompt; TUI and Desktop stop actions keep their own confirmation dialogs. The guard slows unintended Agent actions and is not a security boundary. macOS and Linux keep `--confirm` until ORC-328.
+
+Before the command runs, every Windows invocation of these three commands that passes grammar, accepted or refused, in every environment, appends one JSON line to `audit\destructive.jsonl` under the environment's local state root. A grammar failure, such as a development `server stop` without `--confirm`, is not a request and is not logged. Each record has:
+
+| Field         | Value                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `version`     | `1`                                                                                                                                |
+| `time`        | UTC RFC 3339 with milliseconds, or `null` when the clock cannot be read                                                            |
+| `environment` | The compiled environment stem                                                                                                      |
+| `command`     | `server stop`, `session stop` or `session delete`                                                                                  |
+| `session`     | The target Session name, or `null` when it cannot be named                                                                         |
+| `interactive` | `{stdin, stdout}`: whether each stream is a console                                                                                |
+| `parent`      | `{pid, image}` from a process snapshot; `image` is `null` when the parent has exited or its PID now names a newer process          |
+| `outcome`     | `accepted`, `refused-confirm-option`, `refused-not-interactive`, `refused-session-unknown`, `refused-name-mismatch` or `cancelled` |
+
+`outcome` is the admission decision; the command's own result stays in its output. A failed append never blocks or changes the command. The [local runtime guide](../../crates/local-runtime/README.md#windows-destructive-request-log) owns the file's location, privacy and rotation.
 
 ## Windows Worktree operations
 

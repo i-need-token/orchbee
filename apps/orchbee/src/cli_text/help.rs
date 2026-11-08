@@ -773,8 +773,8 @@ impl super::CliText {
                 "查看智能体识别规则的更新状态。",
             ),
             HelpTopic::Command(CommandPath::ServerStop) => (
-                "Stop the selected local session and its terminals; requires --confirm.",
-                "停止所选本地会话及其终端；必须提供 --confirm。",
+                "Stop the selected local session and its terminals; requires confirmation (--confirm outside release).",
+                "停止所选本地会话及其终端；需要确认（正式版以外使用 --confirm）。",
             ),
             HelpTopic::Command(CommandPath::ServerStopStatus) => {
                 ("Check a session stop request.", "查看会话停止请求的状态。")

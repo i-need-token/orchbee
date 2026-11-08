@@ -4,8 +4,9 @@
 
 use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request,
-    ServerStopCommand, UsageContext, UsageReason, check_scope, missing_command, missing_required,
-    reject_extras_scope, reject_filters, stop_command, unexpected_argument, usage_with,
+    ServerStopCommand, UsageContext, UsageReason, check_scope, confirm_option_required,
+    missing_command, missing_required, reject_extras_scope, reject_filters, stop_command,
+    unexpected_argument, usage_with,
 };
 use orchbee_local_runtime::SessionName;
 
@@ -22,13 +23,15 @@ pub(crate) enum NamedSessionCommand {
     },
     Delete {
         name: SessionName,
+        /// Whether `--confirm` was given; see [`super::server_stop::confirm_option_required`].
+        confirm: bool,
     },
 }
 impl NamedSessionCommand {
     pub(super) fn name(&self) -> Option<&SessionName> {
         match self {
             Self::List => None,
-            Self::Attach { name, .. } | Self::Stop { name, .. } | Self::Delete { name } => {
+            Self::Attach { name, .. } | Self::Stop { name, .. } | Self::Delete { name, .. } => {
                 Some(name)
             }
         }
@@ -84,10 +87,13 @@ pub(super) fn parse(
                 },
                 _ => {
                     check_scope(options, context, envelope)?;
-                    if !options.confirm {
+                    if !options.confirm && confirm_option_required() {
                         return Err(missing_required(context, "'--confirm'", envelope));
                     }
-                    NamedSessionCommand::Delete { name }
+                    NamedSessionCommand::Delete {
+                        name,
+                        confirm: options.confirm,
+                    }
                 }
             }
         }

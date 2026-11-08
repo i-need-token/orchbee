@@ -295,8 +295,8 @@ impl super::CliText {
                 "--cols" => ("<n>", "Terminal width in columns.", "终端列数。"),
                 "--confirm" => (
                     "",
-                    "Confirm closing or removing the selected resources.",
-                    "确认关闭或移除所选资源。",
+                    "Confirm closing or removing the selected resources. The Windows release build refuses it on server stop, session stop and session delete, which ask a person to type the Session name instead.",
+                    "确认关闭或移除所选资源。Windows 正式版的 server stop、session stop 和 session delete 不接受此选项，改为由人输入会话名称。",
                 ),
                 "--content-revision" => (
                     "<revision>",

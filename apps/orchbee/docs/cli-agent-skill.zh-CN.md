@@ -119,6 +119,8 @@ Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，�
 
 仅当用户在当前对话中要求停止时，才停止 Server 或 Session；不要自行添加 `--confirm`。`server stop --confirm` 或 `session stop <name> --confirm` 在最终检查点写入后结束 Session。启动会恢复符合条件的布局和启动事实，不恢复实时屏幕历史或活跃 Agent 状态。CLI 等待失败／取消后，停止操作可能仍在进行；应查询保留的请求身份。
 
+在 Windows 上，正式版的 `server stop`、`session stop` 和 `session delete` 必须由人执行：只有在交互式控制台中由人输入 Session 名称后才会运行，并拒绝 `--confirm` 以及任何智能体、脚本或管道调用。不要在正式版中尝试执行它们，应把需要亲自运行的命令告诉用户。开发版和测试版保留 `--confirm`。每次请求无论接受或拒绝都会记录。
+
 `session delete <name> --confirm` 仅删除已证明停止且无使用者的自有状态。它拒绝默认 Session、存活或所有权不确定的状态，不删除项目目录。中断删除必须先解决报告的原因，再重复该操作。
 
 ## 消费结果并保留 UTF-8

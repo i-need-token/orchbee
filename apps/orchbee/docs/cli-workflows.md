@@ -52,7 +52,7 @@ $created.workspace.result
 & $cli tui
 # Close this Workspace when finished:
 & $cli workspace close $created.workspace.result.workspaceId --confirm --format json
-# Or stop the whole Windows Session and all its terminals:
+# Or stop the whole Windows Session and all its terminals (development and test cohorts):
 $stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
 & $cli server stop-status $stopped.result.requestId --format json
 ```
@@ -115,7 +115,7 @@ orchbee status         # the running Session's Workbench snapshot
 `server start` runs the same connect-or-activate sequence the TUI uses. An
 interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
-Linux has no Session stop, repair or deletion command. Windows supports `server stop --confirm` and `server stop-status <id>`; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop.
+Linux has no Session stop, repair or deletion command. Windows supports `server stop --confirm` and `server stop-status <id>`; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#windows-release-destructive-confirmation) describes.
 
 ## 2. Create a Project, Workspace, and directory
 

@@ -153,7 +153,9 @@ pub mod application {
             runtime_location, selected_session_name,
         };
         #[cfg(windows)]
-        pub use crate::local_activation::{inside_selected_session, select_session};
+        pub use crate::local_activation::{
+            inside_selected_session, select_session, target_session_name,
+        };
     }
 
     pub mod local_client {

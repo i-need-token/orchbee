@@ -18,7 +18,9 @@ owned by its application guide and must satisfy the shapes below.
 | Exit code       | One value from the vocabulary below, derived from the document's failure kind or terminal result through one total mapping | Anything a caller must parse text to recover                                      |
 
 A caller can therefore automate on standard output and the exit code alone and read standard error
-only when a person is present.
+only when a person is present. A declared
+[release confirmation](command-surface.md#destructive-and-interactive-commands) writes its prompt
+to standard error before reading the typed name.
 
 ## Formats
 

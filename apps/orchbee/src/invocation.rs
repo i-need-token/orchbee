@@ -110,7 +110,7 @@ use option_scope::{
 };
 use scan::{format_envelope, scan};
 use send_input::{parse_send_key, send_input};
-use server_stop::{stop_command, stop_id};
+use server_stop::{confirm_option_required, stop_command, stop_id};
 use std::path::PathBuf;
 pub(crate) use target_syntax::label_requires_id;
 use target_syntax::{ZERO_IDENTITY, target, valid_typed_id};
@@ -710,6 +710,9 @@ pub(crate) enum ManifestCommand {
 pub(crate) enum ServerStopCommand {
     Stop {
         id: Option<orchbee_local_client_protocol::StopId>,
+        /// Whether `--confirm` was given. A release Windows build parses a stop without it and
+        /// refuses it at destructive admission instead.
+        confirm: bool,
         retry: bool,
         detach: bool,
         timeout_ms: u32,

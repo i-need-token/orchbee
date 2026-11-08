@@ -37,6 +37,35 @@ pub(super) fn location() -> io::Result<Location> {
     )
 }
 
+/// The name of the Session this invocation targets, when it can be known: the selected or
+/// inherited name, `default` for its scope, or the name recorded in an inherited named scope's
+/// runtime directory. Absent when the location is invalid or the scope's record is unreadable.
+pub fn target_session_name() -> Option<SessionName> {
+    let sid = orchbee_local_ipc::current_user_sid().ok()?;
+    let location = resolve(
+        SELECTED.get().and_then(Option::as_ref),
+        routed_environment(),
+        &sid,
+        default_base().ok()?,
+    )
+    .ok()?;
+    if let Some(name) = location.name {
+        return Some(name);
+    }
+    let default = SessionName::parse("default").ok()?;
+    if default.scope_for_user(&sid) == location.scope {
+        return Some(default);
+    }
+    let scope = SessionScope::parse(&location.scope).ok()?;
+    orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::validate_mode_checked(
+        &location.base,
+        scope,
+    )
+    .ok()?
+    .session_name()
+    .ok()
+}
+
 /// Same-Session nested TUIs would be able to select their own hosting terminal.
 /// CLI commands and explicit routes to another Session do not use this guard.
 pub fn inside_selected_session() -> io::Result<bool> {

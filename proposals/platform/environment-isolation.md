@@ -89,10 +89,12 @@ inside one reaches that terminal's Session.
 
 ## Destructive request log
 
-Every `server stop`, `session stop`, and `session delete` invocation, accepted or refused, appends
-one JSON line to `audit/destructive.jsonl` under the environment's local state root: time,
-environment, command, target Session, interactive state, parent PID and image path, and outcome.
-The file rotates at a fixed size, and a failed write never blocks or changes the command.
+Every `server stop`, `session stop`, and `session delete` invocation that passes grammar, accepted
+or refused, appends one JSON line to `audit/destructive.jsonl` under the environment's local state
+root: time, environment, command, target Session, interactive state, parent PID and image path, and
+outcome. A grammar failure, such as a development stop without `--confirm`, is not a request and is
+not logged. The file rotates at a fixed size, and a failed write never blocks or changes the
+command.
 
 ## Build defaults
 

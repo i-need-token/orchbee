@@ -3,11 +3,12 @@
 //! Session solely from an endpoint pathname.
 
 use super::console_interrupt::{ArmedSignals, Finish, SignalWatch};
+use super::destructive_request::{DestructiveCommand, admit};
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::cli_outcome::SessionState;
 use crate::cli_text::CliText;
 use crate::{
-    invocation::{NamedSessionCommand, OutputFormat},
+    invocation::{NamedSessionCommand, OutputFormat, ServerStopCommand},
     localization::Locale,
     presentation::ProcessResult,
 };
@@ -50,9 +51,33 @@ pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: L
             };
             super::process_result(result, locale)
         }
-        NamedSessionCommand::Stop { command, .. } => super::server_stop(command, format, locale),
+        NamedSessionCommand::Stop { name, command } => {
+            if let ServerStopCommand::Stop { confirm, .. } = command
+                && let Err(refusal) = admit(
+                    DestructiveCommand::SessionStop,
+                    *confirm,
+                    Some(name.as_str()),
+                    format,
+                    locale,
+                )
+            {
+                return refusal;
+            }
+            super::server_stop(command, format, locale)
+        }
         NamedSessionCommand::List => list(format, locale),
-        NamedSessionCommand::Delete { name } => delete(name, format, locale),
+        NamedSessionCommand::Delete { name, confirm } => {
+            match admit(
+                DestructiveCommand::SessionDelete,
+                *confirm,
+                Some(name.as_str()),
+                format,
+                locale,
+            ) {
+                Ok(()) => delete(name, format, locale),
+                Err(refusal) => refusal,
+            }
+        }
     }
 }
 

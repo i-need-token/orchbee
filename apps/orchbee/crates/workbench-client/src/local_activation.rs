@@ -19,7 +19,7 @@ mod windows_selection;
 #[cfg(windows)]
 pub use windows_selection::inside_selected_session;
 #[cfg(windows)]
-pub use windows_selection::{select_session, selected_session_name};
+pub use windows_selection::{select_session, selected_session_name, target_session_name};
 #[cfg(not(windows))]
 pub fn selected_session_name() -> Option<&'static str> {
     None

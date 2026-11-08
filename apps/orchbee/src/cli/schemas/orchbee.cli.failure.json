@@ -476,6 +476,19 @@
 				}
 			}
 		},
+		"confirmationDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "confirmation"
+				},
+				"reason": {
+					"enum": ["confirm-option", "not-interactive", "session-unknown", "name-mismatch"]
+				}
+			}
+		},
 		"recoveryRequiredDetails": {
 			"type": "object",
 			"required": ["stage", "reason"],
@@ -1341,7 +1354,14 @@
 							"failure": {
 								"properties": {
 									"details": {
-										"$ref": "#/$defs/cohortStageDetails"
+										"oneOf": [
+											{
+												"$ref": "#/$defs/cohortStageDetails"
+											},
+											{
+												"$ref": "#/$defs/confirmationDetails"
+											}
+										]
 									}
 								}
 							}

@@ -27,6 +27,27 @@ struct ExchangeFailure {
     submitted: bool,
 }
 
+/// `server stop` or `server stop-status` from the command line; a stop first passes destructive
+/// admission, which may prompt for the Session name and logs the request.
+pub(crate) fn run_command(
+    command: &ServerStopCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    if let ServerStopCommand::Stop { confirm, .. } = command
+        && let Err(refusal) = super::destructive_request::admit(
+            super::destructive_request::DestructiveCommand::ServerStop,
+            *confirm,
+            None,
+            format,
+            locale,
+        )
+    {
+        return refusal;
+    }
+    run(command, format, locale)
+}
+
 /// Chooses one request identity and returns a bounded stop/status result without Session activation.
 pub(crate) fn run(command: &ServerStopCommand, format: OutputFormat, locale: Locale) -> Output {
     if let Err(failure) = super::execution::admit(super::execution::Capability::ServerStop) {

@@ -669,6 +669,7 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
         Ok(Request::ServerStop {
             command: ServerStopCommand::Stop {
                 id: None,
+                confirm: true,
                 retry: false,
                 detach: false,
                 timeout_ms: 65_000
@@ -691,6 +692,7 @@ fn session_stop_requires_confirmation_and_preserves_explicit_recovery_identity()
         Ok(Request::ServerStop {
             command: ServerStopCommand::Stop {
                 id: Some(_),
+                confirm: true,
                 retry: true,
                 detach: true,
                 timeout_ms: 1
