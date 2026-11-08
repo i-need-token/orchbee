@@ -8,11 +8,14 @@ use std::{ffi::OsString, path::Path, path::PathBuf};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserPreferencesScope {
     pub(super) directory: PathBuf,
+    /// The root whose `internal/backups/` receives the record before a migration or reset.
+    pub(super) root: DataRoot,
 }
 impl UserPreferencesScope {
     pub fn for_data_root(root: &DataRoot) -> Self {
         Self {
             directory: root.state(),
+            root: root.clone(),
         }
     }
 

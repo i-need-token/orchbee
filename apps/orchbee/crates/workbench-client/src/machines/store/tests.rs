@@ -1,6 +1,10 @@
 use super::*;
 use crate::machines::{Draft, ProfileId};
-use std::fs;
+use orchbee_local_runtime::PrivateCache;
+use std::{fs, path::PathBuf};
+
+const RECORD: VersionedRecord = VersionedRecord::Machines;
+const FILE: &str = RECORD.file_name();
 struct Root(PathBuf);
 impl Drop for Root {
     fn drop(&mut self) {
@@ -26,9 +30,7 @@ impl Drop for Root {
 fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_lock() {
     let id = ProfileId::generate().unwrap();
     let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
-    let store = Store {
-        root: root.0.join("machines"),
-    };
+    let store = Store::in_data_root(DataRoot::at(root.0.join("machines")));
     assert_eq!(store.read().unwrap(), Catalog::default());
     assert!(!root.0.exists());
     let draft = Draft::parse("First", "example.invalid", "work").unwrap();
@@ -38,7 +40,7 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
     };
     let (catalog, _) = store.commit(&first).unwrap();
     assert_eq!(catalog.revision, 1);
-    let lock = PrivateCache::acquire(&store.root, RECORD.name()).unwrap();
+    let lock = PrivateCache::acquire(store.record.folder(), RECORD.name()).unwrap();
     assert_eq!(
         store.commit(&Edit::Remove(id.clone())).unwrap_err(),
         Error::Busy
@@ -59,7 +61,7 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
     assert_eq!(before.revision, 1);
     assert_eq!(current.revision, 3);
     assert_eq!(current.profiles[0].draft.label, "Concurrent");
-    let mut lock = PrivateCache::acquire(&store.root, RECORD.name()).unwrap();
+    let mut lock = PrivateCache::acquire(store.record.folder(), RECORD.name()).unwrap();
     lock.replace(FILE, b"{").unwrap();
     drop(lock);
     assert_eq!(store.read().unwrap_err(), Error::InvalidCatalog);
@@ -67,17 +69,15 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
         store.commit(&Edit::Remove(id)).unwrap_err(),
         Error::InvalidCatalog
     );
-    assert_eq!(fs::read(store.root.join(FILE)).unwrap(), b"{");
+    assert_eq!(fs::read(store.record.path()).unwrap(), b"{");
 }
 #[test]
 fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
     let id = ProfileId::generate().unwrap();
     let root = Root(std::env::temp_dir().join(format!("orchbee-machine-test-{}", id.as_str())));
-    let store = Store {
-        root: root.0.join("machines"),
-    };
+    let store = Store::in_data_root(DataRoot::at(root.0.join("machines")));
     let draft = Draft::parse("First", "example.invalid", "work").unwrap();
-    let mut lock = PrivateCache::acquire(&store.root, RECORD.name()).unwrap();
+    let mut lock = PrivateCache::acquire(store.record.folder(), RECORD.name()).unwrap();
     lock.replace(
         FILE,
         br#"{"version":1,"revision":0,"profiles":[],"extensions":{"later":[1]}}"#,
@@ -91,15 +91,15 @@ fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
         })
         .unwrap();
     let written: serde_json::Value =
-        serde_json::from_slice(&fs::read(store.root.join(FILE)).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(store.record.path()).unwrap()).unwrap();
     assert_eq!(written["extensions"], serde_json::json!({"later": [1]}));
     // A newer record reads as no saved machine; a change lasts only in this process.
     let newer = br#"{"version":2,"revision":9,"profiles":[],"later":{}}"#;
-    let mut lock = PrivateCache::acquire(&store.root, RECORD.name()).unwrap();
+    let mut lock = PrivateCache::acquire(store.record.folder(), RECORD.name()).unwrap();
     lock.replace(FILE, newer).unwrap();
     drop(lock);
     assert!(store.read().unwrap().profiles.is_empty());
     store.commit(&Edit::Add { id, draft }).unwrap();
     assert_eq!(store.read().unwrap().profiles.len(), 1);
-    assert_eq!(fs::read(store.root.join(FILE)).unwrap(), newer);
+    assert_eq!(fs::read(store.record.path()).unwrap(), newer);
 }

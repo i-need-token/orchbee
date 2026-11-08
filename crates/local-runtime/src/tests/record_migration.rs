@@ -3,13 +3,45 @@
 //! failures that leave a record unchanged.
 use super::Fixture;
 use crate::{
-    DataRoot, LayoutRefusal, PRODUCT_VERSION, RecordOpening,
+    DataRoot, LayoutRefusal, PRODUCT_VERSION, VersionedRecord,
     data_root::{create_state_directory, settle_version_record},
-    persist_migration, private_filesystem as permissions,
-    record_migration::{KEPT_UPGRADE_FOLDERS, MigrationStep, open_with, upgrade_folder},
+    private_filesystem as permissions,
+    record_migration::{
+        KEPT_UPGRADE_FOLDERS, MigrationStep, RecordOpening, open_with, persist_migration,
+        upgrade_folder,
+    },
 };
 use serde_json::{Value, json};
-use std::{fs, io, io::Write, path::Path};
+use std::{cell::Cell, fs, io, io::Write, path::Path};
+
+mod stores;
+
+thread_local! {
+    /// The steps one test gives one record on its own thread, in place of the shipped none.
+    static INJECTED: Cell<Option<(VersionedRecord, &'static [MigrationStep])>> =
+        const { Cell::new(None) };
+}
+
+/// The steps a test injected for `record` on this thread, if any.
+pub(crate) fn injected_steps(record: VersionedRecord) -> Option<&'static [MigrationStep]> {
+    INJECTED
+        .get()
+        .filter(|(injected, _)| *injected == record)
+        .map(|(_, steps)| steps)
+}
+
+/// Gives `record` `steps` on this thread until the returned guard drops.
+fn inject(record: VersionedRecord, steps: &'static [MigrationStep]) -> Injected {
+    INJECTED.set(Some((record, steps)));
+    Injected
+}
+
+struct Injected;
+impl Drop for Injected {
+    fn drop(&mut self) {
+        INJECTED.set(None);
+    }
+}
 
 fn write_private(path: &Path, bytes: &[u8]) {
     let _pins = create_state_directory(path.parent().unwrap()).unwrap();

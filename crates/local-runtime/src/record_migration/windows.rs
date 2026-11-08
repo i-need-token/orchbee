@@ -1,6 +1,10 @@
 //! Windows effects of migration: upgrade and reset backups below the data root's
 //! `internal/backups/`, each a private folder holding copies at the records' paths relative to the
 //! root.
+//!
+//! Cross-runtime contract: search for `upgrade-backup-folders` before changing the upgrade folder
+//! name, the relative path, the numbered copies, or retention; Desktop Main backs its window state
+//! record up into the same folders.
 use super::{RecordNotice, VersionedRecord, version_folder_name};
 use crate::{
     DataRoot, PRODUCT_VERSION, data_root::compare_product_versions,
@@ -23,7 +27,7 @@ const UPGRADE: &str = "-upgrade-";
 /// to the root and flushed; every record one product version migrates shares that folder. Only
 /// then does `replace`, the store's flushed atomic replacement, write the migrated record. Any
 /// failure leaves the record at its path unchanged. Answers the backup copy's path.
-pub fn persist_migration(
+pub(crate) fn persist_migration(
     root: &DataRoot,
     path: &Path,
     original: &[u8],

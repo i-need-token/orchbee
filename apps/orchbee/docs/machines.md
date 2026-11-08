@@ -9,9 +9,11 @@ state. OpenSSH owns credentials, keys, host trust, and SSH configuration.
 `internal/state/machines.json` in the data root is a private, atomic document
 with a top-level integer `version` of 1 and an optional `extensions` object that a later release
 fills and this one keeps unread and writes back unchanged; an explicit `ORCHBEE_CONFIG_FILE` does
-not move it. A record with a version this build cannot use, saved by a newer version or not
-updated from an earlier one, is never rewritten: saved machines read as none, edits last only
-until the process ends, and the process shows the record message once. Its revision is a nonnegative safe
+not move it. A read keeps a record of an earlier version migrated in memory; the first committed
+edit backs the original up under `internal/backups/` and saves the migration before applying the
+edit. A record with a version this build cannot use, saved by a newer version or not updated from
+an earlier one, is never rewritten: saved machines read as none, edits last only until the process
+ends, and the process shows the record message once. Its revision is a nonnegative safe
 integer; profiles have distinct random 32-character lowercase hexadecimal IDs.
 At most 64 profiles and 128 KiB are admitted. Labels are nonblank, control-free,
 and at most 128 UTF-8 bytes. Targets are at most 1024 ASCII bytes: an SSH host

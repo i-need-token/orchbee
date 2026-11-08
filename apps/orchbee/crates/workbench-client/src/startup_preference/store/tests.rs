@@ -1,8 +1,21 @@
 //! Windows private-cache locking and persistence witness for the joined position writer.
 use super::{Preferences, Writer};
 use crate::startup_preference::tests::position;
-use crate::startup_preference::{FILE, MAXIMUM_BYTES, RECORD, decode};
+use crate::startup_preference::{MAXIMUM_BYTES, decode};
+use orchbee_local_runtime::{DataRoot, SessionName, VersionedFile, VersionedRecord};
 use std::{fs, path::PathBuf};
+
+const FILE: &str = VersionedRecord::TuiPosition.file_name();
+const RECORD: &str = VersionedRecord::TuiPosition.name();
+
+/// The record of one Session in a data root under `root`.
+fn record(root: &Root) -> VersionedFile {
+    VersionedFile::session(
+        DataRoot::at(root.0.join("position")),
+        VersionedRecord::TuiPosition,
+        &SessionName::parse("work").unwrap(),
+    )
+}
 
 struct Root(PathBuf);
 impl Root {
@@ -38,10 +51,11 @@ impl Drop for Root {
 #[test]
 fn startup_preference_writer_flushes_latest_complete_record_before_join() {
     let root = Root::new();
-    let path = root.0.join("position");
+    let record = record(&root);
+    let path = record.folder().to_owned();
     let mut writer = {
         let _lock = orchbee_local_runtime::PrivateCache::acquire(&path, RECORD).unwrap();
-        let mut writer = Writer::start(path.clone()).unwrap();
+        let mut writer = Writer::start(record.clone()).unwrap();
         writer.publish(position(1));
         writer.publish(position(2));
         writer.publish(position(2));
@@ -64,32 +78,34 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
 fn unreadable_record_counts_as_unsaved_and_the_next_position_replaces_it() {
     // A record from an earlier format once disabled every later write for that runtime.
     let root = Root::new();
-    let path = root.0.join("position");
+    let record = record(&root);
+    let path = record.folder().to_owned();
     orchbee_local_runtime::PrivateCache::acquire(&path, RECORD)
         .unwrap()
         .replace(FILE, br#"{"position":null}"#)
         .unwrap();
-    let preferences = Preferences::load_from(path.clone());
+    let preferences = Preferences::load_from(record.clone());
     assert!(preferences.position.is_none() && preferences.unreadable && !preferences.failed);
     let mut writer = preferences.writer().unwrap().unwrap();
     writer.publish(position(3));
     writer
         .stop_before(std::time::Instant::now() + std::time::Duration::from_secs(5))
         .unwrap();
-    let reloaded = Preferences::load_from(path);
+    let reloaded = Preferences::load_from(record);
     assert_eq!(reloaded.position, Some(position(3)));
     assert!(!reloaded.unreadable && !reloaded.failed);
 }
 #[test]
 fn a_record_a_newer_version_saved_counts_as_unsaved_and_is_never_rewritten() {
     let root = Root::new();
-    let path = root.0.join("position");
+    let record = record(&root);
+    let path = record.folder().to_owned();
     let newer = br#"{"version":2,"position":null,"later":true}"#;
     orchbee_local_runtime::PrivateCache::acquire(&path, RECORD)
         .unwrap()
         .replace(FILE, newer)
         .unwrap();
-    let preferences = Preferences::load_from(path.clone());
+    let preferences = Preferences::load_from(record.clone());
     assert!(preferences.position.is_none() && !preferences.failed);
     assert!(preferences.writer().unwrap().is_none());
     assert_eq!(std::fs::read(path.join(FILE)).unwrap(), newer);

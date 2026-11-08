@@ -3,7 +3,7 @@
 //! its version's name before it builds, so every name it lives under is known before creation.
 use super::{
     Catalog, Error, FILE, Generation, MAX_REVISION, PluginRegistry, PluginRegistryEntry,
-    REGISTRY_LIMIT, REGISTRY_RECORD, decode, encode, load, naming, platform, storage,
+    REGISTRY_RECORD, encode, load, naming, platform, storage,
 };
 use crate::{
     CommandFailure, CommandOutput, PluginGithubSource, PluginManagedSource, PrivateCache,
@@ -189,14 +189,8 @@ fn failed(failure: PluginProvisionFailure) -> PluginProvisionReport {
 }
 impl<'a> Provision<'a> {
     fn open(registry: &'a PluginRegistry) -> Result<Self, PluginProvisionFailure> {
-        let store = PrivateCache::acquire(registry.root(), REGISTRY_RECORD).map_err(storage)?;
-        let catalog = decode(
-            store
-                .read(FILE, REGISTRY_LIMIT)
-                .map_err(storage)?
-                .as_deref(),
-            &registry.paths,
-        )?;
+        let mut store = PrivateCache::acquire(registry.root(), REGISTRY_RECORD).map_err(storage)?;
+        let catalog = registry.open_locked(&mut store)?;
         Ok(Self {
             registry,
             store,

@@ -154,7 +154,9 @@ advice, separate from Server checkpoints and terminal lifetime. Its versioned, b
 is the Session folder's `tui-position.json`, `sessions/<session>/tui-position.json` in the data root, and is removed with
 its Session. Only schema `orchbee.tui.position`, version 1, with required position/location/member fields is
 readable; member is explicitly nullable. Workspace/context identity excludes mutable Project membership.
-A record with a version this build cannot use, saved by a newer version or not updated from an
+Only the TUI writes the record: an earlier version loads migrated in memory, and the position writer
+backs the original up under `internal/backups/` and saves the migration before its first
+replacement. A record with a version this build cannot use, saved by a newer version or not updated from an
 earlier one, counts as no saved record and is never rewritten: the TUI opens at the first
 Workspace, remembers no position for that run, and shows the record message once. Old shapes and
 any other unreadable or oversized record count as no saved record, and the next published position

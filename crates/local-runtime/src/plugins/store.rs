@@ -104,6 +104,10 @@ pub enum PluginRegistryMutation {
 #[derive(Clone, Debug)]
 pub struct PluginRegistry {
     paths: PluginStorePaths,
+    /// The data root whose `internal/plugins/` this store is, which holds the upgrade backup of a
+    /// migrated registry. A store opened at another folder has none, so it never migrates a
+    /// registry.
+    data_root: Option<DataRoot>,
 }
 impl PluginRegistry {
     pub fn from_environment(
@@ -111,7 +115,13 @@ impl PluginRegistry {
     ) -> Result<Self, Error> {
         platform::require()?;
         let root = DataRoot::resolve(env).map_err(|_| Error::InvalidPath)?;
-        Self::at(root.plugins())
+        Self::in_data_root(&root)
+    }
+    /// The plugin store of `root`, `internal/plugins/`.
+    pub(crate) fn in_data_root(root: &DataRoot) -> Result<Self, Error> {
+        let mut registry = Self::at(root.plugins())?;
+        registry.data_root = Some(root.clone());
+        Ok(registry)
     }
     /// The root is an absolute, private catalog directory, not a linked plugin source.
     pub fn at(root: PathBuf) -> Result<Self, Error> {
@@ -128,6 +138,7 @@ impl PluginRegistry {
         }
         Ok(Self {
             paths: PluginStorePaths::new(root),
+            data_root: None,
         })
     }
     pub fn root(&self) -> &Path {
@@ -137,7 +148,7 @@ impl PluginRegistry {
         let id = id.map(plugin_identifier).transpose()?;
         let bytes =
             PrivateCache::read_existing(self.root(), FILE, REGISTRY_LIMIT).map_err(storage)?;
-        let mut catalog = decode_for_reading(bytes.as_deref(), &self.paths)?;
+        let mut catalog = decode_for_reading(self.open_to_read(bytes), &self.paths)?;
         for entry in &mut catalog.plugins {
             refresh(entry);
         }
@@ -157,7 +168,10 @@ impl PluginRegistry {
         }
         let read = PrivateCache::read_existing_pinned(self.root(), FILE, REGISTRY_LIMIT)
             .map_err(storage)?;
-        let catalog = decode_for_reading(read.bytes(), &self.paths)?;
+        let catalog = decode_for_reading(
+            self.open_to_read(read.bytes().map(<[u8]>::to_vec)),
+            &self.paths,
+        )?;
         let fingerprint = registered_fingerprint(catalog.revision, &catalog.plugins)?;
         Ok(PluginRegisteredCatalog {
             revision: catalog.revision,
@@ -174,20 +188,17 @@ impl PluginRegistry {
         let id = plugin_identifier(id)?;
         let bytes =
             PrivateCache::read_existing(self.root(), FILE, REGISTRY_LIMIT).map_err(storage)?;
-        let folder = match decode(bytes.as_deref(), &self.paths)?.folders.remove(&id) {
+        let folder = match decode(self.open_to_read(bytes), &self.paths)?
+            .folders
+            .remove(&id)
+        {
             Some(folder) => folder,
             // A first use records the folder under the writer lock, so two processes never give
             // one folder to different plugins.
             None => {
                 let mut store =
                     PrivateCache::acquire(self.root(), REGISTRY_RECORD).map_err(storage)?;
-                let mut catalog = decode(
-                    store
-                        .read(FILE, REGISTRY_LIMIT)
-                        .map_err(storage)?
-                        .as_deref(),
-                    &self.paths,
-                )?;
+                let mut catalog = self.open_locked(&mut store)?;
                 let (folder, assigned) = self.assign_folder(&mut catalog, &id)?;
                 if assigned {
                     store
@@ -287,8 +298,7 @@ impl PluginRegistry {
             | PluginRegistryMutation::SetEnabled { id, .. } => (plugin_identifier(id)?, None),
         };
         let mut store = PrivateCache::acquire(self.root(), REGISTRY_RECORD).map_err(storage)?;
-        let bytes = store.read(FILE, REGISTRY_LIMIT).map_err(storage)?;
-        let mut catalog = decode(bytes.as_deref(), &self.paths)?;
+        let mut catalog = self.open_locked(&mut store)?;
         let before = catalog.plugins.clone();
         match mutation {
             PluginRegistryMutation::Link { .. } => {
@@ -387,10 +397,40 @@ fn encode(catalog: &Catalog, paths: &PluginStorePaths) -> Result<Vec<u8>, Error>
     decode_current(&bytes, paths)?;
     Ok(bytes)
 }
+impl PluginRegistry {
+    /// Opens registry bytes read without the writer lock; an earlier version is migrated in memory
+    /// only.
+    fn open_to_read(&self, bytes: Option<Vec<u8>>) -> crate::OpenedRecord {
+        crate::open_to_read(
+            crate::VersionedRecord::PluginRegistry,
+            &self.root().join(FILE),
+            bytes,
+            |bytes| decode_current(bytes, &self.paths).is_ok(),
+        )
+    }
+    /// Reads and decodes the registry under the writer lock that `store` holds. An earlier version
+    /// is backed up and persisted through `store` first, so a later replacement never overwrites it
+    /// unbacked.
+    fn open_locked(&self, store: &mut PrivateCache) -> Result<Catalog, Error> {
+        let bytes = store.read(FILE, REGISTRY_LIMIT).map_err(storage)?;
+        let opened = crate::record_migration::open_writing(
+            self.data_root.as_ref(),
+            crate::VersionedRecord::PluginRegistry,
+            &self.root().join(FILE),
+            bytes,
+            |bytes| decode_current(bytes, &self.paths).is_ok(),
+            |migrated| store.replace(FILE, migrated),
+        );
+        decode(opened, &self.paths)
+    }
+}
 /// A reader works as it does without a registry whose version this build cannot use: no plugin
 /// is registered.
-fn decode_for_reading(bytes: Option<&[u8]>, paths: &PluginStorePaths) -> Result<Catalog, Error> {
-    match decode(bytes, paths) {
+fn decode_for_reading(
+    opened: crate::OpenedRecord,
+    paths: &PluginStorePaths,
+) -> Result<Catalog, Error> {
+    match decode(opened, paths) {
         Err(Error::UnusableRegistry) => Ok(Catalog::default()),
         decoded => decoded,
     }
@@ -398,25 +438,11 @@ fn decode_for_reading(bytes: Option<&[u8]>, paths: &PluginStorePaths) -> Result<
 /// The registry, refused as [`Error::UnusableRegistry`] when its version is one this build cannot
 /// use, which is reported once per process and never rewritten: a folder assignment kept only in
 /// memory could give a newer version's folder to another plugin, so changes are refused.
-fn decode(bytes: Option<&[u8]>, paths: &PluginStorePaths) -> Result<Catalog, Error> {
-    let Some(bytes) = bytes else {
-        return Ok(Catalog::default());
-    };
-    let opening = crate::open_record(crate::VersionedRecord::PluginRegistry, bytes, |bytes| {
-        decode_current(bytes, paths).is_ok()
-    });
-    if let Some((problem, version)) = opening.problem() {
-        crate::report_record_notice(&crate::RecordNotice {
-            record: crate::VersionedRecord::PluginRegistry,
-            problem,
-            version,
-            path: paths.root().join(FILE),
-        });
-        return Err(Error::UnusableRegistry);
-    }
-    match opening {
-        crate::RecordOpening::Migrated { bytes, .. } => decode_current(&bytes, paths),
-        _ => decode_current(bytes, paths),
+fn decode(opened: crate::OpenedRecord, paths: &PluginStorePaths) -> Result<Catalog, Error> {
+    match opened {
+        crate::OpenedRecord::Absent => Ok(Catalog::default()),
+        crate::OpenedRecord::Unusable(_) => Err(Error::UnusableRegistry),
+        crate::OpenedRecord::Readable(bytes) => decode_current(&bytes, paths),
     }
 }
 fn decode_current(bytes: &[u8], paths: &PluginStorePaths) -> Result<Catalog, Error> {

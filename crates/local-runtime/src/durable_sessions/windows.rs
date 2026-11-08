@@ -141,6 +141,7 @@ pub(crate) fn is_record_guard(name: &str) -> bool {
 /// The `sessions/` folder of one data root. A scope is the spelling of one Session's folder name;
 /// [`Directory::spelling`] finds the folder whatever letter case the Session is asked for in.
 pub(crate) struct Directory {
+    root: DataRoot,
     path: PathBuf,
     _pins: Vec<File>,
 }
@@ -158,12 +159,20 @@ impl Directory {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         }
-        Ok(Some(Self { path, _pins: pins }))
+        Ok(Some(Self {
+            root: root.clone(),
+            path,
+            _pins: pins,
+        }))
     }
     pub(crate) fn create(root: &DataRoot) -> io::Result<Self> {
         let path = root.sessions();
         let pins = crate::data_root::create_state_directory(&path)?;
-        Ok(Self { path, _pins: pins })
+        Ok(Self {
+            root: root.clone(),
+            path,
+            _pins: pins,
+        })
     }
     /// One Session's folder.
     pub(crate) fn folder(&self, scope: &str) -> PathBuf {
@@ -232,28 +241,43 @@ impl Directory {
     }
     /// The record, refused as `InvalidData` when this build cannot admit it. A record whose
     /// version this build cannot use is refused the same way, carrying [`UnusableRecord`], and is
-    /// reported once per process.
+    /// reported once per process. An earlier version is migrated in memory only: every write
+    /// persists it first, under the writer lock, through [`Self::read_to_replace`].
     pub(crate) fn read(&self, scope: &str) -> io::Result<Option<Record>> {
-        let Some(bytes) = self.read_bytes(scope)? else {
-            return Ok(None);
-        };
-        let opening =
-            crate::open_record(crate::VersionedRecord::SessionLifecycle, &bytes, |bytes| {
-                serde_json::from_slice::<Record>(bytes)
-                    .is_ok_and(|record| self.validate(scope, &record).is_ok())
-            });
-        if let Some((problem, version)) = opening.problem() {
-            crate::report_record_notice(&crate::RecordNotice {
-                record: crate::VersionedRecord::SessionLifecycle,
-                problem,
-                version,
-                path: self.record_path(scope, RECORD_FILE)?,
-            });
-            return Err(io::Error::new(io::ErrorKind::InvalidData, UnusableRecord));
-        }
-        let bytes = match opening {
-            crate::RecordOpening::Migrated { bytes, .. } => bytes,
-            _ => bytes,
+        let opened = crate::open_to_read(
+            crate::VersionedRecord::SessionLifecycle,
+            &self.record_path(scope, RECORD_FILE)?,
+            self.read_bytes(scope)?,
+            |bytes| self.admits(scope, bytes),
+        );
+        self.admit(scope, opened)
+    }
+    /// [`Self::read`] for a writer holding the record's writer lock, about to replace the record:
+    /// an earlier version is first backed up and persisted, so no write replaces it unbacked.
+    /// Session records therefore migrate only in a writer, which outside the Server writes only
+    /// after it has proved that no Server of the Session runs.
+    fn read_to_replace(&self, scope: &str) -> io::Result<Option<Record>> {
+        let opened = crate::open_to_write(
+            &self.root,
+            crate::VersionedRecord::SessionLifecycle,
+            &self.record_path(scope, RECORD_FILE)?,
+            self.read_bytes(scope)?,
+            |bytes| self.admits(scope, bytes),
+            |migrated| self.replace(scope, migrated),
+        );
+        self.admit(scope, opened)
+    }
+    fn admits(&self, scope: &str, bytes: &[u8]) -> bool {
+        serde_json::from_slice::<Record>(bytes)
+            .is_ok_and(|record| self.validate(scope, &record).is_ok())
+    }
+    fn admit(&self, scope: &str, opened: crate::OpenedRecord) -> io::Result<Option<Record>> {
+        let bytes = match opened {
+            crate::OpenedRecord::Absent => return Ok(None),
+            crate::OpenedRecord::Unusable(_) => {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, UnusableRecord));
+            }
+            crate::OpenedRecord::Readable(bytes) => bytes,
         };
         let record: Record =
             serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
@@ -353,13 +377,17 @@ impl Directory {
         self.validate(scope, record)?;
         // Ordinary publication never replaces unreadable user data. Only an explicit,
         // guarded deletion can install its recovery fence over such a record.
-        match self.read(scope) {
+        match self.read_to_replace(scope) {
             Ok(_) => {}
             Err(error)
                 if deleting && error.kind() == io::ErrorKind::InvalidData && !unusable(&error) => {}
             Err(error) => return Err(error),
         }
         let bytes = serde_json::to_vec(record).map_err(io::Error::other)?;
+        self.replace(scope, &bytes)
+    }
+    /// Flushes `bytes` into the staging file and atomically moves it over the record.
+    fn replace(&self, scope: &str, bytes: &[u8]) -> io::Result<()> {
         if bytes.len() > MAXIMUM_BYTES {
             return Err(io::ErrorKind::InvalidInput.into());
         }
@@ -367,7 +395,7 @@ impl Directory {
         let staging = self.record_path(scope, RECORD_PENDING)?;
         remove_private(&staging)?;
         let mut file = permissions::open_file(&staging, true, true)?;
-        let written = file.write_all(&bytes).and_then(|()| file.sync_all());
+        let written = file.write_all(bytes).and_then(|()| file.sync_all());
         drop(file);
         let target = self.record_path(scope, RECORD_FILE)?;
         let published = written.and_then(|()| {

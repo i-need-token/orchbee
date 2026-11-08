@@ -16,7 +16,7 @@ mod child_registration;
 mod crash_recovery;
 mod durable_sessions;
 mod named_catalog;
-mod record_migration;
+pub(crate) mod record_migration;
 mod session_name;
 mod session_store;
 

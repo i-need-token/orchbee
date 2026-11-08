@@ -1,18 +1,21 @@
 //! The optional position cache: platform storage identity, load, and the single background writer.
-use super::{FILE, MAXIMUM_BYTES, Position, RECORD, Record, Schema, decode};
+//! The TUI is the record's only writer: a load keeps an earlier record migrated in memory, and the
+//! writer backs it up and persists the migration under its lock before its first replacement.
+use super::{MAXIMUM_BYTES, Position, Record, Schema, decode};
 use crate::background_thread::BackgroundThread;
+use orchbee_local_runtime::{OpenedRecord, VersionedFile};
 
 #[cfg(unix)]
 mod unix;
 #[cfg(windows)]
 mod windows;
 #[cfg(unix)]
-use unix::storage_path;
+use unix::storage;
 #[cfg(windows)]
-use windows::storage_path;
+use windows::storage;
 
 pub(crate) struct Preferences {
-    path: std::path::PathBuf,
+    record: Option<VersionedFile>,
     pub(crate) position: Option<Position>,
     /// A record exists that this build cannot read, such as an older format. It counts as no saved
     /// position, and the next displayed position replaces it.
@@ -25,10 +28,10 @@ pub(crate) struct Preferences {
 }
 impl Preferences {
     pub(crate) fn load(runtime: &std::path::Path) -> Self {
-        match storage_path(runtime) {
-            Ok(path) => Self::load_from(path),
+        match storage(runtime) {
+            Ok(record) => Self::load_from(record),
             Err(_) => Self {
-                path: Default::default(),
+                record: None,
                 position: None,
                 unreadable: false,
                 failed: true,
@@ -36,46 +39,23 @@ impl Preferences {
             },
         }
     }
-    fn load_from(path: std::path::PathBuf) -> Self {
+    fn load_from(record: VersionedFile) -> Self {
         let mut unusable = false;
-        let (position, unreadable, failed) =
-            match orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES) {
-                Ok(None) => (None, false, false),
-                Ok(Some(bytes)) => {
-                    let opening = orchbee_local_runtime::open_record(
-                        orchbee_local_runtime::VersionedRecord::TuiPosition,
-                        &bytes,
-                        |bytes| decode(bytes).is_ok(),
-                    );
-                    if let Some((problem, version)) = opening.problem() {
-                        orchbee_local_runtime::report_record_notice(
-                            &orchbee_local_runtime::RecordNotice {
-                                record: orchbee_local_runtime::VersionedRecord::TuiPosition,
-                                problem,
-                                version,
-                                path: path.join(FILE),
-                            },
-                        );
-                        unusable = true;
-                        (None, false, false)
-                    } else {
-                        let bytes = match opening {
-                            orchbee_local_runtime::RecordOpening::Migrated { bytes, .. } => bytes,
-                            _ => bytes,
-                        };
-                        match decode(&bytes) {
-                            Ok(position) => (Some(position), false, false),
-                            Err(_) => (None, true, false),
-                        }
-                    }
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::FileTooLarge => {
-                    (None, true, false)
-                }
-                Err(_) => (None, false, true),
-            };
+        let (position, unreadable, failed) = match record.read(MAXIMUM_BYTES, admits) {
+            Ok(OpenedRecord::Absent) => (None, false, false),
+            Ok(OpenedRecord::Unusable(_)) => {
+                unusable = true;
+                (None, false, false)
+            }
+            Ok(OpenedRecord::Readable(bytes)) => match decode(&bytes) {
+                Ok(position) => (Some(position), false, false),
+                Err(_) => (None, true, false),
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::FileTooLarge => (None, true, false),
+            Err(_) => (None, false, true),
+        };
         Self {
-            path,
+            record: Some(record),
             position,
             unreadable,
             failed,
@@ -83,11 +63,14 @@ impl Preferences {
         }
     }
     pub(crate) fn writer(self) -> std::io::Result<Option<Writer>> {
-        if self.failed || self.unusable {
-            return Ok(None);
+        match self.record {
+            Some(record) if !self.failed && !self.unusable => Writer::start(record).map(Some),
+            _ => Ok(None),
         }
-        Writer::start(self.path).map(Some)
     }
+}
+fn admits(bytes: &[u8]) -> bool {
+    decode(bytes).is_ok()
 }
 
 #[derive(Default)]
@@ -101,13 +84,21 @@ struct Shared {
     wake: std::sync::Condvar,
     failed: std::sync::atomic::AtomicBool,
 }
+/// What one write did with the record.
+enum Written {
+    Replaced,
+    /// The record's version is one this build cannot use, saved by a newer TUI since the load or
+    /// an earlier one whose migration could not be saved, so it stays as it is and this writer
+    /// writes no more.
+    Kept,
+}
 pub(crate) struct Writer {
     shared: std::sync::Arc<Shared>,
     task: BackgroundThread,
     last: Option<Position>,
 }
 impl Writer {
-    fn start(path: std::path::PathBuf) -> std::io::Result<Self> {
+    fn start(record: VersionedFile) -> std::io::Result<Self> {
         let shared = std::sync::Arc::new(Shared::default());
         let worker = std::sync::Arc::clone(&shared);
         let task = BackgroundThread::spawn("orchbee-position-writer", move || {
@@ -127,10 +118,12 @@ impl Writer {
                     };
                     position
                 };
-                if write(&path, position).is_err() {
-                    worker
+                match write(&record, position) {
+                    Ok(Written::Replaced) => {}
+                    Ok(Written::Kept) => return,
+                    Err(_) => worker
                         .failed
-                        .store(true, std::sync::atomic::Ordering::Release);
+                        .store(true, std::sync::atomic::Ordering::Release),
                 }
             }
         })?;
@@ -169,7 +162,9 @@ impl Writer {
             .swap(false, std::sync::atomic::Ordering::AcqRel)
     }
 }
-fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
+/// Opens the record under its writer lock, which backs up and persists an earlier version first,
+/// and replaces it unless its version is one this build cannot use.
+fn write(record: &VersionedFile, position: Position) -> std::io::Result<Written> {
     let bytes = serde_json::to_vec(&Record {
         schema: Schema::Position,
         version: 1,
@@ -178,8 +173,14 @@ fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
     .map_err(std::io::Error::other)?;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
     loop {
-        match orchbee_local_runtime::PrivateCache::acquire(path, RECORD) {
-            Ok(mut cache) => return cache.replace(FILE, &bytes),
+        match record.acquire(MAXIMUM_BYTES, admits) {
+            Ok((_, Ok(OpenedRecord::Unusable(_)))) => return Ok(Written::Kept),
+            // A record too large to read counts as unsaved, like a malformed one, and is replaced.
+            Ok((mut writer, Ok(_))) => return writer.replace(&bytes).map(|()| Written::Replaced),
+            Ok((mut writer, Err(error))) if error.kind() == std::io::ErrorKind::FileTooLarge => {
+                return writer.replace(&bytes).map(|()| Written::Replaced);
+            }
+            Ok((_, Err(error))) => return Err(error),
             Err(error)
                 if error.kind() == std::io::ErrorKind::WouldBlock
                     && std::time::Instant::now() < deadline =>

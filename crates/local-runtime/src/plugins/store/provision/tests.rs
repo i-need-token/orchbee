@@ -1,3 +1,4 @@
+use super::super::REGISTRY_LIMIT;
 use super::*;
 use std::fs;
 
@@ -412,11 +413,7 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_r
         .plugin
         .unwrap();
     let mut cache = PrivateCache::acquire(registry.root(), "registry").unwrap();
-    let mut catalog = decode(
-        cache.read(FILE, REGISTRY_LIMIT).unwrap().as_deref(),
-        &registry.paths,
-    )
-    .unwrap();
+    let mut catalog = registry.open_locked(&mut cache).unwrap();
     catalog.cleanup.push(generation_key(&registry, &entry));
     cache
         .replace(FILE, &serde_json::to_vec(&catalog).unwrap())
@@ -430,11 +427,7 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_r
     assert!(missing.cleanup_pending.is_empty());
     assert!(Path::new(&entry.plugin_root).exists());
     let mut cache = PrivateCache::acquire(registry.root(), "registry").unwrap();
-    let mut catalog = decode(
-        cache.read(FILE, REGISTRY_LIMIT).unwrap().as_deref(),
-        &registry.paths,
-    )
-    .unwrap();
+    let mut catalog = registry.open_locked(&mut cache).unwrap();
     // A managed root outside its plugin's source folder would let cleanup or a build reach it.
     let outside = fixture.0.canonicalize().unwrap();
     catalog.plugins[0].plugin_root = outside.to_str().unwrap().to_owned();

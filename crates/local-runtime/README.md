@@ -153,20 +153,34 @@ the store chooses the folder and version names.
 
 `record_migration` owns the version rules of the
 [layout proposal](../../proposals/platform/data-root-layout.md#persisted-data-versions-and-migration)
-for every record versioned by a top-level integer `version` (`VersionedRecord`). A store passes the
-bytes it read to `open_record` with its current strict parser: `Current` parses as usual;
-`Migrated` carries an earlier record converted by pure N to N+1 steps whose result the parser
-admitted, which a reader uses in memory and only a writer persists; `Newer` and `NotUpdated` are
-never rewritten; `Unversioned` is the store's ordinary invalid record. No step ships yet, so an
-earlier version is `NotUpdated` until a format changes and adds its step here.
+for every record versioned by a top-level integer `version` (`VersionedRecord`). A store receives a
+record's bytes only through one of two openers, each given the store's current strict parser:
+`open_to_read`, for a process that does not write the record, migrates an earlier record in memory
+and never writes; `open_to_write`, called under the store's writer lock with the store's own flushed
+atomic replacement, persists the migration before the store sees the bytes. Both answer
+`OpenedRecord`: `Absent`; `Readable` with the current or migrated bytes, or with the original of a
+record without an integer version, which the store treats as its ordinary invalid record; or
+`Unusable` with the reported `RecordNotice` for a newer record or one no step can update.
+`VersionedFile` builds both on a private file whose lock and staging file sit beside it: `read`
+takes no lock, and `acquire` returns the `VersionedWriter` with the opening.
 
-`persist_migration` copies the original into `internal/backups/<YYYY-MM-DD>-upgrade-<product
-version>/` at its path relative to the root and flushes it before the store's flushed atomic
-replacement runs; every record one product version migrates shares that folder, and creating
-another keeps only the three newest. A failed backup or replacement leaves the record unchanged.
-`back_up_for_reset` copies a record into `internal/backups/<YYYY-MM-DD>-<reset>/`, or the next free
-`-2`, `-3`, before a reset the person requested replaces it, and nothing deletes those folders.
-Backups are Windows effects; POSIX returns `Unsupported` until ORC-328.
+Earlier versions are converted by pure N to N+1 steps in `VersionedRecord::steps`, and the result
+must pass the store's parser. No step ships yet, so an earlier version is not updated until a format
+changes. Since no other path hands a store a record, a step added there reaches every store,
+backup and persistence included, with no store change; the module's tests drive every store through
+an injected step.
+
+A writer's opening copies the original into `internal/backups/<YYYY-MM-DD>-upgrade-<product
+version>/` at its path relative to the root and flushes it before the replacement runs; every record
+one product version migrates shares that folder, and creating another keeps only the three newest.
+Desktop Main backs its window state record up into the same folders; search for
+`upgrade-backup-folders` before changing the naming, the copies, or retention. A failed step, backup,
+or replacement leaves the record byte-identical, and the store treats it as not updated: the notice
+is reported, and the process keeps treating that record so until it ends, so its readers and writers
+agree. `back_up_for_reset` copies a record into `internal/backups/<YYYY-MM-DD>-<reset>/`, or the next
+free `-2`, `-3`, before a reset the person requested replaces it, and nothing deletes those folders.
+Backups are Windows effects; on POSIX a writer's opening reports an earlier record as not updated
+until ORC-328.
 
 | Record                            | Version and extension object | While its version is one this build cannot use                                                                                                          |
 | --------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -175,8 +189,11 @@ Backups are Windows effects; POSIX returns `Unsupported` until ORC-328.
 | `sessions/<session>/session.json` | `version`; `extensions`      | The catalog lists the Session as unrecognized with reason `Version`; it is neither started nor deleted                                                  |
 
 Each store keeps an `extensions` object it reads as opaque and writes back unchanged, so a later
-release adds an optional field there without a migration. Workbench Client owns the onboarding,
-machine and TUI position records with the same rules. `inspect_records` reads every versioned
+release adds an optional field there without a migration. A record migrates only in a process that
+writes it: preferences on an accepted update, the plugin registry when a writer changes it, and
+`session.json` when it is published, which outside the Server happens only after proving no Server
+of the Session runs. Workbench Client owns the onboarding, machine and TUI position records, kept
+through `VersionedFile`, with the same rules. `inspect_records` reads every versioned
 record of a root, or one Session's, creating nothing, and reports the unusable ones; `config check`
 lists them and the TUI shows the first when it starts, since the Server reads the records it holds.
 

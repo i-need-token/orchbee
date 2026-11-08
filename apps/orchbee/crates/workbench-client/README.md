@@ -166,4 +166,6 @@ the notice instead of the Session's historical diagnostic: it stays while the so
 and ends when Reset all replaces the record. Unrelated configuration warnings retain their existing
 guidance.
 The [shared preference contract](../../../../crates/workbench-protocol/docs/user-preferences.md#explicit-recovery-from-a-refused-record)
-owns token and storage rules. No read silently repairs or migrates a record.
+owns token and storage rules. No read silently repairs a record or saves a migration; the
+onboarding, machine and TUI position records persist a migration only when they are next written,
+through the local runtime's `VersionedFile`.

@@ -92,57 +92,46 @@ impl UserPreferencesStore {
         }
     }
 
-    /// Reads never create a record, lock, or directory.
+    /// Reads never create a record, lock, or directory. A record of an earlier version is migrated
+    /// in memory; the next accepted update persists the migration first.
     pub fn read(&self) -> Result<UserPreferencesSnapshot, PreferencesFailure> {
         let bytes = storage::read(&self.scope)?;
-        let (record, source) = self.decode(bytes.as_deref())?;
+        let source = source_token(bytes.as_deref());
+        let opened = crate::open_to_read(
+            crate::VersionedRecord::Preferences,
+            &self.record_path(),
+            bytes,
+            |bytes| strict(bytes).is_some(),
+        );
+        let (record, source) = self.decode(opened, source)?;
         Ok(snapshot(&record, source))
     }
 
-    fn decode(&self, bytes: Option<&[u8]>) -> Result<(Record, String), PreferencesFailure> {
-        match bytes {
-            Some(bytes) => {
+    fn record_path(&self) -> std::path::PathBuf {
+        self.scope.directory.join(RECORD_NAME)
+    }
+
+    /// The record an opening yields, with `source`, the token of the bytes as read: a migrated
+    /// record keeps its original's token, since the migration changed no meaning a client saw.
+    fn decode(
+        &self,
+        opened: crate::OpenedRecord,
+        source: String,
+    ) -> Result<(Record, String), PreferencesFailure> {
+        match opened {
+            crate::OpenedRecord::Readable(bytes) => {
                 if bytes.len() > MAXIMUM_USER_PREFERENCES_BYTES {
                     return Err(PreferencesFailure::InvalidSource);
                 }
-                let opening =
-                    crate::open_record(crate::VersionedRecord::Preferences, bytes, |bytes| {
-                        strict(bytes).is_some()
-                    });
-                if let Some((problem, version)) = opening.problem() {
-                    crate::report_record_notice(&crate::RecordNotice {
-                        record: crate::VersionedRecord::Preferences,
-                        problem,
-                        version,
-                        path: self.scope.directory.join(RECORD_NAME),
-                    });
-                    return Ok(self.remembered());
-                }
-                if let crate::RecordOpening::Migrated {
-                    bytes: migrated, ..
-                } = &opening
-                {
-                    let record = strict(migrated).ok_or(PreferencesFailure::InvalidSource)?;
-                    return Ok((record, source_token(Some(bytes))));
-                }
-                let record: Record =
-                    serde_json::from_slice(bytes).map_err(|_| PreferencesFailure::InvalidSource)?;
-                if record.version != 1 {
-                    return Err(PreferencesFailure::InvalidSource);
-                }
-                record
-                    .values
-                    .validate()
-                    .map_err(|_| PreferencesFailure::InvalidSource)?;
-                launch_admission::validate(&record.values.launch_profiles)
-                    .map_err(|_| PreferencesFailure::InvalidSource)?;
-                Ok((record, source_token(Some(bytes))))
+                let record = strict(&bytes).ok_or(PreferencesFailure::InvalidSource)?;
+                Ok((record, source))
             }
-            None => {
+            crate::OpenedRecord::Unusable(_) => Ok(self.remembered()),
+            crate::OpenedRecord::Absent => {
                 let record = Record::empty();
                 launch_admission::validate(&record.values.launch_profiles)
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
-                Ok((record, source_token(None)))
+                Ok((record, source))
             }
         }
     }
@@ -172,7 +161,25 @@ impl UserPreferencesStore {
         }
         let mut writer = storage::Writer::acquire(&self.scope)?;
         let before = writer.read()?;
-        let (previous, previous_source) = match self.decode(before.as_deref()) {
+        let source = source_token(before.as_deref());
+        // An earlier record is backed up and persisted before anything else, so `stored`, what the
+        // record holds when the update commits, is the migrated record from then on.
+        let mut stored = before.clone();
+        let opened = crate::open_to_write(
+            &self.scope.root,
+            crate::VersionedRecord::Preferences,
+            &self.record_path(),
+            before.clone(),
+            |bytes| strict(bytes).is_some(),
+            |migrated| {
+                writer
+                    .commit(before.as_deref(), migrated)
+                    .map_err(|_| std::io::Error::from(std::io::ErrorKind::Other))?;
+                stored = Some(migrated.to_vec());
+                Ok(())
+            },
+        );
+        let (previous, previous_source) = match self.decode(opened, source) {
             Ok(previous) => previous,
             Err(PreferencesFailure::InvalidSource)
                 if matches!(request, UserPreferencesRequest::Update { source, .. }
@@ -207,23 +214,18 @@ impl UserPreferencesStore {
         #[cfg(windows)]
         if in_memory
             && changes.is_reset_all()
-            && let Some(original) = before.as_deref()
-            && let Some(root) = self
-                .scope
-                .directory
-                .parent()
-                .and_then(std::path::Path::parent)
+            && let Some(original) = stored.as_deref()
         {
             // Resetting every setting is the one change that replaces a record this build cannot
             // use; the person asked for it, and the record is backed up first.
             crate::back_up_for_reset(
-                &crate::DataRoot::at(root.to_path_buf()),
+                &self.scope.root,
                 "reset-settings",
-                &self.scope.directory.join(RECORD_NAME),
+                &self.record_path(),
                 original,
             )
             .map_err(|_| PreferencesFailure::WriteFailed)?;
-            writer.commit(before.as_deref(), &after)?;
+            writer.commit(stored.as_deref(), &after)?;
             if let Ok(mut memory) = self.memory.lock() {
                 *memory = None;
             }
@@ -236,7 +238,7 @@ impl UserPreferencesStore {
             }
             return Ok((snapshot(&candidate, source), true));
         }
-        writer.commit(before.as_deref(), &after)?;
+        writer.commit(stored.as_deref(), &after)?;
         Ok((snapshot(&candidate, source_token(Some(&after))), true))
     }
 }

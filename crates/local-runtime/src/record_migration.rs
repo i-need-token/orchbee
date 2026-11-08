@@ -1,36 +1,48 @@
 //! Persisted record versions and migration (ORC-397). Every record the data root layout versions
 //! with a top-level integer `version` opens through here: a current record is parsed as usual, an
 //! older one is migrated by pure N to N+1 steps whose result must pass the store's current strict
-//! parser, and a newer one, or one no step can update, is never rewritten. Only a process that
-//! writes a record persists its migration, after copying the original into an upgrade backup
-//! folder; a failed step or backup changes nothing. Stores keep the record's meaning; this module
+//! parser, and a newer one, or one no step can update, is never rewritten.
+//!
+//! A store receives a record's bytes only through [`open_to_read`], in a process that does not
+//! write the record, which keeps a migration in memory, or through [`open_to_write`], under the
+//! store's writer lock, which copies the original into an upgrade backup folder and persists the
+//! migration through the store's own replacement before the store sees the bytes; [`VersionedFile`]
+//! builds both on a private file. A failed step, backup, or replacement changes nothing. Since no
+//! other path hands a store migrated bytes, a step added to [`VersionedRecord::steps`] reaches every
+//! store, with its backup, without further wiring. Stores keep the record's meaning; this module
 //! owns the steps, the backups and their retention, and the once-per-process report.
-use crate::LogValue;
+use crate::{DataRoot, LogValue, PrivateCache, SessionName};
 use serde_json::Value;
-use std::{path::PathBuf, sync::Mutex};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+pub(crate) use windows::persist_migration;
 #[cfg(all(test, windows))]
 pub(crate) use windows::{KEPT_UPGRADE_FOLDERS, upgrade_folder};
 #[cfg(windows)]
-pub use windows::{back_up_for_reset, inspect_records, persist_migration};
+pub use windows::{back_up_for_reset, inspect_records};
 
 /// Migration backups are Windows effects until ORC-328, so POSIX refuses before any effect and the
 /// record stays as it is.
 #[cfg(not(windows))]
-pub fn persist_migration(
-    _root: &crate::DataRoot,
-    _path: &std::path::Path,
+pub(crate) fn persist_migration(
+    _root: &DataRoot,
+    _path: &Path,
     _original: &[u8],
-    _replace: impl FnOnce() -> std::io::Result<()>,
-) -> std::io::Result<PathBuf> {
-    Err(std::io::ErrorKind::Unsupported.into())
+    _replace: impl FnOnce() -> io::Result<()>,
+) -> io::Result<PathBuf> {
+    Err(io::ErrorKind::Unsupported.into())
 }
 
 /// The versioned stores are Windows effects until ORC-328, so POSIX inspects none.
 #[cfg(not(windows))]
-pub fn inspect_records(_root: &crate::DataRoot, _session: Option<&str>) -> Vec<RecordNotice> {
+pub fn inspect_records(_root: &DataRoot, _session: Option<&str>) -> Vec<RecordNotice> {
     Vec::new()
 }
 
@@ -85,9 +97,39 @@ impl VersionedRecord {
         1
     }
 
+    /// The record's name: its file is `<name>.json`, beside its writer lock `<name>.lock` and
+    /// staging file `<name>.pending`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Preferences => "preferences",
+            Self::Onboarding => "onboarding",
+            Self::Machines => "machines",
+            Self::PluginRegistry => "registry",
+            Self::SessionLifecycle => "session",
+            Self::TuiPosition => "tui-position",
+        }
+    }
+
+    /// The record's file name.
+    pub const fn file_name(self) -> &'static str {
+        match self {
+            Self::Preferences => "preferences.json",
+            Self::Onboarding => "onboarding.json",
+            Self::Machines => "machines.json",
+            Self::PluginRegistry => "registry.json",
+            Self::SessionLifecycle => "session.json",
+            Self::TuiPosition => "tui-position.json",
+        }
+    }
+
     /// The steps that bring an earlier version to the current one. No format has changed since
-    /// the first public release, so every record has none yet; the first change adds its step here.
-    const fn steps(self) -> &'static [MigrationStep] {
+    /// the first public release, so every record has none yet; the first change adds its step here
+    /// and nowhere else.
+    fn steps(self) -> &'static [MigrationStep] {
+        #[cfg(all(test, windows))]
+        if let Some(steps) = crate::tests::record_migration::injected_steps(self) {
+            return steps;
+        }
         &[]
     }
 }
@@ -100,9 +142,10 @@ pub(crate) struct MigrationStep {
     pub(crate) apply: fn(Value) -> Option<Value>,
 }
 
-/// How a store opens one record's bytes.
+/// How one record's bytes classify before [`open_to_read`] or [`open_to_write`] hands them to a
+/// store.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum RecordOpening {
+pub(crate) enum RecordOpening {
     /// The record carries the current version; the store parses it as usual.
     Current,
     /// An earlier record converted to the current version; `bytes` passed the store's parser. A
@@ -119,7 +162,8 @@ pub enum RecordOpening {
 
 impl RecordOpening {
     /// The problem a process reports for this opening, when the record cannot be used.
-    pub const fn problem(&self) -> Option<(RecordProblem, u64)> {
+    #[cfg(windows)]
+    pub(crate) const fn problem(&self) -> Option<(RecordProblem, u64)> {
         match self {
             Self::Newer { version } => Some((RecordProblem::Newer, *version)),
             Self::NotUpdated { version } => Some((RecordProblem::NotUpdated, *version)),
@@ -130,12 +174,217 @@ impl RecordOpening {
 
 /// Classifies `bytes` for `record`, migrating an earlier version in memory. `admits` is the
 /// store's current strict parser; a migrated result it refuses counts as a failed step.
-pub fn open_record(
+pub(crate) fn open_record(
     record: VersionedRecord,
     bytes: &[u8],
     admits: impl Fn(&[u8]) -> bool,
 ) -> RecordOpening {
     open_with(bytes, record.current_version(), record.steps(), admits)
+}
+
+/// A versioned record as its store opened it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OpenedRecord {
+    /// No record exists.
+    Absent,
+    /// Bytes for the store's strict parser: the record as read, an earlier version converted to
+    /// the current one, or a record without a version, which the parser refuses as invalid.
+    Readable(Vec<u8>),
+    /// A version this build cannot use: saved by a newer version, or an earlier one that no step
+    /// updates or whose migration could not be saved. It is reported once per process and never
+    /// rewritten.
+    Unusable(RecordNotice),
+}
+
+/// Opens `bytes`, read from `path`, in a process that does not write the record. An earlier
+/// version is migrated in memory only, so a Client never rewrites what an older running Server
+/// owns.
+pub fn open_to_read(
+    record: VersionedRecord,
+    path: &Path,
+    bytes: Option<Vec<u8>>,
+    admits: impl Fn(&[u8]) -> bool,
+) -> OpenedRecord {
+    let Some(bytes) = bytes else {
+        return OpenedRecord::Absent;
+    };
+    match open_record(record, &bytes, admits) {
+        RecordOpening::Migrated { from, .. } if not_updated_here(path) => {
+            unusable(record, RecordProblem::NotUpdated, from, path)
+        }
+        RecordOpening::Migrated { bytes, .. } => OpenedRecord::Readable(bytes),
+        RecordOpening::Current | RecordOpening::Unversioned => OpenedRecord::Readable(bytes),
+        RecordOpening::Newer { version } => unusable(record, RecordProblem::Newer, version, path),
+        RecordOpening::NotUpdated { version } => {
+            unusable(record, RecordProblem::NotUpdated, version, path)
+        }
+    }
+}
+
+/// Opens `bytes` that a writer read from `path` under its own writer lock. An earlier version is
+/// migrated, the original is copied into the upgrade backup folder of `root`, and `replace`, the
+/// store's flushed atomic replacement, writes the migrated record, which the writer then uses as
+/// current. A failed backup or replacement leaves the record byte-identical, and the writer treats
+/// it as an earlier record no step could update.
+pub fn open_to_write(
+    root: &DataRoot,
+    record: VersionedRecord,
+    path: &Path,
+    bytes: Option<Vec<u8>>,
+    admits: impl Fn(&[u8]) -> bool,
+    replace: impl FnOnce(&[u8]) -> io::Result<()>,
+) -> OpenedRecord {
+    open_writing(Some(root), record, path, bytes, admits, replace)
+}
+
+/// [`open_to_write`] for a writer that may lack a data root: without one there is no upgrade
+/// backup folder, so an earlier record stays unchanged as one no step could update.
+pub(crate) fn open_writing(
+    root: Option<&DataRoot>,
+    record: VersionedRecord,
+    path: &Path,
+    bytes: Option<Vec<u8>>,
+    admits: impl Fn(&[u8]) -> bool,
+    replace: impl FnOnce(&[u8]) -> io::Result<()>,
+) -> OpenedRecord {
+    let Some(original) = bytes else {
+        return OpenedRecord::Absent;
+    };
+    match open_record(record, &original, admits) {
+        RecordOpening::Migrated { from, .. } if not_updated_here(path) => {
+            unusable(record, RecordProblem::NotUpdated, from, path)
+        }
+        RecordOpening::Migrated { from, bytes } => {
+            let persisted = root
+                .ok_or_else(|| io::Error::from(io::ErrorKind::Unsupported))
+                .and_then(|root| persist_migration(root, path, &original, || replace(&bytes)));
+            match persisted {
+                Ok(_) => OpenedRecord::Readable(bytes),
+                Err(_) => unusable(record, RecordProblem::NotUpdated, from, path),
+            }
+        }
+        RecordOpening::Current | RecordOpening::Unversioned => OpenedRecord::Readable(original),
+        RecordOpening::Newer { version } => unusable(record, RecordProblem::Newer, version, path),
+        RecordOpening::NotUpdated { version } => {
+            unusable(record, RecordProblem::NotUpdated, version, path)
+        }
+    }
+}
+
+/// Whether this process already reported the record at `path` as not updated. A migration this
+/// process could not save stays unused until it ends, so its readers and writers agree on the
+/// record, and it is not attempted again with every write.
+fn not_updated_here(path: &Path) -> bool {
+    REPORTED.lock().is_ok_and(|reported| {
+        reported
+            .iter()
+            .any(|seen| seen.path == path && seen.problem == RecordProblem::NotUpdated)
+    })
+}
+
+fn unusable(
+    record: VersionedRecord,
+    problem: RecordProblem,
+    version: u64,
+    path: &Path,
+) -> OpenedRecord {
+    let notice = RecordNotice {
+        record,
+        problem,
+        version,
+        path: path.to_owned(),
+    };
+    report_record_notice(&notice);
+    OpenedRecord::Unusable(notice)
+}
+
+/// A versioned record kept as one private JSON file whose writer lock and staging file sit beside
+/// it, named after [`VersionedRecord::name`]: the onboarding and machine records in
+/// `internal/state/` and a Session's TUI position. A read takes no lock and keeps a migration in
+/// memory; [`Self::acquire`] opens the record under the writer lock and persists one first.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionedFile {
+    root: DataRoot,
+    record: VersionedRecord,
+    folder: PathBuf,
+}
+
+impl VersionedFile {
+    /// `record` in the device records folder, `internal/state/`.
+    pub fn device(root: DataRoot, record: VersionedRecord) -> Self {
+        let folder = root.state();
+        Self {
+            root,
+            record,
+            folder,
+        }
+    }
+
+    /// `record` in the folder of `session`, `sessions/<session>/`.
+    pub fn session(root: DataRoot, record: VersionedRecord, session: &SessionName) -> Self {
+        let folder = root.sessions().join(session.as_str());
+        Self {
+            root,
+            record,
+            folder,
+        }
+    }
+
+    /// The folder that holds the record, its writer lock, and its staging file.
+    pub fn folder(&self) -> &Path {
+        &self.folder
+    }
+
+    /// The record's file.
+    pub fn path(&self) -> PathBuf {
+        self.folder.join(self.record.file_name())
+    }
+
+    /// Reads at most `maximum` bytes without a lock or creating anything, and opens them with
+    /// [`open_to_read`].
+    pub fn read(&self, maximum: usize, admits: impl Fn(&[u8]) -> bool) -> io::Result<OpenedRecord> {
+        let bytes = PrivateCache::read_existing(&self.folder, self.record.file_name(), maximum)?;
+        Ok(open_to_read(self.record, &self.path(), bytes, admits))
+    }
+
+    /// Acquires the record's writer lock, creating its folder and lock on first use, then reads at
+    /// most `maximum` bytes and opens them with [`open_to_write`], whose replacement is the
+    /// writer's own. The outer error is the lock's; the inner one is the read's, so a store can
+    /// still replace a record too large to read. The writer holds the lock until dropped.
+    pub fn acquire(
+        &self,
+        maximum: usize,
+        admits: impl Fn(&[u8]) -> bool,
+    ) -> io::Result<(VersionedWriter, io::Result<OpenedRecord>)> {
+        let mut writer = VersionedWriter {
+            cache: PrivateCache::acquire(&self.folder, self.record.name())?,
+            file: self.record.file_name(),
+        };
+        let opened = writer.cache.read(writer.file, maximum).map(|bytes| {
+            open_to_write(
+                &self.root,
+                self.record,
+                &self.path(),
+                bytes,
+                admits,
+                |migrated| writer.replace(migrated),
+            )
+        });
+        Ok((writer, opened))
+    }
+}
+
+/// The writer lock of one [`VersionedFile`], held until dropped.
+pub struct VersionedWriter {
+    cache: PrivateCache,
+    file: &'static str,
+}
+
+impl VersionedWriter {
+    /// Flushes `bytes` and atomically replaces the record with them.
+    pub fn replace(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.cache.replace(self.file, bytes)
+    }
 }
 
 pub(crate) fn open_with(

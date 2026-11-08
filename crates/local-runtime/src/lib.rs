@@ -65,8 +65,9 @@ mod record_migration;
 #[cfg(windows)]
 pub use record_migration::back_up_for_reset;
 pub use record_migration::{
-    RecordNotice, RecordOpening, RecordProblem, VersionedRecord, inspect_records, open_record,
-    persist_migration, report_record_notice, reported_record_notices, take_unshown_record_notices,
+    OpenedRecord, RecordNotice, RecordProblem, VersionedFile, VersionedRecord, VersionedWriter,
+    inspect_records, open_to_read, open_to_write, report_record_notice, reported_record_notices,
+    take_unshown_record_notices,
 };
 mod environment;
 pub use environment::{

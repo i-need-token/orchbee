@@ -107,10 +107,6 @@ struct Record<P> {
 }
 
 const MAXIMUM_BYTES: usize = 4096;
-/// `tui-position.json` in the Session folder.
-const FILE: &str = "tui-position.json";
-/// Names the writer lock and staging file beside `tui-position.json`.
-const RECORD: &str = orchbee_local_runtime::TUI_POSITION_RECORD;
 
 fn decode(bytes: &[u8]) -> std::io::Result<Position> {
     if bytes.len() > MAXIMUM_BYTES {
