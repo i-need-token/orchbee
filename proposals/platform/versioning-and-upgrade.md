@@ -150,6 +150,8 @@ From then on, a release R that introduces generation N+1 of a connection also su
 Generation N stays supported in R, in at least the next two stable releases, and for at least 90
 days after R ships; a later release may drop it. The Worker ↔ Host generation current at the first
 public release stays supported in every 1.x release unless a security fix requires its removal.
+A security fix may end any generation before its window closes; a process left without a common
+generation then reaches the `required` [tier](#restart-decision).
 
 Each negotiated contract's version policy lists its supported generations: the terminal policy in
 [version history](../../schemas/terminal/docs/version-history.md), and an equivalent section with
