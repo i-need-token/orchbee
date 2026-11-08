@@ -37,6 +37,21 @@ static VALUE_FLAGS: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock
 /// The longest command or family path spelled by the leading words, for
 /// diagnostics raised before the grammar runs. Option values are skipped.
 fn command_context(tokens: &[String]) -> UsageContext {
+    let words = leading_words(tokens);
+    help_paths()
+        .iter()
+        .filter(|path| words.starts_with(path.words()))
+        .max_by_key(|path| path.words().len())
+        .map_or(UsageContext::Root, |path| {
+            UsageContext::Path(match path.topic() {
+                HelpTopic::Command(command) => command.as_str(),
+                HelpTopic::Family(family) => family.as_str(),
+            })
+        })
+}
+
+/// The words before `--`, with option values skipped.
+fn leading_words(tokens: &[String]) -> Vec<&str> {
     let mut words = Vec::new();
     let mut index = 0;
     while let Some(token) = tokens.get(index) {
@@ -53,16 +68,7 @@ fn command_context(tokens: &[String]) -> UsageContext {
             1
         };
     }
-    help_paths()
-        .iter()
-        .filter(|path| words.starts_with(path.words()))
-        .max_by_key(|path| path.words().len())
-        .map_or(UsageContext::Root, |path| {
-            UsageContext::Path(match path.topic() {
-                HelpTopic::Command(command) => command.as_str(),
-                HelpTopic::Family(family) => family.as_str(),
-            })
-        })
+    words
 }
 
 pub(super) fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailure> {
@@ -140,8 +146,18 @@ pub(super) fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>,
 }
 
 pub(super) fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
+    let format = format_envelope(&tokens)?;
+    // A withheld surface is refused before its grammar can describe it, even through a usage error.
+    if let Some(feature) = grammar::withheld(&leading_words(&tokens)) {
+        return Ok(SelectedRequest {
+            request: Request::Withheld(feature),
+            session: None,
+            availability: grammar::Availability::Portable,
+            format,
+        });
+    }
     let mut options = Options {
-        format: format_envelope(&tokens)?,
+        format,
         ..Options::default()
     };
     let envelope = selection_envelope(options.format);

@@ -242,7 +242,7 @@ impl super::CliText {
                 Argument::Operation => ("<operation-id>", "Complete operation ID returned by the original request.", "原请求返回的完整操作 ID。"),
                 Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host; batch authentication must already work.", "OpenSSH 目标，例如 user@host；须已能进行批处理认证。"),
                 Argument::Machine => ("<profile-id>", "Exact saved machine ID from orchbee machine list.", "orchbee machine list 中保存的精确机器 ID。"),
-                Argument::Channel => ("<stable|preview>", "Release channel to save and install.", "要保存并安装的发布频道。"),
+                Argument::Channel => (if crate::invocation::grammar::withholds_unreleased() { "<stable>" } else { "<stable|preview>" }, "Release channel to save and install.", "要保存并安装的发布频道。"),
                 Argument::Profile => ("<selector>", "Launch profile ID or an unambiguous saved name.", "启动配置 ID 或无歧义的保存名称。"),
                 Argument::Schema => ("[<schema-id>]", "Optional schema ID; omit to print the schema dictionary.", "可选 Schema ID；省略时输出结构字典。"),
                 Argument::Session => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),

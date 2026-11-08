@@ -506,6 +506,10 @@ impl super::CliText {
                 "This command is unavailable on this platform.\n".to_owned()
             }
             (Locale::ZhCn, "platform") => "当前平台尚不支持此命令。\n".to_owned(),
+            (Locale::EnUs, "release") => {
+                "This feature is not available in this release.\n".to_owned()
+            }
+            (Locale::ZhCn, "release") => "当前发布版本暂不提供此功能。\n".to_owned(),
             (Locale::EnUs, "discovery") | (Locale::ZhCn, "discovery") => {
                 self.cli_missing_session(selected_session)
             }

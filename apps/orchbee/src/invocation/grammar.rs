@@ -4,6 +4,7 @@
 mod commands;
 mod families;
 mod options;
+mod release;
 mod rules;
 pub(crate) mod schemas;
 pub(crate) mod values;
@@ -11,6 +12,7 @@ pub(crate) mod values;
 pub(crate) use commands::{COMMANDS, CommandPath};
 pub(crate) use families::{FAMILIES, Family};
 pub(crate) use options::OPTIONS;
+pub(crate) use release::{Withheld, offered, withheld, withholds_unreleased};
 
 pub(crate) const CARDINAL_DIRECTIONS: &[&str] = &["left", "right", "up", "down"];
 pub(crate) const PREFIX_FLAGS: &[&str] = &["--machine"];
@@ -235,6 +237,7 @@ const REPETITION: &[Repetition] = &[Repetition {
     commands: &[CommandPath::AgentDoctor],
 }];
 
+/// Discovered children follow what this build offers; a withheld path has none.
 static CHILDREN: LazyLock<Vec<(&'static str, Vec<&'static str>)>> = LazyLock::new(|| {
     FAMILIES
         .iter()
@@ -246,7 +249,9 @@ static CHILDREN: LazyLock<Vec<(&'static str, Vec<&'static str>)>> = LazyLock::ne
                 .map(|family| family.words)
                 .chain(COMMANDS.iter().map(|command| command.words))
                 .filter(|candidate| {
-                    candidate.len() == words.len() + 1 && candidate.starts_with(words)
+                    candidate.len() == words.len() + 1
+                        && candidate.starts_with(words)
+                        && offered(candidate)
                 })
                 .map(|candidate| candidate[words.len()])
                 .collect::<Vec<_>>();

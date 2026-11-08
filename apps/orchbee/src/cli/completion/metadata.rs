@@ -9,8 +9,7 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
     };
     insert(
         "commands".into(),
-        authority::COMMANDS
-            .iter()
+        super::offered_commands()
             .map(|command| command.key)
             .collect(),
     );
@@ -59,13 +58,16 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
             .chain(["--format"])
             .collect(),
     );
-    for family in authority::FAMILIES {
+    for family in authority::FAMILIES
+        .iter()
+        .filter(|family| authority::offered(family.words))
+    {
         insert(
             format!("help|{}", family.key),
             authority::children(family.key).to_vec(),
         );
     }
-    for command in authority::COMMANDS {
+    for command in super::offered_commands() {
         let key = command.key;
         insert(format!("words|{key}"), command.words.to_vec());
         if let Some(rule) = command.operand_string_rule() {
@@ -138,7 +140,7 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
         }
     }
     // Numeric rows own no vocabulary; values come directly from the descriptors.
-    for command in authority::COMMANDS {
+    for command in super::offered_commands() {
         let flags = command
             .flags()
             .iter()

@@ -29,7 +29,7 @@ impl HelpPath {
     }
 }
 
-/// Every accepted help path in this build.
+/// Every accepted help path in this build; a release leaves out the paths it withholds.
 pub(crate) fn help_paths() -> &'static [HelpPath] {
     &HELP_PATHS
 }
@@ -156,5 +156,6 @@ static HELP_PATHS: std::sync::LazyLock<Vec<HelpPath>> = std::sync::LazyLock::new
                 .iter()
                 .map(|command| HelpPath::new(command.words, HelpTopic::Command(command.id))),
         )
+        .filter(|path| super::grammar::offered(path.words))
         .collect()
 });

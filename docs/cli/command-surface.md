@@ -19,6 +19,14 @@ listing, and the application's reference documentation derive from that authorit
 to agree with it. A command that exists in the binary but not in help, completion, or the
 reference is a defect, and so is the reverse.
 
+A release build may withhold the command surface of a feature that is not yet polished, when the
+owning application guide names it. The grammar authority marks the withheld paths and values; a
+release then leaves them out of help, completion, and its Agent guide, and refuses an invocation
+that reaches one, including through `help` or a usage error, with the typed release refusal
+(`stage: "release"`, `reason: "withheld-in-release"`, exit `4`) before effects. Development and
+test builds offer every path. The build's environment decides release-ness once; no command
+compares artifact names.
+
 Pure grammar is platform-independent: every supported host accepts the same syntax and emits
 the same help and completion for a selected locale. Platform compilation gates belong to execution
 adapters. A recognized operation without an implementation returns the typed platform-unavailable

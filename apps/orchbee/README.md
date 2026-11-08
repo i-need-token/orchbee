@@ -70,6 +70,7 @@ They are the same Client route; `tui` does not select a different mode. Other pl
 and `--version` initialize neither TUI nor service. Commands use the exact grammar below without
 abbreviations; unknown commands, undeclared options, extra operands, and non-Unicode arguments are usage
 failures. Windows remote selection follows the [saved-machine routing contract](docs/machines.md#command-routing-contract).
+A release build withholds some surfaces; see [release-withheld surfaces](#release-withheld-surfaces).
 
 ```text
 orchbee                          # local terminal (TUI)
@@ -950,6 +951,25 @@ Before the command runs, every Windows invocation of these three commands that p
 | `outcome`     | `accepted`, `refused-confirm-option`, `refused-not-interactive`, `refused-session-unknown`, `refused-name-mismatch` or `cancelled` |
 
 `outcome` is the admission decision; the command's own result stays in its output. A failed append never blocks or changes the command. The [local runtime guide](../../crates/local-runtime/README.md#windows-destructive-request-log) owns the file's location, privacy and rotation.
+
+## Release-withheld surfaces
+
+A release build removes the entry points of features that are not yet polished and keeps their
+code; development and test builds offer every entry point. `orchbee_local_runtime::is_release()`,
+derived from the compiled environment stem, is the only owner of the decision. POSIX builds keep
+the release stem until ORC-328, so every POSIX build counts as release.
+
+| Surface                       | What a release withholds                                                                                                                                                                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `plugin` and `popup` families | Help, completion and the `--skill` guide leave them out. Any invocation that reaches one, including `help plugin`, a family without a verb or a usage error, is refused before grammar or runtime work with `stage: "release"`, `reason: "withheld-in-release"`, `feature: "plugin"` or `"popup"`, exit `4`. |
+| `channel set preview`         | Help names only `stable`; `channel set preview` is refused the same way with `feature: "preview-channel"`. Non-release builds still refuse `channel set` itself with `non-release-build`.                                                                                                                    |
+| TUI Search                    | The sidebar Search row and its `/` key are absent. The Machines action (`Ctrl+B Shift+M`) and the overflow footer's `[ All Workspaces ]` still open the whole machine picker, because remote machines ship. See [shell layout](docs/tui-shell-layout.md#release-withheld-search).                            |
+
+The `--skill` guide encloses withheld passages between `<!-- unreleased -->` and
+`<!-- /unreleased -->` lines; a release leaves the passages out and every build drops the marker
+lines. Unit tests describe the development grammar on every host. The Desktop and Web Client
+withhold their Search the same way and keep the Actions-only palette, as the TUI keeps its action
+menu; see the [Web Workbench](../web/docs/workbench.md#release-withheld-search).
 
 ## Windows Worktree operations
 

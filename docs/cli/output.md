@@ -58,7 +58,9 @@ to standard error before reading the typed name.
 Each schema defines `unsupported` as a closed object with only required `kind`, whose value is
 `"unsupported"`. `null` means the source said none; `"unknown"` means the source cannot say.
 Neither represents an unsupported platform. An unsupported command emits a failure with
-`stage: "platform"`, `reason: "unsupported-platform"`, and exit code `4`.
+`stage: "platform"`, `reason: "unsupported-platform"`, and exit code `4`. A command surface that
+a release build withholds emits `stage: "release"`, `reason: "withheld-in-release"`, a closed
+`feature` token, and exit code `4`.
 
 ## Exit codes
 
@@ -71,7 +73,7 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 | `1`   | Local failure   | A local configuration check failed, output could not be prepared or written, or an internal invariant failed before any request                                                                                 |
 | `2`   | Usage           | Invalid grammar, option, value, target syntax, input document, or argument envelope                                                                                                                             |
 | `3`   | Refused         | The authority definitively declined: not found, ambiguous, denied, rejected, blocked, or conflicting; an activation refusal can follow partial runtime effects rather than promising nothing was applied        |
-| `4`   | Unavailable     | No reachable service, capacity exhausted, or the current platform cannot serve the request                                                                                                                      |
+| `4`   | Unavailable     | No reachable service, capacity exhausted, or the current platform or build cannot serve the request                                                                                                             |
 | `5`   | Broken channel  | Transport loss or a protocol violation                                                                                                                                                                          |
 | `6`   | Incompatible    | Protocol, cohort, or version mismatch                                                                                                                                                                           |
 | `7`   | Cancelled       | The operation was accepted and ended in a cancelled terminal result, or a declared deadline elapsed — including a `terminal send` input source that exhausted its acquisition budget before any request existed |

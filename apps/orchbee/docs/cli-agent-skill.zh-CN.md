@@ -8,7 +8,7 @@
 
 `--version`、`--skill`、`completion <shell>`、`api schema` 和 Windows `--default-config` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
 
-所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`。Linux 与 Windows 的 `server diagnose` 均使用 `orchbee.server.diagnose`。
+所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`；当前发布版本暂不提供的命令返回 `stage: "release"`、`reason: "withheld-in-release"`，退出码为 `4`。Linux 与 Windows 的 `server diagnose` 均使用 `orchbee.server.diagnose`。
 
 PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
@@ -103,13 +103,19 @@ Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受
 
 `terminal session observe` 输出有界 NDJSON 帧且不取得控制权。`terminal session control` 接受 NDJSON 输入；编写记录前先查看其声明的输入 Schema。`terminal attach` 和 `agent attach` 要求真实控制台 stdin/stdout。`Ctrl+B` 后按 `q` 可脱离；连续两次前缀发送一个字面前缀。Attach 不启动 Session、不重连，也不重放输入。
 
-## 插件与已保存机器
+<!-- unreleased -->
+
+## 插件
 
 使用 `plugin list`、`plugin action list` 和 `plugin pane open --help` 发现已安装能力。`plugin link` 注册本地清单；`plugin install` 和 `plugin update` 的 `--yes` 用于声明的非交互信任流程。已启用插件的启动命令和事件命令会在之后的 Session 中自动运行。注册表命令不启动 Session；调用操作和 pane 命令需要已有 Session。
 
 `plugin action invoke <action-id> --context <json>` 接受 `{"selectedText":"example"}` 等展示覆盖。输入结构见 `api schema orchbee.plugin.runtime` 的 `$defs/context`；字段使用 camelCase，拒绝未知字段。CLI 退出后，已接纳的插件任务可继续运行。`plugin log list` 查看保留日志。
 
 Popup 放置要求当前已就绪客户端和焦点。请移除 `--no-focus`，或选择 tab/split 放置。`popup close` 释放弹窗终端。普通 pane 与 popup 的生命周期不同，应查看对应回执。
+
+<!-- /unreleased -->
+
+## 已保存机器
 
 `machine list/add/rename/enable/disable/remove` 管理已保存 SSH 配置。路由选项必须位于第一个位置：`orchbee --machine <name-or-id> <command>`。它与本地 `--session` 冲突；TUI 和终端流不转发。远端 cwd 指向远端路径，文件与 stdin 输入在本地读取。删除配置不会停止远端 Session。
 
@@ -165,7 +171,11 @@ Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `-
 复制搜索使用 `--search-direction`。显示标签的创建／重命名使用 `--label`。Provider 统一
 使用 `--provider`，start／integration／doctor 中均为 `antigravity`。事件使用 `panel.*`，
 按键使用 `ctrl+c` 等规范加号修饰符。close 结束活动资源，delete 销毁存储记录，remove 移除
-成员关系，uninstall 移除已安装插件，dissolve 保留分组中的子项。
+成员关系，dissolve 保留分组中的子项。
+<!-- unreleased -->
+
+uninstall 移除已安装插件。
+<!-- /unreleased -->
 
 ## 恢复异步操作
 

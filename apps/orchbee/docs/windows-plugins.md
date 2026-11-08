@@ -1,5 +1,7 @@
 # Windows native plugins
 
+A release build withholds the `plugin` and `popup` command families until they are polished: help, completion and the Agent guide leave them out and an invocation is refused with exit `4`; see [release-withheld surfaces](../README.md#release-withheld-surfaces). Development and test builds offer both.
+
 ## Catalog model
 
 The native plugin catalog is shared user configuration, independent of a Session lifetime. Windows `plugin link PATH`, `unlink ID`, `enable ID`, `disable ID`, `list [ID]`, `config-dir ID` and `action list [ID]` use the catalog without starting a Session. Linking records a manifest; it does not execute build or startup commands. An enabled plugin's startup and event commands run in later managed Sessions, as described in [Startup and event hooks](#startup-and-event-hooks). Unlinking removes registration and retains the linked source and user configuration/state directories.

@@ -881,6 +881,9 @@ pub(crate) enum Request {
     Version,
     /// The embedded, locale-selected Agent guide; no runtime capabilities.
     Skill,
+    /// An invocation that reaches a command surface this release withholds; it is refused before
+    /// any grammar or runtime work.
+    Withheld(grammar::Withheld),
     /// The canonical Windows user configuration template; no runtime discovery.
     DefaultConfig,
     RootHelp,

@@ -348,13 +348,38 @@ pub(crate) fn default_config(locale: Locale) -> Output {
 
 /// Print the same build's offline Agent instructions through the bounded sink.
 pub(crate) fn skill(locale: Locale) -> Output {
+    let guide = match locale {
+        Locale::EnUs => include_str!("../docs/cli-agent-skill.md"),
+        Locale::ZhCn => include_str!("../docs/cli-agent-skill.zh-CN.md"),
+    };
     fixed_text(
-        match locale {
-            Locale::EnUs => include_str!("../docs/cli-agent-skill.md"),
-            Locale::ZhCn => include_str!("../docs/cli-agent-skill.zh-CN.md"),
-        },
+        &released_guide(guide, crate::invocation::grammar::withholds_unreleased()),
         locale,
     )
+}
+
+/// The marker lines that enclose guide passages about surfaces a release withholds.
+const UNRELEASED_START: &str = "<!-- unreleased -->";
+const UNRELEASED_END: &str = "<!-- /unreleased -->";
+
+/// A release leaves out the passages between the unreleased markers; every build drops the marker
+/// lines themselves.
+fn released_guide(guide: &str, withhold: bool) -> String {
+    let mut inside = false;
+    guide
+        .split_inclusive('\n')
+        .filter(|line| match line.trim_end() {
+            UNRELEASED_START => {
+                inside = true;
+                false
+            }
+            UNRELEASED_END => {
+                inside = false;
+                false
+            }
+            _ => !(inside && withhold),
+        })
+        .collect()
 }
 
 /// One effectful command: the mutation executor owns Workbench actions, while

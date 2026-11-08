@@ -446,6 +446,22 @@
 				}
 			}
 		},
+		"releaseDetails": {
+			"type": "object",
+			"required": ["stage", "reason", "feature"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "release"
+				},
+				"reason": {
+					"const": "withheld-in-release"
+				},
+				"feature": {
+					"enum": ["plugin", "popup", "preview-channel"]
+				}
+			}
+		},
 		"limitDetails": {
 			"type": "object",
 			"required": ["limitBytes"],
@@ -1006,6 +1022,9 @@
 											},
 											{
 												"$ref": "#/$defs/platformDetails"
+											},
+											{
+												"$ref": "#/$defs/releaseDetails"
 											},
 											{
 												"$ref": "#/$defs/cohortStageDetails"

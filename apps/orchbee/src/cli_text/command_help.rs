@@ -410,6 +410,17 @@ impl super::CliText {
                 "orchbee channel show [--format text|json]",
                 "读取 Windows update.channel 偏好（stable 或 preview），默认 stable。校验完整配置；显式 ORCHBEE_CONFIG_FILE 不存在时失败。不写文件、不连接会话、不下载，也不改变已安装 cohort。",
             ),
+            // A release withholds the preview channel, so its help names only stable.
+            (Locale::EnUs, CommandPath::ChannelSet)
+                if crate::invocation::grammar::withholds_unreleased() => crate::cli_text::HelpDetails::new(
+                "orchbee channel set <stable> [--format text|json]",
+                "Save the channel and immediately run update. Update failure retains the saved channel.\nUses ORCHBEE_UPDATE_MANIFEST; see orchbee update --help.",
+            ),
+            (Locale::ZhCn, CommandPath::ChannelSet)
+                if crate::invocation::grammar::withholds_unreleased() => crate::cli_text::HelpDetails::new(
+                "orchbee channel set <stable> [--format text|json]",
+                "保存频道后立即更新；更新失败仍保留已保存的频道。使用 ORCHBEE_UPDATE_MANIFEST；参见 orchbee update --help。",
+            ),
             (Locale::EnUs, CommandPath::ChannelSet) => crate::cli_text::HelpDetails::new(
                 "orchbee channel set <stable|preview> [--format text|json]",
                 "Save the channel and immediately run update. Update failure retains the saved channel.\nUses ORCHBEE_UPDATE_MANIFEST; see orchbee update --help.",

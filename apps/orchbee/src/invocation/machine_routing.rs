@@ -76,7 +76,10 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             envelope,
         ));
     }
-    if matches!(selected.request, Request::Help(_) | Request::RootHelp) {
+    if matches!(
+        selected.request,
+        Request::Help(_) | Request::RootHelp | Request::Withheld(_)
+    ) {
         return Ok(selected);
     }
     let (format, input) = admit(&selected.request).ok_or_else(|| {

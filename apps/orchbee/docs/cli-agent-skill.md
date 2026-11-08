@@ -8,7 +8,7 @@ Start with `orchbee --help`, then `orchbee <family> --help` and `orchbee <family
 
 `--version`, `--skill`, `completion <shell>`, `api schema`, and Windows `--default-config` work offline. Completion supports Bash, Zsh, Fish, PowerShell and Elvish. `api schema` lists the schema IDs; use `api schema <schema-id>` for the same build's machine contract, or add `--output <path>` to export it. Read the emitted `schema` and `version`; this guide does not pin catalog counts or historical versions.
 
-All CLI JSON documents use version `1` and one current schema. Fields stay present across platforms and options: `{kind:"unsupported"}` means no platform capability, `null` means the source said none, and `"unknown"` means it cannot say. A whole unsupported command returns `stage: "platform"`, `reason: "unsupported-platform"`, exit `4`. `server diagnose` uses `orchbee.server.diagnose` on Linux and Windows.
+All CLI JSON documents use version `1` and one current schema. Fields stay present across platforms and options: `{kind:"unsupported"}` means no platform capability, `null` means the source said none, and `"unknown"` means it cannot say. A whole unsupported command returns `stage: "platform"`, `reason: "unsupported-platform"`, exit `4`; a command this release withholds returns `stage: "release"`, `reason: "withheld-in-release"`, exit `4`. `server diagnose` uses `orchbee.server.diagnose` on Linux and Windows.
 
 For PowerShell, `orchbee completion powershell` prints the completion script.
 
@@ -103,13 +103,19 @@ Typed filters own their scopes and conditions and cannot mix with shorthand sele
 
 `terminal session observe` emits bounded NDJSON frames without control. `terminal session control` accepts NDJSON input; inspect its declared input schema before writing records. `terminal attach` and `agent attach` require real console stdin/stdout. `Ctrl+B`, then `q`, detaches; a doubled prefix sends one literal prefix. Attachment does not start a Session, reconnect or replay input.
 
-## Plugins and saved machines
+<!-- unreleased -->
+
+## Plugins
 
 Use `plugin list`, `plugin action list` and `plugin pane open --help` to discover installed capabilities. `plugin link` registers a local manifest; `plugin install` and `plugin update` support `--yes` for the declared noninteractive trust flow. Enabled plugins' startup and event commands run automatically in later Sessions. Registry commands do not start a Session; action invocation and pane commands require an existing Session.
 
 `plugin action invoke <action-id> --context <json>` accepts display overrides such as `{"selectedText":"example"}`. Inspect `api schema orchbee.plugin.runtime` at `$defs/context`; fields use camelCase and unknown fields are refused. Accepted plugin work can continue after the CLI exits. Use `plugin log list` for retained logs.
 
 Popup placement requires a current ready Client and focus. Remove `--no-focus`, or choose tab/split placement. `popup close` disposes of the popup terminal. Normal pane and popup lifetime rules differ; inspect the relevant receipt.
+
+<!-- /unreleased -->
+
+## Saved machines
 
 `machine list/add/rename/enable/disable/remove` manage saved SSH profiles. The routing option must be first: `orchbee --machine <name-or-id> <command>`. It conflicts with local `--session`; TUI and terminal streams are not routed. Remote cwd names remote paths, while file/stdin input is local. Removing a profile does not stop remote sessions.
 
@@ -167,7 +173,11 @@ Tab order uses `--order previous|next|first|last` and copy search uses `--search
 Create and rename display labels with `--label`. Provider selection uses `--provider`, including
 `antigravity` for start/integration/doctor. Events use `panel.*`; keys use `ctrl+c` and other
 canonical plus-separated modifiers. Close ends a live resource, delete destroys a stored record,
-remove removes membership, uninstall removes an installed plugin, and dissolve preserves grouped children.
+remove removes membership, and dissolve preserves grouped children.
+<!-- unreleased -->
+
+Uninstall removes an installed plugin.
+<!-- /unreleased -->
 
 ## Recover async operations
 

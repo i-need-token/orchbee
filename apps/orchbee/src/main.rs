@@ -146,6 +146,10 @@ fn main() -> ExitCode {
             Ok(invocation::Request::RootHelp) => cli::root_help(locale),
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
+            // Admission refuses a withheld surface before dispatch; this keeps the same answer.
+            Ok(invocation::Request::Withheld(feature)) => {
+                cli::failure_output(cli::invocation_route::withheld(feature), None, locale)
+            }
             Ok(invocation::Request::DefaultConfig) => cli::default_config(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
             Ok(invocation::Request::TerminalClear { target, format }) => {
