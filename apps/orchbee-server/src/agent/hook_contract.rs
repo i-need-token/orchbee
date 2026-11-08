@@ -5,9 +5,13 @@
 //! Parsing mirrors the Zod `strictObject` boundary exactly: every declared key
 //! is required, any extra key fails, `null` is accepted only where the schema
 //! is `.nullable()`, and identity strings keep their length/regex bounds.
+//! Every `version` member carries one generation of the `agent-hook` delivery,
+//! and the optional `extensions` object is the only open slot.
 
 use orchbee_agent_observation_protocol::AgentRunToken;
-use serde_json::Value;
+use orchbee_connection_handshake::{Delivery, Extensions, Generation};
+use serde::Deserialize;
+use serde_json::{Map, Value};
 
 use super::{AgentActivity, AgentCapability, AgentPresentationVisibility};
 
@@ -18,6 +22,62 @@ const TRANSPORT_IDENTITY_MIN: usize = 16;
 const TRANSPORT_IDENTITY_MAX: usize = 64;
 const HOOK_IDENTITY_MIN: usize = 1;
 const HOOK_IDENTITY_MAX: usize = 128;
+
+/// The acknowledgement of an accepted envelope of `generation`, or `None` for a generation this
+/// build never defined. A released generation's acknowledgement bytes never change.
+const fn acknowledgement_of(generation: u16) -> Option<&'static str> {
+    match generation {
+        1 => Some("{\"accepted\":true,\"version\":1}\n"),
+        _ => None,
+    }
+}
+
+// Every generation the registry admits has its own acknowledgement, so widening the
+// `agent-hook` window without defining one fails the build.
+const _: () = {
+    let window = Delivery::AgentHook.supported_generations();
+    let mut generation = window.lowest().get();
+    loop {
+        assert!(
+            acknowledgement_of(generation).is_some(),
+            "every agent-hook generation in the window needs an acknowledgement"
+        );
+        if generation == window.highest().get() {
+            break;
+        }
+        generation += 1;
+    }
+};
+
+/// A generation of the `agent-hook` delivery inside this build's window, with the
+/// acknowledgement Server writes for an accepted envelope of that generation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HookGeneration {
+    acknowledgement: &'static str,
+    generation: Generation,
+}
+
+impl HookGeneration {
+    /// The generation a `version` member carries: a plain integer inside the window.
+    fn admit(value: &Value) -> Option<Self> {
+        let generation = Generation::new(u16::try_from(value.as_u64()?).ok()?)?;
+        if !Delivery::AgentHook
+            .supported_generations()
+            .contains(generation)
+        {
+            return None;
+        }
+        Some(Self {
+            acknowledgement: acknowledgement_of(generation.get())?,
+            generation,
+        })
+    }
+
+    /// The bytes that acknowledge an accepted envelope of this generation.
+    pub fn acknowledgement(self) -> &'static str {
+        self.acknowledgement
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HookObservationEvent {
@@ -100,8 +160,8 @@ pub struct HookCorrelation {
     pub visibility: AgentPresentationVisibility,
 }
 
-/// `AgentHookSanitizedObservation` — `version` is a literal and is validated
-/// at parse, not stored.
+/// `AgentHookSanitizedObservation` — `version` must equal the envelope's
+/// generation; it is validated at parse, not stored.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HookObservation {
     pub activity: Option<AgentActivity>,
@@ -112,14 +172,16 @@ pub struct HookObservation {
     pub turn_key: Option<String>,
 }
 
-/// `AgentHookRichObservationEnvelope` — `version` is a literal, validated at
-/// parse. Field-wise equality replaces the TypeScript `JSON.stringify`
-/// comparison: the strict boundary produces one canonical shape.
+/// `AgentHookRichObservationEnvelope`. Field-wise equality replaces the
+/// TypeScript `JSON.stringify` comparison: the strict boundary produces one
+/// canonical shape, and admitted extensions are not retained.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HookEnvelope {
     pub adapter_id: String,
     pub correlations: Vec<HookCorrelation>,
     pub event_id: String,
+    /// The generation both the envelope's and its observation's `version` carry.
+    pub generation: HookGeneration,
     pub observation: HookObservation,
     /// The Server-minted run the hook's Agent inherited; absent from older integrations.
     pub run_token: Option<AgentRunToken>,
@@ -134,9 +196,10 @@ pub struct AdapterDefinition {
     pub provider_id: String,
 }
 
-/// `AgentHookPresentationCorrelationHint` payload — `kind`/`version` are
-/// literals validated at parse; `presentationId` and `generation` are stamped
-/// by the consumer from channel identity, never by the producer.
+/// `AgentHookPresentationCorrelationHint` payload — `kind` is a literal and
+/// `version` a generation inside the window, both validated at parse;
+/// `presentationId` and `generation` are stamped by the consumer from channel
+/// identity, never by the producer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HookHint {
     pub correlation_id: String,
@@ -188,6 +251,15 @@ fn strict_object_with_optional<'a>(
     Some(object)
 }
 
+/// Whether the optional `extensions` member is well formed: an object whose names follow the
+/// capability-name grammar and whose values stay within the nesting bound. This build knows no
+/// extension, so every admitted name is ignored.
+fn extensions_are_well_formed(object: &Map<String, Value>) -> bool {
+    object
+        .get("extensions")
+        .is_none_or(|extensions| Extensions::deserialize(extensions).is_ok())
+}
+
 fn nullable_string(value: &Value, check: fn(&str) -> bool) -> Option<Option<String>> {
     match value {
         Value::Null => Some(None),
@@ -208,8 +280,11 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
             "observation",
             "version",
         ],
-        &["runToken"],
+        &["extensions", "runToken"],
     )?;
+    if !extensions_are_well_formed(object) {
+        return None;
+    }
     // Present means well formed: a malformed token rejects the envelope; absence is the fallback.
     let run_token = match object.get("runToken") {
         None => None,
@@ -219,9 +294,7 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
     if !is_adapter_id(adapter_id) {
         return None;
     }
-    if object["version"] != 1 {
-        return None;
-    }
+    let generation = HookGeneration::admit(&object["version"])?;
     let event_id = object["eventId"].as_str()?;
     if !is_transport_identity(event_id) {
         return None;
@@ -264,7 +337,7 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
             "version",
         ],
     )?;
-    if observation["version"] != 1 {
+    if HookGeneration::admit(&observation["version"]) != Some(generation) {
         return None;
     }
     let event = HookObservationEvent::parse(observation["event"].as_str()?)?;
@@ -284,6 +357,7 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
         adapter_id: adapter_id.to_string(),
         correlations,
         event_id: event_id.to_string(),
+        generation,
         observation: HookObservation {
             activity,
             agent_key,
@@ -298,8 +372,15 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
 
 /// `AgentHookPresentationCorrelationHintSchema.safeParse`.
 pub fn parse_hint(value: &Value) -> Option<HookHint> {
-    let object = strict_object(value, &["correlationId", "eventId", "kind", "version"])?;
-    if object["kind"] != "correlation" || object["version"] != 1 {
+    let object = strict_object_with_optional(
+        value,
+        &["correlationId", "eventId", "kind", "version"],
+        &["extensions"],
+    )?;
+    if object["kind"] != "correlation"
+        || HookGeneration::admit(&object["version"]).is_none()
+        || !extensions_are_well_formed(object)
+    {
         return None;
     }
     let correlation_id = object["correlationId"].as_str()?;

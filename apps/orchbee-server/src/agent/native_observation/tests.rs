@@ -445,7 +445,11 @@ fn register_presentation_binding_registers_without_a_socket() {
     let mut runtime = AgentRuntime::new();
     // `None` socket path — the overlay seam would return early here.
     let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
-    assert!(ingress.admit_envelope(&mut runtime, &envelope_body(9, 9), 0.0));
+    assert!(
+        ingress
+            .admit_envelope(&mut runtime, &envelope_body(9, 9), 0.0)
+            .is_some()
+    );
 
     let presentation = "desktop:presentation:c9";
     let generation = format!("{:032x}", 9u8);

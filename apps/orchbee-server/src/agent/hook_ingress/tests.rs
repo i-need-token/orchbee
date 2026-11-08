@@ -58,7 +58,11 @@ fn settlement_schedule_uses_the_synced_clock_base() {
     // The hint alone produces no timer — only a partial match does.
     assert_eq!(ingress.next_settlement_at(), None);
     ingress.sync_settlement_clock(1_000.0);
-    assert!(ingress.admit_envelope(&mut runtime, &clock_adapter_envelope_body(), 1_000.0));
+    assert!(
+        ingress
+            .admit_envelope(&mut runtime, &clock_adapter_envelope_body(), 1_000.0)
+            .is_some()
+    );
     // fire_at = synced scheduler base + settle delay, not 25ms.
     assert_eq!(ingress.next_settlement_at(), Some(1_025.0));
 }
@@ -70,7 +74,11 @@ fn sync_settlement_clock_never_moves_backward() {
     seed_clock_adapter_hint(&mut ingress, &mut runtime, 0.0);
     ingress.sync_settlement_clock(2_000.0);
     ingress.sync_settlement_clock(500.0);
-    assert!(ingress.admit_envelope(&mut runtime, &clock_adapter_envelope_body(), 500.0));
+    assert!(
+        ingress
+            .admit_envelope(&mut runtime, &clock_adapter_envelope_body(), 500.0)
+            .is_some()
+    );
     // The stale sync is clamped: the scheduler stays at 2000, so the
     // timer lands at 2025 — never at 525.
     assert_eq!(ingress.next_settlement_at(), Some(2_025.0));
@@ -82,7 +90,11 @@ fn tick_fires_only_due_timers_and_applies_the_partial_match() {
     let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
     seed_clock_adapter_hint(&mut ingress, &mut runtime, 0.0);
     ingress.sync_settlement_clock(0.0);
-    assert!(ingress.admit_envelope(&mut runtime, &clock_adapter_envelope_body(), 0.0));
+    assert!(
+        ingress
+            .admit_envelope(&mut runtime, &clock_adapter_envelope_body(), 0.0)
+            .is_some()
+    );
     ingress.tick(&mut runtime, 24.0);
     assert_eq!(ingress.next_settlement_at(), Some(25.0));
     assert!(runtime.snapshot().sessions.is_empty());
@@ -169,8 +181,9 @@ fn joined_hooks_latch_the_first_run_token_and_admit_tokenless_envelopes() {
         if let Some(token) = token {
             envelope["runToken"] = Value::from(token);
         }
-        let accepted =
-            ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0);
+        let accepted = ingress
+            .admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0)
+            .is_some();
         let tokens: Vec<(String, String)> = ingress
             .run_tokens()
             .map(|(session, token)| (session.to_owned(), token.as_str().to_owned()))
@@ -217,7 +230,7 @@ fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
         envelope["observation"]["event"] = Value::from(event);
         envelope["correlations"].as_array_mut().unwrap().truncate(1);
         let body = serde_json::to_vec(&envelope).unwrap();
-        assert!(ingress.admit_envelope(&mut runtime, &body, 0.0));
+        assert!(ingress.admit_envelope(&mut runtime, &body, 0.0).is_some());
         let snapshot = ingress.snapshot_json(&runtime);
         assert_eq!(snapshot["sessions"][0]["turn"]["kind"], "unknown");
         assert_eq!(runtime.snapshot().sessions.len(), 1);
@@ -227,11 +240,15 @@ fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
                 .len(),
             1
         );
-        assert!(ingress.admit_envelope(&mut runtime, &body, 0.0));
+        assert!(ingress.admit_envelope(&mut runtime, &body, 0.0).is_some());
         assert_eq!(ingress.snapshot_json(&runtime), snapshot);
         envelope["eventId"] = Value::from("event-0000000000000002");
         envelope["correlations"][0]["correlationId"] = Value::from("correlation-0000000000000002");
-        assert!(ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0));
+        assert!(
+            ingress
+                .admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0)
+                .is_some()
+        );
         ingress.observe_terminal_application_signal(
             &mut runtime,
             r#"{"correlationId":"correlation-0000000000000002","eventId":"event-0000000000000002","kind":"correlation","version":1}"#,
@@ -335,7 +352,11 @@ fn mastracode_joined_lifecycle_preserves_run_and_attention() {
         ingress.observe_terminal_application_signal(&mut runtime,
             &json!({"correlationId":correlation_id,"eventId":event_id,"kind":"correlation","version":1}).to_string(),
             format!("{:032x}",1u8),"desktop:presentation:c1".to_owned(),0.0);
-        assert!(ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0));
+        assert!(
+            ingress
+                .admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0)
+                .is_some()
+        );
         let snapshot = ingress.snapshot_json(&runtime);
         let session = &snapshot["sessions"][0];
         assert_eq!(session["turn"]["kind"], kind, "{snapshot}");

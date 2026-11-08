@@ -234,9 +234,12 @@ half goes to same-user private Unix-domain sockets or the injected native Window
 its environment; only a remote process without that overlay discovers same-user forwarded
 candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH_CLIENT`, or
 `SSH_TTY` marker. An ordinary local terminal without the exact overlay performs no socket scan.
-Only after an endpoint returns the exact bounded v1 acceptance ACK does the adapter
-write one content-free private APC correlation half directly to each resolved outer TTY. With no
-exact ACK, the adapter writes no terminal control sequence. The Server requires an exact
+The envelope, its observation, and the correlation half carry the Capsule's one `agent-hook`
+generation, currently 1. Only after an endpoint returns that generation's exact bounded
+acknowledgement does the adapter write one content-free private APC correlation half directly to
+each resolved outer TTY. With no exact acknowledgement, including from a Server whose window no
+longer admits the generation, the adapter writes no terminal control sequence and the hook still
+ends successfully. The Server requires an exact
 event/correlation join for a live terminal generation, so neither half can associate and authorize
 rich state alone; unmatched envelopes sent to another live instance expire without canonical
 effect.

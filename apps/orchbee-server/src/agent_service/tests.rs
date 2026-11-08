@@ -1250,7 +1250,12 @@ mod native_leaf {
             .unwrap()
             .unwrap();
         let t_a = Instant::now();
-        assert!(service.admit_envelope(&envelope2(1, 2, 1), t_a).unwrap());
+        assert!(
+            service
+                .admit_envelope(&envelope2(1, 2, 1), t_a)
+                .unwrap()
+                .is_some()
+        );
         let deadline = service
             .next_deadline()
             .unwrap()
@@ -1283,7 +1288,12 @@ mod native_leaf {
             .unwrap();
         let t_a = Instant::now();
         // Both correlations unmatched -> pending event, no timer.
-        assert!(service.admit_envelope(&envelope2(1, 2, 1), t_a).unwrap());
+        assert!(
+            service
+                .admit_envelope(&envelope2(1, 2, 1), t_a)
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(service.next_deadline().unwrap(), None);
         let t_h = t_a + Duration::from_millis(100);
         let routed = service
@@ -1322,7 +1332,12 @@ mod native_leaf {
             .unwrap()
             .unwrap();
         let t_a = Instant::now();
-        assert!(service.admit_envelope(&envelope2(1, 2, 1), t_a).unwrap());
+        assert!(
+            service
+                .admit_envelope(&envelope2(1, 2, 1), t_a)
+                .unwrap()
+                .is_some()
+        );
         let t_h = t_a + Duration::from_millis(100);
         service
             .native_apply_event(event(carrier, 1, host(0xce), hint_json(1, 1)), t_h)

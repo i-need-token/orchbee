@@ -1,5 +1,6 @@
-//! `#[cfg(test)]` replay harnesses for the frozen Desktop-derived corpora and
-//! the native joint-capacity checks. Comparison is on complete outputs —
+//! `#[cfg(test)]` replay harnesses for the frozen Desktop-derived corpora, the
+//! hook-delivery boundary rules, and the native joint-capacity checks.
+//! Comparison is on complete outputs —
 //! command arrays, ACK bytes, every dispatch input/transition/reason, semantic
 //! events, and per-step snapshot summaries — never counts.
 //!
@@ -7,11 +8,11 @@
 //! injected `now` passed to join operations, while `settleWait` advances only
 //! the scheduler clock that fires settlement effects.
 
+use orchbee_connection_handshake::Delivery;
 use serde_json::{Value, json};
 
 use super::super::JoinOptions;
-use super::super::hook_contract::{AdapterDefinition, parse_envelope};
-use super::super::hook_ingress::ACCEPTED_ENVELOPE_ACK;
+use super::super::hook_contract::{AdapterDefinition, HookGeneration, parse_envelope, parse_hint};
 use super::super::join::{AgentObservationJoinStateMachine, JoinHint, MAX_JOINT_ADMISSIONS};
 use super::conformance_support::{
     FixtureIngress, event_json, join_command_json, semantic_event_json,
@@ -35,6 +36,11 @@ fn norm_numbers(value: &Value) -> Value {
         Value::Number(number) => json!(number.as_f64().unwrap()),
         other => other.clone(),
     }
+}
+
+/// The bytes the endpoint writes for an admission outcome; the corpus records none as `""`.
+fn acknowledgement(accepted: Option<HookGeneration>) -> &'static str {
+    accepted.map_or("", HookGeneration::acknowledgement)
 }
 
 fn corpus_presentation(n: u64) -> String {
@@ -188,8 +194,7 @@ fn hook_conformance_replays_frozen_corpus() {
                         Value::String(text) => text.clone().into_bytes(),
                         other => serde_json::to_string(other).unwrap().into_bytes(),
                     };
-                    let accepted = ingress.admit_envelope(&body, now);
-                    actual_ack = Some(json!(if accepted { ACCEPTED_ENVELOPE_ACK } else { "" }));
+                    actual_ack = Some(json!(acknowledgement(ingress.admit_envelope(&body, now))));
                 }
                 "sendAll" => {
                     let mut acks = Vec::new();
@@ -198,8 +203,7 @@ fn hook_conformance_replays_frozen_corpus() {
                             Value::String(text) => text.clone().into_bytes(),
                             other => serde_json::to_string(other).unwrap().into_bytes(),
                         };
-                        let accepted = ingress.admit_envelope(&body, now);
-                        acks.push(json!(if accepted { ACCEPTED_ENVELOPE_ACK } else { "" }));
+                        acks.push(json!(acknowledgement(ingress.admit_envelope(&body, now))));
                     }
                     actual_ack = Some(json!(acks));
                 }
@@ -472,6 +476,90 @@ fn test_envelope(sequence: u64, _now: f64) -> Value {
         },
         "version": 1,
     })
+}
+
+/// Generation 1's acknowledgement, which the Agent hook delivery contract fixes byte for byte.
+const GENERATION_1_ACK: &str = "{\"accepted\":true,\"version\":1}
+";
+
+fn hint_with(member: &str, value: Value) -> Value {
+    let mut hint = json!({
+        "correlationId": corpus_correlation(1),
+        "eventId": corpus_event(1),
+        "kind": "correlation",
+        "version": 1,
+    });
+    hint[member] = value;
+    hint
+}
+
+/// A generation inside the `agent-hook` window is acknowledged with that generation's
+/// acknowledgement. Any other generation, a value that is not a plain integer, or an observation
+/// whose generation differs from its envelope's gets none, and a hint outside the window is dropped.
+#[test]
+fn hook_generation_window_decides_the_acknowledgement() {
+    let window = Delivery::AgentHook.supported_generations();
+    let below = u32::from(window.lowest().get()) - 1;
+    let above = u32::from(window.highest().get()) + 1;
+    let cases = [
+        (json!(1), json!(1), GENERATION_1_ACK),
+        (json!(below), json!(below), ""),
+        (json!(above), json!(above), ""),
+        (json!(1), json!(above), ""),
+        (json!(above), json!(1), ""),
+        (json!(65_537), json!(65_537), ""),
+        (json!(1.0), json!(1), ""),
+        (json!(1), json!(1.0), ""),
+        (json!("1"), json!(1), ""),
+        (json!(null), json!(1), ""),
+    ];
+    let mut ingress = FixtureIngress::new(None, JoinOptions::default());
+    for (sequence, (version, observation_version, expected)) in (1..).zip(cases) {
+        let mut envelope = test_envelope(sequence, 0.0);
+        envelope["version"] = version;
+        envelope["observation"]["version"] = observation_version;
+        let accepted = ingress.admit_envelope(envelope.to_string().as_bytes(), 0.0);
+        assert_eq!(acknowledgement(accepted), expected, "{envelope}");
+    }
+    assert!(parse_hint(&hint_with("version", json!(1))).is_some());
+    for version in [json!(below), json!(above), json!(1.0)] {
+        assert!(parse_hint(&hint_with("version", version)).is_none());
+    }
+}
+
+/// The envelope and the hint stay closed except for their optional `extensions` object: unknown
+/// extension names are ignored, while an unknown member, a malformed `extensions`, or `extensions`
+/// inside the observation refuses the delivery.
+#[test]
+fn hook_extensions_ignore_unknown_names_and_keep_other_members_closed() {
+    let cases = [
+        (
+            "extensions",
+            json!({"future-feature": {"nested": [1, 2]}}),
+            GENERATION_1_ACK,
+        ),
+        ("extensions", json!({}), GENERATION_1_ACK),
+        ("extensions", json!({"Future_Feature": true}), ""),
+        ("extensions", json!(null), ""),
+        ("extensions", json!([]), ""),
+        ("futureField", json!(true), ""),
+    ];
+    let mut ingress = FixtureIngress::new(None, JoinOptions::default());
+    for (sequence, (member, value, expected)) in (1..).zip(cases) {
+        let mut envelope = test_envelope(sequence, 0.0);
+        envelope[member] = value;
+        let accepted = ingress.admit_envelope(envelope.to_string().as_bytes(), 0.0);
+        assert_eq!(acknowledgement(accepted), expected, "{envelope}");
+    }
+    let mut envelope = test_envelope(100, 0.0);
+    envelope["observation"]["extensions"] = json!({});
+    assert_eq!(
+        acknowledgement(ingress.admit_envelope(envelope.to_string().as_bytes(), 0.0)),
+        ""
+    );
+    assert!(parse_hint(&hint_with("extensions", json!({"future-feature": 1}))).is_some());
+    assert!(parse_hint(&hint_with("extensions", json!({"Future_Feature": 1}))).is_none());
+    assert!(parse_hint(&hint_with("futureField", json!(1))).is_none());
 }
 
 #[test]

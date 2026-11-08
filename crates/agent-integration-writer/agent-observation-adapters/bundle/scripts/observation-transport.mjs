@@ -19,7 +19,12 @@ const RUN_TOKEN_PATTERN = /^(?!0{32}$)[0-9a-f]{32}$/u;
 const WINDOWS_OBSERVATION_PIPE_PATTERN =
 	/^\\\\\.\\pipe\\orchbee-[a-f0-9]{32}-observation$(?![\s\S])/u;
 const WINDOWS_CONSOLE_TARGET = String.raw`\\.\CONOUT$`;
+// The one `agent-hook` generation this Capsule produces. The envelope, its observation, and the
+// correlation hint all carry it, and only that generation's acknowledgement releases the hint.
+const AGENT_HOOK_GENERATION = 1;
+// A permanent channel name, not a generation: Host forwards the payload unread.
 const PRIVATE_APC_PREFIX = 'orchbee.agent.v1;';
+// Generation 1's acknowledgement, whose bytes never change.
 const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":1}\n';
 const MAX_ACK_BYTES = Buffer.byteLength(ACCEPTED_ENVELOPE_ACK);
 const ADAPTER_IDS = new Set([
@@ -116,7 +121,7 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 		eventId,
 		observation,
 		...(runToken === null ? {} : { runToken }),
-		version: 1,
+		version: AGENT_HOOK_GENERATION,
 	};
 	const deliveries = await Promise.allSettled(
 		sockets.slice(0, MAX_SOCKET_CANDIDATES).map((socketPath) => sendEnvelope(socketPath, envelope)),
@@ -130,7 +135,7 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 				correlationId,
 				eventId,
 				kind: 'correlation',
-				version: 1,
+				version: AGENT_HOOK_GENERATION,
 			}),
 		),
 	);
@@ -406,7 +411,15 @@ function sanitizeNormalizedObservation(value) {
 	if ((event === 'subagent-started' || event === 'subagent-stopped') && agentKey === null) {
 		return null;
 	}
-	return { activity, agentKey, event, operationKey, sessionKey, turnKey, version: 1 };
+	return {
+		activity,
+		agentKey,
+		event,
+		operationKey,
+		sessionKey,
+		turnKey,
+		version: AGENT_HOOK_GENERATION,
+	};
 }
 
 // The Agent inherits the Server-minted run token from its managed launch command. A missing or

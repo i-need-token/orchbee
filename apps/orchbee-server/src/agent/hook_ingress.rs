@@ -13,8 +13,8 @@ use super::AgentRuntime;
 use super::AgentTransition;
 use super::JoinOptions;
 use super::hook_contract::{
-    AdapterDefinition, HookObservationEvent, MAX_OBSERVATION_BODY_BYTES, parse_envelope,
-    parse_hint, resolve_adapter,
+    AdapterDefinition, HookGeneration, HookObservationEvent, MAX_OBSERVATION_BODY_BYTES,
+    parse_envelope, parse_hint, resolve_adapter,
 };
 use super::join::{AgentObservationJoinStateMachine, JoinCommand, JoinHint, SeqMap};
 use super::model::RawAttachment;
@@ -30,7 +30,6 @@ use settlement_queue::SettlementQueue;
 const MAX_CHILD_SESSIONS_PER_SESSION: usize = 128;
 const MAX_PENDING_REQUESTS_PER_SESSION: usize = 128;
 const MAX_SESSIONS: usize = 128;
-pub const ACCEPTED_ENVELOPE_ACK: &str = "{\"accepted\":true,\"version\":1}\n";
 #[cfg(test)]
 const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 
@@ -223,26 +222,26 @@ impl AgentHookObservationIngress {
         self.handle_join_commands(runtime, commands);
     }
 
-    /// `#acceptEnvelope` — the pure body path. Returns whether the ACK is
-    /// written; transport (socket, byte streaming, deadline) stays outside.
+    /// `#acceptEnvelope` — the pure body path. Returns the generation of an
+    /// accepted envelope, whose acknowledgement the transport writes; `None`
+    /// writes none. Transport (socket, byte streaming, deadline) stays outside.
     /// `toString('utf8')` maps to lossy decode; `JSON.parse` to serde_json.
-    pub fn admit_envelope(&mut self, runtime: &mut AgentRuntime, body: &[u8], now: f64) -> bool {
+    pub fn admit_envelope(
+        &mut self,
+        runtime: &mut AgentRuntime,
+        body: &[u8],
+        now: f64,
+    ) -> Option<HookGeneration> {
         if body.len() > MAX_OBSERVATION_BODY_BYTES {
-            return false;
+            return None;
         }
-        let Ok(decoded) = serde_json::from_str::<Value>(&String::from_utf8_lossy(body)) else {
-            return false;
-        };
-        let Some(envelope) = parse_envelope(&decoded) else {
-            return false;
-        };
-        let Some(adapter) = resolve_adapter(&envelope.adapter_id, envelope.observation.event)
-        else {
-            return false;
-        };
+        let decoded = serde_json::from_str::<Value>(&String::from_utf8_lossy(body)).ok()?;
+        let envelope = parse_envelope(&decoded)?;
+        let adapter = resolve_adapter(&envelope.adapter_id, envelope.observation.event)?;
+        let generation = envelope.generation;
         let admission = self.join.admit_event(adapter, envelope, now);
         self.handle_join_commands(runtime, admission.commands);
-        admission.accepted
+        admission.accepted.then_some(generation)
     }
 
     /// Canonical session identity and the run token its hooks first carried, for every

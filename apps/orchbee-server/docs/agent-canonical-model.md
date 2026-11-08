@@ -87,7 +87,7 @@ failure is never confused with a rejected payload or an empty overlay.
 | `src/agent/tests/oracle.rs`                  | `#[cfg(test)]` named regression tests against recorded TypeScript-oracle outcomes                                                                                                                                                                                                   |
 | `src/agent/tests/snapshot_copy_probe.rs`     | `#[cfg(test)]` ignored release timing probe for snapshot copies per dispatch kind                                                                                                                                                                                                   |
 | `src/agent/join.rs`                          | Pure port of the Desktop `AgentObservationJoinStateMachine`: generation registration/retirement, hint/event join, TTL cleanup, settlement effects, admission bounds; `#[cfg(test)]` `reset`                                                                                         |
-| `src/agent/hook_contract.rs`                 | Strict-envelope/correlation-hint boundary parse and the twelve-adapter event-gate registry (ports `agent-hook-observation-contract.ts` and `resolveAgentHookAdapter.ts`)                                                                                                            |
+| `src/agent/hook_contract.rs`                 | Strict-envelope/correlation-hint boundary parse, the `agent-hook` generation window and acknowledgements, and the twelve-adapter event-gate registry (ports `agent-hook-observation-contract.ts` and `resolveAgentHookAdapter.ts`)                                                  |
 | `src/agent/hook_ingress.rs`                  | Pure port of `AgentHookObservationIngress`, runtime-free after the bridge split: session bindings, turn/request/child maps, join-command consumption, canonical dispatch in order through the injected `&mut AgentRuntime`; `#[cfg(test)]` corpus/trace/f64-settlement/JSON helpers |
 | `src/agent/hook_ingress/settlement_queue.rs` | `SettlementQueue` timing primitives used by the production `Instant` funnel, with a `#[cfg(test)]` clock-advance seam for corpus replay                                                                                                                                             |
 | `src/agent/tests/conformance_support.rs`     | Test-only fixture-shape JSON emitters, `DispatchTrace`, and the `FixtureIngress` corpus owner pair                                                                                                                                                                                  |
@@ -591,10 +591,23 @@ continuously queued backlog cannot starve the stop pipe, settlement ticks, or li
 connections.
 
 The transport owns no canonical semantics: a strict-envelope body folds into the one
-shared `AgentService` cell through the `admit_envelope` seam, and the 30-byte
-`ACCEPTED_ENVELOPE_ACK` means join-admission bookkeeping accepted the envelope — never
+shared `AgentService` cell through the `admit_envelope` seam, which returns the accepted
+envelope's `agent-hook` generation, and the endpoint writes that generation's fixed
+acknowledgement (generation 1: the 30-byte `{"accepted":true,"version":1}
+`). The
+acknowledgement means join-admission bookkeeping accepted the envelope — never
 canonical application, so an admitted-but-uncorrelated envelope is honestly consumed
-without sessions while a zero-correlation envelope is refused at parse. Reading,
+without sessions while a zero-correlation envelope is refused at parse.
+
+Every envelope, observation, and correlation-hint `version` carries one generation, and
+`hook_contract` admits only generations inside the `agent-hook` window that
+`orchbee_connection_handshake::Delivery::AgentHook` declares; a compile-time check keeps an
+acknowledgement for each of them. An envelope outside the window, or whose observation
+carries a different generation, is refused at parse and closes without an acknowledgement,
+so the hook writes no correlation half and still exits successfully. The envelope and the
+hint admit one optional `extensions` object checked by the handshake `Extensions` type:
+member names outside the extension-name grammar refuse the body, unknown well-formed
+names are ignored, and every other unknown member is still refused. Reading,
 admission, and the ACK write share one absolute 500 ms deadline per accepted stream;
 oversized bodies and post-admission deadline expiry close the stream without an ACK, and
 disposal is checked inside the fold so admits close honestly rather than fabricating an

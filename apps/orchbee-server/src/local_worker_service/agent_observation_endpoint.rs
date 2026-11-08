@@ -27,7 +27,7 @@ type BoundIdentity = (u64, u64);
 #[derive(Clone, Copy)]
 struct BoundIdentity;
 
-use crate::agent::hook_ingress::ACCEPTED_ENVELOPE_ACK;
+use crate::agent::HookGeneration;
 use crate::agent_service::AgentService;
 
 #[cfg(unix)]
@@ -49,9 +49,6 @@ const CONNECTION_DEADLINE: Duration = Duration::from_millis(500);
 /// quantum; it bounds WAKE latency only — connection and settlement
 /// deadlines stay exact. No notify bus, no extra thread.
 const POLL_LIVENESS_CAP: Duration = Duration::from_millis(25);
-/// The oracle ACK literal — exactly 30 bytes including the newline;
-/// the single wire definition lives in `hook_ingress`.
-const ACK: &[u8] = ACCEPTED_ENVELOPE_ACK.as_bytes();
 
 /// The bound-but-not-started phase: owns the listener, the stop-pipe
 /// pair, and the pathname identity recorded at our own bind. Dropping
@@ -245,8 +242,15 @@ impl AgentObservationEndpoint {
 }
 
 enum ConnState {
-    Reading { body: Vec<u8> },
-    AckPending { written: usize },
+    Reading {
+        body: Vec<u8>,
+    },
+    /// `acknowledgement` is the accepted envelope generation's reply, whose
+    /// single wire definition lives in `hook_contract`.
+    AckPending {
+        acknowledgement: &'static [u8],
+        written: usize,
+    },
 }
 
 struct Conn {
@@ -269,6 +273,7 @@ enum AckProgress {
 
 fn advance_ack_write(
     writer: &mut impl Write,
+    acknowledgement: &[u8],
     written: &mut usize,
     deadline: Instant,
     now: Instant,
@@ -276,11 +281,14 @@ fn advance_ack_write(
     if now >= deadline {
         return AckProgress::DeadlineExpired;
     }
-    match writer.write(&ACK[*written..]) {
+    let Some(remaining) = acknowledgement.get(*written..) else {
+        return AckProgress::Failed;
+    };
+    match writer.write(remaining) {
         Ok(0) => AckProgress::Failed,
         Ok(n) => {
             *written += n;
-            if *written == ACK.len() {
+            if *written == acknowledgement.len() {
                 AckProgress::Done
             } else {
                 AckProgress::Pending
@@ -314,18 +322,28 @@ fn poll_timeout(conns: &[Conn], agents: &AgentService, now: Instant) -> PollTime
 }
 
 /// The post-admit transition — the injectable deadline-recheck seam.
-/// `Some(AckPending)` only when the fold accepted AND the shared
+/// `Some(AckPending)` with the accepted generation's acknowledgement only
+/// when the fold accepted AND the shared
 /// absolute deadline still holds at the re-check instant; `None`
 /// destroys the connection with zero ACK bytes. The fold's outcome is
 /// bound, its duration is not — an admitted-but-late connection is
 /// destroyed without its ACK (the fold already applied what it
 /// applied; the receipt is withheld honestly, never fabricated).
-fn state_after_admit(accepted: bool, now: Instant, deadline: Instant) -> Option<ConnState> {
-    if accepted && now < deadline {
-        Some(ConnState::AckPending { written: 0 })
-    } else {
-        None
-    }
+fn state_after_admit(
+    acknowledgement: Option<&'static [u8]>,
+    now: Instant,
+    deadline: Instant,
+) -> Option<ConnState> {
+    let acknowledgement = acknowledgement.filter(|_| now < deadline)?;
+    Some(ConnState::AckPending {
+        acknowledgement,
+        written: 0,
+    })
+}
+
+/// The bytes that acknowledge an admission outcome, if it was accepted.
+fn acknowledgement_for(accepted: Option<HookGeneration>) -> Option<&'static [u8]> {
+    accepted.map(|generation| generation.acknowledgement().as_bytes())
 }
 
 /// One connection step; returns true when the connection is destroyed.
@@ -346,7 +364,11 @@ fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
             match conn.stream.read(&mut chunk) {
                 Ok(0) => match agents.admit_envelope(body, Instant::now()) {
                     Ok(accepted) => {
-                        match state_after_admit(accepted, Instant::now(), conn.deadline) {
+                        match state_after_admit(
+                            acknowledgement_for(accepted),
+                            Instant::now(),
+                            conn.deadline,
+                        ) {
                             Some(state) => {
                                 conn.state = state;
                                 conn_step(conn, PollFlags::POLLOUT, agents)
@@ -367,10 +389,12 @@ fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
                     match serde_json::from_slice::<serde_json::Value>(body) {
                         Ok(_) => {
                             let accepted =
-                                agents.admit_envelope(body, Instant::now()).unwrap_or(false);
-                            if let Some(state) =
-                                state_after_admit(accepted, Instant::now(), conn.deadline)
-                            {
+                                agents.admit_envelope(body, Instant::now()).ok().flatten();
+                            if let Some(state) = state_after_admit(
+                                acknowledgement_for(accepted),
+                                Instant::now(),
+                                conn.deadline,
+                            ) {
                                 conn.state = state;
                                 return conn_step(conn, PollFlags::POLLOUT, agents);
                             }
@@ -385,11 +409,20 @@ fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
                 Err(_) => true,
             }
         }
-        ConnState::AckPending { written } => {
+        ConnState::AckPending {
+            acknowledgement,
+            written,
+        } => {
             if !ready.intersects(PollFlags::POLLOUT | PollFlags::POLLIN) {
                 return false;
             }
-            match advance_ack_write(&mut conn.stream, written, conn.deadline, Instant::now()) {
+            match advance_ack_write(
+                &mut conn.stream,
+                acknowledgement,
+                written,
+                conn.deadline,
+                Instant::now(),
+            ) {
                 AckProgress::Pending => false,
                 AckProgress::Done | AckProgress::DeadlineExpired | AckProgress::Failed => true,
             }

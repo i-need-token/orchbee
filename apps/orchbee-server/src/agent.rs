@@ -48,5 +48,6 @@ pub(crate) use reducer::AgentTransition;
 // The translator and its join options back the `AgentState` cell's
 // production entry seams (endpoint admission, tick, deadline, native
 // drain application); corpus/test helpers stay gated inside the modules.
+pub(crate) use hook_contract::HookGeneration;
 pub(crate) use hook_ingress::AgentHookObservationIngress;
 pub(crate) use join::JoinOptions;

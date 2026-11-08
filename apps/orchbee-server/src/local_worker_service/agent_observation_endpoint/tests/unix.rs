@@ -39,6 +39,7 @@ use orchbee_workbench_protocol::TerminalPresentationId;
 use serde_json::json;
 
 use super::super::*;
+use super::ACK;
 use crate::{
     agent::native_observation::{Binding, CarrierIdentity, NativeClass, NativeEvent},
     agent_service::{AgentPolicy, AgentService},
@@ -706,17 +707,17 @@ fn ack_writer_seam_covers_partial_wouldblock_elapsed() {
     let mut writer = ScriptedWriter::scripted([Ok(10), Ok(10)]);
     let mut written = 0;
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut written, deadline, now),
+        advance_ack_write(&mut writer, ACK, &mut written, deadline, now),
         AckProgress::Pending
     ));
     assert_eq!(written, 10);
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut written, deadline, now),
+        advance_ack_write(&mut writer, ACK, &mut written, deadline, now),
         AckProgress::Pending
     ));
     assert_eq!(written, 20);
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut written, deadline, now),
+        advance_ack_write(&mut writer, ACK, &mut written, deadline, now),
         AckProgress::Done
     ));
     assert_eq!(written, 30);
@@ -726,7 +727,7 @@ fn ack_writer_seam_covers_partial_wouldblock_elapsed() {
         ScriptedWriter::scripted([Err(io::Error::new(io::ErrorKind::WouldBlock, "scripted"))]);
     let mut written = 0;
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut written, deadline, now),
+        advance_ack_write(&mut writer, ACK, &mut written, deadline, now),
         AckProgress::Pending
     ));
     assert_eq!(written, 0);
@@ -735,7 +736,7 @@ fn ack_writer_seam_covers_partial_wouldblock_elapsed() {
     let mut writer = ScriptedWriter::scripted([]);
     let mut written = 0;
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut written, now, now),
+        advance_ack_write(&mut writer, ACK, &mut written, now, now),
         AckProgress::DeadlineExpired
     ));
     assert_eq!(written, 0);
@@ -743,12 +744,12 @@ fn ack_writer_seam_covers_partial_wouldblock_elapsed() {
     // A hard error and a zero write both fail closed.
     let mut writer = ScriptedWriter::scripted([Err(io::Error::other("scripted"))]);
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut 0, deadline, now),
+        advance_ack_write(&mut writer, ACK, &mut 0, deadline, now),
         AckProgress::Failed
     ));
     let mut writer = ScriptedWriter::scripted([Ok(0)]);
     assert!(matches!(
-        advance_ack_write(&mut writer, &mut 0, deadline, now),
+        advance_ack_write(&mut writer, ACK, &mut 0, deadline, now),
         AckProgress::Failed
     ));
 }
@@ -763,12 +764,15 @@ fn post_admit_recheck_gates_the_ack_arm() {
     let now = Instant::now();
     let deadline = now + CONNECTION_DEADLINE;
     assert!(matches!(
-        state_after_admit(true, now, deadline),
-        Some(ConnState::AckPending { written: 0 })
+        state_after_admit(Some(ACK), now, deadline),
+        Some(ConnState::AckPending {
+            acknowledgement,
+            written: 0
+        }) if acknowledgement == ACK
     ));
-    assert!(state_after_admit(true, deadline, deadline).is_none());
-    assert!(state_after_admit(true, deadline + Duration::from_millis(1), deadline).is_none());
-    assert!(state_after_admit(false, now, deadline).is_none());
+    assert!(state_after_admit(Some(ACK), deadline, deadline).is_none());
+    assert!(state_after_admit(Some(ACK), deadline + Duration::from_millis(1), deadline).is_none());
+    assert!(state_after_admit(None, now, deadline).is_none());
 }
 
 /// U4 — the timeout arithmetic is a pure `min`: the liveness cap

@@ -34,7 +34,7 @@ use orchbee_agent_observation_protocol::{
     AgentReadResult, AgentSessionRejectionReason, AgentUnavailableReason,
 };
 
-use crate::agent::{AgentLifecycle, AgentRuntime, AgentRuntimeSnapshot};
+use crate::agent::{AgentLifecycle, AgentRuntime, AgentRuntimeSnapshot, HookGeneration};
 
 use std::num::NonZeroU64;
 use std::time::{Duration, Instant};
@@ -647,7 +647,7 @@ impl AgentService {
             let AgentState {
                 runtime, ingress, ..
             } = &mut *state;
-            ingress.admit_envelope(runtime, body, now)
+            ingress.admit_envelope(runtime, body, now).is_some()
         })
     }
 
@@ -741,17 +741,17 @@ impl AgentService {
     /// while JSM admission would still succeed), then the settlement
     /// scheduler syncs to the call instant at fold entry — structural
     /// coverage for every scheduling producer inside the fold — then the
-    /// translator admission decides the ACK. `Ok(false)` covers both a
-    /// join rejection and a clean-disposed runtime; only mutex
-    /// poison/panic surfaces `Err`.
+    /// translator admission decides the ACK: `Ok(Some)` names the accepted
+    /// envelope's generation, and `Ok(None)` covers both a rejection and a
+    /// clean-disposed runtime; only mutex poison/panic surfaces `Err`.
     pub(crate) fn admit_envelope(
         &self,
         body: &[u8],
         now: Instant,
-    ) -> Result<bool, AgentFoldUnavailable> {
+    ) -> Result<Option<HookGeneration>, AgentFoldUnavailable> {
         self.with_state(|state| {
             if state.runtime.is_disposed() {
-                return false;
+                return None;
             }
             let now_ms = Self::instant_to_now_ms(state, now);
             let AgentState {

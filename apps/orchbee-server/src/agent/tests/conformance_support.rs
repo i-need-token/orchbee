@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use super::super::AgentObservationEvent;
 use super::super::AgentTransition;
 use super::super::events::AgentSemanticEvent;
-use super::super::hook_contract::{AdapterDefinition, HookEnvelope};
+use super::super::hook_contract::{AdapterDefinition, HookEnvelope, HookGeneration};
 use super::super::join::JoinCommand;
 use super::super::model::RawAttachment;
 use super::super::{ATTENTION_ACTION_PATH, AgentRuntimeSnapshot, AgentTurnState, RawPresence};
@@ -546,7 +546,7 @@ impl FixtureIngress {
             .retire_presentation(&mut self.runtime, presentation_id);
     }
 
-    pub fn admit_envelope(&mut self, body: &[u8], now: f64) -> bool {
+    pub fn admit_envelope(&mut self, body: &[u8], now: f64) -> Option<HookGeneration> {
         self.ingress.admit_envelope(&mut self.runtime, body, now)
     }
 

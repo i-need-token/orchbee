@@ -89,4 +89,10 @@ change streams, socket policy, admission, permission, cursor secrets, deadlines,
 rendering. The Server owns the canonical runtime and the read policy; the CLI owns invocation and
 presentation.
 
+Agent hook deliveries are not OBAP bodies. The rich envelope, its observation, and the correlation
+hint carry the `agent-hook` generation declared in the
+[connection registry](../connection/v1/connections.json); the Server's
+[managed observation endpoint](../../apps/orchbee-server/docs/agent-canonical-model.md#managed-observation-endpoint)
+owns their window, acknowledgements, and `extensions` rule.
+
 Launch Status uses read-only kinds 25/26, exact session identity and canonical revision. Its closed management phase is unmanaged, pending with the existing reservation and blocked flag, or active with original reservation/provider/physical binding. Result size remains 1,024 bytes; only the status operation accepts a status outcome. The [Rust binding contract](../../crates/agent-observation-protocol/README.md#managed-launch-status) and Server names owner define validation and lifecycle.
