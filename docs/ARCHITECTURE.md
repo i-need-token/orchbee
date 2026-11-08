@@ -62,6 +62,10 @@ versions, compatibility readers, or migrations. Cohort admission or strict parsi
 and files with other shapes; where neither protects version reuse, replace the magic or schema
 identifier instead of retaining an older contract.
 
+The accepted [versioning and upgrade direction](../proposals/platform/versioning-and-upgrade.md)
+replaces cohort admission with per-connection negotiation in its P0 phase and sets the
+compatibility rules that bind from the first public release.
+
 The language-neutral Terminal authority is [`schemas/terminal`](../schemas/terminal/README.md).
 Its reference, version policy, constant registry and canonical fixtures govern the independent
 Rust, Zig and TypeScript bindings. Language packages own implementation and fixture production,

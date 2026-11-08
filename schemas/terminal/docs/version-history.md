@@ -1,7 +1,7 @@
 # Terminal Protocol Version Policy and Release History
 
-This file is the authority for semantic versions owned by `schemas/terminal` and, after
-the first public release, their release history.
+This file is the authority for versions owned by `schemas/terminal` and, after the first
+public release, their release history.
 
 ## Version domains
 
@@ -27,17 +27,22 @@ current protocol reference together whenever the current contract changes.
 
 ## Public release and later
 
-The first public contract release sets each published contract to `1.0.0`. From that point onward,
-every externally observable change must update the owning semantic version and add a release-history
-entry here in the same change:
+The runtime accepts only its exact current version. The accepted
+[versioning and upgrade direction](../../../proposals/platform/versioning-and-upgrade.md) replaces
+the semantic versions above with negotiated generations and capability names in its P0 phase, and
+the first public release freezes the current generation of each domain. From then on, every
+externally observable change adds a release-history entry here in the same change:
 
-- `MAJOR` identifies an incompatible contract change.
-- `MINOR` identifies a backward-compatible addition.
-- `PATCH` identifies a backward-compatible correction.
+- An incompatible change introduces the next generation of its domain.
+- A backward-compatible addition adds a capability name; the generation stays.
+- A backward-compatible correction changes neither.
 
-The current runtime accepts only its exact current version; semantic versioning classifies the
-contract change but does not imply an unimplemented negotiation range. Released fixture bytes must
-never be silently overwritten under the same version.
+After P0, Worker and Terminal Host negotiate a common wire-protocol generation and capability names
+in the handshake, and each attachment negotiates its frame-format generations. The wire-protocol
+generation current at the first public release stays supported in every 1.x release unless a
+security fix requires its removal; every other generation follows the direction's compatibility
+window. Fixtures of a released generation are frozen: tests never change their expected bytes to
+admit a new change.
 
 ## Fixture naming
 
@@ -48,4 +53,4 @@ fixtures, not a compatibility artifact.
 
 ## Released versions
 
-None. Release-history entries begin with the first public `1.0.0` contract.
+None. Release-history entries begin with the generations frozen at the first public release.
