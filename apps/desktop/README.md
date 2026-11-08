@@ -238,7 +238,7 @@ pnpm --filter @orchbee/desktop test
 pnpm --filter @orchbee/desktop build
 ```
 
-Unit tests cover the data root and distribution identities, the window-state record and owner,
-window and Secure Keyboard Entry Actions, the menu, the renderer scheme, the preload bridge, and
-the Project Folder broker and runtime. No automated test drives a native window or the Server
+Unit tests cover the data root and distribution identities, the window-state record with its
+migration and upgrade backup, the window-state owner, window and Secure Keyboard Entry Actions, the
+menu, the renderer scheme, the preload bridge, and the Project Folder broker and runtime. No automated test drives a native window or the Server
 connection; the Desktop Electron suite that did retired with Desktop's Main-owned runtime.

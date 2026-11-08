@@ -38,8 +38,8 @@ export type DesktopWindowStateLoadResult =
 	| { readonly kind: 'missing' }
 	| { readonly kind: 'unavailable'; readonly reason: 'invalid' | 'read-failed' }
 	/**
-	 * The record's version is one this build cannot use: saved by a newer version, or not updated
-	 * from an earlier one. It is never rewritten.
+	 * The record's version is one this build cannot use: saved by a newer version, or an earlier
+	 * one that could not be migrated, backed up, or replaced. It is never rewritten.
 	 */
 	| {
 			readonly kind: 'unusable';
@@ -49,8 +49,27 @@ export type DesktopWindowStateLoadResult =
 
 export type DesktopWindowStateRecordProblem = 'newer-format' | 'not-updated';
 
-/** The only record version this build reads and writes. */
+/** The record version this build writes. */
 export const DESKTOP_WINDOW_STATE_VERSION = 1;
+
+/**
+ * One step from version `from` to `from + 1` of the window state record: a pure function of the
+ * parsed record, `extensions` included, that answers `null` when it cannot convert it. The result
+ * carries `version` `from + 1`.
+ */
+export interface DesktopWindowStateMigrationStep {
+	readonly apply: (
+		record: Readonly<Record<string, unknown>>,
+	) => Readonly<Record<string, unknown>> | null;
+	readonly from: number;
+}
+
+/**
+ * The steps that bring an earlier record to {@link DESKTOP_WINDOW_STATE_VERSION}. No format has
+ * changed since the first public release, so there are none yet; the first change adds its step
+ * here, and the store's opening backs the record up and persists it.
+ */
+export const DESKTOP_WINDOW_STATE_STEPS: readonly DesktopWindowStateMigrationStep[] = [];
 
 export interface DesktopWindowStateStore {
 	flush(): Promise<void>;

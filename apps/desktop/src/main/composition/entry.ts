@@ -36,6 +36,7 @@ import {
 	DesktopSecureKeyboardEntry,
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
+import { createUpgradeBackup } from '../upgrade-backup';
 import { DesktopWindowActions } from '../window-actions';
 import {
 	DesktopWindowStateOwner,
@@ -299,7 +300,9 @@ async function start(): Promise<void> {
 		sessionArguments: session === undefined ? [] : ['--session', session],
 		windowHidden: process.env[WINDOW_HIDDEN_ENVIRONMENT_KEY] !== undefined,
 		windowStateOwner: new DesktopWindowStateOwner(
-			new FileDesktopWindowStateStore(dataRoot.windowStateFile),
+			new FileDesktopWindowStateStore(dataRoot.windowStateFile, {
+				upgradeBackup: createUpgradeBackup(dataRoot.path, app.getVersion()),
+			}),
 			process.platform,
 			reportWindowStateRecord,
 		),

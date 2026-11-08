@@ -81,11 +81,17 @@ explicitly injected temporary home and source root.
 
 `internal/state/desktop-window.json` holds `version` 1, the normal bounds, the maximized state, and
 an optional `extensions` object that a later release fills; Main keeps it unread and writes it back
-unchanged. A record whose `version` is any other integer is never rewritten: the window opens at
-its default size, and placement changes last only until Main exits. The first launch that finds such
-a record logs `record-unusable` with record `desktop-window`, the problem `newer-format` or
-`not-updated`, and the version, and shows the matching localized message once in an information
-dialog.
+unchanged. Main is the record's only writer, so loading an earlier `version` applies the steps in
+`DESKTOP_WINDOW_STATE_STEPS`, of which none ships yet, and requires the result to pass the current
+strict parser. Main then copies the original into
+`internal/backups/<YYYY-MM-DD>-upgrade-<version>/internal/state/desktop-window.json`, flushed, and
+atomically replaces the record before using it. The upgrade folders are shared with the native
+writers, which keep the three newest and number a differing copy `-2`, `-3`; search for
+`upgrade-backup-folders` before changing either side. A record whose `version` is newer, or earlier
+and not migrated, backed up, and replaced, is never rewritten: the window opens at its default size,
+and placement changes last only until Main exits. The first launch that finds such a record logs
+`record-unusable` with record `desktop-window`, the problem `newer-format` or `not-updated`, and the
+version, and shows the matching localized message once in an information dialog.
 
 ## Invariants
 
@@ -104,7 +110,9 @@ dialog.
 `prepareDesktopDataRoot` tests cover the fixed Release root with its files under `internal/`, the
 `ORCHBEE_HOME` override and its refusal of a relative value, the stable development root,
 different-checkout isolation, marker creation, reuse, and mismatch, and a version record written
-once.
+once. `FileDesktopWindowStateStore` tests drive a synthetic earlier step: the backup at its relative
+path, the replacement, a current second load, and a failed step, backup, or replacement leaving the
+record byte-identical; upgrade backup tests cover folder reuse, retention, and numbered copies.
 `resolveDesktopApplicationDistribution` tests cover live development from the canonical checkout,
 strict packaged descriptors, revalidation of a packaged Dev descriptor against the current checkout,
 and environment non-override. No test drives the Main entry, which selects `userData` before
