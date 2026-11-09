@@ -40,6 +40,9 @@ mod graphics;
 mod machine_picker_capture;
 mod notification_too_small;
 mod rename;
+// Named local Sessions are a Windows activation feature; elsewhere the hint never receives one.
+#[cfg(windows)]
+mod return_command;
 mod settings;
 
 struct QueueInputSource {

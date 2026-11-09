@@ -1047,14 +1047,23 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     result.map(|exit| LoopCompletion {
         exit,
         locale: view.effective_locale(chrome.locale),
-        return_command: {
-            if let crate::machine_picker::Choice::Remote(id) = &view.machines.current {
-                format!("orchbee --machine {}", id.as_str())
-            } else {
-                "orchbee".to_owned()
-            }
-        },
+        return_command: return_command(crate::local_activation::selected_session_name()),
     })
+}
+
+/// The command that reopens this TUI: the local Session this invocation selected. A remote view
+/// lives inside this local TUI, since `--machine` routes commands but never a TUI, so it returns
+/// the same way and the machine picker reaches that machine again. Session names need no shell
+/// quoting; a name that starts with `-`, which includes `--`, takes the joined `--session=` form
+/// so the parser reads it as the option's value.
+fn return_command(session: Option<&str>) -> String {
+    match session.and_then(|name| orchbee_local_runtime::SessionName::parse(name).ok()) {
+        Some(name) if !name.is_default() && name.as_str().starts_with('-') => {
+            format!("orchbee --session={}", name.as_str())
+        }
+        Some(name) if !name.is_default() => format!("orchbee --session {}", name.as_str()),
+        _ => "orchbee".to_owned(),
+    }
 }
 
 fn update_graphics_surface<B: Backend + ResizableBackend>(

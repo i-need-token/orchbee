@@ -24,7 +24,10 @@ Double-clicking the blank trailing Tab strip or the content area with no current
 same default Tab creation owner as `[+]`. A single click is inert. Two complete plain-left clicks
 must address the same cell and painted source, with at most 350 ms from the first release to the
 second press. Dragging, another press, changed source/geometry/occlusion, focus loss or capture
-release cancels the pair. Pane content with a current Tab keeps its program/selection owner.
+release cancels the pair. The first click is not a decision, so it does not fence the rest of its
+read: a console that queues both clicks before the Client reads, as a fast double-click or a
+coalescing transport can, delivers them in one packet, and the second click must still complete
+the pair. Pane content with a current Tab keeps its program/selection owner.
 The GUI offers the same shortcut on its blank horizontal Tab strip and on a Workspace's content with
 no Tab, through the browser's own double-click; the Desktop window's blank Tab bar stays its native
 drag region, where the operating system's double-click maximizes the window instead.

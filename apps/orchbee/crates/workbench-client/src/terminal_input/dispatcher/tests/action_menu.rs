@@ -1313,6 +1313,49 @@ fn tab_create_click_uses_the_keyboard_action_and_fences_release_packet_tails_eve
     }
 }
 
+/// A console can deliver both clicks of a double-click in one read, as the Windows reader does for
+/// records queued within its work window. The first click decides nothing, so it must not fence
+/// the second click that follows it in the same packet.
+#[test]
+fn blank_strip_double_click_in_one_packet_creates_one_tab() {
+    let mut port = Port::new(MenuAction::NewTab);
+    port.tab_create_available = true;
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let context = sidebar_context();
+    let mut hits = HitMapBuilder::new();
+    hits.record_interaction(
+        HitLayer::Foreground,
+        Rect::new(10, 0, 30, 1),
+        Rect::new(10, 0, 30, 1),
+        InteractionTarget::TabCreate(crate::action_menu::DrawnTabCreate {
+            source: crate::action_menu::DrawnMenuSource {
+                session: context.session_id,
+                revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+            },
+            location: context.location,
+        }),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnDoubleClick),
+    );
+    dispatcher.publish_hit_map(hits.finish());
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;20;1M\x1b[<0;20;1m\x1b[<0;20;1M\x1b[<0;20;1mtail",
+    );
+    assert_eq!(
+        port.calls
+            .borrow()
+            .iter()
+            .filter(|call| matches!(call, Call::Action(ClientAction::CreateTab)))
+            .count(),
+        1
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
 #[test]
 fn tab_create_focus_loss_cancels_action_and_fences_its_late_release_packet() {
     let mut port = Port::new(MenuAction::NewTab);

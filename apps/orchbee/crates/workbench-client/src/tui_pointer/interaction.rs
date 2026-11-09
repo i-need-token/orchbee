@@ -272,8 +272,10 @@ impl State {
                             contract: PrimaryContract::ActivateOnRelease,
                         };
                     }
+                    // The first click decides nothing, so it releases no packet fence: a host
+                    // can deliver the second click in the same read.
                     self.last_click = Some((arm.fingerprint, event.column, event.row, now));
-                    return Event::Ended;
+                    return Event::Captured;
                 }
                 self.last_click = None;
                 return if admitted
