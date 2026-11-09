@@ -366,9 +366,9 @@ export function createServerWorkbenchRuntime({
 	const titleSource = new ServerTerminalTitleSource(connection, session, (rows) => {
 		if (disposed) return;
 		const terminals = listServerTerminalBindings(session.snapshot);
-		for (const { incarnation, presentationId, title } of rows) {
+		for (const { binding, presentationId, title } of rows) {
 			mergeTerminalTitle(presentationId, terminals.get(presentationId) ?? null, {
-				incarnation,
+				binding,
 				kind: 'stream',
 				title,
 			});

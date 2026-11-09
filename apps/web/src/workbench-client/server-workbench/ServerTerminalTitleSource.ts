@@ -13,7 +13,8 @@ import {
 } from '../server-connection';
 import { createWorkbenchRequestId } from './createWorkbenchRequestId';
 import type { ServerWorkbenchSession } from './ServerWorkbenchSession';
-import type { ServerPublishedTitleObservation } from './mergeServerTerminalTitle';
+import type { ServerPresentationTitleRow } from './mergeServerTerminalTitle';
+import { serverTerminalBindingKey } from './server-terminal-binding';
 
 type PanelAgentOutcome = Extract<
 	WorkbenchResponse,
@@ -25,12 +26,9 @@ type PresentationTitleRow = Extract<
 >['presentations'][number];
 type PresentationId = PresentationTitleRow['presentationId'];
 
-/** One Presentation's published title, with the Host incarnation the Server read it for. */
-export interface ServerPresentationTitle {
-	/** The incarnation's key, or null where the Server names no terminal for the Presentation. */
-	readonly incarnation: string | null;
+/** One Presentation's published title, with the Workbench binding the Server read it for. */
+export interface ServerPresentationTitle extends ServerPresentationTitleRow {
 	readonly presentationId: PresentationId;
-	readonly title: ServerPublishedTitleObservation;
 }
 
 /** The most Presentations the Server answers in one `presentation-titles` request. */
@@ -168,10 +166,7 @@ export class ServerTerminalTitleSource {
 			case 'titles':
 				this.#receive(
 					reading.rows.map(({ binding, presentationId, title }) => ({
-						incarnation:
-							binding === null
-								? null
-								: `${binding.generation}:${binding.hostEpoch}:${binding.hostTerminalId}`,
+						binding: binding === null ? null : serverTerminalBindingKey(binding),
 						presentationId,
 						title,
 					})),

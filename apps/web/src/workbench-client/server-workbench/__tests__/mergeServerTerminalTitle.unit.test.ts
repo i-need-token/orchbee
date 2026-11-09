@@ -17,12 +17,9 @@ function surface(title: string | null): ServerTerminalTitleArrival {
 	return { currentDirectory: DIRECTORY, kind: 'surface', title };
 }
 
-function row(
-	incarnation: string,
-	title: string | null | 'unavailable',
-): ServerTerminalTitleArrival {
+function row(binding: string, title: string | null | 'unavailable'): ServerTerminalTitleArrival {
 	return {
-		incarnation,
+		binding,
 		kind: 'stream',
 		title: title === 'unavailable' ? { kind: 'unavailable' } : { kind: 'observed', title },
 	};
@@ -43,70 +40,70 @@ describe('mergeServerTerminalTitle', () => {
 		expect(
 			shown([
 				['A', surface('vim')],
-				['A', row('1', 'build')],
+				['A', row('A', 'build')],
 			]),
 		).toBe('build');
 		expect(
 			shown([
-				['A', row('1', 'build')],
+				['A', row('A', 'build')],
 				['A', surface('vim')],
 			]),
 		).toBe('vim');
 		// A row repeated because another Presentation in its stream changed is not a new title.
 		expect(
 			shown([
-				['A', row('1', 'build')],
+				['A', row('A', 'build')],
 				['A', surface('vim')],
-				['A', row('1', 'build')],
+				['A', row('A', 'build')],
 			]),
 		).toBe('vim');
 		// A cleared title shows the program's name; an unreadable one keeps what was shown.
 		expect(
 			shown([
 				['A', surface('vim')],
-				['A', row('1', null)],
+				['A', row('A', null)],
 			]),
 		).toBeNull();
 		expect(
 			shown([
-				['A', row('1', 'build')],
-				['A', row('1', 'unavailable')],
+				['A', row('A', 'build')],
+				['A', row('A', 'unavailable')],
 			]),
 		).toBe('build');
 		expect(
 			shown([
 				['A', surface('vim')],
-				['A', row('1', 'unavailable')],
+				['A', row('A', 'unavailable')],
 			]),
 		).toBe('vim');
 	});
 
-	it('applies a row only to the terminal the Presentation shows', () => {
-		// The snapshot moved first: the previous terminal's row is ignored, and the new terminal shows
-		// the program's name until its own row arrives.
+	it('applies a row only while the snapshot holds its binding', () => {
+		// The snapshot moved first: the previous binding's row is ignored, and the new terminal shows
+		// the program's name until a title arrives for it.
 		const moved: Step[] = [
-			['A', row('1', 'old')],
+			['A', row('A', 'old')],
 			['B', PUBLICATION],
-			['B', row('1', 'stale')],
+			['B', row('A', 'stale')],
 		];
 		expect(shown(moved)).toBeNull();
-		expect(shown([...moved, ['B', row('2', 'new')]])).toBe('new');
-		expect(shown([...moved, ['B', row('2', 'unavailable')]])).toBeNull();
-		// The Server moved first: its row waits for the snapshot to show that terminal.
-		const ahead: Step[] = [
-			['A', row('1', 'old')],
-			['A', row('2', 'new')],
+		expect(shown([...moved, ['B', row('B', 'new')]])).toBe('new');
+		expect(shown([...moved, ['B', row('B', 'unavailable')]])).toBeNull();
+		// The row arrived first: it applies once the snapshot holds its binding.
+		const early: Step[] = [
+			['A', row('A', 'old')],
+			['A', row('B', 'new')],
 		];
-		expect(shown(ahead)).toBe('old');
-		expect(shown([...ahead, ['B', PUBLICATION]])).toBe('new');
-		// A row naming no terminal says nothing.
+		expect(shown(early)).toBe('old');
+		expect(shown([...early, ['B', PUBLICATION]])).toBe('new');
+		// A row for no terminal says nothing.
 		expect(
 			mergeServerTerminalTitle(undefined, 'A', {
-				incarnation: null,
+				binding: null,
 				kind: 'stream',
 				title: { kind: 'unavailable' },
-			}),
-		).toEqual({ applied: null, cursor: undefined });
+			}).applied,
+		).toBeNull();
 	});
 
 	it('changes the directory only from the surface', () => {
@@ -115,7 +112,7 @@ describe('mergeServerTerminalTitle', () => {
 			currentDirectory: DIRECTORY,
 			title: { published: false, text: 'vim' },
 		});
-		expect(mergeServerTerminalTitle(first.cursor, 'A', row('1', 'build')).applied).toEqual({
+		expect(mergeServerTerminalTitle(first.cursor, 'A', row('A', 'build')).applied).toEqual({
 			currentDirectory: { kind: 'ignored' },
 			title: { published: true, text: 'build' },
 		});

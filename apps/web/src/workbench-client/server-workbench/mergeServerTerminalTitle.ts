@@ -16,24 +16,20 @@ export type ServerPublishedTitleObservation =
 	| { readonly kind: 'unavailable' }
 	| { readonly kind: 'observed'; readonly title: string | null };
 
-/**
- * One Presentation's title as this Client last saw it. A Presentation's terminal is named twice: by
- * the Workbench snapshot's binding, which keys the live surface, and by the Host incarnation the
- * Server names in a title row. The Server never moves a binding to another incarnation, so each
- * names the other one to one; only their arrival order differs, and `pairing` records which side has
- * already moved to the next terminal.
- */
+/** The latest `presentation-titles` row for a Presentation, whichever terminal it names. */
+export interface ServerPresentationTitleRow {
+	/** The Workbench binding key the Server read the title for, or null for no terminal. */
+	readonly binding: string | null;
+	readonly title: ServerPublishedTitleObservation;
+}
+
+/** One Presentation's title as this Client last saw it. */
 export interface ServerTerminalTitleCursor {
-	/** The incarnation the latest title row named, or null before any row named one. */
-	readonly incarnation: string | null;
-	/**
-	 * `paired` when `incarnation` is `terminal`'s; `awaiting-row` when the snapshot moved to another
-	 * terminal first; `awaiting-terminal` when a row named another incarnation first.
-	 */
-	readonly pairing: 'awaiting-row' | 'awaiting-terminal' | 'paired';
+	/** The latest row, kept until the snapshot names the terminal it was read for. */
+	readonly row: ServerPresentationTitleRow | undefined;
 	/** Null is the program's own name: it cleared its title, or this terminal never showed one. */
 	readonly shown: ServerTerminalTitle | null;
-	/** What `incarnation`'s rows last observed, or undefined while they observed nothing. */
+	/** What rows last observed for `terminal`, or undefined while they observed nothing for it. */
 	readonly stream: string | null | undefined;
 	/** What the live surface last reported for `terminal`, or undefined before it reported. */
 	readonly surface: string | null | undefined;
@@ -48,12 +44,8 @@ export type ServerTerminalTitleArrival =
 			readonly kind: 'surface';
 			readonly title: string | null;
 	  }
-	/** One row of a `presentation-titles` stream; a null incarnation names no terminal. */
-	| {
-			readonly incarnation: string | null;
-			readonly kind: 'stream';
-			readonly title: ServerPublishedTitleObservation;
-	  }
+	/** One row of a `presentation-titles` stream. */
+	| ({ readonly kind: 'stream' } & ServerPresentationTitleRow)
 	/** A publication, which can move the Presentation to another terminal. */
 	| { readonly kind: 'terminal' };
 
@@ -71,11 +63,11 @@ const IGNORED_DIRECTORY: CurrentDirectory = Object.freeze({ kind: 'ignored' });
 /**
  * The naming rule both Clients share for one Presentation. A title arrives when a source reports a
  * value other than the one it last reported for that terminal, and the title that arrived last is
- * shown, whether the surface or the Server delivered it. A row naming an incarnation that is not the
- * Presentation's current terminal changes nothing. `unavailable` keeps what was shown; a new
- * terminal shows the program's name until a title arrives for it, except where no row has ever
- * named one, which keeps what the surface showed until it reports again. A row carries no directory,
- * so only a surface frame changes it.
+ * shown, whether the surface or the Server delivered it. A row applies only while its binding is the
+ * one the snapshot holds, so a row that arrives before its snapshot applies once the snapshot does.
+ * `unavailable` keeps what was shown; a new terminal shows the program's name until a title arrives
+ * for it, except while no row has ever arrived, which keeps what the surface showed until it reports
+ * again. A row carries no directory, so only a surface frame changes it.
  */
 export function mergeServerTerminalTitle(
 	previous: ServerTerminalTitleCursor | undefined,
@@ -85,10 +77,9 @@ export function mergeServerTerminalTitle(
 	if (arrival.kind === 'terminal' && previous === undefined) {
 		return { applied: null, cursor: undefined };
 	}
-	const current = followTerminal(
+	let cursor = followTerminal(
 		previous ?? {
-			incarnation: null,
-			pairing: 'awaiting-row',
+			row: undefined,
 			shown: null,
 			stream: undefined,
 			surface: undefined,
@@ -96,35 +87,21 @@ export function mergeServerTerminalTitle(
 		},
 		terminal,
 	);
-	switch (arrival.kind) {
-		case 'surface': {
-			const cursor = observeSurface(current, arrival.title);
-			return {
-				applied: { currentDirectory: arrival.currentDirectory, title: cursor.shown },
-				cursor,
-			};
-		}
-		case 'stream':
-			return arrival.incarnation === null
-				? { applied: null, cursor: previous }
-				: changed(previous, observeStream(current, arrival.incarnation, arrival.title));
-		case 'terminal':
-			return changed(previous, current);
+	if (arrival.kind === 'surface') cursor = observeSurface(cursor, arrival.title);
+	if (arrival.kind === 'stream') {
+		cursor = { ...cursor, row: { binding: arrival.binding, title: arrival.title } };
 	}
-}
-
-function changed(
-	previous: ServerTerminalTitleCursor | undefined,
-	cursor: ServerTerminalTitleCursor,
-): ServerTerminalTitleMerge {
-	const before = previous?.shown ?? null;
-	const after = cursor.shown;
-	const same =
-		before === null || after === null
-			? before === after
-			: before.published === after.published && before.text === after.text;
+	cursor = applyRow(cursor);
+	if (arrival.kind === 'surface') {
+		return {
+			applied: { currentDirectory: arrival.currentDirectory, title: cursor.shown },
+			cursor,
+		};
+	}
 	return {
-		applied: same ? null : { currentDirectory: IGNORED_DIRECTORY, title: after },
+		applied: sameTitle(previous?.shown ?? null, cursor.shown)
+			? null
+			: { currentDirectory: IGNORED_DIRECTORY, title: cursor.shown },
 		cursor,
 	};
 }
@@ -134,19 +111,10 @@ function followTerminal(
 	terminal: string | null,
 ): ServerTerminalTitleCursor {
 	if (cursor.terminal === terminal) return cursor;
-	// Without a row, nothing says which terminal a title belongs to, so the surface's title stays
-	// until the new terminal's surface reports, as it always has.
-	if (cursor.incarnation === null) return { ...cursor, terminal };
-	if (cursor.pairing === 'awaiting-terminal') {
-		return {
-			...cursor,
-			pairing: 'paired',
-			shown: publishedTitle(cursor.stream),
-			surface: undefined,
-			terminal,
-		};
-	}
-	return { ...cursor, pairing: 'awaiting-row', shown: null, surface: undefined, terminal };
+	// Without a row, the Server has published nothing, so the surface's title stays until the new
+	// terminal's surface reports, as it always has.
+	if (cursor.row === undefined) return { ...cursor, terminal };
+	return { ...cursor, shown: null, stream: undefined, surface: undefined, terminal };
 }
 
 function observeSurface(
@@ -161,43 +129,27 @@ function observeSurface(
 	};
 }
 
-function observeStream(
-	cursor: ServerTerminalTitleCursor,
-	incarnation: string,
-	title: ServerPublishedTitleObservation,
-): ServerTerminalTitleCursor {
-	const observed = title.kind === 'observed' ? title.title : undefined;
-	if (incarnation !== cursor.incarnation) {
-		if (cursor.incarnation === null) {
-			// The first row names the terminal the snapshot holds now, which may have shown a title.
-			return {
-				...cursor,
-				incarnation,
-				pairing: 'paired',
-				shown: observed === undefined ? cursor.shown : publishedTitle(observed),
-				stream: observed,
-			};
-		}
-		if (cursor.pairing === 'awaiting-row') {
-			return {
-				...cursor,
-				incarnation,
-				pairing: 'paired',
-				shown: publishedTitle(observed),
-				stream: observed,
-			};
-		}
-		// The Server moved to the next terminal before this Client's snapshot did.
-		return { ...cursor, incarnation, pairing: 'awaiting-terminal', stream: observed };
+function applyRow(cursor: ServerTerminalTitleCursor): ServerTerminalTitleCursor {
+	const { row } = cursor;
+	if (
+		row === undefined ||
+		row.binding === null ||
+		row.binding !== cursor.terminal ||
+		row.title.kind === 'unavailable' ||
+		row.title.title === cursor.stream
+	) {
+		return cursor;
 	}
-	// The previous terminal's row, which a later row replaces.
-	if (cursor.pairing === 'awaiting-row') return cursor;
-	if (observed === undefined || observed === cursor.stream) return cursor;
-	return cursor.pairing === 'paired'
-		? { ...cursor, shown: publishedTitle(observed), stream: observed }
-		: { ...cursor, stream: observed };
+	const { title } = row.title;
+	return {
+		...cursor,
+		shown: title === null ? null : { published: true, text: title },
+		stream: title,
+	};
 }
 
-function publishedTitle(title: string | null | undefined): ServerTerminalTitle | null {
-	return title === null || title === undefined ? null : { published: true, text: title };
+function sameTitle(before: ServerTerminalTitle | null, after: ServerTerminalTitle | null): boolean {
+	return before === null || after === null
+		? before === after
+		: before.published === after.published && before.text === after.text;
 }
