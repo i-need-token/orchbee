@@ -5,6 +5,7 @@ use super::{AgentTarget, Locale, Output, OutputFormat, ResolvedWait, failure_out
 use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind, output, query, send};
+use crate::cli_outcome::WaitDisplay;
 use crate::invocation::AgentWaitCondition;
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentObservationFreshness, AgentSemanticStatus, AgentSessionDetail,
@@ -87,7 +88,8 @@ pub(super) fn run(
         Ok(Finish::Cancelled { finalization, .. }) => (true, false, Some(finalization)),
         Err(_) => (false, true, None),
     };
-    let mut output = settle(attempt, cancelled, fault, format, locale);
+    let until = wait.map_or(&[][..], |wait| wait.until.as_slice());
+    let mut output = settle(attempt, cancelled, fault, until, format, locale);
     output.finalization = finalization;
     output
 }
@@ -96,6 +98,7 @@ fn settle(
     attempt: Result<Sent, Failure>,
     cancelled: bool,
     fault: bool,
+    until: &[AgentWaitCondition],
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
@@ -138,7 +141,7 @@ fn settle(
                             details.insert("sessionId".into(), json!(session_id));
                             details.insert("submission".into(), receipt.clone());
                             failure.source = Some(receipt["source"].clone());
-                            prompt_failure(failure, format, locale)
+                            prompt_failure(awaited_after_prompt(failure, until), format, locale)
                         }
                     }
                 }
@@ -153,9 +156,9 @@ fn settle(
                         Ok(matched) => {
                             terminal::success(binding, handle, receipt, matched, format, locale)
                         }
-                        Err(failure) => {
-                            terminal::failed_after_send(failure, binding, receipt, format, locale)
-                        }
+                        Err(failure) => terminal::failed_after_send(
+                            failure, binding, receipt, until, format, locale,
+                        ),
                     }
                 }
             }
@@ -597,6 +600,29 @@ fn activity_after(before: &AgentSessionDetail, now: &AgentSessionDetail) -> bool
             AgentSemanticStatus::Working { .. } | AgentSemanticStatus::NeedsAttention { .. }
         ) || now.snapshot.last_outcome.is_some()
             && now.snapshot.last_outcome != before.snapshot.last_outcome)
+}
+
+/// Name what the wait after a delivered prompt was waiting for when its own
+/// deadline, its activity gate or an interrupt ended it. A read that outlived
+/// its own budget is a request deadline and keeps the shared local-session
+/// wording.
+fn awaited_after_prompt(failure: Failure, until: &[AgentWaitCondition]) -> Failure {
+    let reason = failure
+        .details
+        .as_ref()
+        .and_then(|details| details.get("reason"))
+        .and_then(Value::as_str);
+    let step_budget_ms = match (failure.kind, reason) {
+        (FailureKind::Timeout, Some("wait-deadline")) | (FailureKind::Cancelled, _) => None,
+        (FailureKind::Timeout, Some("prompt-stalled" | "effect-deadline")) => {
+            Some(u64::try_from(READ_BUDGET.as_millis()).unwrap_or(u64::MAX))
+        }
+        _ => return failure,
+    };
+    failure.wait_display(WaitDisplay {
+        until: until.to_vec(),
+        step_budget_ms,
+    })
 }
 
 fn prompt_error(kind: FailureKind, reason: &'static str) -> Failure {

@@ -1856,12 +1856,15 @@ fn wait_timeout_failure(timeout_ms: u32, observations: u64) -> Failure {
                 serde_json::json!({ "completedObservations": observations }),
             ),
         ]))
-        .terminal_text_wait()
+        .awaiting(crate::cli_outcome::Awaited::TerminalText)
 }
 
-/// The cancelled report: the wait stage under the fixed kind.
+/// The cancelled report: the wait stage under the fixed kind. Its diagnostic
+/// says the wait for the text was cancelled.
 fn wait_cancelled_failure() -> Failure {
-    Failure::new(FailureKind::Cancelled).details(stage_details("wait"))
+    Failure::new(FailureKind::Cancelled)
+        .details(stage_details("wait"))
+        .awaiting(crate::cli_outcome::Awaited::TerminalText)
 }
 
 /// Merge the honest cleanup state into a failure's details — plus
@@ -1873,8 +1876,9 @@ fn wait_cleanup_details(
     match_observed: bool,
 ) -> Failure {
     if match_observed {
-        // The text appeared; a later expiry ended the cleanup, not the wait.
-        failure.clear_terminal_text_wait();
+        // The text appeared; a later expiry or interrupt ended the cleanup,
+        // not the wait.
+        failure.clear_awaited();
     }
     let details = failure.details.get_or_insert_with(serde_json::Map::new);
     if match_observed {

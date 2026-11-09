@@ -2489,10 +2489,17 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - stdout carries only the contract document: one pretty (2-space) JSON document ending in `\n`
   under `--format json` (and always for `api` commands), or the localized human document under
   text/default. stderr carries localized human diagnostics; query paths print no progress.
-- The shared `timeout` diagnostic names the deadline that elapsed. Only an expired
-  `terminal wait-output` says the text did not appear, the `terminal send` source stage says
-  its input was not read, and every other shared-envelope timeout says the local session did
-  not answer in time. Dedicated failure envelopes keep their own wording; JSON is unchanged.
+- The shared `timeout` diagnostic names the deadline that elapsed. The `terminal send` source
+  stage says its input was not read. A wait whose local session kept answering names what it
+  awaited: an expired `terminal wait-output` says the text did not appear, an expired
+  `tab close` or `workspace close` wait says the close was not confirmed finished, and an
+  `agent prompt --wait` deadline or activity gate names its `--until` conditions in the
+  `agent wait` wording. Every other shared-envelope timeout, including a prompt read that
+  outlived its own budget, says the local session did not answer in time.
+- The shared `cancelled` diagnostic names what the interrupt cut short: the `terminal send`
+  source read, a `terminal wait-output` or post-prompt wait that reports no match, or
+  otherwise the command itself, without claiming that accepted work stopped. Dedicated
+  failure envelopes keep their own timeout and cancellation wording; JSON is unchanged.
 - `invalid-usage` failures write one localized stderr diagnostic naming a single concrete
   cause — an unknown command or option, an option or argument the command does not take, a
   duplicated option, conflicting options, a missing option value, a missing required option

@@ -37,6 +37,7 @@ fn cancellation_preserves_delivery_and_only_cancels_the_wait() {
         sent(accepted(), false),
         true,
         false,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -49,6 +50,7 @@ fn cancellation_preserves_delivery_and_only_cancels_the_wait() {
         sent(accepted(), true),
         true,
         false,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -65,6 +67,7 @@ fn cancellation_preserves_delivery_and_only_cancels_the_wait() {
         sent(accepted(), false),
         false,
         true,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -85,6 +88,7 @@ fn cancellation_never_erases_unknown_or_partial_delivery() {
         Err(Failure::new(FailureKind::OutcomeUnknown)),
         true,
         false,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -97,6 +101,7 @@ fn cancellation_never_erases_unknown_or_partial_delivery() {
         sent(unknown, false),
         true,
         false,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -114,6 +119,7 @@ fn cancellation_never_erases_unknown_or_partial_delivery() {
         sent(partial, false),
         true,
         false,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -126,6 +132,7 @@ fn cancellation_never_erases_unknown_or_partial_delivery() {
         Err(Failure::new(FailureKind::TransportLoss)),
         true,
         false,
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -139,4 +146,62 @@ fn cancellation_never_erases_unknown_or_partial_delivery() {
             .get("submission")
             .is_none()
     );
+}
+
+fn waited(failure: Failure) -> Result<Sent, Failure> {
+    Ok(Sent {
+        receipt: send::test_receipt(accepted()),
+        completion: Completion::Session {
+            session_id: "sess-alpha".to_owned(),
+            waited: Some(Err(failure)),
+        },
+    })
+}
+
+/// After a delivered prompt, the wait's own deadline and its activity gate
+/// name the awaited states and an interrupt says the wait was cancelled. A
+/// read that outlived its budget still names the local session, and an
+/// interrupt before delivery never claims a wait.
+#[test]
+fn a_post_prompt_wait_names_what_it_awaited() {
+    let until = [AgentWaitCondition::Succeeded];
+    let stderr = |attempt, cancelled, locale| {
+        settle(
+            attempt,
+            cancelled,
+            false,
+            &until,
+            OutputFormat::Text,
+            locale,
+        )
+        .stderr
+    };
+    for (locale, session, wait) in [
+        (Locale::EnUs, "local session", "wait"),
+        (Locale::ZhCn, "本地会话", "等待"),
+    ] {
+        for reason in ["wait-deadline", "prompt-stalled"] {
+            let text = stderr(
+                waited(prompt_error(FailureKind::Timeout, reason)),
+                false,
+                locale,
+            );
+            assert!(text.contains("succeeded"), "{locale:?} {reason}: {text}");
+            assert!(!text.contains(session), "{locale:?} {reason}: {text}");
+        }
+        let read = stderr(
+            waited(prompt_error(FailureKind::Timeout, "read-deadline")),
+            false,
+            locale,
+        );
+        assert!(read.contains(session), "{locale:?}: {read}");
+        let cancelled = stderr(
+            waited(prompt_error(FailureKind::TransportLoss, "wait-read-failed")),
+            true,
+            locale,
+        );
+        assert!(cancelled.contains(wait), "{locale:?}: {cancelled}");
+        let before = stderr(Err(Failure::new(FailureKind::TransportLoss)), true, locale);
+        assert!(!before.contains(wait), "{locale:?}: {before}");
+    }
 }

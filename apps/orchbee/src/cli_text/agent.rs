@@ -663,7 +663,7 @@ impl super::CliText {
 
     /// An expired Agent read or wait names the deadline that actually ended
     /// it and, for a wait, the states it was waiting for.
-    fn cli_agent_timeout(self, failure: &Failure) -> String {
+    pub(super) fn cli_agent_timeout(self, failure: &Failure) -> String {
         let detail = |name: &str| failure.details.as_ref().and_then(|d| d.get(name));
         let timeout_ms = detail("timeoutMs").and_then(serde_json::Value::as_u64);
         let Some(wait) = failure.waited() else {
@@ -687,7 +687,10 @@ impl super::CliText {
             .join(separator);
         let reason = detail("reason").and_then(serde_json::Value::as_str);
         match (wait.step_budget_ms, timeout_ms) {
-            (Some(budget), _) if reason == Some("effect-deadline") => {
+            // The activity gate after a prompt: `agent prompt` names it
+            // `prompt-stalled` for a session and `effect-deadline` for a
+            // terminal-bound Agent.
+            (Some(budget), _) if matches!(reason, Some("effect-deadline" | "prompt-stalled")) => {
                 let budget = self.cli_duration(budget);
                 match self.locale {
                     Locale::EnUs => format!(
@@ -721,10 +724,10 @@ impl super::CliText {
                 }
             }
             (None, None) => match self.locale {
-                Locale::EnUs => {
-                    format!("The wait ended before any awaited state ({until}) appeared.\n")
-                }
-                Locale::ZhCn => format!("等待在所等待的状态（{until}）出现前结束。\n"),
+                Locale::EnUs => format!(
+                    "The wait deadline elapsed before any awaited state ({until}) appeared.\n"
+                ),
+                Locale::ZhCn => format!("等待期限已到，所等待的状态（{until}）仍未出现。\n"),
             },
         }
     }

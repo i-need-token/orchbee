@@ -238,8 +238,8 @@ fn check_maps_expiry_to_detailed_timeout() {
 }
 
 /// Only an expired wait for terminal text claims the text never appeared; an
-/// expiry after the match, a close wait and a plain session read name the
-/// local session instead.
+/// expiry after the match, the `wait` stage alone and a plain session read
+/// name the local session instead.
 #[test]
 fn only_an_expired_text_wait_claims_the_text_never_appeared() {
     use crate::cli_text::CliText;
@@ -249,7 +249,7 @@ fn only_an_expired_text_wait_claims_the_text_never_appeared() {
     let run = fake_run(&clock, &flag, clock.now());
     let expired = run.check().unwrap_err();
     let after_match = wait_cleanup_details(run.check().unwrap_err(), "requested", true);
-    let close_wait = Failure::new(FailureKind::Timeout).details(serde_json::Map::from_iter([(
+    let wait_stage = Failure::new(FailureKind::Timeout).details(serde_json::Map::from_iter([(
         "stage".to_owned(),
         serde_json::json!("wait"),
     )]));
@@ -260,10 +260,34 @@ fn only_an_expired_text_wait_claims_the_text_never_appeared() {
     ] {
         let diagnostic = |failure: &Failure| CliText::new(locale).cli_failure(failure);
         assert!(diagnostic(&expired).contains(text_wait), "{locale:?}");
-        for other in [&after_match, &close_wait, &session_read] {
+        for other in [&after_match, &wait_stage, &session_read] {
             let text = diagnostic(other);
             assert!(!text.contains(text_wait), "{locale:?}: {text}");
             assert!(text.contains(session), "{locale:?}: {text}");
+        }
+    }
+}
+
+/// Only a cancelled wait for terminal text says a wait was cancelled; a
+/// cancel after the match and a cancelled command that awaited nothing never
+/// claim a wait.
+#[test]
+fn only_a_cancelled_wait_claims_the_wait_was_cancelled() {
+    use crate::cli_text::CliText;
+    use crate::localization::Locale;
+    let clock = FakeWaitClock::new();
+    let flag = FlaggedTermination(Cell::new(true));
+    let run = fake_run(&clock, &flag, clock.now() + Duration::from_secs(1));
+    let cancelled = run.check().unwrap_err();
+    assert_eq!(cancelled.kind, FailureKind::Cancelled);
+    let after_match = wait_cleanup_details(run.check().unwrap_err(), "requested", true);
+    let command = Failure::new(FailureKind::Cancelled);
+    for (locale, wait) in [(Locale::EnUs, "wait"), (Locale::ZhCn, "等待")] {
+        let diagnostic = |failure: &Failure| CliText::new(locale).cli_failure(failure);
+        assert!(diagnostic(&cancelled).contains(wait), "{locale:?}");
+        for other in [&after_match, &command] {
+            let text = diagnostic(other);
+            assert!(!text.contains(wait), "{locale:?}: {text}");
         }
     }
 }

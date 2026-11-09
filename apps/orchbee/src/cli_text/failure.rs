@@ -1,7 +1,7 @@
 //! Localized CLI failure routing and shared diagnostics; does not recover or retry operations.
 
 use super::{Locale, failure_list_command, failure_target};
-use crate::cli_outcome::Failure;
+use crate::cli_outcome::{Awaited, Failure};
 
 impl super::CliText {
     /// Localized human diagnostic for one CLI failure. User-controlled data is
@@ -350,51 +350,69 @@ impl super::CliText {
             },
             FailureKind::Incompatible => self.cli_incompatible(failure),
             FailureKind::CheckFailed => self.cli_check_failed(failure),
+            // An Agent wait names the conditions it was waiting for.
+            FailureKind::Timeout if failure.waited().is_some() => self.cli_agent_timeout(failure),
             FailureKind::Timeout => {
                 // The diagnosis names the deadline that elapsed: the
                 // `terminal send` source stage (`stage:"input"`) read input
-                // and awaited nothing; only a wait for terminal text carries
-                // the text marker; every other producer waited on the
-                // local session.
+                // and awaited nothing; a marked wait names the outcome it
+                // awaited while the local session kept answering; every
+                // other producer waited on the local session.
                 let input_stage = failure
                     .details
                     .as_ref()
                     .and_then(|details| details.get("stage"))
                     .and_then(|value| value.as_str())
                     == Some("input");
-                match (self.locale, input_stage, failure.awaited_terminal_text()) {
+                match (self.locale, input_stage, failure.awaited()) {
                     (Locale::EnUs, true, _) => {
                         "The declared input could not be read within the time limit; nothing was sent.\n"
                             .to_owned()
                     }
                     (Locale::ZhCn, true, _) => "声明的输入未能在时限内读取；未发送任何内容。\n".to_owned(),
-                    (Locale::EnUs, false, true) => {
+                    (Locale::EnUs, false, Some(Awaited::TerminalText)) => {
                         "The wait deadline elapsed before the text appeared in the terminal.\n"
                             .to_owned()
                     }
-                    (Locale::ZhCn, false, true) => "等待期限内终端中未出现目标文本。\n".to_owned(),
-                    (Locale::EnUs, false, false) => {
+                    (Locale::ZhCn, false, Some(Awaited::TerminalText)) => {
+                        "等待期限内终端中未出现目标文本。\n".to_owned()
+                    }
+                    (Locale::EnUs, false, Some(Awaited::CloseFinished)) => {
+                        "The wait deadline elapsed before the close was confirmed finished.\n"
+                            .to_owned()
+                    }
+                    (Locale::ZhCn, false, Some(Awaited::CloseFinished)) => {
+                        "等待期限内未能确认关闭已完成。\n".to_owned()
+                    }
+                    (Locale::EnUs, false, None) => {
                         "The local session did not answer within the time limit.\n".to_owned()
                     }
-                    (Locale::ZhCn, false, false) => "本地会话未在时限内应答。\n".to_owned(),
+                    (Locale::ZhCn, false, None) => "本地会话未在时限内应答。\n".to_owned(),
                 }
             }
             FailureKind::Cancelled => {
+                // The diagnosis names what the interrupt cut short: the
+                // `terminal send` source read, a wait for an outcome, or
+                // otherwise the command itself — which never cancels work
+                // the local session already accepted.
                 let input_stage = failure
                     .details
                     .as_ref()
                     .and_then(|details| details.get("stage"))
                     .and_then(|value| value.as_str())
                     == Some("input");
-                match (self.locale, input_stage) {
-                    (Locale::EnUs, true) => {
+                let waiting = failure.awaited().is_some() || failure.waited().is_some();
+                match (self.locale, input_stage, waiting) {
+                    (Locale::EnUs, true, _) => {
                         "Reading the declared input was cancelled; nothing was sent.\n".to_owned()
                     }
-                    (Locale::ZhCn, true) => "声明输入的读取已被取消；未发送任何内容。\n".to_owned(),
-                    (Locale::EnUs, false) => {
+                    (Locale::ZhCn, true, _) => "声明输入的读取已被取消；未发送任何内容。\n".to_owned(),
+                    (Locale::EnUs, false, true) => {
                         "The wait was cancelled; no match is reported.\n".to_owned()
                     }
-                    (Locale::ZhCn, false) => "等待已被取消；未报告任何匹配。\n".to_owned(),
+                    (Locale::ZhCn, false, true) => "等待已被取消；未报告任何匹配。\n".to_owned(),
+                    (Locale::EnUs, false, false) => "The command was interrupted.\n".to_owned(),
+                    (Locale::ZhCn, false, false) => "命令已中断。\n".to_owned(),
                 }
             }
             FailureKind::OutputTooLarge => match self.locale {

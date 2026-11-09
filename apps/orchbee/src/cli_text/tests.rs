@@ -476,3 +476,70 @@ fn close_waits_name_the_closed_member_and_the_status_command() {
         );
     }
 }
+
+/// A Workspace create refused before any Workspace committed applied nothing,
+/// so its text never calls the creation incomplete. A later stage after the
+/// commit, or an unknown outcome that may have committed, never claims that
+/// nothing was created.
+#[test]
+fn a_workspace_create_that_applied_nothing_never_says_incomplete() {
+    let document = |workspace: serde_json::Value, stage: &str, kind: &str| {
+        serde_json::json!({
+            "schema": "orchbee.workspace.creation", "version": 1, "resolvedLaunch": null,
+            "workspace": workspace,
+            "directory": {"policy": "explicit", "source": "explicit",
+                "path": "C:/System Volume Information", "sourcePanelId": null},
+            "clientId": null, "requestedFocus": false, "focus": null, "stage": stage,
+            "failure": {"kind": kind,
+                "details": {"stage": "command", "reason": "directory-unavailable"},
+                "source": null, "schema": "orchbee.cli.failure", "version": 1},
+            "outcome": "incomplete"
+        })
+    };
+    let committed = serde_json::json!({"schema": "orchbee.mutation.result", "version": 1,
+        "source": null, "result": {"action": "workspace.create", "outcome": "committed",
+            "workspaceId": "a".repeat(32), "label": "demo"}});
+    for (locale, incomplete, not_created) in [
+        (Locale::EnUs, "incomplete", "not created"),
+        (Locale::ZhCn, "未完成", "未创建"),
+    ] {
+        let text = CliText::new(locale);
+        for kind in [
+            "service-unavailable",
+            "rejected",
+            "denied",
+            "timeout",
+            "cancelled",
+            "transport-loss",
+        ] {
+            let refused =
+                text.cli_workspace_creation(&document(serde_json::Value::Null, "workspace", kind));
+            assert!(
+                !refused.contains(incomplete),
+                "{locale:?} {kind}: {refused}"
+            );
+            assert!(
+                refused.contains(not_created),
+                "{locale:?} {kind}: {refused}"
+            );
+        }
+        for stage in ["terminal", "focus"] {
+            let partial =
+                text.cli_workspace_creation(&document(committed.clone(), stage, "rejected"));
+            assert!(
+                partial.contains(incomplete),
+                "{locale:?} {stage}: {partial}"
+            );
+            assert!(
+                !partial.contains(not_created),
+                "{locale:?} {stage}: {partial}"
+            );
+        }
+        let unknown = text.cli_workspace_creation(&document(
+            serde_json::Value::Null,
+            "workspace",
+            "outcome-unknown",
+        ));
+        assert!(!unknown.contains(not_created), "{locale:?}: {unknown}");
+    }
+}

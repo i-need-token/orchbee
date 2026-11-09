@@ -815,22 +815,28 @@ mod workflow {
                 Ok(Receipt { closing, ..receipt })
             }
             CloseWaitEnd::Expired { observations } => {
-                let failure = Failure::new(FailureKind::Timeout)
-                    .details(Map::from_iter([
-                        ("stage".to_owned(), json!("wait")),
-                        ("timeoutMs".to_owned(), json!(timeout_ms)),
-                        (
-                            "observed".to_owned(),
-                            json!({"completedObservations": observations}),
-                        ),
-                    ]))
-                    .source(receipt.source());
+                let failure = close_wait_timeout(timeout_ms, observations).source(receipt.source());
                 Err(Box::new((failure, hint)))
             }
             CloseWaitEnd::Failed(failure) => {
                 Err(Box::new((failure.source(receipt.source()), hint)))
             }
         }
+    }
+
+    /// The close-wait timeout report: the close was accepted and the local
+    /// session kept answering, so its diagnostic names the unfinished close.
+    fn close_wait_timeout(timeout_ms: u32, observations: u64) -> Failure {
+        Failure::new(FailureKind::Timeout)
+            .details(Map::from_iter([
+                ("stage".to_owned(), json!("wait")),
+                ("timeoutMs".to_owned(), json!(timeout_ms)),
+                (
+                    "observed".to_owned(),
+                    json!({"completedObservations": observations}),
+                ),
+            ]))
+            .awaiting(crate::cli_outcome::Awaited::CloseFinished)
     }
 
     #[derive(Debug)]

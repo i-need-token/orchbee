@@ -7,7 +7,7 @@ use crate::cli::agent_wait::terminal as terminal_agent_wait;
 use crate::cli::query::terminal_agent::failure as error;
 use crate::cli::results::terminal_agent::{Matched, TerminalAgentRead};
 use crate::cli_text::CliText;
-use crate::invocation::Target;
+use crate::invocation::{AgentWaitCondition, Target};
 use crate::local_client::LocalClient;
 use orchbee_agent_observation_protocol::{AgentLaunchBinding, AgentReportProvider};
 use orchbee_workbench_protocol::PanelAgentState;
@@ -144,6 +144,7 @@ pub(super) fn failed_after_send(
     failure: Failure,
     binding: AgentLaunchBinding,
     receipt: Value,
+    until: &[AgentWaitCondition],
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
@@ -172,7 +173,7 @@ pub(super) fn failed_after_send(
             ),
             ("submission".into(), receipt),
         ]));
-    super::prompt_failure(failure, format, locale)
+    super::prompt_failure(super::awaited_after_prompt(failure, until), format, locale)
 }
 
 pub(super) fn success(
@@ -204,6 +205,7 @@ pub(super) fn success(
             error(FailureKind::OutputTooLarge, "output-too-large"),
             binding,
             document["result"]["submission"].clone(),
+            &[],
             format,
             locale,
         ),

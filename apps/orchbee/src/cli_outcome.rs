@@ -103,15 +103,25 @@ pub(crate) enum FailureDisplay {
     /// Exact missing-sibling evidence from a native cohort check. Raw I/O
     /// details belong to `status client` JSON.
     Io(IoDiagnostic),
-    /// What an expired Agent wait was waiting for; the machine document keeps
+    /// What an ended Agent wait was waiting for; the machine document keeps
     /// its own deadline details.
     Wait(WaitDisplay),
-    /// The total deadline of a wait for terminal text elapsed before the text
-    /// appeared; the machine document keeps its `wait` stage details.
-    TerminalTextWait,
+    /// The outcome a wait was waiting for when its own deadline or an
+    /// interrupt ended it while the local session kept answering; the machine
+    /// document keeps its own stage details.
+    Awaited(Awaited),
 }
 
-/// The conditions an expired Agent wait was waiting for and, when one step's
+/// An outcome a CLI wait observes through the local session.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Awaited {
+    /// Text appearing in a terminal (`terminal wait-output`).
+    TerminalText,
+    /// An accepted close finishing (`tab close`, `workspace close`).
+    CloseFinished,
+}
+
+/// The conditions an ended Agent wait was waiting for and, when one step's
 /// budget rather than the whole wait deadline ended it, that step's budget.
 #[derive(Debug)]
 pub(crate) struct WaitDisplay {
@@ -162,7 +172,7 @@ impl Failure {
         }
     }
 
-    /// Attach what an expired wait was waiting for, for the localized
+    /// Attach what an ended Agent wait was waiting for, for the localized
     /// diagnostic only.
     pub(crate) fn wait_display(mut self, display: WaitDisplay) -> Self {
         self.display = Some(Box::new(FailureDisplay::Wait(display)));
@@ -195,24 +205,25 @@ impl Failure {
         }
     }
 
-    /// Mark an elapsed wait for terminal text, for the localized diagnostic only.
-    pub(crate) fn terminal_text_wait(mut self) -> Self {
-        self.display = Some(Box::new(FailureDisplay::TerminalTextWait));
+    /// Mark what an ended wait was waiting for, for the localized diagnostic only.
+    pub(crate) fn awaiting(mut self, awaited: Awaited) -> Self {
+        self.display = Some(Box::new(FailureDisplay::Awaited(awaited)));
         self
     }
 
-    /// Clear the terminal-text marker once the awaited text was observed.
-    pub(crate) fn clear_terminal_text_wait(&mut self) {
-        if self.awaited_terminal_text() {
+    /// Clear the marker once the awaited outcome was observed: a later failure
+    /// ended the cleanup, not the wait.
+    pub(crate) fn clear_awaited(&mut self) {
+        if self.awaited().is_some() {
             self.display = None;
         }
     }
 
-    pub(crate) fn awaited_terminal_text(&self) -> bool {
-        matches!(
-            self.display.as_deref(),
-            Some(FailureDisplay::TerminalTextWait)
-        )
+    pub(crate) fn awaited(&self) -> Option<Awaited> {
+        match self.display.as_deref() {
+            Some(FailureDisplay::Awaited(awaited)) => Some(*awaited),
+            _ => None,
+        }
     }
 
     pub(crate) fn details(mut self, details: Map<String, Value>) -> Self {

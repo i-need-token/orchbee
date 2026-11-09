@@ -39,7 +39,7 @@ fn physical_prompt_success_and_post_send_cancellation_preserve_receipts() {
                     .then(|| Box::new(Err(error(FailureKind::Timeout, "effect-deadline")))),
             },
         };
-        let output = settle(Ok(sent), true, false, OutputFormat::Json, Locale::EnUs);
+        let output = settle(Ok(sent), true, false, &[], OutputFormat::Json, Locale::EnUs);
         let doc = validate(
             &output,
             if waiting {
@@ -66,6 +66,7 @@ fn physical_prompt_failure_and_legacy_variants_are_closed() {
         error(FailureKind::Timeout, "effect-deadline"),
         binding(),
         receipt().document(),
+        &[],
         OutputFormat::Json,
         Locale::EnUs,
     );
@@ -120,4 +121,26 @@ fn physical_prompt_unknown_state_requires_known_provider_and_blocked_refuses() {
     read.observation.view.state = PanelAgentState::Idle;
     read.observation.view.agent = Some("custom".into());
     assert!(provider(&read).is_err());
+}
+
+/// A terminal-bound prompt's wait deadline and activity gate name the awaited
+/// states, never the local session.
+#[test]
+fn physical_prompt_wait_deadlines_name_the_awaited_states() {
+    let until = [AgentWaitCondition::Succeeded];
+    for reason in ["wait-deadline", "effect-deadline"] {
+        for (locale, session) in [(Locale::EnUs, "local session"), (Locale::ZhCn, "本地会话")] {
+            let sent = Sent {
+                receipt: receipt(),
+                completion: Completion::Terminal {
+                    binding: binding(),
+                    handle: None,
+                    waited: Some(Box::new(Err(error(FailureKind::Timeout, reason)))),
+                },
+            };
+            let text = settle(Ok(sent), false, false, &until, OutputFormat::Text, locale).stderr;
+            assert!(text.contains("succeeded"), "{locale:?} {reason}: {text}");
+            assert!(!text.contains(session), "{locale:?} {reason}: {text}");
+        }
+    }
 }

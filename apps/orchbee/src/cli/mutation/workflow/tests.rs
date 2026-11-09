@@ -334,3 +334,19 @@ fn a_close_wait_observation_that_outlasts_the_deadline_settles_as_the_wait_timeo
         }
     }
 }
+
+/// An expired close wait names the close it awaited: the close was accepted
+/// and the local session kept answering, so it never claims the session did
+/// not answer.
+#[test]
+fn an_expired_close_wait_names_the_close_it_awaited() {
+    let failure = close_wait_timeout(30_000, 3);
+    for (locale, awaited, session) in [
+        (Locale::EnUs, "close", "local session"),
+        (Locale::ZhCn, "关闭", "本地会话"),
+    ] {
+        let text = CliText::new(locale).cli_failure(&failure);
+        assert!(text.contains(awaited), "{locale:?}: {text}");
+        assert!(!text.contains(session), "{locale:?}: {text}");
+    }
+}

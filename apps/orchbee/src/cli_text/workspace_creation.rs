@@ -48,11 +48,24 @@ impl super::CliText {
             text.push_str(hint);
         }
         if !complete {
-            let stage = crate::cli_text::escape::escape(document["stage"].as_str().unwrap_or("—"));
-            text.push_str(&match self.locale {
-                Locale::EnUs => format!("Workspace creation incomplete at stage {stage}.\n"),
-                Locale::ZhCn => format!("工作区创建未完成，停在阶段 {stage}。\n"),
-            });
+            // Without a committed Workspace receipt a refusal applied nothing;
+            // only a stage after the commit leaves a partial creation. An
+            // unknown outcome may have committed, so it keeps the stage report.
+            let created_nothing =
+                document["workspace"].is_null() && document["failure"]["kind"] != "outcome-unknown";
+            if created_nothing {
+                text.push_str(match self.locale {
+                    Locale::EnUs => "Workspace not created.\n",
+                    Locale::ZhCn => "未创建工作区。\n",
+                });
+            } else {
+                let stage =
+                    crate::cli_text::escape::escape(document["stage"].as_str().unwrap_or("—"));
+                text.push_str(&match self.locale {
+                    Locale::EnUs => format!("Workspace creation incomplete at stage {stage}.\n"),
+                    Locale::ZhCn => format!("工作区创建未完成，停在阶段 {stage}。\n"),
+                });
+            }
             // Name the exact directory a known directory refusal concerns.
             if document["failure"]["details"]["reason"] == "directory-unavailable"
                 && let Some(path) = document["directory"]["path"].as_str()
