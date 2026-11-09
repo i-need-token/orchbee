@@ -241,6 +241,8 @@ pub const Maintenance = struct {
         self.synchronizeRuntime(core, terminal_id, runtime);
     }
 
+    /// Inspects every terminal, so no pending outcome waits for a bounded scan;
+    /// a full batch resumes after its last notice, so none starves.
     pub fn pendingOutcomes(
         self: *Maintenance,
         core: *core_module.HostCore,
@@ -252,9 +254,8 @@ pub const Maintenance = struct {
         const count = core.terminalCount();
         if (count == 0) return batch;
         const start = self.outcome_scan_index % count;
-        const limit = @min(count, max_runtime_sync_per_poll);
         var scanned: usize = 0;
-        while (scanned < limit and batch.outcome_notice_count < maximum_notices) {
+        while (scanned < count and batch.outcome_notice_count < maximum_notices) {
             const index = (start + scanned) % count;
             scanned += 1;
             const terminal = core.terminalValues()[index];

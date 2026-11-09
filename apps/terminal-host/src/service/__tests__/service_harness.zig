@@ -321,19 +321,14 @@ pub fn disposeSkippedTargetThroughTransport(cursor: usize) !void {
     try expectSingleFailureCode(&rejected, "outcome-publication-pending");
     try std.testing.expect(service.runtime_aggregate.core().findTerminal(target.terminal_id) != null);
 
-    // The bounded outcome scan also skips this target once, so poll until the
-    // settled outcome event is handed off and its publication commits.
+    // Whatever the fair cursor, the next poll hands off the settled outcome
+    // and commits publication.
+    var events = try pollEventsChecked(&service, &connection);
+    defer events.deinit();
     var exit_event_handed_off = false;
-    for (0..4) |_| {
-        var events = try pollEventsChecked(&service, &connection);
-        defer events.deinit();
-        for (events.records()) |record| {
-            const envelope = try protocol.validateTransportEnvelope(record);
-            if (envelope.kind == MessageKind.terminal_exited) {
-                exit_event_handed_off = true;
-            }
-        }
-        if (exit_event_handed_off) break;
+    for (events.records()) |record| {
+        const envelope = try protocol.validateTransportEnvelope(record);
+        if (envelope.kind == MessageKind.terminal_exited) exit_event_handed_off = true;
     }
     try std.testing.expect(exit_event_handed_off);
 

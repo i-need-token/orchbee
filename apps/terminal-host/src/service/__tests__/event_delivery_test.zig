@@ -585,19 +585,14 @@ test "DisposeTerminal settles a skipped exact target through HostService" {
     try std.testing.expect(failure.value.retryable);
     try std.testing.expect(serviceCore(&service).findTerminal(target.terminal_id) != null);
 
-    // The bounded outcome scan also skips this target once, so poll until the
-    // settled outcome event is handed off and its publication commits.
+    // The target sits outside the bounded runtime slice, yet the next poll
+    // hands off its settled outcome and commits publication.
+    var events = try pollEventsChecked(&service, &connection);
+    defer events.deinit();
     var exit_event_handed_off = false;
-    for (0..4) |_| {
-        var events = try pollEventsChecked(&service, &connection);
-        defer events.deinit();
-        for (events.records()) |record| {
-            const envelope = try protocol.validateTransportEnvelope(record);
-            if (envelope.kind == MessageKind.terminal_exited) {
-                exit_event_handed_off = true;
-            }
-        }
-        if (exit_event_handed_off) break;
+    for (events.records()) |record| {
+        const envelope = try protocol.validateTransportEnvelope(record);
+        if (envelope.kind == MessageKind.terminal_exited) exit_event_handed_off = true;
     }
     try std.testing.expect(exit_event_handed_off);
     try std.testing.expect(serviceCore(&service).findTerminal(target.terminal_id) != null);
@@ -626,6 +621,91 @@ test "DisposeTerminal settles a skipped exact target through HostService" {
 test "dispose transport behavior is independent of the fair-scan cursor" {
     try disposeSkippedTargetThroughTransport(0);
     try disposeSkippedTargetThroughTransport(64);
+}
+// ORC-415 regression: the outcome scan covered a rotating 64-terminal window,
+// so with more terminals a settled target outside it stayed unpublished and
+// its disposal was refused until the window came round.
+test "the next polls publish every pending outcome whatever the terminal count" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    const core = serviceCore(&service);
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try core.connect(connection_id, testId(core_module.ClientId, 0x35, 0));
+    const batch_capacity = (OutcomePublicationHandoff{}).tokens.len;
+    const terminal_count = 100;
+    try std.testing.expect(terminal_count > batch_capacity);
+    for (0..terminal_count) |index| {
+        const terminal_id = testId(core_module.TerminalId, 0x36, index);
+        _ = try createModel(
+            core,
+            connection_id,
+            testId(core_module.CreationId, 0x37, index),
+            terminal_id,
+            [_]u8{0x35} ** 32,
+            80,
+            24,
+        );
+        _ = try core.synchronizeRevision(terminal_id, 1);
+    }
+
+    // One terminal settles at a time, at the last slot, the first, and both
+    // sides of a batch-sized boundary. The next poll publishes it, which lifts
+    // the publication barrier on its disposal.
+    const single_slots = [_]usize{ terminal_count - 1, 0, batch_capacity, batch_capacity - 1 };
+    for (single_slots) |slot| {
+        const terminal_id = testId(core_module.TerminalId, 0x36, slot);
+        _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
+        _ = try core.ptyDrained(terminal_id);
+        try std.testing.expectError(
+            error.OutcomePublicationPending,
+            core.validateTerminalDisposal(connection_id, terminal_id),
+        );
+        try std.testing.expectEqual(@as(usize, 1), try pollPublishedExits(&service));
+        try std.testing.expectEqual(
+            core_module.TerminalDisposalAdmission.dispose,
+            try core.validateTerminalDisposal(connection_id, terminal_id),
+        );
+    }
+
+    // Every other terminal settles at once. Each poll carries a full batch
+    // while outcomes wait, so none waits longer than the polls needed to carry
+    // them all.
+    var settled: usize = 0;
+    for (0..terminal_count) |index| {
+        const terminal_id = testId(core_module.TerminalId, 0x36, index);
+        if (core.findTerminal(terminal_id).?.phase() == .exited) continue;
+        _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
+        _ = try core.ptyDrained(terminal_id);
+        settled += 1;
+    }
+    var published: usize = 0;
+    for (0..std.math.divCeil(usize, settled, batch_capacity) catch unreachable) |_| {
+        published += try pollPublishedExits(&service);
+    }
+    try std.testing.expectEqual(settled, published);
+    for (0..terminal_count) |index| {
+        const terminal_id = testId(core_module.TerminalId, 0x36, index);
+        try std.testing.expectEqual(
+            core_module.TerminalDisposalAdmission.dispose,
+            try core.validateTerminalDisposal(connection_id, terminal_id),
+        );
+    }
+}
+
+/// Runs one event poll's lifecycle step and commits its outcome handoff,
+/// returning how many exit outcomes it published.
+fn pollPublishedExits(service: *HostService) !usize {
+    var outgoing = Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    var handoff: OutcomePublicationHandoff = .{};
+    try synchronizeRuntimeLifecycle(service, &outgoing, &handoff);
+    commitOutcomePublicationHandoff(&handoff, serviceAggregate(service));
+    var exits: usize = 0;
+    for (outgoing.records()) |record| {
+        const envelope = try protocol.validateTransportEnvelope(record);
+        if (envelope.kind == MessageKind.terminal_exited) exits += 1;
+    }
+    return exits;
 }
 test "one event lifecycle poll consumes one bounded runtime and cleanup scan" {
     var service = HostService.init(std.testing.allocator);

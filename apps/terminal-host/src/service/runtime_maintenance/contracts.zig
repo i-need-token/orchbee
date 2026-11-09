@@ -3,6 +3,8 @@ const core_module = @import("terminal-host-core").state;
 const monotonic = @import("terminal-host-platform").monotonic;
 
 pub const max_runtime_sync_per_poll = 64;
+/// One event batch carries at most this many outcome notices; later polls carry the rest.
+pub const max_outcome_notices_per_poll = 64;
 
 /// THDD-001 retained-cleanup observability after a failed fatal-teardown pass.
 pub const RetainedCleanupStatus = struct {
@@ -65,7 +67,7 @@ pub const TerminalOutcomeNotice = union(enum) {
 
 pub const PendingOutcomeBatch = struct {
     outcome_notice_count: usize = 0,
-    outcome_notices: [max_runtime_sync_per_poll]TerminalOutcomeNotice = undefined,
+    outcome_notices: [max_outcome_notices_per_poll]TerminalOutcomeNotice = undefined,
 
     pub fn outcomes(self: *const PendingOutcomeBatch) []const TerminalOutcomeNotice {
         return self.outcome_notices[0..self.outcome_notice_count];

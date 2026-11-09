@@ -347,6 +347,13 @@ The fair background synchronizer may process a bounded subset of retained termin
 validation and before encoding it; one response never mixes an already observed page prefix with an
 unsynchronized suffix merely because the global registry is larger than one poll budget.
 
+Outcome publication has no such window. Every event poll inspects every retained terminal for a
+pending outcome, so the next poll publishes the outcome of a terminal that a page read or
+terminal-scoped command has already settled, whatever the registry size, and the publication
+barrier on its disposal lasts only until that poll. One poll hands off at most 64 outcome notices;
+a full batch resumes after its last notice, so the outcomes it left out lead the next poll and none
+starves.
+
 ### Idle scrollback compression
 
 Pinned Ghostty owns the page representation, opaque compression-activity token, and incremental
