@@ -66,8 +66,7 @@ const IGNORED_DIRECTORY: CurrentDirectory = Object.freeze({ kind: 'ignored' });
  * shown, whether the surface or the Server delivered it. A row applies only while its binding is the
  * one the snapshot holds, so a row that arrives before its snapshot applies once the snapshot does.
  * `unavailable` keeps what was shown; a new terminal shows the program's name until a title arrives
- * for it, except while no row has ever arrived, which keeps what the surface showed until it reports
- * again. A row carries no directory, so only a surface frame changes it.
+ * for it. A row carries no directory, so only a surface frame changes it.
  */
 export function mergeServerTerminalTitle(
 	previous: ServerTerminalTitleCursor | undefined,
@@ -111,9 +110,6 @@ function followTerminal(
 	terminal: string | null,
 ): ServerTerminalTitleCursor {
 	if (cursor.terminal === terminal) return cursor;
-	// Without a row, the Server has published nothing, so the surface's title stays until the new
-	// terminal's surface reports, as it always has.
-	if (cursor.row === undefined) return { ...cursor, terminal };
 	return { ...cursor, shown: null, stream: undefined, surface: undefined, terminal };
 }
 

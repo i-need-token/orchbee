@@ -106,6 +106,24 @@ describe('mergeServerTerminalTitle', () => {
 		).toBeNull();
 	});
 
+	it('shows the program name after a binding change until a title arrives', () => {
+		// Whether or not a row came first, the new terminal shows the program's name until its own
+		// surface or a row for it reports a title.
+		const withRow: Step[] = [
+			['A', row('A', 'build')],
+			['B', PUBLICATION],
+		];
+		const withoutRow: Step[] = [
+			['A', surface('vim')],
+			['B', PUBLICATION],
+		];
+		for (const moved of [withRow, withoutRow]) {
+			expect(shown(moved)).toBeNull();
+			expect(shown([...moved, ['B', surface('htop')]])).toBe('htop');
+			expect(shown([...moved, ['B', row('B', 'make')]])).toBe('make');
+		}
+	});
+
 	it('changes the directory only from the surface', () => {
 		const first = mergeServerTerminalTitle(undefined, 'A', surface('vim'));
 		expect(first.applied).toEqual({
