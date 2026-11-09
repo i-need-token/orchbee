@@ -131,6 +131,19 @@ pub(crate) enum MenuUnavailable {
     /// No Panel lies on that side of the focused one.
     NoPanel(PanelDirection),
     PanelMaximized,
+    /// One Panel already fills its Tab, so there is nothing to maximize.
+    MultiplePanelsRequired,
+    /// Last Panel has no earlier Panel that still exists.
+    NoEarlierPanel,
+    /// A Tab moves only among Tabs pinned as it is; these name why it has none to pass.
+    OnlyOneTab,
+    NoOtherPinnedTab,
+    NoOtherUnpinnedTab,
+    /// The Tab already stands at that end of the Tabs pinned as it is, outside any group.
+    TabAlreadyFirst,
+    TabAlreadyLast,
+    /// The focused terminal lost its connection and waits to reattach.
+    TerminalDisconnected,
     ProjectWorkspaceRequired,
     OperationBusy,
     PointerReleased,
@@ -356,6 +369,40 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::PanelMaximized, false) => "面板最大化时不可用",
             (Self::EnUs, MenuUnavailable::PanelMaximized, true) => "Maximized",
             (Self::ZhCn, MenuUnavailable::PanelMaximized, true) => "已最大化",
+            (Self::EnUs, MenuUnavailable::MultiplePanelsRequired, false) => {
+                "Needs at least two Panels"
+            }
+            (Self::ZhCn, MenuUnavailable::MultiplePanelsRequired, false) => "至少需要两个面板",
+            (Self::EnUs, MenuUnavailable::MultiplePanelsRequired, true) => "Needs two Panels",
+            (Self::ZhCn, MenuUnavailable::MultiplePanelsRequired, true) => "需两个面板",
+            (Self::EnUs, MenuUnavailable::NoEarlierPanel, false) => "No earlier Panel to return to",
+            (Self::ZhCn, MenuUnavailable::NoEarlierPanel, false) => "没有可返回的面板",
+            (Self::EnUs, MenuUnavailable::NoEarlierPanel, true) => "None earlier",
+            (Self::ZhCn, MenuUnavailable::NoEarlierPanel, true) => "无可返回",
+            (Self::EnUs, MenuUnavailable::OnlyOneTab, false) => "Only one Tab",
+            (Self::ZhCn, MenuUnavailable::OnlyOneTab, false) => "只有一个标签页",
+            (Self::EnUs, MenuUnavailable::OnlyOneTab, true) => "One Tab",
+            (Self::ZhCn, MenuUnavailable::OnlyOneTab, true) => "仅一个标签页",
+            (Self::EnUs, MenuUnavailable::NoOtherPinnedTab, false) => "No other pinned Tab",
+            (Self::ZhCn, MenuUnavailable::NoOtherPinnedTab, false) => "没有其他固定标签页",
+            (Self::EnUs, MenuUnavailable::NoOtherPinnedTab, true) => "None pinned",
+            (Self::ZhCn, MenuUnavailable::NoOtherPinnedTab, true) => "无其他固定",
+            (Self::EnUs, MenuUnavailable::NoOtherUnpinnedTab, false) => "No other unpinned Tab",
+            (Self::ZhCn, MenuUnavailable::NoOtherUnpinnedTab, false) => "没有其他未固定的标签页",
+            (Self::EnUs, MenuUnavailable::NoOtherUnpinnedTab, true) => "None unpinned",
+            (Self::ZhCn, MenuUnavailable::NoOtherUnpinnedTab, true) => "无其他未固定",
+            (Self::EnUs, MenuUnavailable::TabAlreadyFirst, false) => "Already first",
+            (Self::ZhCn, MenuUnavailable::TabAlreadyFirst, false) => "已在最前",
+            (Self::EnUs, MenuUnavailable::TabAlreadyFirst, true) => "First",
+            (Self::ZhCn, MenuUnavailable::TabAlreadyFirst, true) => "已最前",
+            (Self::EnUs, MenuUnavailable::TabAlreadyLast, false) => "Already last",
+            (Self::ZhCn, MenuUnavailable::TabAlreadyLast, false) => "已在最后",
+            (Self::EnUs, MenuUnavailable::TabAlreadyLast, true) => "Last",
+            (Self::ZhCn, MenuUnavailable::TabAlreadyLast, true) => "已最后",
+            (Self::EnUs, MenuUnavailable::TerminalDisconnected, false) => "Terminal disconnected",
+            (Self::ZhCn, MenuUnavailable::TerminalDisconnected, false) => "终端已断连",
+            (Self::EnUs, MenuUnavailable::TerminalDisconnected, true) => "Disconnected",
+            (Self::ZhCn, MenuUnavailable::TerminalDisconnected, true) => "已断连",
             (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, false) => {
                 "Select a Workspace in this Project first."
             }

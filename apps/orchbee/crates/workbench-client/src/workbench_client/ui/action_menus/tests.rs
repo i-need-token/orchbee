@@ -328,7 +328,6 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
             ClientAction::SplitPanel(Direction::Right),
         ),
         (MenuAction::ClosePane, ClientAction::ClosePanel),
-        (MenuAction::Zoom, ClientAction::ToggleZoom),
         (MenuAction::Copy, ClientAction::EnterCopyMode),
         (MenuAction::Resize, ClientAction::EnterResizeMode),
     ];
@@ -465,6 +464,261 @@ fn move_panel_rows_follow_the_layout_and_offer_exactly_the_moves_a_key_admits() 
         marker.operation().intent(),
         PanelIntent::Move { .. }
     ));
+}
+
+/// The reason each listed global row shows, or `None` while it is enabled.
+fn global_reasons<const N: usize>(
+    ui: &mut WorkbenchClientUi,
+    actions: [MenuAction; N],
+) -> [Option<MenuUnavailable>; N] {
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let reasons =
+        actions.map(|action| ui.view().action_menu().unwrap().unavailable[action_row(ui, action)]);
+    ui.cancel_action_menu();
+    reasons
+}
+
+/// Chooses an enabled global row and returns the action it dispatches.
+fn choose_global(ui: &mut WorkbenchClientUi, action: MenuAction) -> ClientAction {
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let row = action_row(ui, action);
+    let token = arm(ui);
+    activate_row(ui, token, row);
+    ui.take_action_menu_action(false).unwrap().intent()
+}
+
+#[test]
+fn maximize_and_last_panel_rows_are_enabled_exactly_when_their_action_acts() {
+    // One Panel already fills its Tab: the row says so, and the toggle changes nothing silently.
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    assert_eq!(
+        global_reasons(&mut ui, [MenuAction::Zoom]),
+        [Some(MenuUnavailable::MultiplePanelsRequired)]
+    );
+    assert_eq!(
+        ui.apply_client_action(ClientAction::ToggleZoom),
+        ClientActionDisposition::KeepNavigator
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(ui.view().notice(), None);
+
+    let (mut ui, mailbox, clock, _) = tests::publication_hint::ready_split_ui();
+    tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
+    // Beside another Panel the row maximizes, and while maximized it stays available to restore.
+    for _ in 0..2 {
+        assert_eq!(global_reasons(&mut ui, [MenuAction::Zoom]), [None]);
+        let intent = choose_global(&mut ui, MenuAction::Zoom);
+        assert_eq!(intent, ClientAction::ToggleZoom);
+        assert_eq!(
+            ui.apply_client_action(intent),
+            ClientActionDisposition::LayoutChanged
+        );
+    }
+
+    // No Panel was focused before this one: the row says so, and the step does nothing silently.
+    let focused = |ui: &WorkbenchClientUi| {
+        ui.state
+            .as_ref()
+            .unwrap()
+            .focus_pane_ref()
+            .unwrap()
+            .pane()
+            .panel()
+            .clone()
+    };
+    let first = focused(&ui);
+    let peer = ui.state.as_ref().unwrap().cache().tabs()[0]
+        .panel(1)
+        .unwrap()
+        .panel_id()
+        .clone();
+    assert_eq!(
+        global_reasons(&mut ui, [MenuAction::LastPanel]),
+        [Some(MenuUnavailable::NoEarlierPanel)]
+    );
+    let _ = ui.apply_client_action(ClientAction::FocusLastPanel);
+    assert_eq!(focused(&ui), first);
+    assert_eq!(ui.view().notice(), None);
+    // Once focus moved on, the row returns to the earlier Panel.
+    let _ = ui.apply_client_action(ClientAction::FocusPanel(peer.clone()));
+    assert_eq!(focused(&ui), peer);
+    assert_eq!(global_reasons(&mut ui, [MenuAction::LastPanel]), [None]);
+    let intent = choose_global(&mut ui, MenuAction::LastPanel);
+    assert_eq!(intent, ClientAction::FocusLastPanel);
+    let _ = ui.apply_client_action(intent);
+    assert_eq!(focused(&ui), first);
+}
+
+#[test]
+fn move_tab_rows_are_enabled_exactly_when_the_configuration_moves_the_tab() {
+    use crate::workbench_client::mailbox::CommandMailbox;
+    use crate::workbench_client::ui::tests::membership::snapshot;
+    const MOVES: [MenuAction; 4] = [
+        MenuAction::MoveTabPrevious,
+        MenuAction::MoveTabNext,
+        MenuAction::MoveTabFirst,
+        MenuAction::MoveTabLast,
+    ];
+    let silent = |ui: &mut WorkbenchClientUi, mailbox: &CommandMailbox, action: ClientAction| {
+        let _ = ui.apply_client_action(action);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert_eq!(ui.view().notice(), None);
+    };
+    // Neither a row nor a key of a Tab with nothing to move asks anything.
+    let nothing_to_move = |ui: &mut WorkbenchClientUi, mailbox: &CommandMailbox| {
+        for action in MOVES {
+            silent(
+                ui,
+                mailbox,
+                ClientAction::TabMenu {
+                    action,
+                    tab_id: None,
+                },
+            );
+        }
+        for key in [ClientAction::MovePreviousTab, ClientAction::MoveNextTab] {
+            silent(ui, mailbox, key);
+        }
+    };
+
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui_with_snapshot(snapshot(1, 1));
+    assert_eq!(
+        global_reasons(&mut ui, MOVES),
+        [Some(MenuUnavailable::OnlyOneTab); 4]
+    );
+    nothing_to_move(&mut ui, &mailbox);
+
+    // A pinned Tab moves only among pinned Tabs, so one alone there has nothing to move.
+    let mut pinned = snapshot(2, 1);
+    pinned.terminal_contexts[0].tabs[0].pinned = true;
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui_with_snapshot(pinned);
+    assert_eq!(
+        global_reasons(&mut ui, MOVES),
+        [Some(MenuUnavailable::NoOtherPinnedTab); 4]
+    );
+    nothing_to_move(&mut ui, &mailbox);
+
+    // The first of two Tabs is already at the start; Previous wraps to the end, as the keyboard
+    // move and the GUI do.
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    assert_eq!(
+        global_reasons(&mut ui, MOVES),
+        [None, None, Some(MenuUnavailable::TabAlreadyFirst), None]
+    );
+    silent(
+        &mut ui,
+        &mailbox,
+        ClientAction::TabMenu {
+            action: MenuAction::MoveTabFirst,
+            tab_id: None,
+        },
+    );
+    let intent = choose_global(&mut ui, MenuAction::MoveTabPrevious);
+    assert_eq!(
+        intent,
+        ClientAction::TabMenu {
+            action: MenuAction::MoveTabPrevious,
+            tab_id: None,
+        }
+    );
+    let _ = ui.apply_client_action(intent);
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the offered move is queued");
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("setup lane");
+    };
+    assert!(matches!(
+        &marker.0.command.action,
+        orchbee_workbench_protocol::WorkbenchAction::TabsConfigure {
+            operation: orchbee_workbench_protocol::TabConfiguration::MoveTab {
+                direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::Last,
+                ..
+            },
+            ..
+        }
+    ));
+
+    // The key wraps the first of two pinned Tabs to the last pinned place, as the row does,
+    // although unpinned Tabs follow it.
+    let mut pinned = snapshot(3, 1);
+    for tab in &mut pinned.terminal_contexts[0].tabs[..2] {
+        tab.pinned = true;
+    }
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui_with_snapshot(pinned);
+    assert_eq!(
+        ui.apply_client_action(ClientAction::MovePreviousTab),
+        ClientActionDisposition::DismissNavigator
+    );
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the key's move is queued");
+    let QueuedCommand::Move(marker) = lease.record() else {
+        panic!("move lane");
+    };
+    let placement = marker.operation().placement().unwrap();
+    assert_eq!(
+        placement,
+        crate::workbench_projection::TabMovePlacement::Boundary(2)
+    );
+    assert_eq!(placement.destination(0, 3), Some(1));
+}
+
+#[test]
+fn a_parked_focus_disables_the_terminal_rows_that_need_its_attachment() {
+    use crate::workbench_client::mailbox::EventDeadline;
+    let (mut ui, mailbox, clock, _) = tests::publication_hint::starting_split_ui();
+    let state = ui.state.as_ref().unwrap();
+    let focus = state.focus_pane_ref().unwrap();
+    let provenance = state.focus_record().unwrap().provenance().clone();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SetupWithoutAttachment {
+                key: focus,
+                target_index: 0,
+                target_provenance: provenance,
+            },
+            EventDeadline::Forward(clock.now() + crate::workbench_state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    assert_eq!(
+        ui.state.as_ref().unwrap().phase_kind(),
+        ClientPhaseKind::RetryableAttachUnavailable
+    );
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert_eq!(
+        global_reasons(
+            &mut ui,
+            [
+                MenuAction::ClearTerminal,
+                MenuAction::Copy,
+                MenuAction::EditScrollback,
+            ]
+        ),
+        [
+            Some(MenuUnavailable::TerminalDisconnected),
+            Some(MenuUnavailable::TerminalDisconnected),
+            None,
+        ]
+    );
+    // Their execution refuses by the same rule before anything reaches the Server.
+    let _ = ui.apply_client_action(ClientAction::ClearTerminal);
+    let _ = ui.apply_client_action(ClientAction::EnterCopyMode);
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        assert!(
+            !matches!(lease.record(), QueuedCommand::ClearTerminal(_)),
+            "a parked focus clears nothing"
+        );
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert!(!ui.copy_mode.active());
 }
 
 #[test]
@@ -1222,7 +1476,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
             MenuAction::WorkspaceDirectory,
             false,
             None,
-            CopyReadiness::Hidden,
+            RowFacts::NONE,
         ),
         ActionAvailability::Hidden,
         "Set Directory… joins only a Workspace without one"

@@ -137,7 +137,8 @@ gone or leaving with an accepted close, and steps to the most recent other Panel
 Panel of the current Tab takes the ordinary Panel focus move. For a Panel of another Tab or location
 it names that Panel and Tab as the location's remembered selection above, then the ordinary Tab
 switch or context selection lands there; a Panel that disappears in between falls back as that
-selection does. Without a target the step does nothing and reports nothing. A step requested while a
+selection does. Without a target the step does nothing and reports nothing, and the global menu row
+asks the same target search, so it is disabled with the no-earlier-Panel reason. A step requested while a
 background read or the user's own switch is landing is held, then chooses its target where the
 switch landed. Restart discards the history, and the GUI keeps its own with the same model.
 

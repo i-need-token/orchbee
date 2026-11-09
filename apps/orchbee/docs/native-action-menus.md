@@ -26,7 +26,11 @@ child terminal, sends no Shell input and changes no process, file or controller.
 clear-history option or new default key. The bounded FIFO carries the exact admitted viewer
 incarnation once; stale work is dropped without retargeting. The status distinguishes complete,
 cleanup-unconfirmed, refused, unavailable and unknown outcomes, and unknown delivery is never
-retried. Rename continues to address the primary Presentation independently of the displayed child.
+retried. The clear needs this Client's attachment to the focused terminal, not control of it, so a
+view-only Panel still clears. While the focused terminal waits to reattach after its attachment was
+lost, the row shows the GUI's Terminal disconnected reason, and the request refuses by the same rule;
+a refusal only the Server can answer, such as a full-screen program, stays a status after the attempt.
+Rename continues to address the primary Presentation independently of the displayed child.
 Edit scrollback follows Clear terminal in the Panel menu and the global Panel group. It opens the
 displayed terminal's scrollback in the configured editor through the
 [scrollback editor popup](windows-client-control.md#scrollback-editor-popup-model), the lane
@@ -345,14 +349,26 @@ right, to the start or to the end, Select all Tabs, Keep only current Tab select
 Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
 Close Tab… is the current-Tab close request that `Ctrl+B x` makes, with that key and its confirmation
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
-includes directional split and move, close, maximize, keyboard resize and copy mode. Workspace includes
+includes Back to last focused panel, directional split and move, close, maximize, keyboard resize
+and copy mode. Workspace includes
 creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing
 ClientAction. Pane and Tab actions require a focused pane and show the localized
 focused-panel-required reason when none is available; Close Tabs to the right… shows the
 no-matching-Tabs reason when nothing would close. A Move panel row shows the GUI's reasons for the
 same state: no Panel on that side of the focused one, or a maximized Tab. The move admission refuses by that same rule, so an enabled row always moves a Panel,
-and a move key the row would not offer moves nothing and shows nothing. Other global actions
+and a move key the row would not offer moves nothing and shows nothing. The same holds for the
+other rows whose action can be a no-op, each sharing one rule with its execution. Maximize needs at
+least two Panels in the current Tab and stays enabled while the Tab is maximized, because it then
+restores. Back to last focused panel shows that no earlier Panel remains to return to; while focus has
+not settled it stays enabled, because only the held step can tell. A Move Tab row applies the
+Server's own Tab configuration rule to the current Workspace, and a Tab moves only among Tabs
+pinned as it is. Moving left from the first of those Tabs wraps to their end, and moving right from
+the last wraps to their start, as the GUI's move backward and forward do, so those rows refuse only a
+Tab with none to pass: only one Tab, no other pinned Tab or no other unpinned Tab. `Ctrl+B <` and
+`Ctrl+B >` ask the same rule: they wrap the same way and stay silent where the row is disabled. Moving to the start or end also shows that an ungrouped Tab
+already stands there; a grouped Tab there stays enabled, because the move takes it out of its group. Copy mode shows Terminal disconnected as Clear terminal does,
+unless the focused Panel shows a launch failure, which Copy mode then presents. Other global actions
 follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar
 conditional Delete follows the authority admission above. Settings delegates to its existing editor;
 checkout deletion, policy editing and custom or plugin-defined menus are outside this surface.

@@ -8,12 +8,13 @@ use crate::local_client::workbench::{
     WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
 };
 use crate::workbench_client::mailbox::{CommandLease, MutationResult, UiReply};
+use crate::workbench_projection::TabMovePlacement;
 use crate::workbench_state::{
     CarrierFailure, MoveDecision, MoveOperation, MoveResult, PaneKey, PendingMoveCommit,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchRejectionReason,
-    WorkbenchSnapshotOutcome,
+    WorkbenchSnapshotOutcome, WorkbenchTabInsertIndex,
 };
 
 impl ClientExecutor {
@@ -32,19 +33,30 @@ impl ClientExecutor {
         }
         let cutoff = self.effective_lease_cutoff(lease, operation.deadline())?;
         let baseline = operation.baseline();
+        let terminal_context_id = baseline
+            .terminal_context_id()
+            .ok_or(CarrierFailure::Protocol)?
+            .clone();
+        let tab_id = operation.target().tab_id().clone();
+        let action = match operation.placement().ok_or(CarrierFailure::Protocol)? {
+            TabMovePlacement::Direction(direction) => WorkbenchAction::TabMove {
+                terminal_context_id,
+                tab_id,
+                direction,
+            },
+            TabMovePlacement::Boundary(boundary) => WorkbenchAction::TabMoveIndex {
+                terminal_context_id,
+                tab_id,
+                insert_index: WorkbenchTabInsertIndex::new(boundary)
+                    .map_err(|_error| CarrierFailure::Protocol)?,
+            },
+        };
         let request = WorkbenchTabMoveRequest::try_from(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id: operation.request_id().clone(),
             session_id: baseline.session_id().clone(),
             expected_revision: baseline.revision(),
-            action: WorkbenchAction::TabMove {
-                terminal_context_id: baseline
-                    .terminal_context_id()
-                    .ok_or(CarrierFailure::Protocol)?
-                    .clone(),
-                tab_id: operation.target().tab_id().clone(),
-                direction: operation.direction(),
-            },
+            action,
         })
         .map_err(|_command| CarrierFailure::Protocol)?;
         let result = match self.client.submit_workbench_tab_move(request, cutoff) {

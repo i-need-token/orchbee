@@ -15,7 +15,7 @@ use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_projection::{
     ClientContextLocation, MenuContextSource, project_native_context_tabs,
 };
-use crate::workbench_state::{PanelMoveUnavailable, TabCloseResumePermit};
+use crate::workbench_state::{PanelMoveUnavailable, TabCloseResumePermit, ZoomUnavailable};
 use episode::{
     Discovery, Intent, Origin, ParentMenu, ProjectContext, ResumeHandoff, Stage, TabResolverSource,
     Target,
@@ -92,6 +92,28 @@ enum CopyReadiness {
     Ready,
 }
 
+/// What only the UI knows about a target's rows, read by the same owners that run them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct RowFacts {
+    copy: CopyReadiness,
+    /// Whether Last Panel has an earlier Panel to return to; `None` until focus settles, when only
+    /// the attempt can tell.
+    last_panel: Option<bool>,
+    /// The addressed terminal is the focused one, whose viewer was lost and waits to reattach,
+    /// so Clear terminal and Copy mode, which need its attachment, refuse. A launch failure is
+    /// left out: Copy mode then shows the failure, and the status line names it instead.
+    disconnected: bool,
+}
+
+impl RowFacts {
+    /// For entries without Pane or global Panel rows.
+    const NONE: Self = Self {
+        copy: CopyReadiness::Hidden,
+        last_panel: None,
+        disconnected: false,
+    };
+}
+
 fn action_availability(
     capabilities: crate::tui_capabilities::Capabilities,
     state: Option<&WorkbenchClientState>,
@@ -99,7 +121,7 @@ fn action_availability(
     action: MenuAction,
     pointer_released: bool,
     resume_permit: Option<&TabCloseResumePermit>,
-    copy: CopyReadiness,
+    facts: RowFacts,
 ) -> ActionAvailability<MenuUnavailable> {
     use crate::workbench_state::workspace_setup::DirectoryConfigurationUnavailable;
     // Open Worktree ▸ needs the same host effect as the global Open Worktree….
@@ -149,7 +171,7 @@ fn action_availability(
         return ActionAvailability::Hidden;
     }
     if action == MenuAction::CopySelection {
-        return match (target, copy) {
+        return match (target, facts.copy) {
             (Target::Pane { .. }, CopyReadiness::Ready) => ActionAvailability::Enabled,
             (Target::Pane { .. }, CopyReadiness::Busy) => {
                 ActionAvailability::Disabled(MenuUnavailable::OperationBusy)
@@ -177,6 +199,7 @@ fn action_availability(
                 | MenuAction::ClearTabSelection
                 | MenuAction::CloseTab
                 | MenuAction::CloseTrailingTabs
+                | MenuAction::LastPanel
                 | MenuAction::SplitPanel(_)
                 | MenuAction::Zoom
                 | MenuAction::Resize
@@ -199,6 +222,33 @@ fn action_availability(
             PanelMoveUnavailable::Zoomed => MenuUnavailable::PanelMaximized,
             PanelMoveUnavailable::NoNeighbor => MenuUnavailable::NoPanel(*direction),
         });
+    }
+    // The toggle refuses by the same rule; a maximized Tab holds another Panel, so it restores.
+    if let (Some(state), Target::Global, MenuAction::Zoom) = (state, target, &action)
+        && let Err(reason) = state.zoom_tab()
+    {
+        return ActionAvailability::Disabled(match reason {
+            ZoomUnavailable::FocusedPanelRequired => MenuUnavailable::FocusedPanelRequired,
+            ZoomUnavailable::SinglePanel => MenuUnavailable::MultiplePanelsRequired,
+        });
+    }
+    if let (Some(state), Target::Global, Some(direction)) = (
+        state,
+        target,
+        super::tab_groups::tab_move_direction(&action),
+    ) && let Some(Err(reason)) = state
+        .active()
+        .and_then(|active| super::tab_groups::tab_move(state, active.index(), direction))
+    {
+        return ActionAvailability::Disabled(reason);
+    }
+    if matches!(target, Target::Global) && action == MenuAction::LastPanel {
+        return ActionAvailability::from_disabled_reason(
+            (facts.last_panel == Some(false)).then_some(MenuUnavailable::NoEarlierPanel),
+        );
+    }
+    if matches!(action, MenuAction::ClearTerminal | MenuAction::Copy) && facts.disconnected {
+        return ActionAvailability::Disabled(MenuUnavailable::TerminalDisconnected);
     }
     if matches!(
         action,
@@ -358,7 +408,7 @@ fn intent_availability(
     state: Option<&WorkbenchClientState>,
     discovery: Option<&Discovery>,
     action: MenuAction,
-    copy: CopyReadiness,
+    facts: RowFacts,
 ) -> ActionAvailability<MenuUnavailable> {
     let availability = action_availability(
         intent.capabilities(),
@@ -367,7 +417,7 @@ fn intent_availability(
         action.clone(),
         intent.pointer_released(),
         intent.resume_permit(),
-        copy,
+        facts,
     );
     if availability.is_enabled() {
         ActionAvailability::from_disabled_reason(sidebar::unavailable(
@@ -872,7 +922,7 @@ impl WorkbenchClientUi {
                 .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone())))
                 .collect();
         }
-        let copy = self.copy_readiness(&target);
+        let facts = self.row_facts(&target);
         actions = sidebar::actions(&entry, actions, self.menus.discovery(), |action| {
             !action_availability(
                 self.capabilities,
@@ -881,7 +931,7 @@ impl WorkbenchClientUi {
                 action.clone(),
                 pointer_released,
                 resume_permit.as_ref(),
-                copy,
+                facts,
             )
             .is_hidden()
         });
@@ -913,7 +963,7 @@ impl WorkbenchClientUi {
                     action.clone(),
                     pointer_released,
                     resume_permit.as_ref(),
-                    copy,
+                    facts,
                 )
                 .is_hidden()
             })
@@ -1024,10 +1074,12 @@ impl WorkbenchClientUi {
                 self.menus.menu.hide_candidate();
             }
         }
-        let copy = self.copy_readiness(intent.target());
+        let facts = self.row_facts(intent.target());
         let (menu, _, discovery) = self.menus.menu_with_facts();
         menu.refresh_availability(|action| {
-            visible_unavailable(intent_availability(&intent, state, discovery, action, copy))
+            visible_unavailable(intent_availability(
+                &intent, state, discovery, action, facts,
+            ))
         });
         if !self.menus.menu.active() {
             return false;
@@ -1277,6 +1329,25 @@ impl WorkbenchClientUi {
         }
     }
 
+    fn row_facts(&self, target: &Target) -> RowFacts {
+        let disconnected = self.state.as_ref().is_some_and(|state| {
+            state.phase_kind() == ClientPhaseKind::RetryableAttachUnavailable
+                && state.focus_pane_ref().is_some_and(|focused| match target {
+                    Target::Global => true,
+                    Target::Pane { pane, .. } => *pane == focused,
+                    _ => false,
+                })
+        }) && !self.focused_launch_failed();
+        RowFacts {
+            copy: self.copy_readiness(target),
+            // Only the global menu offers Last Panel.
+            last_panel: matches!(target, Target::Global)
+                .then(|| self.last_panel_available())
+                .flatten(),
+            disconnected,
+        }
+    }
+
     /// The copy readiness of a Pane target's selection; only the focused pane can copy.
     fn copy_readiness(&self, target: &Target) -> CopyReadiness {
         let Target::Pane { pane, .. } = target else {
@@ -1457,7 +1528,7 @@ impl WorkbenchClientUi {
             self.fail_action_menu();
             return true;
         }
-        let copy = self.copy_readiness(intent.target());
+        let facts = self.row_facts(intent.target());
         let mut changed = false;
         match intent.stage() {
             Stage::Open => {
@@ -1468,7 +1539,7 @@ impl WorkbenchClientUi {
                             self.state.as_ref(),
                             self.menus.discovery(),
                             action.clone(),
-                            copy,
+                            facts,
                         )
                         .is_hidden()
                     })
@@ -1480,7 +1551,7 @@ impl WorkbenchClientUi {
                 let (menu, _, discovery) = self.menus.menu_with_facts();
                 changed = menu.refresh_availability(|action| {
                     visible_unavailable(intent_availability(
-                        &intent, state, discovery, action, copy,
+                        &intent, state, discovery, action, facts,
                     ))
                 });
                 // A `cd` can rename the Workspace under its open menu.
@@ -1502,7 +1573,7 @@ impl WorkbenchClientUi {
                         self.state.as_ref(),
                         self.menus.discovery(),
                         action,
-                        copy,
+                        facts,
                     )
                     .is_enabled()
                 }) {
@@ -1674,7 +1745,7 @@ impl WorkbenchClientUi {
                 action.clone(),
                 pointer_released,
                 intent.resume_permit(),
-                self.copy_readiness(intent.target()),
+                self.row_facts(intent.target()),
             )
             .is_enabled()
             || (action == MenuAction::Zoom

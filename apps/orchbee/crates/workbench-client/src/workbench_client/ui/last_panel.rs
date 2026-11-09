@@ -131,6 +131,27 @@ impl WorkbenchClientUi {
         self.panel_focus_history.record(focus);
     }
 
+    /// The most recent earlier Panel that still exists, and how to reach it from `current`. The
+    /// Last Panel row and the step both ask here, so an enabled row always has a Panel to return
+    /// to.
+    fn last_panel_target(&self, current: &Focus) -> Option<(Focus, Step)> {
+        self.panel_focus_history
+            .entries
+            .iter()
+            .filter(|entry| entry.panel != current.panel)
+            .find_map(|entry| {
+                self.last_panel_step(current, entry)
+                    .map(|step| (entry.clone(), step))
+            })
+    }
+
+    /// Whether Last Panel has an earlier Panel to return to, or `None` while focus has not settled
+    /// and only the step, held until it settles, can tell.
+    pub(super) fn last_panel_available(&self) -> Option<bool> {
+        let current = self.current_panel_focus()?;
+        Some(self.last_panel_target(&current).is_some())
+    }
+
     /// Focuses the most recent previously focused Panel that still exists. Entries whose Panel
     /// is gone leave the history; without a target nothing happens.
     pub(super) fn focus_last_panel(&mut self) -> ClientActionDisposition {
@@ -138,20 +159,14 @@ impl WorkbenchClientUi {
         let Some(current) = self.current_panel_focus() else {
             return ClientActionDisposition::KeepNavigator;
         };
-        let mut target = None;
+        let target = self.last_panel_target(&current);
         let history = std::mem::take(&mut self.panel_focus_history.entries);
-        let mut kept = VecDeque::with_capacity(history.len());
-        for entry in history {
-            if entry.panel != current.panel {
-                let Some(step) = self.last_panel_step(&current, &entry) else {
-                    continue;
-                };
-                if target.is_none() {
-                    target = Some((entry.clone(), step));
-                }
-            }
-            kept.push_back(entry);
-        }
+        let kept = history
+            .into_iter()
+            .filter(|entry| {
+                entry.panel == current.panel || self.last_panel_step(&current, entry).is_some()
+            })
+            .collect();
         self.panel_focus_history.entries = kept;
         let Some((entry, step)) = target else {
             return ClientActionDisposition::KeepNavigator;

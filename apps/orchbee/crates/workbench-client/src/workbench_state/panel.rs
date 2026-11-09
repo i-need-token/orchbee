@@ -7,8 +7,8 @@ use super::{
     PaneKey, PreparedMembershipCandidate, WorkbenchClientState,
 };
 use crate::workbench_projection::{
-    ClientContextTabs, ClientProjectionDivergence, MovedPanelExpectation, SplitPanelExpectation,
-    validate_canonical_refresh, validate_moved_panel, validate_split_panel,
+    ClientContextTabs, ClientProjectionDivergence, ClientTab, MovedPanelExpectation,
+    SplitPanelExpectation, validate_canonical_refresh, validate_moved_panel, validate_split_panel,
 };
 use crate::{
     client_view::PanelDirection,
@@ -47,6 +47,15 @@ pub(crate) enum PanelMoveUnavailable {
     /// The zoomed Tab draws one Panel, so a move would rearrange Panels nobody sees.
     Zoomed,
     NoNeighbor,
+}
+
+/// Why maximizing the selected Tab's Panel would change nothing. The menu row shows it and the
+/// toggle refuses by it, so an enabled row always maximizes or restores.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ZoomUnavailable {
+    FocusedPanelRequired,
+    /// One Panel already fills the Tab.
+    SinglePanel,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -512,6 +521,19 @@ impl WorkbenchClientState {
         tab.panel_focus_target(active.panel_index(), direction)
             .and_then(|index| tab.panel(index))
             .ok_or(PanelMoveUnavailable::NoNeighbor)
+    }
+
+    /// The selected Tab that the maximize toggle acts on. A maximized Tab always holds another
+    /// Panel, so it stays available and the toggle restores it.
+    pub(crate) fn zoom_tab(&self) -> Result<&ClientTab, ZoomUnavailable> {
+        let tab = self
+            .active()
+            .and_then(|active| self.cache.tabs().get(active.index()))
+            .ok_or(ZoomUnavailable::FocusedPanelRequired)?;
+        if tab.panel_count() <= 1 {
+            return Err(ZoomUnavailable::SinglePanel);
+        }
+        Ok(tab)
     }
 
     pub(crate) fn plan_panel(

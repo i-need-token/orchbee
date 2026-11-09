@@ -1,12 +1,13 @@
 //! Menu adapters for canonical Tab configuration and identity-keyed, Client-local group disclosure.
 //! The existing setup lane owns admission, unknown outcomes, publication recovery and selection.
 use super::{ClientActionDisposition, OperationDeadlines, WorkbenchClientState, WorkbenchClientUi};
-use crate::action_menu::{MenuAction, MenuTarget, TabMenuScope};
+use crate::action_menu::{MenuAction, MenuTarget, MenuUnavailable, TabMenuScope};
 use crate::workbench_projection::ClientTab;
 use crate::workbench_state::workspace_setup::SetupIntent;
+use crate::workbench_state::wrapped_tab_move;
 use orchbee_workbench_protocol::{
     TabConfiguration, TabGroupColor, WorkbenchTabGroupId, WorkbenchTabGroupLabel, WorkbenchTabId,
-    WorkbenchTabIdSet, WorkbenchTabMoveDirection,
+    WorkbenchTabIdSet, WorkbenchTabMoveDirection, configure_tabs,
 };
 use std::num::NonZeroUsize;
 #[cfg(test)]
@@ -106,6 +107,81 @@ pub(super) fn menu_actions(
 /// The Tab that the global menu's Tab rows address, as execution resolves it without a target.
 pub(super) fn current_tab(state: &WorkbenchClientState) -> Option<&ClientTab> {
     state.cache().tabs().get(state.active()?.index())
+}
+
+/// The direction a global Move Tab row moves its Tab, or `None` for any other action.
+pub(super) const fn tab_move_direction(action: &MenuAction) -> Option<WorkbenchTabMoveDirection> {
+    match action {
+        MenuAction::MoveTabPrevious => Some(WorkbenchTabMoveDirection::Previous),
+        MenuAction::MoveTabNext => Some(WorkbenchTabMoveDirection::Next),
+        MenuAction::MoveTabFirst => Some(WorkbenchTabMoveDirection::First),
+        MenuAction::MoveTabLast => Some(WorkbenchTabMoveDirection::Last),
+        _ => None,
+    }
+}
+
+/// The move a Move Tab row requests for the Tab at `index`, or why the Server's own configuration
+/// rule would leave the Tabs unchanged. Previous and Next wrap within the Tabs pinned as this one,
+/// so they refuse only a Tab with none to pass. The row, its move and the `<` and `>` keys all ask
+/// here, so an enabled row always moves the Tab or takes it out of its group, and a key with nothing
+/// to move stays silent. A move the local Workspace cannot judge stays available for the Server.
+pub(super) fn tab_move(
+    state: &WorkbenchClientState,
+    index: usize,
+    requested: WorkbenchTabMoveDirection,
+) -> Option<Result<TabConfiguration, MenuUnavailable>> {
+    let tab_id = state.cache().tabs().get(index)?.tab_id().clone();
+    let context = state.cache().canonical_context();
+    let direction = context
+        .and_then(|context| {
+            let pinned = context.tabs.iter().find(|tab| tab.tab_id == tab_id)?.pinned;
+            let peers = context.tabs.iter().filter(|tab| tab.pinned == pinned);
+            let position = peers.clone().position(|tab| tab.tab_id == tab_id)?;
+            Some(wrapped_tab_move(requested, position, peers.count()))
+        })
+        .unwrap_or(requested);
+    let adjacent = if direction == WorkbenchTabMoveDirection::Previous {
+        index.checked_sub(1)
+    } else {
+        index.checked_add(1)
+    };
+    let operation = TabConfiguration::MoveTab {
+        tab_id: tab_id.clone(),
+        direction,
+        adjacent_group_collapsed: adjacent
+            .and_then(|index| state.cache().tabs().get(index))
+            .and_then(ClientTab::group)
+            .is_some_and(|group| state.group_collapsed(&group.group_id)),
+    };
+    let Some(context) = context else {
+        return Some(Ok(operation));
+    };
+    if !matches!(configure_tabs(context, &operation, None), Ok(None)) {
+        return Some(Ok(operation));
+    }
+    // A Tab moves only among Tabs pinned as it is; past those, only an ungrouped Tab already at
+    // the start or end stays put on Move to start or Move to end.
+    let pinned = context
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .is_some_and(|tab| tab.pinned);
+    let peers = context
+        .tabs
+        .iter()
+        .filter(|tab| tab.pinned == pinned)
+        .count();
+    Some(Err(if context.tabs.len() == 1 {
+        MenuUnavailable::OnlyOneTab
+    } else if peers == 1 && pinned {
+        MenuUnavailable::NoOtherPinnedTab
+    } else if peers == 1 {
+        MenuUnavailable::NoOtherUnpinnedTab
+    } else if requested == WorkbenchTabMoveDirection::First {
+        MenuUnavailable::TabAlreadyFirst
+    } else {
+        MenuUnavailable::TabAlreadyLast
+    }))
 }
 
 fn configuration_scope(state: &WorkbenchClientState, target: &WorkbenchTabId) -> TabMenuScope {
@@ -498,23 +574,10 @@ impl WorkbenchClientUi {
                 }
             }
             MoveTabPrevious | MoveTabNext | MoveTabFirst | MoveTabLast => {
-                let adjacent = if action == MoveTabPrevious {
-                    index.checked_sub(1)
-                } else {
-                    index.checked_add(1)
-                };
-                TabConfiguration::MoveTab {
-                    tab_id,
-                    direction: match action {
-                        MoveTabPrevious => WorkbenchTabMoveDirection::Previous,
-                        MoveTabNext => WorkbenchTabMoveDirection::Next,
-                        MoveTabFirst => WorkbenchTabMoveDirection::First,
-                        _ => WorkbenchTabMoveDirection::Last,
-                    },
-                    adjacent_group_collapsed: adjacent
-                        .and_then(|index| state.cache().tabs().get(index))
-                        .and_then(ClientTab::group)
-                        .is_some_and(|group| state.group_collapsed(&group.group_id)),
+                // Nothing to move: the row is disabled by the same rule, and a key stays silent.
+                match tab_move(state, index, tab_move_direction(&action)?)? {
+                    Ok(operation) => operation,
+                    Err(_) => return Some(()),
                 }
             }
             _ => return None,

@@ -7,7 +7,7 @@ use super::{
     PaneKey, PreparedMembershipCandidate, WorkbenchClientState,
 };
 use crate::exchange_values::workbench::{WorkbenchTabMoveCommit, WorkbenchTabMovePrecommit};
-use crate::workbench_projection::ClientContextTabs;
+use crate::workbench_projection::{ClientContextTabs, TabMovePlacement};
 use crate::workbench_projection::{
     ClientProjectionDivergence, MovedTabExpectation, validate_canonical_refresh, validate_moved_tab,
 };
@@ -15,6 +15,21 @@ use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchTabMoveDirection,
 };
 use std::time::Instant;
+
+/// Previous from the first of `count` Tabs wraps to the last place, and Next from the last wraps
+/// to the first, as the GUI's move backward and forward do. The keyboard move and the menu's Move
+/// Tab rows both apply it over the Tabs pinned as the moving one.
+pub(crate) const fn wrapped_tab_move(
+    direction: WorkbenchTabMoveDirection,
+    index: usize,
+    count: usize,
+) -> WorkbenchTabMoveDirection {
+    match direction {
+        WorkbenchTabMoveDirection::Previous if index == 0 => WorkbenchTabMoveDirection::Last,
+        WorkbenchTabMoveDirection::Next if index + 1 >= count => WorkbenchTabMoveDirection::First,
+        other => other,
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct MoveOperation {
@@ -51,8 +66,15 @@ impl MoveOperation {
     pub(crate) const fn baseline(&self) -> &ClientContextTabs {
         &self.baseline
     }
+    #[cfg(test)]
     pub(crate) const fn direction(&self) -> WorkbenchTabMoveDirection {
         self.direction
+    }
+    /// Where the move puts its Tab within the Tabs pinned as it is, or `None` once the baseline
+    /// no longer holds it.
+    pub(crate) fn placement(&self) -> Option<TabMovePlacement> {
+        let index = self.baseline.tab_index(self.target.tab_id())?;
+        TabMovePlacement::within_pinned(self.baseline.tabs(), index, self.direction)
     }
     pub(crate) const fn deadline(&self) -> Instant {
         self.deadline
@@ -81,15 +103,10 @@ impl PendingMoveCommit {
         let Some(index) = self.operation.baseline.tab_index(&commit.tab_id) else {
             return false;
         };
-        let destination = match self.operation.direction {
-            WorkbenchTabMoveDirection::Previous => index.saturating_sub(1),
-            WorkbenchTabMoveDirection::Next => {
-                (index + 1).min(self.operation.baseline.tabs().len() - 1)
-            }
-            WorkbenchTabMoveDirection::First => 0,
-            WorkbenchTabMoveDirection::Last => self.operation.baseline.tabs().len() - 1,
-        };
-        index != destination
+        let tabs = self.operation.baseline.tabs();
+        let destination = TabMovePlacement::within_pinned(tabs, index, self.operation.direction)
+            .and_then(|placement| placement.destination(index, tabs.len()));
+        destination.is_some_and(|destination| destination != index)
             && self.operation.baseline.revision().value().checked_add(1)
                 == Some(self.commit.revision.value())
             && self.operation.baseline.terminal_context_id()
@@ -205,14 +222,16 @@ impl WorkbenchClientState {
         {
             return None;
         }
+        // Pinned Tabs precede unpinned ones; the move wraps among those pinned as the active one.
         let index = self.active()?.index();
-        let direction = match direction {
-            WorkbenchTabMoveDirection::Previous if index == 0 => WorkbenchTabMoveDirection::Last,
-            WorkbenchTabMoveDirection::Next if index + 1 == self.cache.tabs().len() => {
-                WorkbenchTabMoveDirection::First
-            }
-            other => other,
+        let tabs = self.cache.tabs();
+        let boundary = tabs.iter().take_while(|tab| tab.pinned()).count();
+        let (position, count) = if tabs.get(index)?.pinned() {
+            (index, boundary)
+        } else {
+            (index.checked_sub(boundary)?, tabs.len() - boundary)
         };
+        let direction = wrapped_tab_move(direction, position, count);
         Some(MoveOperation::new(
             request_id,
             self.desired.as_ref()?.anchor().clone(),

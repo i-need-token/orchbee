@@ -1,9 +1,8 @@
 //! Sidebar composition projects exact typed organization choices, never labels as identity.
 use super::episode::{Answer, DiscoveryState};
 use super::{
-    ClientContextLocation, CopyReadiness, Discovery, MenuAction, MenuContextSource, MenuTarget,
-    Stage, Target, WorkbenchClientState, WorkbenchClientUi, intent_availability,
-    visible_unavailable,
+    ClientContextLocation, Discovery, MenuAction, MenuContextSource, MenuTarget, RowFacts, Stage,
+    Target, WorkbenchClientState, WorkbenchClientUi, intent_availability, visible_unavailable,
 };
 use crate::workbench_client::worktree_lane::Action;
 use crate::workbench_state::worktree_launch::addressed::SidebarWorktreeTarget;
@@ -433,7 +432,7 @@ impl WorkbenchClientUi {
         let state = self.state.as_ref();
         // Only Workspace, Project, and Create entries recompose here; none names a Pane, so the
         // Pane-only Copy selection row stays hidden.
-        let copy = CopyReadiness::Hidden;
+        let facts = RowFacts::NONE;
         let (menu, intent, discovery) = self.menus.menu_with_facts();
         let Some(intent) = intent.filter(|intent| matches!(intent.stage(), Stage::Open)) else {
             return false;
@@ -459,13 +458,13 @@ impl WorkbenchClientUi {
             view.actions.to_vec()
         };
         let actions = actions(intent.entry(), base, discovery, |action| {
-            !intent_availability(intent, state, discovery, action.clone(), copy).is_hidden()
+            !intent_availability(intent, state, discovery, action.clone(), facts).is_hidden()
         });
         let labels = ChoiceLabels::new(&actions, discovery);
         if actions == view.actions {
             menu.set_labels(|action| labels.label(&action));
             return menu.refresh_availability(|action| {
-                visible_unavailable(intent_availability(intent, state, discovery, action, copy))
+                visible_unavailable(intent_availability(intent, state, discovery, action, facts))
             });
         }
         if actions.is_empty() {
@@ -491,7 +490,7 @@ impl WorkbenchClientUi {
             menu.select_action(selected);
         }
         menu.refresh_availability(|action| {
-            visible_unavailable(intent_availability(intent, state, discovery, action, copy))
+            visible_unavailable(intent_availability(intent, state, discovery, action, facts))
         });
         true
     }

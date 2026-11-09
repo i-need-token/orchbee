@@ -459,8 +459,12 @@ fix the reference-derived bootstrap composition, pure commit and rollout boundar
 
 Move targets the active selected Tab only, from Ready, SelectedWithoutAttachment or
 RetryableAttachUnavailable with a live carrier and exact cache/selection identity.
-`Ctrl+B <` and `Ctrl+B >` move toward previous/next; at a boundary the high-level action submits
-`last`/`first` to wrap. Wire previous/next never wrap. Move admission allocates no attachment generation;
+`Ctrl+B <` and `Ctrl+B >` move toward previous/next among the Tabs pinned as the active one, by the
+rule of the global menu's Move Tab rows: with no other such Tab the key submits nothing, and past
+either end of them it wraps to the other end. Wire previous/next never wrap. A wrap that lands on
+the boundary between pinned and unpinned Tabs, the last pinned or first unpinned place, submits
+`tab.move-index` at that boundary, because `last` and `first` address the whole order; every other
+move submits `tab.move` with its direction. Move admission allocates no attachment generation;
 when its active target survives the validating projection, settlement preserves viewer/controller,
 terminal projection and historical Ready proof. Ordinary frame
 invalidation still does not add a fresh-frame prerequisite to Create.
@@ -808,8 +812,9 @@ through ordinary refresh without a Create barrier. The owning
 [group contract](native-tab-groups.md#terminal-creation-and-duplication) describes the follow;
 single-Create and recovery rules remain unchanged.
 
-`MovedTabExpectation` retains committed revision, context, Tab ID and the submitted wire direction.
-`validate_moved_tab` validates the admitted baseline's checked successor and refuses an impossible
+`MovedTabExpectation` retains committed revision, context, Tab ID and the move's direction among the
+Tabs pinned as the moved one; `validate_moved_tab` places it in the baseline as the move submitted
+it. It validates the admitted baseline's checked successor and refuses an impossible
 committed no-op. At that revision it requires the exact full-vector permutation with both labels
 unchanged; above it the shared strict identity validator admits later supported history. The
 `workbench_projection/tests/moved_tab.rs` corpus checks first/middle/last positions, all four wire

@@ -790,15 +790,15 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             ui.after_close_draw(receipt.take().unwrap());
             ui.cancel_action_menu();
             assert!(ui.open_action_menu(MenuTarget::Global, None, false));
-            // Keyboard traversal scrolls to the global movement rows; paint, then pointer invokes
-            // one.
+            // Keyboard traversal scrolls past the global movement rows, which the lone pinned Tab
+            // leaves disabled; paint, then pointer invokes the selection row after them.
             let target = ui
                 .view()
                 .action_menu()
                 .unwrap()
                 .actions
                 .iter()
-                .position(|action| *action == MenuAction::MoveTabLast)
+                .position(|action| *action == MenuAction::ClearTabSelection)
                 .unwrap();
             for _ in 0..target {
                 present_action_menu(&mut ui);
@@ -843,7 +843,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             assert!(matches!(
                 action.intent(),
                 ClientAction::TabMenu {
-                    action: MenuAction::MoveTabLast,
+                    action: MenuAction::ClearTabSelection,
                     ..
                 }
             ));

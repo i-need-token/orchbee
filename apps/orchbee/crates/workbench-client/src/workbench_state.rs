@@ -56,12 +56,14 @@ pub(crate) use membership::PreparedMembershipInstall;
 pub(crate) use membership::{
     MembershipCleanup, MembershipInstallDecision, MembershipResultKey, PreparedMembershipCandidate,
 };
-pub(crate) use move_tab::{MoveDecision, MoveOperation, MoveResult, PendingMoveCommit};
+pub(crate) use move_tab::{
+    MoveDecision, MoveOperation, MoveResult, PendingMoveCommit, wrapped_tab_move,
+};
 #[cfg(test)]
 pub(crate) use panel::PanelPrecommit;
 pub(crate) use panel::{
     PanelCommit, PanelDecision, PanelIntent, PanelMoveUnavailable, PanelOperation,
-    PanelRequestKind, PanelResult, PendingPanelCommit,
+    PanelRequestKind, PanelResult, PendingPanelCommit, ZoomUnavailable,
 };
 pub(crate) use panel_close::PanelCloseConfirmationToken;
 pub(crate) use panel_close::{PanelCloseConfirmationView, PanelCloseState};
@@ -3835,7 +3837,8 @@ impl WorkbenchClientState {
     /// `Ctrl+B z`: a volatile per-Tab Client-local zoom flag, sharing the
     /// guards the local focus transition owns — a Ready phase with no
     /// structural mutation in flight, no armed rename draft, and no pending
-    /// refresh. A single-leaf active Tab is an honest no-op. Returns whether
+    /// refresh. A Tab that [`Self::zoom_tab`] refuses is a silent no-op, and
+    /// its menu row is disabled by the same rule. Returns whether
     /// the rendered pane set changed, which the dispatcher translates into
     /// a layout re-observation and pointer-map invalidation.
     pub(crate) fn toggle_zoom(&mut self) -> bool {
@@ -3849,15 +3852,9 @@ impl WorkbenchClientState {
         {
             return false;
         }
-        let Some(index) = self.active().map(SelectedTab::index) else {
+        let Ok(tab) = self.zoom_tab() else {
             return false;
         };
-        let Some(tab) = self.cache.tabs().get(index) else {
-            return false;
-        };
-        if tab.panel_count() <= 1 {
-            return false;
-        }
         let tab_id = tab.tab_id().clone();
         for overlay in &mut self.plugin_overlays {
             if overlay.tab == tab_id {

@@ -662,6 +662,51 @@ impl CreatedTabExpectation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ClientProjectionError;
 
+/// Where an order-only Tab move puts its Tab: a wire direction, or an insertion boundary in the
+/// original order, as `tab.move` and `tab.move-index` place it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TabMovePlacement {
+    Direction(WorkbenchTabMoveDirection),
+    Boundary(usize),
+}
+
+impl TabMovePlacement {
+    /// Places a Client move of the Tab at `index` among the Tabs pinned as it is: First and Last
+    /// name the ends of those Tabs. Pinned Tabs precede unpinned ones, so the last pinned place
+    /// and the first unpinned place are the boundary between them, which no wire direction
+    /// reaches while Tabs stand on its other side.
+    pub(crate) fn within_pinned(
+        tabs: &[ClientTab],
+        index: usize,
+        direction: WorkbenchTabMoveDirection,
+    ) -> Option<Self> {
+        let pinned = tabs.get(index)?.pinned();
+        let boundary = tabs.iter().take_while(|tab| tab.pinned()).count();
+        Some(match direction {
+            WorkbenchTabMoveDirection::Last if pinned && boundary < tabs.len() => {
+                Self::Boundary(boundary)
+            }
+            WorkbenchTabMoveDirection::First if !pinned && boundary > 0 => Self::Boundary(boundary),
+            other => Self::Direction(other),
+        })
+    }
+
+    /// The index the Tab at `source` lands on among `count` Tabs, as the Server places it, or
+    /// `None` for a boundary past their end, which the Server refuses.
+    pub(crate) fn destination(self, source: usize, count: usize) -> Option<usize> {
+        let last = count.checked_sub(1)?;
+        match self {
+            Self::Direction(WorkbenchTabMoveDirection::Previous) => Some(source.saturating_sub(1)),
+            Self::Direction(WorkbenchTabMoveDirection::Next) => Some((source + 1).min(last)),
+            Self::Direction(WorkbenchTabMoveDirection::First) => Some(0),
+            Self::Direction(WorkbenchTabMoveDirection::Last) => Some(last),
+            Self::Boundary(boundary) if boundary > count => None,
+            Self::Boundary(boundary) if source < boundary => Some(boundary - 1),
+            Self::Boundary(boundary) => Some(boundary),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct MovedTabExpectation {
     committed_revision: WorkbenchRevision,
@@ -913,12 +958,9 @@ pub(crate) fn validate_moved_tab(
     let from = baseline
         .tab_index(&expected.tab_id)
         .ok_or(ClientProjectionDivergence)?;
-    let to = match expected.direction {
-        WorkbenchTabMoveDirection::Previous => from.saturating_sub(1),
-        WorkbenchTabMoveDirection::Next => (from + 1).min(baseline.tabs.len() - 1),
-        WorkbenchTabMoveDirection::First => 0,
-        WorkbenchTabMoveDirection::Last => baseline.tabs.len() - 1,
-    };
+    let to = TabMovePlacement::within_pinned(&baseline.tabs, from, expected.direction)
+        .and_then(|placement| placement.destination(from, baseline.tabs.len()))
+        .ok_or(ClientProjectionDivergence)?;
     if from == to {
         return Err(ClientProjectionDivergence);
     }

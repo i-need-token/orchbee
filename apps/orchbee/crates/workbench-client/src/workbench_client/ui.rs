@@ -3830,6 +3830,12 @@ impl WorkbenchClientUi {
             deadline,
             &self.clock,
             |state, request_id| {
+                // The Move Tab rows' rule decides whether the key moves anything; with nothing to
+                // move, as for a Tab alone among the Tabs pinned as it is, the key stays silent.
+                let index = state.active().ok_or(ActionBuildError::Busy)?.index();
+                if !matches!(tab_groups::tab_move(state, index, direction), Some(Ok(_))) {
+                    return Err(ActionBuildError::NoOp);
+                }
                 state
                     .plan_move(request_id, direction, deadline)
                     .ok_or(ActionBuildError::Busy)
