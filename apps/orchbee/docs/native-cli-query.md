@@ -1890,7 +1890,7 @@ tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process
   bound inside that resolved member, with the standard filter rules: an absent member is
   not-found and an existing member without terminals is an empty list. Windows text output is an
   aligned `HANDLE`, `TITLE`, `AGENT`, `STATE`, `WORKSPACE`, `PANEL`, `CWD` table. Other platforms
-  keep the same identity table and render unavailable runtime columns as `-`. `HANDLE`,
+  keep the same identity table and render unavailable runtime columns as `-`, except `TITLE`. `HANDLE`,
   `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
   changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The enrichment, for text and JSON alike, shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
@@ -1903,7 +1903,9 @@ tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process
   `source`. `TITLE` names the Host frame title by the TUI Tab
   rule: an absolute drive or UNC path to an `.exe`, `.com`, `.cmd` or `.bat` program shows the
   program in the display language (for example `PowerShell` or `Command Prompt`), keeping cmd's
-  ` - <command>` suffix, and any other title shows its stripped text. The
+  ` - <command>` suffix, and any other title shows its stripped text. A row without a title shows its
+  Presentation's committed or failed-launch program, as a Tab and the `panel list` `TITLE` do, and
+  `-` without one; JSON never reports that program as a title. The
   [native tab labels](native-tab-labels.md#canonical-state-and-display) contract owns that rule.
   `TITLE` and `AGENT` are the only cells shortened, each at its declared width (24 and 14
   cells); the closed `STATE` vocabulary, handles and `CWD` are never cut, so a row may exceed

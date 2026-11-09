@@ -289,6 +289,9 @@ pub(crate) struct TerminalPlacement {
     /// Canonical Workspace handle when a placement is available.
     pub(crate) workspace: String,
     pub(crate) panel: String,
+    /// The bound Presentation's committed or failed-launch program, which the text `TITLE` names
+    /// while no title is known, as a Tab does. JSON never reports it as a title.
+    pub(crate) program: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -2695,6 +2698,15 @@ fn presentation_row(presentation: &Presentation) -> PresentationRow {
     }
 }
 
+/// The program the Server committed with a Presentation's binding, else its failed launch's.
+fn launch_program(presentation: &Presentation) -> Option<String> {
+    presentation
+        .launch_program
+        .as_ref()
+        .map(|program| program.as_str().to_owned())
+        .or_else(|| presentation.launch_failure.as_ref()?.executable.clone())
+}
+
 fn unavailable_directory(presentation: &Presentation) -> Option<String> {
     presentation
         .launch_failure
@@ -2744,17 +2756,7 @@ fn collect_panels<'a>(
                     .as_ref()
                     .map(|label| label.as_str().to_owned()),
                 display_label: primary_presentation.display_label().to_owned(),
-                launch_program: primary_presentation
-                    .launch_program
-                    .as_ref()
-                    .map(|program| program.as_str().to_owned())
-                    .or_else(|| {
-                        primary_presentation
-                            .launch_failure
-                            .as_ref()?
-                            .executable
-                            .clone()
-                    }),
+                launch_program: launch_program(primary_presentation),
                 right_click: *right_click,
                 panel_id: panel_id.as_str().to_owned(),
                 tab_id: tab.tab_id.as_str().to_owned(),
@@ -2863,6 +2865,30 @@ fn terminal_list(
             .map(|workspace| workspace.workspace_id.as_str()),
     );
     let panel_handles = list_handles(Resource::Panel, panels.iter().map(|(id, ..)| id.as_str()));
+    let mut programs = HashMap::new();
+    for tab in snapshot
+        .terminal_contexts
+        .iter()
+        .flat_map(|context| &context.tabs)
+    {
+        collect_panel_nodes(&tab.root, &mut Vec::new(), &mut |node| {
+            if let PanelNode::Panel {
+                primary_presentation,
+                child_presentations,
+                ..
+            } = node
+            {
+                for presentation in
+                    std::iter::once(primary_presentation).chain(child_presentations.iter())
+                {
+                    programs.insert(
+                        presentation.presentation_id.as_str(),
+                        launch_program(presentation),
+                    );
+                }
+            }
+        });
+    }
     let rows: Vec<_> = all.iter().filter(|row| keep(row)).cloned().collect();
     let details = rows
         .iter()
@@ -2876,6 +2902,10 @@ fn terminal_list(
                         .map(|(id, _label)| workspaces[id].clone())
                         .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?,
                     panel: panel_handles[row.panel_id.as_str()].clone(),
+                    program: programs
+                        .get(row.presentation_id.as_str())
+                        .cloned()
+                        .flatten(),
                 }),
                 ..TerminalListDetails::default()
             })

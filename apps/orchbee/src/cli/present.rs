@@ -4,7 +4,7 @@
 //! render aborts at the 8 MiB bound instead of assembling the full body.
 
 use crate::cli_text::{CliLabels, CliText};
-use crate::terminal_title::display_name;
+use crate::terminal_title::{display_name, program_name};
 use serde_json::Value;
 mod agent_screen;
 
@@ -301,6 +301,11 @@ fn terminal_list_cells(
             .title
             .as_deref()
             .and_then(|title| display_name(title, locale))
+            .or_else(|| {
+                placement
+                    .and_then(|placement| placement.program.as_deref())
+                    .and_then(|program| program_name(program, locale))
+            })
             .unwrap_or_else(|| "-".to_owned()),
         details.agent.clone().unwrap_or_else(|| "-".to_owned()),
         state.to_owned(),

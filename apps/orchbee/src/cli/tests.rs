@@ -461,6 +461,7 @@ fn terminal_list_shows_location_handles_and_program_names() {
             handle: "@terminal:0xf".into(),
             workspace: workspace.to_owned(),
             panel: "@panel:0x3".into(),
+            program: None,
         }),
         title: Some(r"C:\Program Files\PowerShell\7\pwsh.exe".into()),
         ..TerminalListDetails::default()
@@ -516,8 +517,8 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
         primary_terminal_id: Some(ID.to_owned()),
         primary_unavailable_directory: None,
     };
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let output = super::success_output(
+    let terminal_list = |title: Option<&str>, program: Option<&str>, format, locale| {
+        super::success_output(
             Projection::TerminalList(TerminalListDocument {
                 rows: vec![row.clone()],
                 details: vec![TerminalListDetails {
@@ -526,22 +527,48 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
                         handle: "@terminal:0xf".into(),
                         workspace: "@workspace:0x9".into(),
                         panel: "@panel:0x3".into(),
+                        program: program.map(Into::into),
                     }),
-                    title: Some(launch_path.into()),
+                    title: title.map(Into::into),
                     ..TerminalListDetails::default()
                 }],
             }),
             json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
             &QueryCommand::TerminalList { filter: None },
-            OutputFormat::Text,
+            format,
             locale,
-        );
-        let text = String::from_utf8(output.stdout).unwrap();
-        let terminal_title = text
-            .lines()
+        )
+        .stdout
+    };
+    let title_cell = |title, program, locale| {
+        let text =
+            String::from_utf8(terminal_list(title, program, OutputFormat::Text, locale)).unwrap();
+        text.lines()
             .nth(1)
             .and_then(|line| line.split_whitespace().nth(1))
-            .unwrap();
+            .unwrap()
+            .to_owned()
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        // Before a title is reported, both lists name the launched program, as a Tab does; JSON
+        // never reports that program as a title.
+        assert_eq!(
+            title_cell(None, Some(launch_path), locale),
+            super::panel_list::panel_title(&panel, None, locale)
+        );
+        assert_eq!(title_cell(None, None, locale), "-");
+        assert_eq!(
+            terminal_list(None, Some(launch_path), OutputFormat::Json, locale),
+            terminal_list(None, None, OutputFormat::Json, locale)
+        );
+        let text = String::from_utf8(terminal_list(
+            Some(launch_path),
+            None,
+            OutputFormat::Text,
+            locale,
+        ))
+        .unwrap();
+        let terminal_title = title_cell(Some(launch_path), None, locale);
         let panel_title = super::panel_list::panel_title(&panel, Some(launch_path), locale);
         assert_eq!(panel_title, terminal_title, "{text}");
         assert_eq!(
