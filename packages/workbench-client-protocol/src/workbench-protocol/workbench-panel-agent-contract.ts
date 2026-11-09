@@ -468,17 +468,13 @@ const publishedTitle = z
 const presentationTitleRow = z
 	.strictObject({
 		presentationId: TerminalPresentationIdSchema,
-		binding: TerminalAgentBindingSchema.nullable(),
+		binding: WorkbenchPresentationBindingSchema.nullable(),
 		title: z.discriminatedUnion('kind', [
 			z.strictObject({ kind: z.literal('unavailable') }).readonly(),
 			z.strictObject({ kind: z.literal('observed'), title: publishedTitle.nullable() }).readonly(),
 		]),
 	})
-	.refine((row) =>
-		row.binding === null
-			? row.title.kind === 'unavailable'
-			: row.binding.presentationId === row.presentationId,
-	)
+	.refine((row) => row.binding !== null || row.title.kind === 'unavailable')
 	.readonly();
 const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 	z

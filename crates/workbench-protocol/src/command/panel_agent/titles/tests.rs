@@ -96,7 +96,10 @@ fn presentation_title_reads_answer_in_request_order_and_bound_their_names() {
             presentations: vec![
                 PresentationTitleRow {
                     presentation_id: id(1),
-                    binding: Some(binding(1)),
+                    binding: Some(crate::PresentationBinding {
+                        terminal_id: crate::TerminalId::parse(&format!("{:032x}", 8)).unwrap(),
+                        worker_id: crate::WorkerId::parse(&format!("{:032x}", 9)).unwrap(),
+                    }),
                     title: PresentationTitle::Observed {
                         title: Some("build".into()),
                     },

@@ -2,7 +2,7 @@
 //! published projections by Presentation. Never a report sequence, acknowledgement or Workbench
 //! revision change.
 use super::nullable;
-use crate::{TerminalPresentationId, WorkbenchRevision};
+use crate::{PresentationBinding, TerminalPresentationId, WorkbenchRevision};
 use orchbee_agent_observation_protocol::{AgentHostEpoch, AgentLaunchBinding};
 use serde::{Deserialize, Serialize};
 mod projection;
@@ -82,14 +82,16 @@ pub enum PresentationTitle {
     },
 }
 
-/// A requested Presentation's current terminal binding and published title. An unknown or unbound
-/// Presentation has a null binding and an unavailable title.
+/// A requested Presentation's current Workbench binding and published title. The binding is the
+/// snapshot's [`PresentationBinding`], so a Client compares it directly with the Presentation it
+/// shows and ignores a title for another terminal. An unknown or unbound Presentation has a null
+/// binding and an unavailable title.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PresentationTitleRow {
     pub presentation_id: TerminalPresentationId,
     #[serde(deserialize_with = "nullable")]
-    pub binding: Option<AgentLaunchBinding>,
+    pub binding: Option<PresentationBinding>,
     pub title: PresentationTitle,
 }
 pub(super) fn valid_presentation_ids(ids: &[TerminalPresentationId]) -> bool {
@@ -98,14 +100,7 @@ pub(super) fn valid_presentation_ids(ids: &[TerminalPresentationId]) -> bool {
 }
 impl PresentationTitleRow {
     pub(super) fn valid(&self) -> bool {
-        let binding = match &self.binding {
-            Some(binding) => {
-                binding.presentation_id.as_str() == self.presentation_id.as_str()
-                    && AgentHostEpoch::parse(binding.generation.as_str()).is_ok()
-            }
-            None => self.title == PresentationTitle::Unavailable {},
-        };
-        binding
+        (self.binding.is_some() || self.title == PresentationTitle::Unavailable {})
             && match &self.title {
                 PresentationTitle::Observed { title: Some(title) } => {
                     projection::publishable(title)

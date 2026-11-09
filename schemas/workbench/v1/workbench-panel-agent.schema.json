@@ -1403,7 +1403,7 @@
 				"binding": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/terminalBinding"
+							"$ref": "#/$defs/binding"
 						},
 						{
 							"type": "null"
