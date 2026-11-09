@@ -107,10 +107,11 @@ send; `orchbee terminal send` and `orchbee terminal run` stay ungated.
 
 The board and stderr text say what to do next; the JSON carries only the reason. The board's
 not-at-prompt text and the CLI's `prompt-unconfirmed` text other than `unmarked` say to finish the
-running program, clear the line, or press Enter for a new prompt. The TUI status line shows the
-board's full text when it fits and otherwise the short form above, in the same locale; every other
-start notice except the already short cancelling one also has a short form. A capability refusal
-has `details.reason` `startup-failed` with the shared
+running program, or clear the line and press Enter for a new prompt. Input typed after a prompt
+blocks typing until the shell's next prompt, so the person clears the line and presses Enter. The
+TUI status line shows the board's full text when it fits and otherwise the short form above, in
+the same locale; every other start notice except the already short cancelling one also has a
+short form. A capability refusal has `details.reason` `startup-failed` with the shared
 [capability failure](../../../docs/cli/output.md) as its `cause`.
 
 The fixed Windows launch names for canonical `cursor` and `qodercli` are `agent` and `qoder`, matching

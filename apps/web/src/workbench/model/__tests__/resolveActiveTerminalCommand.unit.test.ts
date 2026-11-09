@@ -152,6 +152,7 @@ describe('resolveActiveTerminalCommand', () => {
 			panelId: PANEL_1,
 		});
 		expect(resolve(split, 'focus-right')).toEqual({
+			direction: 'right',
 			kind: 'unavailable',
 			reason: 'directional-neighbor-unavailable',
 		});
@@ -276,6 +277,7 @@ describe('resolveActiveTerminalCommand', () => {
 			panelId: PANEL_2,
 		});
 		expect(resolve(split, 'move-right')).toEqual({
+			direction: 'right',
 			kind: 'unavailable',
 			reason: 'directional-neighbor-unavailable',
 		});

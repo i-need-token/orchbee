@@ -149,10 +149,15 @@ export type ActiveTerminalCommandResolution =
 			readonly panelId: string;
 	  }
 	| {
+			/** Names the side without a Panel, so the reason can say which. */
+			readonly direction: PanelFocusDirection;
+			readonly kind: 'unavailable';
+			readonly reason: 'directional-neighbor-unavailable';
+	  }
+	| {
 			readonly kind: 'unavailable';
 			readonly reason:
 				| 'active-tab-unavailable'
-				| 'directional-neighbor-unavailable'
 				| 'panel-maximized'
 				| 'panel-unavailable'
 				| 'requires-multiple-panels';
@@ -230,13 +235,10 @@ export function resolveActiveTerminalCommand({
 			if (activeTab.maximizedPanelId !== null) {
 				return { kind: 'unavailable', reason: 'panel-maximized' };
 			}
-			const targetId = resolveDirectionalPanelFocus(
-				activeTab.root,
-				panelId,
-				PANEL_FOCUS_DIRECTION_BY_COMMAND[command],
-			);
+			const direction = PANEL_FOCUS_DIRECTION_BY_COMMAND[command];
+			const targetId = resolveDirectionalPanelFocus(activeTab.root, panelId, direction);
 			return targetId === null
-				? { kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
+				? { direction, kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
 				: {
 						actionId: PANEL_ACTION_IDS.focus,
 						input: { panelId: targetId },
@@ -312,13 +314,14 @@ export function resolveActiveTerminalCommand({
 			if (activeTab.maximizedPanelId !== null) {
 				return { kind: 'unavailable', reason: 'panel-maximized' };
 			}
+			const direction = PANEL_MOVE_DIRECTION_BY_COMMAND[command];
 			const directionalTargetPanelId = resolveDirectionalPanelFocus(
 				activeTab.root,
 				panelId,
-				PANEL_MOVE_DIRECTION_BY_COMMAND[command],
+				direction,
 			);
 			return directionalTargetPanelId === null
-				? { kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
+				? { direction, kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
 				: {
 						actionId: PANEL_ACTION_IDS.swap,
 						input: { panelId, targetPanelId: directionalTargetPanelId },

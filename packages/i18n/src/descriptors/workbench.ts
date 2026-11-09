@@ -629,6 +629,59 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.wider'],
 		description: 'Action that makes the active Workbench panel wider.',
 	},
+	panelUnavailableFocusedPanelRequired: {
+		id: 'workbench.panels.unavailable.focusedPanelRequired',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.focusedPanelRequired'],
+		description:
+			'Reason a Workbench Panel action is disabled: no Panel has focus in the active Tab.',
+	},
+	panelUnavailableLastPanelMissing: {
+		id: 'workbench.panels.unavailable.lastPanelMissing',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.lastPanelMissing'],
+		description:
+			'Reason Back to Last Focused Panel is disabled: no other Panel this window focused still exists.',
+	},
+	panelUnavailableMaximized: {
+		id: 'workbench.panels.unavailable.maximized',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.maximized'],
+		description:
+			'Reason a Workbench Panel action is disabled: a Panel of the active Tab is maximized.',
+	},
+	panelUnavailableMultipleRequired: {
+		id: 'workbench.panels.unavailable.multipleRequired',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.multipleRequired'],
+		description: 'Reason a Workbench Panel action is disabled: the active Tab has only one Panel.',
+	},
+	panelUnavailableNoneAbove: {
+		id: 'workbench.panels.unavailable.noneAbove',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.noneAbove'],
+		description:
+			'Reason a directional Workbench Panel action is disabled: no Panel lies above the focused one.',
+	},
+	panelUnavailableNoneBelow: {
+		id: 'workbench.panels.unavailable.noneBelow',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.noneBelow'],
+		description:
+			'Reason a directional Workbench Panel action is disabled: no Panel lies below the focused one.',
+	},
+	panelUnavailableNoneLeft: {
+		id: 'workbench.panels.unavailable.noneLeft',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.noneLeft'],
+		description:
+			'Reason a directional Workbench Panel action is disabled: no Panel lies left of the focused one.',
+	},
+	panelUnavailableNoneRight: {
+		id: 'workbench.panels.unavailable.noneRight',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.noneRight'],
+		description:
+			'Reason a directional Workbench Panel action is disabled: no Panel lies right of the focused one.',
+	},
+	panelUnavailablePositionEmpty: {
+		id: 'workbench.panels.unavailable.positionEmpty',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.positionEmpty'],
+		description:
+			'Reason focusing a Workbench Panel by position is disabled: the active Tab has fewer Panels.',
+	},
 	panelSwapVisible: {
 		id: 'workbench.panels.actions.swapVisible',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.swapVisible'],

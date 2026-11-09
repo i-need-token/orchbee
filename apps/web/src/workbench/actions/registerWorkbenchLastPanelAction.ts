@@ -51,7 +51,7 @@ export function registerWorkbenchLastPanelAction({
 			},
 			getAvailability: () =>
 				trail.target() === null
-					? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+					? { kind: 'disabled', reason: workbenchMessages.panelUnavailableLastPanelMissing }
 					: { kind: 'enabled' },
 			handler: {
 				execute: (context) =>

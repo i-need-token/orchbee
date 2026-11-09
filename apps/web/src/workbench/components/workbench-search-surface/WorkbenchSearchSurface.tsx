@@ -148,69 +148,71 @@ export function WorkbenchSearchSurface({
 						))}
 					</div>
 				)}
-				<div
-					aria-label={view.resultsLabel}
-					className={styles['results']}
-					data-slot='workbench-search-results'
-					id={view.listId}
-					ref={view.resultsElementRef}
-					role='listbox'
-					onScroll={view.onResultsScroll}
-				>
-					{view.showEmpty ? (
-						<div className={styles['empty']} data-slot='workbench-search-empty'>
-							{view.emptyMessage}
-						</div>
-					) : (
-						view.sections.map((section) => (
-							<div
-								aria-labelledby={section.labelId}
-								className={styles['section']}
-								key={section.id}
-								role='group'
-							>
-								<div className={styles['sectionLabel']} id={section.labelId}>
-									{section.label}
-								</div>
-								{section.rows.map((row) => (
-									<div
-										aria-disabled={row.disabled}
-										aria-selected={row.selected}
-										className={styles['row']}
-										data-disabled={row.disabled}
-										data-highlighted={row.selected}
-										id={row.elementId}
-										key={row.id}
-										ref={row.elementRef}
-										role='option'
-										onClick={row.onInvoke}
-										onPointerDown={row.onPointerDown}
-										onPointerMove={row.onPointerMove}
-									>
-										<span className={styles['rowIcon']}>
-											<ProductIcon name={row.icon} />
-										</span>
-										<span className={styles['rowContent']}>
-											<span className={styles['rowLabel']}>{row.label}</span>
-											{(row.disabledReason ?? row.description) !== undefined && (
-												<span className={styles['rowDescription']}>
-													{row.disabledReason ?? row.description}
-												</span>
-											)}
-										</span>
-										<span className={styles['rowTrailing']}>
-											{row.shortcut === undefined ? null : <Kbd>{row.shortcut}</Kbd>}
-											{row.showsPicker && (
-												<span aria-hidden='true' className={styles['rowPickerIndicator']}>
-													›
-												</span>
-											)}
-										</span>
-									</div>
-								))}
+				<div className={styles['resultsFrame']}>
+					<div
+						aria-label={view.resultsLabel}
+						className={styles['results']}
+						data-slot='workbench-search-results'
+						id={view.listId}
+						ref={view.resultsElementRef}
+						role='listbox'
+						onScroll={view.onResultsScroll}
+					>
+						{view.showEmpty ? (
+							<div className={styles['empty']} data-slot='workbench-search-empty'>
+								{view.emptyMessage}
 							</div>
-						))
-					)}
+						) : (
+							view.sections.map((section) => (
+								<div
+									aria-labelledby={section.labelId}
+									className={styles['section']}
+									key={section.id}
+									role='group'
+								>
+									<div className={styles['sectionLabel']} id={section.labelId}>
+										{section.label}
+									</div>
+									{section.rows.map((row) => (
+										<div
+											aria-disabled={row.disabled}
+											aria-selected={row.selected}
+											className={styles['row']}
+											data-disabled={row.disabled}
+											data-highlighted={row.selected}
+											id={row.elementId}
+											key={row.id}
+											ref={row.elementRef}
+											role='option'
+											onClick={row.onInvoke}
+											onPointerDown={row.onPointerDown}
+											onPointerMove={row.onPointerMove}
+										>
+											<span className={styles['rowIcon']}>
+												<ProductIcon name={row.icon} />
+											</span>
+											<span className={styles['rowContent']}>
+												<span className={styles['rowLabel']}>{row.label}</span>
+												{(row.disabledReason ?? row.description) !== undefined && (
+													<span className={styles['rowDescription']}>
+														{row.disabledReason ?? row.description}
+													</span>
+												)}
+											</span>
+											<span className={styles['rowTrailing']}>
+												{row.shortcut === undefined ? null : <Kbd>{row.shortcut}</Kbd>}
+												{row.showsPicker && (
+													<span aria-hidden='true' className={styles['rowPickerIndicator']}>
+														›
+													</span>
+												)}
+											</span>
+										</div>
+									))}
+								</div>
+							))
+						)}
+					</div>
 				</div>
 				<div className={styles['footer']} data-slot='workbench-search-footer'>
 					<span className={styles['footerHint']}>

@@ -159,8 +159,24 @@
 	box-shadow: 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
+/* The list keeps its usual floor while the window has room and yields it in a short window, so the
+   query, filters, and footer always stay on screen and only the list scrolls. The strut sets the
+   frame's natural height without stopping the frame from shrinking below it. */
+.resultsFrame {
+	display: flex;
+	min-height: var(--ob-ref-space-0);
+	flex: 1 1 auto;
+}
+
+.resultsFrame::before {
+	flex: none;
+	height: var(--ob-comp-workbench-search-results-min-height);
+	max-height: 100%;
+	content: '';
+}
+
 .results {
-	min-height: var(--ob-comp-workbench-search-results-min-height);
+	min-width: var(--ob-ref-space-0);
 	flex: 1;
 	overflow-x: hidden;
 	overflow-y: auto;
@@ -248,7 +264,8 @@
 
 .empty {
 	display: flex;
-	min-height: var(--ob-comp-workbench-search-empty-height);
+	height: var(--ob-comp-workbench-search-empty-height);
+	max-height: 100%;
 	align-items: center;
 	justify-content: center;
 	padding: var(--ob-ref-space-8);

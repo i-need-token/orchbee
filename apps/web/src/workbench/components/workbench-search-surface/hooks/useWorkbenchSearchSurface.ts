@@ -6,6 +6,7 @@ import * as React from 'react';
 
 import type { WorkbenchSearchFilter } from '../../../types/workbench-search';
 import type { WorkbenchSearchProvider } from '../../../types/workbench-search-provider';
+import { revealInScrollOwner } from '../../../utils/revealInScrollOwner';
 import { formatWorkbenchActionMessage } from '../model/project-workbench-search-catalog';
 import {
 	filterWorkbenchSearchArgumentOptions,
@@ -125,6 +126,8 @@ export function useWorkbenchSearchSurface({
 	const highlightedElement = React.useRef<HTMLDivElement | null>(null);
 	const inputElement = React.useRef<HTMLInputElement | null>(null);
 	const resultsElement = React.useRef<HTMLDivElement | null>(null);
+	const reportedScrollTop = React.useRef(0);
+	const [revealRequest, setRevealRequest] = React.useState(0);
 	const catalog = useWorkbenchSearchCatalog({
 		argumentPickerForAction,
 		intl,
@@ -369,12 +372,28 @@ export function useWorkbenchSearchSurface({
 				})
 			: [];
 
-	React.useEffect(() => {
-		if (resultsElement.current !== null) {
-			resultsElement.current.scrollTop = state.scrollTop;
+	// The list reports its own scrolling; only a scroll the state changed on its own, a reset for new
+	// results or the browsing scroll restored on Back, is written back. Writing a reported value again
+	// would cancel a wheel scroll still under way.
+	React.useLayoutEffect(() => {
+		const results = resultsElement.current;
+		if (results === null || state.scrollTop === reportedScrollTop.current) {
+			return;
 		}
-		highlightedElement.current?.scrollIntoView?.({ block: 'nearest' });
-	}, [highlightedResultId, state.scrollTop]);
+		reportedScrollTop.current = state.scrollTop;
+		results.scrollTop = state.scrollTop;
+	}, [state.scrollTop]);
+
+	// Up and Down keep the highlight fully inside the list, which alone scrolls. A pointer highlight
+	// and the wheel never move the list to it.
+	React.useLayoutEffect(() => {
+		const results = resultsElement.current;
+		const highlighted = highlightedElement.current;
+		if (revealRequest === 0 || results === null || highlighted === null) {
+			return;
+		}
+		revealInScrollOwner(results, highlighted);
+	}, [revealRequest]);
 
 	const filtersById = {
 		actions: intl.formatMessage(workbenchMessages.searchFilterActions),
@@ -472,6 +491,7 @@ export function useWorkbenchSearchSurface({
 					resultIds,
 					type: 'move',
 				});
+				setRevealRequest((request) => request + 1);
 				return;
 			}
 			if (event.key === 'Enter') {
@@ -495,8 +515,10 @@ export function useWorkbenchSearchSurface({
 			update({ type: 'back' });
 			queueMicrotask(() => inputElement.current?.focus());
 		},
-		onResultsScroll: (event) =>
-			update({ scrollTop: event.currentTarget.scrollTop, type: 'scroll-changed' }),
+		onResultsScroll: (event) => {
+			reportedScrollTop.current = event.currentTarget.scrollTop;
+			update({ scrollTop: event.currentTarget.scrollTop, type: 'scroll-changed' });
+		},
 		pickerBackLabel: intl.formatMessage(workbenchMessages.searchFooterBack),
 		pickerPrompt: picker?.prompt ?? null,
 		placeholder:

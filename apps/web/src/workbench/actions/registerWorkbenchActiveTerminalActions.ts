@@ -4,6 +4,7 @@ import {
 	type ActionAvailabilityContext,
 	type ActionDisposable,
 	type ActionExecutionContext,
+	type ActionMessageDescriptor,
 	type ActionResult,
 	type ActionRuntime,
 	type ActionScope,
@@ -22,6 +23,7 @@ import {
 	type ActiveTerminalCommand,
 	type ActiveTerminalCommandResolution,
 } from '../model/resolveActiveTerminalCommand';
+import type { PanelFocusDirection } from '../components/workbench-panel-workspace/model/resolveDirectionalPanelFocus';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthority } from '../types/workbench-authority';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
@@ -68,10 +70,12 @@ export function registerWorkbenchActiveTerminalActions({
 		title: workbenchMessages.actionCategoryPanels,
 	};
 	const availabilityFor =
-		(command: ActiveTerminalCommand) => (context: ActionAvailabilityContext) =>
-			resolveForContext(projectWorkspaceRuntime, command, context).kind === 'ready'
+		(command: ActiveTerminalCommand) => (context: ActionAvailabilityContext) => {
+			const resolution = resolveForContext(projectWorkspaceRuntime, command, context);
+			return resolution.kind === 'ready'
 				? ({ kind: 'enabled' } as const)
-				: ({ kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const);
+				: ({ kind: 'disabled', reason: activeTerminalUnavailableReason(resolution) } as const);
+		};
 	const execute = (command: ActiveTerminalCommand) => async (context: ActionExecutionContext) =>
 		await executeResolvedCommand({
 			command,
@@ -91,16 +95,18 @@ export function registerWorkbenchActiveTerminalActions({
 					concurrencyKey: () => 'active-panel-focus-by-position',
 					mode: 'foreground',
 				},
-				getAvailability: (context, input) =>
-					preparePanelPositionFocus({
+				getAvailability: (context, input) => {
+					const prepared = preparePanelPositionFocus({
 						context,
 						input,
 						projectWorkspaceRuntime,
 						runtime,
 						scope,
-					}).kind === 'ready'
+					});
+					return prepared.kind === 'ready'
 						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+						: { kind: 'disabled', reason: panelPositionUnavailableReason(prepared.reason) };
+				},
 				handler: {
 					execute: async (context, input) => {
 						const prepared = preparePanelPositionFocus({
@@ -455,6 +461,49 @@ export function registerWorkbenchActiveTerminalActions({
 			}),
 		),
 	];
+}
+
+const NO_PANEL_MESSAGE_BY_DIRECTION = {
+	down: workbenchMessages.panelUnavailableNoneBelow,
+	left: workbenchMessages.panelUnavailableNoneLeft,
+	right: workbenchMessages.panelUnavailableNoneRight,
+	up: workbenchMessages.panelUnavailableNoneAbove,
+} as const satisfies Readonly<Record<PanelFocusDirection, ActionMessageDescriptor>>;
+
+/** Names what in the active Tab stops the command, so a disabled row says why. */
+function activeTerminalUnavailableReason(
+	resolution: Extract<ActiveTerminalCommandResolution, { kind: 'unavailable' }>,
+): ActionMessageDescriptor {
+	switch (resolution.reason) {
+		case 'active-tab-unavailable':
+		case 'panel-unavailable':
+			return workbenchMessages.panelUnavailableFocusedPanelRequired;
+		case 'directional-neighbor-unavailable':
+			return NO_PANEL_MESSAGE_BY_DIRECTION[resolution.direction];
+		case 'panel-maximized':
+			return workbenchMessages.panelUnavailableMaximized;
+		case 'requires-multiple-panels':
+			return workbenchMessages.panelUnavailableMultipleRequired;
+	}
+}
+
+function panelPositionUnavailableReason(
+	reason: Extract<PreparedPanelPositionFocus, { kind: 'unavailable' }>['reason'],
+): ActionMessageDescriptor {
+	switch (reason) {
+		// Only a Panel surface that registers no focus action leaves the host without it.
+		case 'active-command-target-unavailable':
+			return workbenchMessages.actionUnavailable;
+		case 'active-tab-unavailable':
+		case 'invalid-panel-order':
+		case 'panel-unavailable':
+		case 'source-panel-unavailable':
+			return workbenchMessages.panelUnavailableFocusedPanelRequired;
+		case 'panel-maximized':
+			return workbenchMessages.panelUnavailableMaximized;
+		case 'panel-position-unavailable':
+			return workbenchMessages.panelUnavailablePositionEmpty;
+	}
 }
 
 type PreparedPanelPositionFocus =
