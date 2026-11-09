@@ -93,6 +93,11 @@ pub(crate) const PROVIDER_VALUES: &[&str] = &{
     }
     values
 };
+/// A canonical Agent outside the integration vocabulary: Orchbee can start
+/// it but has no integration to check or manage for it.
+pub(crate) fn start_only_provider(value: &str) -> bool {
+    crate::agent_provider::CANONICAL_IDS.contains(&value) && !PROVIDER_VALUES.contains(&value)
+}
 /// Agent doctor probe-table identities in canonical probe order. CLI provider spellings map
 /// through `IntegrationId` before this check; `agent_doctor` proves its probe table matches.
 pub(crate) const DOCTOR_PROVIDER_IDS: &[&str] = &[

@@ -87,18 +87,8 @@ impl super::CliText {
             (Locale::ZhCn, "discovery") => {
                 "没有运行中的本地会话应答，且其运行时目录无法创建。\n".to_owned()
             }
-            (Locale::EnUs, "cohort") => self.cli_cohort_diagnostic(
-                failure
-                    .io_diagnostic
-                    .as_ref()
-                    .and_then(|observed| observed.missing_artifact.as_deref()),
-            ),
-            (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(
-                failure
-                    .io_diagnostic
-                    .as_ref()
-                    .and_then(|observed| observed.missing_artifact.as_deref()),
-            ),
+            (Locale::EnUs, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
+            (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
             (Locale::EnUs, _) => {
                 "The local session could not admit the start probe connection.\n".to_owned()
             }

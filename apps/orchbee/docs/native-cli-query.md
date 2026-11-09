@@ -1017,19 +1017,21 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   range `0..=9007199254740991`. A repeated, non-numeric, or out-of-range value is
   `invalid-usage`.
 - `--provider <id>`: repeatable value flag, admitted only on `agent doctor`; each
-  value is one canonical provider id (`claude-code`, `codex`, `gemini`,
-  `github-copilot`, `grok`, `cline`, `opencode`, `pi`, `omp`, `qwen-code`), selected
-  in flag order and deduplicated under the fixed canonical row order — an unknown id
-  is `invalid-usage` before any runtime access. No flag selects all ten.
+  value is one provider with an Orchbee integration (the spellings `agent integration list`
+  reports), selected in flag order and deduplicated under the fixed canonical row order — an
+  unknown id is `invalid-usage` before any runtime access. No flag selects them all.
 - `--asset-root <path>`: repeatable value flag, admitted only on `agent doctor`;
   each value is a nonempty absolute NUL-free path declared as a capsule candidate
   root, kept in flag order. Relative spellings, `~`/`$` forms, empty values, and a
   fifth value are `invalid-usage` before any runtime access — at most four supplied
   roots are admitted and none is ever expanded or guessed.
 - `--provider <id>`: single-use value flag, admitted only on the `agent integration`
-  commands; one of the closed supported-provider ids (ten members, reported by
+  commands; one of the closed supported-provider ids (reported by
   `agent integration list`). Required on `explain`/`enable`/`disable`, an optional
-  filter on `list`. Any other value is `invalid-usage`.
+  filter on `list`. Any other value is `invalid-usage`. On both `--provider` flags, a canonical
+  Agent that Orchbee can only start (`kiro`, `amp`, `maki`, `muse`) is still `invalid-usage`
+  (exit 2), but its diagnostic says that Agent has no Orchbee integration to check or manage and
+  lists the Agents that have one.
 - `--adapter-source <abs>`: single-use value flag, admitted only on the
   `agent integration` commands; a literal absolute path to a development/test
   adapter payload that replaces the packaged cohort source for that invocation.
@@ -1245,7 +1247,10 @@ Resolution after a successful read: zero matches → `not-found` (3); multiple e
 matches → `ambiguous` (3), reporting at most the first 8 candidate typed IDs in canonical
 traversal order plus the true `totalCount`. Resolution uses the command's complete declared
 snapshot scope without an extra fetch. A filter naming an absent entity is `not-found`;
-an existing entity with an empty result set is a successful empty list.
+an existing entity with an empty result set is a successful empty list. Every `not-found` text
+diagnostic — Project, Workspace, Tab, Panel, terminal, schema, directory, launch profile and
+Agent alike — ends with its one hint: the command that lists that resource's valid targets
+(for example `Run 'orchbee tab list' to see valid targets.`).
 
 ## Query state machine and budgets
 
@@ -1638,7 +1643,10 @@ the whole wait. Timeout details carry the configured `timeoutMs`, monotonic
 `elapsedMs`, `completedObservations`, and the last completed observation's
 `lastStatusKind`/`lastFreshness`/`lastRevision` — all omitted when zero observations
 completed. Cancellation inside the armed span is the same `cancelled` 130 with no
-source; admission failures keep the generic failure family.
+source; admission failures keep the generic failure family. The text diagnostic names the
+deadline that ended the wait — the `--timeout` value for `wait-deadline`, the read budget
+for `read-deadline`, the five-second activity gate for a prompt's `effect-deadline` — and
+the `--until` conditions it was waiting for; those conditions reach standard error only.
 
 The existing Linux wait samples the current projected state at each completed poll — it is not a
 subscription and provides no change notification. A transition that begins and ends
@@ -1651,7 +1659,11 @@ carries `matchedConditions`, the satisfying `revision`, the full `session` detai
 verbatim, and a `wait` echo `{until, afterRevision, timeoutMs, observations,
 elapsedMs}`; its `source` is the decisive poll's `agent-read` requestId only — failed,
 cancelled, and untrusted exchanges publish none. Text output is a single line:
-`session <id> matched <conditions> at revision <n> after <ms>ms`.
+`session <id> matched <conditions> at revision <n> after <ms>ms`. A physical Agent terminal
+match names the terminal by the handle a person targets it with — its Panel's `@panel:0x<hex>`
+for a primary terminal, otherwise its own `@terminal:0x<hex>` — never by presentation ID:
+`<handle> matched <conditions> at state sequence <n> after <ms>ms`. A physical `agent prompt`
+receipt names its terminal the same way.
 
 ## Session activation
 
@@ -1863,22 +1875,31 @@ binding:{terminalId,workerId}|null,unavailableDirectory|null}`. `panel get` text
   text output is the compact Agent table, which has no terminal column; a held Panel shows `-` in
   its directory column there, and `--format json` carries `primaryUnavailableDirectory`.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
-tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecycle, process, or
-  Agent members. At most one of `--workspace`, `--tab` and `--panel` keeps only the terminals
+tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process members.
+  `observation` is what this command observed of the row, tagged by `kind`: `observed`
+  `{title,cwd,agent,state}` after a Host frame read; `frame-unavailable` `{agent,state}` when the
+  row was sampled but its Host frame could not be read, so title and directory are unknown;
+  `not-sampled` beyond the 64-row sampled prefix; and the shared `{kind:"unsupported"}` on
+  platforms without terminal observation. `title` is the raw Host frame title, unnamed and
+  lossless; `cwd`, `agent` and `state` are the facts behind the `CWD`, `AGENT` and `STATE` cells,
+  with `null` where those sources name none. `state` is a presentation report state (`idle`,
+  `working`, `blocked`, `done`, `error`) or `unknown` for an identified Agent without one, and
+  `null` without either. At most one of `--workspace`, `--tab` and `--panel` keeps only the terminals
   bound inside that resolved member, with the standard filter rules: an absent member is
   not-found and an existing member without terminals is an empty list. Windows text output is an
   aligned `HANDLE`, `TITLE`, `AGENT`, `STATE`, `WORKSPACE`, `PANEL`, `CWD` table. Other platforms
   keep the same identity table and render unavailable runtime columns as `-`. `HANDLE`,
   `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
-  changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The text-only enrichment shares one five-second deadline and cancellation watch
+  changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The enrichment, for text and JSON alike, shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
   reads; later rows retain `-` for enrichment. `TITLE` names the Host frame title by the TUI Tab
   rule: an absolute drive or UNC path to an `.exe`, `.com`, `.cmd` or `.bat` program shows the
   program in the display language (for example `PowerShell` or `Command Prompt`), keeping cmd's
   ` - <command>` suffix, and any other title shows its stripped text. The
   [native tab labels](native-tab-labels.md#canonical-state-and-display) contract owns that rule.
-  `TITLE`, `AGENT` and `STATE` are the only cells shortened to fit 80 cells;
-  handles and `CWD` are never cut. `CWD` is the validated terminal-frame directory, falling back to the observed root process directory;
+  `TITLE` and `AGENT` are the only cells shortened, each at its declared width (24 and 14
+  cells); the closed `STATE` vocabulary, handles and `CWD` are never cut, so a row may exceed
+  80 cells. `CWD` is the validated terminal-frame directory, falling back to the observed root process directory;
   it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
   then bounded foreground-process detection; `STATE` preserves a known presentation report state.
   An identified Agent with no known report state displays `unknown`. Otherwise, when a Host frame
@@ -1887,8 +1908,7 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   timeout, cancellation, and protocol failures remain query failures. Each attached viewer gets a
   best-effort detach attempt on both successful and failed
   observation paths. Text preserves printable path characters and escapes terminal controls.
-  `--format json` stays on the original snapshot-only path and keeps the same result shape and
-  schema version. `terminal get` returns the same identity facts under
+  `terminal get` returns the same identity facts under
   `terminal`, which additionally carries a nested `launch` member — the document is
   `{terminal:{terminalId,workerId,boundTo,launch}}`, never a sibling `result.launch`. Only
   presentation-bound terminals are visible; a binding does not prove the process lives.

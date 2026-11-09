@@ -1,10 +1,10 @@
-//! Human-only terminal-list enrichment on one admitted Session and deadline.
+//! Terminal-list observation on one admitted Session and deadline, for text and JSON alike.
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, query,
     query::{metadata_failure, panel_agent_failure},
-    results::{self, Projection, TerminalListDetails},
+    results::{self, Projection, TerminalListDetails, TerminalListObservation},
     success_output,
 };
 use crate::cli_outcome::TerminalListState;
@@ -25,7 +25,7 @@ use std::{
 
 /// Keep optional Host observation work finite even when the snapshot is at its
 /// protocol size limit. The snapshot still lists every bound terminal; rows
-/// after this prefix render unknown enrichment values.
+/// after this prefix are reported as not sampled.
 const MAXIMUM_ENRICHED_TERMINALS: usize = 64;
 
 struct Reports {
@@ -42,12 +42,6 @@ pub(crate) fn run(command: QueryCommand, format: OutputFormat, locale: Locale) -
     {
         return failure_output(failure, Some(format), locale);
     }
-    if format == OutputFormat::Json {
-        // Keep the established machine path byte-for-byte and avoid optional
-        // observations for callers that asked for identity JSON only.
-        return super::network_query(&command, format, locale);
-    }
-
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -106,7 +100,7 @@ fn execute(
     signals.check_before(deadline)?;
     Ok((
         results::snapshot_source(&snapshot),
-        Projection::TerminalListHuman(results::TerminalListDocument { rows, details }),
+        Projection::TerminalList(results::TerminalListDocument { rows, details }),
     ))
 }
 
@@ -121,6 +115,9 @@ fn observe_rows(
     let sampled = sampled_rows(rows);
     let reports = read_reports(client, snapshot, sampled, deadline, signals)?;
     details.resize_with(rows.len(), TerminalListDetails::default);
+    for row in &mut details {
+        row.observation = TerminalListObservation::NotSampled;
+    }
 
     for (index, row) in sampled.iter().enumerate() {
         signals.check_before(deadline)?;
@@ -144,6 +141,11 @@ fn observe_rows(
             super::terminal_observation::Observation::Observed(_)
         );
         let details_row = &mut details[index];
+        details_row.observation = if observed {
+            TerminalListObservation::Observed
+        } else {
+            TerminalListObservation::FrameUnavailable
+        };
         details_row.title = fields["terminalTitle"].as_str().map(str::to_owned);
         details_row.cwd = fields["cwd"].as_str().map(str::to_owned);
         details_row.agent = report

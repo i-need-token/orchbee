@@ -34,7 +34,9 @@ fn physical_prompt_success_and_post_send_cancellation_preserve_receipts() {
             receipt: receipt(),
             completion: Completion::Terminal {
                 binding: binding(),
-                waited: waiting.then(|| Err(error(FailureKind::Timeout, "effect-deadline"))),
+                handle: None,
+                waited: waiting
+                    .then(|| Box::new(Err(error(FailureKind::Timeout, "effect-deadline")))),
             },
         };
         let output = settle(Ok(sent), true, false, OutputFormat::Json, Locale::EnUs);
@@ -80,6 +82,7 @@ fn physical_prompt_failure_and_legacy_variants_are_closed() {
     assert!(!validator.is_valid(&doc));
     let output = success(
         binding(),
+        None,
         receipt().document(),
         None,
         OutputFormat::Json,

@@ -315,7 +315,7 @@ fn physical_wait_documents_reject_fabricated_fields_and_incomplete_client_views(
         .unwrap()
         .initial_match(&initial)
         .unwrap();
-    let matched = super::super::matched_result(&options, initial, matched, 1);
+    let matched = super::super::matched_result(&options, initial, matched, 1, None);
     let mut doc = json!({"schema":"orchbee.agent.wait","version":1,"source":matched.read.source,"result":matched.document()});
     let schema: serde_json::Value =
         serde_json::from_str(include_str!("../../../schemas/orchbee.agent.wait.json")).unwrap();

@@ -66,13 +66,13 @@ pub(super) const HELP_AGENT_EXPLAIN_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_AGENT_DOCTOR_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, declared\nasset roots, the observation endpoint, and the environment override.\n'--provider' selects canonical provider ids (repeatable); '--asset-root'\ndeclares absolute capsule roots to inspect (repeatable, at most 4).\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (version 1 on supported platforms). Windows\nmarks the endpoint probe unsupported, separately from installation.",
+        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, declared\nasset roots, the observation endpoint, and the environment override.\n'--provider' selects providers with an Orchbee integration (repeatable);\nstart-only Agents such as kiro have none to check. '--asset-root'\ndeclares absolute capsule roots to inspect (repeatable, at most 4).\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (version 1 on supported platforms). Windows\nmarks the endpoint probe unsupported, separately from installation.",
     );
 
 pub(super) const HELP_AGENT_DOCTOR_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "仅凭有界文件系统事实解释智能体观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择规范 provider ID（可重复）；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
+        "仅凭有界文件系统事实解释智能体观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择具有 Orchbee 集成的 provider（可重复），kiro 等只能启动的智能体没有可检查的集成；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（受支持平台均为版本 1）。Windows 将端点探测标为不支持，不会把安装状态当成链路可用。",
     );
 
 pub(super) const HELP_AGENT_WAIT_EN: crate::cli_text::HelpDetails =
@@ -151,21 +151,28 @@ impl super::CliText {
         }
     }
 
-    /// Physical matches identify a presentation and semantic sequence, without a canonical session.
+    /// Physical matches name the terminal by the handle a person targets it
+    /// with and a semantic sequence, without a canonical session.
     pub(crate) fn cli_agent_terminal_wait_matched(
         self,
-        presentation: &str,
+        handle: Option<&str>,
         conditions: &str,
         sequence: u64,
         elapsed_ms: u64,
     ) -> String {
-        match self.locale {
-            Locale::EnUs => format!(
-                "terminal {presentation} matched {conditions} at state sequence {sequence} after {elapsed_ms}ms\n"
+        match (self.locale, handle) {
+            (Locale::EnUs, Some(handle)) => format!(
+                "{handle} matched {conditions} at state sequence {sequence} after {elapsed_ms}ms\n"
             ),
-            Locale::ZhCn => format!(
-                "终端 {presentation} 命中 {conditions}（状态序号 {sequence}，用时 {elapsed_ms}ms）\n"
+            (Locale::EnUs, None) => format!(
+                "The Agent terminal matched {conditions} at state sequence {sequence} after {elapsed_ms}ms\n"
             ),
+            (Locale::ZhCn, Some(handle)) => {
+                format!("{handle} 命中 {conditions}（状态序号 {sequence}，用时 {elapsed_ms}ms）\n")
+            }
+            (Locale::ZhCn, None) => {
+                format!("智能体终端命中 {conditions}（状态序号 {sequence}，用时 {elapsed_ms}ms）\n")
+            }
         }
     }
 
@@ -593,10 +600,11 @@ impl super::CliText {
                     .and_then(|value| value.as_str())
                     .unwrap_or("");
                 let escaped = crate::cli_text::escape::quoted(session);
-                match self.locale {
-                    Locale::EnUs => format!("No agent session matches {escaped}.\n"),
-                    Locale::ZhCn => format!("没有与 {escaped} 匹配的智能体会话。\n"),
-                }
+                let refusal = match self.locale {
+                    Locale::EnUs => format!("No agent session matches {escaped}."),
+                    Locale::ZhCn => format!("没有与 {escaped} 匹配的智能体会话。"),
+                };
+                self.cli_with_list_hint(&refusal, "orchbee agent list")
             }
             FailureKind::Denied => match self.locale {
                 Locale::EnUs => "The local session denied the agent read.\n".to_owned(),
@@ -624,12 +632,7 @@ impl super::CliText {
                 }
                 Locale::ZhCn => "智能体观察运行时当前不可用。\n".to_owned(),
             },
-            FailureKind::Timeout => match self.locale {
-                Locale::EnUs => {
-                    "The agent read did not finish within its 5-second deadline.\n".to_owned()
-                }
-                Locale::ZhCn => "智能体读取未能在 5 秒期限内完成。\n".to_owned(),
-            },
+            FailureKind::Timeout => self.cli_agent_timeout(failure),
             FailureKind::TransportLoss => match self.locale {
                 Locale::EnUs => {
                     "The connection to the local session was lost during the agent read.\n"
@@ -655,6 +658,84 @@ impl super::CliText {
                 }
                 Locale::ZhCn => "CLI 在智能体读取期间发生内部错误；未写出任何数据。\n".to_owned(),
             },
+        }
+    }
+
+    /// An expired Agent read or wait names the deadline that actually ended
+    /// it and, for a wait, the states it was waiting for.
+    fn cli_agent_timeout(self, failure: &Failure) -> String {
+        let detail = |name: &str| failure.details.as_ref().and_then(|d| d.get(name));
+        let timeout_ms = detail("timeoutMs").and_then(serde_json::Value::as_u64);
+        let Some(wait) = failure.waited() else {
+            let limit = self.cli_duration(timeout_ms.unwrap_or(5_000));
+            return match self.locale {
+                Locale::EnUs => {
+                    format!("The agent read did not finish within its {limit} limit.\n")
+                }
+                Locale::ZhCn => format!("智能体读取未能在 {limit} 时限内完成。\n"),
+            };
+        };
+        let separator = match self.locale {
+            Locale::EnUs => ", ",
+            Locale::ZhCn => "、",
+        };
+        let until = wait
+            .until
+            .iter()
+            .map(|condition| condition.as_str())
+            .collect::<Vec<_>>()
+            .join(separator);
+        let reason = detail("reason").and_then(serde_json::Value::as_str);
+        match (wait.step_budget_ms, timeout_ms) {
+            (Some(budget), _) if reason == Some("effect-deadline") => {
+                let budget = self.cli_duration(budget);
+                match self.locale {
+                    Locale::EnUs => format!(
+                        "The agent did not start working within {budget} of the prompt, so the wait for {until} ended there.\n"
+                    ),
+                    Locale::ZhCn => format!(
+                        "提示词发送后 {budget} 内智能体未开始工作，对 {until} 的等待就此结束。\n"
+                    ),
+                }
+            }
+            (Some(budget), _) => {
+                let budget = self.cli_duration(budget);
+                match self.locale {
+                    Locale::EnUs => format!(
+                        "The wait stopped early: one read of the agent state did not answer within its {budget} limit, and no awaited state ({until}) had appeared.\n"
+                    ),
+                    Locale::ZhCn => format!(
+                        "等待提前结束：一次智能体状态读取未能在 {budget} 时限内返回，所等待的状态（{until}）尚未出现。\n"
+                    ),
+                }
+            }
+            (None, Some(timeout)) => {
+                let timeout = self.cli_duration(timeout);
+                match self.locale {
+                    Locale::EnUs => format!(
+                        "No awaited state ({until}) appeared within the {timeout} wait deadline set by --timeout.\n"
+                    ),
+                    Locale::ZhCn => format!(
+                        "在 --timeout 设定的 {timeout} 等待期限内，未出现所等待的状态（{until}）。\n"
+                    ),
+                }
+            }
+            (None, None) => match self.locale {
+                Locale::EnUs => {
+                    format!("The wait ended before any awaited state ({until}) appeared.\n")
+                }
+                Locale::ZhCn => format!("等待在所等待的状态（{until}）出现前结束。\n"),
+            },
+        }
+    }
+
+    /// Whole seconds read as seconds; any other duration keeps its milliseconds.
+    fn cli_duration(self, ms: u64) -> String {
+        match (self.locale, ms.is_multiple_of(1_000)) {
+            (Locale::EnUs, true) => format!("{} s", ms / 1_000),
+            (Locale::EnUs, false) => format!("{ms} ms"),
+            (Locale::ZhCn, true) => format!("{} 秒", ms / 1_000),
+            (Locale::ZhCn, false) => format!("{ms} 毫秒"),
         }
     }
 

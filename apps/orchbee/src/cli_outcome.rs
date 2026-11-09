@@ -84,24 +84,36 @@ pub(crate) struct Failure {
     /// bounded command family (`worktree list`); `None` is the shared
     /// `orchbee.cli.failure` document.
     pub(crate) failure_schema: Option<&'static str>,
-    /// Exact missing-sibling evidence from a native cohort check, carried to
-    /// localized text only. Raw I/O details belong to `status client` JSON.
-    /// Boxed so it never enlarges the hot Result.
-    pub(crate) io_diagnostic: Option<Box<IoDiagnostic>>,
-    /// Ambiguity candidates as list handles with their labels, carried to
-    /// localized text only; JSON keeps the identifier `candidates` detail.
-    /// Boxed so it never enlarges the hot Result.
-    pub(crate) candidate_display: Option<Box<CandidateDisplay>>,
+    /// Evidence the localized diagnostic needs beyond the machine details;
+    /// never serialized. One boxed slot so text-only evidence never enlarges
+    /// the hot Result.
+    pub(crate) display: Option<Box<FailureDisplay>>,
     /// The Client's typed reason when it refused one Client view step. Never
     /// serialized here: a command owner publishes it only through its own
     /// closed details vocabulary.
     pub(crate) client_refusal: Option<orchbee_workbench_protocol::ClientViewControlReason>,
 }
 
-/// Ambiguity candidates rendered for people, in listing order.
+/// Text-only failure evidence; each variant belongs to one failure family.
 #[derive(Debug)]
-pub(crate) struct CandidateDisplay {
-    pub(crate) lines: Vec<String>,
+pub(crate) enum FailureDisplay {
+    /// Ambiguity candidates as list handles with their labels, in listing
+    /// order; JSON keeps the identifier `candidates` detail.
+    Candidates(Vec<String>),
+    /// Exact missing-sibling evidence from a native cohort check. Raw I/O
+    /// details belong to `status client` JSON.
+    Io(IoDiagnostic),
+    /// What an expired Agent wait was waiting for; the machine document keeps
+    /// its own deadline details.
+    Wait(WaitDisplay),
+}
+
+/// The conditions an expired Agent wait was waiting for and, when one step's
+/// budget rather than the whole wait deadline ended it, that step's budget.
+#[derive(Debug)]
+pub(crate) struct WaitDisplay {
+    pub(crate) until: Vec<crate::invocation::AgentWaitCondition>,
+    pub(crate) step_budget_ms: Option<u64>,
 }
 
 /// Artifact identity proven absent by its own open operation.
@@ -142,9 +154,41 @@ impl Failure {
             source: None,
             usage: None,
             failure_schema: None,
-            io_diagnostic: None,
-            candidate_display: None,
+            display: None,
             client_refusal: None,
+        }
+    }
+
+    /// Attach what an expired wait was waiting for, for the localized
+    /// diagnostic only.
+    pub(crate) fn wait_display(mut self, display: WaitDisplay) -> Self {
+        self.display = Some(Box::new(FailureDisplay::Wait(display)));
+        self
+    }
+
+    /// Attach ambiguity candidates rendered as list handles with labels.
+    pub(crate) fn candidate_display(&mut self, lines: Vec<String>) {
+        self.display = Some(Box::new(FailureDisplay::Candidates(lines)));
+    }
+
+    pub(crate) fn candidate_lines(&self) -> Option<&[String]> {
+        match self.display.as_deref() {
+            Some(FailureDisplay::Candidates(lines)) => Some(lines),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn missing_artifact(&self) -> Option<&str> {
+        match self.display.as_deref() {
+            Some(FailureDisplay::Io(observed)) => observed.missing_artifact.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn waited(&self) -> Option<&WaitDisplay> {
+        match self.display.as_deref() {
+            Some(FailureDisplay::Wait(wait)) => Some(wait),
+            _ => None,
         }
     }
 
@@ -169,11 +213,11 @@ impl Failure {
     /// missing sibling is available only when its artifact-open operation
     /// returned `NotFound`.
     pub(crate) fn io_diagnostic(mut self, error: &orchbee_local_runtime::CohortError) -> Self {
-        self.io_diagnostic = Some(Box::new(IoDiagnostic {
+        self.display = Some(Box::new(FailureDisplay::Io(IoDiagnostic {
             missing_artifact: error
                 .missing_artifact()
                 .map(orchbee_local_runtime::CohortArtifact::file_name),
-        }));
+        })));
         self
     }
 }

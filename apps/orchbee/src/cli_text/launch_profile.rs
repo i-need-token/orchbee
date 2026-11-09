@@ -70,12 +70,11 @@ impl super::CliText {
             FailureKind::NotFound => {
                 let (_resource, target) = failure_target(failure);
                 let escaped = crate::cli_text::escape::quoted(&target);
-                match self.locale {
-                    Locale::EnUs => {
-                        format!("No launch profile matches {escaped}.\n")
-                    }
-                    Locale::ZhCn => format!("没有与 {escaped} 匹配的启动配置。\n"),
-                }
+                let refusal = match self.locale {
+                    Locale::EnUs => format!("No launch profile matches {escaped}."),
+                    Locale::ZhCn => format!("没有与 {escaped} 匹配的启动配置。"),
+                };
+                self.cli_with_list_hint(&refusal, "orchbee launch-profile list")
             }
             FailureKind::Ambiguous => {
                 let (_resource, target) = failure_target(failure);

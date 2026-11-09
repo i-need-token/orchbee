@@ -27,6 +27,10 @@ impl TerminalAgentRead {
 #[derive(Debug)]
 pub(crate) struct Matched {
     pub(in crate::cli) client_view: Option<ClientAttention>,
+    /// The stable handle a person targets the matched terminal by, resolved
+    /// from the snapshot of the matching read; absent when that read came
+    /// from a caller without one. Text only: JSON keeps the binding.
+    pub(in crate::cli) handle: Option<String>,
     pub(in crate::cli) read: TerminalAgentRead,
     pub(in crate::cli) conditions: Vec<AgentWaitCondition>,
     pub(in crate::cli) change: Option<TerminalAgentChange>,

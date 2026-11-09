@@ -3,16 +3,25 @@
 use super::Locale;
 
 impl super::CliText {
-    pub(crate) fn cli_terminal_prompt_submitted(self, presentation: &str, matched: bool) -> String {
+    /// Names the terminal by the handle a person targets it with.
+    pub(crate) fn cli_terminal_prompt_submitted(
+        self,
+        handle: Option<&str>,
+        matched: bool,
+    ) -> String {
+        let target = match (self.locale, handle) {
+            (Locale::EnUs, Some(handle)) => handle.to_owned(),
+            (Locale::EnUs, None) => "the Agent terminal".to_owned(),
+            (Locale::ZhCn, Some(handle)) => format!(" {handle} "),
+            (Locale::ZhCn, None) => "智能体终端".to_owned(),
+        };
         match (self.locale, matched) {
-            (Locale::EnUs, false) => format!("Prompt submitted to terminal {presentation}.\n"),
+            (Locale::EnUs, false) => format!("Prompt submitted to {target}.\n"),
             (Locale::EnUs, true) => {
-                format!("Prompt submitted to terminal {presentation}; wait conditions matched.\n")
+                format!("Prompt submitted to {target}; wait conditions matched.\n")
             }
-            (Locale::ZhCn, false) => format!("提示词已提交至终端 {presentation}。\n"),
-            (Locale::ZhCn, true) => {
-                format!("提示词已提交至终端 {presentation}；等待条件已满足。\n")
-            }
+            (Locale::ZhCn, false) => format!("提示词已提交至{target}。\n"),
+            (Locale::ZhCn, true) => format!("提示词已提交至{target}；等待条件已满足。\n"),
         }
     }
 

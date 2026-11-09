@@ -11,6 +11,7 @@ use crate::cli::query::terminal_agent::{self, failure as error};
 use crate::cli::results::terminal_agent::{Matched, TerminalAgentRead};
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
+use crate::cli_outcome::WaitDisplay;
 use crate::invocation::{AgentTarget, AgentWaitCondition};
 use crate::local_client::LocalClient;
 
@@ -80,10 +81,11 @@ pub(in crate::cli) fn observe(
     let prompt = initial.is_some();
     let effect = options.total.step(Instant::now(), READ_BUDGET)?;
     let mut observations = 0_u64;
+    let mut handle = None;
     let first = match initial {
         Some(read) => read,
         None => {
-            let (_, read) = read_pinned(
+            let (snapshot, read) = read_pinned(
                 client,
                 options.target,
                 options.binding,
@@ -93,6 +95,7 @@ pub(in crate::cli) fn observe(
             )
             .map_err(|failure| read_failure(failure, &options, false, effect, observations))?;
             observations += 1;
+            handle = presentation_handle(&snapshot, &read);
             read
         }
     };
@@ -105,7 +108,13 @@ pub(in crate::cli) fn observe(
     if options.selected.is_none()
         && let Some(matched) = state.initial_match(&first)
     {
-        return Ok(matched_result(&options, first, matched, observations));
+        return Ok(matched_result(
+            &options,
+            first,
+            matched,
+            observations,
+            handle,
+        ));
     }
     let mut backoff = Duration::from_millis(50);
     loop {
@@ -137,7 +146,7 @@ pub(in crate::cli) fn observe(
             })
             .transpose()
             .map_err(|failure| read_failure(failure, &options, gated, effect, observations))?;
-        let (_, read) = read_pinned(
+        let (snapshot, read) = read_pinned(
             client,
             options.target,
             options.binding,
@@ -156,7 +165,8 @@ pub(in crate::cli) fn observe(
             return Err(timeout(&options, "effect-deadline", observations));
         }
         if let Some(matched) = state.observe(&read)? {
-            let mut result = matched_result(&options, read, matched, observations);
+            let handle = presentation_handle(&snapshot, &read);
+            let mut result = matched_result(&options, read, matched, observations, handle);
             result.client_view = client_view;
             return Ok(result);
         }
@@ -179,14 +189,23 @@ pub(in crate::cli) fn interrupt(signals: &mut impl SignalWatch) -> Result<(), Fa
     }
 }
 
+fn presentation_handle(snapshot: &Snapshot, read: &TerminalAgentRead) -> Option<String> {
+    crate::cli::results::presentation_handle(
+        snapshot,
+        read.observation.binding.presentation_id.as_str(),
+    )
+}
+
 fn matched_result(
     options: &Options<'_>,
     read: TerminalAgentRead,
     matched: state::Match,
     observations: u64,
+    handle: Option<String>,
 ) -> Matched {
     Matched {
         client_view: None,
+        handle,
         read,
         conditions: matched.conditions,
         change: matched.change,
@@ -206,7 +225,13 @@ fn timeout(options: &Options<'_>, reason: &'static str, observations: u64) -> Fa
         json!(u64::try_from(options.start.elapsed().as_millis()).unwrap_or(u64::MAX)),
     );
     details.insert("completedObservations".into(), json!(observations));
-    failure
+    // Both the read and the prompt-effect deadlines are one READ_BUDGET step.
+    let step_budget_ms = (reason != "wait-deadline")
+        .then(|| u64::try_from(READ_BUDGET.as_millis()).unwrap_or(u64::MAX));
+    failure.wait_display(WaitDisplay {
+        until: options.until.to_vec(),
+        step_budget_ms,
+    })
 }
 fn read_failure(
     failure: Failure,

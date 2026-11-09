@@ -224,17 +224,15 @@ fn terminal_cell(terminal: Option<&String>, held: Option<&String>, text: &CliLab
     }
 }
 
-/// The human terminal table: location handles and the path are never cut;
-/// only the title, Agent and state labels shrink toward an 80-cell line.
+/// The human terminal table: location handles, the state and the path are
+/// never cut; only the title and Agent labels stop at their declared widths.
 fn terminal_table(
     out: &mut Bounded,
     text: &CliLabels,
     doc: &super::results::TerminalListDocument,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    const MAXIMUM_WIDTH: usize = 80;
-    const LABEL_LIMITS: [(usize, usize); 3] = [(1, 24), (2, 14), (3, 12)];
-    const CWD: usize = 6;
+    const LABEL_LIMITS: [(usize, usize); 2] = [(1, 24), (2, 14)];
     let headers = &text.terminal_list_headers;
     let fallback = terminal_handles(&doc.rows);
     let rows: Vec<Vec<String>> = doc
@@ -252,20 +250,6 @@ fn terminal_table(
                 .map_or(usize::MAX, |(_, limit)| *limit);
             widths[column] = widths[column].max(terminal_cell_width(cell).min(limit));
         }
-    }
-    // The path is the last column and is never truncated; it only counts
-    // toward the label budget up to a short visible prefix.
-    let fixed = widths[CWD].min(24);
-    let mut total = widths[..CWD].iter().sum::<usize>() + fixed + (headers.len() - 1) * 2;
-    for (column, _) in LABEL_LIMITS {
-        if total <= MAXIMUM_WIDTH {
-            break;
-        }
-        let reduction = widths[column]
-            .saturating_sub(display_width(headers[column]))
-            .min(total - MAXIMUM_WIDTH);
-        widths[column] -= reduction;
-        total -= reduction;
     }
 
     let render_row = |cells: &[String], out: &mut Bounded| -> Result<(), TooLarge> {
@@ -744,9 +728,7 @@ pub(crate) fn render(
         Projection::PanelProcessInfo(doc) => {
             panel_process(out, doc, Some(doc.server.identity), locale)
         }
-        Projection::TerminalList(doc) | Projection::TerminalListHuman(doc) => {
-            terminal_table(out, text, doc, locale)
-        }
+        Projection::TerminalList(doc) => terminal_table(out, text, doc, locale),
         Projection::TerminalOutput(doc) => doc.render(out, command, locale),
         #[cfg(test)]
         Projection::TerminalRead(doc) => {
@@ -969,7 +951,7 @@ pub(crate) fn render(
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
         Projection::AgentTerminalWait(doc) => out.push(
             &CliText::new(locale).cli_agent_terminal_wait_matched(
-                doc.read.observation.binding.presentation_id.as_str(),
+                doc.handle.as_deref(),
                 &doc.conditions
                     .iter()
                     .map(|c| c.as_str())

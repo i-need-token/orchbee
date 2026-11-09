@@ -428,8 +428,12 @@ impl super::CliText {
                 "a decimal integer from 0 to 9007199254740991"
             }
             (Locale::ZhCn, ExpectedValue::AgentAfterRevision) => "0–9007199254740991 的十进制整数",
-            (Locale::EnUs, ExpectedValue::ProviderId) => "one of the canonical provider ids",
-            (Locale::ZhCn, ExpectedValue::ProviderId) => "规范 provider ID 之一",
+            (Locale::EnUs, ExpectedValue::ProviderId | ExpectedValue::StartOnlyProvider) => {
+                "a provider with an Orchbee integration"
+            }
+            (Locale::ZhCn, ExpectedValue::ProviderId | ExpectedValue::StartOnlyProvider) => {
+                "具有 Orchbee 集成的 provider"
+            }
             (Locale::EnUs, ExpectedValue::AssetRootPath) => {
                 "a nonempty absolute path; at most 4 may be given"
             }
@@ -625,6 +629,27 @@ impl super::CliText {
                 },
                 hint(*ctx),
             ),
+            UsageReason::InvalidValue {
+                context: ctx,
+                value,
+                expected: ExpectedValue::StartOnlyProvider,
+                ..
+            } => {
+                let integrated = crate::invocation::grammar::values::PROVIDER_VALUES.join(", ");
+                (
+                    match self.locale {
+                        Locale::EnUs => format!(
+                            "Agent {} has no Orchbee integration to check or manage; it can only be started. Agents with an integration: {integrated}.",
+                            echo(value)
+                        ),
+                        Locale::ZhCn => format!(
+                            "智能体 {} 没有可检查或管理的 Orchbee 集成，只能启动。具有集成的智能体：{integrated}。",
+                            echo(value)
+                        ),
+                    },
+                    hint(*ctx),
+                )
+            }
             UsageReason::InvalidValue {
                 context: ctx,
                 option,

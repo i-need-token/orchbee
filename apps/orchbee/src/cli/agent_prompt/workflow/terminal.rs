@@ -82,6 +82,8 @@ pub(super) fn span(
         return Err(error(FailureKind::NotFound, "agent-identity-changed"));
     }
     let row = query::named_terminal::terminal_row(&snapshot, &binding)?;
+    let handle =
+        crate::cli::results::presentation_handle(&snapshot, binding.presentation_id.as_str());
     terminal_agent_wait::interrupt(signals)?;
     if Instant::now() >= deadline {
         return Err(error(FailureKind::Timeout, "read-deadline"));
@@ -112,12 +114,17 @@ pub(super) fn span(
                 signals,
             )
         })
+        .map(Box::new)
     } else {
         None
     };
     Ok(Sent {
         receipt,
-        completion: Completion::Terminal { binding, waited },
+        completion: Completion::Terminal {
+            binding,
+            handle,
+            waited,
+        },
     })
 }
 
@@ -170,6 +177,7 @@ pub(super) fn failed_after_send(
 
 pub(super) fn success(
     binding: AgentLaunchBinding,
+    handle: Option<String>,
     receipt: Value,
     matched: Option<Matched>,
     format: OutputFormat,
@@ -182,7 +190,7 @@ pub(super) fn success(
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => output::encode_text(
             &CliText::new(locale)
-                .cli_terminal_prompt_submitted(binding.presentation_id.as_str(), matched.is_some()),
+                .cli_terminal_prompt_submitted(handle.as_deref(), matched.is_some()),
         ),
     };
     match encoded {

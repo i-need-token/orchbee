@@ -148,7 +148,7 @@ use serde_json::{Map, Value, json};
 // The failure model is owned by `cli_outcome`; command owners under `cli` reach it through this
 // composition root, while modules outside `cli` import it from `cli_outcome` directly.
 pub(crate) use crate::cli_outcome::{
-    CandidateDisplay, Failure, FailureKind, stage_details, stage_reason_details, target_details,
+    Failure, FailureKind, stage_details, stage_reason_details, target_details,
 };
 use crate::invocation::{
     CompletionShell, HelpTopic, MutationCommand, OutputFormat, ParseFailure, ParseFailureKind,
@@ -337,8 +337,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         source: None,
         usage: failure.usage.map(Box::new),
         failure_schema: None,
-        io_diagnostic: None,
-        candidate_display: None,
+        display: None,
         client_refusal: None,
     };
     let format = match failure.envelope {

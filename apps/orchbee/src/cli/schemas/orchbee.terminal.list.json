@@ -36,7 +36,7 @@
 		},
 		"terminal": {
 			"type": "object",
-			"required": ["terminalId", "workerId", "boundTo"],
+			"required": ["terminalId", "workerId", "boundTo", "observation"],
 			"additionalProperties": false,
 			"properties": {
 				"terminalId": {
@@ -63,6 +63,83 @@
 							"$ref": "#/$defs/id"
 						}
 					}
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/observed"
+						},
+						{
+							"$ref": "#/$defs/frameUnavailable"
+						},
+						{
+							"$ref": "#/$defs/notSampled"
+						},
+						{
+							"$ref": "#/$defs/unsupported"
+						}
+					]
+				}
+			}
+		},
+		"observed": {
+			"type": "object",
+			"required": ["kind", "title", "cwd", "agent", "state"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "observed"
+				},
+				"title": {
+					"type": ["string", "null"]
+				},
+				"cwd": {
+					"type": ["string", "null"]
+				},
+				"agent": {
+					"type": ["string", "null"]
+				},
+				"state": {
+					"$ref": "#/$defs/agentState"
+				}
+			}
+		},
+		"frameUnavailable": {
+			"type": "object",
+			"required": ["kind", "agent", "state"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "frame-unavailable"
+				},
+				"agent": {
+					"type": ["string", "null"]
+				},
+				"state": {
+					"$ref": "#/$defs/agentState"
+				}
+			}
+		},
+		"notSampled": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "not-sampled"
+				}
+			}
+		},
+		"agentState": {
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown", null]
+		},
+		"unsupported": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "unsupported"
 				}
 			}
 		},

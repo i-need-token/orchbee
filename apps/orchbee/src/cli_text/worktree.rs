@@ -1,6 +1,6 @@
 //! Localized worktree operations, query failures, and command help; does not inspect or mutate checkouts.
 
-use super::failure_target;
+use super::{failure_list_command, failure_target};
 use crate::cli_outcome::Failure;
 use crate::native_path;
 use crate::{cli_text::escape::escape, invocation::CommandPath, localization::Locale};
@@ -414,12 +414,13 @@ impl super::CliText {
         match failure.kind {
             FailureKind::NotFound => {
                 let (_resource, target) = failure_target(failure);
-                match self.locale {
+                let refusal = match self.locale {
                     Locale::EnUs => {
-                        format!("No directory with ID {target} is registered to the project.\n")
+                        format!("No directory with ID {target} is registered to the project.")
                     }
-                    Locale::ZhCn => format!("该项目未注册 ID 为 {target} 的目录。\n"),
-                }
+                    Locale::ZhCn => format!("该项目未注册 ID 为 {target} 的目录。"),
+                };
+                self.cli_with_list_hint(&refusal, failure_list_command(failure))
             }
             FailureKind::Denied => match self.locale {
                 Locale::EnUs => "The local session denied the worktree listing.\n".to_owned(),

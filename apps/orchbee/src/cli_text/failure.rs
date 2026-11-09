@@ -1,6 +1,6 @@
 //! Localized CLI failure routing and shared diagnostics; does not recover or retry operations.
 
-use super::{Locale, failure_target};
+use super::{Locale, failure_list_command, failure_target};
 use crate::cli_outcome::Failure;
 
 impl super::CliText {
@@ -159,11 +159,11 @@ impl super::CliText {
         }
         if failure.failure_schema == Some("orchbee.cli.failure.agent-names") {
             if failure.kind == FailureKind::NotFound {
-                return match self.locale {
-                    Locale::EnUs => "No Agent session or name matches the target.\n",
-                    Locale::ZhCn => "没有与目标匹配的智能体会话或名称。\n",
-                }
-                .to_owned();
+                let refusal = match self.locale {
+                    Locale::EnUs => "No Agent session or name matches the target.",
+                    Locale::ZhCn => "没有与目标匹配的智能体会话或名称。",
+                };
+                return self.cli_with_list_hint(refusal, "orchbee agent list");
             }
             if failure
                 .details
@@ -251,7 +251,7 @@ impl super::CliText {
             }
             FailureKind::NotFound => {
                 let (resource, target) = failure_target(failure);
-                self.cli_not_found(resource, &target)
+                self.cli_not_found(resource, &target, failure_list_command(failure))
             }
             FailureKind::Ambiguous => {
                 let (resource, target) = failure_target(failure);
@@ -415,11 +415,21 @@ impl super::CliText {
         }
     }
 
-    fn cli_not_found(self, resource: &str, target: &str) -> String {
+    fn cli_not_found(self, resource: &str, target: &str, list: &str) -> String {
         let escaped = crate::cli_text::escape::quoted(target);
+        let refusal = match self.locale {
+            Locale::EnUs => format!("No {resource} matches {escaped}."),
+            Locale::ZhCn => format!("没有与 {escaped} 匹配的 {resource}。"),
+        };
+        self.cli_with_list_hint(&refusal, list)
+    }
+
+    /// Every not-found refusal ends with the one command that lists the
+    /// valid targets, so the next step is always visible.
+    pub(super) fn cli_with_list_hint(self, refusal: &str, list: &str) -> String {
         match self.locale {
-            Locale::EnUs => format!("No {resource} matches {escaped}.\n"),
-            Locale::ZhCn => format!("没有与 {escaped} 匹配的 {resource}。\n"),
+            Locale::EnUs => format!("{refusal} Run '{list}' to see valid targets.\n"),
+            Locale::ZhCn => format!("{refusal}请运行 ‘{list}’ 查看可用目标。\n"),
         }
     }
 
@@ -428,8 +438,8 @@ impl super::CliText {
     fn cli_ambiguous(self, resource: &str, target: &str, failure: &Failure) -> String {
         let escaped = crate::cli_text::escape::quoted(target);
         let details = failure.details.as_ref();
-        let listed: Vec<String> = match &failure.candidate_display {
-            Some(display) => display.lines.clone(),
+        let listed: Vec<String> = match failure.candidate_lines() {
+            Some(lines) => lines.to_vec(),
             None => details
                 .and_then(|details| details.get("candidates"))
                 .and_then(|value| value.as_array())
@@ -578,18 +588,8 @@ impl super::CliText {
             .and_then(|value| value.as_str())
             .unwrap_or("");
         match (self.locale, stage) {
-            (Locale::EnUs, "cohort") => self.cli_cohort_diagnostic(
-                failure
-                    .io_diagnostic
-                    .as_ref()
-                    .and_then(|observed| observed.missing_artifact.as_deref()),
-            ),
-            (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(
-                failure
-                    .io_diagnostic
-                    .as_ref()
-                    .and_then(|observed| observed.missing_artifact.as_deref()),
-            ),
+            (Locale::EnUs, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
+            (Locale::ZhCn, "cohort") => self.cli_cohort_diagnostic(failure.missing_artifact()),
             (Locale::EnUs, "platform") => {
                 let command = failure
                     .details

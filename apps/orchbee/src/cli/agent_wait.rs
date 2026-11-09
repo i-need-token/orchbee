@@ -31,6 +31,7 @@ use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::cli::results::{AgentWaitDoc, AgentWaitHistory, Projection, agent_source};
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
+use crate::cli_outcome::WaitDisplay;
 use crate::invocation::AgentWaitCondition;
 use crate::local_client::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
 use crate::local_client::{LocalClient, exchange_wake_fault, exchange_wake_ready};
@@ -274,6 +275,7 @@ fn agent_wait_span(
         // shared budget is always the wait's own timeout.
         if total.expired(Instant::now()) {
             break wait_timeout(
+                until,
                 WaitDeadlineReason::Total,
                 timeout_ms,
                 start,
@@ -290,6 +292,7 @@ fn agent_wait_span(
             let result = journal.read(&mut client, deadline, signals.poll_fd());
             if total.expired(Instant::now()) {
                 break wait_timeout(
+                    until,
                     WaitDeadlineReason::Total,
                     timeout_ms,
                     start,
@@ -327,6 +330,7 @@ fn agent_wait_span(
                     }
                     if wait_deadline_elapsed(&error) {
                         break wait_timeout(
+                            until,
                             WaitDeadlineReason::Read {
                                 budget_ms: deadline.duration_since(now).as_millis() as u64,
                             },
@@ -371,6 +375,7 @@ fn agent_wait_span(
                 Err(failure) => {
                     break client_wait_failure(
                         failure,
+                        until,
                         total,
                         timeout_ms,
                         start,
@@ -419,6 +424,7 @@ fn agent_wait_span(
                 }
                 if settled {
                     break wait_timeout(
+                        until,
                         WaitDeadlineReason::Total,
                         timeout_ms,
                         start,
@@ -460,6 +466,7 @@ fn agent_wait_span(
                                     Err(failure) => {
                                         break client_wait_failure(
                                             failure,
+                                            until,
                                             total,
                                             timeout_ms,
                                             start,
@@ -576,6 +583,7 @@ fn agent_wait_span(
             Ok(_) => {
                 if settled {
                     break wait_timeout(
+                        until,
                         WaitDeadlineReason::Total,
                         timeout_ms,
                         start,
@@ -588,6 +596,7 @@ fn agent_wait_span(
             Err(error) => {
                 if settled {
                     break wait_timeout(
+                        until,
                         WaitDeadlineReason::Total,
                         timeout_ms,
                         start,
@@ -603,6 +612,7 @@ fn agent_wait_span(
                     // open — the exchange already retired the session and
                     // the wait never reconnects.
                     break wait_timeout(
+                        until,
                         WaitDeadlineReason::Read {
                             budget_ms: read_budget_ms,
                         },
@@ -634,8 +644,13 @@ fn agent_wait_span(
     outcome
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Client step timeout projects every observed fact of the wait span"
+)]
 fn client_wait_failure(
     mut failure: Failure,
+    until: &[AgentWaitCondition],
     total: WaitDeadline,
     timeout_ms: Option<u32>,
     start: Instant,
@@ -645,6 +660,7 @@ fn client_wait_failure(
 ) -> WaitAttempt {
     if failure.kind == FailureKind::Timeout || total.expired(Instant::now()) {
         return wait_timeout(
+            until,
             if total.expired(Instant::now()) {
                 WaitDeadlineReason::Total
             } else {
@@ -816,8 +832,10 @@ fn revision_ahead_details(
 /// The wait timeout arm: `{stage:"agent-read", operation:"wait",
 /// timeoutMs, elapsedMs, reason, completedObservations}` plus the honest
 /// observed facts — `readBudgetMs` only under `read-deadline`, `last*`
-/// only when at least one observation completed.
+/// only when at least one observation completed. The awaited conditions
+/// reach the localized diagnostic only.
 fn wait_timeout(
+    until: &[AgentWaitCondition],
     deadline: WaitDeadlineReason,
     timeout_ms: Option<u32>,
     start: Instant,
@@ -847,7 +865,16 @@ fn wait_timeout(
         );
         details.insert("lastRevision".to_owned(), json!(observed.revision.value()));
     }
-    WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout).details(details)))
+    let step_budget_ms = match deadline {
+        WaitDeadlineReason::Total => None,
+        WaitDeadlineReason::Read { budget_ms } => Some(budget_ms),
+    };
+    WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout)
+        .details(details)
+        .wait_display(WaitDisplay {
+            until: until.to_vec(),
+            step_budget_ms,
+        })))
 }
 
 pub(in crate::cli) mod terminal;

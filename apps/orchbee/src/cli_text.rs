@@ -61,23 +61,43 @@ mod workspace_group_close;
 mod worktree;
 pub(crate) use labels::CliLabels;
 
-fn failure_target(failure: &Failure) -> (&'static str, String) {
-    let resource = failure
+/// Each failure `resource` token with the word text names it by and the
+/// command that lists its valid targets; an unnamed resource is a Project.
+const FAILURE_RESOURCES: [(&str, &str, &str); 8] = [
+    ("project", "project", "orchbee project list"),
+    ("workspace", "workspace", "orchbee workspace list"),
+    ("tab", "tab", "orchbee tab list"),
+    ("panel", "panel", "orchbee panel list"),
+    ("terminal", "terminal", "orchbee terminal list"),
+    ("schema", "schema", "orchbee api schema"),
+    ("directory", "directory", "orchbee project get <project>"),
+    (
+        "launch-profile",
+        "launch profile",
+        "orchbee launch-profile list",
+    ),
+];
+
+fn failure_resource(failure: &Failure) -> (&'static str, &'static str) {
+    let token = failure
         .details
         .as_ref()
         .and_then(|details| details.get("resource"))
-        .and_then(|value| value.as_str())
-        .unwrap_or("project");
-    let resource = match resource {
-        "workspace" => "workspace",
-        "tab" => "tab",
-        "panel" => "panel",
-        "terminal" => "terminal",
-        "schema" => "schema",
-        "directory" => "directory",
-        "launch-profile" => "launch profile",
-        _ => "project",
-    };
+        .and_then(|value| value.as_str());
+    let (_, word, list) = FAILURE_RESOURCES
+        .iter()
+        .find(|(known, ..)| Some(*known) == token)
+        .unwrap_or(&FAILURE_RESOURCES[0]);
+    (word, list)
+}
+
+/// The command a not-found refusal of this failure's resource points to.
+fn failure_list_command(failure: &Failure) -> &'static str {
+    failure_resource(failure).1
+}
+
+fn failure_target(failure: &Failure) -> (&'static str, String) {
+    let resource = failure_resource(failure).0;
     let target = failure
         .details
         .as_ref()

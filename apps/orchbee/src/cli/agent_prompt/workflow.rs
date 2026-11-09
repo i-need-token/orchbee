@@ -25,7 +25,9 @@ enum Completion {
     },
     Terminal {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
-        waited: Option<Result<crate::cli::results::terminal_agent::Matched, Failure>>,
+        handle: Option<String>,
+        // Boxed: a physical match carries its whole terminal read.
+        waited: Option<Box<Result<crate::cli::results::terminal_agent::Matched, Failure>>>,
     },
 }
 impl Completion {
@@ -140,10 +142,17 @@ fn settle(
                         }
                     }
                 }
-                Completion::Terminal { binding, waited } => {
-                    let outcome = interrupted.map_or_else(|| waited.transpose(), Err);
+                Completion::Terminal {
+                    binding,
+                    handle,
+                    waited,
+                } => {
+                    let outcome =
+                        interrupted.map_or_else(|| waited.map(|waited| *waited).transpose(), Err);
                     match outcome {
-                        Ok(matched) => terminal::success(binding, receipt, matched, format, locale),
+                        Ok(matched) => {
+                            terminal::success(binding, handle, receipt, matched, format, locale)
+                        }
                         Err(failure) => {
                             terminal::failed_after_send(failure, binding, receipt, format, locale)
                         }

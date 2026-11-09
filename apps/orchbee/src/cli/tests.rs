@@ -382,7 +382,7 @@ fn terminal_list_agent_states_are_localized() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for state in states {
             let output = super::success_output(
-                Projection::TerminalListHuman(TerminalListDocument {
+                Projection::TerminalList(TerminalListDocument {
                     rows: vec![row.clone()],
                     details: vec![TerminalListDetails {
                         placement: None,
@@ -412,7 +412,7 @@ fn terminal_list_keeps_full_paths_and_escapes_terminal_controls() {
         terminal_context_id: "5".repeat(32),
     };
     let output = super::success_output(
-        Projection::TerminalListHuman(TerminalListDocument {
+        Projection::TerminalList(TerminalListDocument {
             rows: vec![row],
             details: vec![TerminalListDetails {
                 placement: None,
@@ -422,6 +422,7 @@ fn terminal_list_keeps_full_paths_and_escapes_terminal_controls() {
                     orchbee_workbench_protocol::PanelAgentState::Idle,
                 )),
                 cwd: Some(format!("C:\\work\\{}\\\u{001b}", "nested\\".repeat(32))),
+                ..TerminalListDetails::default()
             }],
         }),
         json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"}),
@@ -469,7 +470,7 @@ fn terminal_list_shows_location_handles_and_program_names() {
         (Locale::ZhCn, "@workspace:0x9"),
     ] {
         let output = super::success_output(
-            Projection::TerminalListHuman(TerminalListDocument {
+            Projection::TerminalList(TerminalListDocument {
                 rows: vec![row.clone()],
                 details: vec![placement(workspace)],
             }),
@@ -517,10 +518,10 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let output = super::success_output(
-            Projection::TerminalListHuman(TerminalListDocument {
+            Projection::TerminalList(TerminalListDocument {
                 rows: vec![row.clone()],
                 details: vec![TerminalListDetails {
-                    // A short handle keeps the row inside 80 cells, so TITLE is compared untruncated.
+                    // A short title stays inside its declared width, so TITLE is compared untruncated.
                     placement: Some(super::results::TerminalPlacement {
                         handle: "@terminal:0xf".into(),
                         workspace: "@workspace:0x9".into(),
@@ -574,44 +575,6 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
             "human launch-program enrichment must not change Panel list JSON"
         );
     }
-}
-
-#[test]
-fn terminal_list_human_enrichment_does_not_change_json_bytes() {
-    let rows = vec![TerminalRow {
-        terminal_id: ID.into(),
-        worker_id: "1".repeat(32),
-        presentation_id: "2".repeat(32),
-        panel_id: "3".repeat(32),
-        tab_id: "4".repeat(32),
-        terminal_context_id: "5".repeat(32),
-    }];
-    let source = json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"1"});
-    let command = QueryCommand::TerminalList { filter: None };
-    let plain = super::success_output(
-        Projection::TerminalList(TerminalListDocument::bare(rows.clone())),
-        source.clone(),
-        &command,
-        OutputFormat::Json,
-        Locale::EnUs,
-    );
-    let enriched = super::success_output(
-        Projection::TerminalListHuman(TerminalListDocument {
-            rows,
-            details: vec![TerminalListDetails {
-                placement: None,
-                title: Some("pwsh".into()),
-                agent: Some("grok".into()),
-                state: Some(TerminalListState::Observed),
-                cwd: Some("C:\\work".into()),
-            }],
-        }),
-        source,
-        &command,
-        OutputFormat::Json,
-        Locale::EnUs,
-    );
-    assert_eq!(plain.stdout, enriched.stdout);
 }
 
 fn oversized_terminals() -> Projection {

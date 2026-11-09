@@ -72,8 +72,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         details: None,
         source: None,
         failure_schema: None,
-        io_diagnostic: None,
-        candidate_display: None,
+        display: None,
         client_refusal: None,
         usage: Some(Box::new(usage)),
     };
@@ -133,8 +132,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         details: None,
         source: None,
         failure_schema: None,
-        io_diagnostic: None,
-        candidate_display: None,
+        display: None,
         client_refusal: None,
         usage: None,
     };
@@ -156,14 +154,14 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         ])),
         source: None,
         failure_schema: None,
-        io_diagnostic: None,
-        candidate_display: None,
+        display: None,
         client_refusal: None,
         usage: None,
     };
-    assert_eq!(
-        CliText::new(Locale::EnUs).cli_failure(&failure),
-        "No tab matches \"x\".\n"
+    assert!(
+        CliText::new(Locale::EnUs)
+            .cli_failure(&failure)
+            .starts_with("No tab matches \"x\".")
     );
 }
 

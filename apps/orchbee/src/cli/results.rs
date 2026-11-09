@@ -18,7 +18,7 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Map, Value, json};
 
-use super::{CandidateDisplay, Failure, FailureKind, target_details};
+use super::{Failure, FailureKind, target_details};
 use crate::cli_outcome::{AgentClientViewDoc, TerminalListState};
 mod shape;
 pub(super) use shape::complete;
@@ -253,16 +253,32 @@ pub(crate) struct TerminalRow {
     pub(crate) terminal_context_id: String,
 }
 
-/// Human-only enrichment for one terminal-list row. It is deliberately kept
-/// outside `TerminalRow`, whose identity fields define the stable JSON shape.
+/// Enrichment for one terminal-list row, kept outside `TerminalRow`, whose
+/// identity fields are the routing row other documents share. Placement is
+/// text only; the observed facts also reach the row's JSON `observation`.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TerminalListDetails {
     pub(crate) placement: Option<TerminalPlacement>,
+    pub(crate) observation: TerminalListObservation,
     /// The Host frame's raw title, which the human table names with the shared terminal title rule.
     pub(crate) title: Option<String>,
     pub(crate) agent: Option<String>,
     pub(crate) state: Option<TerminalListState>,
     pub(crate) cwd: Option<String>,
+}
+
+/// How far one terminal-list row was observed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum TerminalListObservation {
+    /// This platform cannot observe terminal frames or Agent reports.
+    #[default]
+    Unsupported,
+    /// Outside the bounded prefix the command samples.
+    NotSampled,
+    /// Sampled, but the Host frame could not be read; title and directory are unknown.
+    FrameUnavailable,
+    /// Sampled with a Host frame read.
+    Observed,
 }
 
 /// Snapshot-derived location handles, each unique over every member of its
@@ -1094,13 +1110,13 @@ pub(crate) fn terminal_select(
                     target,
                     vec![terminal.terminal_id, other],
                 );
-                failure.candidate_display = Some(Box::new(CandidateDisplay {
-                    lines: [
+                failure.candidate_display(
+                    [
                         super::handles::stable("terminal", &[id]),
                         super::handles::stable("panel", &[id]),
                     ]
                     .concat(),
-                }));
+                );
                 Err(failure)
             }
         };
@@ -1190,9 +1206,6 @@ pub(crate) enum Projection {
     /// The fresh process sample and the Server's identity result for the same Terminal.
     PanelProcessInfo(PanelProcessInfoDoc),
     TerminalList(TerminalListDocument),
-    /// Same identity document as `TerminalList`; the extra facts belong only
-    /// to human text and never alter the machine result.
-    TerminalListHuman(TerminalListDocument),
     TerminalGet(TerminalGetDoc),
     TerminalOutput(Box<dyn OwnedDocument>),
     #[cfg(test)]
@@ -1551,8 +1564,13 @@ impl Projection {
                         .collect::<Vec<_>>(),
                 },
             }),
-            Self::TerminalList(doc) | Self::TerminalListHuman(doc) => json!({
-                "terminals": doc.rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
+            Self::TerminalList(doc) => json!({
+                "terminals": doc
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .map(|(index, row)| terminal_list_row_json(row, doc.details.get(index)))
+                    .collect::<Vec<_>>(),
             }),
             Self::TerminalGet(doc) => {
                 // `terminal` keeps the shared routing row and gains `launch`
@@ -1968,6 +1986,40 @@ pub(crate) fn launch_fact_json(launch: &TerminalLaunchFact) -> Value {
     })
 }
 
+/// One `terminal list` row: the shared routing row plus what this platform
+/// observed of it.
+fn terminal_list_row_json(row: &TerminalRow, details: Option<&TerminalListDetails>) -> Value {
+    let mut value = terminal_row_json(row);
+    let observation = details.map_or_else(TerminalListObservation::default, |d| d.observation);
+    let observed = || {
+        let details = details.cloned().unwrap_or_default();
+        let state = match details.state {
+            Some(TerminalListState::Agent(state)) => json!(state),
+            Some(TerminalListState::Observed) | None => Value::Null,
+        };
+        (details, state)
+    };
+    value["observation"] = match observation {
+        TerminalListObservation::Unsupported => json!({"kind": "unsupported"}),
+        TerminalListObservation::NotSampled => json!({"kind": "not-sampled"}),
+        TerminalListObservation::FrameUnavailable => {
+            let (details, state) = observed();
+            json!({"kind": "frame-unavailable", "agent": details.agent, "state": state})
+        }
+        TerminalListObservation::Observed => {
+            let (details, state) = observed();
+            json!({
+                "kind": "observed",
+                "title": details.title,
+                "cwd": details.cwd,
+                "agent": details.agent,
+                "state": state,
+            })
+        }
+    };
+    value
+}
+
 pub(super) fn terminal_row_json(row: &TerminalRow) -> Value {
     json!({
         "terminalId": row.terminal_id,
@@ -2087,7 +2139,7 @@ pub(crate) fn resolve_or_fail<'a, Item, Label: AsRef<str>>(
                 target,
                 candidates.into_iter().map(str::to_owned).collect(),
             );
-            failure.candidate_display = Some(Box::new(CandidateDisplay { lines: display }));
+            failure.candidate_display(display);
             Err(failure)
         }
     }
@@ -2830,6 +2882,40 @@ fn terminal_list(
         })
         .collect::<Result<Vec<_>, Failure>>()?;
     Ok(TerminalListDocument { rows, details })
+}
+
+/// The stable handle a person targets a presentation by: its Panel's handle
+/// when it is that Panel's primary, otherwise its own bound terminal's
+/// handle, because a Panel target resolves only to its primary terminal.
+pub(super) fn presentation_handle(snapshot: &Snapshot, presentation_id: &str) -> Option<String> {
+    fn find(node: &PanelNode, presentation_id: &str) -> Option<(Resource, String)> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } => {
+                if primary_presentation.presentation_id.as_str() == presentation_id {
+                    return Some((Resource::Panel, panel_id.as_str().to_owned()));
+                }
+                child_presentations
+                    .iter()
+                    .find(|child| child.presentation_id.as_str() == presentation_id)
+                    .and_then(|child| child.binding.as_ref())
+                    .map(|binding| (Resource::Terminal, binding.terminal_id.as_str().to_owned()))
+            }
+            PanelNode::Split { children, .. } => children
+                .iter()
+                .find_map(|slot| find(&slot.node, presentation_id)),
+        }
+    }
+    let (resource, id) = snapshot
+        .terminal_contexts
+        .iter()
+        .flat_map(|context| &context.tabs)
+        .find_map(|tab| find(&tab.root, presentation_id))?;
+    super::handles::stable(resource.as_str(), &[id.as_str()]).pop()
 }
 
 pub(super) fn terminal_rows(snapshot: &Snapshot) -> Vec<TerminalRow> {

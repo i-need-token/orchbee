@@ -324,12 +324,17 @@ impl CommandSpec {
                 .string_rule(flag)
                 .is_none_or(|rule| rule.accepts(value));
             if !valid_string || (closed && !choices.contains(&value.as_str())) {
+                let expected = if *flag == "--provider" && values::start_only_provider(value) {
+                    ExpectedValue::StartOnlyProvider
+                } else {
+                    ExpectedValue::DeclaredValue
+                };
                 return Err(usage_with(
                     UsageReason::InvalidValue {
                         context,
                         option: flag,
                         value: value.clone(),
-                        expected: ExpectedValue::DeclaredValue,
+                        expected,
                     },
                     envelope,
                 ));
