@@ -72,13 +72,15 @@ pub use panel_agent::{
     AgentCompletion, AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest,
     AgentDetectionRule, AgentDetectionSample, AgentManifestSource, AgentManifestWarning,
     AgentManifestWarningKind, AgentScreenExplanation, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES,
-    MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_TERMINAL_AGENT_CHANGES,
+    MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_PRESENTATION_TITLE_BYTES,
+    MAXIMUM_PRESENTATION_TITLE_ROWS, MAXIMUM_TERMINAL_AGENT_CHANGES,
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS,
     PanelAgentAction, PanelAgentDisposition, PanelAgentFailure, PanelAgentOutcome,
     PanelAgentReport, PanelAgentRequest, PanelAgentResult, PanelAgentRow, PanelAgentState,
-    PanelAgentView, PresentationAgentRow, TerminalAgentChange, TerminalAgentExplanation,
-    TerminalAgentObservation, TerminalAgentStateRow, TerminalAgentStateSnapshot,
-    TerminalTitleObservation, TerminalTitleRow,
+    PanelAgentView, PresentationAgentRow, PresentationTitle, PresentationTitleRow,
+    TerminalAgentChange, TerminalAgentExplanation, TerminalAgentObservation, TerminalAgentStateRow,
+    TerminalAgentStateSnapshot, TerminalTitleObservation, TerminalTitleRow, project_terminal_title,
+    strip_terminal_title,
 };
 mod panel_metadata;
 pub use panel_metadata::{

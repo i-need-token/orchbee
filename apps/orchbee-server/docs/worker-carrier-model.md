@@ -80,10 +80,11 @@ at most its 250-millisecond idle interval. Every queue change signals the wake, 
 pending flag is cleared only after its bytes are read, so a signal during that read is seen by the
 owner's next queue inspection. A carrier without a wake bounds this wait at 2 milliseconds.
 
-The only unsolicited kind is `TerminalViewerRecordReady`, read while idle and while a response is
-awaited. The owner routes each one and keeps waiting. A hint never completes a request and changes
-no dispatch position, so the bounds above are unchanged; any other unsolicited bytes still retire the
-carrier.
+The only unsolicited kinds are `TerminalViewerRecordReady` and `TerminalTitlesChanged`, read while
+idle and while a response is awaited. The owner routes each viewer hint and keeps waiting; no title
+registry reads changes yet, so it drops each title note, which costs only latency. A hint never
+completes a request and changes no dispatch position, so the bounds above are unchanged; any other
+unsolicited bytes still retire the carrier.
 
 ## Drain and tombstone
 

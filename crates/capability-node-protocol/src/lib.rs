@@ -51,8 +51,11 @@ mod terminal_titles;
 mod terminal_viewer;
 pub use terminal_graphics_decode::{MAXIMUM_GRAPHICS_PNG_BYTES, TerminalGraphicsDecodeRequest};
 pub use terminal_titles::{
-    MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, TerminalTitleObservation,
-    TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,
+    MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_CHANGE_BYTES,
+    MAXIMUM_TERMINAL_TITLE_CHANGES, MAXIMUM_TERMINAL_TITLE_ROWS, TerminalTitleChangePage,
+    TerminalTitleChangesOutcome, TerminalTitleChangesRequest, TerminalTitleChangesResult,
+    TerminalTitleObservation, TerminalTitleRow, TerminalTitlesChanged, TerminalTitlesRequest,
+    TerminalTitlesResult,
 };
 
 pub use terminal_viewer::{

@@ -84,6 +84,7 @@ impl LocalTerminalService {
                             && fact.worker_generation() == worker.generation
                     }),
                 orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::PresentationTitles { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Identify { .. }

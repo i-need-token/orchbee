@@ -1184,6 +1184,8 @@ impl WorkerWireOwner {
                 Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
                     deliver_hint(self.viewer_ready.as_deref(), hint);
                 }
+                // No title registry reads changes yet; a dropped note costs only latency.
+                Ok(CapabilityNodeMessage::TerminalTitlesChanged(_)) => {}
                 Ok(message) => {
                     let pending = self.in_flight.as_ref().unwrap_or_else(|| {
                         unreachable!("result validation requires one in-flight request")
@@ -1393,6 +1395,8 @@ where
                     Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
                         deliver_hint(routes, hint);
                     }
+                    // No title registry reads changes yet; a dropped note costs only latency.
+                    Ok(CapabilityNodeMessage::TerminalTitlesChanged(_)) => {}
                     Ok(_) | Err(_) => return Ok(IdleStreamState::UnexpectedData),
                 }
             }
@@ -1472,9 +1476,11 @@ fn validate_response(
         (_, CapabilityNodeMessage::HostQueryResult(_))
         | (WorkerOperationRequest::HostQuery(_), _) => Err(WorkerResponseFailure::WrongResultKind),
         // The exchange consumes hints before validating a result.
-        (_, CapabilityNodeMessage::TerminalViewerRecordReady(_)) => {
-            Err(WorkerResponseFailure::WrongResultKind)
-        }
+        (
+            _,
+            CapabilityNodeMessage::TerminalViewerRecordReady(_)
+            | CapabilityNodeMessage::TerminalTitlesChanged(_),
+        ) => Err(WorkerResponseFailure::WrongResultKind),
         (_, CapabilityNodeMessage::WorkerShutdownResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
@@ -1723,6 +1729,7 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalSendRequest(_)
             | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::TerminalTitlesRequest(_)
+            | CapabilityNodeMessage::TerminalTitleChangesRequest(_)
             | CapabilityNodeMessage::TerminalEditorCommandRequest(_)
             | CapabilityNodeMessage::WorktreeMutationRequest(_)
             | CapabilityNodeMessage::PluginJobRequest(_),
@@ -1742,6 +1749,7 @@ fn validate_response(
         )
         | (_, CapabilityNodeMessage::AgentDrainReply(_))
         | (_, CapabilityNodeMessage::TerminalTitlesResult(_))
+        | (_, CapabilityNodeMessage::TerminalTitleChangesResult(_))
         | (_, CapabilityNodeMessage::TerminalEditorCommandResult(_))
         | (_, CapabilityNodeMessage::TerminalSendResult(_))
         | (_, CapabilityNodeMessage::PluginJobResult(_))

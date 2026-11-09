@@ -134,6 +134,7 @@ impl Reader<'_> {
                 Ok((report_revision, presentations))
             }
             PanelAgentOutcome::Titles { .. }
+            | PanelAgentOutcome::PresentationTitles { .. }
             | PanelAgentOutcome::PresentationsRead { .. }
             | PanelAgentOutcome::Explained { .. }
             | PanelAgentOutcome::Identified { .. }

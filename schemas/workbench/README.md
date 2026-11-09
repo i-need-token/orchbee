@@ -785,6 +785,21 @@ Agent sequence, source filters or Client seen state; no public CLI output versio
 changes. Matching private cohorts update together. Shared conformance cases cover
 raw Unicode, clear, absence, nullability, revision, closed fields and bounds.
 
+Published title reads add `presentation-titles`: at most 64 unique Presentation IDs
+and one row per ID in request order. A row carries the Presentation's current
+terminal binding, null when it is unknown or unbound, and a title that is
+unavailable or observed with a required nullable value. Observed values come from
+`project_terminal_title` in `orchbee-workbench-protocol`, the one stripping rule the
+Server and the TUI share: nonempty, free of control characters and at most 1 KiB of
+UTF-8, a longer title cut at a character boundary and ended with `…`. The outcome
+carries no Workbench revision, so a State stream of it changes only when a binding
+or title changes, and a title change never advances the Workbench revision; Clients
+match each row by its binding. The Server answers from titles it already holds and
+never waits on a Worker for this read. Rust and TypeScript enforce unique IDs, the
+byte bound, a binding naming its row's Presentation and an unavailable title for a
+null binding in addition to JSON Schema. Shared conformance cases cover those rules,
+nullability, the omitted revision, closed fields and bounds.
+
 ## Workspace Git status reads
 
 [`workbench-workspace-git.schema.json`](v1/workbench-workspace-git.schema.json)

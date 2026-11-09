@@ -75,6 +75,16 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('presentation-titles'),
+			presentationIds: z
+				.array(TerminalPresentationIdSchema)
+				.max(64)
+				.refine((ids) => new Set(ids).size === ids.length)
+				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('read-presentations'),
 			presentationIds: z
 				.array(TerminalPresentationIdSchema)
@@ -446,7 +456,41 @@ const terminalTitleRow = z
 		]),
 	})
 	.readonly();
+/** A Server-published title: stripped, free of control characters, at most 1 KiB of UTF-8. */
+const publishedTitle = z
+	.string()
+	.refine(
+		(v) =>
+			v.length > 0 &&
+			!/[\p{Cc}\uD800-\uDFFF]/u.test(v) &&
+			new TextEncoder().encode(v).length <= 1024,
+	);
+const presentationTitleRow = z
+	.strictObject({
+		presentationId: TerminalPresentationIdSchema,
+		binding: TerminalAgentBindingSchema.nullable(),
+		title: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('unavailable') }).readonly(),
+			z.strictObject({ kind: z.literal('observed'), title: publishedTitle.nullable() }).readonly(),
+		]),
+	})
+	.refine((row) =>
+		row.binding === null
+			? row.title.kind === 'unavailable'
+			: row.binding.presentationId === row.presentationId,
+	)
+	.readonly();
 const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('presentation-titles'),
+			presentations: z
+				.array(presentationTitleRow)
+				.max(64)
+				.refine((rows) => new Set(rows.map((r) => r.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('titles'),

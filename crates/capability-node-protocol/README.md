@@ -322,7 +322,9 @@ Kind 33 `TerminalViewerRecordReady` is the one viewer message without a request.
 the Worker may tell the Server that an attachment holds a record its next Poll would return. It
 carries only the attachment `OperationId`, moves no record, grants nothing and has no response. A
 Worker repeats it for an attachment only after a later Poll, and a Server discards one for an
-attachment it no longer routes. Any other unsolicited kind still retires the carrier.
+attachment it no longer routes. Kind 35, described under
+[physical title changes](#physical-title-changes), is the only other unsolicited kind; any other
+still retires the carrier.
 
 The closed actions are `Attach` with Host epoch and Host terminal ID, `Poll`, `FrameApplied` with
 positive sequence/generation and revision, `NeedSnapshot` with positive sequence and the existing
@@ -788,6 +790,55 @@ the whole payload caps at 17 + 4 * (62 + 65536) bytes before allocation. Decoder
 reject bad tags, UTF-8, duplicates, versions, reserved bytes, zero revision,
 truncation and tails. Ordinary OBCN limits stay unchanged. Matched private cohorts
 ship/roll back together; no persisted data or Host protocol changes.
+
+## Physical title changes
+
+A Worker announces changes to its physical title projection and the Server reads them by cursor,
+so a background terminal's title reaches the Server without a viewer. The contract is
+platform-neutral. Titles stay untrusted terminal text: the Server projects them with
+`orchbee-workbench-protocol`'s `project_terminal_title` before any Client sees them, and paces,
+retains and discards what it reads.
+
+The Worker numbers each change to its projection with the next value of one increasing `u64`
+change sequence, which starts at 0 for each Worker generation and never repeats within it. A change
+is a new title or revision for a terminal, or a terminal the Worker stops observing.
+
+Kind 35 `TerminalTitlesChanged` is the Worker's unsolicited note that its projection holds changes
+after the cursor of the last change read it answered. After the kind it carries the newest change
+sequence `through` (positive big-endian `u64`), 9 payload bytes in all. It moves no title, grants
+nothing and has no response. The Worker writes it only between requests, never inside another
+record, and writes no second note before it answers a later change read with a page or a reset. A
+Server whose cursor already reached `through` drops the note; a lost note costs only latency.
+
+Kind 36 `TerminalTitleChangesRequest` carries the request ID (16 bytes), Worker ID (16), positive
+generation (`u64`) and cursor `after` (`u64`), 49 payload bytes in all. Cursor 0 reads every current
+title afresh; any other cursor is the `next` of the last page the reader applied from that Worker
+generation. The result has three outcomes:
+
+| Outcome           | Meaning                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Page`            | Each terminal changed after the cursor, once, in order of its latest change, with its observation as of `next`: observed with revision and nullable title (null is a title the program cleared), or unavailable (no longer observed). |
+| `Reset`           | The Worker cannot resume the cursor: it retains less history, or it replaced its Host connection after that cursor. The reader discards every title it holds from that Worker generation and reads again from 0.                      |
+| `RejectedFencing` | The request named another Worker or generation; nothing was read.                                                                                                                                                                     |
+
+A page holds at most 256 rows and 1 MiB of titles in all, each title at most 64 KiB, so a page is
+never empty while changes remain. A fresh read lists no unavailable row and is never reset. `next`
+never passes the Worker's newest change, never falls behind the cursor and passes it whenever the
+page has rows; it may pass it without rows when every change after the cursor was superseded or
+removed. `complete` says whether `next` reached the newest change; an incomplete page has rows, and
+the reader continues with another read at once.
+
+The result travels in its own `OBNC` record: the bytes `OBNC`, the bytes `00 01 00 00`, an unsigned
+big-endian `u32` body length, the whole echoed request (48 bytes) and the outcome tag: 1 page, 2
+reset, 3 rejected fencing. A page adds `next` (`u64`), `complete` (strict 0/1), a `u16` row count and
+the rows. A row is the OBNT row above: the 48-byte Host identity and observation tag 0 unavailable,
+or 1 observed with positive `u64` revision and title tag 0 null or 1 followed by a `u32` UTF-8 byte
+length and the bytes. The body length lies between 49 and 49 + 11 + 256 × 62 + 1 MiB bytes, refused
+before allocation. Decoders reject unknown tags, noncanonical Booleans, invalid UTF-8, zero
+revisions, through values and generations, duplicate terminals, over-bound titles, a page breaking
+the cursor rules above, a reset of a fresh read, truncation and tails; the Server checks that the
+echoed request equals its own. Frame version 1 stays, older cohorts reject the new kinds and
+magic, and the matched Server/Worker cohort ships and rolls back together with no persisted data.
 
 ## Windows Workspace Git status observations
 

@@ -71,6 +71,9 @@ pub enum CapabilityNodeMessage {
     TerminalEditorCommandResult(crate::TerminalEditorCommandResult),
     TerminalTitlesRequest(crate::TerminalTitlesRequest),
     TerminalTitlesResult(crate::TerminalTitlesResult),
+    TerminalTitlesChanged(crate::TerminalTitlesChanged),
+    TerminalTitleChangesRequest(crate::TerminalTitleChangesRequest),
+    TerminalTitleChangesResult(crate::TerminalTitleChangesResult),
     PluginJobRequest(crate::PluginJobRequest),
     PluginJobResult(crate::PluginJobResult),
     WorktreeMutationRequest(crate::WorktreeMutationRequest),
@@ -135,6 +138,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
     if let CapabilityNodeMessage::TerminalTitlesResult(value) = message {
         return terminal_titles::encode_result(value);
     }
+    if let CapabilityNodeMessage::TerminalTitleChangesResult(value) = message {
+        return terminal_titles::encode_changes_result(value);
+    }
     if let CapabilityNodeMessage::HostQueryResult(value) = message {
         return host_query::encode_result(value);
     }
@@ -170,6 +176,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
     }
     if frame.starts_with(b"OBNT") {
         return terminal_titles::decode_result(frame);
+    }
+    if frame.starts_with(b"OBNC") {
+        return terminal_titles::decode_changes_result(frame);
     }
     if frame.starts_with(b"OBNH") {
         return host_query::decode_result(frame);
@@ -212,6 +221,9 @@ pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, Rea
     }
     if header.starts_with(b"OBNT") {
         return terminal_titles::read_result(reader, header);
+    }
+    if header.starts_with(b"OBNC") {
+        return terminal_titles::read_changes_result(reader, header);
     }
     if header.starts_with(b"OBNH") {
         return host_query::read_result(reader, header);
@@ -305,6 +317,15 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
             terminal_titles::encode_request(value).expect("validated title request")
         }
         CapabilityNodeMessage::TerminalTitlesResult(_) => unreachable!("title results use OBNT"),
+        CapabilityNodeMessage::TerminalTitlesChanged(value) => {
+            terminal_titles::encode_changed(*value)
+        }
+        CapabilityNodeMessage::TerminalTitleChangesRequest(value) => {
+            terminal_titles::encode_changes_request(*value)
+        }
+        CapabilityNodeMessage::TerminalTitleChangesResult(_) => {
+            unreachable!("title change results use OBNC")
+        }
         CapabilityNodeMessage::AgentDrainRequest(value) => agent_drain::encode_request(value),
         CapabilityNodeMessage::AgentDrainReply(value) => {
             agent_drain::encode_reply(value).expect("validated agent drain reply")
@@ -361,6 +382,12 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             .map(CapabilityNodeMessage::TerminalEditorCommandResult),
         Some(23) => terminal_titles::decode_request(payload)
             .map(CapabilityNodeMessage::TerminalTitlesRequest),
+        Some(terminal_titles::CHANGED_KIND) => terminal_titles::decode_changed(payload)
+            .map(CapabilityNodeMessage::TerminalTitlesChanged),
+        Some(terminal_titles::CHANGES_REQUEST_KIND) => {
+            terminal_titles::decode_changes_request(payload)
+                .map(CapabilityNodeMessage::TerminalTitleChangesRequest)
+        }
         Some(21) => worktree_mutation::decode_request(payload)
             .map(CapabilityNodeMessage::WorktreeMutationRequest),
         Some(22) => worktree_mutation::decode_result(payload)

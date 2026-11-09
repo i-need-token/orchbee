@@ -1,27 +1,8 @@
-//! Terminal title handling shared by queries and the main TUI: activity prefixes, and the program
-//! that a console default title or a launch path names for native chrome.
+//! Native chrome names for terminal titles, shared by queries and the main TUI: the program that a
+//! console default title or a launch path names. The activity-prefix rule itself belongs to the
+//! Workbench protocol, which the Server shares.
 
-/// The prefix Windows programs such as cmd and Windows PowerShell put on an elevated console's
-/// title, in the display language's own wording. Only the `en-US` and `zh-CN` forms are
-/// recognized; `zh-CN` is accepted with either an ASCII or a full-width colon.
-const ELEVATION_PREFIXES: [&str; 3] = ["Administrator: ", "管理员: ", "管理员："];
-
-pub fn stripped(title: &str) -> Option<&str> {
-    let title = ELEVATION_PREFIXES
-        .iter()
-        .find_map(|prefix| title.strip_prefix(prefix))
-        .unwrap_or(title)
-        .trim();
-    let first = title.chars().next()?;
-    let rest = &title[first.len_utf8()..];
-    let activity = matches!(first, '\u{2800}'..='\u{28ff}') || "·✢✳✶✻✽◐◓◑◒".contains(first);
-    let title = if activity && rest.chars().next().is_none_or(char::is_whitespace) {
-        rest.trim()
-    } else {
-        title
-    };
-    (!title.is_empty()).then_some(title)
-}
+use orchbee_workbench_protocol::strip_terminal_title;
 
 /// The name a terminal title shows in human output, in the words native chrome uses. Pass the raw
 /// Host frame title: a launched program is named by its program, and any other title stays as its
@@ -60,7 +41,7 @@ impl<'a> ChromeName<'a> {
     /// program sets a title, and cmd extends it to `<path> - <command>` while it runs a command.
     /// The path is launch identity rather than a task name, so chrome names the program instead.
     pub(crate) fn of_title(title: &'a str) -> Option<Self> {
-        let title = stripped(title)?;
+        let title = strip_terminal_title(title)?;
         let console = console_program(title)
             .map(|program| Self::Program {
                 program,

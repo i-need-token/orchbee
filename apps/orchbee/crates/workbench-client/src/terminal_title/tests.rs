@@ -1,44 +1,6 @@
 use super::*;
 use crate::localization::Locale;
 #[test]
-fn windows_title_stripping_matches_one_elevation_and_one_bounded_activity_prefix() {
-    for raw in [
-        "⠋ task",
-        "✳ task",
-        "  ⠙   task  ",
-        "✢ task",
-        "✻ task",
-        "◐ task",
-        "◓ task",
-        "◑ task",
-        "◒ task",
-        "Administrator:   ⠋ task",
-        "管理员: ⠋ task",
-        "管理员：task",
-    ] {
-        assert_eq!(stripped(raw), Some("task"));
-    }
-    for (raw, expected) in [
-        ("⠋ ⠙ task", "⠙ task"),
-        ("Administrator: Administrator: task", "Administrator: task"),
-        ("管理员: Administrator: task", "Administrator: task"),
-        ("管理员:task", "管理员:task"),
-        ("管理员 task", "管理员 task"),
-        ("★task", "★task"),
-        ("✨ task", "✨ task"),
-        ("@ task", "@ task"),
-        ("task ⠋ detail", "task ⠋ detail"),
-        ("⠋task", "⠋task"),
-        (" ⠋ 修复🙂标题 ", "修复🙂标题"),
-    ] {
-        assert_eq!(stripped(raw), Some(expected));
-    }
-    for raw in ["", "  ", "⠋   ", "Administrator: ", "管理员： "] {
-        assert_eq!(stripped(raw), None);
-    }
-}
-
-#[test]
 fn console_default_titles_name_their_program_and_program_set_titles_stay_as_written() {
     for (raw, en_us, zh_cn) in [
         (

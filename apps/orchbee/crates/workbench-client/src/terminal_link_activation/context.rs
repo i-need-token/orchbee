@@ -164,6 +164,7 @@ fn read_presentation_agent<G: Guard>(
         }
         PanelAgentOutcome::Failed { .. } => Err(Error::SourceChanged),
         PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
         | PanelAgentOutcome::Identified { .. }
@@ -208,6 +209,7 @@ fn fence_presentation_agent<G: Guard>(
         }
         PanelAgentOutcome::Failed { .. } => Err(Error::SourceChanged),
         PanelAgentOutcome::Titles { .. }
+        | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
         | PanelAgentOutcome::Identified { .. }

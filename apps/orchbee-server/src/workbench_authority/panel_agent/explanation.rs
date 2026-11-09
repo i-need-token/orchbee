@@ -39,6 +39,7 @@ impl WorkbenchAuthority {
             } => (workbench_revision, report_revision, observation.view),
             Outcome::Failed { reason } => return Err(reason),
             Outcome::Titles { .. }
+            | Outcome::PresentationTitles { .. }
             | Outcome::PresentationsRead { .. }
             | Outcome::Explained { .. }
             | Outcome::Identified { .. }

@@ -50,6 +50,7 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
             PanelAgentAction::Read { .. }
                 | PanelAgentAction::ReadPresentations { .. }
                 | PanelAgentAction::Titles { .. }
+                | PanelAgentAction::PresentationTitles { .. }
                 | PanelAgentAction::Explain { .. }
                 | PanelAgentAction::States { .. }
                 | PanelAgentAction::Observe { .. }

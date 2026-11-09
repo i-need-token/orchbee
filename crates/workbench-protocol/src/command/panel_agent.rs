@@ -25,8 +25,10 @@ pub use state_snapshot::{
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, TerminalAgentStateRow, TerminalAgentStateSnapshot,
 };
 pub use titles::{
-    MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, TerminalTitleObservation,
-    TerminalTitleRow,
+    MAXIMUM_PRESENTATION_TITLE_BYTES, MAXIMUM_PRESENTATION_TITLE_ROWS,
+    MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, PresentationTitle,
+    PresentationTitleRow, TerminalTitleObservation, TerminalTitleRow, project_terminal_title,
+    strip_terminal_title,
 };
 
 pub const MAXIMUM_PANEL_AGENT_READ_ROWS: usize = 4;
@@ -105,6 +107,12 @@ pub enum PanelAgentAction {
     Titles {
         bindings: Vec<orchbee_agent_observation_protocol::AgentLaunchBinding>,
     },
+    /// The Server's published title for each Presentation's current terminal, from what it
+    /// already holds: a pure read that never waits on a Worker. A State stream of it changes only
+    /// when a commit or a title publication changes the value.
+    PresentationTitles {
+        presentation_ids: Vec<TerminalPresentationId>,
+    },
     ReadPresentations {
         presentation_ids: Vec<TerminalPresentationId>,
     },
@@ -152,6 +160,13 @@ impl PanelAgentRequest {
         match &self.action {
             PanelAgentAction::Titles { bindings } => {
                 if titles::valid_bindings(bindings) {
+                    Ok(())
+                } else {
+                    Err(ContractError::InvalidDocument)
+                }
+            }
+            PanelAgentAction::PresentationTitles { presentation_ids } => {
+                if titles::valid_presentation_ids(presentation_ids) {
                     Ok(())
                 } else {
                     Err(ContractError::InvalidDocument)
@@ -298,6 +313,12 @@ pub enum PanelAgentOutcome {
         workbench_revision: WorkbenchRevision,
         presentations: Vec<TerminalTitleRow>,
     },
+    /// One row per requested Presentation, in request order. It carries no Workbench revision, so
+    /// a commit that changes no binding or title leaves a State stream's value unchanged; Clients
+    /// match each row by its binding.
+    PresentationTitles {
+        presentations: Vec<PresentationTitleRow>,
+    },
     PresentationsRead {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -377,6 +398,16 @@ impl PanelAgentResult {
                         .len()
                         == presentations.len()
             }
+            PanelAgentOutcome::PresentationTitles { presentations } => {
+                presentations.len() <= MAXIMUM_PRESENTATION_TITLE_ROWS
+                    && presentations.iter().all(PresentationTitleRow::valid)
+                    && presentations
+                        .iter()
+                        .map(|r| &r.presentation_id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == presentations.len()
+            }
             PanelAgentOutcome::PresentationsRead { presentations, .. } => {
                 presentations.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
                     && presentations
@@ -449,6 +480,10 @@ impl PanelAgentResult {
             match &request.action {
                 PanelAgentAction::Titles { bindings } => {
                     matches!(&self.outcome, PanelAgentOutcome::Titles { presentations, .. } if bindings.iter().eq(presentations.iter().map(|r| &r.binding)))
+                        || shared_failure
+                }
+                PanelAgentAction::PresentationTitles { presentation_ids } => {
+                    matches!(&self.outcome, PanelAgentOutcome::PresentationTitles { presentations } if presentation_ids.iter().eq(presentations.iter().map(|r| &r.presentation_id)))
                         || shared_failure
                 }
                 PanelAgentAction::Explain { binding } => {

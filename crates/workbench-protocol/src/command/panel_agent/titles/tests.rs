@@ -77,3 +77,50 @@ fn title_observations_require_null_and_positive_revision_and_preserve_full_unico
     row.observation = TerminalTitleObservation::Unavailable {};
     assert!(row.valid());
 }
+#[test]
+fn presentation_title_reads_answer_in_request_order_and_bound_their_names() {
+    let id = |n: u8| crate::TerminalPresentationId::parse(&format!("{n:032x}")).unwrap();
+    let mut request = PanelAgentRequest {
+        protocol_version: crate::ProtocolVersion,
+        request_id: crate::WorkbenchRequestId::parse(&format!("{:032x}", 5)).unwrap(),
+        session_id: crate::SessionId::parse(&format!("{:032x}", 6)).unwrap(),
+        action: PanelAgentAction::PresentationTitles {
+            presentation_ids: vec![id(1), id(7)],
+        },
+    };
+    let mut result = PanelAgentResult {
+        protocol_version: crate::ProtocolVersion,
+        request_id: request.request_id.clone(),
+        session_id: request.session_id.clone(),
+        outcome: PanelAgentOutcome::PresentationTitles {
+            presentations: vec![
+                PresentationTitleRow {
+                    presentation_id: id(1),
+                    binding: Some(binding(1)),
+                    title: PresentationTitle::Observed {
+                        title: Some("build".into()),
+                    },
+                },
+                PresentationTitleRow {
+                    presentation_id: id(7),
+                    binding: None,
+                    title: PresentationTitle::Unavailable {},
+                },
+            ],
+        },
+    };
+    assert!(request.validate().is_ok());
+    assert!(result.answers(&request));
+    if let PanelAgentOutcome::PresentationTitles { presentations } = &mut result.outcome {
+        presentations.reverse();
+    }
+    assert!(!result.answers(&request));
+    request.action = PanelAgentAction::States {
+        presentation_ids: vec![id(7), id(1)],
+    };
+    assert!(!result.answers(&request));
+    for presentation_ids in [vec![id(1), id(1)], (1..=65).map(id).collect()] {
+        request.action = PanelAgentAction::PresentationTitles { presentation_ids };
+        assert_eq!(request.validate(), Err(ContractError::InvalidDocument));
+    }
+}

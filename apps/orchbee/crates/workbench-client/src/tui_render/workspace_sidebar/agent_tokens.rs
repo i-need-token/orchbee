@@ -43,7 +43,7 @@ impl<'a> Context<'a> {
                 if kind == Kind::TerminalTitle {
                     Some(value)
                 } else {
-                    crate::terminal_title::stripped(value)
+                    orchbee_workbench_protocol::strip_terminal_title(value)
                 }
             }
             Kind::Custom(key) => self

@@ -164,6 +164,7 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         },
         WorkbenchRequest::PanelAgent(request) => match request.action {
             PanelAgentAction::Titles { .. }
+            | PanelAgentAction::PresentationTitles { .. }
             | PanelAgentAction::ReadPresentations { .. }
             | PanelAgentAction::Explain { .. }
             | PanelAgentAction::Identify { .. }

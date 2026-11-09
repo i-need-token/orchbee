@@ -88,22 +88,6 @@ fn metadata_directory_precedes_root_without_hiding_separate_process_directory() 
 }
 
 #[test]
-fn title_presentation_removes_only_known_delimited_prefixes() {
-    for (input, expected) in [
-        ("Administrator: ⠋ 中文 task", Some("中文 task")),
-        ("✳ task", Some("task")),
-        ("⠋ ⠙ task", Some("⠙ task")),
-        ("⠋task", Some("⠋task")),
-        ("★ task", Some("★ task")),
-        ("◐", None),
-        ("   ", None),
-        ("  task  ", Some("task")),
-    ] {
-        assert_eq!(stripped(input), expected);
-    }
-}
-
-#[test]
 fn osc_directory_decodes_once_without_admitting_uri_syntax_as_a_windows_path() {
     for (raw, expected) in [
         ("file:///C:/one%20two", "C:\\one two"),
