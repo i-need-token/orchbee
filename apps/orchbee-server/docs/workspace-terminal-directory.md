@@ -39,7 +39,7 @@ navigation authority. Read-only snapshot access does not confer association or l
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Admission              | Grant, live authority, exact replay/conflict, ledger capacity, Session/revision, exact Workspace, empty context and no primary Directory | Definite refusal preserves canonical state; exact replay returns its retained result without validation                        |
 | Prepared validation    | A compatible current Worker and bounded request slot exist                                                                               | Capture exact Worker identity/generation and path; release registry and Session locks before I/O                               |
-| Worker observation     | Exact request/generation; directory metadata lookup on that Worker                                                                       | Correlated valid, missing, not-a-directory, inaccessible or wrong-worker result; no Host, shell or canonical mutation          |
+| Worker observation     | Exact request/generation; directory metadata and listing-open lookup on that Worker                                                      | Correlated valid, missing, not-a-directory, inaccessible or wrong-worker result; no Host, shell or canonical mutation          |
 | Revalidation           | Validation succeeds before the carrier deadline                                                                                          | Reacquire registry then Session; repeat admission and require the captured Worker generation still current                     |
 | Commit preparation     | Identity, Directory count, revision, snapshot encoding and ledger bytes fit                                                              | Prepare complete projection and fixed result before any canonical mutation                                                     |
 | Commit                 | All prepared checks succeed                                                                                                              | Append Directory, select it, advance one revision and retain one immutable acceptance result atomically                        |
@@ -54,10 +54,10 @@ Association success is `workspace-primary-directory-accepted` with revision, Dir
 ID. Missing configuration is `workspace-directory-unavailable`; an already configured Workspace or
 nonempty context is `workspace-directory-conflict`. A negative Worker observation keeps the cause the
 Worker named: `directory-missing` when nothing exists at the path or a parent component is not a
-directory, `not-a-directory` when something else exists there, and `directory-inaccessible` when its
-metadata cannot be read, as when access is denied. A path that is not an absolute cwd for the Worker
-platform uses `directory-unavailable`. Carrier/Worker unavailability retains existing typed
-unavailable results.
+directory, `not-a-directory` when something else exists there, and `directory-inaccessible` when it
+cannot be inspected or opened for listing, as when access is denied. A path that is not an absolute
+cwd for the Worker platform uses `directory-unavailable`. Carrier/Worker unavailability retains
+existing typed unavailable results.
 
 Created members are exposed through authorized snapshots and `attach-binding`. Pending/final command results, immutable completion tokens and unknown-outcome rules remain authoritative. A path removed after association produces a truthful launch failure and retains committed membership; no second home launch follows. Association validates one point in time, not future accessibility. Deadlines do not make arbitrary filesystem syscalls interruptible; process claims remain bounded by the supported host/filesystem cohort.
 

@@ -19,7 +19,7 @@ pub enum TerminalCwdValidationOutcome {
     DirectoryMissing,
     /// Something other than a directory exists at the path.
     NotADirectory,
-    /// The path's metadata could not be read, as when access is denied.
+    /// The path cannot be inspected or opened for listing, as when access is denied.
     DirectoryInaccessible,
     WorkerUnavailable,
 }

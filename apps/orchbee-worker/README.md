@@ -764,19 +764,23 @@ The integrated request loop handles `TerminalCwdValidationRequest` before termin
 viewer/controller cleanup. The lazy Linux loop handles it before resolving launch facts or starting
 a Terminal Host. Worker first compares the request's exact logical Worker ID and generation with its
 admitted OBLW identity. A mismatch returns `WorkerUnavailable` without observing the path. A match
-uses one synchronous `std::fs::metadata` lookup, follows symbolic links, preserves the supplied path
-spelling, and returns `DirectoryAvailable` only for an existing directory. A missing path, or one
-whose parent component is not a directory, returns `DirectoryMissing`; an existing non-directory
-returns `NotADirectory`; every other metadata error, such as denied access, returns
-`DirectoryInaccessible`. Arbitrary OS error details do not cross OBCN.
+uses one synchronous `std::fs::metadata` lookup, follows symbolic links, and preserves the supplied
+path spelling. An existing directory then gets one `std::fs::read_dir` open to prove that the account
+can list it; its entries are never read. `DirectoryAvailable` is returned only when that open
+succeeds. A missing path, or one whose parent component is not a directory, returns
+`DirectoryMissing`; an existing non-directory returns `NotADirectory`; a directory that cannot be
+opened for listing, such as one with denied access, returns `DirectoryInaccessible`, as does every
+other metadata error. If the folder changes between the two calls, the open's own outcome applies.
+Arbitrary OS error details do not cross OBCN.
 
 Validation is a point-in-time read. It creates no directory, terminal, Host, attachment, controller,
 lease, launch binding or replay cache entry and sends no Terminal Protocol record. Its response uses
 the existing bounded OBCN read/write path. The Server still owns association admission, current
-Worker revalidation and canonical state. Filesystem metadata calls are synchronous and are not made
-interruptible by carrier deadlines; the current runtime claim is limited to the supported local
-Linux filesystem cohort. Unit tests exercise a real directory, spelling-preserving symlink lookup,
-regular and missing paths, and Worker identity/generation rejection without a Host dependency.
+Worker revalidation and canonical state. Filesystem metadata and listing-open calls are synchronous
+and are not made interruptible by carrier deadlines; the current runtime claim is limited to the
+supported local Linux filesystem cohort. Unit tests exercise a real directory, spelling-preserving
+symlink lookup, regular and missing paths, and Worker identity/generation rejection without a Host
+dependency.
 
 ## Ownership
 
