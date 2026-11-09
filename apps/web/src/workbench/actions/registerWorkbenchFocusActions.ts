@@ -2,6 +2,7 @@ import {
 	defineAction,
 	noActionInput,
 	type ActionDisposable,
+	type ActionMessageDescriptor,
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
@@ -9,6 +10,7 @@ import { workbenchMessages } from '@orchbee/i18n';
 
 import type {
 	WorkbenchFocusIntent,
+	WorkbenchFocusRegion,
 	WorkbenchFocusResolution,
 } from '../model/resolveWorkbenchFocusTarget';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from './workbench-action-ids';
@@ -86,10 +88,12 @@ export function registerWorkbenchFocusActions({
 					concurrencyKey: () => 'workbench-focus-routing',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					focusRouter.getResolution(intent).kind === 'unavailable'
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+				getAvailability: () => {
+					const resolution = focusRouter.getResolution(intent);
+					return resolution.kind === 'unavailable'
+						? { kind: 'disabled', reason: focusUnavailableReason(resolution.reason, intent) }
+						: { kind: 'enabled' };
+				},
 				handler: {
 					execute: (context) => {
 						const resolution = focusRouter.getResolution(intent);
@@ -110,4 +114,23 @@ export function registerWorkbenchFocusActions({
 			}),
 		),
 	);
+}
+
+const HIDDEN_REGION_REASON = {
+	sidebar: workbenchMessages.focusUnavailableSidebarHidden,
+	'tab-strip': workbenchMessages.focusUnavailableTabStripHidden,
+	terminal: workbenchMessages.focusUnavailableNoTerminal,
+} as const satisfies Readonly<Record<WorkbenchFocusRegion, ActionMessageDescriptor>>;
+
+/** Names what stops the focus move, so a disabled row says why. */
+function focusUnavailableReason(
+	reason: Extract<WorkbenchFocusResolution, { kind: 'unavailable' }>['reason'],
+	intent: WorkbenchFocusIntent,
+): ActionMessageDescriptor {
+	if (reason === 'exclusive-surface-active') return workbenchMessages.focusUnavailableSurfaceOpen;
+	// A named region is unavailable only while it is not shown.
+	if (intent.kind === 'direct') return HIDDEN_REGION_REASON[intent.region];
+	return reason === 'no-different-region'
+		? workbenchMessages.focusUnavailableNoOtherRegion
+		: workbenchMessages.focusUnavailableNoRegion;
 }

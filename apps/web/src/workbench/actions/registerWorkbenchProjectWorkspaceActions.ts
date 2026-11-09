@@ -71,6 +71,19 @@ function transitionWithCommit(
 	return runtime.transition(event, context.markCommitted);
 }
 
+const PROJECT_MISSING = {
+	kind: 'disabled',
+	reason: workbenchMessages.projectUnavailableMissing,
+} as const;
+const WORKSPACE_MISSING = {
+	kind: 'disabled',
+	reason: workbenchMessages.workspaceUnavailableMissing,
+} as const;
+const DESTINATION_MISSING = {
+	kind: 'disabled',
+	reason: workbenchMessages.workspaceUnavailableDestinationMissing,
+} as const;
+
 function withoutReceipt(result: ActionResult<WorkbenchProjectCreationReceipt>): ActionResult<void> {
 	return result.kind === 'completed' || result.kind === 'unchanged'
 		? { kind: result.kind }
@@ -196,12 +209,12 @@ export function registerWorkbenchProjectWorkspaceActions({
 					const destinationMembers = projectWorkspaceRuntime
 						.getSnapshot()
 						.workspaces.filter((candidate) => candidate.projectId === input.projectId);
-					return workspaceFor(input) !== undefined &&
-						(input.projectId === null || projectFor(input.projectId) !== undefined) &&
+					if (workspaceFor(input) === undefined) return WORKSPACE_MISSING;
+					return (input.projectId === null || projectFor(input.projectId) !== undefined) &&
 						(input.beforeWorkspaceId === null ||
 							destinationMembers.some((member) => member.id === input.beforeWorkspaceId))
 						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
+						: DESTINATION_MISSING;
 				},
 				handler: {
 					execute: (context, input) =>
@@ -226,12 +239,15 @@ export function registerWorkbenchProjectWorkspaceActions({
 					concurrencyKey: () => 'project-order',
 					mode: 'foreground',
 				},
-				getAvailability: (_context, input) =>
-					projectWorkspaceRuntime.getSnapshot().projects.length > 1 &&
-					projectFor(input.projectId) !== undefined &&
-					(input.beforeProjectId === null || projectFor(input.beforeProjectId) !== undefined)
+				getAvailability: (_context, input) => {
+					if (projectWorkspaceRuntime.getSnapshot().projects.length <= 1) {
+						return { kind: 'disabled', reason: workbenchMessages.projectUnavailableOnlyOne };
+					}
+					if (projectFor(input.projectId) === undefined) return PROJECT_MISSING;
+					return input.beforeProjectId === null || projectFor(input.beforeProjectId) !== undefined
 						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+						: DESTINATION_MISSING;
+				},
 				handler: {
 					execute: (context, input) =>
 						commit(context, {
@@ -252,7 +268,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
 					projectFor(input.projectId) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+						? PROJECT_MISSING
 						: {
 								checked: projectWorkspaceRuntime
 									.getSnapshot()
@@ -310,10 +326,10 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				getAvailability: (_context, input) => {
 					const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
-					return workspaceFor(input) === undefined ||
-						(input.creationReceipt !== undefined &&
-							!matchesWorkbenchProjectCreation(projectWorkspaceRuntime, input.creationReceipt))
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+					if (workspaceFor(input) === undefined) return WORKSPACE_MISSING;
+					return input.creationReceipt !== undefined &&
+						!matchesWorkbenchProjectCreation(projectWorkspaceRuntime, input.creationReceipt)
+						? { kind: 'disabled', reason: workbenchMessages.workspaceUnavailableCreationChanged }
 						: {
 								checked:
 									activeLocation.kind === 'workspace' &&
@@ -363,7 +379,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					if (input === undefined) return { kind: 'enabled' };
 					if (!('directoryId' in input)) {
 						return projectFor(input.projectId) === undefined
-							? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+							? PROJECT_MISSING
 							: { kind: 'enabled' };
 					}
 					// A recorded folder stays offered only while some Workspace still records it.
@@ -371,7 +387,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 						.getSnapshot()
 						.workspaces.some((workspace) => workspace.directory?.id === input.directoryId)
 						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
+						: { kind: 'disabled', reason: workbenchMessages.workspaceUnavailableFolderUnused };
 				},
 				handler: {
 					execute: (context, input) => {
@@ -415,9 +431,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					workspaceFor(input) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					workspaceFor(input) === undefined ? WORKSPACE_MISSING : { kind: 'enabled' },
 				// A Workspace that runs nothing closes without asking, and only the authority can tell.
 				handler: {
 					execute: async (context, input) => {
@@ -459,9 +473,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					workspaceFor(input) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					workspaceFor(input) === undefined ? WORKSPACE_MISSING : { kind: 'enabled' },
 				handler: {
 					execute: (context, input) =>
 						closeAndReturnToTerminal(context, {
@@ -480,9 +492,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
-					projectFor(input.projectId) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					projectFor(input.projectId) === undefined ? PROJECT_MISSING : { kind: 'enabled' },
 				handler: {
 					execute: (context, input) =>
 						commit(context, {
@@ -506,9 +516,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					workspaceFor(input) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					workspaceFor(input) === undefined ? WORKSPACE_MISSING : { kind: 'enabled' },
 				handler: {
 					execute: (context, input) => {
 						const workspace = workspaceFor(input);
@@ -533,9 +541,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
-					projectFor(input.projectId) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					projectFor(input.projectId) === undefined ? PROJECT_MISSING : { kind: 'enabled' },
 				handler: {
 					execute: (context, input) =>
 						commit(context, {
@@ -560,11 +566,12 @@ export function registerWorkbenchProjectWorkspaceActions({
 					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},
-				getAvailability: (_context, input) =>
-					workspaceFor(input) !== undefined &&
-					(input.projectId === null || projectFor(input.projectId) !== undefined)
+				getAvailability: (_context, input) => {
+					if (workspaceFor(input) === undefined) return WORKSPACE_MISSING;
+					return input.projectId === null || projectFor(input.projectId) !== undefined
 						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+						: PROJECT_MISSING;
+				},
 				handler: {
 					execute: (context, input) =>
 						commit(context, {
@@ -587,9 +594,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
-					workspaceFor(input) !== undefined
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+					workspaceFor(input) === undefined ? WORKSPACE_MISSING : { kind: 'enabled' },
 				handler: {
 					execute: (context, input) =>
 						commit(context, {
@@ -608,9 +613,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				input: workbenchProjectInput,
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
-					projectFor(input.projectId) === undefined
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					projectFor(input.projectId) === undefined ? PROJECT_MISSING : { kind: 'enabled' },
 				confirmation: (input) => ({
 					cancelLabel: workbenchMessages.panelCancel,
 					confirmLabel: workbenchMessages.panelClose,

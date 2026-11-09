@@ -146,7 +146,7 @@ export function useTabStripActions({
 	);
 	const getCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) => {
 		if (intent.kind === 'new-tab' && !hasTargetGroup(model, intent.groupId)) {
-			return { kind: 'disabled' as const, reason: workbenchMessages.actionUnavailable };
+			return { kind: 'disabled' as const, reason: workbenchTabMessages.unavailableGroupMissing };
 		}
 		return getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const);
 	});
@@ -206,9 +206,16 @@ export function useTabStripActions({
 			existingTabIds(tabIds).length === 0
 				? {
 						kind: 'disabled' as const,
-						reason: workbenchMessages.actionUnavailable,
+						reason: {
+							...workbenchTabMessages.unavailableMissing,
+							values: { count: new Set(tabIds).size },
+						},
 					}
 				: { kind: 'enabled' as const };
+		const groupMissing = {
+			kind: 'disabled' as const,
+			reason: workbenchTabMessages.unavailableGroupMissing,
+		};
 		const commit = (context: { markCommitted(): void }, operation: () => void) => {
 			const revision = model.getSnapshot().revision;
 			context.markCommitted();
@@ -427,9 +434,7 @@ export function useTabStripActions({
 					category,
 					execution: parallelByTabs,
 					getAvailability: (_context, input) =>
-						hasTargetGroup(model, input.groupId)
-							? tabAvailability(input.tabIds)
-							: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+						hasTargetGroup(model, input.groupId) ? tabAvailability(input.tabIds) : groupMissing,
 					handler: {
 						execute: (context, input) => {
 							if (!hasTargetGroup(model, input.groupId)) {
@@ -512,12 +517,7 @@ export function useTabStripActions({
 						mode: 'foreground',
 					},
 					getAvailability: (_context, input) =>
-						model.getGroup(input.groupId) === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' },
+						model.getGroup(input.groupId) === null ? groupMissing : { kind: 'enabled' },
 					handler: {
 						execute: (context, input) =>
 							apply(context, { groupId: input.groupId, kind: 'group-ungrouped' }, () =>
@@ -541,10 +541,7 @@ export function useTabStripActions({
 					getAvailability: (_context, input) => {
 						const group = model.getGroup(input.groupId);
 						return group === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
+							? groupMissing
 							: {
 									checked: group.collapsed,
 									kind: 'enabled',
@@ -577,12 +574,7 @@ export function useTabStripActions({
 						mode: 'foreground',
 					},
 					getAvailability: (_context, input) =>
-						model.getGroup(input.groupId) === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' },
+						model.getGroup(input.groupId) === null ? groupMissing : { kind: 'enabled' },
 					handler: {
 						execute: (context, input) =>
 							apply(
@@ -646,12 +638,7 @@ export function useTabStripActions({
 						mode: 'foreground',
 					},
 					getAvailability: (_context, input) =>
-						model.getGroup(input.groupId) === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' },
+						model.getGroup(input.groupId) === null ? groupMissing : { kind: 'enabled' },
 					handler: {
 						execute: (context, input) =>
 							apply(

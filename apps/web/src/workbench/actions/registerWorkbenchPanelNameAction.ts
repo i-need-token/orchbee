@@ -1,10 +1,11 @@
 import {
 	defineAction,
 	type ActionDisposable,
+	type ActionMessageDescriptor,
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
-import { workbenchMessages } from '@orchbee/i18n';
+import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 
 import {
 	findPanel,
@@ -58,15 +59,19 @@ export function registerWorkbenchPanelNameAction({
 						: `${input.terminalContextId}:${input.tabId}:${input.panelId}`,
 				mode: 'foreground',
 			},
-			getAvailability: (_context, input) =>
-				resolve(input) === null
-					? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-					: { kind: 'enabled' },
+			getAvailability: (_context, input) => {
+				const target = resolve(input);
+				return 'unavailable' in target
+					? { kind: 'disabled', reason: target.unavailable }
+					: { kind: 'enabled' };
+			},
 			handler: {
 				execute: (context, input) => {
 					if (context.signal.aborted) return { kind: 'cancelled' };
 					const target = resolve(input);
-					if (target === null) return { kind: 'blocked', code: 'panel-name-target-unavailable' };
+					if ('unavailable' in target) {
+						return { kind: 'blocked', code: 'panel-name-target-unavailable' };
+					}
 					if (input?.kind === 'commit')
 						return authority.change(context, {
 							type: 'panel-renamed',
@@ -83,20 +88,37 @@ export function registerWorkbenchPanelNameAction({
 		}),
 	);
 
-	function resolve(input: WorkbenchPanelNameInput): WorkbenchPanelNameEditorRequest | null {
+	/** The Panel to name, or why there is none: a named Panel is gone, or the active one is missing. */
+	function resolve(
+		input: WorkbenchPanelNameInput,
+	): WorkbenchPanelNameEditorRequest | { readonly unavailable: ActionMessageDescriptor } {
+		const missing = { unavailable: workbenchMessages.panelUnavailableMissing };
 		const terminalContext =
 			input === undefined
 				? projectWorkspaceRuntime.getActiveTerminalContext()
 				: projectWorkspaceRuntime.getTerminalContext(input.terminalContextId);
-		if (terminalContext === null) return null;
+		if (terminalContext === null) {
+			return input === undefined
+				? { unavailable: workbenchMessages.workspaceUnavailableRequired }
+				: missing;
+		}
 		const store = terminalContext.panelWorkspaceStore;
 		const tabId = input?.tabId ?? store.getActiveTabId();
 		const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
-		if (tab === undefined) return null;
+		if (tab === undefined) {
+			return input === undefined
+				? { unavailable: workbenchTabMessages.unavailableNoneSelected }
+				: missing;
+		}
 		const panel = findPanel(tab.root, input?.panelId ?? tab.focusedPanelId);
-		if (panel === null) return null;
+		if (panel === null) {
+			return input === undefined
+				? { unavailable: workbenchMessages.panelUnavailableFocusedPanelRequired }
+				: missing;
+		}
 		const primary = panel.primaryPresentation;
-		if (input?.kind === 'commit' && input.presentationId !== primary.presentationId) return null;
+		// The name belongs to the primary terminal the editor opened on; another one is not it.
+		if (input?.kind === 'commit' && input.presentationId !== primary.presentationId) return missing;
 		return {
 			panelId: panel.id,
 			tabId: tab.tabId,

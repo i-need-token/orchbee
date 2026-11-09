@@ -64,10 +64,15 @@ export function registerWorkbenchAgentNavigationAction({
 				concurrencyKey: () => 'agent-navigation',
 				mode: 'foreground',
 			},
-			getAvailability: (_context, input) =>
-				prepareWorkbenchAgentNavigation(input, projectWorkspaceRuntime, source) === null
-					? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-					: { kind: 'enabled' },
+			getAvailability: (_context, input) => {
+				// Only a host without Agent observation lacks the Action itself.
+				if (source === undefined) {
+					return { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
+				}
+				return prepareWorkbenchAgentNavigation(input, projectWorkspaceRuntime, source) === null
+					? { kind: 'disabled', reason: workbenchMessages.agentUnavailableMissing }
+					: { kind: 'enabled' };
+			},
 			handler: {
 				execute: (context, input) =>
 					executeWorkbenchAgentNavigation(context, input, {

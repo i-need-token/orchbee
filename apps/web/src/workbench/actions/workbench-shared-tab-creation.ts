@@ -1,5 +1,5 @@
 import type { ActionAvailability, ActionExecutionContext, ActionResult } from '@orchbee/actions';
-import { workbenchMessages } from '@orchbee/i18n';
+import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type { TabStripTabCreationIntent } from '@orchbee/tab-strip';
 
 import type { WorkbenchTerminalCreateInput } from './workbench-action-ids';
@@ -28,9 +28,9 @@ interface SharedTabDuplicationOptions {
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }
 
-const unavailable: ActionAvailability = {
+const WORKSPACE_REQUIRED: ActionAvailability = {
 	kind: 'disabled',
-	reason: workbenchMessages.actionUnavailable,
+	reason: workbenchMessages.workspaceUnavailableRequired,
 };
 
 const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
@@ -47,12 +47,14 @@ export function getSharedTabCreationAvailability(
 	if (terminalContext === null) {
 		return intent.kind === 'new-tab' && intent.groupId === null && intent.index === undefined
 			? { kind: 'enabled' }
-			: unavailable;
+			: WORKSPACE_REQUIRED;
 	}
 	if (intent.kind !== 'new-tab' || intent.index === undefined) return { kind: 'enabled' };
 	// A new Tab is never pinned, so the authority refuses one placed among the pinned Tabs.
 	const { tabs } = terminalContext.tabModel.getSnapshot();
-	return intent.index < tabs.filter((tab) => tab.pinned).length ? unavailable : { kind: 'enabled' };
+	return intent.index < tabs.filter((tab) => tab.pinned).length
+		? { kind: 'disabled', reason: workbenchTabMessages.unavailableAmongPinned }
+		: { kind: 'enabled' };
 }
 
 /** A launch profile only chooses how a Tab starts, so it never stands in for the missing Workspace. */
@@ -61,7 +63,7 @@ export function getSharedTerminalCreationAvailability(
 	input: WorkbenchTerminalCreateInput,
 ): ActionAvailability {
 	if (input.profile !== undefined && runtime.getActiveTerminalContext() === null) {
-		return unavailable;
+		return WORKSPACE_REQUIRED;
 	}
 	return getSharedTabCreationAvailability(runtime, {
 		groupId: input.groupId,

@@ -1,6 +1,7 @@
 import {
 	defineAction,
 	type ActionDisposable,
+	type ActionMessageDescriptor,
 	type ActionScope,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
@@ -56,15 +57,17 @@ export function registerWorkbenchTabTitleAction({
 				concurrencyKey: (input) => targetKey(input),
 				mode: 'foreground',
 			},
-			getAvailability: (_context, input) =>
-				resolveTarget(projectWorkspaceRuntime, input) === null
-					? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-					: { kind: 'enabled' },
+			getAvailability: (_context, input) => {
+				const target = resolveTarget(projectWorkspaceRuntime, input);
+				return 'unavailable' in target
+					? { kind: 'disabled', reason: target.unavailable }
+					: { kind: 'enabled' };
+			},
 			handler: {
 				execute: (context, input) => {
 					if (context.signal.aborted) return { kind: 'cancelled' };
 					const target = resolveTarget(projectWorkspaceRuntime, input);
-					if (target === null) {
+					if ('unavailable' in target) {
 						return { code: 'tab-title-target-unavailable', kind: 'blocked' };
 					}
 					const titlePolicy = target.terminalContext.panelWorkspaceStore
@@ -103,23 +106,35 @@ export function registerWorkbenchTabTitleAction({
 function resolveTarget(
 	projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime,
 	input: WorkbenchTabTitleInput,
-): {
-	readonly tabId: string;
-	readonly terminalContext: WorkbenchTerminalContext;
-	readonly title: string;
-} | null {
+):
+	| {
+			readonly tabId: string;
+			readonly terminalContext: WorkbenchTerminalContext;
+			readonly title: string;
+	  }
+	| { readonly unavailable: ActionMessageDescriptor } {
+	const missing = {
+		unavailable: { ...workbenchTabMessages.unavailableMissing, values: { count: 1 } },
+	};
 	const terminalContext =
 		input === undefined
 			? projectWorkspaceRuntime.getActiveTerminalContext()
 			: projectWorkspaceRuntime.getTerminalContext(input.terminalContextId);
-	if (terminalContext === null) return null;
+	if (terminalContext === null) {
+		return input === undefined
+			? { unavailable: workbenchMessages.workspaceUnavailableRequired }
+			: missing;
+	}
 	const tabId =
 		input === undefined ? terminalContext.tabModel.getSnapshot().activeTabId : input.tabId;
-	if (tabId === null) return null;
+	if (tabId === null) return { unavailable: workbenchTabMessages.unavailableNoneSelected };
 	const tab = terminalContext.tabModel
 		.getSnapshot()
 		.tabs.find((candidate) => candidate.id === tabId);
-	return tab === undefined ? null : { tabId, terminalContext, title: tab.title };
+	if (tab !== undefined) return { tabId, terminalContext, title: tab.title };
+	return input === undefined
+		? { unavailable: workbenchTabMessages.unavailableNoneSelected }
+		: missing;
 }
 
 function targetKey(input: WorkbenchTabTitleInput): string {

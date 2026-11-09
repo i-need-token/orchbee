@@ -682,6 +682,118 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Reason focusing a Workbench Panel by position is disabled: the active Tab has fewer Panels.',
 	},
+	panelUnavailableMissing: {
+		id: 'workbench.panels.unavailable.missing',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.missing'],
+		description: 'Reason a Workbench Panel action is disabled: the Panel it names is gone.',
+	},
+	panelUnavailableThreeRequired: {
+		id: 'workbench.panels.unavailable.threeRequired',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.threeRequired'],
+		description:
+			'Reason visual Panel selection is disabled: the active Tab has fewer than three Panels.',
+	},
+	panelUnavailableSameTarget: {
+		id: 'workbench.panels.unavailable.sameTarget',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.sameTarget'],
+		description:
+			'Reason moving or swapping a Workbench Panel is disabled: the target is the Panel itself.',
+	},
+	panelUnavailablePrimaryShown: {
+		id: 'workbench.panels.unavailable.primaryShown',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.primaryShown'],
+		description:
+			'Reason Return to primary terminal is disabled: the Panel already shows its primary terminal.',
+	},
+	panelUnavailableDirectoryUnreported: {
+		id: 'workbench.panels.unavailable.directoryUnreported',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.unavailable.directoryUnreported'],
+		description:
+			'Reason New Tab in the current directory is disabled: the focused terminal has reported no directory.',
+	},
+	projectUnavailableMissing: {
+		id: 'workbench.projects.unavailable.missing',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.unavailable.missing'],
+		description: 'Reason a Project action is disabled: the Project it names is gone.',
+	},
+	projectUnavailableOnlyOne: {
+		id: 'workbench.projects.unavailable.onlyOne',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.unavailable.onlyOne'],
+		description: 'Reason Reorder Project is disabled: there is a single Project.',
+	},
+	projectUnavailableCreationPending: {
+		id: 'workbench.projects.unavailable.creationPending',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.unavailable.creationPending'],
+		description:
+			'Reason New Project is disabled: a folder choice, new folder, or path form for one is open.',
+	},
+	workspaceUnavailableMissing: {
+		id: 'workbench.workspaces.unavailable.missing',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.unavailable.missing'],
+		description: 'Reason a Workspace action is disabled: the Workspace it names is gone.',
+	},
+	workspaceUnavailableRequired: {
+		id: 'workbench.workspaces.unavailable.required',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.unavailable.required'],
+		description:
+			'Reason an action is disabled: no Workspace is open. Matches the TUI Workspace-required reason.',
+	},
+	workspaceUnavailableDestinationMissing: {
+		id: 'workbench.workspaces.unavailable.destinationMissing',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.unavailable.destinationMissing'],
+		description:
+			'Reason reordering a Workspace or Project is disabled: the destination Project or neighbor is gone.',
+	},
+	workspaceUnavailableFolderUnused: {
+		id: 'workbench.workspaces.unavailable.folderUnused',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.unavailable.folderUnused'],
+		description:
+			'Reason creating a Workspace in a recorded folder is disabled: no Workspace records that folder any more.',
+	},
+	workspaceUnavailableCreationChanged: {
+		id: 'workbench.workspaces.unavailable.creationChanged',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.unavailable.creationChanged'],
+		description:
+			'Reason opening a just-created Workspace is disabled: its folder, context, or first terminal no longer match the creation.',
+	},
+	agentUnavailableMissing: {
+		id: 'workbench.agents.unavailable.missing',
+		defaultMessage: enUSWorkbenchMessages['workbench.agents.unavailable.missing'],
+		description: 'Reason navigating to an Agent is disabled: the Agent or its terminal is gone.',
+	},
+	focusUnavailableSurfaceOpen: {
+		id: 'workbench.focus.unavailable.surfaceOpen',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.unavailable.surfaceOpen'],
+		description:
+			'Reason a Workbench focus action is disabled: a dialog or menu holds the keyboard.',
+	},
+	focusUnavailableNoRegion: {
+		id: 'workbench.focus.unavailable.noRegion',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.unavailable.noRegion'],
+		description:
+			'Reason a Workbench focus action is disabled: no terminal, Tab strip, or Sidebar is shown.',
+	},
+	focusUnavailableNoOtherRegion: {
+		id: 'workbench.focus.unavailable.noOtherRegion',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.unavailable.noOtherRegion'],
+		description:
+			'Reason Focus Next or Previous Region is disabled: the focused region is the only one shown.',
+	},
+	focusUnavailableNoTerminal: {
+		id: 'workbench.focus.unavailable.noTerminal',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.unavailable.noTerminal'],
+		description: 'Reason Focus Active Terminal is disabled: no terminal is displayed.',
+	},
+	focusUnavailableTabStripHidden: {
+		id: 'workbench.focus.unavailable.tabStripHidden',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.unavailable.tabStripHidden'],
+		description: 'Reason Focus Tab Strip is disabled: the Tab strip is not shown.',
+	},
+	focusUnavailableSidebarHidden: {
+		id: 'workbench.focus.unavailable.sidebarHidden',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.unavailable.sidebarHidden'],
+		description: 'Reason Focus Sidebar is disabled: the Sidebar is hidden.',
+	},
 	panelSwapVisible: {
 		id: 'workbench.panels.actions.swapVisible',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.swapVisible'],

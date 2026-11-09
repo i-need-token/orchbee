@@ -7,6 +7,7 @@ import {
 	type ActionExecutionContext,
 	type ActionResult,
 } from '@orchbee/actions';
+import { workbenchMessages } from '@orchbee/i18n';
 import { TAB_STRIP_ACTION_IDS, TabStripOrientation, type TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -197,6 +198,42 @@ describe('registerWorkbenchActiveTabActions', () => {
 		await expect(
 			harness.execute(WORKBENCH_ACTION_IDS.moveActiveTabBackward),
 		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
+	});
+
+	it('gives the host reason only when no surface provides the lower Action', () => {
+		const harness = createHarness([snapshotTab(1), snapshotTab(2)], SECOND);
+		const ownReason = { defaultMessage: 'Lower owner reason', id: 'test.lower.reason' };
+		const reasonOf = (actionId: string) => {
+			const resolution = harness.runtime.resolveAction(actionId, undefined, {
+				scope: harness.scope,
+				source: 'command-surface',
+			});
+			return resolution?.availability.kind === 'disabled' ? resolution.availability.reason : null;
+		};
+
+		// A state of the active Tab: the last Tab has nothing after it to close.
+		expect(reasonOf(WORKBENCH_ACTION_IDS.closeTabsAfterActive)).not.toBeNull();
+		expect(reasonOf(WORKBENCH_ACTION_IDS.closeTabsAfterActive)).not.toEqual(
+			workbenchMessages.actionUnavailable,
+		);
+		// No surface registers creation, so the host lacks the Action itself.
+		expect(reasonOf(WORKBENCH_ACTION_IDS.createTabAfterActive)).toEqual(
+			workbenchMessages.actionUnavailable,
+		);
+		// A lower Action that refuses says why, and the composite repeats its owner's reason.
+		harness.runtime.register(
+			harness.scope,
+			defineAction({
+				category: { id: 'tabs', title: { defaultMessage: 'Tabs' } },
+				execution: { concurrency: 'parallel', concurrencyKey: () => 'create', mode: 'foreground' },
+				getAvailability: () => ({ kind: 'disabled', reason: ownReason }),
+				handler: { execute: () => ({ kind: 'completed' }) },
+				id: WORKBENCH_ACTION_IDS.createTerminal,
+				input: anyObjectInput,
+				title: { defaultMessage: 'Create' },
+			}),
+		);
+		expect(reasonOf(WORKBENCH_ACTION_IDS.createTabAfterActive)).toEqual(ownReason);
 	});
 
 	it('coexists with adjacent Tab composites during all-Action discovery', () => {

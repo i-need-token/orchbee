@@ -331,6 +331,62 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.ungroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.ungroup'],
 	},
+	unavailableMissing: {
+		id: 'workbench.tabs.unavailable.missing',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.missing'],
+		description:
+			'Reason a Tab action is disabled: none of the Tabs it names remains; count is how many it names.',
+	},
+	unavailableNoneSelected: {
+		id: 'workbench.tabs.unavailable.noneSelected',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.noneSelected'],
+		description: 'Reason an action on the active Tab is disabled: the Workspace has no active Tab.',
+	},
+	unavailableOnlyOne: {
+		id: 'workbench.tabs.unavailable.onlyOne',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.onlyOne'],
+		description: 'Reason Select Next or Previous Tab is disabled: the Workspace has a single Tab.',
+	},
+	unavailableOnlyPinned: {
+		id: 'workbench.tabs.unavailable.onlyPinned',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.onlyPinned'],
+		description:
+			'Reason moving the active pinned Tab is disabled: it is the only pinned Tab, and a Tab moves only among its kind.',
+	},
+	unavailableOnlyUnpinned: {
+		id: 'workbench.tabs.unavailable.onlyUnpinned',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.onlyUnpinned'],
+		description:
+			'Reason moving the active unpinned Tab is disabled: it is the only unpinned Tab, and a Tab moves only among its kind.',
+	},
+	unavailablePositionEmpty: {
+		id: 'workbench.tabs.unavailable.positionEmpty',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.positionEmpty'],
+		description: 'Reason selecting a Tab by position is disabled: the Workspace has fewer Tabs.',
+	},
+	unavailableAmongPinned: {
+		id: 'workbench.tabs.unavailable.amongPinned',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.amongPinned'],
+		description:
+			'Reason creating a Tab at a position is disabled: the position lies among pinned Tabs, and a new Tab is never pinned.',
+	},
+	unavailableNoMatchingTabs: {
+		id: 'workbench.tabs.unavailable.noMatchingTabs',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.noMatchingTabs'],
+		description:
+			'Reason a close action is disabled: no Tab falls in its set. Matches the TUI reason for the same condition.',
+	},
+	unavailableGroupMissing: {
+		id: 'workbench.tabs.unavailable.groupMissing',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.groupMissing'],
+		description: 'Reason a Tab group action is disabled: the group it names is gone.',
+	},
+	unavailableNoRecentGroup: {
+		id: 'workbench.tabs.unavailable.noRecentGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.unavailable.noRecentGroup'],
+		description:
+			'Reason New Tab in recent group is disabled: no group exists. Matches the TUI reason for the same condition.',
+	},
 	unnamedGroup: {
 		id: 'workbench.tabs.groups.unnamed',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groups.unnamed'],

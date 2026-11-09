@@ -4,11 +4,9 @@ import {
 	type ActionAvailabilityContext,
 	type ActionDisposable,
 	type ActionExecutionContext,
-	type ActionInvocation,
 	type ActionMessageDescriptor,
 	type ActionRuntime,
 	type ActionScope,
-	type PreparedActionInvocation,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
@@ -17,10 +15,13 @@ import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
 import {
+	prepareDescendantAction,
+	type DescendantActionPreparation,
+} from './prepareDescendantAction';
+import {
 	resolveAdjacentTabSelection,
 	type AdjacentTabSelectionInput,
 } from './resolveAdjacentTabSelection';
-import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descendant-action-discovery';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -77,15 +78,15 @@ export function registerWorkbenchTabSelectionActions({
 					mode: 'foreground',
 				},
 				getAvailability: (context, input) =>
-					prepareTabPositionSelection({
-						context,
-						input,
-						projectWorkspaceRuntime,
-						runtime,
-						scope,
-					}) === null
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-						: { kind: 'enabled' },
+					availabilityOf(
+						prepareTabPositionSelection({
+							context,
+							input,
+							projectWorkspaceRuntime,
+							runtime,
+							scope,
+						}),
+					),
 				handler: {
 					execute: async (context, input) => {
 						const prepared = prepareTabPositionSelection({
@@ -95,9 +96,9 @@ export function registerWorkbenchTabSelectionActions({
 							runtime,
 							scope,
 						});
-						return prepared === null
-							? { code: 'tab-position-unavailable', kind: 'blocked' }
-							: await executePreparedDescendantAction(context, runtime, prepared);
+						return prepared.kind === 'ready'
+							? await executePreparedDescendantAction(context, runtime, prepared.invocation)
+							: { code: 'tab-position-unavailable', kind: 'blocked' };
 					},
 				},
 				id: WORKBENCH_ACTION_IDS.selectTabByPosition,
@@ -135,15 +136,15 @@ function adjacentTabSelectionActionDefinition<
 			mode: 'foreground',
 		},
 		getAvailability: (context) =>
-			prepareAdjacentTabSelection({
-				context,
-				direction,
-				projectWorkspaceRuntime,
-				runtime,
-				scope,
-			}) === null
-				? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
-				: { kind: 'enabled' },
+			availabilityOf(
+				prepareAdjacentTabSelection({
+					context,
+					direction,
+					projectWorkspaceRuntime,
+					runtime,
+					scope,
+				}),
+			),
 		handler: {
 			execute: async (context) => {
 				const prepared = prepareAdjacentTabSelection({
@@ -153,9 +154,9 @@ function adjacentTabSelectionActionDefinition<
 					runtime,
 					scope,
 				});
-				return prepared === null
-					? { code: 'adjacent-tab-unavailable', kind: 'blocked' }
-					: await executePreparedDescendantAction(context, runtime, prepared);
+				return prepared.kind === 'ready'
+					? await executePreparedDescendantAction(context, runtime, prepared.invocation)
+					: { code: 'adjacent-tab-unavailable', kind: 'blocked' };
 			},
 		},
 		id,
@@ -176,15 +177,18 @@ function prepareAdjacentTabSelection({
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
-}): PreparedActionInvocation | null {
+}): DescendantActionPreparation {
 	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel.getSnapshot();
-	if (snapshot === undefined) return null;
+	if (snapshot === undefined) return WORKSPACE_REQUIRED;
 	const tabId = resolveAdjacentTabSelection({
 		activeTabId: snapshot.activeTabId,
 		direction,
 		tabIds: snapshot.tabs.map((tab) => tab.id),
 	});
-	return tabId === null ? null : prepareTabIdSelection({ context, runtime, scope, tabId });
+	if (tabId !== null) return prepareTabIdSelection({ context, runtime, scope, tabId });
+	return snapshot.tabs.some((tab) => tab.id === snapshot.activeTabId)
+		? { kind: 'unavailable', reason: workbenchTabMessages.unavailableOnlyOne }
+		: { kind: 'unavailable', reason: workbenchTabMessages.unavailableNoneSelected };
 }
 
 function prepareTabPositionSelection({
@@ -199,11 +203,13 @@ function prepareTabPositionSelection({
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
-}): PreparedActionInvocation | null {
-	const tab = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel.getSnapshot().tabs[
-		input.position - 1
-	];
-	if (tab === undefined) return null;
+}): DescendantActionPreparation {
+	const tabModel = projectWorkspaceRuntime.getActiveTerminalContext()?.tabModel;
+	if (tabModel === undefined) return WORKSPACE_REQUIRED;
+	const tab = tabModel.getSnapshot().tabs[input.position - 1];
+	if (tab === undefined) {
+		return { kind: 'unavailable', reason: workbenchTabMessages.unavailablePositionEmpty };
+	}
 	return prepareTabIdSelection({ context, runtime, scope, tabId: tab.id });
 }
 
@@ -217,34 +223,24 @@ function prepareTabIdSelection({
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
 	readonly tabId: string;
-}): PreparedActionInvocation | null {
-	const selectionInput: TabSelectionInput = { mode: 'replace', tabId };
-	const prepared = runtime
-		.discover(discoveryInvocation(context, scope), {
-			includeDescendants: true,
-			inputByActionId: {
-				...WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS,
-				[TAB_STRIP_ACTION_IDS.selectTab]: selectionInput,
-			},
-		})
-		.find(
-			(result) =>
-				result.kind === 'ready' &&
-				result.descriptor.id === TAB_STRIP_ACTION_IDS.selectTab &&
-				result.availability.kind === 'enabled',
-		);
-	return prepared?.kind === 'ready' ? prepared.invocation : null;
+}): DescendantActionPreparation {
+	const input: TabSelectionInput = { mode: 'replace', tabId };
+	return prepareDescendantAction({
+		actionId: TAB_STRIP_ACTION_IDS.selectTab,
+		context,
+		input,
+		runtime,
+		scope,
+	});
 }
 
-function discoveryInvocation(
-	context: ActionAvailabilityContext | ActionExecutionContext,
-	scope: ActionScope,
-): ActionInvocation {
-	return {
-		...(context.capabilities === undefined ? {} : { capabilities: context.capabilities }),
-		...(context.focus === undefined ? {} : { focus: context.focus }),
-		scope,
-		source: context.source,
-		...(context.target === undefined ? {} : { target: context.target }),
-	};
+const WORKSPACE_REQUIRED = {
+	kind: 'unavailable',
+	reason: workbenchMessages.workspaceUnavailableRequired,
+} as const satisfies DescendantActionPreparation;
+
+function availabilityOf(prepared: DescendantActionPreparation) {
+	return prepared.kind === 'ready'
+		? ({ kind: 'enabled' } as const)
+		: ({ kind: 'disabled', reason: prepared.reason } as const);
 }

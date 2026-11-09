@@ -172,11 +172,12 @@ export function useWorkbenchActions({
 	);
 
 	React.useEffect(() => {
+		const resolveCurrentDirectoryTarget = (context: Pick<ActionInvocation, 'target'>) =>
+			context.target !== undefined && context.target.type !== 'panel'
+				? ({ kind: 'unavailable', reason: 'panel-unavailable' } as const)
+				: projectWorkspaceRuntime.resolveActiveTerminalCurrentDirectoryTarget(context.target?.id);
 		const captureCurrentDirectoryTarget = (context: Pick<ActionInvocation, 'target'>) => {
-			if (context.target !== undefined && context.target.type !== 'panel') return null;
-			const resolution = projectWorkspaceRuntime.resolveActiveTerminalCurrentDirectoryTarget(
-				context.target?.id,
-			);
+			const resolution = resolveCurrentDirectoryTarget(context);
 			return resolution.kind === 'ready' ? resolution.target : null;
 		};
 		const categoryNavigation = {
@@ -370,10 +371,20 @@ export function useWorkbenchActions({
 						concurrencyKey: () => 'current-directory-terminal-creation',
 						mode: 'foreground',
 					},
-					getAvailability: (context) =>
-						onNewTerminal !== undefined && captureCurrentDirectoryTarget(context) !== null
-							? { kind: 'enabled' }
-							: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+					getAvailability: (context) => {
+						if (onNewTerminal === undefined) {
+							return { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
+						}
+						const resolution = resolveCurrentDirectoryTarget(context);
+						if (resolution.kind === 'ready') return { kind: 'enabled' };
+						return {
+							kind: 'disabled',
+							reason:
+								resolution.reason === 'terminal-current-directory-unavailable'
+									? workbenchMessages.panelUnavailableDirectoryUnreported
+									: workbenchMessages.panelUnavailableFocusedPanelRequired,
+						};
+					},
 					handler: {
 						execute: (context) => {
 							if (onNewTerminal === undefined) {

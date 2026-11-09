@@ -135,7 +135,12 @@ export function useWorkbenchProjectCreation({
 	const newFolderAvailable = acquisition?.newFolder !== undefined;
 
 	React.useEffect(() => {
-		const unavailable = { kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const;
+		const busy = {
+			kind: 'disabled',
+			reason: workbenchMessages.projectUnavailableCreationPending,
+		} as const;
+		// Only a host that cannot make a folder lacks New Project in a new folder.
+		const noNewFolder = { kind: 'disabled', reason: workbenchMessages.actionUnavailable } as const;
 		const registration = createTypedActionRuntime<WorkbenchActionCatalog>(runtime).register(
 			scope,
 			defineAction({
@@ -145,11 +150,11 @@ export function useWorkbenchProjectCreation({
 					concurrencyKey: () => 'project-new',
 					mode: 'foreground',
 				},
-				getDiscoveryAvailability: () => (pending ? unavailable : { kind: 'enabled' }),
-				getAvailability: (_context, input) =>
-					pending || (input.folder === 'new' && !newFolderAvailable)
-						? unavailable
-						: { kind: 'enabled' },
+				getDiscoveryAvailability: () => (pending ? busy : { kind: 'enabled' }),
+				getAvailability: (_context, input) => {
+					if (pending) return busy;
+					return input.folder === 'new' && !newFolderAvailable ? noNewFolder : { kind: 'enabled' };
+				},
 				handler: {
 					execute: (context, input) => {
 						context.markCommitted();

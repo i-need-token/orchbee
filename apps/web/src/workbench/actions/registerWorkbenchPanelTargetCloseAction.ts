@@ -75,7 +75,7 @@ export function registerWorkbenchPanelTargetCloseAction({
 				execution,
 				getAvailability: (_context, input) =>
 					resolvePanel(input) === null
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+						? { kind: 'disabled', reason: workbenchMessages.panelUnavailableMissing }
 						: { kind: 'enabled' },
 				// A Panel that runs nothing closes without asking, and only the authority can tell.
 				handler: {
@@ -117,7 +117,7 @@ export function registerWorkbenchPanelTargetCloseAction({
 				execution,
 				getAvailability: (_context, input) =>
 					resolvePanel(input) === null
-						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+						? { kind: 'disabled', reason: workbenchMessages.panelUnavailableMissing }
 						: { kind: 'enabled' },
 				handler: {
 					execute: (context, input) => authority.close(context, closureFor(input, 'panel-close')),

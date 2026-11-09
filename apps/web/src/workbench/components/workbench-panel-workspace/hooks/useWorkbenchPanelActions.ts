@@ -5,6 +5,7 @@ import {
 	type ActionExecution,
 	type ActionInputFor,
 	type ActionInvocationSource,
+	type ActionMessageDescriptor,
 	type ActionOutputFor,
 	type ActionRuntime,
 	type ActionScope,
@@ -138,14 +139,39 @@ export function useWorkbenchPanelActions({
 				`${terminalContextId}:${input.tabId}:${input.panelId}`,
 			mode: 'foreground' as const,
 		};
+		const disabled = (reason: ActionMessageDescriptor) => ({ kind: 'disabled' as const, reason });
+		const panelMissing = disabled(workbenchMessages.panelUnavailableMissing);
 		// The Server closes a Tab's last Panel together with its Tab.
 		const closeAvailability = (input: PanelCloseInput) =>
-			findCloseTarget(input) === null
-				? {
-						kind: 'disabled' as const,
-						reason: workbenchMessages.actionUnavailable,
-					}
+			findCloseTarget(input) === null ? panelMissing : { kind: 'enabled' as const };
+		/** What in the active Tab stops a layout command, in the order the command checks it. */
+		const layoutBlocker = (minimumPanels: number) => {
+			if (activeTab === null)
+				return disabled(workbenchMessages.panelUnavailableFocusedPanelRequired);
+			if (activeTab.maximizedPanelId !== null) {
+				return disabled(workbenchMessages.panelUnavailableMaximized);
+			}
+			if (panelCount < minimumPanels) {
+				return disabled(
+					minimumPanels > 2
+						? workbenchMessages.panelUnavailableThreeRequired
+						: workbenchMessages.panelUnavailableMultipleRequired,
+				);
+			}
+			return null;
+		};
+		/** Both Panels must remain, and a Panel never trades places with itself. */
+		const pairAvailability = (input: {
+			readonly panelId: string;
+			readonly targetPanelId: string;
+		}) => {
+			if (findTarget(input.panelId) === null || findTarget(input.targetPanelId) === null) {
+				return panelMissing;
+			}
+			return input.panelId === input.targetPanelId
+				? disabled(workbenchMessages.panelUnavailableSameTarget)
 				: { kind: 'enabled' as const };
+		};
 		/** What a shared change names, because it can settle after this Client has moved elsewhere. */
 		const sharedTabTarget =
 			activeTab === null ? null : { tabId: activeTab.tabId, terminalContextId };
@@ -155,12 +181,7 @@ export function useWorkbenchPanelActions({
 			return panel === null ? undefined : (getDisplayedTerminal(panel).currentCwd ?? undefined);
 		};
 		const targetAvailability = (panelId: string) =>
-			findTarget(panelId) === null
-				? {
-						kind: 'disabled' as const,
-						reason: workbenchMessages.actionUnavailable,
-					}
-				: { kind: 'enabled' as const };
+			findTarget(panelId) === null ? panelMissing : { kind: 'enabled' as const };
 		const resultFor = (transition: PanelWorkspaceTransition | null) => {
 			if (transition === null || transition.outcome === 'rejected') {
 				return {
@@ -198,12 +219,7 @@ export function useWorkbenchPanelActions({
 					category,
 					execution,
 					getAvailability: (_context, input) =>
-						activeTab === null || activeTab.maximizedPanelId !== null || panelCount < 3
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: targetAvailability(input.panelId),
+						layoutBlocker(3) ?? targetAvailability(input.panelId),
 					handler: {
 						execute: (_context, input) =>
 							operations.startPanelVisualSelection(input.panelId, input.mode)
@@ -221,12 +237,7 @@ export function useWorkbenchPanelActions({
 					category,
 					execution,
 					getAvailability: (_context, input) =>
-						activeTab?.maximizedPanelId !== null || panelCount < 2
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: targetAvailability(input.panelId),
+						layoutBlocker(2) ?? targetAvailability(input.panelId),
 					handler: {
 						execute: (context) =>
 							sharedTabTarget === null
@@ -243,20 +254,7 @@ export function useWorkbenchPanelActions({
 				defineAction({
 					category,
 					execution,
-					getAvailability: (_context, input) => {
-						const sourcePanel = findTarget(input.panelId);
-						const targetPanel = findTarget(input.targetPanelId);
-						return activeTab?.maximizedPanelId !== null ||
-							panelCount < 2 ||
-							sourcePanel === null ||
-							targetPanel === null ||
-							input.panelId === input.targetPanelId
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' };
-					},
+					getAvailability: (_context, input) => layoutBlocker(2) ?? pairAvailability(input),
 					handler: {
 						execute: (context, input) => {
 							if (sharedTabTarget === null)
@@ -281,15 +279,8 @@ export function useWorkbenchPanelActions({
 				defineAction({
 					category,
 					execution,
-					getAvailability: (_context, input) => {
-						if (activeTab?.maximizedPanelId !== null) {
-							return {
-								kind: 'disabled',
-								reason: workbenchMessages.actionUnavailable,
-							};
-						}
-						return targetAvailability(input.panelId);
-					},
+					getAvailability: (_context, input) =>
+						layoutBlocker(1) ?? targetAvailability(input.panelId),
 					handler: {
 						execute: (context, input) =>
 							sharedTabTarget === null
@@ -402,19 +393,10 @@ export function useWorkbenchPanelActions({
 				defineAction({
 					category,
 					execution,
-					getAvailability: (_context, input) => {
-						const sourcePanel = findTarget(input.panelId);
-						const targetPanel = findTarget(input.targetPanelId);
-						return panelCount < 2 ||
-							sourcePanel === null ||
-							targetPanel === null ||
-							input.panelId === input.targetPanelId
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
-							: { kind: 'enabled' };
-					},
+					getAvailability: (_context, input) =>
+						panelCount < 2
+							? disabled(workbenchMessages.panelUnavailableMultipleRequired)
+							: pairAvailability(input),
 					handler: {
 						execute: (context, input) => {
 							if (sharedTabTarget === null)
@@ -442,11 +424,9 @@ export function useWorkbenchPanelActions({
 					execution,
 					getAvailability: (_context, input) => {
 						const panel = findTarget(input.panelId);
-						return panel?.activeChildPresentationId === null || panel === null
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
+						if (panel === null) return panelMissing;
+						return panel.activeChildPresentationId === null
+							? disabled(workbenchMessages.panelUnavailablePrimaryShown)
 							: { kind: 'enabled' };
 					},
 					handler: {
@@ -489,10 +469,7 @@ export function useWorkbenchPanelActions({
 					execution,
 					getAvailability: (_context, input) =>
 						panelCount < 2
-							? {
-									kind: 'disabled',
-									reason: workbenchMessages.actionUnavailable,
-								}
+							? disabled(workbenchMessages.panelUnavailableMultipleRequired)
 							: targetAvailability(input.panelId),
 					handler: {
 						execute: (context, input) => {
