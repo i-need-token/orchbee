@@ -47,7 +47,7 @@ fn one_shot_selection_keeps_literal_arguments_and_shared_default() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let view = ui.view();
         let feedback =
-            locale.native_notice_with_context(view.notice().unwrap(), view.notice_context());
+            locale.native_notice_forms(view.notice().unwrap(), view.notice_context())[0].clone();
         assert!(feedback.contains("PowerShell 测试"));
     }
 }
@@ -390,8 +390,9 @@ fn command_refusals_keep_the_command_identity_and_distinct_localized_recovery() 
                 view.notice(),
                 Some(WorkbenchClientNotice::CommandRefused(reason))
             );
-            let message =
-                locale.native_notice_with_context(view.notice().unwrap(), view.notice_context());
+            let message = locale.native_notice_forms(view.notice().unwrap(), view.notice_context())
+                [0]
+            .clone();
             assert!(message.starts_with("cmd_test_0 · "));
             assert!(messages.insert(message));
         }

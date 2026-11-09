@@ -59,6 +59,9 @@ pub(super) struct SidebarReorder {
     shown: Option<Box<Drop>>,
     /// The move the accepted frame paints, which can trail `shown` until the next frame.
     painted: Option<Box<Drop>>,
+    /// Whether the pointer moved while no frame was on record, so the next accepted frame moves
+    /// the destination to it.
+    unresolved: bool,
 }
 
 fn row_at(map: &FrameHitMap, column: u16, row: u16) -> Option<(&DrawnSidebarTarget, Rect)> {
@@ -120,6 +123,7 @@ impl SidebarReorder {
             last_scroll: now,
             shown: None,
             painted: None,
+            unresolved: false,
         })
     }
 
@@ -187,7 +191,8 @@ impl SidebarReorder {
     /// Takes a newly published frame and returns whether the gesture survives it, with whether
     /// the move it shows changed. A click keeps only its own row's frame. A drag takes the frame
     /// that shows its move and resolves against it from then on; a scroll moves other rows under
-    /// the pointer, so the destination follows it there.
+    /// the pointer, and a pointer that moved while no frame was on record has not been resolved,
+    /// so either way the destination follows the pointer there.
     fn accept(&mut self, map: &FrameHitMap) -> (bool, bool) {
         if !self.dragging {
             return (self.painted_in(map), false);
@@ -196,11 +201,12 @@ impl SidebarReorder {
             return (false, false);
         };
         let scrolled = paint.window.top != self.paint.window.top;
+        let unresolved = std::mem::take(&mut self.unresolved);
         if self.shows(&paint.source) {
             self.painted.clone_from(&self.shown);
         }
         self.paint = paint.clone();
-        (true, scrolled && self.follow(map))
+        (true, (scrolled || unresolved) && self.follow(map))
     }
 
     /// Before a drag, takes the exposure `map` recorded for the pressed row when that frame
@@ -484,8 +490,17 @@ impl PointerState {
         let Gesture::SidebarReorder(drag) = &self.gesture else {
             return None;
         };
-        (drag.dragging && drag.painted_in(self.map.as_ref()?))
+        (drag.dragging && self.sidebar_reorder_framed(drag))
             .then(|| SidebarReorderPreview { drag: drag.clone() })
+    }
+    /// Whether the frame on record still admits `drag`. A press that has not latched a drag is a
+    /// click on its painted row, so it needs that row's frame. A latched drag outlives a map
+    /// dropped until the next frame, as a scroll drops it: that frame, painted from the same
+    /// source, resolves the pointer and keeps or ends the drag.
+    fn sidebar_reorder_framed(&self, drag: &SidebarReorder) -> bool {
+        self.map
+            .as_ref()
+            .map_or(drag.dragging, |map| drag.painted_in(map))
     }
     /// The order a drag shows in the sidebar; `None` while no drag shows one.
     pub(crate) fn sidebar_reorder_order(&self) -> Option<SidebarNavigationProjection> {
@@ -598,7 +613,7 @@ impl PointerState {
             && !view.resize_mode()
             && view.machines.sidebar_source() == drag.paint.source
             && drag.baseline_current(port.sidebar_reorder_source().as_ref())
-            && self.map.as_ref().is_some_and(|map| drag.painted_in(map));
+            && self.sidebar_reorder_framed(&drag);
         if !alive
             || (event.action == MouseAction::Press
                 && event.button != MouseButton::WheelUp
@@ -610,13 +625,17 @@ impl PointerState {
             }
             return PointerOutcome::SidebarReorderEnded;
         }
-        let map = self.map.as_ref().expect("alive drag has an admitted frame");
+        // Only a latched drag is alive without a frame on record.
+        let map = self.map.as_ref();
         if release {
             self.sidebar_reorder_switch = drag.held_workspace();
             if drag.dragging {
                 // A release where the last motion left the pointer commits the move shown there;
-                // a terminal that reports it elsewhere first moves the destination to it.
-                if drag.position != (event.column, event.row) {
+                // a terminal that reports it elsewhere first moves the destination to it. Before
+                // the next frame there is no other destination than the one on screen.
+                if let Some(map) = map
+                    && drag.position != (event.column, event.row)
+                {
                     drag.position = (event.column, event.row);
                     drag.follow(map);
                 }
@@ -629,7 +648,10 @@ impl PointerState {
                 return PointerOutcome::SidebarReorderEnded;
             }
             if !drag.activation_cancelled
-                && map.interaction_at(event.column, event.row).as_ref() == Some(&drag.fingerprint)
+                && map
+                    .and_then(|map| map.interaction_at(event.column, event.row))
+                    .as_ref()
+                    == Some(&drag.fingerprint)
             {
                 return PointerOutcome::Interaction {
                     target: InteractionTarget::Sidebar(drag.target),
@@ -639,7 +661,14 @@ impl PointerState {
             return PointerOutcome::SidebarReorderEnded;
         }
         if event.action == MouseAction::Motion && event.button == MouseButton::Left {
+            let moved = drag.position != (event.column, event.row);
             drag.position = (event.column, event.row);
+            let Some(map) = map else {
+                // Repeated or new, this position waits for the next frame to resolve it.
+                drag.unresolved |= moved;
+                self.gesture = Gesture::SidebarReorder(drag);
+                return PointerOutcome::Handled;
+            };
             if !drag.dragging
                 && (drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row)
             {
@@ -664,7 +693,8 @@ impl PointerState {
             drag.follow(map);
         } else if event.action == MouseAction::Press
             && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
-            && let Some(paint) = map.sidebar_reorder.as_ref()
+            // A notch scrolls from the window of a frame on record.
+            && let Some(paint) = map.and_then(|map| map.sidebar_reorder.as_ref())
             && contains(paint.body, event.column, event.row)
         {
             drag.position = (event.column, event.row);
@@ -687,10 +717,11 @@ impl PointerState {
         if !drag.baseline_current(port.sidebar_reorder_source().as_ref())
             || view.machines.sidebar_source() != drag.paint.source
             || view.resize_mode()
-            || !self.map.as_ref().is_some_and(|map| drag.painted_in(map))
+            || !self.sidebar_reorder_framed(drag)
         {
             return self.cancel_sidebar_reorder();
         }
+        // The next step waits for the frame that paints the last one and starts from its window.
         let Some(paint) = self
             .map
             .as_ref()

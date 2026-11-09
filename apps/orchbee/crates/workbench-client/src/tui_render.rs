@@ -303,7 +303,9 @@ pub fn render_terminal_shell_with_resize<'a>(
     let mut status_shorter = Vec::new();
     let mut status_persistent = None;
     let mut status_ordinary = false;
-    let mut secondary_notice = None;
+    let mut status_notice = false;
+    // A notice beside the status, then its shorter forms, longest first; empty for none.
+    let mut secondary_notice = Vec::new();
 
     match workbench_client.as_ref() {
         None => {
@@ -338,18 +340,20 @@ pub fn render_terminal_shell_with_resize<'a>(
                     let selected = native.status(locale, status_chip_area(&areas).width);
                     status_persistent = selected.persistent;
                     status_ordinary = selected.ordinary;
+                    status_notice = selected.notice;
                     status_shorter.extend(selected.shorter);
                     selected.text
                 }
             };
             secondary_notice = native
                 .notice()
-                .map(|notice| locale.native_notice_with_context(notice, native.notice_context()))
+                .map(|notice| locale.native_notice_forms(notice, native.notice_context()))
                 .or_else(|| {
                     native
                         .completion_reminder()
-                        .map(|reminder| locale.command_completion_reminder(reminder))
-                });
+                        .map(|reminder| vec![locale.command_completion_reminder(reminder)])
+                })
+                .unwrap_or_default();
             sidebar_status = phase_status.to_owned();
             if native.phase() == DisplayPhase::Ready
                 && native
@@ -360,13 +364,15 @@ pub fn render_terminal_shell_with_resize<'a>(
                 sidebar_status_role = Role::StatusSuccess;
             }
             status_text = status;
-            if secondary_notice.is_none()
+            if secondary_notice.is_empty()
                 && view.notice().is_none()
                 && !close.as_ref().is_some_and(|status| status.resumable())
             {
-                secondary_notice = native
-                    .close_set_status()
-                    .map(|set| locale.close_set_status(set));
+                secondary_notice.extend(
+                    native
+                        .close_set_status()
+                        .map(|set| locale.close_set_status(set)),
+                );
             }
             if tier != ViewportTier::TooSmall {
                 render_native_workbench(
@@ -825,11 +831,16 @@ pub fn render_terminal_shell_with_resize<'a>(
         native_recovery
     };
 
-    let notice = if overlay_refused {
-        Some(text.overlay_refused)
+    let overlay_refused_forms = [
+        text.overlay_refused.to_owned(),
+        text.overlay_refused_short.to_owned(),
+    ];
+    let notice_forms: &[String] = if overlay_refused {
+        &overlay_refused_forms
     } else {
-        secondary_notice.as_deref()
+        &secondary_notice
     };
+    let notice = notice_forms.first().map(String::as_str);
     let zoomed = matches!(
         workbench_client.as_ref(),
         Some(native) if native.zoom_active()
@@ -878,8 +889,10 @@ pub fn render_terminal_shell_with_resize<'a>(
                 primary: &status_text,
                 primary_shorter: &status_shorter,
                 primary_ordinary: status_ordinary,
+                primary_notice: status_notice,
                 persistent: status_persistent,
                 secondary_notice: notice,
+                secondary_shorter: notice_forms.get(1..).unwrap_or_default(),
                 zoomed,
                 read_only,
                 recovery_status: matches!(workbench_client.as_ref(), Some(native)
@@ -1138,7 +1151,8 @@ pub fn render_terminal_shell_with_resize<'a>(
                 | crate::localization::SettingsNotice::Background => Role::StatusPending,
                 crate::localization::SettingsNotice::NoChange => Role::StatusInfo,
             };
-            (locale.settings_notice(notice), role)
+            let shorter = Vec::from_iter(locale.settings_notice_shorter(notice).map(str::to_owned));
+            (locale.settings_notice(notice), shorter, role)
         });
         let surface = if matches!(draw, ModalPresentation::NotPresented) {
             recovery::render(
@@ -1149,8 +1163,10 @@ pub fn render_terminal_shell_with_resize<'a>(
                 theme,
             )
         } else {
-            line.and_then(|(text, role)| {
-                status_line::render_notice_chip(frame, chip_area, text, role, None, false, theme)
+            line.and_then(|(text, shorter, role)| {
+                status_line::render_notice_chip(
+                    frame, chip_area, text, &shorter, role, None, false, theme,
+                )
             })
         };
         if let Some(surface) = surface {

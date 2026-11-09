@@ -583,6 +583,9 @@ owners and no thread or timer of its own.
 
 - `LastDrawnOnly`: events resolve only against the map of the last complete successful draw;
   between a layout change and the next publish every pointer event drops rather than misroutes.
+  A latched sidebar reorder drag outlives a map dropped until the next publish, as its list's
+  scroll drops it: it keeps the pointer's position for that publish to resolve, and a release in
+  between submits only the move already shown.
 - `PublishAfterDraw`: a staged map becomes authoritative only when its frame's draw completes —
   a failed draw publishes nothing and retires the previous map because the host may contain a
   partial candidate.

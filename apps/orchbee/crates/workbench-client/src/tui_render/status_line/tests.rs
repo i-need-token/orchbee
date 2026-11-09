@@ -19,8 +19,10 @@ fn facts(primary: &str) -> StatusFacts<'_> {
         primary,
         primary_shorter: &[],
         primary_ordinary: false,
+        primary_notice: false,
         persistent: None,
         secondary_notice: None,
+        secondary_shorter: &[],
         zoomed: false,
         read_only: false,
         recovery_status: false,
@@ -607,3 +609,5 @@ fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() 
         }
     }
 }
+
+mod notice_forms;

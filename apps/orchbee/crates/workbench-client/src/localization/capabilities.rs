@@ -4,7 +4,24 @@ use crate::host_capabilities::Capability;
 
 impl Locale {
     pub(crate) fn unsupported_capability(self, capability: Capability) -> String {
-        let name = match (self, capability) {
+        let name = self.capability_name(capability);
+        match self {
+            Self::EnUs => format!("{name} is not supported on this platform"),
+            Self::ZhCn => format!("此平台尚不支持{name}"),
+        }
+    }
+
+    /// The status line's shorter form of the refusal, which leaves the platform implied.
+    pub(crate) fn unsupported_capability_shorter(self, capability: Capability) -> String {
+        let name = self.capability_name(capability);
+        match self {
+            Self::EnUs => format!("{name} not supported"),
+            Self::ZhCn => format!("不支持{name}"),
+        }
+    }
+
+    const fn capability_name(self, capability: Capability) -> &'static str {
+        match (self, capability) {
             (Self::EnUs, Capability::Clipboard) => "System clipboard",
             (Self::ZhCn, Capability::Clipboard) => "系统剪贴板",
             (Self::EnUs, Capability::Browser) => "Opening links in a browser",
@@ -25,10 +42,6 @@ impl Locale {
             (Self::ZhCn, Capability::WindowTitle) => "设置宿主窗口标题",
             (Self::EnUs, Capability::Graphics) => "Terminal graphics",
             (Self::ZhCn, Capability::Graphics) => "终端图形",
-        };
-        match self {
-            Self::EnUs => format!("{name} is not supported on this platform"),
-            Self::ZhCn => format!("此平台尚不支持{name}"),
         }
     }
 }

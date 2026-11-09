@@ -622,4 +622,25 @@ impl Locale {
             ),
         }
     }
+
+    /// The status line's shorter form of a settings notice too wide for it, for the notices that
+    /// can be; it keeps the outcome and drops the advice.
+    pub(crate) fn settings_notice_shorter(self, notice: SettingsNotice) -> Option<&'static str> {
+        use SettingsNotice::*;
+        match notice {
+            SourceChanged => Some(self.setting(
+                "Settings changed elsewhere; draft kept",
+                "另一端已修改设置；草稿已保留",
+            )),
+            Unreadable => Some(self.setting(
+                "Settings file can't be read · using defaults",
+                "无法读取设置文件 · 正在使用默认值",
+            )),
+            Unknown => Some(self.setting("Save result unknown", "保存结果未知")),
+            PresentationUnavailable => {
+                Some(self.setting("Cannot open Settings here", "当前窗口无法打开设置"))
+            }
+            Saved | NoChange | Failed | Busy | TooSmall | Background => None,
+        }
+    }
 }

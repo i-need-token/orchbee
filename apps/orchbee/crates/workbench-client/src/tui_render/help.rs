@@ -253,8 +253,15 @@ pub(super) fn render_refused(
         return None;
     }
     // The refusal floats as the status chip: one padding cell at each end, the notice, one gap,
-    // then the close control, end-aligned so it covers only its own cells.
-    let content = display_width(text.overlay_refused)
+    // then the close control, end-aligned so it covers only its own cells. The notice is its
+    // first form that fits, else its shorter form cut at the end.
+    let room = usize::from(area.width).saturating_sub(6);
+    let notice = [text.overlay_refused, text.overlay_refused_short]
+        .into_iter()
+        .find(|form| display_width(form) <= room)
+        .unwrap_or(text.overlay_refused_short);
+    let content = display_width(notice)
+        .min(room)
         .saturating_add(1)
         .saturating_add(3);
     let width = u16::try_from(content.saturating_add(2))
@@ -279,11 +286,7 @@ pub(super) fn render_refused(
     let notice_x = chip.x + 1;
     let notice_width = close_rect.x.saturating_sub(notice_x);
     let notice_width = notice_width.saturating_sub(u16::from(notice_width > 0));
-    let notice = truncate_display(
-        text.overlay_refused,
-        usize::from(notice_width),
-        theme.glyphs.ellipsis,
-    );
+    let notice = truncate_display(notice, usize::from(notice_width), theme.glyphs.ellipsis);
 
     frame.render_widget(Clear, chip);
     frame

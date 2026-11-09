@@ -73,16 +73,10 @@ impl Locale {
     pub(crate) fn record_status(self, record: VersionedRecord, problem: RecordProblem) -> String {
         let item = self.record_item(record, None);
         match (self, problem) {
-            (Self::EnUs, RecordProblem::NotUpdated) => {
-                format!("{item} couldn't be updated and stays unchanged")
-            }
-            (Self::EnUs, RecordProblem::Newer) => {
-                format!("{item} is from a newer Orchbee and stays unchanged")
-            }
-            (Self::ZhCn, RecordProblem::NotUpdated) => format!("{item}无法更新，保持原样"),
-            (Self::ZhCn, RecordProblem::Newer) => {
-                format!("{item}来自更新版本的 Orchbee，保持原样")
-            }
+            (Self::EnUs, RecordProblem::NotUpdated) => format!("{item} couldn't be updated"),
+            (Self::EnUs, RecordProblem::Newer) => format!("{item} is from a newer Orchbee"),
+            (Self::ZhCn, RecordProblem::NotUpdated) => format!("{item}无法更新"),
+            (Self::ZhCn, RecordProblem::Newer) => format!("{item}来自更新版本的 Orchbee"),
         }
     }
 

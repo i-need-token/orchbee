@@ -26,6 +26,8 @@ pub struct ShellText<'a> {
     pub(crate) hint_short: &'a str,
     pub(crate) binding_unbound: &'static str,
     pub(crate) overlay_refused: &'static str,
+    /// The status line's shorter form of `overlay_refused`, without the advice.
+    pub(crate) overlay_refused_short: &'static str,
     pub(crate) navigator_title: &'static str,
     pub(crate) no_client_connection: &'static str,
     pub(crate) panel_title: &'static str,
@@ -57,6 +59,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     exit_hint: "Ctrl+B q · exit",
     hint_short: "Ctrl+B ? · help",
     overlay_refused: "Not enough room to show this view · resize the terminal",
+    overlay_refused_short: "Not enough room to show this view",
     navigator_title: "Workbench navigator",
     no_client_connection: "No Orchbee session is connected.",
     binding_unbound: "Unbound",
@@ -89,6 +92,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     exit_hint: "Ctrl+B q · 退出",
     hint_short: "Ctrl+B ? · 帮助",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
+    overlay_refused_short: "空间不足，无法显示此视图",
     navigator_title: "Workbench 导航器",
     no_client_connection: "当前未连接 Orchbee 会话。",
     binding_unbound: "未绑定",
@@ -504,6 +508,93 @@ impl Locale {
                 )),
             ) => "Workbench 位置导航不可用 · 未发送命令",
         }
+    }
+
+    /// The status line's shorter form of a Client notice too wide for it at the Compact minimum
+    /// width, for the notices that can be; it keeps the outcome and drops the advice.
+    pub(crate) const fn shell_notice_shorter(self, notice: Notice) -> Option<&'static str> {
+        let (english, chinese) = match notice {
+            Notice::OnboardingSaveFailed => {
+                ("Guide closed; saving failed", "本次引导已关闭；保存失败")
+            }
+            Notice::ResizeUnknown => ("Resize outcome unknown", "大小调整结果不确定"),
+            Notice::CheckpointRecovered => (
+                "Workspace snapshot restored; some unreadable",
+                "已使用有效存档恢复；部分工作区存档不可读",
+            ),
+            Notice::CheckpointEmpty => (
+                "Workspace snapshots unreadable; empty workspace opened",
+                "工作区存档均不可读；已打开空工作区",
+            ),
+            Notice::ConfigurationWarning => {
+                ("Configuration loaded with warnings", "配置已加载，但有警告")
+            }
+            Notice::PreferencesUnreadable => (
+                "Settings file can't be read · using defaults",
+                "无法读取设置文件 · 正在使用默认值",
+            ),
+            Notice::WindowTitleUnsupported => (
+                "Setting the host window title not supported",
+                "不支持设置宿主窗口标题",
+            ),
+            Notice::NotificationUnavailable => {
+                ("Notification transport unavailable", "通知投递方式不可用")
+            }
+            Notice::NotificationUnsupported => (
+                "Host notification delivery not supported",
+                "不支持宿主通知投递",
+            ),
+            Notice::PointerInputDropped => ("Pointer input dropped", "指针输入被丢弃"),
+            Notice::NavigatorTooSmall => return Some(self.shell().overlay_refused_short),
+            Notice::BackendUnavailable(
+                BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
+            ) => (
+                "Location navigation unavailable · no command was sent",
+                "位置导航不可用 · 未发送命令",
+            ),
+            Notice::BackendUnavailable(
+                BackendAction::ReloadConfiguration
+                | BackendAction::CreateWorkspace
+                | BackendAction::QuickCreateWorkspace
+                | BackendAction::CreateWorktree
+                | BackendAction::OpenWorktree
+                | BackendAction::CloseWorkspace
+                | BackendAction::ConfigureWorkspaceDirectory
+                | BackendAction::RenameWorkspace
+                | BackendAction::RenameProject
+                | BackendAction::RenameTab
+                | BackendAction::CloseTab
+                | BackendAction::MovePreviousTab
+                | BackendAction::MoveNextTab
+                | BackendAction::CreateTab
+                | BackendAction::SelectNextTab
+                | BackendAction::SelectPreviousTab
+                | BackendAction::SelectTab(_)
+                | BackendAction::SplitPanel
+                | BackendAction::ClosePanel
+                | BackendAction::MovePanel,
+            )
+            | Notice::WorkspaceNavigationUnavailable
+            | Notice::MachineRefused(_)
+            | Notice::NoNotificationTarget
+            | Notice::NavigatorChanged
+            | Notice::ResizeBusy
+            | Notice::ResizeFailed
+            | Notice::ResizeContended
+            | Notice::ResizeNoSplit
+            | Notice::ResizeLimit
+            | Notice::ConfigurationPublished
+            | Notice::ConfigurationFailed
+            | Notice::ConfigurationUnknown
+            | Notice::WindowTitleUnavailable
+            | Notice::TerminalInputUnavailable
+            | Notice::NavigationInputHeld
+            | Notice::UnknownPrefix => return None,
+        };
+        Some(match self {
+            Self::EnUs => english,
+            Self::ZhCn => chinese,
+        })
     }
 
     pub const fn tui_unavailable(self) -> &'static str {

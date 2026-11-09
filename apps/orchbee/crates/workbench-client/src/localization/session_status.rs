@@ -118,7 +118,7 @@ impl Locale {
         match phase {
             Phase::Empty => match self {
                 Self::EnUs => "No terminal tabs".to_owned(),
-                Self::ZhCn => "没有终端标签".to_owned(),
+                Self::ZhCn => "没有终端标签页".to_owned(),
             },
             Phase::Starting => self.native_starting_status(label, projection),
             Phase::Switching => self.native_switching_status(label, projection),
@@ -138,7 +138,7 @@ impl Locale {
             Phase::ProjectionUnavailable => self.native_committed_refresh_required().to_owned(),
             Phase::MoveProjectionUnavailable => match self {
                 Self::EnUs => "Tab moved · refresh required".to_owned(),
-                Self::ZhCn => "标签已移动 · 需要刷新".to_owned(),
+                Self::ZhCn => "标签页已移动 · 需要刷新".to_owned(),
             },
             Phase::PanelProjectionUnavailable => match self {
                 Self::EnUs => "Panel operation committed · refresh required".to_owned(),
@@ -190,45 +190,153 @@ impl Locale {
         }
     }
 
-    /// Adds only the matching operation's sanitized display context to a localized notice.
-    pub(crate) fn native_notice_with_context(
+    /// A notice as the status line states it, with only the matching operation's sanitized display
+    /// context, then the forms that replace it when it does not fit, longest first. The shorter
+    /// form keeps the context, then stands alone, so the outcome always shows and the context
+    /// shows while it fits.
+    pub(crate) fn native_notice_forms(
         self,
         notice: crate::localization::WorkbenchClientNotice,
         context: Option<&NoticeContext>,
-    ) -> String {
-        let message = self.native_notice(notice);
-        if let Some(context) = context {
-            use crate::localization::NoticeContext;
-            return match context {
-                NoticeContext::LaunchProfile(name) => {
-                    format!("{message} · {}", self.launch_profile_label(name.as_deref()))
-                }
-                NoticeContext::ConfiguredCommand(id) => format!(
-                    "{} · {message}",
-                    crate::terminal_text::sanitize_terminal_text(id)
-                ),
-            };
+    ) -> Vec<String> {
+        let full = self.native_notice(notice);
+        match (context, self.native_notice_shorter(notice)) {
+            (None, None) => vec![full],
+            (None, Some(shorter)) => vec![full, shorter],
+            (Some(context), None) => vec![self.with_notice_context(&full, context), full],
+            (Some(context), Some(shorter)) => vec![
+                self.with_notice_context(&full, context),
+                self.with_notice_context(&shorter, context),
+                shorter,
+            ],
         }
-        message
     }
 
-    /// The documented shorter form that replaces a notice too wide for the status line, for the
-    /// notices that have one.
+    fn with_notice_context(self, message: &str, context: &NoticeContext) -> String {
+        match context {
+            NoticeContext::LaunchProfile(name) => {
+                format!("{message} · {}", self.launch_profile_label(name.as_deref()))
+            }
+            NoticeContext::ConfiguredCommand(id) => format!(
+                "{} · {message}",
+                crate::terminal_text::sanitize_terminal_text(id)
+            ),
+        }
+    }
+
+    /// The documented shorter form that replaces a notice too wide for the status line. Every
+    /// notice whose full text can exceed the status line at the Compact minimum width has one: it
+    /// keeps the outcome and drops the advice.
     pub(crate) fn native_notice_shorter(
         self,
         notice: crate::localization::WorkbenchClientNotice,
     ) -> Option<String> {
+        use crate::localization::WorkbenchClientNotice as N;
+        let shorter = |english: &str, chinese: &str| {
+            Some(
+                match self {
+                    Self::EnUs => english,
+                    Self::ZhCn => chinese,
+                }
+                .to_owned(),
+            )
+        };
         match notice {
-            crate::localization::WorkbenchClientNotice::RecordUnusable(record, problem) => {
-                Some(self.record_status(record, problem))
+            N::RecordUnusable(record, problem) => Some(self.record_status(record, problem)),
+            N::AgentNotResumed(agent, _) => Some(self.agent_not_resumed(agent)),
+            N::AgentStart(phase) => self.agent_start_phase_shorter(phase).map(str::to_owned),
+            N::Settings(notice) => self.settings_notice_shorter(notice).map(str::to_owned),
+            N::Unsupported(capability) => Some(self.unsupported_capability_shorter(capability)),
+            N::EarlierLayout(notice) => self
+                .earlier_layout_notice_shorter(notice)
+                .map(str::to_owned),
+            N::MenuUnavailable => shorter(
+                "Menu action cancelled or unavailable",
+                "菜单动作已取消或不可用",
+            ),
+            N::LaunchRequestTooLarge => shorter("Launch request too large", "启动请求过大"),
+            N::MoveOrderConflict => shorter(
+                "Tab not moved: pinned Tabs and groups stay together",
+                "标签页未移动：固定标签页和标签页组需保持连续",
+            ),
+            N::NoWorkspace => shorter("No workspace open", "当前未打开工作区"),
+            N::HistoryPositionLost => {
+                shorter("Earlier output no longer saved", "先前输出已不在保留范围")
             }
-            crate::localization::WorkbenchClientNotice::AgentNotResumed(agent, _) => {
-                Some(self.agent_not_resumed(agent))
+            N::CopyModeQueryFailed => {
+                shorter("Could not read matching content", "无法读取对应内容")
             }
-            crate::localization::WorkbenchClientNotice::AgentStart(phase) => {
-                self.agent_start_phase_shorter(phase).map(str::to_owned)
+            N::CopyModeSearchLimit => shorter(
+                "Search rejected: invalid or too long",
+                "拒绝搜索：文本无效或过长",
+            ),
+            N::PositionChanged => shorter(
+                "Saved Tab or pane unavailable",
+                "上次的标签页或面板已不可用",
+            ),
+            N::PositionChangedEmpty => shorter("Saved Tab unavailable", "上次的标签页已不可用"),
+            N::PositionLocationChanged | N::PositionLocationChangedEmpty => {
+                shorter("Saved location not restored", "无法恢复上次的位置")
             }
-            _ => None,
+            N::PositionUnavailable => shorter("Position memory unavailable", "位置记忆不可用"),
+            N::PopupUnavailable => shorter(
+                "Popup connection or cleanup uncertain",
+                "popup 连接或清理状态不确定",
+            ),
+            N::LinkUnknown => shorter("Link activation outcome unknown", "链接处理结果不确定"),
+            N::LocalBusy
+            | N::NoTabAtPosition(_)
+            | N::CreateNotCreated
+            | N::CreateOrderConflict
+            | N::DuplicatePending
+            | N::DuplicateNotStarted
+            | N::DuplicateOutcomeUnknown
+            | N::MoveNotMoved
+            | N::PanelNotApplied
+            | N::RenameNotRenamed
+            | N::TerminalClearing
+            | N::TerminalCleared
+            | N::TerminalClearUnconfirmed
+            | N::TerminalClearRefused
+            | N::TerminalClearUnavailable
+            | N::TerminalClearUnknown
+            | N::ScrollbackEditorUnavailable
+            | N::ScrollbackEditorTooSmall
+            | N::CloseRequestNotApplied
+            | N::WorkspaceCloseUnavailable
+            | N::WorkspaceChanged
+            | N::AgentUnavailable
+            | N::WorkspaceNotReady
+            | N::ConfirmationCancelled
+            | N::DraftCancelled
+            | N::DialogRefused
+            | N::ModalOwnsInput
+            | N::HistoryRecovering
+            | N::HistoryUnavailable
+            | N::CopyModeUnavailable
+            | N::CopyModeBusy
+            | N::CopyModeInvalidated
+            | N::CopyModeNoMatch
+            | N::CopyModeNoSelection
+            | N::SelectionEvicted
+            | N::CopyFailed
+            | N::CopyUnknown
+            | N::BellFailed
+            | N::BellUnknown
+            | N::CommandAccepted
+            | N::CommandFailed
+            | N::CommandUnknown
+            | N::CommandRefused(_)
+            | N::LaunchProfileSelected
+            | N::LaunchProfileUnavailable
+            | N::RestoreDirectoryUnavailable
+            | N::RestoreAgentNotResumed
+            | N::RestoreNotStarted
+            | N::LinkOpened
+            | N::LinkHandled
+            | N::LinkNoLink
+            | N::LinkBusy
+            | N::LinkFailed => None,
         }
     }
 
@@ -318,13 +426,13 @@ impl Locale {
             },
             WorkbenchClientNotice::MoveNotMoved => match self {
                 Self::EnUs => "Tab was not moved".to_owned(),
-                Self::ZhCn => "标签未移动".to_owned(),
+                Self::ZhCn => "标签页未移动".to_owned(),
             },
             WorkbenchClientNotice::MoveOrderConflict => match self {
                 Self::EnUs => {
                     "Tab not moved: preserve pinned Tabs and contiguous groups".to_owned()
                 }
-                Self::ZhCn => "标签未移动：需保留固定标签前缀和分组连续性".to_owned(),
+                Self::ZhCn => "标签页未移动：需保持固定标签页在前、标签页组连续".to_owned(),
             },
             WorkbenchClientNotice::PanelNotApplied => match self {
                 Self::EnUs => "Panel operation was not applied".to_owned(),

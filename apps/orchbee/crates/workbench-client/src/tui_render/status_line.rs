@@ -9,7 +9,7 @@ use crate::localization::PersistentStatus;
 use crate::localization::{
     DisplayController, DisplayPhase, DisplayProvenance, Locale, TerminalEnd,
 };
-use crate::terminal_text::{display_width, sanitize_terminal_text};
+use crate::terminal_text::{display_width, sanitize_terminal_text, truncate_display};
 use crate::tui_composition::CaptureOwner;
 use crate::tui_layout::ViewportTier;
 use crate::tui_theme::{Role, Theme};
@@ -62,6 +62,13 @@ struct StatusNotice<'a> {
     marker: Role,
 }
 
+/// A marked notice as its sanitized forms, longest first; at most one is painted.
+#[derive(Debug)]
+struct NoticeForms {
+    forms: Vec<String>,
+    marker: Role,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 struct OwnedHint {
     key: String,
@@ -95,9 +102,14 @@ pub(super) struct StatusFacts<'a> {
     /// The ordinary Ready fact. The TooSmall row keeps it; the floating chip omits it, since the
     /// strip already names the current Tab.
     pub(super) primary_ordinary: bool,
+    /// `primary` states a notice: when it leads and no form fits, its shortest form is cut at the
+    /// end instead of dropped.
+    pub(super) primary_notice: bool,
     /// A lasting state the chip names in a word or two beside the action that fixes it.
     pub(super) persistent: Option<PersistentStatus>,
     pub(super) secondary_notice: Option<&'a str>,
+    /// The documented shorter forms of `secondary_notice`, longest first.
+    pub(super) secondary_shorter: &'a [String],
     pub(super) zoomed: bool,
     pub(super) read_only: bool,
     pub(super) recovery_status: bool,
@@ -146,6 +158,7 @@ pub(super) fn render(
         .notice()
         .filter(|notice| !(facts.read_only && *notice == Notice::TerminalInputUnavailable));
     let primary = client_notice.map_or(facts.primary, |notice| locale.shell_notice(Some(notice)));
+    let client_shorter = client_shorter(locale, client_notice);
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
     let glyphs = theme.glyphs.key_labels();
     let indicator_kind = input_indicator(view, capture_owner);
@@ -216,28 +229,20 @@ pub(super) fn render(
     } else {
         // A transient notice leads and the exact fact follows it, as the recoverable receipt
         // requires; the notice carries no hints of its own.
-        let notice = secondary_notice.map(|text| StatusNotice {
-            text,
+        let notice = secondary_notice.map(|text| NoticeForms {
+            forms: sanitized_forms(text, facts.secondary_shorter),
             marker: Role::StatusWarning,
         });
-        let primary = (client_notice.is_some() || !facts.primary_ordinary)
-            .then(|| sanitize_terminal_text(primary).into_owned())
-            .filter(|primary| !primary.is_empty());
+        let primary_text = (client_notice.is_some() || !facts.primary_ordinary)
+            .then_some(primary)
+            .filter(|primary| !sanitize_terminal_text(primary).is_empty());
         // A Client notice replaces the fact, and with it the fact's shorter forms.
-        let shorter = if primary.is_some() && client_notice.is_none() {
-            facts.primary_shorter
-        } else {
-            &[]
-        };
-        let primary = primary
-            .into_iter()
-            .chain(
-                shorter
-                    .iter()
-                    .map(|form| sanitize_terminal_text(form).into_owned())
-                    .filter(|form| !form.is_empty()),
+        let primary = primary_text.map_or_else(Vec::new, |primary| {
+            sanitized_forms(
+                primary,
+                client_shorter.as_deref().unwrap_or(facts.primary_shorter),
             )
-            .collect();
+        });
         let hints = if notice.is_some() {
             HintSet::default()
         } else {
@@ -264,6 +269,7 @@ pub(super) fn render(
             Lead::Context {
                 notice,
                 primary,
+                primary_notice: client_notice.is_some() || facts.primary_notice,
                 contexts,
             },
             hints,
@@ -325,9 +331,11 @@ enum Lead<'a> {
     Indicator(Indicator),
     Notice(StatusNotice<'a>),
     Context {
-        notice: Option<StatusNotice<'a>>,
+        notice: Option<NoticeForms>,
         /// The complete fact, then its shorter forms; at most one of them is painted.
         primary: Vec<String>,
+        /// The primary states a notice, which is never dropped while it leads.
+        primary_notice: bool,
         contexts: Vec<&'static str>,
     },
 }
@@ -461,23 +469,26 @@ fn layout_chip(
         Lead::Context {
             notice,
             primary,
+            primary_notice,
             contexts,
         } => {
-            if let Some(notice) = notice.filter(|notice| notice_width(*notice, theme) <= available)
+            if let Some(notice) = notice
+                && let Some(text) = available
+                    .checked_sub(notice_marker_width(theme))
+                    .and_then(|room| notice_form(&notice.forms, room, theme))
             {
                 chip.push(
                     format!("{} ", theme.glyphs.status_bullet),
                     theme.style(notice.marker),
                 );
-                chip.push(
-                    sanitize_terminal_text(notice.text).into_owned(),
-                    theme.style(Role::TextPrimary),
-                );
+                chip.push(text, theme.style(Role::TextPrimary));
             }
             // The first form that fits leads; only the complete fact is the draw receipt.
-            for (form_index, form) in primary.into_iter().enumerate() {
+            let leads = chip.spans.is_empty();
+            let mut placed = false;
+            for (form_index, form) in primary.iter().enumerate() {
                 let joint = chip.joint_before(&separator);
-                let width = display_width(&form);
+                let width = display_width(form);
                 if chip.width.saturating_add(joint).saturating_add(width) <= available {
                     if joint > 0 {
                         chip.push(separator.text.clone(), theme.style(Role::HintLabel));
@@ -485,9 +496,19 @@ fn layout_chip(
                     if form_index == 0 {
                         chip.primary = Some((chip.width, width));
                     }
-                    chip.push(form, theme.style(Role::TextPrimary));
+                    chip.push(form.clone(), theme.style(Role::TextPrimary));
+                    placed = true;
                     break;
                 }
+            }
+            if !placed
+                && leads
+                && primary_notice
+                && let Some(text) = primary
+                    .last()
+                    .and_then(|form| cut_notice(form, available, theme))
+            {
+                chip.push(text, theme.style(Role::TextPrimary));
             }
             for context in contexts {
                 let joint = chip.joint_before(&separator);
@@ -556,12 +577,16 @@ fn paint_chip(frame: &mut Frame<'_>, area: Rect, chip: &ChipLayout, theme: &Them
     Some(rect)
 }
 
-/// One marked notice and an optional hint as a floating chip. With `hint_first`, the hint is the
-/// owner's return route and survives narrowing ahead of the notice.
+/// One marked notice, with its documented shorter forms, and an optional hint as a floating chip.
+/// With `hint_first`, the hint is the owner's return route and survives narrowing ahead of the
+/// notice. The notice is never dropped for width while any of it fits: its first form that fits,
+/// else its shortest form cut at the end.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn render_notice_chip(
     frame: &mut Frame<'_>,
     area: Rect,
     notice: &str,
+    shorter: &[String],
     marker: Role,
     hint: Option<(String, &'static str)>,
     hint_first: bool,
@@ -569,41 +594,45 @@ pub(super) fn render_notice_chip(
 ) -> Option<Rect> {
     let available = usize::from(area.width).saturating_sub(2);
     let separator = separator(theme);
-    let notice = StatusNotice {
-        text: notice,
-        marker,
-    };
-    let notice_width = notice_width(notice, theme);
+    let forms = sanitized_forms(notice, shorter);
+    let marker_width = notice_marker_width(theme);
     let hints = HintSet::from(
         hint.map(|(key, label)| OwnedHint { key, label })
             .into_iter()
             .collect::<Vec<_>>(),
     );
     let (alone, alone_width) = fit_hints(&hints, available, theme);
-    let both = !alone.is_empty()
-        && notice_width
-            .saturating_add(separator.width)
-            .saturating_add(alone_width)
-            <= available;
-    let (show_notice, show_hint) = if both {
-        (true, true)
-    } else if hint_first && !alone.is_empty() {
-        (false, true)
-    } else if notice_width <= available {
-        (true, false)
+    let beside_hint = available
+        .checked_sub(alone_width.saturating_add(separator.width))
+        .and_then(|room| room.checked_sub(marker_width));
+    let complete_beside_hint = forms
+        .first()
+        .zip(beside_hint)
+        .is_some_and(|(complete, room)| display_width(complete) <= room);
+    let alone_notice = || {
+        available
+            .checked_sub(marker_width)
+            .and_then(|room| notice_form(&forms, room, theme))
+    };
+    let (text, show_hint) = if alone.is_empty() {
+        (alone_notice(), false)
+    } else if complete_beside_hint {
+        (forms.first().cloned(), true)
+    } else if hint_first {
+        (
+            beside_hint.and_then(|room| notice_form(&forms, room, theme)),
+            true,
+        )
     } else {
-        (false, !alone.is_empty())
+        alone_notice().map_or((None, true), |text| (Some(text), false))
     };
     let mut chip = ChipLayout::default();
-    if show_notice {
+    if let Some(text) = text {
         chip.push(
             format!("{} ", theme.glyphs.status_bullet),
             theme.style(marker),
         );
-        chip.push(
-            sanitize_terminal_text(notice.text).into_owned(),
-            theme.style(Role::TextPrimary),
-        );
+        chip.push(text, theme.style(Role::TextPrimary));
     }
     if show_hint {
         chip.keep_hints((alone, alone_width));
@@ -648,6 +677,7 @@ pub(super) fn render_context_chip(
             Lead::Context {
                 notice: None,
                 primary: Vec::new(),
+                primary_notice: false,
                 contexts,
             },
             &hints,
@@ -685,6 +715,9 @@ fn render_row(
         .notice()
         .filter(|notice| !(facts.read_only && *notice == Notice::TerminalInputUnavailable));
     let primary = client_notice.map_or(facts.primary, |notice| locale.shell_notice(Some(notice)));
+    let client_shorter = client_shorter(locale, client_notice);
+    let primary_shorter = client_shorter.as_deref().unwrap_or(facts.primary_shorter);
+    let primary_notice = client_notice.is_some() || facts.primary_notice;
     let secondary_notice = secondary_notice(view, primary, facts.secondary_notice);
     let glyphs = theme.glyphs.key_labels();
     let indicator_kind = input_indicator(view, capture_owner);
@@ -692,11 +725,15 @@ fn render_row(
 
     let notice = (indicator_kind.is_none())
         .then_some(secondary_notice)
-        .flatten()
-        .map(|text| StatusNotice {
-            text,
-            marker: Role::StatusWarning,
-        });
+        .flatten();
+    // The notice is never dropped for width: its first form that fits, else its shortest cut.
+    let notice_text = notice.and_then(|text| {
+        usize::from(area.width)
+            .checked_sub(notice_marker_width(theme))
+            .and_then(|room| {
+                notice_form(&sanitized_forms(text, facts.secondary_shorter), room, theme)
+            })
+    });
     let hints = if notice.is_some() {
         Vec::new()
     } else {
@@ -771,12 +808,15 @@ fn render_row(
                 hide_indicator = true;
             }
         }
-    } else if let Some(notice) = notice {
-        let width = notice_width(notice, theme);
-        if width <= usize::from(area.width) {
-            right_width = width;
-            right_is_notice = true;
-        }
+    } else if let Some(text) = &notice_text {
+        right_width = notice_width(
+            StatusNotice {
+                text,
+                marker: Role::StatusWarning,
+            },
+            theme,
+        );
+        right_is_notice = true;
     } else if !hints.is_empty() {
         let (count, width) = fitting_hints(&hints, usize::from(area.width), theme);
         visible_hints = count;
@@ -824,15 +864,30 @@ fn render_row(
         )
     });
     // A partial fact is never drawn: the first shorter form that fits replaces it, without
-    // becoming the complete fact's draw receipt. A Client notice has no shorter forms.
-    let shorter = if primary_visible || client_notice.is_some() {
+    // becoming the complete fact's draw receipt. A notice is never dropped for width: its
+    // shortest form is cut instead.
+    let shorter = if primary_visible {
         None
     } else {
-        facts
-            .primary_shorter
+        primary_shorter
             .iter()
             .map(|form| sanitize_terminal_text(form).into_owned())
             .find(|form| !form.is_empty() && super::modal::unwrapped_text_fits(form, left))
+            .or_else(|| {
+                primary_notice
+                    .then(|| {
+                        primary_shorter
+                            .last()
+                            .map_or(primary.as_str(), String::as_str)
+                    })
+                    .and_then(|form| {
+                        cut_notice(
+                            &sanitize_terminal_text(form),
+                            usize::from(left.width),
+                            theme,
+                        )
+                    })
+            })
     };
     if primary_visible {
         render_primary(frame, left, &primary, &contexts, locale, theme);
@@ -851,8 +906,16 @@ fn render_row(
             );
         }
         if right_is_notice {
-            if let Some(notice) = notice {
-                render_notice(frame, right, notice, theme);
+            if let Some(text) = &notice_text {
+                render_notice(
+                    frame,
+                    right,
+                    StatusNotice {
+                        text,
+                        marker: Role::StatusWarning,
+                    },
+                    theme,
+                );
             }
         } else {
             render_indicator_and_hints(
@@ -929,9 +992,50 @@ fn render_primary(
 }
 
 fn notice_width(notice: StatusNotice<'_>, theme: &Theme) -> usize {
-    display_width(theme.glyphs.status_bullet)
-        .saturating_add(1)
-        .saturating_add(display_width(&sanitize_terminal_text(notice.text)))
+    notice_marker_width(theme).saturating_add(display_width(&sanitize_terminal_text(notice.text)))
+}
+
+/// The cells a notice's severity marker and the space after it take.
+fn notice_marker_width(theme: &Theme) -> usize {
+    display_width(theme.glyphs.status_bullet).saturating_add(1)
+}
+
+/// A Client notice's documented shorter form, which replaces the fact's own.
+fn client_shorter(locale: Locale, notice: Option<Notice>) -> Option<Vec<String>> {
+    notice.map(|notice| {
+        locale
+            .shell_notice_shorter(notice)
+            .map(str::to_owned)
+            .into_iter()
+            .collect()
+    })
+}
+
+/// `first` and its shorter forms, sanitized, without empty ones.
+fn sanitized_forms(first: &str, shorter: &[String]) -> Vec<String> {
+    std::iter::once(first)
+        .chain(shorter.iter().map(String::as_str))
+        .map(|form| sanitize_terminal_text(form).into_owned())
+        .filter(|form| !form.is_empty())
+        .collect()
+}
+
+/// A notice's first sanitized form within `room` cells, else its shortest form cut to the room,
+/// so a notice is never dropped for width.
+fn notice_form(forms: &[String], room: usize, theme: &Theme) -> Option<String> {
+    forms
+        .iter()
+        .find(|form| display_width(form) <= room)
+        .cloned()
+        .or_else(|| cut_notice(forms.last()?, room, theme))
+}
+
+/// `form` cut at its end by display width, never inside a grapheme, and ended with the ellipsis;
+/// `None` when not even one grapheme fits beside the ellipsis.
+fn cut_notice(form: &str, room: usize, theme: &Theme) -> Option<String> {
+    let ellipsis = theme.glyphs.ellipsis;
+    let cut = truncate_display(form, room, ellipsis);
+    (display_width(&cut) > display_width(ellipsis)).then_some(cut)
 }
 
 fn render_notice(frame: &mut Frame<'_>, area: Rect, notice: StatusNotice<'_>, theme: &Theme) {

@@ -315,8 +315,10 @@ by landing on a Workspace row in Recents. Outside the list, and on a
 destination that changes nothing, the canonical order shows; an invalid destination keeps the shown
 one. The window keeps its top row index while rows move under the pointer. Holding on the list's
 top or bottom row, or past it in the list's columns, scrolls toward that edge at most once every
-120 ms through the existing bounded list-scroll owner; wheel remains
-local; either scroll moves the destination to the row then under the pointer.
+120 ms through the existing bounded list-scroll owner, until the list reaches that end; wheel
+remains local; either scroll moves the destination to the row then under the pointer. A report that
+arrives before the frame painting a step, such as the held report a terminal repeats in the same
+cell, keeps the drag, and that frame resolves it; a release in between submits the move shown.
 
 Until movement latches a drag, the press is a click on its row: only that row's painted target, the
 Sidebar catalog and surface decide its release, so a background refresh or another Client's unrelated

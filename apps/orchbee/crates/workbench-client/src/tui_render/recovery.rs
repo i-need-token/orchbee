@@ -36,6 +36,7 @@ pub(super) fn render(
         frame,
         area,
         notice,
+        &[],
         Role::StatusWarning,
         local_return.map(|label| (key, label)),
         true,

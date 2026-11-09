@@ -161,6 +161,31 @@ impl Locale {
         }
     }
 
+    /// The status line's shorter form of a notice too wide for it, for the notices that can be;
+    /// it keeps the outcome and drops the explanation.
+    pub(crate) const fn earlier_layout_notice_shorter(
+        self,
+        notice: EarlierLayoutNotice,
+    ) -> Option<&'static str> {
+        use EarlierLayoutNotice as N;
+        match (self, notice) {
+            (Self::EnUs, N::NothingToReopen) => Some("Nothing to reopen"),
+            (Self::ZhCn, N::NothingToReopen) => Some("无需重新打开"),
+            (Self::EnUs, N::ResourceLimit) => Some("Not reopened: Workspace or Tab limit"),
+            (Self::ZhCn, N::ResourceLimit) => Some("未重新打开：工作区或标签页已达上限"),
+            (
+                _,
+                N::Reopened { .. }
+                | N::NotFound
+                | N::Busy
+                | N::Denied
+                | N::Empty
+                | N::Unknown
+                | N::Unavailable,
+            ) => None,
+        }
+    }
+
     /// A reopen whose outcome could not be confirmed. It may have opened items; do not repeat it.
     pub const fn earlier_layout_unknown(self) -> &'static str {
         match self {

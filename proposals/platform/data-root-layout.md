@@ -277,9 +277,9 @@ applies and nothing migrates. From the first public release:
   it. The English source texts, shipped with `zh-CN` through the localization system, are "Orchbee
   couldn't update {item} from an earlier version and left it unchanged. {consequence}" and "{item}
   was saved by a newer version of Orchbee, so this version won't change it. {consequence}". A
-  status line too narrow for the message shows its shorter form, "{item} couldn't be updated and
-  stays unchanged" or "{item} is from a newer Orchbee and stays unchanged". The TUI's notice is
-  persistent, since the record stays unusable: it lasts until the person's next action.
+  status line too narrow for the message shows its shorter form, "{item} couldn't be updated" or
+  "{item} is from a newer Orchbee". The TUI's notice is persistent, since the record stays
+  unusable: it lasts until the person's next action.
 - Each record migrates only in a process that writes it: Session store records in the Server that
   holds the store, `tui-position.json` in the TUI, and device records in the first newer process
   that opens them. A Client therefore never rewrites what an older running Server owns. When an

@@ -385,6 +385,11 @@ live content. While visible it stays above other overlays. Its segments, from st
   the binding that fixes it when one exists. Its full explanation belongs to the affected surface.
 - Segments collapse in the order documented in [`layout.md`](layout.md#size-tiers). A partial
   segment is never drawn; it is dropped or replaced by its shorter documented form.
+- A notice is the exception: it is never dropped for width. It shows its first form that fits: the
+  complete text, then its shorter form with the context it names, such as a configured command or
+  launch profile, then the shorter form alone. On a host too narrow for even the shortest form, that
+  form is cut at its end by display width, never inside a grapheme, and ends with the theme's
+  ellipsis. The status line offers no tooltip for the cut text.
 - Status text is sanitized like every external string before painting.
 
 ## Notices
@@ -399,6 +404,9 @@ live content. While visible it stays above other overlays. Its segments, from st
 - Expiry schedules a redraw; a notice never lingers because the interface was idle.
 - A notice states the outcome and, when the person can act, the binding that acts. It never
   contains raw error text; failures map to localized messages with stable codes.
+- Every notice has a form that fits the status line at the Compact minimum of 60 columns in every
+  locale. A notice whose complete text can exceed it owns a shorter form, written in parallel in
+  every locale, that keeps the outcome and drops the advice.
 - Notices never block input and never move layout.
 
 ## Pointer tooltips

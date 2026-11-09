@@ -13,8 +13,10 @@ pub(crate) struct NativeStatus {
     pub(crate) persistent: Option<PersistentStatus>,
     /// The ordinary Ready and controlling fact, which the floating status leaves unsaid.
     pub(crate) ordinary: bool,
-    /// The documented shorter form that replaces `text` when only it fits.
-    pub(crate) shorter: Option<String>,
+    /// The documented shorter forms that replace `text` when it does not fit, longest first.
+    pub(crate) shorter: Vec<String>,
+    /// `text` states a notice, which the status line never drops for width.
+    pub(crate) notice: bool,
 }
 
 impl NativeStatus {
@@ -23,7 +25,20 @@ impl NativeStatus {
             text,
             persistent: None,
             ordinary: false,
-            shorter: None,
+            shorter: Vec::new(),
+            notice: false,
+        }
+    }
+
+    /// A notice stated by its forms, longest first.
+    fn notice(forms: impl IntoIterator<Item = String>) -> Self {
+        let mut forms = forms.into_iter();
+        Self {
+            text: forms.next().unwrap_or_default(),
+            persistent: None,
+            ordinary: false,
+            shorter: forms.collect(),
+            notice: true,
         }
     }
 }
@@ -39,7 +54,9 @@ impl WorkbenchClientView<'_> {
                     Some(orchbee_workbench_protocol::WorktreeOperationFailure::LaunchRequestTooLarge {})
                 )
             {
-                return NativeStatus::fact(locale.launch_request_too_large().to_owned());
+                return NativeStatus::notice(
+                    locale.native_notice_forms(WorkbenchClientNotice::LaunchRequestTooLarge, None),
+                );
             }
             return NativeStatus::fact(
                 locale.worktree_status_line(notice, view.worktree().map(|v| v.stage())),
@@ -77,7 +94,8 @@ impl WorkbenchClientView<'_> {
                 text,
                 persistent: end.map(PersistentStatus::TerminalEnded),
                 ordinary: false,
-                shorter: None,
+                shorter: Vec::new(),
+                notice: false,
             };
         }
         if view.notice().is_none()
@@ -125,16 +143,26 @@ impl WorkbenchClientView<'_> {
             && view.phase() == crate::localization::DisplayPhase::Ready
             && view.controller() == Some(crate::localization::DisplayController::Controlling)
             && view.active_position().is_some();
-        // A notice stated alone keeps its own shorter form; an appended fact keeps the full text.
-        let shorter = view
-            .notice()
-            .filter(|notice| text == locale.native_notice(*notice))
-            .and_then(|notice| locale.native_notice_shorter(notice));
+        // A stated notice keeps its outcome when the line is short: an appended recovery fact
+        // yields first, then the notice's advice, then its context.
+        if let Some(notice) = view.notice().filter(|_| view.retirement().is_none()) {
+            let forms = locale.native_notice_forms(notice, view.notice_context());
+            return match appended_setup_fact(locale, false, view.setup_status()) {
+                Some(fact) => {
+                    let stated = forms
+                        .first()
+                        .map_or_else(String::new, |notice| format!("{notice} · {fact}"));
+                    NativeStatus::notice(std::iter::once(stated).chain(forms))
+                }
+                None => NativeStatus::notice(forms),
+            };
+        }
         NativeStatus {
             text,
             persistent,
             ordinary,
-            shorter,
+            shorter: Vec::new(),
+            notice: false,
         }
     }
 
@@ -194,56 +222,43 @@ fn status_with_setup(
         notice.map(|notice| locale.native_notice(notice))
     };
     match (primary, setup) {
-        (
-            Some(primary),
-            Some(SetupStatus::LocationLabel {
-                target,
-                status: LocationLabelStatus::CommittedNeedRefresh,
-            }),
-        ) if retired => {
-            format!(
-                "{primary} · {}",
-                locale.location_rename_committed_fact(target)
-            )
-        }
-        (
-            Some(primary),
-            Some(SetupStatus::LocationLabel {
-                target,
-                status:
-                    status @ (LocationLabelStatus::CommittedNeedRefresh
-                    | LocationLabelStatus::OutcomeUnknown),
-            }),
-        ) => {
-            format!(
-                "{primary} · {}",
-                locale.location_label_status(target, status)
-            )
-        }
-        (Some(primary), Some(SetupStatus::CommittedNeedRefresh)) if retired => {
-            format!("{primary} · {}", locale.setup_committed_fact())
-        }
-        (Some(primary), Some(SetupStatus::TabsCommittedNeedRefresh)) if retired => {
-            format!("{primary} · {}", locale.setup_tabs_committed_fact())
-        }
-        (
-            Some(primary),
-            Some(
-                status @ (SetupStatus::CommittedNeedRefresh
-                | SetupStatus::OutcomeUnknown
-                | SetupStatus::TabsCommittedNeedRefresh
-                | SetupStatus::TabsOutcomeUnknown),
-            ),
-        ) => {
-            format!("{primary} · {}", locale.setup_status(status))
-        }
-        (Some(primary), _) => primary,
+        (Some(primary), setup) => match appended_setup_fact(locale, retired, setup) {
+            Some(fact) => format!("{primary} · {fact}"),
+            None => primary,
+        },
         (None, Some(SetupStatus::WorkspaceCreated)) if can_configure_directory => {
             locale.setup_workspace_directory_action().to_owned()
         }
         (None, Some(status)) => locale.setup_status(status).to_owned(),
         (None, None) => phase,
     }
+}
+
+/// The recovery fact a stated notice, or a retired connection's phase, carries after it.
+fn appended_setup_fact(
+    locale: Locale,
+    retired: bool,
+    setup: Option<SetupStatus>,
+) -> Option<&'static str> {
+    Some(match setup? {
+        SetupStatus::LocationLabel {
+            target,
+            status: LocationLabelStatus::CommittedNeedRefresh,
+        } if retired => locale.location_rename_committed_fact(target),
+        SetupStatus::LocationLabel {
+            target,
+            status:
+                status @ (LocationLabelStatus::CommittedNeedRefresh
+                | LocationLabelStatus::OutcomeUnknown),
+        } => locale.location_label_status(target, status),
+        SetupStatus::CommittedNeedRefresh if retired => locale.setup_committed_fact(),
+        SetupStatus::TabsCommittedNeedRefresh if retired => locale.setup_tabs_committed_fact(),
+        status @ (SetupStatus::CommittedNeedRefresh
+        | SetupStatus::OutcomeUnknown
+        | SetupStatus::TabsCommittedNeedRefresh
+        | SetupStatus::TabsOutcomeUnknown) => locale.setup_status(status),
+        _ => return None,
+    })
 }
 
 pub(super) const fn setup_status_transient(status: SetupStatus) -> bool {
