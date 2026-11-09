@@ -97,16 +97,20 @@ own thread, which holds no shared channel and wakes on cancellation, and asks on
 `prompt-gated-input`, checked before any sample or reservation, and never falls back to an ungated
 send; `orchbee terminal send` and `orchbee terminal run` stay ungated.
 
-| Refusal                                                           | Board (retry allowed)                                            | CLI document and exit code                                                 |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Preflight idle-shell refusal, or the Host's `busy` or `not-shell` | Nothing was typed: the shell is not at an empty prompt           | `rejected`, `reason: "terminal-not-idle"`, `3`                             |
-| The Host's `unmarked`                                             | Nothing was typed: no marked prompt yet                          | `rejected`, `reason: "prompt-unconfirmed"`, `promptState: "unmarked"`, `3` |
-| Any other Host prompt state, including a second `settling`        | Nothing was typed: the shell is not at an empty prompt           | `rejected`, `reason: "prompt-unconfirmed"`, `promptState`, `3`             |
-| The Session's handshake lacks `prompt-gated-input`                | Nothing was typed: this Session is too old                       | `incompatible`, cause `stage: "capability"`, `session-too-old`, `6`        |
-| The Host lacks the gate or reports no launch kind                 | Nothing was typed: this terminal was started by an older Orchbee | `incompatible`, cause `stage: "capability"`, `terminal-too-old`, `6`       |
+| Refusal                                                           | Board short form (retry allowed)                  | CLI document and exit code                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
+| Preflight idle-shell refusal, or the Host's `busy` or `not-shell` | Nothing was typed: shell not at an empty prompt   | `rejected`, `reason: "terminal-not-idle"`, `3`                             |
+| The Host's `unmarked`                                             | Nothing was typed: no marked prompt yet           | `rejected`, `reason: "prompt-unconfirmed"`, `promptState: "unmarked"`, `3` |
+| Any other Host prompt state, including a second `settling`        | Nothing was typed: shell not at an empty prompt   | `rejected`, `reason: "prompt-unconfirmed"`, `promptState`, `3`             |
+| The Session's handshake lacks `prompt-gated-input`                | Nothing was typed: Session too old                | `incompatible`, cause `stage: "capability"`, `session-too-old`, `6`        |
+| The Host lacks the gate or reports no launch kind                 | Nothing was typed: terminal from an older Orchbee | `incompatible`, cause `stage: "capability"`, `terminal-too-old`, `6`       |
 
-The board and stderr text say what to do next; the JSON carries only the reason. A capability
-refusal has `details.reason` `startup-failed` with the shared
+The board and stderr text say what to do next; the JSON carries only the reason. The board's
+not-at-prompt text and the CLI's `prompt-unconfirmed` text other than `unmarked` say to finish the
+running program, clear the line, or press Enter for a new prompt. The TUI status line shows the
+board's full text when it fits and otherwise the short form above, in the same locale; every other
+start notice except the already short cancelling one also has a short form. A capability refusal
+has `details.reason` `startup-failed` with the shared
 [capability failure](../../../docs/cli/output.md) as its `cause`.
 
 The fixed Windows launch names for canonical `cursor` and `qodercli` are `agent` and `qoder`, matching

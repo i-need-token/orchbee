@@ -107,10 +107,10 @@ impl super::CliText {
                 "未输入任何内容：目标终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。"
             }
             (Locale::EnUs, _, "prompt-unconfirmed", _) => {
-                "Nothing was typed: the target shell is not waiting at an empty prompt. Finish the running program or clear the input line, then retry. If PROMPT was changed in that terminal, open a new one."
+                "Nothing was typed: the target shell is not waiting at an empty prompt. Finish the running program, clear the input line, or press Enter for a new prompt, then retry. If PROMPT was changed in that terminal, open a new one."
             }
             (Locale::ZhCn, _, "prompt-unconfirmed", _) => {
-                "未输入任何内容：目标 shell 没有停在空的提示符上。请先结束正在运行的程序或清空输入行，然后重试。如果在那个终端里改过 PROMPT，请新开一个终端。"
+                "未输入任何内容：目标 shell 没有停在空的提示符上。请先结束正在运行的程序、清空输入行或按回车获得新的提示符，然后重试。如果在那个终端里改过 PROMPT，请新开一个终端。"
             }
             (locale, _, reason, _) => self.cli_agent_start_reason(locale, reason),
         };

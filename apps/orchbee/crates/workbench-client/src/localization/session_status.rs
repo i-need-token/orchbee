@@ -225,6 +225,9 @@ impl Locale {
             crate::localization::WorkbenchClientNotice::AgentNotResumed(agent, _) => {
                 Some(self.agent_not_resumed(agent))
             }
+            crate::localization::WorkbenchClientNotice::AgentStart(phase) => {
+                self.agent_start_phase_shorter(phase).map(str::to_owned)
+            }
             _ => None,
         }
     }

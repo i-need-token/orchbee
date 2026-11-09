@@ -680,16 +680,14 @@ impl<'a> WorkbenchClientView<'a> {
     }
 
     /// What the title of a Presentation's terminal names it, given the raw title of a live frame
-    /// this Client holds for that terminal; `None` when its program names it.
+    /// this Client holds for that terminal; `None` when its program names it. A retired surface
+    /// holds no live frame and receives no title, so it keeps the names it last showed.
     pub(super) fn terminal_title_name(
         &self,
         presentation: &orchbee_workbench_protocol::TerminalPresentationId,
         binding: Option<&crate::workbench_projection::ClientTerminalBinding>,
         live: Option<Option<&'a str>>,
     ) -> Option<ChromeName<'a>> {
-        if self.retirement.is_some() {
-            return None;
-        }
         let shown = match self.titles {
             Some(titles) => titles.shown(presentation, binding, live),
             None => match live {
@@ -2087,7 +2085,6 @@ impl WorkbenchClientUi {
             .unwrap_or(failure);
         self.retirement_failure = Some(failure);
         self.retained_frames.clear();
-        self.presentation_titles.clear();
         {
             self.history_positions = history_positions::Coordinator::default();
         }
@@ -5117,8 +5114,8 @@ impl WorkbenchClientUi {
     }
 
     fn retire(&mut self, failure: CarrierFailure) {
+        // Titles stay: a Disconnected surface keeps the names it last showed.
         self.retained_frames.clear();
-        self.presentation_titles.clear();
         {
             self.history_positions = history_positions::Coordinator::default();
         }

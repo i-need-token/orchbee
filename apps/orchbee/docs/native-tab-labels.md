@@ -112,6 +112,8 @@ Both Clients name each Presentation by one rule:
 - When the snapshot binds the Presentation to another terminal, it shows the program until that
   terminal reports a title. Otherwise a Tab keeps the title it last showed, including while its
   own frame is pending, blocked or faulted.
+- A Disconnected Client keeps the names it last showed. It draws no live frame and receives no
+  row, so no name changes until the person leaves or a new connection replaces the view.
 - A title marks nothing unread and changes no notification or Agent state.
 
 The window title's `{tab}` and terminal title placeholders still read the live frame only. The

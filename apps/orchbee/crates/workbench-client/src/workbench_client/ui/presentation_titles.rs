@@ -112,10 +112,6 @@ impl Cursor {
 }
 
 impl PresentationTitles {
-    pub(super) fn clear(&mut self) {
-        self.cursors.clear();
-    }
-
     /// Cursors captured by an older surface of the same Session, for Presentations this surface
     /// has none for yet. The next publication removes those it no longer holds.
     pub(super) fn inherit_older(&mut self, older: Self) {

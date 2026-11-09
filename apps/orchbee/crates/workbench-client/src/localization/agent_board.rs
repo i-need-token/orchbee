@@ -65,6 +65,9 @@ pub(crate) struct AgentBoardText {
     pub(crate) start_terminal_too_old: &'static str,
     pub(crate) start_unknown: &'static str,
     pub(crate) start_cancelled: &'static str,
+    /// The shorter forms the status line shows when a start notice does not fit; each keeps
+    /// the outcome and drops the advice the board states in full.
+    pub(crate) start_short: AgentStartShortText,
     pub(crate) start_provider_hint: &'static str,
     pub(crate) start_edit_hint: &'static str,
     pub(crate) start_cancel_hint: &'static str,
@@ -97,6 +100,22 @@ impl AgentBoardText {
     }
 }
 
+/// Shorter start notices for a narrow status line. Cancelling is already short and has none.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AgentStartShortText {
+    pub(crate) starting: &'static str,
+    pub(crate) waiting_input: &'static str,
+    pub(crate) unconfirmed: &'static str,
+    pub(crate) started: &'static str,
+    pub(crate) failed: &'static str,
+    pub(crate) not_at_prompt: &'static str,
+    pub(crate) unmarked: &'static str,
+    pub(crate) session_too_old: &'static str,
+    pub(crate) terminal_too_old: &'static str,
+    pub(crate) unknown: &'static str,
+    pub(crate) cancelled: &'static str,
+}
+
 const EN_US_BOARD: AgentBoardText = AgentBoardText {
     title: "Agent board",
     open_button: "Open",
@@ -127,12 +146,25 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_cancelling: "Cancelling startup…",
     start_started: "Agent started. Refreshing sessions…",
     start_failed: "Agent did not start. Check the current panel and try again.",
-    start_not_at_prompt: "Nothing was typed: the shell is not at an empty prompt. Finish the running command or clear the line, then try again.",
+    start_not_at_prompt: "Nothing was typed: the shell is not at an empty prompt. Finish the running command, clear the line, or press Enter for a new prompt, then try again.",
     start_unmarked: "Nothing was typed: this terminal has not shown a marked prompt. Wait for its prompt, or use a PowerShell or cmd terminal Orchbee started.",
     start_session_too_old: "Nothing was typed: this Session is too old to confirm the prompt. Update Orchbee and restart the Session.",
     start_terminal_too_old: "Nothing was typed: this terminal was started by an older Orchbee. Open a new terminal.",
     start_unknown: "Startup is unconfirmed. Check the terminal before starting another Agent.",
     start_cancelled: "Startup canceled. The Agent process may still be running.",
+    start_short: AgentStartShortText {
+        starting: "Waiting for Agent startup",
+        waiting_input: "Agent startup needs your input",
+        unconfirmed: "Command sent, not confirmed · do not start again",
+        started: "Agent started",
+        failed: "Agent did not start",
+        not_at_prompt: "Nothing was typed: shell not at an empty prompt",
+        unmarked: "Nothing was typed: no marked prompt yet",
+        session_too_old: "Nothing was typed: Session too old",
+        terminal_too_old: "Nothing was typed: terminal from an older Orchbee",
+        unknown: "Startup unconfirmed · check the terminal",
+        cancelled: "Startup canceled · Agent may still run",
+    },
     start_provider_hint: "more Agents",
     start_edit_hint: "edit name",
     start_cancel_hint: "cancel start",
@@ -183,12 +215,25 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_cancelling: "正在取消启动…",
     start_started: "智能体已启动，正在刷新会话…",
     start_failed: "智能体未启动，请检查当前面板后重试。",
-    start_not_at_prompt: "未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令或清空输入行，再重试。",
+    start_not_at_prompt: "未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令、清空输入行或按回车获得新的提示符，再重试。",
     start_unmarked: "未输入任何内容：这个终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。",
     start_session_too_old: "未输入任何内容：这个会话版本太旧，无法确认提示符。请更新 Orchbee 并重启会话。",
     start_terminal_too_old: "未输入任何内容：这个终端由旧版 Orchbee 启动。请新开一个终端。",
     start_unknown: "尚未确认启动结果，请先查看终端，再决定是否重新启动。",
     start_cancelled: "已取消启动；智能体进程仍可能在运行。",
+    start_short: AgentStartShortText {
+        starting: "正在等待启动确认",
+        waiting_input: "启动需要你在终端中输入",
+        unconfirmed: "命令已发送，未确认就绪 · 请勿重复启动",
+        started: "智能体已启动",
+        failed: "智能体未启动",
+        not_at_prompt: "未输入任何内容：shell 不在空的提示符上",
+        unmarked: "未输入任何内容：尚无带标记的提示符",
+        session_too_old: "未输入任何内容：会话版本太旧",
+        terminal_too_old: "未输入任何内容：终端由旧版 Orchbee 启动",
+        unknown: "启动结果未确认 · 请查看终端",
+        cancelled: "已取消启动 · 进程可能仍在运行",
+    },
     start_provider_hint: "更多智能体",
     start_edit_hint: "编辑名称",
     start_cancel_hint: "取消启动",
@@ -396,5 +441,28 @@ impl Locale {
             Phase::Unknown => text.start_unknown,
             Phase::Cancelled => text.start_cancelled,
         }
+    }
+
+    /// The status line's shorter form of a start notice, for every phase that has one.
+    pub(crate) fn agent_start_phase_shorter(
+        self,
+        phase: impl Into<AgentStartStatus>,
+    ) -> Option<&'static str> {
+        use AgentStartStatus as Phase;
+        let short = self.agent_board_text().start_short;
+        Some(match phase.into() {
+            Phase::Starting => short.starting,
+            Phase::WaitingInput => short.waiting_input,
+            Phase::Unconfirmed => short.unconfirmed,
+            Phase::Cancelling => return None,
+            Phase::Started => short.started,
+            Phase::Failed => short.failed,
+            Phase::Refused(AgentStartRefusal::NotAtPrompt) => short.not_at_prompt,
+            Phase::Refused(AgentStartRefusal::Unmarked) => short.unmarked,
+            Phase::Refused(AgentStartRefusal::SessionTooOld) => short.session_too_old,
+            Phase::Refused(AgentStartRefusal::TerminalTooOld) => short.terminal_too_old,
+            Phase::Unknown => short.unknown,
+            Phase::Cancelled => short.cancelled,
+        })
     }
 }
