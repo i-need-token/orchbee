@@ -76,13 +76,22 @@ admitting the new one; poll, close and remove release it exactly once. Pressure 
 affected viewer. The four-event FIFO remains independent, so a burst cannot bury settlement behind
 ordinary events or consume an additional unbounded queue.
 
-After Host attach and projection-demand admission, the Worker reads bounded retained inventory
-under its existing two-second observation budget, with at most eight pages of 128 entries. A settled
-summary seeds the same lifecycle slot using the Host's identity, exit result and final revision.
-The read validates page generation, cursor progress, unique terminal/creation identities and Host
-epoch. It never changes terminal state. This supplies reentry evidence even when the original exit
-notification preceded attachment. A missing or invalid target fails the exchange; it is never
-presented as a running shell.
+After Host attach and projection-demand admission, the Worker reads retained inventory page by
+page, asking for 128 entries each, until the inventory ends. The walk starts pages for two seconds;
+a page already sent is read to its end within the one-second Host exchange bound, so the Host stream
+stays in step. A settled summary seeds the same lifecycle slot using the Host's identity, exit
+result and final revision. The read validates page generation, cursor progress, unique
+terminal/creation identities and Host epoch, so every page advances and the walk always ends. It
+never changes terminal state. This supplies reentry evidence even when the original exit
+notification preceded attachment. `ReadLifecycle` walks the same way.
+
+A walk that concerns only its own request refuses that request and the Worker serves the next one:
+an unfinished walk answers `CapacityExceeded`, and a page the Host refuses with a typed failure
+answers `HostRejected`. A refused Attach first detaches its new Host attachment and releases the
+admitted viewer, so it grants nothing. A failed exchange, including a sent page left unanswered
+past its bound, a broken envelope, paging or identity contract, or an Attach target missing from a
+complete inventory, still ends the connection; a missing target is never presented as a running
+shell.
 
 ## Retired-target propagation
 

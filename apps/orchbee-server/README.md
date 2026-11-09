@@ -527,7 +527,8 @@ Client writes also have a total two-second deadline and retire only that Connect
 
 An exact viewer/control ServerBusy response establishes known-unchanged terminal, viewer and
 controller effects. Carrier queue rejection precedes dispatch; an Attach Worker capacity rejection
-may follow an OBCN exchange but neither inserts a viewer nor dispatches a Host action. Input/Resize
+may follow an OBCN exchange but inserts no viewer and leaves no Host attachment: an Attach whose
+inventory walk could not finish detaches before it answers. Input/Resize
 may already have consumed the Client sequence, so admitted Client backpressure handling must use
 both a fresh request ID and fresh effect sequence under the original logical-operation deadline.
 Other unavailable, rejected or unknown results grant no authority to attempt again.

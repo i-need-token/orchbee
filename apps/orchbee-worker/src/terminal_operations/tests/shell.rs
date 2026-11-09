@@ -16,7 +16,7 @@ use std::{
     time::Instant,
 };
 
-const WORKER: orchbee_local_worker_protocol::WorkerId =
+pub(super) const WORKER: orchbee_local_worker_protocol::WorkerId =
     orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]);
 fn launch(id: u8, executable: &str) -> AuthorizedTerminalLaunch {
     let n = NonZeroU64::MIN;
@@ -411,7 +411,7 @@ fn outcome(peer: &mut LocalStream) -> TerminalLaunchOutcome {
     };
     result.outcome()
 }
-fn timeout(stream: &LocalStream) {
+pub(super) fn timeout(stream: &LocalStream) {
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
         .unwrap();
@@ -419,7 +419,7 @@ fn timeout(stream: &LocalStream) {
         .set_write_timeout(Some(Duration::from_secs(5)))
         .unwrap();
 }
-fn record(peer: &mut LocalStream) -> Vec<u8> {
+pub(super) fn record(peer: &mut LocalStream) -> Vec<u8> {
     let mut header = [0; 64];
     peer.read_exact(&mut header).unwrap();
     let length = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
@@ -429,7 +429,7 @@ fn record(peer: &mut LocalStream) -> Vec<u8> {
     peer.read_exact(&mut bytes[64..]).unwrap();
     bytes
 }
-fn reply(peer: &mut LocalStream, request: &[u8], kind: u16, payload: &[u8]) {
+pub(super) fn reply(peer: &mut LocalStream, request: &[u8], kind: u16, payload: &[u8]) {
     let request = decode_transport_envelope(request).unwrap();
     peer.write_all(
         &encode_transport_envelope(&Envelope {
@@ -446,7 +446,7 @@ fn reply(peer: &mut LocalStream, request: &[u8], kind: u16, payload: &[u8]) {
     )
     .unwrap();
 }
-fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStream) {
+pub(super) fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStream) {
     let endpoint = crate::tests::endpoint();
     let listener = LocalListener::bind(&endpoint).unwrap();
     let task = thread::spawn(move || {

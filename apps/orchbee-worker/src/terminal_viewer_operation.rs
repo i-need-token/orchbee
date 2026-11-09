@@ -199,16 +199,24 @@ fn apply(
             if accepted.attachment_id != id || accepted.demand != ProjectionDemand::Active {
                 return Err(invalid("Host projection demand acknowledgement disagrees").into());
             }
-            if let Some(record) = lifecycle::snapshot(
+            match lifecycle::snapshot(
                 host,
                 server,
                 orchbee_capability_node_protocol::HostTerminalId::from_bytes(
                     *terminal_id.as_bytes(),
                 )?,
             )? {
-                host.viewers
+                Ok(Some(record)) => host
+                    .viewers
                     .borrow_mut()
-                    .receive(record, host.host_epoch())?;
+                    .receive(record, host.host_epoch())?,
+                Ok(None) => {}
+                // A refused Attach grants nothing, so the new Host attachment goes first.
+                Err(reason) => {
+                    detach_attachment(host, server, correlation, id)?;
+                    host.viewers.borrow_mut().remove(request.attachment_id);
+                    return Ok(TerminalViewerOutcome::Rejected(reason));
+                }
             }
             Ok(TerminalViewerOutcome::Attached)
         }
@@ -304,22 +312,7 @@ fn apply(
                 ));
             }
             crate::terminal_control_operation::release_viewer(host, server, request.attachment_id)?;
-            let target = AttachmentTarget { attachment_id: id };
-            let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
-            let response = exchange(
-                host,
-                server,
-                correlation,
-                command.kind,
-                &command.payload,
-                PayloadEncoding::ControlJson,
-            )?;
-            let envelope = decode_transport_envelope(&response)?;
-            if decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
-                != AttachmentControl::DetachTerminalAccepted(target)
-            {
-                return Err(invalid("Host did not detach the exact viewer").into());
-            }
+            detach_attachment(host, server, correlation, id)?;
             host.viewers.borrow_mut().remove(request.attachment_id);
             Ok(TerminalViewerOutcome::Detached)
         }
@@ -694,6 +687,32 @@ fn apply(
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
     }
+}
+
+/// Detaches one viewer attachment from the Host; any other answer breaks the Host contract.
+fn detach_attachment(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    id: AttachmentId,
+) -> Result<(), Box<dyn Error>> {
+    let target = AttachmentTarget { attachment_id: id };
+    let command = encode_attachment_control(&AttachmentControl::DetachTerminal(target))?;
+    let response = exchange(
+        host,
+        server,
+        correlation,
+        command.kind,
+        &command.payload,
+        PayloadEncoding::ControlJson,
+    )?;
+    let envelope = decode_transport_envelope(&response)?;
+    if decode_attachment_control(envelope.kind, envelope.role, envelope.payload)?
+        != AttachmentControl::DetachTerminalAccepted(target)
+    {
+        return Err(invalid("Host did not detach the exact viewer").into());
+    }
+    Ok(())
 }
 
 const fn selection_gesture_action(gesture: ViewerSelectionGestureAction) -> SelectionGestureAction {
