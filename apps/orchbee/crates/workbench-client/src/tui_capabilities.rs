@@ -31,8 +31,8 @@ pub struct Capabilities {
     pub(crate) login_shell: bool,
     /// Whether this build offers sidebar search: the fixed Search row and its key. A release build
     /// withholds them until search is polished (ORC-398); the machine picker they open stays
-    /// reachable through the Machines action and All Workspaces. This is a build policy,
-    /// independent of the host effects above.
+    /// reachable through the Machines action. This is a build policy, independent of the host
+    /// effects above.
     search: bool,
 }
 impl Capabilities {

@@ -358,7 +358,6 @@ fn sidebar_fixed_actions_revalidate_their_effect_scope_and_availability() {
     let new_workspace = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::NewWorkspace);
     let search = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Search);
     let settings = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Settings);
-    let browse = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Browse);
     assert_eq!(
         picker.sidebar_fixed_activation(&new_workspace),
         Some(SidebarFixedActivation::NewWorkspace)
@@ -371,10 +370,6 @@ fn sidebar_fixed_actions_revalidate_their_effect_scope_and_availability() {
         picker.sidebar_fixed_activation(&settings),
         Some(SidebarFixedActivation::Settings)
     );
-    assert_eq!(
-        picker.sidebar_fixed_activation(&browse),
-        Some(SidebarFixedActivation::Browse)
-    );
 
     picker.observe_focus(Choice::Local, Some(workspace(1, 22).target), None);
     assert_eq!(
@@ -383,7 +378,6 @@ fn sidebar_fixed_actions_revalidate_their_effect_scope_and_availability() {
         "same-session current movement is not a tree-source change"
     );
     assert!(picker.sidebar_fixed_activation(&new_workspace).is_none());
-    assert!(picker.sidebar_fixed_activation(&browse).is_none());
     assert_eq!(
         picker.sidebar_fixed_activation(&search),
         Some(SidebarFixedActivation::Search)

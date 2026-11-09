@@ -408,7 +408,7 @@ The main sidebar places Workspaces under their Projects and eligible Agents unde
 their exact Workspace owner, with one shared scroll window. The
 [sidebar navigation model](tui-shell-layout.md#sidebar-navigation-model) owns
 disclosure and keyboard navigation. The Workspace picker remains available by
-opening Machines then pressing Tab, or clicking the sidebar range footer.
+opening Machines then pressing Tab.
 Row clicks retain complete machine/Session/context identity even when names coincide.
 `ui.sidebar.spaces` controls Workspace rows; `ui.sidebar.agents` controls their
 Agent children. Agent `row_gap` applies before and between Agent rows; Workspace

@@ -297,7 +297,6 @@ pub(crate) enum SidebarFixedAction {
     NewWorkspace,
     Search,
     Settings,
-    Browse,
 }
 
 /// A fixed Sidebar action bound to the same immutable source as the tree frame.
@@ -320,7 +319,6 @@ pub(crate) enum SidebarFixedActivation {
     NewWorkspace,
     Search,
     Settings,
-    Browse,
 }
 
 impl DrawnSidebarTarget {
@@ -865,11 +863,7 @@ impl Picker {
     }
 
     fn sidebar_fixed_scope(&self, action: SidebarFixedAction) -> Option<Selection> {
-        matches!(
-            action,
-            SidebarFixedAction::NewWorkspace | SidebarFixedAction::Browse
-        )
-        .then(|| Selection {
+        matches!(action, SidebarFixedAction::NewWorkspace).then(|| Selection {
             machine: self.current.clone(),
             context: self.current_context.clone().map(Into::into),
         })
@@ -946,11 +940,9 @@ impl Picker {
             SidebarFixedAction::Settings if live.0.settings_admitted => {
                 Some(SidebarFixedActivation::Settings)
             }
-            SidebarFixedAction::Browse if live.0.admitted => Some(SidebarFixedActivation::Browse),
             SidebarFixedAction::NewWorkspace
             | SidebarFixedAction::Search
-            | SidebarFixedAction::Settings
-            | SidebarFixedAction::Browse => None,
+            | SidebarFixedAction::Settings => None,
         }
     }
 

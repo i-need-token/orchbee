@@ -591,6 +591,10 @@ impl Picker {
             self.spaces.queue(window, up);
         }
     }
+    /// Scrolls the visible sidebar list so row `top` of the painted `window` leads it.
+    pub(crate) fn scroll_sidebar_to(&mut self, window: SidebarWindow, top: usize) -> bool {
+        self.available && self.spaces.visible() && !self.open && self.spaces.scroll_to(window, top)
+    }
     pub(crate) fn show_workspaces(&mut self) {
         self.cancel_sidebar_scroll();
         self.workspace_query.clear();

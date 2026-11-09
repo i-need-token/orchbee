@@ -260,7 +260,13 @@ pub enum HitTarget {
         window: crate::machine_picker::SidebarWindow,
     },
     MachineWorkspaceSurface(crate::machine_picker::SidebarWindow),
-    OpenMachineWorkspaces,
+    /// The overflowing sidebar list's scrollbar column: `range` places its thumb on `track` for the
+    /// painted `window`.
+    SidebarScrollbar {
+        track: Rect,
+        range: crate::terminal_scrollbar::ScrollbarRange,
+        window: crate::machine_picker::SidebarWindow,
+    },
     MachineAgentRow {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,

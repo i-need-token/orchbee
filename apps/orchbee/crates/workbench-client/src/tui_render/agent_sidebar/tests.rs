@@ -545,7 +545,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         assert!(
             rows[usize::from(gap)]
                 .trim()
-                .trim_matches('│')
+                .trim_matches(['│', '┃'])
                 .trim()
                 .is_empty()
         );
@@ -598,7 +598,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     let blank = |y: u16| {
         rows[usize::from(y)]
             .trim()
-            .trim_matches('│')
+            .trim_matches(['│', '┃'])
             .trim()
             .is_empty()
     };
@@ -968,44 +968,6 @@ fn settings_sits_alone_on_the_sidebar_last_row_as_an_exact_action_without_a_shor
     }
 }
 
-/// The overflow footer exists only while the list overflows, so a list that fits reaches the row
-/// directly above Settings.
-#[test]
-fn list_runs_down_to_settings_and_reserves_the_footer_row_only_while_overflowing() {
-    for (width, height) in [(120, 40), (80, 24)] {
-        let above = height - 2;
-        let mut reached = false;
-        for count in 0..40 {
-            let view = view(width, height, count);
-            let (rows, hits) = paint(
-                &view,
-                Locale::EnUs,
-                &Theme::terminal_native(),
-                width,
-                height,
-            );
-            let footer = Locale::EnUs.machine_picker_text("workspace-sidebar-all");
-            let list_row = |y: u16| {
-                (0..28).any(|x| {
-                    matches!(
-                        hits.hit_target_at(x, y),
-                        Some(
-                            HitTarget::MachineAgentRow { .. }
-                                | HitTarget::MachineWorkspaceRow { .. }
-                        )
-                    )
-                })
-            };
-            let overflowing = rows[usize::from(above)].contains(footer);
-            if overflowing {
-                assert!(list_row(above - 1), "{width}x{height} {count}: {rows:?}");
-            }
-            reached |= !overflowing && list_row(above);
-        }
-        assert!(reached, "{width}x{height}: no list ever reached Settings");
-    }
-}
-
 /// On the touch-spaced mobile list each entry owns the blank line under it, so a press there counts
 /// for the entry above; below the spacing height entries keep one line each.
 #[test]
@@ -1227,13 +1189,32 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                             inspected.push(selected.clone());
                             // The Recents heading, its Workspace and twenty Agents.
                             assert!(window.capacity > 0 && window.end() <= 22);
-                            // The overflow footer appears exactly when the window clips entries.
+                            // The scrollbar appears exactly when the window clips entries, with
+                            // its thumb painted in the column it publishes.
+                            let scrollbar = (0..width).find_map(|x| {
+                                (0..height).find_map(|y| match hits.hit_target_at(x, y) {
+                                    Some(HitTarget::SidebarScrollbar { track, range, .. }) => {
+                                        Some((*track, *range))
+                                    }
+                                    _ => None,
+                                })
+                            });
                             assert_eq!(
-                                joined
-                                    .contains(locale.machine_picker_text("workspace-sidebar-all")),
+                                scrollbar.is_some(),
                                 window.top > 0 || window.end() < 22,
-                                "{rows:?}"
+                                "{width}x{height} {rows:?}"
                             );
+                            // `paint` keeps each row's first 30 columns.
+                            if let Some((track, range)) =
+                                scrollbar.filter(|(track, _)| track.x < 30)
+                            {
+                                let thumb = range.thumb(track).unwrap();
+                                assert!(
+                                    rows[usize::from(thumb.y)]
+                                        .contains(theme.glyphs.scrollbar_thumb),
+                                    "{rows:?}"
+                                );
+                            }
                             let exact = (0..height)
                                 .filter(|candidate| {
                                     matches!(hits.hit_target_at(2, *candidate), Some(HitTarget::MachineAgentRow { selected: actual, .. }) if actual == selected)

@@ -193,7 +193,6 @@ impl InteractionTarget {
                     SidebarFixedAction::NewWorkspace => HitTarget::NewWorkspaceButton,
                     SidebarFixedAction::Search => HitTarget::SearchButton,
                     SidebarFixedAction::Settings => HitTarget::SettingsButton,
-                    SidebarFixedAction::Browse => HitTarget::OpenMachineWorkspaces,
                 }
             }
             Self::MachinePicker(target) => HitTarget::MachinePicker(target.clone()),

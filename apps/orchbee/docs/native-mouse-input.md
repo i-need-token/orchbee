@@ -374,6 +374,15 @@ Unknown/loading windows expose no new target. The [viewport contract](native-ter
 owns bounded navigation, live-output cancellation and recovery. Selection/copy-mode and program
 mouse reporting keep their existing precedence; no scrollbar event encodes terminal input.
 
+While the sidebar list overflows, its trailing padding column records
+`SidebarScrollbar{track,range,window}` on the sidebar's own layer. The same geometry places its
+thumb in list rows: plain left press jumps on the track or grabs the thumb, motion scrolls the list
+through the machine picker's window owner, release ends it, and wheel scrolls as over the list.
+The `SidebarScrollbar` gesture keeps the press's track and range extent, takes over each
+repainted window, and cancels when a frame paints another extent or none, on keyboard input, host
+focus loss, a modal overlay, resize mode or an open picker. It never moves sidebar focus or leaves
+sidebar navigation; the [shell layout](tui-shell-layout.md#viewport-tiers) owns its presentation.
+
 | State       | Meaning and exits                                                                                                                                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Idle`      | No pointer owner. A press on a hit region opens a gesture or applies navigation directly.                                                                                                                                                                     |

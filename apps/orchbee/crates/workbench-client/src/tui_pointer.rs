@@ -380,6 +380,7 @@ enum Gesture {
     Pane(PaneGesture),
     Selection(SelectionGesture),
     Scrollbar(scrollbar::ScrollbarDrag),
+    SidebarScrollbar(scrollbar::SidebarScrollbarDrag),
     Divider(crate::tui_layout::DividerDrag),
     SidebarWidth(crate::tui_layout::SidebarWidthDrag),
     Link(LinkGesture),
@@ -1497,6 +1498,11 @@ impl PointerState {
         {
             self.gesture = Gesture::Idle;
         }
+        if let Gesture::SidebarScrollbar(drag) = &mut self.gesture
+            && !drag.repainted(&map)
+        {
+            self.gesture = Gesture::Idle;
+        }
         let divider_lost = if let Gesture::Divider(drag) = &mut self.gesture {
             let painted = drag.projected_target();
             if map.exposes_divider(&painted) {
@@ -1729,6 +1735,7 @@ impl PointerState {
             Gesture::Pane(_) => self.pane_event(view, port, &probe, event),
             Gesture::Selection(_) => self.selection_event(port, &probe, event),
             Gesture::Scrollbar(_) => self.scrollbar_event(port, &probe, event),
+            Gesture::SidebarScrollbar(_) => self.sidebar_scrollbar_event(view, event),
             Gesture::Divider(_) => self.divider_event(view, port, event),
             Gesture::SidebarWidth(_) => self.sidebar_width_event(view, event),
             Gesture::Link(_) => self.link_event(port, &probe, event),
@@ -1822,6 +1829,16 @@ impl PointerState {
         let modal = modal || view.resize_mode();
         if let Gesture::Scrollbar(drag) = &self.gesture
             && (!drag.alive(&probe) || modal)
+        {
+            self.gesture = Gesture::Idle;
+            changed = true;
+        }
+        if matches!(self.gesture, Gesture::SidebarScrollbar(_))
+            && (view
+                .overlay()
+                .is_some_and(|overlay| overlay != crate::client_view::Overlay::BusinessSidebar)
+                || view.resize_mode()
+                || view.machines.open)
         {
             self.gesture = Gesture::Idle;
             changed = true;
@@ -2027,7 +2044,7 @@ impl PointerState {
             && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
             && !matches!(map.hit(event.column, event.row),
                 HitResolution::Region(hit) if hit.sidebar_target().is_some()
-                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarResize(_) | HitTarget::TabCreate(_)))
+                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarScrollbar { .. } | HitTarget::SidebarResize(_) | HitTarget::TabCreate(_)))
         {
             view.machines.leave_sidebar_navigation();
         }
@@ -2154,7 +2171,14 @@ impl PointerState {
                 }
             }
             HitResolution::Region(HitTarget::SidebarDisclosure(_)) => PointerOutcome::Ignored,
-            HitResolution::Region(HitTarget::OpenMachineWorkspaces) => PointerOutcome::Ignored,
+            HitResolution::Region(HitTarget::SidebarScrollbar {
+                track,
+                range,
+                window,
+            }) => {
+                let target = (*track, *range, *window);
+                self.begin_sidebar_scrollbar(view, event, target)
+            }
             HitResolution::Region(HitTarget::MachineWorkspaceRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE

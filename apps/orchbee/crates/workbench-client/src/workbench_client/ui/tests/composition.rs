@@ -303,7 +303,7 @@ fn machine_capture_suppresses_native_proof_hits_and_remembered_sidebar_focus() {
             | HitTarget::NewWorkspaceButton
             | HitTarget::SearchButton
             | HitTarget::SettingsButton
-            | HitTarget::OpenMachineWorkspaces
+            | HitTarget::SidebarScrollbar { .. }
     )));
     let sidebar = crate::tui_layout::project_shell_areas(
         Rect::new(0, 0, WIDTH, FULL_HEIGHT),

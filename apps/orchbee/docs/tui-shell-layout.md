@@ -161,11 +161,21 @@ An empty navigation tree leaves the space below the actions blank until rows or 
 Both sidebar presentations keep one right padding cell, with no outer top or left padding: the
 first fixed-action row shares the Tab strip's row. Row surfaces, the footer
 divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
-divider; pointer targets keep the list's own columns. Only an overflowing list reserves its last
-row, for the overflow footer: the secondary action `[ All Workspaces ]` (`[ 全部工作区 ]`), which
-opens the Workspace picker, and at the row's end, at least two blank cells after it, the number of
-entries the window leaves out in secondary text (`N more`; `还有 N 行`). The count is omitted when
-it cannot fit in full. A list that fits reaches the row directly above Settings.
+divider; pointer targets keep the list's own columns. The list reaches the row directly above
+Settings whether or not it fits.
+
+While the list overflows, the right padding cell beside each list line carries the Panels'
+[scrollbar](native-terminal-viewport.md#scrollbar-interaction) on the chrome surface: a `┃` thumb
+(`#` in ASCII) in `accent-focus` while the sidebar owns the keyboard, otherwise `text-secondary`,
+over a `│` track (`|`) in `frame-unfocused`. The thumb counts list rows, headings and Context rows
+included: its length is the window's share of the list and its position the window's top row. A
+list that fits leaves the column to row surfaces and shows no scrollbar. A primary press on the
+thumb grabs it where pressed; on the track it centers the thumb on that row and scrolls at once.
+Dragging moves the list with the thumb, and release ends the drag. The wheel there scrolls as it
+does over the list. Like a wheel scroll, the thumb stops the window following focus until the next
+keyboard move; it never moves keyboard focus or leaves sidebar navigation. Keyboard input, host
+focus loss, a modal overlay, resize mode, the open picker, and a frame that paints another extent
+or no scrollbar each end the drag.
 
 The tree shape comes from shared columns. Project, Recents and Workspace rows keep a one-cell
 navigation marker at the list's left edge, followed at the next column by their identity: headings
@@ -303,8 +313,9 @@ Projects appends the Project. It shows hovered while the pointer is on the free 
 drag shows no such row: its free rows keep the shown destination, and a Workspace leaves its Project
 by landing on a Workspace row in Recents. Outside the list, and on a
 destination that changes nothing, the canonical order shows; an invalid destination keeps the shown
-one. The window keeps its top row index while rows move under the pointer. Holding at the list edge
-scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains
+one. The window keeps its top row index while rows move under the pointer. Holding on the list's
+top or bottom row, or past it in the list's columns, scrolls toward that edge at most once every
+120 ms through the existing bounded list-scroll owner; wheel remains
 local; either scroll moves the destination to the row then under the pointer.
 
 Until movement latches a drag, the press is a click on its row: only that row's painted target, the
@@ -445,9 +456,8 @@ palette or font behavior.
 
 The unified sidebar joins the existing eligible Agent projection to exact owners.
 Only actual Agent rows appear in the tree; loading, unavailable, empty and
-no-match placeholders remain in the global Agents picker. The overflow footer counts
-the navigation entries the window leaves out, including Project and Context rows,
-and appears only on overflow. It does not present that count as an Agent total.
+no-match placeholders remain in the global Agents picker. The overflow scrollbar measures
+navigation rows, including Project and Context rows, and never presents an Agent total.
 
 A folded Project or Recents heading shows no Agent summary. A folded Workspace's status line
 lists the complete physical Agent checkpoint, so waiting evidence stays visible through folding and
@@ -500,7 +510,7 @@ suppresses the sidebar focus border, row navigation cue and owner-local labels s
 surface remains the only visible keyboard owner.
 The existing global `Ctrl+B Shift+N` creation route remains available. Query editing and
 cancellation retain the picker's capture rules, and opening either action consumes the
-input packet tail. A visible overflow footer's action opens the Workspace picker. Workspace browsing and Agent filters remain reachable through the existing
+input packet tail. Workspace browsing and Agent filters remain reachable through the existing
 Machine picker modes; this layout does not assign new browse/filter controls to group headings. The fixed bottom Settings entry opens the existing settings editor directly,
 matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
 label. Its complete configured key path appears when it fits, using the binding registry rather
@@ -523,8 +533,8 @@ UI traces still compose every entry point. A release leaves out the fixed Search
 plain-layout line then joins the list while a touch-spaced list leaves its lines blank, and the `/`
 key, which then behaves as an unbound sidebar key and leaves F1. Without New workspace either,
 the toggle keeps the first row on its own. The machine picker itself is the remote-machines feature
-and stays whole: `Ctrl+B Shift+M`, its action-menu row and F1 entry, and the overflow footer's
-`[ All Workspaces ]` open it as in development builds, with all three modes and Tab switching. The
+and stays whole: `Ctrl+B Shift+M`, its action-menu row and F1 entry open it as in development
+builds, with all three modes and Tab switching. The
 GUI withholds its Search the same way; see the
 [Web Workbench](../../web/docs/workbench.md#release-withheld-search).
 
@@ -743,7 +753,7 @@ width the list would have with a divider, the window width plus one.
 The status shows no sidebar-navigation chip on the list screen, whose hide toggle and Help stay
 painted. Other notices float at the end of the row above Settings and never cover Settings or Help.
 Below 24 rows the list keeps the ordinary sidebar composition at full width: three-cell `[«]` and
-`[?]`, one line per entry and the overflow footer.
+`[?]`, one line per entry and the overflow scrollbar.
 
 At 24 rows or more the list is spaced for touch. Column R is the window's last, the right padding
 cell, and line B the window's last:
@@ -757,8 +767,8 @@ cell, and line B the window's last:
 | B-2, B-1 | Line B-2: `[ Settings ]`, any [marker](#environment-marker), then `[ ? ]` at R-5..R-1      | Settings from the left edge to R-7; Help R-6..R        |
 
 A group after the first keeps one inert blank line before it, and touch spacing replaces the
-configured item gaps. On overflow the footer takes the list's last two lines, its action and count
-on the first, and its target spans both from the left edge to R. Hover and press fill a fixed
+configured item gaps. On overflow the scrollbar runs down column R beside lines 6 to B-3. Hover
+and press fill a fixed
 action's part of its content line, hint included; hovering `[ « ]` or `[ ? ]` only brightens its
 glyph, and pressing fills all seven target cells. Row, selection and current fills cover the
 entry's text line. Under a named color theme with a concrete fill, `▀` and `▄` half blocks carry
@@ -969,8 +979,8 @@ TestBackend renders at 120x40, 80x24, 60x12, 50x10, 15x4 and mixed-axis geometri
 display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
-independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists omit the
-overflow footer, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
+independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists show no
+scrollbar, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
 `workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
 occlusion, a status chip hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
@@ -1016,7 +1026,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name, and the list's last row keeps the overflow footer. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+F1 includes a symbol legend for unread activity, disclosure and all Agent states. A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

@@ -2189,12 +2189,6 @@ impl InputDispatcher {
                                                 mode,
                                             );
                                         }
-                                        Some(SidebarFixedActivation::Browse) => {
-                                            view.machines.show_workspaces();
-                                            self.machine_packet = true;
-                                            self.reconcile(view, port, now);
-                                            after_layout(view, port)?;
-                                        }
                                         Some(SidebarFixedActivation::Search) | None => {}
                                     }
                                 }

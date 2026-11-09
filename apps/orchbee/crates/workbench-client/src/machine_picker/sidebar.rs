@@ -351,6 +351,23 @@ impl<S> Sidebar<S> {
         }
         Scroll::queue(&mut self.scroll, window, up);
     }
+    /// Puts row `top` of the painted `window` at the top, as a scrollbar press or drag places it:
+    /// manual reading, like a wheel scroll, which stops following focus and replaces any queued
+    /// wheel movement. Returns whether the shown window moves.
+    pub(super) fn scroll_to(&mut self, window: SidebarWindow, top: usize) -> bool {
+        let top = top.min(window.maximum);
+        // Store the real row being read, not an index shifted by a temporary creation.
+        self.top = match window.insertion {
+            Some(slot) => top.saturating_sub(usize::from(slot < top)),
+            None => top,
+        };
+        self.follow_focus = false;
+        if let Some(follow) = &mut self.held {
+            *follow = false;
+        }
+        self.scroll = None;
+        top != window.top
+    }
     fn settle(&mut self, total: usize) -> bool {
         if !self.visible {
             self.scroll = None;

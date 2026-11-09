@@ -705,9 +705,9 @@ impl PointerState {
         {
             return false;
         }
+        // Each edge row, and anything past it in the list's columns, scrolls toward that edge.
         let up = drag.position.1 <= paint.body.y;
-        let down = drag.position.1 >= paint.body.bottom().saturating_sub(1)
-            && drag.position.1 < paint.footer.y;
+        let down = drag.position.1 >= paint.body.bottom().saturating_sub(1);
         if (up && paint.window.top > 0) || (down && paint.window.end() < paint.window.total) {
             view.machines.queue_space_scroll(paint.window, up);
             if let Gesture::SidebarReorder(drag) = &mut self.gesture {

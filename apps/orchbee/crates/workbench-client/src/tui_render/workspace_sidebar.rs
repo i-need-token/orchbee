@@ -5,7 +5,6 @@ use super::controls::{
     PointerPresentation, RowContentBand, RowFocusCue, RowTracks, action_rect, icon_action_rect,
     paint_pointer_target, paint_row_interaction, render_action, render_icon_action,
 };
-use super::sidebar_chrome::TRAILING_GAP;
 use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
     Theme, display_width, sidebar_text, tooltip, truncate_display,
@@ -15,9 +14,7 @@ use crate::{
     client_view::ClientAction,
     localization::TooltipLabel,
     machine_discovery::display_label,
-    machine_picker::{
-        Row, SidebarFixedAction, SidebarPart, SidebarRow, SidebarSource, SidebarTarget,
-    },
+    machine_picker::{Row, SidebarPart, SidebarRow, SidebarSource, SidebarTarget},
     tui_hit_map::{
         InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer, TooltipContent,
         TooltipText,
@@ -1282,20 +1279,10 @@ pub(super) fn render(
             creation_index,
         )
     };
-    // The list runs down to Settings. Only an overflowing list gives its last row, and with touch
-    // spacing that row's blank line, to the footer, so a list that fits never leaves a blank row
-    // above Settings.
-    let footer_rows = (1 + touch).min(area.height);
-    let whole = window_in(area.height);
-    let overflows = whole.top > 0 || whole.end() < whole.total;
-    let (body, window) = if overflows {
-        (
-            Rect::new(area.x, area.y, area.width, area.height - footer_rows),
-            window_in(area.height - footer_rows),
-        )
-    } else {
-        (area, whole)
-    };
+    // The list runs down to Settings whether or not it fits; an overflowing list shows where it is
+    // with the scrollbar in the trailing padding column, never with a row of its own.
+    let body = area;
+    let window = window_in(area.height);
     let mut y = body.y;
 
     for index in window.top..window.end() {
@@ -2081,12 +2068,12 @@ pub(super) fn render(
             crate::tui_hit_map::HitTarget::MachineWorkspaceSurface(window),
         );
     }
-    // A Project dropped below the last row moves to the end: the range footer, or the free rows
-    // under a list that fits. A Workspace has no destination here.
-    let footer = if overflows {
-        Rect::new(area.x, body.bottom(), area.width, footer_rows)
-    } else {
+    // A Project dropped below the last row moves to the end: the free rows under the list, which
+    // only a window that reaches its last row has. A Workspace has no destination there.
+    let footer = if window.end() >= window.total {
         Rect::new(area.x, y, area.width, area.bottom().saturating_sub(y))
+    } else {
+        Rect::new(area.x, area.bottom(), area.width, 0)
     };
     if insertion.is_none()
         && let Some(hits) = hits.as_deref_mut()
@@ -2100,161 +2087,60 @@ pub(super) fn render(
             source: source.clone(),
         });
     }
-    if !overflows {
-        return;
-    }
-    render_footer(
+    render_scrollbar(
         frame,
-        footer,
-        Footer {
-            view,
-            locale,
-            theme,
-            layer,
-            source,
-            trailing_padding,
-            more: window.total.saturating_sub(window.end() - window.top),
-        },
-        halos,
+        Rect::new(area.right(), area.y, trailing_padding.min(1), area.height),
+        window,
+        owns_keyboard,
+        theme,
+        layer,
         hits,
     );
 }
 
-struct Footer<'a> {
-    view: &'a ClientView,
-    locale: Locale,
-    theme: &'a Theme,
-    layer: HitLayer,
-    source: &'a SidebarSource,
-    trailing_padding: u16,
-    /// The rows the list leaves out.
-    more: usize,
-}
-
-/// The overflowing list's last row: `[ All Workspaces ]`, which opens every Workspace, and the
-/// count of rows left out at the row's end in secondary text, dropped when it would crowd the
-/// action. A touch-spaced footer also owns its blank line and the trailing padding, and its hover
-/// and press fill that whole row.
-fn render_footer(
+/// While the list overflows, the first trailing padding cell of each list line carries the
+/// Client's scrollbar, the same one a pane shows: its thumb places the window among the list's
+/// rows, and a press or drag there scrolls the list. A list that fits leaves the column to the row
+/// surfaces and publishes no scrollbar target.
+fn render_scrollbar(
     frame: &mut Frame<'_>,
-    footer: Rect,
-    context: Footer<'_>,
-    halos: Option<&mut super::sidebar_touch::Halos>,
+    track: Rect,
+    window: crate::machine_picker::SidebarWindow,
+    owns_keyboard: bool,
+    theme: &Theme,
+    layer: HitLayer,
     hits: Option<&mut HitMapBuilder>,
 ) {
-    let Footer {
-        view,
-        locale,
-        theme,
-        layer,
-        source,
-        trailing_padding,
-        more,
-    } = context;
-    let row = Rect::new(footer.x, footer.y, footer.width, 1);
-    let label = locale.machine_picker_text("workspace-sidebar-all");
-    let target = InteractionTarget::SidebarFixed(
-        view.machines
-            .drawn_sidebar_fixed(source, SidebarFixedAction::Browse),
-    );
-    let enabled = view.machines.available;
-    let spec = interaction_spec(PrimaryContract::ActivateOnRelease, enabled);
-    let base_state = InteractionState::new(
-        FocusState::Unfocused,
-        PointerPresentation::Rest,
-        NavigationState::None,
-        CurrentState::NotCurrent,
-        CheckedState::Unchecked,
-        if enabled {
-            Availability::Enabled
-        } else {
-            Availability::Disabled
-        },
-        OperationState::Idle,
-    );
-    let rest = ActionSpec::new(
-        label,
-        ActionKind::Secondary,
-        ControlSurface::Chrome,
-        base_state,
-    );
-    let Some(rect) = action_rect(frame.area(), row, rest, theme) else {
-        return;
-    };
-    let touch = halos.is_some();
-    let hit = if touch {
-        Rect::new(
-            footer.x,
-            footer.y,
-            footer.width + trailing_padding,
-            footer.height,
+    let Some(range) = (|| {
+        crate::terminal_scrollbar::ScrollbarRange::new(
+            u32::try_from(window.total.saturating_sub(window.maximum)).ok()?,
+            u32::try_from(window.maximum).ok()?,
+            u32::try_from(window.top.min(window.maximum)).ok()?,
         )
-        .intersection(frame.area())
-    } else {
-        rect
+    })() else {
+        return;
     };
-    let pointer = hits.as_deref().map_or(PointerPresentation::Rest, |hits| {
-        pointer_presentation(hits.projected_pointer(layer, hit, hit, &target, spec))
-    });
-    let pointer = if enabled {
-        pointer
-    } else {
-        PointerPresentation::Rest
-    };
-    let fill = match pointer {
-        PointerPresentation::Rest => None,
-        PointerPresentation::Hovered => Some(Role::SurfaceHover),
-        PointerPresentation::Pressed => Some(Role::SurfacePressed),
-    };
-    if let Some(halos) = halos {
-        let band = Rect::new(hit.x, row.y, hit.width, 1);
-        if let Some(role) = fill {
-            frame.buffer_mut().set_style(
-                band,
-                theme.content_on_surface(
-                    Role::SurfaceChrome,
-                    Some(role),
-                    None,
-                    theme.style(Role::SurfaceChrome),
-                ),
-            );
-        }
-        halos.fill(theme, band, fill);
-    }
-    let painted = render_action(
-        frame,
-        row,
-        ActionSpec::new(
-            label,
-            ActionKind::Secondary,
-            ControlSurface::Chrome,
-            base_state.with_pointer(pointer),
-        ),
-        theme,
-    );
-    if painted != Some(rect) {
+    if frame.area().intersection(track) != track || range.thumb(track).is_none() {
         return;
     }
-    let count = locale.workspace_sidebar_more(more);
-    let count_width = u16::try_from(display_width(&count)).unwrap_or(u16::MAX);
-    if let Some(x) = row.right().checked_sub(count_width)
-        && count_width > 0
-        && x >= rect.right().saturating_add(TRAILING_GAP)
-    {
-        // Only a touch-spaced footer's fill reaches the count.
-        let style = theme.content_on_surface(
-            Role::SurfaceChrome,
-            fill.filter(|_| touch),
-            Some(Role::TextSecondary),
-            theme.style(Role::TextSecondary),
-        );
-        frame.render_widget(
-            Paragraph::new(count).style(style),
-            Rect::new(x, row.y, count_width, 1),
-        );
-    }
+    let _ = super::scrollbar::paint(
+        frame,
+        track,
+        Role::SurfaceChrome,
+        Some(range),
+        owns_keyboard,
+        theme,
+    );
     if let Some(hits) = hits {
-        hits.record_interaction(layer, hit, hit, target, spec);
+        hits.record(
+            layer,
+            track,
+            crate::tui_hit_map::HitTarget::SidebarScrollbar {
+                track,
+                range,
+                window,
+            },
+        );
     }
 }
 #[cfg(test)]
