@@ -6,10 +6,10 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_ipc::LocalListener;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, Envelope, HelloAccepted, InventoryControl,
-    LifecycleControl, MessageRole, PayloadEncoding, TerminalSummary, decode_connection_control,
-    decode_inventory_control, decode_lifecycle_control, decode_transport_envelope,
-    encode_connection_control, encode_inventory_control, encode_lifecycle_control,
-    encode_transport_envelope,
+    LifecycleControl, MessageRole, PayloadEncoding, TerminalSummary, TypedFailure,
+    decode_connection_control, decode_inventory_control, decode_lifecycle_control,
+    decode_transport_envelope, encode_connection_control, encode_inventory_control,
+    encode_lifecycle_control, encode_transport_envelope,
 };
 use std::{
     cell::RefCell,
@@ -337,6 +337,96 @@ fn inventory_force_settle_dispose_and_local_retirement_are_ordered() {
             orchbee_capability_node_protocol::HostTerminalId::from_bytes([terminal; 16]).unwrap()
         ));
     }
+    driver.join().unwrap();
+}
+
+fn exited(terminal: u8) -> TerminalSummary {
+    TerminalSummary::Exited {
+        core: core(terminal),
+        geometry: orchbee_terminal_protocol::TerminalGeometry {
+            columns: 80,
+            rows: 24,
+        },
+        terminate_requested: true,
+        exit: orchbee_terminal_protocol::ExitResult::ExitCode(0),
+    }
+}
+
+fn refuse_dispose(peer: &mut LocalStream, terminal: u8, code: &str) {
+    let record = read_record(peer);
+    let envelope = decode_transport_envelope(&record).unwrap();
+    assert_eq!(
+        decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload).unwrap(),
+        LifecycleControl::DisposeTerminal(orchbee_terminal_protocol::TerminalTarget {
+            terminal_id: core(terminal).identity.terminal_id,
+        })
+    );
+    let refusal = encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
+        code: code.to_owned(),
+        message: "refused".to_owned(),
+        retryable: true,
+        reason: None,
+    }))
+    .unwrap();
+    reply(peer, &record, refusal.kind, &refusal.payload);
+}
+
+/// The Host refuses a settled terminal's disposal until its next event poll publishes the
+/// outcome; the same disposal is asked again and the stop completes in one attempt.
+#[test]
+fn unpublished_outcome_refusal_retries_the_same_disposal() {
+    let (host, mut peer) = connected_host();
+    let (server, _server_peer) = LocalStream::pair().unwrap();
+    let driver = thread::spawn(move || {
+        inventory(&mut peer, Some(exited(5)));
+        refuse_dispose(&mut peer, 5, "outcome-publication-pending");
+        lifecycle(&mut peer, 5, true);
+        inventory(&mut peer, None);
+    });
+    let mut disposed = 0;
+    assert!(
+        host::drain(
+            &host,
+            &server,
+            request().operation_id,
+            Instant::now() + Duration::from_secs(4),
+            &mut disposed
+        )
+        .is_ok()
+    );
+    assert_eq!(disposed, 1);
+    assert!(host.disposed_terminal(
+        orchbee_capability_node_protocol::HostTerminalId::from_bytes([5; 16]).unwrap()
+    ));
+    driver.join().unwrap();
+}
+
+/// Any other refusal, retryable or not, still ends the attempt as a Host refusal.
+#[test]
+fn other_disposal_refusal_ends_the_attempt() {
+    let (host, mut peer) = connected_host();
+    let (server, _server_peer) = LocalStream::pair().unwrap();
+    let driver = thread::spawn(move || {
+        inventory(&mut peer, Some(exited(5)));
+        refuse_dispose(&mut peer, 5, "cleanup-contain-process");
+    });
+    let mut disposed = 0;
+    let failure = host::drain(
+        &host,
+        &server,
+        request().operation_id,
+        Instant::now() + Duration::from_secs(4),
+        &mut disposed,
+    )
+    .err()
+    .unwrap();
+    assert_eq!(failure.stage, ShutdownStage::Dispose);
+    assert_eq!(failure.failure, ShutdownFailure::HostRefused);
+    assert!(!failure.retire);
+    assert_eq!(disposed, 0);
+    assert!(!host.disposed_terminal(
+        orchbee_capability_node_protocol::HostTerminalId::from_bytes([5; 16]).unwrap()
+    ));
     driver.join().unwrap();
 }
 

@@ -127,7 +127,11 @@ requests refuse before effects. Shutdown first stops every [background job owner
 existing Host inventory, force and dispose contracts under one request deadline (at most 15 seconds).
 Each inventory request selects the first remaining terminal; force is sent once per selected active
 terminal in an attempt, and disposal requires a disposable observed phase and an exact acknowledgement.
-Prepared target cleanup retires local viewer/controller ownership only after that acknowledgement.
+The inventory read that observes a settled phase can leave its outcome unpublished until the Host's
+next event poll, so a disposal refused as `outcome-publication-pending` is asked again for the same
+terminal after a 10-millisecond pause until the request deadline; any other Host refusal ends the
+attempt. Prepared target cleanup retires local viewer/controller ownership only after that
+acknowledgement.
 An empty complete inventory permits broker disconnection, followed by a wait on the retained Host
 handle. Pipe disappearance alone cannot establish shutdown. The Server must separately confirm
 Worker exit before publishing restart authority.

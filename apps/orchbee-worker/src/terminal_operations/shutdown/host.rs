@@ -1,4 +1,5 @@
-//! Bounded Host disposal uses typed inventory facts and never retries an uncertain exchange.
+//! Bounded Host disposal uses typed inventory facts and never retries an uncertain exchange; it
+//! asks again only after the Host refused a disposal because an outcome is not yet published.
 use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure};
 use orchbee_capability_node_protocol::{
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, OperationId, ShutdownFailure,
@@ -8,11 +9,15 @@ use orchbee_local_ipc::LocalStream;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InventoryControl,
     LifecycleControl, ListTerminals, MessageRole, PayloadEncoding, TerminalIdentity,
-    TerminalSummary, TerminalTarget, decode_connection_control, decode_inventory_control,
-    decode_lifecycle_control, decode_transport_envelope, encode_inventory_control,
-    encode_lifecycle_control, encode_transport_envelope,
+    TerminalSummary, TerminalTarget, TypedFailure, decode_connection_control,
+    decode_inventory_control, decode_lifecycle_control, decode_transport_envelope,
+    encode_inventory_control, encode_lifecycle_control, encode_transport_envelope,
 };
 use std::time::Instant;
+
+/// The Host refuses to dispose a settled terminal until its next event poll publishes the outcome;
+/// the refusal is retryable and leaves the terminal unchanged.
+const OUTCOME_PUBLICATION_PENDING: &str = "outcome-publication-pending";
 
 pub(super) struct Failure {
     pub(super) stage: ShutdownStage,
@@ -36,7 +41,13 @@ struct Exchange<'a> {
 }
 
 impl Exchange<'_> {
-    fn send(&self, stage: ShutdownStage, kind: u16, payload: &[u8]) -> Result<Vec<u8>, Failure> {
+    /// One request and its exact reply; a Host refusal is returned as data for the caller to judge.
+    fn send(
+        &self,
+        stage: ShutdownStage,
+        kind: u16,
+        payload: &[u8],
+    ) -> Result<Result<Vec<u8>, TypedFailure>, Failure> {
         if Instant::now() >= self.deadline {
             return Err(failed(stage, ShutdownFailure::Deadline, false));
         }
@@ -79,12 +90,12 @@ impl Exchange<'_> {
         {
             return Err(invalid());
         }
-        if let Ok(ConnectionControl::TypedFailure(_)) =
+        if let Ok(ConnectionControl::TypedFailure(refusal)) =
             decode_connection_control(envelope.kind, envelope.role, envelope.payload)
         {
-            return Err(failed(stage, ShutdownFailure::HostRefused, false));
+            return Ok(Err(refusal));
         }
-        Ok(response)
+        Ok(Ok(response))
     }
 
     fn first(&self) -> Result<Option<(TerminalIdentity, bool)>, Failure> {
@@ -94,7 +105,14 @@ impl Exchange<'_> {
             maximum_terminals: 1,
         }))
         .map_err(|_| invalid())?;
-        let record = self.send(ShutdownStage::Inventory, control.kind, &control.payload)?;
+        let Ok(record) = self.send(ShutdownStage::Inventory, control.kind, &control.payload)?
+        else {
+            return Err(failed(
+                ShutdownStage::Inventory,
+                ShutdownFailure::HostRefused,
+                false,
+            ));
+        };
         let envelope = decode_transport_envelope(&record).map_err(|_| invalid())?;
         let InventoryControl::TerminalList(mut page) =
             decode_inventory_control(envelope.kind, envelope.role, envelope.payload)
@@ -154,7 +172,19 @@ impl Exchange<'_> {
         } else {
             None
         };
-        let record = self.send(stage, control.kind, &control.payload)?;
+        let record = loop {
+            match self.send(stage, control.kind, &control.payload)? {
+                Ok(record) => break record,
+                // The inventory read settled this terminal; the Host's next event poll publishes
+                // its outcome, so the same disposal is asked again within the stop's deadline.
+                Err(refusal) if dispose && refusal.code == OUTCOME_PUBLICATION_PENDING => {
+                    if !super::pause_before(self.deadline) {
+                        return Err(failed(stage, ShutdownFailure::Deadline, false));
+                    }
+                }
+                Err(_) => return Err(failed(stage, ShutdownFailure::HostRefused, false)),
+            }
+        };
         let envelope = decode_transport_envelope(&record).map_err(|_| invalid())?;
         let control = decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload)
             .map_err(|_| invalid())?;
