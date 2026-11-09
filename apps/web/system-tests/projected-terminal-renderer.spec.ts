@@ -1053,7 +1053,7 @@ test('terminal-parity/LC-05-lan-capability', async () => {
 		await expect(root).toHaveAttribute('data-witness-initial-result', 'blocked:action-unavailable');
 		await expect(root).toHaveAttribute(
 			'data-witness-initial-feedback',
-			'This terminal action is unavailable.',
+			'clipboard-write-unavailable',
 		);
 		await expect(root).toHaveAttribute('data-witness-initial-selection-commands', '0');
 		await expect(root).toHaveAttribute('data-witness-initial-writes', '0');
@@ -1082,7 +1082,7 @@ test('terminal-parity/LC-05-lan-capability', async () => {
 		await expect(root).toHaveAttribute('data-witness-missing-result', 'blocked:action-unavailable');
 		await expect(root).toHaveAttribute(
 			'data-witness-missing-feedback',
-			'This terminal action is unavailable.',
+			'clipboard-write-unavailable',
 		);
 		await expect(root).toHaveAttribute('data-witness-missing-command-delta', '0');
 		await expect(root).toHaveAttribute('data-witness-missing-write-delta', '0');
@@ -1097,7 +1097,7 @@ test('terminal-parity/LC-05-lan-capability', async () => {
 		);
 		await expect(root).toHaveAttribute(
 			'data-witness-insecure-feedback',
-			'This terminal action is unavailable.',
+			'clipboard-write-unavailable',
 		);
 		await expect(root).toHaveAttribute('data-witness-insecure-command-delta', '0');
 		await expect(root).toHaveAttribute('data-witness-insecure-write-delta', '0');

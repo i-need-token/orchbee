@@ -17,6 +17,7 @@ import {
 	type ProjectedTerminalActionCatalog,
 } from './projected-terminal-action-ids';
 import { createProjectedTerminalClipboardActionCoordinator } from './createProjectedTerminalClipboardActionCoordinator';
+import type { ProjectedTerminalActionConditions } from './projected-terminal-action-conditions';
 import {
 	registerProjectedTerminalActions,
 	type ProjectedTerminalActionTarget,
@@ -51,6 +52,8 @@ export interface ProjectedTerminalActionResultEvent {
 }
 
 interface ProjectedTerminalActionCompositionOptions {
+	/** What the owning surface knows, so a disabled action can say why. */
+	readonly conditions?: ProjectedTerminalActionConditions | undefined;
 	/** Present only where another Client can hold the terminal's input and size. */
 	readonly control?: ProjectedTerminalControlTarget | undefined;
 	readonly textViewerController?: TerminalTextViewerController | undefined;
@@ -67,6 +70,7 @@ export function createProjectedTerminalActionComposition(
 	options: ProjectedTerminalActionCompositionOptions,
 ): ProjectedTerminalActionComposition {
 	const {
+		conditions,
 		control,
 		textViewerController = new TerminalTextViewerController(),
 		platformEffects = {},
@@ -82,6 +86,7 @@ export function createProjectedTerminalActionComposition(
 	const registrations = [
 		...registerProjectedTerminalActions({
 			clipboardActionCoordinator,
+			...(conditions === undefined ? {} : { conditions }),
 			findController,
 			textViewerController,
 			platformEffects,

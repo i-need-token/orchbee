@@ -975,6 +975,14 @@ export async function startProjectedTerminalRenderer(
 									}
 								},
 							},
+				conditions: {
+					activeScreen: () => lastMetadata?.activeScreen ?? null,
+					inputBlocker: () => {
+						if (terminalOutcomeKind !== undefined) return terminalOutcomeKind;
+						if (!transportAvailable || statusKind === 'connection-failure') return 'disconnected';
+						return inputGranted ? null : 'view-only';
+					},
+				},
 				textViewerController: pendingTextViewerController,
 				platformEffects,
 				reportResult: reportActionResult,
@@ -1771,11 +1779,21 @@ type ProjectedTerminalActionResultPresentation = {
 	readonly role: 'alert' | 'status';
 };
 
+/** The runtime carries a disabled action's reason as `details`; terminal actions take theirs from this catalog. */
+function terminalActionReason(
+	details: unknown,
+): ProjectedTerminalActionResultPresentation['message'] | undefined {
+	if (typeof details !== 'object' || details === null || !('id' in details)) return undefined;
+	const { id } = details;
+	return Object.values(projectedTerminalMessages).find((message) => message.id === id);
+}
+
 function projectedTerminalActionResultPresentation(
 	event: ProjectedTerminalActionResultEvent,
 ): ProjectedTerminalActionResultPresentation | null {
 	if (event.result.kind === 'blocked' && event.result.code === 'action-unavailable') {
-		return { message: projectedTerminalMessages.actionUnavailable, role: 'alert' };
+		const reason = terminalActionReason(event.result.details);
+		return reason === undefined ? null : { message: reason, role: 'alert' };
 	}
 	if (
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.copySelection ||

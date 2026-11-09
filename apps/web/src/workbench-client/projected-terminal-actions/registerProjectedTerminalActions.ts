@@ -1,6 +1,7 @@
 import {
 	defineAction,
 	noActionInput,
+	type ActionAvailability,
 	type ActionDisposable,
 	type ActionExecutionContext,
 	type ActionScope,
@@ -32,6 +33,13 @@ import {
 } from './createProjectedTerminalClipboardActionCoordinator';
 import { createProjectedTerminalPromptNavigationCoordinator } from './createProjectedTerminalPromptNavigationCoordinator';
 import { createProjectedTerminalTextViewerPreparationCoordinator } from './createProjectedTerminalTextViewerPreparationCoordinator';
+import {
+	terminalHistoryUnavailableReason,
+	terminalInputUnavailableReason,
+	terminalNotDrawnReason,
+	UNKNOWN_PROJECTED_TERMINAL_ACTION_CONDITIONS,
+	type ProjectedTerminalActionConditions,
+} from './projected-terminal-action-conditions';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	type ProjectedTerminalActionCatalog,
@@ -71,6 +79,8 @@ export interface ProjectedTerminalActionTarget {
 
 export interface RegisterProjectedTerminalActionsOptions {
 	readonly clipboardActionCoordinator?: ProjectedTerminalClipboardActionCoordinator;
+	/** Lets a disabled action name the surface state that stops it. */
+	readonly conditions?: ProjectedTerminalActionConditions;
 	readonly findController: TerminalFindController;
 	readonly textViewerController?: TerminalTextViewerController;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects;
@@ -81,6 +91,7 @@ export interface RegisterProjectedTerminalActionsOptions {
 
 export function registerProjectedTerminalActions({
 	clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator(),
+	conditions = UNKNOWN_PROJECTED_TERMINAL_ACTION_CONDITIONS,
 	findController,
 	textViewerController = new TerminalTextViewerController(),
 	platformEffects = {},
@@ -97,25 +108,48 @@ export function registerProjectedTerminalActions({
 		concurrencyKey: () => 'terminal-search-navigation',
 		mode: 'foreground' as const,
 	};
-	const searchAvailable = () =>
-		findController.getSnapshot().isOpen && findController.getSnapshot().query.length > 0
-			? ({ kind: 'enabled' } as const)
-			: ({
-					kind: 'disabled',
-					reason: projectedTerminalMessages.actionUnavailable,
-				} as const);
+	const searchAvailable = (): ActionAvailability => {
+		const find = findController.getSnapshot();
+		if (!find.isOpen) {
+			return { kind: 'disabled', reason: projectedTerminalMessages.unavailableFindClosed };
+		}
+		return find.query.length > 0
+			? { kind: 'enabled' }
+			: { kind: 'disabled', reason: projectedTerminalMessages.unavailableFindEmpty };
+	};
 	const promptNavigationExecution = {
 		concurrency: 'replace-latest' as const,
 		concurrencyKey: () => 'terminal-prompt-navigation',
 		mode: 'foreground' as const,
 	};
-	const promptNavigationAvailable = () =>
-		terminal.canNavigatePrompts
-			? ({ kind: 'enabled' } as const)
-			: ({
-					kind: 'disabled',
-					reason: projectedTerminalMessages.actionUnavailable,
-				} as const);
+	const historyAvailability = (available: boolean): ActionAvailability =>
+		available
+			? { kind: 'enabled' }
+			: { kind: 'disabled', reason: terminalHistoryUnavailableReason(conditions) };
+	const inputAvailability = (): ActionAvailability =>
+		terminal.canControlTerminal
+			? { kind: 'enabled' }
+			: { kind: 'disabled', reason: terminalInputUnavailableReason(conditions) };
+	const clipboardWriteAvailability = (): ActionAvailability =>
+		clipboardWriteIsAvailable(platformEffects)
+			? { kind: 'enabled' }
+			: { kind: 'disabled', reason: projectedTerminalMessages.unavailableClipboardWrite };
+	const viewerCopyAvailability = (source: 'command-output' | 'scrollback'): ActionAvailability => {
+		const document = textViewerController.getSnapshot().document;
+		if (document?.kind !== 'text' || document.source !== source) {
+			return {
+				kind: 'disabled',
+				reason:
+					source === 'command-output'
+						? projectedTerminalMessages.unavailableOutputHidden
+						: projectedTerminalMessages.unavailableScrollbackHidden,
+			};
+		}
+		return platformEffects.writeClipboardText === undefined
+			? { kind: 'disabled', reason: projectedTerminalMessages.unavailableClipboardWrite }
+			: clipboardWriteAvailability();
+	};
+	const promptNavigationAvailable = () => historyAvailability(terminal.canNavigatePrompts);
 	const promptNavigationCoordinator = createProjectedTerminalPromptNavigationCoordinator();
 	const textViewerPreparationCoordinator =
 		createProjectedTerminalTextViewerPreparationCoordinator();
@@ -124,13 +158,7 @@ export function registerProjectedTerminalActions({
 		concurrencyKey: () => 'terminal-history-scroll',
 		mode: 'foreground' as const,
 	};
-	const historyScrollAvailable = () =>
-		terminal.canScrollHistory
-			? ({ kind: 'enabled' } as const)
-			: ({
-					kind: 'disabled',
-					reason: projectedTerminalMessages.actionUnavailable,
-				} as const);
+	const historyScrollAvailable = () => historyAvailability(terminal.canScrollHistory);
 	return [
 		promptNavigationCoordinator,
 		textViewerPreparationCoordinator,
@@ -143,10 +171,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-text-viewer',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.canShowCommandOutput
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => historyAvailability(terminal.canShowCommandOutput),
 				handler: {
 					execute: async (context) => {
 						const prepared = await textViewerPreparationCoordinator.run(context.signal, (signal) =>
@@ -176,10 +201,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-text-viewer',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.canShowScrollback
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => historyAvailability(terminal.canShowScrollback),
 				handler: {
 					execute: async (context) => {
 						const prepared = await textViewerPreparationCoordinator.run(context.signal, (signal) =>
@@ -209,13 +231,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-command-output-copy',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					textViewerController.getSnapshot().document?.kind === 'text' &&
-					textViewerController.getSnapshot().document?.source === 'command-output' &&
-					platformEffects.writeClipboardText !== undefined &&
-					clipboardWriteIsAvailable(platformEffects)
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => viewerCopyAvailability('command-output'),
 				handler: {
 					execute: async (context) => {
 						if (context.signal.aborted) return { kind: 'cancelled' };
@@ -260,13 +276,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-scrollback-copy',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					textViewerController.getSnapshot().document?.kind === 'text' &&
-					textViewerController.getSnapshot().document?.source === 'scrollback' &&
-					platformEffects.writeClipboardText !== undefined &&
-					clipboardWriteIsAvailable(platformEffects)
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => viewerCopyAvailability('scrollback'),
 				handler: {
 					execute: async (context) => {
 						if (context.signal.aborted) return { kind: 'cancelled' };
@@ -328,10 +338,15 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-hints',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.canShowHints
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => {
+					if (terminal.canShowHints) return { kind: 'enabled' };
+					return {
+						kind: 'disabled',
+						reason: terminal.canControlTerminal
+							? terminalNotDrawnReason(conditions)
+							: terminalInputUnavailableReason(conditions),
+					};
+				},
 				handler: {
 					execute: async (context) =>
 						completeTerminalHintChoice(
@@ -456,10 +471,12 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-clipboard-paste',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.canControlTerminal && platformEffects.readClipboardText !== undefined
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => {
+					if (!terminal.canControlTerminal) return inputAvailability();
+					return platformEffects.readClipboardText === undefined
+						? { kind: 'disabled', reason: projectedTerminalMessages.unavailableClipboardRead }
+						: { kind: 'enabled' };
+				},
 				handler: {
 					execute: (context) =>
 						clipboardActionCoordinator.runPaste(async () => {
@@ -518,10 +535,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-clear',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.canControlTerminal
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: inputAvailability,
 				handler: {
 					execute: (context) => commitBooleanResult(context, terminal.clear()),
 				},
@@ -539,10 +553,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-reset',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.canControlTerminal
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: inputAvailability,
 				handler: {
 					execute: (context) => {
 						terminal.reset();
@@ -592,10 +603,19 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-selection-copy',
 					mode: 'foreground',
 				},
-				getAvailability: () =>
-					terminal.selection.state === 'active' && clipboardWriteIsAvailable(platformEffects)
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				getAvailability: () => {
+					switch (terminal.selection.state) {
+						case 'none':
+							return { kind: 'disabled', reason: projectedTerminalMessages.unavailableNoSelection };
+						case 'evicted':
+							return {
+								kind: 'disabled',
+								reason: projectedTerminalMessages.unavailableSelectionEvicted,
+							};
+						case 'active':
+							return clipboardWriteAvailability();
+					}
+				},
 				handler: {
 					execute: async (context) => {
 						if (context.signal.aborted) return { kind: 'cancelled' };
@@ -647,9 +667,12 @@ export function registerProjectedTerminalActions({
 				},
 				getAvailability: (_context, input) => {
 					const request = terminalLinkOpenRequest(input);
-					return request !== null && terminalOpenTarget(request.target) !== null
-						? { kind: 'enabled' }
-						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable };
+					if (request === null) {
+						return { kind: 'disabled', reason: projectedTerminalMessages.unavailableLinkMissing };
+					}
+					return terminalOpenTarget(request.target) === null
+						? { kind: 'disabled', reason: projectedTerminalMessages.unavailableLinkScheme }
+						: { kind: 'enabled' };
 				},
 				handler: {
 					execute: async (context, input) => {
