@@ -39,6 +39,16 @@ pub(crate) enum PanelRequestKind {
     },
 }
 
+/// Why the focused Panel has nothing to trade places with on one side. The menu row shows it and
+/// the move admission refuses by it, so a row is never enabled for a move that does nothing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PanelMoveUnavailable {
+    FocusedPanelRequired,
+    /// The zoomed Tab draws one Panel, so a move would rearrange Panels nobody sees.
+    Zoomed,
+    NoNeighbor,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PanelIntent {
     Split {
@@ -482,6 +492,28 @@ impl WorkbenchClientState {
         }
     }
 
+    /// The Panel the focused Panel trades places with when it moves toward `direction`, found in
+    /// the unzoomed layout of the selected Tab.
+    pub(crate) fn panel_move_target(
+        &self,
+        direction: PanelDirection,
+    ) -> Result<&crate::workbench_projection::ClientPanel, PanelMoveUnavailable> {
+        let active = self
+            .active()
+            .ok_or(PanelMoveUnavailable::FocusedPanelRequired)?;
+        let tab = self
+            .cache
+            .tabs()
+            .get(active.index())
+            .ok_or(PanelMoveUnavailable::FocusedPanelRequired)?;
+        if self.layout_zoomed(tab) {
+            return Err(PanelMoveUnavailable::Zoomed);
+        }
+        tab.panel_focus_target(active.panel_index(), direction)
+            .and_then(|index| tab.panel(index))
+            .ok_or(PanelMoveUnavailable::NoNeighbor)
+    }
+
     pub(crate) fn plan_panel(
         &self,
         request_id: WorkbenchRequestId,
@@ -529,9 +561,7 @@ impl WorkbenchClientState {
             PanelRequestKind::Close => PanelIntent::Close,
             PanelRequestKind::CloseIfIdle => PanelIntent::CloseIfIdle,
             PanelRequestKind::Move { direction } => {
-                let target = tab
-                    .panel_focus_target(active.panel_index(), direction)
-                    .and_then(|index| tab.panel(index))?;
+                let target = self.panel_move_target(direction).ok()?;
                 PanelIntent::Move {
                     target_panel_id: target.panel_id().clone(),
                     direction: wire_direction(direction),

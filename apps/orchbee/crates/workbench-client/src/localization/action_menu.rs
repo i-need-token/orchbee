@@ -128,6 +128,9 @@ pub(crate) enum MenuUnavailable {
     EmptyWorkspaceRequired,
     WorkspaceRequired,
     FocusedPanelRequired,
+    /// No Panel lies on that side of the focused one.
+    NoPanel(PanelDirection),
+    PanelMaximized,
     ProjectWorkspaceRequired,
     OperationBusy,
     PointerReleased,
@@ -327,6 +330,32 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::FocusedPanelRequired, false) => "此操作需要焦点面板。",
             (Self::EnUs, MenuUnavailable::FocusedPanelRequired, true) => "Focus panel",
             (Self::ZhCn, MenuUnavailable::FocusedPanelRequired, true) => "需焦点面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Up), false) => "No Panel above",
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Up), false) => "上方没有面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Up), true) => "None above",
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Up), true) => "上方无面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Down), false) => "No Panel below",
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Down), false) => "下方没有面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Down), true) => "None below",
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Down), true) => "下方无面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Left), false) => {
+                "No Panel to the left"
+            }
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Left), false) => "左侧没有面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Left), true) => "None to left",
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Left), true) => "左侧无面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Right), false) => {
+                "No Panel to the right"
+            }
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Right), false) => "右侧没有面板",
+            (Self::EnUs, MenuUnavailable::NoPanel(PanelDirection::Right), true) => "None to right",
+            (Self::ZhCn, MenuUnavailable::NoPanel(PanelDirection::Right), true) => "右侧无面板",
+            (Self::EnUs, MenuUnavailable::PanelMaximized, false) => {
+                "Unavailable while a Panel is maximized"
+            }
+            (Self::ZhCn, MenuUnavailable::PanelMaximized, false) => "面板最大化时不可用",
+            (Self::EnUs, MenuUnavailable::PanelMaximized, true) => "Maximized",
+            (Self::ZhCn, MenuUnavailable::PanelMaximized, true) => "已最大化",
             (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, false) => {
                 "Select a Workspace in this Project first."
             }

@@ -60,8 +60,8 @@ pub(crate) use move_tab::{MoveDecision, MoveOperation, MoveResult, PendingMoveCo
 #[cfg(test)]
 pub(crate) use panel::PanelPrecommit;
 pub(crate) use panel::{
-    PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult,
-    PendingPanelCommit,
+    PanelCommit, PanelDecision, PanelIntent, PanelMoveUnavailable, PanelOperation,
+    PanelRequestKind, PanelResult, PendingPanelCommit,
 };
 pub(crate) use panel_close::PanelCloseConfirmationToken;
 pub(crate) use panel_close::{PanelCloseConfirmationView, PanelCloseState};

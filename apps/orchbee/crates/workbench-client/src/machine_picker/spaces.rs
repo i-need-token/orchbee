@@ -578,10 +578,17 @@ impl Picker {
             }
             None
         });
+        // A Project drag drops on the free rows below the list, which End of Projects names, so
+        // its list scrolls far enough to leave that row free.
+        let trailing = u16::from(matches!(
+            self.reorder_held,
+            Some(SidebarTarget::Project { .. })
+        ));
         self.spaces.window_with_gaps(
             heights,
             gaps,
             cells,
+            trailing,
             creation_current.or(current),
             insertion,
         )

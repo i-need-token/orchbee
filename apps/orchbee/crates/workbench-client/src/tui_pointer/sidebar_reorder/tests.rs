@@ -228,6 +228,7 @@ fn paint_in(view: &ClientView, lines: u16, cells: Option<u16>) -> FrameHitMap {
         revision: WorkbenchRevision::new(1),
     }));
     let mut y = 3;
+    let mut last_bottom = y;
     for (row, &height) in rows
         .iter()
         .zip(&heights)
@@ -236,6 +237,7 @@ fn paint_in(view: &ClientView, lines: u16, cells: Option<u16>) -> FrameHitMap {
     {
         let area = Rect::new(0, y, 30, height);
         y += height + 1;
+        last_bottom = area.bottom();
         if matches!(row, SidebarRow::Project { .. }) {
             hits.record_interaction(
                 HitLayer::Foreground,
@@ -265,13 +267,14 @@ fn paint_in(view: &ClientView, lines: u16, cells: Option<u16>) -> FrameHitMap {
         viewport: Rect::new(0, 0, 120, 30),
         layer: HitLayer::Foreground,
         body,
-        // Only a window that reaches the list's last row has free rows below it.
+        // As the sidebar paints it: only a window that reaches the list's last row has free rows,
+        // from that row down to the bottom of the list.
         footer: if window.end() >= window.total {
             Rect::new(
                 0,
-                y.min(body.bottom()),
+                last_bottom,
                 30,
-                body.bottom().saturating_sub(y).max(1),
+                body.bottom().saturating_sub(last_bottom),
             )
         } else {
             Rect::new(0, body.bottom(), 30, 0)
@@ -1118,6 +1121,72 @@ fn edge_autoscroll_is_bounded_and_does_not_submit_or_rearm_a_click() {
     ));
 }
 
+/// Six Project 1 rows, three Project 2 rows and Recents in a seven-line list that starts at its
+/// top.
+fn overflowing_fixture(cells: Option<u16>) -> (PointerState, ClientView, Port, FrameHitMap) {
+    let mut groups = vec![Some(1); 6];
+    groups.extend([Some(2), Some(2), Some(2), None]);
+    let (mut pointer, mut view, port, map) = fixture_grouped(1, &groups);
+    // The first Workspace is the displayed one, so the list starts at its top.
+    let SidebarTarget::Context { target, .. } = sidebar_target(&map, Item::Workspace(workspace(0)))
+    else {
+        panic!("a Workspace row targets its Context");
+    };
+    view.machines.current_context = Some(target);
+    let map = repaint_in(&mut pointer, &mut view, 1, cells);
+    let paint = map.sidebar_reorder.as_ref().unwrap();
+    assert_eq!(paint.window.top, 0);
+    assert!(
+        paint.window.end() < paint.window.total,
+        "the list overflows"
+    );
+    (pointer, view, port, map)
+}
+
+/// Drags `origin` onto the list's bottom row and holds it there through six intervals, each one
+/// pass of the event loop over a read: its opening tick, the read's held report, its closing tick,
+/// then the frame, and the one more frame a moved destination asks for. Returns the window each
+/// pass painted and the edge row.
+fn hold_on_the_bottom_edge(
+    pointer: &mut PointerState,
+    view: &mut ClientView,
+    port: &mut Port,
+    origin: Rect,
+    cells: Option<u16>,
+) -> (Vec<SidebarWindow>, Rect) {
+    let body = pointer
+        .map
+        .as_ref()
+        .and_then(|map| map.sidebar_reorder.as_ref())
+        .unwrap()
+        .body;
+    let edge = Rect {
+        y: body.bottom() - 1,
+        ..origin
+    };
+    send(pointer, view, port, MouseAction::Press, origin);
+    send(pointer, view, port, MouseAction::Motion, edge);
+    repaint_in(pointer, view, 1, cells);
+    let mut now = Instant::now();
+    let mut scrolled = Vec::new();
+    for _ in 0..6 {
+        now += Duration::from_millis(121);
+        pointer.tick(view, port, now, None);
+        send(pointer, view, port, MouseAction::Motion, edge);
+        pointer.tick(view, port, now, None);
+        assert!(
+            pointer.sidebar_reorder_captured(),
+            "the hold keeps the drag"
+        );
+        let mut map = repaint_in(pointer, view, 1, cells);
+        if pointer.take_projection_redraw() {
+            map = repaint_in(pointer, view, 1, cells);
+        }
+        scrolled.push(map.sidebar_reorder.unwrap().window);
+    }
+    (scrolled, edge)
+}
+
 /// A row held on the list's bottom row keeps the list scrolling, one step per interval, until the
 /// list ends, through the frames the shell paints between steps: each step drops the old rows
 /// before its frame, and the held report the terminal repeats in the same cell arrives meanwhile.
@@ -1125,67 +1194,11 @@ fn edge_autoscroll_is_bounded_and_does_not_submit_or_rearm_a_click() {
 #[test]
 fn a_row_held_on_the_edge_row_scrolls_the_list_to_its_end_and_drops_there() {
     let cells = Some(7);
-    let mut groups = vec![Some(1); 6];
-    groups.extend([Some(2), Some(2), Some(2), None]);
-    let (mut pointer, mut view, mut port, map) = fixture_grouped(1, &groups);
-    // The held Workspace is the displayed one, so the list starts at its top.
-    let SidebarTarget::Context { target, .. } = sidebar_target(&map, Item::Workspace(workspace(0)))
-    else {
-        panic!("a Workspace row targets its Context");
-    };
-    view.machines.current_context = Some(target);
-    let map = repaint_in(&mut pointer, &mut view, 1, cells);
-    let paint = map.sidebar_reorder.clone().unwrap();
-    assert_eq!(paint.window.top, 0);
-    assert!(
-        paint.window.end() < paint.window.total,
-        "the list overflows"
-    );
+    let (mut pointer, mut view, mut port, map) = overflowing_fixture(cells);
+    let total = map.sidebar_reorder.as_ref().unwrap().window.total;
     let origin = row(&map, Item::Workspace(workspace(0)));
-    let edge = Rect {
-        y: paint.body.bottom() - 1,
-        ..origin
-    };
-    send(
-        &mut pointer,
-        &mut view,
-        &mut port,
-        MouseAction::Press,
-        origin,
-    );
-    send(
-        &mut pointer,
-        &mut view,
-        &mut port,
-        MouseAction::Motion,
-        edge,
-    );
-    repaint_in(&mut pointer, &mut view, 1, cells);
-    let mut now = Instant::now();
-    let mut scrolled = Vec::new();
-    for _ in 0..6 {
-        now += Duration::from_millis(121);
-        // One pass of the event loop over a read: its opening tick, the read's held report, its
-        // closing tick, then the frame, and the one more frame a moved destination asks for.
-        pointer.tick(&mut view, &mut port, now, None);
-        send(
-            &mut pointer,
-            &mut view,
-            &mut port,
-            MouseAction::Motion,
-            edge,
-        );
-        pointer.tick(&mut view, &mut port, now, None);
-        assert!(
-            pointer.sidebar_reorder_captured(),
-            "the hold keeps the drag"
-        );
-        let mut map = repaint_in(&mut pointer, &mut view, 1, cells);
-        if pointer.take_projection_redraw() {
-            map = repaint_in(&mut pointer, &mut view, 1, cells);
-        }
-        scrolled.push(map.sidebar_reorder.unwrap().window);
-    }
+    let (scrolled, edge) =
+        hold_on_the_bottom_edge(&mut pointer, &mut view, &mut port, origin, cells);
     assert!(
         scrolled[0].top > 0
             && scrolled[1].top > scrolled[0].top
@@ -1195,7 +1208,7 @@ fn a_row_held_on_the_edge_row_scrolls_the_list_to_its_end_and_drops_there() {
     assert!(scrolled.windows(2).all(|pair| pair[0].top <= pair[1].top));
     assert_eq!(
         scrolled.last().map(|window| window.end()),
-        Some(paint.window.total),
+        Some(total),
         "the list scrolls to its end"
     );
     assert!(port.writes.is_empty());
@@ -1214,6 +1227,52 @@ fn a_row_held_on_the_edge_row_scrolls_the_list_to_its_end_and_drops_there() {
             before_workspace_id: None,
         }],
         "the list ends on its last Workspace, outside every Project, so the held one lands after it"
+    );
+}
+
+/// ORC-355: a Project held on the bottom row scrolls as far as the wheel does, until the free row
+/// End of Projects names comes under the pointer, although the list's last row fills the bottom
+/// line once it shows; the release there appends the Project.
+#[test]
+fn a_project_held_on_the_edge_row_scrolls_until_end_of_projects_and_appends_there() {
+    let cells = Some(7);
+    let (mut pointer, mut view, mut port, map) = overflowing_fixture(cells);
+    let origin = row(&map, Item::Project(project(1)));
+    let (scrolled, edge) =
+        hold_on_the_bottom_edge(&mut pointer, &mut view, &mut port, origin, cells);
+    let last = scrolled.last().unwrap();
+    assert_eq!(last.top, last.maximum, "the hold reaches the wheel's end");
+    let map = pointer.map.as_ref().unwrap();
+    assert!(
+        contains(
+            map.sidebar_reorder.as_ref().unwrap().footer,
+            edge.x + 3,
+            edge.y
+        ),
+        "End of Projects comes under the pointer: {scrolled:?}"
+    );
+    assert!(matches!(
+        pointer
+            .sidebar_reorder_preview()
+            .unwrap()
+            .resolve(map)
+            .unwrap()
+            .destination,
+        Some((crate::tui_hit_map::sidebar_reorder::Placement::End, _))
+    ));
+    send(
+        &mut pointer,
+        &mut view,
+        &mut port,
+        MouseAction::Release,
+        edge,
+    );
+    assert_eq!(
+        port.writes,
+        [NavigationConfiguration::MoveProject {
+            project_id: project(1),
+            before_project_id: None,
+        }]
     );
 }
 

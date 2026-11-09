@@ -285,11 +285,14 @@ fn fit_backwards_with_gaps(heights: &[u16], gaps: &[u16], end: usize, cells: u16
 }
 
 impl<S> Sidebar<S> {
+    /// The window over entries of `heights` in `cells` lines. Its end, `maximum`, keeps `trailing`
+    /// lines free below the last entry, so a scroll to that end shows a row placed under the list.
     pub(super) fn window_with_gaps(
         &self,
         heights: &[u16],
         gaps: &[u16],
         cells: u16,
+        trailing: u16,
         current: Option<usize>,
         insertion: Option<usize>,
     ) -> SidebarWindow {
@@ -299,7 +302,7 @@ impl<S> Sidebar<S> {
         let maximum = if cells == 0 {
             0
         } else {
-            fit_backwards_with_gaps(heights, gaps, total, cells)
+            fit_backwards_with_gaps(heights, gaps, total, cells.saturating_sub(trailing).max(1))
         };
         let mut top = self
             .top

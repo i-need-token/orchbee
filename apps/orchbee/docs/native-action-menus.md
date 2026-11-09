@@ -350,7 +350,10 @@ creation and Worktree actions; Session includes Detach. A row whose keyboard act
 meaning shows the current binding registry's shortcut and dispatches that same existing
 ClientAction. Pane and Tab actions require a focused pane and show the localized
 focused-panel-required reason when none is available; Close Tabs to the right… shows the
-no-matching-Tabs reason when nothing would close. Other global actions
+no-matching-Tabs reason when nothing would close. A Move panel row shows the GUI's reasons for the
+same state: no Panel on that side of the focused one, or a zoomed Tab, which the GUI calls
+maximized. The move admission refuses by that same rule, so an enabled row always moves a Panel,
+and a move key the row would not offer moves nothing and shows nothing. Other global actions
 follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar
 conditional Delete follows the authority admission above. Settings delegates to its existing editor;
 checkout deletion, policy editing and custom or plugin-defined menus are outside this surface.

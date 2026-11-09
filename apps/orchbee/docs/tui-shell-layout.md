@@ -309,7 +309,9 @@ reorder on other Project headers as complete groups, by the same one-line rule. 
 and rows that are no entry keep the shown destination, so a pointer resting where the move put the
 entry never makes it oscillate. During a Project drag, every free row below the list accepts a drop,
 and one sidebar action row names it, a blank row below the last group when there is room: End of
-Projects appends the Project. It shows hovered while the pointer is on the free rows. A Workspace
+Projects appends the Project. It shows hovered while the pointer is on the free rows. During a
+Project drag the list's end keeps that row free, even where the last row would fill the bottom line,
+so the wheel and a hold on the bottom row both reach it. A Workspace
 drag shows no such row: its free rows keep the shown destination, and a Workspace leaves its Project
 by landing on a Workspace row in Recents. Outside the list, and on a
 destination that changes nothing, the canonical order shows; an invalid destination keeps the shown

@@ -15,7 +15,7 @@ use crate::tui_presentation::GeometrySettlement;
 use crate::workbench_projection::{
     ClientContextLocation, MenuContextSource, project_native_context_tabs,
 };
-use crate::workbench_state::TabCloseResumePermit;
+use crate::workbench_state::{PanelMoveUnavailable, TabCloseResumePermit};
 use episode::{
     Discovery, Intent, Origin, ParentMenu, ProjectContext, ResumeHandoff, Stage, TabResolverSource,
     Target,
@@ -187,6 +187,18 @@ fn action_availability(
         && state.is_none_or(|state| state.focus_pane_ref().is_none())
     {
         return ActionAvailability::Disabled(MenuUnavailable::FocusedPanelRequired);
+    }
+    // The move admission refuses by the same rule, so an enabled row always has a Panel to trade
+    // places with.
+    if let (Some(state), Target::Global, MenuAction::MovePanel(direction)) =
+        (state, target, &action)
+        && let Err(reason) = state.panel_move_target(*direction)
+    {
+        return ActionAvailability::Disabled(match reason {
+            PanelMoveUnavailable::FocusedPanelRequired => MenuUnavailable::FocusedPanelRequired,
+            PanelMoveUnavailable::Zoomed => MenuUnavailable::PanelMaximized,
+            PanelMoveUnavailable::NoNeighbor => MenuUnavailable::NoPanel(*direction),
+        });
     }
     if matches!(
         action,

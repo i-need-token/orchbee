@@ -329,22 +329,6 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         ),
         (MenuAction::ClosePane, ClientAction::ClosePanel),
         (MenuAction::Zoom, ClientAction::ToggleZoom),
-        (
-            MenuAction::MovePanel(Direction::Up),
-            ClientAction::MovePanel(Direction::Up),
-        ),
-        (
-            MenuAction::MovePanel(Direction::Down),
-            ClientAction::MovePanel(Direction::Down),
-        ),
-        (
-            MenuAction::MovePanel(Direction::Left),
-            ClientAction::MovePanel(Direction::Left),
-        ),
-        (
-            MenuAction::MovePanel(Direction::Right),
-            ClientAction::MovePanel(Direction::Right),
-        ),
         (MenuAction::Copy, ClientAction::EnterCopyMode),
         (MenuAction::Resize, ClientAction::EnterResizeMode),
     ];
@@ -405,6 +389,82 @@ fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
     activate_row(&mut ui, token, row);
     assert_eq!(ui.take_action_menu_action(false), None);
     assert!(ui.action_menu_active());
+}
+
+#[test]
+fn move_panel_rows_follow_the_layout_and_offer_exactly_the_moves_a_key_admits() {
+    use crate::client_view::PanelDirection as Direction;
+    use crate::workbench_state::PanelIntent;
+    const DIRECTIONS: [Direction; 4] = [
+        Direction::Up,
+        Direction::Down,
+        Direction::Left,
+        Direction::Right,
+    ];
+    let reasons = |ui: &mut WorkbenchClientUi| {
+        assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+        let reasons = DIRECTIONS.map(|direction| {
+            ui.view().action_menu().unwrap().unavailable
+                [action_row(ui, MenuAction::MovePanel(direction))]
+        });
+        ui.cancel_action_menu();
+        reasons
+    };
+
+    // Two Panels side by side with the left one focused: only the right has a Panel to trade with.
+    let (mut ui, mailbox, _, _) = tests::publication_hint::ready_split_ui();
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert_eq!(
+        reasons(&mut ui),
+        [
+            Some(MenuUnavailable::NoPanel(Direction::Up)),
+            Some(MenuUnavailable::NoPanel(Direction::Down)),
+            Some(MenuUnavailable::NoPanel(Direction::Left)),
+            None,
+        ]
+    );
+    assert_eq!(
+        ui.apply_client_action(ClientAction::ToggleZoom),
+        ClientActionDisposition::LayoutChanged
+    );
+    assert_eq!(reasons(&mut ui), [Some(MenuUnavailable::PanelMaximized); 4]);
+    // A key no row offers moves nothing and says nothing.
+    for direction in DIRECTIONS {
+        let _ = ui.apply_client_action(ClientAction::MovePanel(direction));
+        assert!(mailbox.try_recv().unwrap().is_none(), "{direction:?}");
+        assert_eq!(ui.view().notice(), None);
+    }
+    assert_eq!(
+        ui.apply_client_action(ClientAction::ToggleZoom),
+        ClientActionDisposition::LayoutChanged
+    );
+    for direction in [Direction::Up, Direction::Down, Direction::Left] {
+        let _ = ui.apply_client_action(ClientAction::MovePanel(direction));
+        assert!(mailbox.try_recv().unwrap().is_none(), "{direction:?}");
+        assert_eq!(ui.view().notice(), None);
+    }
+
+    // The offered row dispatches the keyboard's action, which queues the move.
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let row = action_row(&ui, MenuAction::MovePanel(Direction::Right));
+    let token = arm(&mut ui);
+    activate_row(&mut ui, token, row);
+    let intent = ui.take_action_menu_action(false).unwrap().intent();
+    assert_eq!(intent, ClientAction::MovePanel(Direction::Right));
+    let _ = ui.apply_client_action(intent);
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the offered move is queued");
+    let QueuedCommand::Panel(marker) = lease.record() else {
+        panic!("one Panel move");
+    };
+    assert!(matches!(
+        marker.operation().intent(),
+        PanelIntent::Move { .. }
+    ));
 }
 
 #[test]
