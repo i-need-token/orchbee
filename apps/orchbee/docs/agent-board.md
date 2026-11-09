@@ -107,7 +107,10 @@ continues when the overlay closes, and settles only a matching completion. Expli
 wakes the workflow; Session teardown also wakes and joins the bounded task before releasing its
 origin. A disconnected accepted worker, a pending or unknown reservation, accepted or partially
 accepted input, and an unknown input frontier all remain recovery states across close and reopen.
-Only a result that proves zero input and a settled reservation becomes retryable.
+Only a result that proves zero input and a settled reservation becomes retryable. A start refused
+at a prompt the Host could not confirm, or by a Session or terminal too old to confirm one, typed
+nothing: the status says so with the next step and the draft stays retryable
+([prompt-gated input](windows-agent-start.md#prompt-gated-input)).
 
 | Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

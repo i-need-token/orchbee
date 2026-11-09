@@ -52,6 +52,21 @@
 						"lastObservedReservation",
 						"cause"
 					],
+					"if": {
+						"properties": {
+							"reason": {
+								"const": "prompt-unconfirmed"
+							}
+						}
+					},
+					"then": {
+						"required": ["promptState"]
+					},
+					"else": {
+						"not": {
+							"required": ["promptState"]
+						}
+					},
 					"additionalProperties": false,
 					"properties": {
 						"stage": {
@@ -75,6 +90,7 @@
 								"output-too-large",
 								"launch-protocol-invalid",
 								"terminal-not-idle",
+								"prompt-unconfirmed",
 								"runtime-unavailable",
 								"launch-exchange-failed",
 								"launch-refused",
@@ -128,6 +144,16 @@
 						},
 						"reservationState": {
 							"enum": ["none", "pending", "released", "completed", "unknown"]
+						},
+						"promptState": {
+							"enum": [
+								"full-screen",
+								"unmarked",
+								"not-at-prompt",
+								"input-pending",
+								"changed",
+								"settling"
+							]
 						},
 						"lastObservedReservation": {
 							"oneOf": [

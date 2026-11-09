@@ -655,6 +655,9 @@ fn start_status(text: ShellText, board: &AgentBoardView<'_>, theme: &Theme) -> (
         Some(AgentStartPhase::Cancelling) => (text.board.start_cancelling, Role::StatusPending),
         Some(AgentStartPhase::Started) => (text.board.start_started, Role::StatusSuccess),
         Some(AgentStartPhase::Failed) => (text.board.start_failed, Role::StatusError),
+        Some(AgentStartPhase::Refused(refusal)) => {
+            (text.board.start_refusal(refusal), Role::StatusError)
+        }
         Some(AgentStartPhase::Unknown) => (text.board.start_unknown, Role::StatusWarning),
         Some(AgentStartPhase::Cancelled) => (text.board.start_cancelled, Role::StatusWarning),
         None if orchbee_agent_observation_protocol::AgentName::parse(board.start_name())

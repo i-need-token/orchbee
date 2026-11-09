@@ -1,6 +1,7 @@
 //! Localized Agent board state and startup labels; does not reinterpret Agent state.
 
 use super::Locale;
+use crate::workbench_state::AgentStartRefusal;
 
 /// Text-only startup outcome; operation ownership and running/cancellation policy stay with startup.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -11,6 +12,7 @@ pub(crate) enum AgentStartStatus {
     Cancelling,
     Started,
     Failed,
+    Refused(AgentStartRefusal),
     Unknown,
     Cancelled,
 }
@@ -55,6 +57,12 @@ pub(crate) struct AgentBoardText {
     pub(crate) start_cancelling: &'static str,
     pub(crate) start_started: &'static str,
     pub(crate) start_failed: &'static str,
+    /// Nothing was typed because the shell's prompt could not be confirmed; each ends in what
+    /// to do before starting again.
+    pub(crate) start_not_at_prompt: &'static str,
+    pub(crate) start_unmarked: &'static str,
+    pub(crate) start_session_too_old: &'static str,
+    pub(crate) start_terminal_too_old: &'static str,
     pub(crate) start_unknown: &'static str,
     pub(crate) start_cancelled: &'static str,
     pub(crate) start_provider_hint: &'static str,
@@ -76,6 +84,17 @@ pub(crate) struct AgentBoardText {
     pub(crate) jump_ended: &'static str,
     pub(crate) jump_no_placement: &'static str,
     pub(crate) jump_expired: &'static str,
+}
+
+impl AgentBoardText {
+    pub(crate) const fn start_refusal(self, refusal: AgentStartRefusal) -> &'static str {
+        match refusal {
+            AgentStartRefusal::NotAtPrompt => self.start_not_at_prompt,
+            AgentStartRefusal::Unmarked => self.start_unmarked,
+            AgentStartRefusal::SessionTooOld => self.start_session_too_old,
+            AgentStartRefusal::TerminalTooOld => self.start_terminal_too_old,
+        }
+    }
 }
 
 const EN_US_BOARD: AgentBoardText = AgentBoardText {
@@ -108,6 +127,10 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_cancelling: "Cancelling startup…",
     start_started: "Agent started. Refreshing sessions…",
     start_failed: "Agent did not start. Check the current panel and try again.",
+    start_not_at_prompt: "Nothing was typed: the shell is not at an empty prompt. Finish the running command or clear the line, then try again.",
+    start_unmarked: "Nothing was typed: this terminal has not shown a marked prompt. Wait for its prompt, or use a PowerShell or cmd terminal Orchbee started.",
+    start_session_too_old: "Nothing was typed: this Session is too old to confirm the prompt. Update Orchbee and restart the Session.",
+    start_terminal_too_old: "Nothing was typed: this terminal was started by an older Orchbee. Open a new terminal.",
     start_unknown: "Startup is unconfirmed. Check the terminal before starting another Agent.",
     start_cancelled: "Startup canceled. The Agent process may still be running.",
     start_provider_hint: "more Agents",
@@ -160,6 +183,10 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_cancelling: "正在取消启动…",
     start_started: "智能体已启动，正在刷新会话…",
     start_failed: "智能体未启动，请检查当前面板后重试。",
+    start_not_at_prompt: "未输入任何内容：shell 不在空的提示符上。请先结束正在运行的命令或清空输入行，再重试。",
+    start_unmarked: "未输入任何内容：这个终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。",
+    start_session_too_old: "未输入任何内容：这个会话版本太旧，无法确认提示符。请更新 Orchbee 并重启会话。",
+    start_terminal_too_old: "未输入任何内容：这个终端由旧版 Orchbee 启动。请新开一个终端。",
     start_unknown: "尚未确认启动结果，请先查看终端，再决定是否重新启动。",
     start_cancelled: "已取消启动；智能体进程仍可能在运行。",
     start_provider_hint: "更多智能体",
@@ -365,6 +392,7 @@ impl Locale {
             Phase::Cancelling => text.start_cancelling,
             Phase::Started => text.start_started,
             Phase::Failed => text.start_failed,
+            Phase::Refused(refusal) => text.start_refusal(refusal),
             Phase::Unknown => text.start_unknown,
             Phase::Cancelled => text.start_cancelled,
         }

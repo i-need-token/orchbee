@@ -72,17 +72,42 @@ the single send exchange, but an in-progress Windows process-creation/Job-assign
 best-effort reservation release of at most one second can still delay teardown; cancellation is not
 instantaneous.
 
-The terminal must contain an observed idle cmd, PowerShell or pwsh process. Running commands,
-missing process details and additional processes other than known console infrastructure
-refuse startup. The runtime's exact PowerShell initialization is admitted only with `-NoExit`
-and the ordinary interactive switches. Arbitrary command bodies, appended arguments and
-noninteractive launches remain refused. This strict idle-shell rule is
-`idle_shell_only` in `orchbee-agent-observation-protocol`; the Server's
-[Agent session resume](../../orchbee-server/docs/agent-session-resume.md#delivery) applies the same
-rule, run prefix and records before it types a resume command into a restored shell. Provider
+The terminal's root must be a shell the Host itself launched with prompt marks: managed
+PowerShell or pwsh, or interactive cmd, as the `launchKind` of the Host's process sample records.
+Startup never reads the root's command line. Any other root, running commands, missing process
+details and additional processes other than known console infrastructure refuse startup with
+`terminal-not-idle`. Unmanaged PowerShell and cmd started with `/Q` or under `echo off` show no
+marked prompt, so they cannot start an Agent. A sample without a launch kind comes from a Host
+that predates the prompt gate and refuses as `terminal-too-old`. The rest of this strict
+idle-shell rule is `idle_shell_only` in `orchbee-agent-observation-protocol`; the Server's
+[Agent session resume](../../orchbee-server/docs/agent-session-resume.md#delivery) applies it, the
+run prefix and records before it types a resume command into a restored shell. Provider
 hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
 defines managed setup and each provider's identity/state limits. Recognizing an executable does not
 establish hook coverage or verify a provider's own interactive UI.
+
+### Prompt-gated input
+
+The start line is an idle-prompt send: the terminal's Host types it only while the root shell
+waits at a fresh, empty, marked prompt, and otherwise refuses with `prompt-unconfirmed`, having
+typed nothing. The workflow then releases the name, so starting again is safe. A prompt younger
+than the Host's 100 ms quiet period refuses as `settling`; the workflow waits that period on its
+own thread, which holds no shared channel and wakes on cancellation, and asks once more. A second
+`settling` is final. The Client sends the line only when the Session's handshake listed
+`prompt-gated-input`, checked before any sample or reservation, and never falls back to an ungated
+send; `orchbee terminal send` and `orchbee terminal run` stay ungated.
+
+| Refusal                                                           | Board (retry allowed)                                            | CLI document and exit code                                                 |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Preflight idle-shell refusal, or the Host's `busy` or `not-shell` | Nothing was typed: the shell is not at an empty prompt           | `rejected`, `reason: "terminal-not-idle"`, `3`                             |
+| The Host's `unmarked`                                             | Nothing was typed: no marked prompt yet                          | `rejected`, `reason: "prompt-unconfirmed"`, `promptState: "unmarked"`, `3` |
+| Any other Host prompt state, including a second `settling`        | Nothing was typed: the shell is not at an empty prompt           | `rejected`, `reason: "prompt-unconfirmed"`, `promptState`, `3`             |
+| The Session's handshake lacks `prompt-gated-input`                | Nothing was typed: this Session is too old                       | `incompatible`, cause `stage: "capability"`, `session-too-old`, `6`        |
+| The Host lacks the gate or reports no launch kind                 | Nothing was typed: this terminal was started by an older Orchbee | `incompatible`, cause `stage: "capability"`, `terminal-too-old`, `6`       |
+
+The board and stderr text say what to do next; the JSON carries only the reason. A capability
+refusal has `details.reason` `startup-failed` with the shared
+[capability failure](../../../docs/cli/output.md) as its `cause`.
 
 The fixed Windows launch names for canonical `cursor` and `qodercli` are `agent` and `qoder`, matching
 their current native installations. Historical names remain recognition aliases; startup does not
@@ -97,7 +122,8 @@ and [Qoder installation](https://docs.qoder.com/cli/installation).
 1. Validate and quote all arguments before admission. Resolve and pin the primary terminal,
    observe its shell identity, and reserve the name against its exact native binding.
 2. Recheck the physical terminal, Host epoch and shell PID/creation identity. Submit one
-   literal paste plus Enter; PowerShell adds Right before Enter to flush paste handling.
+   literal paste plus Enter as one [prompt-gated](#prompt-gated-input) line; PowerShell adds
+   Right before Enter to flush paste handling.
 3. Inspect the same reservation and terminal. The Server excludes unchanged preexisting
    observations and ambiguous candidates. The CLI also requires the expected running provider,
    which the [launch receipt](#launch-receipt) and the Server identity result can refute early.
@@ -118,20 +144,23 @@ If a read exhausts the total startup deadline, the result is timeout even when t
 transport reports a closed connection. Its cause and the accepted input receipt remain visible;
 an unconfirmed mutation still reports outcome unknown.
 
-A process sample is a preflight, not an atomic input lease. User input and independent sends
-may race. Canonical hooks, matching process identity and observation baselines provide bounded
-local evidence, not causal authentication of a provider or a newly launched session.
+A process sample is a preflight, not an atomic input lease. The Host's prompt gate decides when
+it types, against its own screen state and input queue, so user input and independent sends that
+leave the shell busy or its line nonempty refuse the start instead of racing it. Canonical hooks,
+matching process identity and observation baselines provide bounded local evidence, not causal
+authentication of a provider or a newly launched session.
 
 ## Launch receipt
 
 Reserve also returns a Server-minted run token: a nonzero, never-reused 32-digit lowercase
-hexadecimal value. When the shell runs the Worker's managed PowerShell initialization, Agent
+hexadecimal value. When the Host's launch kind is managed PowerShell, Agent
 start prefixes its one submitted line with `<#orchbee-run:<token>#> `. The verified reader
 wrapper strips that prefix, exports the token as `ORCHBEE_RUN_TOKEN` to that command only, and
 echoes it in the start and finish markers; the prompt removes the variable when the command
 returns. The prefixed line enters neither PSReadLine history (memory, saved file or Up-arrow
-recall) nor `Get-History`. Any other PowerShell reads the prefix as a comment and runs the
-command unchanged, and keeps the line in its own history. cmd receives no prefix; its console
+recall) nor `Get-History`. An interactive PowerShell whose own prompt shows the marks without the
+managed wrapper reads the prefix as a comment, runs the command unchanged and keeps the line in its
+own history. cmd receives no prefix; its console
 line history keeps the short provider command, because removing one entry would reset the user's
 whole doskey history.
 
@@ -152,7 +181,7 @@ foreground for that step and startup keeps polling within its budget.
 
 - One reservation has one run token; only its own Host Terminal echoing that token advances its
   receipt, and a receipt phase never moves back.
-- The prefix never adds input: one line is still submitted once and never replayed.
+- The prefix never adds input: one line is typed at most once and never replayed.
 - The token reaches only the command the managed wrapper ran.
 - The receipt can only end startup early and never completes it. The Server's published run is
   required for completion, so a settling Server delays completion until the run settles but never
@@ -208,7 +237,8 @@ session lifecycle: detaching a still-live session keeps its name until end/remov
 `crates/workbench-client/src/agent_runtime/startup/` owns the shared Snapshot/OBAP reads, exact binding resolution,
 process attach/read/detach and single prompt submission. These operations preserve the admitted
 Client, original absolute deadline and wake; process-read failures still reach one best-effort
-detach, and the Paste/optional Codex Right/Enter sequence is submitted once.
+detach, and the Paste/optional Codex Right/Enter line is typed at most once; it is submitted a
+second time only after a `settling` refusal that typed nothing.
 
 `src/cli/agent_start.rs` retains CLI selection and signal finalization;
 `src/cli/agent_start/report.rs` projects domain facts into the existing CLI failure, status and

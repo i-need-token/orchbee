@@ -77,7 +77,73 @@ impl super::CliText {
         {
             return message;
         }
-        let message = match (self.locale, field("reason")) {
+        let cause = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("cause"))
+            .filter(|cause| cause["stage"] == "capability")
+            .and_then(|cause| cause["reason"].as_str());
+        // A prompt refusal, including the Host's own busy refusal, and a missing capability
+        // typed nothing; the attempted-input suffix below would contradict that.
+        let nothing_typed = matches!(field("reason"), "prompt-unconfirmed" | "terminal-not-idle")
+            || cause.is_some();
+        let message = match (self.locale, cause, field("reason"), field("promptState")) {
+            (Locale::EnUs, Some("session-too-old"), ..) => {
+                "Nothing was typed: the Session is too old to confirm the prompt. Update Orchbee on the Session's machine and restart the Session."
+            }
+            (Locale::ZhCn, Some("session-too-old"), ..) => {
+                "未输入任何内容：会话版本太旧，无法确认提示符。请更新会话所在机器上的 Orchbee，并重启会话。"
+            }
+            (Locale::EnUs, Some("terminal-too-old"), ..) => {
+                "Nothing was typed: the target terminal was started by an older Orchbee. Open a new terminal."
+            }
+            (Locale::ZhCn, Some("terminal-too-old"), ..) => {
+                "未输入任何内容：目标终端由旧版 Orchbee 启动。请新开一个终端。"
+            }
+            (Locale::EnUs, _, "prompt-unconfirmed", "unmarked") => {
+                "Nothing was typed: the target terminal has not shown a marked prompt. Wait for the prompt, or use a PowerShell or cmd terminal started by Orchbee."
+            }
+            (Locale::ZhCn, _, "prompt-unconfirmed", "unmarked") => {
+                "未输入任何内容：目标终端还没有出现带标记的提示符。请等提示符出现，或改用 Orchbee 启动的 PowerShell 或 cmd 终端。"
+            }
+            (Locale::EnUs, _, "prompt-unconfirmed", _) => {
+                "Nothing was typed: the target shell is not waiting at an empty prompt. Finish the running program or clear the input line, then retry. If PROMPT was changed in that terminal, open a new one."
+            }
+            (Locale::ZhCn, _, "prompt-unconfirmed", _) => {
+                "未输入任何内容：目标 shell 没有停在空的提示符上。请先结束正在运行的程序或清空输入行，然后重试。如果在那个终端里改过 PROMPT，请新开一个终端。"
+            }
+            (locale, _, reason, _) => self.cli_agent_start_reason(locale, reason),
+        };
+        let reservation = match (self.locale, field("reservationState")) {
+            (Locale::EnUs, "pending" | "unknown") => {
+                " The name reservation may remain until it expires; if `orchbee agent names` lists it as pending, wait for it to expire before reusing the name."
+            }
+            (Locale::ZhCn, "pending" | "unknown") => {
+                " 名称预留可能保留至到期；若 `orchbee agent names` 将其列为待定，请等其到期后再复用该名称。"
+            }
+            (Locale::EnUs, "released") => " The name reservation was released.",
+            (Locale::ZhCn, "released") => " 名称预留已释放。",
+            (Locale::EnUs, "completed") => " The Agent name was already committed.",
+            (Locale::ZhCn, "completed") => " 智能体名称已经绑定。",
+            _ => "",
+        };
+        let submitted = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("submission"))
+            .is_some_and(|value| !value.is_null());
+        let delivery = match (self.locale, submitted && !nothing_typed) {
+            (Locale::EnUs, true) => {
+                " Input was attempted once; the Agent may still be running. No process was terminated."
+            }
+            (Locale::ZhCn, true) => " 启动输入已尝试提交一次，智能体可能仍在运行；没有终止进程。",
+            _ => "",
+        };
+        format!("{message}{reservation}{delivery}\n")
+    }
+
+    fn cli_agent_start_reason(self, locale: Locale, reason: &str) -> &'static str {
+        match (locale, reason) {
             (Locale::EnUs, "terminal-not-idle") => {
                 "The target must be an idle cmd, PowerShell or pwsh terminal with no other running command."
             }
@@ -136,33 +202,7 @@ impl super::CliText {
                 "Agent startup could not be confirmed. Inspect the command result and terminal."
             }
             (Locale::ZhCn, _) => "无法确认智能体启动成功，请检查命令结果和终端。",
-        };
-        let reservation = match (self.locale, field("reservationState")) {
-            (Locale::EnUs, "pending" | "unknown") => {
-                " The name reservation may remain until it expires; if `orchbee agent names` lists it as pending, wait for it to expire before reusing the name."
-            }
-            (Locale::ZhCn, "pending" | "unknown") => {
-                " 名称预留可能保留至到期；若 `orchbee agent names` 将其列为待定，请等其到期后再复用该名称。"
-            }
-            (Locale::EnUs, "released") => " The name reservation was released.",
-            (Locale::ZhCn, "released") => " 名称预留已释放。",
-            (Locale::EnUs, "completed") => " The Agent name was already committed.",
-            (Locale::ZhCn, "completed") => " 智能体名称已经绑定。",
-            _ => "",
-        };
-        let submitted = failure
-            .details
-            .as_ref()
-            .and_then(|details| details.get("submission"))
-            .is_some_and(|value| !value.is_null());
-        let delivery = match (self.locale, submitted) {
-            (Locale::EnUs, true) => {
-                " Input was attempted once; the Agent may still be running. No process was terminated."
-            }
-            (Locale::ZhCn, true) => " 启动输入已尝试提交一次，智能体可能仍在运行；没有终止进程。",
-            _ => "",
-        };
-        format!("{message}{reservation}{delivery}\n")
+        }
     }
 
     pub(super) fn cli_agent_start_provider_choices(self) -> &'static str {

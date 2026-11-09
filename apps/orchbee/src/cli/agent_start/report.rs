@@ -216,6 +216,7 @@ impl From<crate::agent_start::Report> for Report {
 pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
     use crate::agent_runtime::startup::{binding::PrimaryError, send::InputFailure};
     use crate::agent_start::{ExchangeFailure, Failure as DomainFailure, StartFailure};
+    use orchbee_client_server_protocol::SendPromptState;
     let start = match error {
         DomainFailure::Unsupported => {
             return Failure::new(FailureKind::ServiceUnavailable).details(
@@ -246,7 +247,21 @@ pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
         StartFailure::Deadline => (FailureKind::Timeout, "start-deadline"),
         StartFailure::Cancelled => (FailureKind::Cancelled, "cancelled"),
         StartFailure::CommandTooLong => (FailureKind::InvalidUsage, "command-too-long"),
-        StartFailure::TerminalNotIdle => (FailureKind::Rejected, "terminal-not-idle"),
+        // The Host's own busy and not-shell refusals name the condition the idle-shell preflight
+        // already reports.
+        StartFailure::TerminalNotIdle
+        | StartFailure::PromptUnconfirmed(SendPromptState::Busy | SendPromptState::NotShell) => {
+            (FailureKind::Rejected, "terminal-not-idle")
+        }
+        StartFailure::PromptUnconfirmed(state) => {
+            let mut failure = super::failure(FailureKind::Rejected, "prompt-unconfirmed");
+            if let Some(details) = failure.details.as_mut() {
+                details.insert(PROMPT_STATE.to_owned(), serde_json::json!(state));
+            }
+            return failure;
+        }
+        StartFailure::SessionTooOld => return capability_failure("session-too-old"),
+        StartFailure::TerminalTooOld => return capability_failure("terminal-too-old"),
         StartFailure::BindingChanged => (FailureKind::Rejected, "binding-changed"),
         StartFailure::RuntimeAmbiguous => (FailureKind::Rejected, "agent-runtime-ambiguous"),
         StartFailure::ProviderMismatch => (FailureKind::Rejected, "agent-provider-mismatch"),
@@ -290,10 +305,23 @@ pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
                 InputFailure::Unknown => FailureKind::OutcomeUnknown,
                 InputFailure::Unavailable => FailureKind::ServiceUnavailable,
                 InputFailure::Transport => FailureKind::TransportLoss,
-                InputFailure::Rejected => FailureKind::Rejected,
+                // The workflow reports these two as their own failures; both typed nothing.
+                InputFailure::Rejected
+                | InputFailure::PromptUnconfirmed(_)
+                | InputFailure::HostGateUnsupported => FailureKind::Rejected,
             },
             "input-not-accepted",
         ),
     };
     super::failure(kind, reason)
+}
+
+/// The detail naming the Host's unmet prompt rule; present exactly for `prompt-unconfirmed`.
+pub(super) const PROMPT_STATE: &str = "promptState";
+
+/// A peer lacks `prompt-gated-input`, so the line was never typed, and never sent ungated. The
+/// shared capability shape becomes the startup document's cause.
+fn capability_failure(reason: &str) -> Failure {
+    Failure::new(FailureKind::Incompatible)
+        .details(super::super::stage_reason_details("capability", reason))
 }

@@ -28,7 +28,10 @@ pub(super) fn read(
     let command =
         encode_process_info_control(&ProcessInfoControl::ReadProcessInfo(ReadProcessInfo {
             target: AttachmentTarget { attachment_id: id },
-            include_launch_kind: false,
+            // A Host that confirms prompts also records how it launched the root, and the
+            // Client's Agent start reads that record instead of the root's command line. A Host
+            // without the gate never sees the field.
+            include_launch_kind: host.prompt_gated_input(),
         }))?;
     let record = encode_transport_envelope(&Envelope {
         correlation_id: Some(correlation),

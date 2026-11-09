@@ -109,6 +109,8 @@ fn input(stream: &mut LocalStream, outcome: TerminalSendOutcome) {
     let ClientMessage::TerminalSend(request) = read_client_message(stream).unwrap() else {
         panic!("one terminal send");
     };
+    // The start line is typed only at a prompt the Host confirms; it is never sent ungated.
+    assert_eq!(request.precondition(), SendPrecondition::IdlePrompt);
     let records = request.records().as_slice();
     assert_eq!(records.len(), 2);
     let SendRecord::Paste { content } = &records[0] else {
@@ -151,11 +153,25 @@ fn run_with_timeout(
     timeout: &str,
     script: impl FnOnce(LocalStream) + Send + 'static,
 ) -> (std::process::Output, Value) {
+    run_answering(
+        timeout,
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer,
+        script,
+    )
+}
+
+fn run_answering(
+    timeout: &str,
+    answer: fn(&mut LocalStream) -> std::io::Result<()>,
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> (std::process::Output, Value) {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
-    let peer = peer(
+    let peer = peer_answering(
         &fixture,
         LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+        std::time::Duration::from_secs(15),
+        answer,
         script,
     );
     let output = fixture.run(&[
@@ -246,6 +262,98 @@ fn startup_busy_terminal_and_name_conflict_never_type_input() {
         assert!(document["failure"]["details"]["submission"].is_null());
         assert_eq!(document["failure"]["details"]["reservationState"], "none");
     }
+}
+
+fn refused(reason: SendRejectedReason) -> TerminalSendOutcome {
+    TerminalSendOutcome::Rejected {
+        progress: SendProgress::none(),
+        cleanup: SendCleanupStatus::Confirmed,
+        reason,
+    }
+}
+
+/// Every prompt refusal types nothing and releases the name, so retrying is safe. A `settling`
+/// prompt is asked exactly once more; a peer without the gate is incompatible, never sent
+/// ungated.
+#[test]
+fn startup_types_nothing_where_the_prompt_or_a_peer_cannot_confirm_it() {
+    for (first, second, code, reason, state) in [
+        (
+            SendPromptState::Settling,
+            Some(SendPromptState::Settling),
+            3,
+            "prompt-unconfirmed",
+            Some("settling"),
+        ),
+        (
+            SendPromptState::Unmarked,
+            None,
+            3,
+            "prompt-unconfirmed",
+            Some("unmarked"),
+        ),
+        (SendPromptState::Busy, None, 3, "terminal-not-idle", None),
+    ] {
+        let (output, document) = run(move |mut stream| {
+            bound_snapshot_reply(&mut stream);
+            shell(&mut stream);
+            let reservation = reserve(&mut stream);
+            shell(&mut stream);
+            input(
+                &mut stream,
+                refused(SendRejectedReason::PromptUnconfirmed(first)),
+            );
+            if let Some(second) = second {
+                input(
+                    &mut stream,
+                    refused(SendRejectedReason::PromptUnconfirmed(second)),
+                );
+            }
+            release(&mut stream, &reservation);
+            assert_closed(&mut stream);
+        });
+        assert_eq!(output.status.code(), Some(code));
+        let details = &document["failure"]["details"];
+        assert_eq!(details["reason"], reason);
+        assert_eq!(details.get("promptState").and_then(Value::as_str), state);
+        assert_eq!(details["reservationState"], "released");
+        assert_eq!(details["submission"]["result"]["inputStatus"], "rejected");
+    }
+
+    let (output, document) = run(|mut stream| {
+        bound_snapshot_reply(&mut stream);
+        shell(&mut stream);
+        let reservation = reserve(&mut stream);
+        shell(&mut stream);
+        input(
+            &mut stream,
+            refused(SendRejectedReason::HostPromptGateUnsupported),
+        );
+        release(&mut stream, &reservation);
+        assert_closed(&mut stream);
+    });
+    assert_eq!(output.status.code(), Some(6));
+    let details = &document["failure"]["details"];
+    assert_eq!(document["failure"]["kind"], "incompatible");
+    assert_eq!(details["cause"]["stage"], "capability");
+    assert_eq!(details["cause"]["reason"], "terminal-too-old");
+    assert_eq!(details["reservationState"], "released");
+
+    let (output, document) = run_answering(
+        "30000",
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer_without_capabilities,
+        |mut stream| {
+            bound_snapshot_reply(&mut stream);
+            assert_closed(&mut stream);
+        },
+    );
+    assert_eq!(output.status.code(), Some(6));
+    let details = &document["failure"]["details"];
+    assert_eq!(document["failure"]["kind"], "incompatible");
+    assert_eq!(details["cause"]["stage"], "capability");
+    assert_eq!(details["cause"]["reason"], "session-too-old");
+    assert_eq!(details["reservationState"], "none");
+    assert!(details["submission"].is_null());
 }
 
 #[test]

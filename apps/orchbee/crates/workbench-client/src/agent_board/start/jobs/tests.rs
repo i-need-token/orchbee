@@ -142,16 +142,40 @@ fn completion_requires_the_exact_generation_and_panel() {
 
 #[test]
 fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
-    assert_eq!(
-        report_phase(&report(
-            Failure::Start(StartFailure::TerminalNotIdle),
-            ReservationState::None,
-            DeliveryDisposition::NotApplied,
-            None,
-        )),
-        Phase::Failed,
-        "preflight and rejected reservations have no effect to recover"
-    );
+    // Every refusal that typed nothing is retryable once its reservation is settled.
+    for failure in [
+        StartFailure::TerminalNotIdle,
+        StartFailure::PromptUnconfirmed(SendPromptState::Busy),
+        StartFailure::PromptUnconfirmed(SendPromptState::Unmarked),
+        StartFailure::PromptUnconfirmed(SendPromptState::Settling),
+        StartFailure::SessionTooOld,
+        StartFailure::TerminalTooOld,
+    ] {
+        for (reservation, status) in [
+            (ReservationState::None, None),
+            (ReservationState::Released, Some(3)),
+        ] {
+            assert!(
+                report_phase(&report(
+                    Failure::Start(failure),
+                    reservation,
+                    DeliveryDisposition::NotApplied,
+                    status,
+                ))
+                .retryable(),
+                "{failure:?} typed nothing"
+            );
+        }
+        assert_eq!(
+            report_phase(&report(
+                Failure::Start(failure),
+                ReservationState::Unknown,
+                DeliveryDisposition::NotApplied,
+                None,
+            )),
+            Phase::Unknown
+        );
+    }
     assert_eq!(
         report_phase(&report(
             Failure::Start(StartFailure::Cancelled),
@@ -205,15 +229,6 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
             Some(4),
         )),
         Phase::Cancelled
-    );
-    assert_eq!(
-        report_phase(&report(
-            Failure::Start(StartFailure::TerminalNotIdle),
-            ReservationState::Released,
-            DeliveryDisposition::NotApplied,
-            Some(3),
-        )),
-        Phase::Failed
     );
     assert_eq!(
         report_phase(&report(

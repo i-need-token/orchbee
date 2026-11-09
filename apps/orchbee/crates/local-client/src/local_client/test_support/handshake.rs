@@ -28,12 +28,25 @@ pub fn read_offer(stream: &mut impl Read) -> io::Result<Offer> {
     }
 }
 
-/// Answers the candidate's offer at its highest generation; the Client phase follows.
+/// Answers the candidate's offer at its highest generation with every capability it offered, as a
+/// current Server does; the Client phase follows.
 pub fn answer_offer(stream: &mut (impl Read + Write)) -> io::Result<()> {
+    answer(stream, |offer| offer.capabilities.clone())
+}
+
+/// Answers the candidate's offer listing no capability, as a Session that predates them does.
+pub fn answer_offer_without_capabilities(stream: &mut (impl Read + Write)) -> io::Result<()> {
+    answer(stream, |_| CapabilitySet::default())
+}
+
+fn answer(
+    stream: &mut (impl Read + Write),
+    capabilities: impl FnOnce(&Offer) -> CapabilitySet,
+) -> io::Result<()> {
     let offer = read_offer(stream)?;
     let answer = AcceptorMessage::Answer(Answer {
         generation: offer.generations.highest(),
-        capabilities: CapabilitySet::default(),
+        capabilities: capabilities(&offer),
         product_version: offer.product_version,
         build: Build::default(),
         extensions: Extensions::new(),

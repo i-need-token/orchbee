@@ -260,6 +260,11 @@ fn project(
     else {
         unreachable!("started result returned above")
     };
+    let prompt_state = failure
+        .details
+        .as_ref()
+        .and_then(|details| details.get(report::PROMPT_STATE))
+        .cloned();
     failure.details = Some(serde_json::Map::from_iter([
         ("stage".into(), json!("agent-start")),
         ("reason".into(), json!(reason)),
@@ -278,6 +283,9 @@ fn project(
         ("elapsedMs".into(), json!(report.elapsed_ms)),
         ("cause".into(), json!(cause)),
     ]));
+    if let (Some(details), Some(state)) = (failure.details.as_mut(), prompt_state) {
+        details.insert(report::PROMPT_STATE.into(), state);
+    }
     failure.source = None;
 
     failure.failure_schema = Some(FAILURE_SCHEMA);

@@ -175,7 +175,12 @@ fn expiration_after_blocking_restoration_closes_the_candidate() -> TestResult {
         wake: None,
     };
     assert!(matches!(
-        finish_admission(stream, generation, deadline),
+        finish_admission(
+            stream,
+            generation,
+            orchbee_connection_handshake::CapabilitySet::default(),
+            deadline
+        ),
         Err(ConnectClientError::Io(error)) if error.kind() == io::ErrorKind::TimedOut
     ));
     assert_eq!(peer.read(&mut [0])?, 0);

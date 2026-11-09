@@ -99,6 +99,12 @@ impl ClientTransport {
             Self::Lane(lane) => lane.connection.generation(),
         }
     }
+    fn serves(&self, capability: &str) -> bool {
+        match self {
+            Self::Direct(connection) => connection.capabilities().contains(capability),
+            Self::Lane(lane) => lane.connection.serves(capability),
+        }
+    }
     fn reply_generation(&self) -> Option<std::num::NonZeroU64> {
         match self {
             Self::Direct(connection) => Some(connection.generation()),
@@ -378,6 +384,16 @@ impl LocalClient {
     #[must_use]
     pub fn generation(&self) -> Option<std::num::NonZeroU64> {
         self.connection.as_ref().map(ClientTransport::generation)
+    }
+
+    /// Whether the Session's handshake answer on the current connection listed `capability`. A
+    /// request that needs a capability the Session did not list must be refused, never sent in a
+    /// weaker form; without a connection the answer is no.
+    #[must_use]
+    pub fn server_serves(&self, capability: &str) -> bool {
+        self.connection
+            .as_ref()
+            .is_some_and(|connection| connection.serves(capability))
     }
 
     pub fn submit_terminal_viewer_before(

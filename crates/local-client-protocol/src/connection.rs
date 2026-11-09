@@ -2,7 +2,7 @@
 //! control request. Each attempt owns its candidate stream until failure or transfer; callers
 //! retain the offer, deadline, endpoint, cancellation arbitration and service-lifecycle policy.
 
-use orchbee_connection_handshake::{CANDIDATE_DEADLINE, Offer, Rejection};
+use orchbee_connection_handshake::{CANDIDATE_DEADLINE, CapabilitySet, Offer, Rejection};
 use orchbee_local_ipc::LocalStream as UnixStream;
 #[cfg(windows)]
 use orchbee_local_ipc::{AsLocalIo, LocalIo};
@@ -106,6 +106,8 @@ mod admission_deadline;
 #[derive(Debug)]
 pub struct ClientConnection {
     generation: std::num::NonZeroU64,
+    /// The capabilities the Server's answer listed for this connection.
+    capabilities: CapabilitySet,
     stream: UnixStream,
 }
 
@@ -148,16 +150,27 @@ impl ClientConnection {
         require_same_effective_user(&stream)?;
         stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
         stream.set_write_timeout(Some(CANDIDATE_DEADLINE))?;
-        handshake::offer(&mut stream, offer)?;
+        let capabilities = handshake::offer(&mut stream, offer)?;
         let generation = handshake::enter_client_phase(&mut stream)?;
         stream.set_read_timeout(None)?;
         stream.set_write_timeout(None)?;
-        Ok(Self { generation, stream })
+        Ok(Self {
+            generation,
+            capabilities,
+            stream,
+        })
     }
 
     #[must_use]
     pub const fn generation(&self) -> std::num::NonZeroU64 {
         self.generation
+    }
+
+    /// The capabilities both this Client and the Server listed in the handshake. A request that
+    /// needs one the Server did not list is refused locally, never sent in a weaker form.
+    #[must_use]
+    pub const fn capabilities(&self) -> &CapabilitySet {
+        &self.capabilities
     }
 
     /// Releases the admitted stream for a caller that relays its bytes unchanged.

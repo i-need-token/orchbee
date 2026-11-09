@@ -1,8 +1,11 @@
 use super::*;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 
+/// Only the Host's launch record admits a shell; its command line is never read. Any other live
+/// program, an incomplete sample or a missing root refuses, and a sample without a launch record
+/// comes from a Host too old to confirm a prompt.
 #[test]
-fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
+fn idle_shell_admits_only_a_shell_the_host_launched_with_prompt_marks() {
     let process = |pid, image: &str, command: &str| TerminalProcess {
         pid,
         parent_pid: None,
@@ -16,9 +19,11 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
         attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
         terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 1,
-        processes: vec![process(1, "C:\\Windows\\cmd.exe", "cmd.exe /d")],
-        launch_kind: None,
+        processes: vec![process(1, "C:\\Windows\\cmd.exe", "cmd.exe /c task")],
+        launch_kind: Some(TerminalLaunchKind::Cmd),
     };
+    assert!(idle_shell(&sample).is_ok());
+    sample.launch_kind = Some(TerminalLaunchKind::ManagedPowershell);
     assert!(idle_shell(&sample).is_ok());
     sample
         .processes
@@ -29,76 +34,19 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
         .push(process(3, "node.exe", "node.exe server.js"));
     assert!(idle_shell(&sample).is_err());
     sample.processes.truncate(1);
-    sample.processes[0].command_line = Some("cmd.exe /c task".into());
-    assert!(idle_shell(&sample).is_err());
-    sample.processes[0] = process(1, "powershell.exe", "powershell.exe -NoLogo -NoProfile");
-    assert!(idle_shell(&sample).is_ok());
-    sample.processes[0].command_line = Some("cmd.exe".into());
-    assert!(idle_shell(&sample).is_err());
-    sample.processes[0].command_line = None;
-    assert!(idle_shell(&sample).is_err());
+    sample.launch_kind = Some(TerminalLaunchKind::Other);
+    assert!(matches!(
+        idle_shell(&sample),
+        Err(Failure::Start(StartFailure::TerminalNotIdle))
+    ));
+    sample.launch_kind = None;
+    assert!(matches!(
+        idle_shell(&sample),
+        Err(Failure::Start(StartFailure::TerminalTooOld))
+    ));
+    sample.launch_kind = Some(TerminalLaunchKind::Cmd);
     sample.processes.clear();
     assert!(idle_shell(&sample).is_err());
-}
-
-#[test]
-fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
-    for shell in ["powershell.exe", "pwsh.exe"] {
-        let prompt = orchbee_local_runtime::windows_interactive_powershell_initialization();
-        // The sampled command line must stay readable for a MAX_PATH executable.
-        let executable = format!("C:\\{}\\{shell}", "p".repeat(255 - shell.len()));
-        let mut sample = TerminalProcessInfo {
-            attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
-            terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
-            root_pid: 1,
-            processes: vec![TerminalProcess {
-                pid: 1,
-                parent_pid: None,
-                creation_time: 1,
-                console: orchbee_terminal_protocol::TerminalProcessConsole::Attached,
-                image: Some(executable.clone()),
-                command_line: Some(format!(
-                    "{} -NoLogo -NoProfile -NoExit -Command {}",
-                    quoted_windows_argument(&executable),
-                    quoted_windows_argument(&prompt)
-                )),
-                current_directory: None,
-            }],
-            launch_kind: None,
-        };
-        assert!(
-            sample.processes[0]
-                .command_line
-                .as_ref()
-                .unwrap()
-                .encode_utf16()
-                .count()
-                <= orchbee_terminal_protocol::MAXIMUM_PROCESS_TEXT_UTF16_UNITS
-        );
-        assert!(
-            idle_shell(&sample).is_ok(),
-            "runtime-created {shell} must admit startup"
-        );
-        for command in [
-            format!("{shell} -NoExit -Command task"),
-            format!("{shell} -Command {}", quoted_windows_argument(&prompt)),
-            format!(
-                "{shell} -NoExit -Command {}",
-                quoted_windows_argument(&format!("{prompt}; Start-Sleep 10"))
-            ),
-            format!(
-                "{shell} -NoExit -Command {} extra",
-                quoted_windows_argument(&prompt)
-            ),
-            format!(
-                "{shell} -ExecutionPolicy Bypass -NoExit -Command {}",
-                quoted_windows_argument(&prompt)
-            ),
-        ] {
-            sample.processes[0].command_line = Some(command.clone());
-            assert!(idle_shell(&sample).is_err(), "unsafe shell: {command}");
-        }
-    }
 }
 
 #[test]
@@ -144,29 +92,4 @@ fn typed_send_verdict_not_process_status_decides_delivery() {
     ] {
         assert_eq!(delivery_disposition(verdict), expected);
     }
-}
-
-// Model the real CreateProcess argv boundary, including quotes in the reader asset.
-fn quoted_windows_argument(value: &str) -> String {
-    let mut quoted = String::from("\"");
-    let mut slashes = 0;
-    for character in value.chars() {
-        if character == '\\' {
-            slashes += 1;
-        } else {
-            quoted.extend(std::iter::repeat_n(
-                '\\',
-                if character == '"' {
-                    slashes * 2 + 1
-                } else {
-                    slashes
-                },
-            ));
-            quoted.push(character);
-            slashes = 0;
-        }
-    }
-    quoted.extend(std::iter::repeat_n('\\', slashes * 2));
-    quoted.push('"');
-    quoted
 }

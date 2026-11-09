@@ -1989,6 +1989,7 @@ impl From<AgentStartPhase> for crate::localization::AgentStartStatus {
             AgentStartPhase::Cancelling => Self::Cancelling,
             AgentStartPhase::Started => Self::Started,
             AgentStartPhase::Failed => Self::Failed,
+            AgentStartPhase::Refused(refusal) => Self::Refused(refusal),
             AgentStartPhase::Unknown => Self::Unknown,
             AgentStartPhase::Cancelled => Self::Cancelled,
         }

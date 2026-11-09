@@ -310,6 +310,24 @@ pub(super) fn peer_with_budget(
     admission_budget: Duration,
     script: impl FnOnce(LocalStream) + Send + 'static,
 ) -> PeerGuard<'_> {
+    peer_answering(
+        fixture,
+        listener,
+        admission_budget,
+        orchbee_workbench_client::test_support::local_client::handshake::answer_offer,
+        script,
+    )
+}
+
+/// A peer whose handshake answer is `answer`'s, such as one from a Session that lists no
+/// capability.
+pub(super) fn peer_answering(
+    fixture: &Fixture,
+    listener: LocalListener,
+    admission_budget: Duration,
+    answer: fn(&mut LocalStream) -> std::io::Result<()>,
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> PeerGuard<'_> {
     listener.set_nonblocking(true).unwrap();
     let (launched, launch) = mpsc::channel();
     let state = Arc::new(PeerState::default());
@@ -362,8 +380,7 @@ pub(super) fn peer_with_budget(
         stream
             .set_write_timeout(Some(Duration::from_secs(10)))
             .unwrap();
-        orchbee_workbench_client::test_support::local_client::handshake::answer_offer(&mut stream)
-            .unwrap();
+        answer(&mut stream).unwrap();
         assert!(matches!(
             read_message(&mut stream).unwrap(),
             LocalClientMessage::ClientHello
@@ -935,6 +952,23 @@ pub(super) fn process(
     }
 }
 
+/// The launch record a prompt-gated Host reports for the sampled root (PID 10): it started an
+/// interactive cmd or PowerShell with prompt marks, or something else.
+fn launch_kind(
+    processes: &[orchbee_terminal_protocol::TerminalProcess],
+) -> orchbee_terminal_protocol::TerminalLaunchKind {
+    use orchbee_terminal_protocol::TerminalLaunchKind;
+    let root = processes
+        .iter()
+        .find(|process| process.pid == 10)
+        .and_then(|process| process.image.as_deref());
+    match root {
+        Some("cmd.exe") => TerminalLaunchKind::Cmd,
+        Some("powershell.exe" | "pwsh.exe") => TerminalLaunchKind::ManagedPowershell,
+        _ => TerminalLaunchKind::Other,
+    }
+}
+
 pub(super) fn process_reply(
     stream: &mut LocalStream,
     processes: Vec<orchbee_terminal_protocol::TerminalProcess>,
@@ -980,13 +1014,14 @@ pub(super) fn process_sample_for(
     let host_terminal = TerminalId::from_bytes([7; 16]).unwrap();
     let (kind, payload) = match sample {
         Ok(processes) => {
+            let launch_kind = launch_kind(&processes);
             let control = encode_process_info_control(&ProcessInfoControl::ProcessInfo(
                 TerminalProcessInfo {
                     attachment_id: attachment,
                     terminal_id: host_terminal,
                     root_pid: 10,
                     processes,
-                    launch_kind: None,
+                    launch_kind: Some(launch_kind),
                 },
             ))
             .unwrap();

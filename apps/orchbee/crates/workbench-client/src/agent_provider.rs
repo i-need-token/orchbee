@@ -28,7 +28,6 @@ pub const CANONICAL_IDS: &[&str] = &[
 ];
 
 use orchbee_agent_observation_protocol::AgentReportProvider;
-pub(crate) use orchbee_agent_observation_protocol::native_agent_basename as basename;
 pub use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
 
 /// Exact canonical provider ID; aliases, report labels, and process names stay absent.

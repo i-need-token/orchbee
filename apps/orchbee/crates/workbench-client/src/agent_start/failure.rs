@@ -8,6 +8,7 @@ use crate::local_client::{
     exchange_wake_fault, exchange_wake_ready,
 };
 use orchbee_agent_observation_protocol::{AgentLaunchRejectionReason, AgentWireError};
+use orchbee_client_server_protocol::SendPromptState;
 use std::{io, sync::Arc};
 
 /// Retain the failing operation's typed evidence without assigning a CLI status or document.
@@ -32,6 +33,14 @@ pub enum StartFailure {
     Cancelled,
     CommandTooLong,
     TerminalNotIdle,
+    /// The Host typed nothing: it could not confirm that the shell waits at a fresh, empty
+    /// prompt, and the state names the first rule it found unmet. Retrying is safe.
+    PromptUnconfirmed(SendPromptState),
+    /// The Session's handshake did not list `prompt-gated-input`; nothing was reserved or typed.
+    SessionTooOld,
+    /// The terminal's Host cannot confirm a prompt: its process sample carries no launch kind,
+    /// or it refused the gated line as unsupported. Nothing was typed.
+    TerminalTooOld,
     BindingChanged,
     RuntimeAmbiguous,
     ProviderMismatch,

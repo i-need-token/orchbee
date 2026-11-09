@@ -1,15 +1,16 @@
-//! One terminal input submission. Delivery truth is independent of later readiness or CLI status.
+//! One terminal input submission, typed only at a confirmed idle prompt. Delivery truth is
+//! independent of later readiness or CLI status.
 use super::binding::Binding;
 use crate::agent_runtime::SendVerdict;
 use crate::local_client::{LocalClient, SubmissionError};
 use orchbee_client_server_protocol::{
-    SendCleanupStatus, SendKey, SendKeyStroke, SendPasteContent, SendRecord, SendRecords,
-    SendStrokeKey, SendUnavailableReason, TerminalSendOutcome, TerminalSendRequest,
-    TerminalSendResult,
+    SendCleanupStatus, SendKey, SendKeyStroke, SendPasteContent, SendPromptState, SendRecord,
+    SendRecords, SendRejectedReason, SendStrokeKey, SendUnavailableReason, TerminalSendOutcome,
+    TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::WorkbenchRevision;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Separate preparation before any input submission from a submission's retained exchange evidence.
 #[derive(Debug)]
@@ -50,9 +51,25 @@ pub enum InputFailure {
     Unavailable,
     Transport,
     Unknown,
+    /// The Host typed nothing: it could not confirm that the shell waits at a fresh, empty
+    /// prompt, and the state names the first rule it found unmet.
+    PromptUnconfirmed(SendPromptState),
+    /// The terminal's Host lacks the prompt gate, so nothing was typed.
+    HostGateUnsupported,
 }
 
 impl Receipt {
+    /// The Host saw a prompt younger than its quiet period and typed nothing.
+    fn settling(&self) -> bool {
+        matches!(
+            self.result.outcome(),
+            TerminalSendOutcome::Rejected {
+                reason: SendRejectedReason::PromptUnconfirmed(SendPromptState::Settling),
+                progress,
+                ..
+            } if progress.records_accepted() == 0 && progress.accepted_encoded_bytes() == 0
+        )
+    }
     /// Derive delivery truth from the Server outcome, independently of any later workflow failure.
     pub(crate) fn verdict(&self) -> SendVerdict {
         verdict(self.result.outcome())
@@ -67,6 +84,14 @@ impl Receipt {
             } => None,
             TerminalSendOutcome::Accepted { .. } => Some(InputFailure::Transport),
             TerminalSendOutcome::OutcomeUnknown { .. } => Some(InputFailure::Unknown),
+            TerminalSendOutcome::Rejected {
+                reason: SendRejectedReason::PromptUnconfirmed(state),
+                ..
+            } => Some(InputFailure::PromptUnconfirmed(*state)),
+            TerminalSendOutcome::Rejected {
+                reason: SendRejectedReason::HostPromptGateUnsupported,
+                ..
+            } => Some(InputFailure::HostGateUnsupported),
             TerminalSendOutcome::Rejected { .. } => Some(InputFailure::Rejected),
             TerminalSendOutcome::Unavailable {
                 progress, reason, ..
@@ -103,8 +128,14 @@ pub fn prompt_records(text: &str, codex_boundary: bool) -> Result<SendRecords, E
     SendRecords::new(records).map_err(|_| Error::Preparation)
 }
 
-/// Submit the complete prompt record sequence once on the borrowed Client and original budget.
+/// Submit the prompt line on the borrowed Client and original budget, for the Host to type only
+/// while the shell waits at a confirmed fresh, empty prompt. Never sent ungated.
 /// Return delivery evidence even if a later startup observation or wait will fail.
+///
+/// The Host refuses a prompt younger than its quiet period as `settling`, a refusal that typed
+/// nothing. Only that refusal is asked once more, as a new request, after the quiet period has
+/// passed on this caller's thread; the wait holds no shared channel and ends early on the wake.
+/// A second `settling` is final. The returned receipt is the last exchange's.
 ///
 /// # Errors
 /// `Preparation` proves this operation did not submit. `Exchange` retains the exact context and
@@ -118,15 +149,52 @@ pub(crate) fn submit_prompt(
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<Receipt, Error> {
+    let receipt = submit_prompt_once(
+        client,
+        binding,
+        revision,
+        text,
+        codex_boundary,
+        deadline,
+        wake,
+    )?;
+    let quiet = Duration::from_millis(orchbee_terminal_protocol::PROMPT_LINE_QUIET_MILLISECONDS);
+    if !receipt.settling()
+        || Instant::now() + quiet >= deadline
+        || crate::agent_runtime::wait_backoff(wake, quiet)
+    {
+        return Ok(receipt);
+    }
+    submit_prompt_once(
+        client,
+        binding,
+        revision,
+        text,
+        codex_boundary,
+        deadline,
+        wake,
+    )
+}
+
+fn submit_prompt_once(
+    client: &mut LocalClient,
+    binding: &Binding,
+    revision: WorkbenchRevision,
+    text: &str,
+    codex_boundary: bool,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<Receipt, Error> {
     let records = prompt_records(text, codex_boundary)?;
     let count = records.len();
-    let request = TerminalSendRequest::new(
+    let request = TerminalSendRequest::idle_prompt(
         super::obcs_identity().map_err(|_| Error::Preparation)?,
         binding.session.clone(),
         binding.worker.clone(),
         binding.terminal.clone(),
         records,
-    );
+    )
+    .map_err(|_| Error::Preparation)?;
     let context = Context {
         binding: binding.clone(),
         revision,

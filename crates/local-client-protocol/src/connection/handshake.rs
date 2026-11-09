@@ -8,8 +8,8 @@ use std::{
 };
 
 use orchbee_connection_handshake::{
-    AcceptorMessage, InitiatorMessage, Offer, OfferFailure, ReadError, conclude_offer,
-    encode_initiator_frame, read_acceptor_message,
+    AcceptorMessage, CapabilitySet, InitiatorMessage, Offer, OfferFailure, ReadError,
+    conclude_offer, encode_initiator_frame, read_acceptor_message,
 };
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use orchbee_connection_handshake::{
@@ -20,15 +20,16 @@ use orchbee_connection_handshake::{
 use super::ConnectClientError;
 use crate::{LocalClientMessage, read_message, write_message};
 
-/// Sends `offer` and accepts only an answer inside it. A rejection keeps the Server's facts; a
-/// reply that is not `OBHS` comes from a Server that predates the handshake.
+/// Sends `offer` and accepts only an answer inside it, returning the capabilities both sides
+/// listed. A rejection keeps the Server's facts; a reply that is not `OBHS` comes from a Server
+/// that predates the handshake.
 pub(super) fn offer(
     transport: &mut (impl Read + Write),
     offer: &Offer,
-) -> Result<(), ConnectClientError> {
+) -> Result<CapabilitySet, ConnectClientError> {
     send(transport, &InitiatorMessage::Offer(offer.clone()))?;
     conclude_offer(offer, receive(transport)?)
-        .map(drop)
+        .map(|answer| answer.capabilities)
         .map_err(|failure| match failure {
             OfferFailure::Rejected(rejection) => ConnectClientError::Refused(Box::new(rejection)),
             OfferFailure::InvalidAnswer | OfferFailure::UnexpectedReply => {

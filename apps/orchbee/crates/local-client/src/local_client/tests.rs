@@ -128,6 +128,35 @@ fn accepts_one_session_and_submits_create_then_start_on_the_same_stream() -> Tes
     Ok(())
 }
 
+/// A request that needs a capability is gated on the Session's answer, never on the Client's own
+/// offer: a Session that predates the capability must read as lacking it.
+#[test]
+fn serves_only_the_capabilities_the_session_answered() -> TestResult {
+    for listed in [true, false] {
+        let server = FakeServer::start(move |mut stream| {
+            if listed {
+                handshake::answer_offer(&mut stream)?;
+            } else {
+                handshake::answer_offer_without_capabilities(&mut stream)?;
+            }
+            match orchbee_local_client_protocol::read_message(&mut stream)
+                .map_err(io::Error::other)?
+            {
+                LocalClientMessage::ClientHello => admit(&mut stream, 7),
+                other => Err(io::Error::other(format!("expected ClientHello: {other:?}"))),
+            }
+        })?;
+        let client = LocalClient::connect(server.endpoint())?;
+        assert_eq!(
+            client.server_serves(orchbee_connection_handshake::PROMPT_GATED_INPUT),
+            listed
+        );
+        drop(client);
+        server.finish()?;
+    }
+    Ok(())
+}
+
 #[test]
 fn preserves_a_correlated_server_reported_unknown_outcome() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;

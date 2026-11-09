@@ -1,5 +1,6 @@
 //! The sole TUI connection owner. Lanes submit complete records and never own a Server socket.
 use super::LocalClientOrigin;
+use orchbee_connection_handshake::CapabilitySet;
 use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -370,6 +371,8 @@ struct Shared {
     wake: LocalStream,
     stopped: AtomicBool,
     generation: AtomicU64,
+    /// The capabilities the current carrier's handshake answer listed; a reconnect replaces them.
+    capabilities: Mutex<CapabilitySet>,
     budget: Arc<AtomicUsize>,
     streams: Arc<AtomicUsize>,
     current_until: Mutex<Option<Instant>>,
@@ -542,6 +545,7 @@ impl Connection {
             wake,
             stopped: AtomicBool::new(false),
             generation: AtomicU64::new(connection.generation().get()),
+            capabilities: Mutex::new(connection.capabilities().clone()),
             // The control reservation is part of, not additional to, the public connection cap.
             budget: Arc::new(AtomicUsize::new(health::RESERVED_BYTES)),
             streams: Arc::new(AtomicUsize::new(health::RESERVED_STREAMS)),
@@ -577,6 +581,14 @@ impl Connection {
     pub(super) fn generation(&self) -> NonZeroU64 {
         NonZeroU64::new(self.shared.generation.load(Ordering::Acquire))
             .expect("admitted connection generation is nonzero")
+    }
+    /// Whether the current carrier's handshake answer listed `capability`.
+    pub(super) fn serves(&self, capability: &str) -> bool {
+        self.shared
+            .capabilities
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains(capability)
     }
     pub(super) fn is_current(&self, now: Instant) -> bool {
         !self.shared.stopped.load(Ordering::Acquire)
@@ -908,6 +920,12 @@ fn actor(
                     shared
                         .generation
                         .store(next.generation().get(), Ordering::Release);
+                    next.capabilities().clone_into(
+                        &mut shared
+                            .capabilities
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+                    );
                     connection = Some(next);
                     for lane in lanes.iter().filter(|lane| **lane != MultiplexLaneId::ROOT) {
                         queue_lane(&mut outgoing, *lane, true);

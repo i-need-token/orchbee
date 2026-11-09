@@ -57,6 +57,12 @@ impl Phase {
     pub(super) const fn running(self) -> bool {
         matches!(self, Self::Starting | Self::WaitingInput | Self::Cancelling)
     }
+
+    /// A settled result that proved no input and no held reservation, so the draft may start
+    /// again.
+    pub(super) const fn retryable(self) -> bool {
+        matches!(self, Self::Failed | Self::Refused(_) | Self::Cancelled)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -323,7 +329,7 @@ impl State {
     pub(super) fn draft_editable(&self) -> bool {
         self.operation
             .as_ref()
-            .is_none_or(|operation| matches!(operation.phase, Phase::Failed | Phase::Cancelled))
+            .is_none_or(|operation| operation.phase.retryable())
     }
 
     pub(super) fn select_provider(&mut self, index: usize) -> bool {
@@ -397,7 +403,7 @@ impl State {
         if self
             .operation
             .as_ref()
-            .is_some_and(|operation| matches!(operation.phase, Phase::Failed | Phase::Cancelled))
+            .is_some_and(|operation| operation.phase.retryable())
         {
             self.operation = None;
         }

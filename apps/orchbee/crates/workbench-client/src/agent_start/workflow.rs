@@ -14,10 +14,10 @@ use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchReceipt,
     AgentLaunchRequest, AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness,
     AgentPresentationId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
-    ShellRoot, classify_shell_root, idle_shell_only,
+    ShellRoot, idle_shell_only,
 };
 use orchbee_local_ipc::LocalIo;
-use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
+use orchbee_terminal_protocol::{TerminalLaunchKind, TerminalProcess, TerminalProcessInfo};
 use orchbee_workbench_protocol::{Snapshot, WorkbenchPanelId};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -107,9 +107,15 @@ pub(super) fn run_admitted(
         delivery: DeliveryDisposition::NotApplied,
         last_read_failure: None,
     };
-    let result = match super::command::launch(request.provider.as_str(), &request.args) {
-        Some(text) => workflow.span(&mut client, &snapshot, &panel, &text, wake),
-        None => Err(Failure::Start(StartFailure::CommandTooLong)),
+    // Only a Session that types the line at a confirmed prompt may receive it; there is no
+    // ungated fallback.
+    let result = if client.server_serves(orchbee_connection_handshake::PROMPT_GATED_INPUT) {
+        match super::command::launch(request.provider.as_str(), &request.args) {
+            Some(text) => workflow.span(&mut client, &snapshot, &panel, &text, wake),
+            None => Err(Failure::Start(StartFailure::CommandTooLong)),
+        }
+    } else {
+        Err(Failure::Start(StartFailure::SessionTooOld))
     };
     let result = settle_cancellation(result, wake);
     drop(client);
@@ -237,12 +243,9 @@ impl Workflow<'_> {
             return Err(Failure::Start(StartFailure::BindingChanged));
         }
         interrupted(wake)?;
-        let powershell = before.image.as_deref().is_some_and(|image| {
-            matches!(
-                crate::agent_provider::basename(image).as_str(),
-                "powershell" | "pwsh"
-            )
-        });
+        // The Host's own launch record, not the root's command line, selects the command format;
+        // the idle-shell check above admits only managed PowerShell and marked cmd.
+        let powershell = sample.info.launch_kind == Some(TerminalLaunchKind::ManagedPowershell);
         // Without arguments no literal argv wrapper is needed; the short form keeps the
         // shell's echo to one line for the board and the CLI alike.
         let concise = self
@@ -253,10 +256,11 @@ impl Workflow<'_> {
             .flatten();
         let text = concise.as_deref().unwrap_or(text);
         // Managed PowerShell strips this exact comment prefix, echoes the run token in its
-        // start and finish markers, and exports it to this command only. Any other PowerShell
-        // reads the prefix as a block comment and runs the command unchanged.
+        // start and finish markers, and exports it to this command only. A marked PowerShell
+        // without the managed wrapper reads the prefix as a block comment and runs the command
+        // unchanged.
         let receipted;
-        let text = if managed_powershell(&sample.info) {
+        let text = if powershell {
             receipted = format!("<#orchbee-run:{run_token}#> {text}");
             receipted.as_str()
         } else {
@@ -290,7 +294,15 @@ impl Workflow<'_> {
         let refusal = receipt.refusal();
         self.submission = Some(Submission::Sent(Box::new(receipt)));
         if let Some(reason) = refusal {
-            return Err(Failure::Start(StartFailure::InputNotAccepted(reason)));
+            return Err(Failure::Start(match reason {
+                agent_start_runtime::send::InputFailure::PromptUnconfirmed(state) => {
+                    StartFailure::PromptUnconfirmed(state)
+                }
+                agent_start_runtime::send::InputFailure::HostGateUnsupported => {
+                    StartFailure::TerminalTooOld
+                }
+                reason => StartFailure::InputNotAccepted(reason),
+            }));
         }
         if let Some(progress) = self.progress {
             progress(super::Progress::Observing);
@@ -592,28 +604,24 @@ fn same_reservation(a: &AgentLaunchReservation, b: &AgentLaunchReservation) -> b
         && a.binding == b.binding
 }
 
-/// How the sample's root reads as an interactive shell, by the rule the Server's close shares.
-fn root_shell(
-    sample: &TerminalProcessInfo,
-    interpreted: &[crate::agent_runtime::processes::Process<'_>],
-) -> ShellRoot {
-    interpreted
-        .iter()
-        .find(|p| p.facts.pid == sample.root_pid)
-        .map_or(ShellRoot::Unreadable, |root| {
-            classify_shell_root(
-                root.facts.image.as_deref(),
-                root.argv.as_deref(),
-                &orchbee_local_runtime::windows_interactive_powershell_initialization(),
-            )
-        })
+/// How the sample's root reads as an interactive shell, from the Host's own launch record rather
+/// than its command line. Only a shell the Host started with prompt marks can have its prompt
+/// confirmed; a sample without a launch kind comes from a Host that predates the prompt gate.
+fn root_shell(sample: &TerminalProcessInfo) -> Result<ShellRoot, Failure> {
+    match sample.launch_kind {
+        Some(TerminalLaunchKind::ManagedPowershell | TerminalLaunchKind::Cmd) => {
+            Ok(ShellRoot::Interactive)
+        }
+        Some(TerminalLaunchKind::Other) => Ok(ShellRoot::Other),
+        None => Err(Failure::Start(StartFailure::TerminalTooOld)),
+    }
 }
 
 fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure> {
     let refuse = || Failure::Start(StartFailure::TerminalNotIdle);
     let interpreted = agent_start_runtime::interpret(sample);
     if !idle_shell_only(
-        root_shell(sample, &interpreted),
+        root_shell(sample)?,
         sample.processes.len() < orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS,
         interpreted
             .iter()
@@ -627,28 +635,6 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
         .iter()
         .find(|p| p.pid == sample.root_pid)
         .ok_or_else(refuse)
-}
-
-/// The shell runs the Worker's fixed PowerShell initialization, which carries the run markers.
-fn managed_powershell(sample: &TerminalProcessInfo) -> bool {
-    agent_start_runtime::interpret(sample)
-        .iter()
-        .find(|p| p.facts.pid == sample.root_pid)
-        .is_some_and(|root| {
-            root.facts.image.as_deref().is_some_and(|image| {
-                matches!(
-                    crate::agent_provider::basename(image).as_str(),
-                    "powershell" | "pwsh"
-                )
-            }) && root
-                .argv
-                .as_deref()
-                .and_then(<[String]>::last)
-                .is_some_and(|script| {
-                    script
-                        == &orchbee_local_runtime::windows_interactive_powershell_initialization()
-                })
-        })
 }
 
 fn interrupted(wake: Option<LocalIo<'_>>) -> Result<(), Failure> {

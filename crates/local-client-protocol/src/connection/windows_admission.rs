@@ -35,17 +35,19 @@ pub(super) fn connect(
     let mut transport =
         Admission::candidate(connect_stream(endpoint, deadline, wake)?, deadline, wake);
     let exchange = (|| -> Result<_, ConnectClientError> {
-        handshake::offer(&mut transport, offer)?;
+        let capabilities = handshake::offer(&mut transport, offer)?;
         transport.deadline = deadline;
         let generation = handshake::enter_client_phase(&mut transport)?;
         settle(wake, deadline)?;
-        Ok(generation)
+        Ok((generation, capabilities))
     })();
     if let Some(cancelled) = transport.cancelled {
         return Err(cancelled);
     }
+    let (generation, capabilities) = exchange?;
     Ok(ClientConnection {
-        generation: exchange?,
+        generation,
+        capabilities,
         stream: transport.stream,
     })
 }

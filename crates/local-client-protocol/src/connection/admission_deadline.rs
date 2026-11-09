@@ -71,7 +71,7 @@ fn admit(
         expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
         ..deadline
     };
-    handshake::offer(
+    let capabilities = handshake::offer(
         &mut DeadlineIo {
             stream: &mut stream,
             deadline: candidate,
@@ -84,7 +84,7 @@ fn admit(
         deadline,
     })?;
     deadline.remaining()?;
-    finish_admission(stream, generation, deadline)
+    finish_admission(stream, generation, capabilities, deadline)
 }
 
 /// Connects without blocking past `expires_at` and proves the peer is the same user.
@@ -173,13 +173,18 @@ fn complete_connect(
 fn finish_admission(
     stream: UnixStream,
     generation: NonZeroU64,
+    capabilities: orchbee_connection_handshake::CapabilitySet,
     deadline: Deadline<'_>,
 ) -> Result<ClientConnection, ConnectClientError> {
     deadline.remaining()?;
     stream.set_nonblocking(false)?;
     // Success linearizes after restoring the stream mode, not at frame arrival.
     deadline.remaining()?;
-    Ok(ClientConnection { stream, generation })
+    Ok(ClientConnection {
+        stream,
+        generation,
+        capabilities,
+    })
 }
 
 /// The borrowed wake descriptor reported `POLLIN` — a provisional wake

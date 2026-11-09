@@ -21,10 +21,12 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 
 use super::{CatalogAdmission, CatalogBegin, Drain, Phase, State};
 use crate::{
-    agent_start::{Progress, Report, Request, ReservationState, Verdict},
+    agent_start::{Failure, Progress, Report, Request, ReservationState, StartFailure, Verdict},
     background_thread::BackgroundThread,
     local_client::{LocalClientOrigin, LocalOperationClock},
+    workbench_state::AgentStartRefusal,
 };
+use orchbee_client_server_protocol::SendPromptState;
 
 const START_DEADLINE: Duration = Duration::from_secs(300);
 const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
@@ -298,8 +300,25 @@ fn report_phase(report: &Report) -> Phase {
             Phase::Unknown
         }
         Verdict::Failed { failure, .. } if failure.cancelled() => Phase::Cancelled,
-        Verdict::Failed { .. } => Phase::Failed,
+        Verdict::Failed { failure, .. } => refusal(failure).map_or(Phase::Failed, Phase::Refused),
     }
+}
+
+/// The prompt refusals that typed nothing. The Host's `busy` and `not-shell` read like the
+/// workflow's own idle-shell refusal: the shell is not at an empty prompt.
+fn refusal(failure: &Failure) -> Option<AgentStartRefusal> {
+    let Failure::Start(failure) = failure else {
+        return None;
+    };
+    Some(match failure {
+        StartFailure::PromptUnconfirmed(SendPromptState::Unmarked) => AgentStartRefusal::Unmarked,
+        StartFailure::TerminalNotIdle | StartFailure::PromptUnconfirmed(_) => {
+            AgentStartRefusal::NotAtPrompt
+        }
+        StartFailure::SessionTooOld => AgentStartRefusal::SessionTooOld,
+        StartFailure::TerminalTooOld => AgentStartRefusal::TerminalTooOld,
+        _ => return None,
+    })
 }
 
 enum CatalogUpdate {

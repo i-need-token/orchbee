@@ -196,8 +196,23 @@ pub(crate) enum AgentStartPhase {
     Cancelling,
     Started,
     Failed,
+    /// Nothing was typed and the name reservation is settled, so starting again is safe.
+    Refused(AgentStartRefusal),
     Unknown,
     Cancelled,
+}
+
+/// Why a start typed nothing because the shell's prompt could not be confirmed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentStartRefusal {
+    /// The shell is busy or not at an empty prompt, or the terminal runs no shell.
+    NotAtPrompt,
+    /// The terminal has not shown a marked prompt.
+    Unmarked,
+    /// The Session cannot confirm a prompt.
+    SessionTooOld,
+    /// The terminal was started by an Orchbee that cannot confirm a prompt.
+    TerminalTooOld,
 }
 
 /// One queued poll's admission serial and the exact pane incarnation it was issued for.
@@ -746,7 +761,10 @@ impl ClientNotice {
             | Self::RecordUnusable(..) => false,
             Self::AgentStart(phase) => matches!(
                 phase,
-                AgentStartPhase::Started | AgentStartPhase::Failed | AgentStartPhase::Cancelled
+                AgentStartPhase::Started
+                    | AgentStartPhase::Failed
+                    | AgentStartPhase::Refused(_)
+                    | AgentStartPhase::Cancelled
             ),
             _ => true,
         }
