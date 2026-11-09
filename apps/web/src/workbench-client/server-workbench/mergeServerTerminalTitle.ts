@@ -12,7 +12,7 @@ export interface ServerTerminalTitle {
 }
 
 /** What one `presentation-titles` row says about a Presentation's title. */
-export type ServerPublishedTitleObservation =
+type ServerPublishedTitleObservation =
 	| { readonly kind: 'unavailable' }
 	| { readonly kind: 'observed'; readonly title: string | null };
 

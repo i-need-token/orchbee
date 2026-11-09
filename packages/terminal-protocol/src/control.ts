@@ -1084,10 +1084,10 @@ const typedFailureMessageSchema = z
 	);
 
 /** The code of a `PromptLineInput` refusal: nothing was typed. */
-export const PROMPT_UNCONFIRMED_FAILURE_CODE = 'prompt-unconfirmed';
+const PROMPT_UNCONFIRMED_FAILURE_CODE = 'prompt-unconfirmed';
 
 /** The first rule a `PromptLineInput` refusal failed; only `settling` is retryable. */
-export const PromptUnconfirmedReasonSchema = z.enum([
+const PromptUnconfirmedReasonSchema = z.enum([
 	'not-shell',
 	'busy',
 	'full-screen',
