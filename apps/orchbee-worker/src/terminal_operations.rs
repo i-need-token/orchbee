@@ -39,6 +39,7 @@ mod handoff;
 mod server_transport;
 #[cfg(windows)]
 mod shutdown;
+mod title_changes;
 #[cfg(windows)]
 mod titles;
 
@@ -243,6 +244,17 @@ fn run_admitted_with_handoff(
                 &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalTitlesResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
+        if let CapabilityNodeMessage::TerminalTitleChangesRequest(request) = request {
+            let result = title_changes::execute(Some(host), request, worker_id, generation);
+            if server_transport::send(
+                &server,
+                Some(host),
+                &CapabilityNodeMessage::TerminalTitleChangesResult(result),
             )? {
                 return Err(peer_closed().into());
             }

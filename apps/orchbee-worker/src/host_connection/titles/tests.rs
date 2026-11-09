@@ -1,4 +1,5 @@
 use super::*;
+mod changes;
 use orchbee_terminal_protocol::{CreationId, HostEpoch, TerminalId, TerminalIdentity};
 fn event(revision: u64, title: Option<&str>) -> TerminalMetadataChanged {
     TerminalMetadataChanged {

@@ -1103,6 +1103,31 @@ with no stale title promotion. See the [title wire](../../crates/capability-node
 and [Client model](../orchbee/docs/machines.md#live-terminal-title-observation-model)
 for framing, Session fences, rendering and evidence limits.
 
+### Title change reads
+
+The same projection numbers every change for the Server's
+[physical title change](../../crates/capability-node-protocol/README.md#physical-title-changes)
+reads. Each terminal keeps one change, its latest: a new title or revision, or
+its removal at confirmed disposal. A removal is retained as a tombstone so an
+incremental reader drops that title; at most 1024 tombstones are kept, and
+dropping the oldest raises the resumable floor, so a reader behind it is reset.
+Rows older than the floor then move to new changes, so the next page of a fresh
+read always resumes above the floor. A cursor below the floor or past the newest
+change is reset; a fresh read skips tombstones. Pages hold at most 256 rows and
+1 MiB of titles. Reads answer from memory: they never drain Host events, start a
+Host, attach a viewer or wait. Before the lazy loop starts a Host, cursor 0
+reads an empty complete page and any other cursor is reset. A fencing mismatch
+reads nothing.
+
+The idle transport writes kind 35 only between requests, after any viewer
+readiness hints, when the projection holds changes past the last answered read
+and no note is outstanding. A note stays outstanding until a later read is
+answered with a complete page or a reset; an incomplete page needs no note,
+since the Server continues at once. A sequence that would overflow retires the
+connection on the next observation, and a removal at that point makes every
+nonzero cursor reset. A seeded model test drives two readers through bursts,
+byte-bound pages, churn past the tombstone bound, identity reuse and notes.
+
 ## Workspace Git status reads
 
 `StartStatus` uses the same owned discovery slot and five-second budget as source

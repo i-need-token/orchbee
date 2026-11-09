@@ -276,6 +276,22 @@ impl HostBrokerConnection {
         self.titles.borrow().read(identity)
     }
 
+    /// Answers one Server change read after `after` from the retained title projection, within
+    /// the protocol's page bounds. It neither drains Host events nor waits.
+    pub(crate) fn title_changes(
+        &self,
+        after: u64,
+    ) -> orchbee_capability_node_protocol::TerminalTitleChangesOutcome {
+        self.titles.borrow_mut().changes(after)
+    }
+
+    /// The title note due between requests, at most one until a later change read is answered.
+    pub(crate) fn take_title_note(
+        &self,
+    ) -> Option<orchbee_capability_node_protocol::TerminalTitlesChanged> {
+        self.titles.borrow_mut().take_note()
+    }
+
     pub(crate) const fn stream(&self) -> &UnixStream {
         &self.stream
     }

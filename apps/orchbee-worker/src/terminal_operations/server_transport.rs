@@ -90,22 +90,29 @@ struct ServerRecord<'a> {
 
 impl ServerRecord<'_> {
     /// Called only while idle between requests, with no record open in either direction, so a
-    /// hint cannot split one. A prepared handoff waits under a deadline and therefore sends none.
+    /// hint cannot split one: viewer readiness first, then at most one title note. A prepared
+    /// handoff waits under a deadline and therefore sends none.
     fn send_ready_hints(&mut self) -> io::Result<()> {
         let Some(host) = self.host else {
             return Ok(());
         };
         let ready = host.viewers.borrow_mut().take_ready();
-        if ready.is_empty() {
+        let titles = host.take_title_note();
+        if ready.is_empty() && titles.is_none() {
             return Ok(());
         }
         // Hints stay far below the transport buffer, so this deadline only ends a stalled Server.
         let deadline = Instant::now() + RECORD_BUDGET;
-        for attachment_id in ready {
-            let record = encode_message(&CapabilityNodeMessage::TerminalViewerRecordReady(
-                TerminalViewerRecordReady { attachment_id },
-            ))
-            .map_err(io::Error::other)?;
+        let hints = ready
+            .into_iter()
+            .map(|attachment_id| {
+                CapabilityNodeMessage::TerminalViewerRecordReady(TerminalViewerRecordReady {
+                    attachment_id,
+                })
+            })
+            .chain(titles.map(CapabilityNodeMessage::TerminalTitlesChanged));
+        for hint in hints {
+            let record = encode_message(&hint).map_err(io::Error::other)?;
             write_hint(self.server, &record, deadline)?;
         }
         Ok(())
