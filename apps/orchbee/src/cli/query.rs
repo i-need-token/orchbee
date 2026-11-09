@@ -1844,16 +1844,19 @@ pub(super) fn wait_detach(
 
 /// The timeout report: the wait stage, the caller's total budget, and the
 /// completed-observation count — successful consistent window reads that
-/// also completed a match pass, never a frame or revision count.
+/// also completed a match pass, never a frame or revision count. Its
+/// diagnostic says the awaited text never appeared.
 fn wait_timeout_failure(timeout_ms: u32, observations: u64) -> Failure {
-    Failure::new(FailureKind::Timeout).details(serde_json::Map::from_iter([
-        ("stage".to_owned(), serde_json::json!("wait")),
-        ("timeoutMs".to_owned(), serde_json::json!(timeout_ms)),
-        (
-            "observed".to_owned(),
-            serde_json::json!({ "completedObservations": observations }),
-        ),
-    ]))
+    Failure::new(FailureKind::Timeout)
+        .details(serde_json::Map::from_iter([
+            ("stage".to_owned(), serde_json::json!("wait")),
+            ("timeoutMs".to_owned(), serde_json::json!(timeout_ms)),
+            (
+                "observed".to_owned(),
+                serde_json::json!({ "completedObservations": observations }),
+            ),
+        ]))
+        .terminal_text_wait()
 }
 
 /// The cancelled report: the wait stage under the fixed kind.
@@ -1869,6 +1872,10 @@ fn wait_cleanup_details(
     cleanup: &'static str,
     match_observed: bool,
 ) -> Failure {
+    if match_observed {
+        // The text appeared; a later expiry ended the cleanup, not the wait.
+        failure.clear_terminal_text_wait();
+    }
     let details = failure.details.get_or_insert_with(serde_json::Map::new);
     if match_observed {
         details.insert("matchObserved".to_owned(), serde_json::json!(true));

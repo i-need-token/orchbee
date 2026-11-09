@@ -270,9 +270,14 @@ fn workspace_list_uses_global_order_and_preserves_filtered_ownership() {
         .rev()
         .map(|workspace| workspace.workspace_id.clone())
         .collect();
-    let Projection::WorkspaceList(rows) =
-        project(&QueryCommand::WorkspaceList { project: None }, &source).unwrap()
-    else {
+    let Projection::WorkspaceList(rows) = project(
+        &QueryCommand::WorkspaceList {
+            project: None,
+            worktrees: false,
+        },
+        &source,
+    )
+    .unwrap() else {
         panic!("list")
     };
     assert_eq!(
@@ -285,6 +290,7 @@ fn workspace_list_uses_global_order_and_preserves_filtered_ownership() {
     let Projection::WorkspaceList(rows) = project(
         &QueryCommand::WorkspaceList {
             project: Some(Target::Id(hex(0x10))),
+            worktrees: false,
         },
         &source,
     )
@@ -301,6 +307,7 @@ fn project_filter_hit_miss_and_ambiguity() {
     let projection = project(
         &QueryCommand::WorkspaceList {
             project: Some(Target::Id(hex(0x10))),
+            worktrees: false,
         },
         &snapshot(),
     )
@@ -316,6 +323,7 @@ fn project_filter_hit_miss_and_ambiguity() {
     // Ambiguous filter target: the list itself is never built.
     let ambiguous = failure(&QueryCommand::WorkspaceList {
         project: Some(Target::Label("alpha".into())),
+        worktrees: false,
     });
     assert_eq!(ambiguous.kind, FailureKind::Ambiguous);
     assert_eq!(details(&ambiguous)["resource"], json!("project"));
@@ -324,6 +332,7 @@ fn project_filter_hit_miss_and_ambiguity() {
     // Miss: a typed not-found, never an empty list.
     let missed = failure(&QueryCommand::WorkspaceList {
         project: Some(Target::Label("ghost".into())),
+        worktrees: false,
     });
     assert_eq!(missed.kind, FailureKind::NotFound);
     assert_eq!(details(&missed)["resource"], json!("project"));
@@ -735,6 +744,7 @@ fn selector_filters_share_operand_semantics() {
     let projection = project(
         &QueryCommand::WorkspaceList {
             project: Some(Target::Selector("@project:0xbb".into())),
+            worktrees: false,
         },
         &snapshot,
     )
@@ -787,8 +797,14 @@ fn selector_filters_share_operand_semantics() {
 #[test]
 fn unfiltered_lists_follow_canonical_traversal_order() {
     // Workspaces flatten across projects in project/workspace order.
-    let projection = project(&QueryCommand::WorkspaceList { project: None }, &snapshot())
-        .expect("workspace list");
+    let projection = project(
+        &QueryCommand::WorkspaceList {
+            project: None,
+            worktrees: false,
+        },
+        &snapshot(),
+    )
+    .expect("workspace list");
     let Projection::WorkspaceList(rows) = projection else {
         panic!("workspace list projection");
     };
@@ -1877,6 +1893,7 @@ fn list_handles_round_trip_through_get() {
     let Projection::WorkspaceList(workspaces) = project(
         &QueryCommand::WorkspaceList {
             project: Some(Target::Id(tid(0, 0xaa))),
+            worktrees: false,
         },
         &snapshot,
     )

@@ -71,9 +71,14 @@ pub(in crate::cli) fn observe(
             &QueryCommand::WorkspaceGet(Target::Id(id.clone())),
             snapshot,
         )?;
-        if let Some(worktrees) =
-            workbench_worktrees::read(client, snapshot, &projection, deadline, signals)?
-        {
+        if let Some(worktrees) = workbench_worktrees::read(
+            client,
+            snapshot,
+            &projection,
+            workbench_worktrees::ListJoin::Observe,
+            deadline,
+            signals,
+        )? {
             context.worktree = worktrees.plugin_context(id)?;
         }
     }
@@ -106,6 +111,7 @@ pub(in crate::cli) fn observe(
             projection,
             selected,
             Some(member),
+            workbench_worktrees::ListJoin::Observe,
             deadline,
             signals,
         )?;

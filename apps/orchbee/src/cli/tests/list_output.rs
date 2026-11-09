@@ -96,7 +96,10 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         let workspace_output = success_output(
             Projection::WorkspaceList(vec![workspace.clone(), ungrouped_workspace.clone()]),
             json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"}),
-            &QueryCommand::WorkspaceList { project: None },
+            &QueryCommand::WorkspaceList {
+                project: None,
+                worktrees: false,
+            },
             OutputFormat::Text,
             locale,
         );
@@ -210,7 +213,10 @@ fn empty_workspace_and_tab_lists_keep_localized_table_headers() {
         let workspace_output = success_output(
             Projection::WorkspaceList(vec![]),
             json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"}),
-            &QueryCommand::WorkspaceList { project: None },
+            &QueryCommand::WorkspaceList {
+                project: None,
+                worktrees: false,
+            },
             OutputFormat::Text,
             locale,
         );
@@ -392,7 +398,10 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         primary_directory_id: Some("99999999999999999999999999999999".to_owned()),
         terminal_context_id: "88888888888888888888888888888888".to_owned(),
     };
-    let workspace_command = QueryCommand::WorkspaceList { project: None };
+    let workspace_command = QueryCommand::WorkspaceList {
+        project: None,
+        worktrees: false,
+    };
     let workspace_output = success_output(
         Projection::WorkspaceList(vec![workspace.clone()]),
         source.clone(),

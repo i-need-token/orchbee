@@ -376,6 +376,8 @@ optional `Agent`, `worktree`, `metadata` or `viewport` joins. With `--client <id
 Text still validates that exact ready Client's current selection and membership but
 adds no columns. The joins and final consistency checks described below still apply
 to JSON for these two lists and to other existing queries that use them.
+`workspace list --worktrees` Text instead runs the JSON joins and prints their sections
+before the table.
 
 Under JSON, Windows accepts optional `--client <id>` on these six list/get
 queries to add global focus and the Client's remembered active Tab in each
@@ -446,9 +448,11 @@ fence inside the original five-second deadline. Reads do not activate or navigat
 
 ## Workspace worktree observations
 
-Windows Workspace list/get joins each canonical primary Directory to the existing
+Windows Workspace get, and Workspace list with `--worktrees`, join each canonical
+primary Directory to the existing
 [read-only Windows Worktree query](windows-worktrees.md#source-based-discovery).
-It returns nullable `worktree` and required `worktreeObservation`. An observed
+Every row returns nullable `worktree` and required `worktreeObservation`; a Workspace
+list without `--worktrees` sends no Worktree query and reports `not-requested`. An observed
 summary contains `workerId`, `repositoryRoot`, `commonDirectory`, `repositoryName`,
 `checkoutPath` and `linked`; the pair of Worker ID and common Git directory is the
 repository grouping identity. The name is the final nonempty component of the
@@ -456,6 +460,7 @@ observed repository root, not the Workspace label or invoking CLI directory.
 
 | Input or result                                                                           | Published observation                                     | Effects                               |
 | ----------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------- |
+| Workspace list without `--worktrees`                                                      | `not-requested`, null worktree                            | No Git request                        |
 | No primary Directory                                                                      | `no-directory`, null worktree                             | No Git request                        |
 | Valid source discovery                                                                    | `observed`, exact query source and summary                | Read-only Worker Git query            |
 | Git/Worker unavailable, unsupported, spawn/I/O/size failure                               | `unavailable`, request ID and typed reason, null worktree | No fallback, replay or trust override |
@@ -465,7 +470,9 @@ Each request uses the exact Workspace and `trustRepository: false`. A successful
 reply must agree with the original Session, Workbench revision, primary Directory path
 and Worker, and include that Workspace at the source checkout. One admitted
 connection, signal owner and original five-second total cover all rows, Agent/Client
-joins and the final canonical/Client consistency checks. Queries never activate a
+joins and the final canonical/Client consistency checks. Under `--worktrees` the queries
+run one row at a time, so the cost grows with the listed rows that have a Directory and a
+long list can exhaust that shared total; narrow it with `--project`. Queries never activate a
 Session, change associations, navigate, launch a terminal or write Git configuration.
 Git cleanup remains owned by the existing Worker read task. External filesystem
 changes are not fenced: these are sequential live observations, not an atomic Git
@@ -473,8 +480,9 @@ snapshot. `unavailable` never means “not a repository.”
 
 Workspace list/get use schema version 1. The catalog exposes the current documents and command paths. Other query versions retain their existing contracts. Verification
 covers main and linked checkouts, Workspace directories inside a checkout, missing
-directories, unavailable Git, mismatched source facts, total deadlines, safe text
-and real Windows reads without topology or Client-view changes.
+directories, unavailable Git, mismatched source facts, total deadlines, a list without
+`--worktrees` sending no Git query, safe text and real Windows reads without topology
+or Client-view changes.
 
 ## Panel terminal observations
 
@@ -995,6 +1003,9 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   route, or the bare invocation, is `invalid-usage`.
 - `--include-ended`: valueless boolean flag, single use, admitted only on `agent list`;
   includes sessions whose lifecycle is `ended` in the requested page.
+- `--worktrees`: valueless boolean flag, single use, admitted only on `workspace list`;
+  joins each row's live [Workspace worktree observation](#workspace-worktree-observations).
+  It combines with `--project`.
 - `--limit <n>`: single-use value flag, admitted only on `agent list`; the page size as
   one decimal `u64` in `1..=100`, defaulting to the wire contract's 50. A repeated,
   non-numeric, or out-of-range value is `invalid-usage`.
@@ -1056,7 +1067,7 @@ orchbee status server | status client
 orchbee project list | project get <target>
 orchbee project create --label <label>
 orchbee project rename <target> --label <label>
-orchbee workspace list [--project <target>] | workspace get <target>
+orchbee workspace list [--project <target>] [--worktrees] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
@@ -2478,6 +2489,10 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - stdout carries only the contract document: one pretty (2-space) JSON document ending in `\n`
   under `--format json` (and always for `api` commands), or the localized human document under
   text/default. stderr carries localized human diagnostics; query paths print no progress.
+- The shared `timeout` diagnostic names the deadline that elapsed. Only an expired
+  `terminal wait-output` says the text did not appear, the `terminal send` source stage says
+  its input was not read, and every other shared-envelope timeout says the local session did
+  not answer in time. Dedicated failure envelopes keep their own wording; JSON is unchanged.
 - `invalid-usage` failures write one localized stderr diagnostic naming a single concrete
   cause — an unknown command or option, an option or argument the command does not take, a
   duplicated option, conflicting options, a missing option value, a missing required option

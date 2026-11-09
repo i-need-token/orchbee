@@ -351,27 +351,32 @@ impl super::CliText {
             FailureKind::Incompatible => self.cli_incompatible(failure),
             FailureKind::CheckFailed => self.cli_check_failed(failure),
             FailureKind::Timeout => {
-                // `stage:"input"` is the `terminal send` source stage: no
-                // wait ran and no text was awaited — the diagnosis must say
-                // what actually happened. Every other producer stays on the
-                // truthful wait wording.
+                // The diagnosis names the deadline that elapsed: the
+                // `terminal send` source stage (`stage:"input"`) read input
+                // and awaited nothing; only a wait for terminal text carries
+                // the text marker; every other producer waited on the
+                // local session.
                 let input_stage = failure
                     .details
                     .as_ref()
                     .and_then(|details| details.get("stage"))
                     .and_then(|value| value.as_str())
                     == Some("input");
-                match (self.locale, input_stage) {
-                    (Locale::EnUs, true) => {
+                match (self.locale, input_stage, failure.awaited_terminal_text()) {
+                    (Locale::EnUs, true, _) => {
                         "The declared input could not be read within the time limit; nothing was sent.\n"
                             .to_owned()
                     }
-                    (Locale::ZhCn, true) => "声明的输入未能在时限内读取；未发送任何内容。\n".to_owned(),
-                    (Locale::EnUs, false) => {
+                    (Locale::ZhCn, true, _) => "声明的输入未能在时限内读取；未发送任何内容。\n".to_owned(),
+                    (Locale::EnUs, false, true) => {
                         "The wait deadline elapsed before the text appeared in the terminal.\n"
                             .to_owned()
                     }
-                    (Locale::ZhCn, false) => "等待期限内终端中未出现目标文本。\n".to_owned(),
+                    (Locale::ZhCn, false, true) => "等待期限内终端中未出现目标文本。\n".to_owned(),
+                    (Locale::EnUs, false, false) => {
+                        "The local session did not answer within the time limit.\n".to_owned()
+                    }
+                    (Locale::ZhCn, false, false) => "本地会话未在时限内应答。\n".to_owned(),
                 }
             }
             FailureKind::Cancelled => {

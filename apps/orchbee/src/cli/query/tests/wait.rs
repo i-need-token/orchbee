@@ -236,3 +236,34 @@ fn check_maps_expiry_to_detailed_timeout() {
         serde_json::json!(7)
     );
 }
+
+/// Only an expired wait for terminal text claims the text never appeared; an
+/// expiry after the match, a close wait and a plain session read name the
+/// local session instead.
+#[test]
+fn only_an_expired_text_wait_claims_the_text_never_appeared() {
+    use crate::cli_text::CliText;
+    use crate::localization::Locale;
+    let clock = FakeWaitClock::new();
+    let flag = FlaggedTermination(Cell::new(false));
+    let run = fake_run(&clock, &flag, clock.now());
+    let expired = run.check().unwrap_err();
+    let after_match = wait_cleanup_details(run.check().unwrap_err(), "requested", true);
+    let close_wait = Failure::new(FailureKind::Timeout).details(serde_json::Map::from_iter([(
+        "stage".to_owned(),
+        serde_json::json!("wait"),
+    )]));
+    let session_read = Failure::new(FailureKind::Timeout);
+    for (locale, text_wait, session) in [
+        (Locale::EnUs, "text appeared", "local session"),
+        (Locale::ZhCn, "终端中未出现", "本地会话"),
+    ] {
+        let diagnostic = |failure: &Failure| CliText::new(locale).cli_failure(failure);
+        assert!(diagnostic(&expired).contains(text_wait), "{locale:?}");
+        for other in [&after_match, &close_wait, &session_read] {
+            let text = diagnostic(other);
+            assert!(!text.contains(text_wait), "{locale:?}: {text}");
+            assert!(text.contains(session), "{locale:?}: {text}");
+        }
+    }
+}

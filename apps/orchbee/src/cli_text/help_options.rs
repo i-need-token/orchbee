@@ -719,6 +719,11 @@ impl super::CliText {
                     "Select a workspace or directory source.",
                     "选择工作区或目录来源。",
                 ),
+                "--worktrees" => (
+                    "",
+                    "Add each workspace's live Git worktree observation.",
+                    "附加每个工作区的实时 Git 工作树观察结果。",
+                ),
                 "--yes" => (
                     "",
                     "Allow downloaded plugin code to run its build steps.",

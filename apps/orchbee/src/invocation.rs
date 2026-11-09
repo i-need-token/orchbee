@@ -345,6 +345,8 @@ pub(crate) enum QueryCommand {
     ProjectGet(Target),
     WorkspaceList {
         project: Option<Target>,
+        /// `--worktrees`: join each row's live Git worktree observation.
+        worktrees: bool,
     },
     WorkspaceGet(Target),
     /// `workspace close-status --project <id> --workspace <id>`: the
@@ -1084,6 +1086,7 @@ struct Options {
     args: Vec<String>,
     outdated_only: bool,
     include_ended: bool,
+    worktrees: bool,
     limit: Option<String>,
     cursor: Option<String>,
     /// `agent wait --until <condition>`: the repeatable condition value —

@@ -2252,7 +2252,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 )?;
             Ok(Projection::ProjectGet(project_doc(snapshot, project)))
         }
-        QueryCommand::WorkspaceList { project } => {
+        QueryCommand::WorkspaceList { project, .. } => {
             let project_id = project
                 .as_ref()
                 .map(|target| resolve_project(snapshot, target).map(|project| &project.project_id))

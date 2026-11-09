@@ -588,7 +588,10 @@ pub(super) fn resolve_words(
                 .map(|value| target(value, Resource::Project, envelope))
                 .transpose()?;
             client_query(
-                QueryCommand::WorkspaceList { project },
+                QueryCommand::WorkspaceList {
+                    project,
+                    worktrees: options.worktrees,
+                },
                 options,
                 UsageContext::Path("workspace list"),
                 envelope,

@@ -76,7 +76,13 @@ fn document(command: &QueryCommand, state: &Snapshot) -> Document {
 fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas() {
     let state = snapshot();
     for (command, key) in [
-        (QueryCommand::WorkspaceList { project: None }, "workspaces"),
+        (
+            QueryCommand::WorkspaceList {
+                project: None,
+                worktrees: false,
+            },
+            "workspaces",
+        ),
         (QueryCommand::WorkspaceGet(Target::Id(id(21))), "workspace"),
         (QueryCommand::TabList { workspace: None }, "tabs"),
         (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
@@ -181,8 +187,19 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
 #[test]
 fn workspace_and_tab_text_query_composition_is_only_the_list_table() {
     let state = snapshot();
+    // `--worktrees` asks for the joined form, so its Text never skips the join.
+    assert!(!snapshot_only_list_text(
+        &QueryCommand::WorkspaceList {
+            project: None,
+            worktrees: true,
+        },
+        OutputFormat::Text
+    ));
     for command in [
-        QueryCommand::WorkspaceList { project: None },
+        QueryCommand::WorkspaceList {
+            project: None,
+            worktrees: false,
+        },
         QueryCommand::TabList { workspace: None },
     ] {
         assert!(snapshot_only_list_text(&command, OutputFormat::Text));
@@ -215,7 +232,10 @@ fn workspace_and_tab_text_query_composition_is_only_the_list_table() {
 #[test]
 fn client_query_refuses_false_empty_stale_tab_and_wrong_panel_membership() {
     let state = snapshot();
-    let command = QueryCommand::WorkspaceList { project: None };
+    let command = QueryCommand::WorkspaceList {
+        project: None,
+        worktrees: false,
+    };
     let mut doc = document(&command, &state);
     verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).unwrap();
     let requested = requested_contexts(&doc.projection, doc.client.as_ref().unwrap()).unwrap();
@@ -300,7 +320,13 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
     }
     let snapshot: Snapshot = serde_json::from_value(value).unwrap();
     for (command, key) in [
-        (QueryCommand::WorkspaceList { project: None }, "workspaces"),
+        (
+            QueryCommand::WorkspaceList {
+                project: None,
+                worktrees: false,
+            },
+            "workspaces",
+        ),
         (QueryCommand::WorkspaceGet(Target::Id(id(21))), "workspace"),
         (QueryCommand::TabList { workspace: None }, "tabs"),
         (QueryCommand::TabGet(Target::Id(id(5))), "tab"),

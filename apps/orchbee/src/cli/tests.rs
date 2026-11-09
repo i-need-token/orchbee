@@ -1605,37 +1605,6 @@ fn source_stage_failures_diagnose_the_input_read() {
     }
 }
 
-/// The wait stage and the detail-free fallback keep the established wait
-/// wording — the source-stage carve-out never leaks into other producers.
-#[test]
-fn wait_stage_failures_keep_the_wait_wording() {
-    use super::{Failure, FailureKind};
-    for kind in [FailureKind::Timeout, FailureKind::Cancelled] {
-        for details in [
-            Some(serde_json::Map::from_iter([(
-                "stage".to_owned(),
-                json!("wait"),
-            )])),
-            None,
-        ] {
-            let mut failure = Failure::new(kind);
-            if let Some(details) = details {
-                failure = failure.details(details);
-            }
-            let expected = match (kind, &failure.details) {
-                (FailureKind::Timeout, _) => "wait deadline elapsed",
-                _ => "wait was cancelled",
-            };
-            assert!(
-                CliText::new(Locale::EnUs)
-                    .cli_failure(&failure)
-                    .contains(expected),
-                "{kind:?} without stage:\"input\" keeps the wait wording"
-            );
-        }
-    }
-}
-
 /// A captured signal on an Agent read answers `orchbee.cli.failure.agent`
 /// with the cancelled kind at 130 and the noncloneable finalization riding
 /// the common emit path — a cancelled read carries no correlated source.

@@ -1,4 +1,5 @@
 //! Workspace reads preserve one connection, original deadline and exact Git-source membership.
+//! A Workspace list sends Git queries only under `--worktrees`.
 use super::*;
 
 pub(super) fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool) {
@@ -49,6 +50,7 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
         "found",
         "unavailable",
         "no-directory",
+        "not-requested",
         "wrong-worker",
         "wrong-path",
         "changed-revision",
@@ -58,11 +60,16 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
         let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let count = if case == "total-deadline" { 3 } else { 1 };
+        let count = match case {
+            "total-deadline" => 3,
+            "not-requested" => 2,
+            _ => 1,
+        };
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot(&mut stream, count, case == "no-directory");
             page(&mut stream, 3);
-            if case != "no-directory" {
+            // Without `--worktrees` the next request must be the metadata read.
+            if !matches!(case, "no-directory" | "not-requested") {
                 for n in 0..count {
                     let WorkbenchRequest::WorktreeQuery(request) =
                         read_workbench_request(&mut stream).unwrap()
@@ -98,30 +105,40 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
             assert_closed(&mut stream);
         });
         let started = Instant::now();
-        let output = fixture.run(&["workspace", "list", "--format=json"]);
+        let output = if case == "not-requested" {
+            fixture.run(&["workspace", "list", "--format=json"])
+        } else {
+            fixture.run(&["workspace", "list", "--worktrees", "--format=json"])
+        };
         let elapsed = started.elapsed();
         server.join().unwrap();
         let doc = document(&output);
-        if matches!(case, "found" | "unavailable" | "no-directory") {
+        if matches!(
+            case,
+            "found" | "unavailable" | "no-directory" | "not-requested"
+        ) {
             assert!(output.status.success(), "{case}: {doc}");
             validate(
                 &doc,
                 include_str!("../../../src/cli/schemas/orchbee.workspace.list.json"),
             );
-            let row = &doc["result"]["workspaces"][0];
+            let rows = doc["result"]["workspaces"].as_array().unwrap();
+            assert_eq!(rows.len(), usize::try_from(count).unwrap());
             assert_eq!(doc["version"], 1);
-            assert_eq!(
-                row["worktreeObservation"]["state"],
-                match case {
-                    "found" => "observed",
-                    other => other,
+            for row in rows {
+                assert_eq!(
+                    row["worktreeObservation"]["state"],
+                    match case {
+                        "found" => "observed",
+                        other => other,
+                    }
+                );
+                if case == "found" {
+                    assert_eq!(row["worktree"]["checkoutPath"], "C:/repo");
+                    assert_eq!(row["worktree"]["linked"], false);
+                } else {
+                    assert!(row["worktree"].is_null());
                 }
-            );
-            if case == "found" {
-                assert_eq!(row["worktree"]["checkoutPath"], "C:/repo");
-                assert_eq!(row["worktree"]["linked"], false);
-            } else {
-                assert!(row["worktree"].is_null());
             }
         } else {
             assert_eq!(

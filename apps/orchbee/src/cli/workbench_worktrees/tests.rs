@@ -10,7 +10,7 @@ pub(in crate::cli) fn unavailable(projection: &Projection) -> Option<Document> {
         Projection::WorkspaceGet(doc) => vec![&doc.row],
         _ => return None,
     };
-    Some(Document(
+    Some(Document(Rows::Observed(
         rows.into_iter()
             .map(|row| {
                 (
@@ -22,7 +22,7 @@ pub(in crate::cli) fn unavailable(projection: &Projection) -> Option<Document> {
                 )
             })
             .collect(),
-    ))
+    )))
 }
 fn fixture(linked: bool) -> (Snapshot, WorkspaceRow, WorkbenchWorktreeQueryOutcome) {
     let path = if linked {
@@ -117,17 +117,20 @@ fn plugin_context_preserves_validated_native_checkout_identity_and_absence() {
         outcome,
     )
     .unwrap();
-    let document = Document(BTreeMap::from([(row.workspace_id.clone(), observed)]));
+    let document = Document(Rows::Observed(BTreeMap::from([(
+        row.workspace_id.clone(),
+        observed,
+    )])));
     let context = document.plugin_context(&row.workspace_id).unwrap().unwrap();
     assert_eq!(context.checkout_path.as_str(), "C:/trees/中文");
     assert_eq!(context.common_directory.as_str(), "C:/repo/.git");
     assert!(context.linked);
     assert_eq!(context.worker_id.as_str(), id(5));
     assert!(document.plugin_context(&id(99)).is_err());
-    let absent = Document(BTreeMap::from([(
+    let absent = Document(Rows::Observed(BTreeMap::from([(
         row.workspace_id.clone(),
         Observation::NoDirectory,
-    )]));
+    )])));
     assert!(absent.plugin_context(&row.workspace_id).unwrap().is_none());
 }
 #[test]

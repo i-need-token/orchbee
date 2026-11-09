@@ -32,7 +32,23 @@ enum Observation {
     },
 }
 #[derive(Debug)]
-pub(super) struct Document(BTreeMap<String, Observation>);
+pub(super) struct Document(Rows);
+
+#[derive(Debug)]
+enum Rows {
+    /// One live observation per Workspace row, keyed by Workspace ID.
+    Observed(BTreeMap<String, Observation>),
+    /// A Workspace list read without `--worktrees`: no Worktree query was sent.
+    NotRequested,
+}
+
+/// Whether a Workspace list runs the live worktree observation (`--worktrees`).
+/// A Workspace get always does.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ListJoin {
+    Observe,
+    NotRequested,
+}
 
 fn classify(
     snapshot: &Snapshot,
@@ -128,10 +144,14 @@ pub(super) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     projection: &Projection,
+    join: ListJoin,
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<Option<Document>, Failure> {
     let workspaces: Vec<_> = match projection {
+        Projection::WorkspaceList(_) if join == ListJoin::NotRequested => {
+            return Ok(Some(Document(Rows::NotRequested)));
+        }
         Projection::WorkspaceList(rows) => rows.iter().collect(),
         Projection::WorkspaceGet(doc) => vec![&doc.row],
         _ => return Ok(None),
@@ -171,7 +191,7 @@ pub(super) fn read(
         };
         rows.insert(row.workspace_id.clone(), observation);
     }
-    Ok(Some(Document(rows)))
+    Ok(Some(Document(Rows::Observed(rows))))
 }
 
 impl Observation {
@@ -192,7 +212,10 @@ impl Document {
         &self,
         workspace: &str,
     ) -> Result<Option<PluginWorktreeContext>, Failure> {
-        match self.0.get(workspace) {
+        let Rows::Observed(rows) = &self.0 else {
+            return Ok(None);
+        };
+        match rows.get(workspace) {
             Some(Observation::Observed { summary, .. }) => serde_json::from_value(summary.clone())
                 .map(Some)
                 .map_err(|_| Failure::new(FailureKind::ProtocolInvalid)),
@@ -202,13 +225,18 @@ impl Document {
     }
     pub(super) fn enrich(&self, result: &mut Value) {
         let mut row = |row: &mut Value| {
-            let observation = self
-                .0
-                .get(row["workspaceId"].as_str().expect("typed Workspace ID"))
-                .expect("complete worktree observations");
+            let fields = match &self.0 {
+                Rows::Observed(rows) => rows
+                    .get(row["workspaceId"].as_str().expect("typed Workspace ID"))
+                    .expect("complete worktree observations")
+                    .fields(),
+                Rows::NotRequested => {
+                    json!({"worktree":null,"worktreeObservation":{"state":"not-requested"}})
+                }
+            };
             row.as_object_mut()
                 .expect("typed Workspace row")
-                .extend(observation.fields().as_object().unwrap().clone());
+                .extend(fields.as_object().unwrap().clone());
         };
         if let Some(rows) = result.get_mut("workspaces").and_then(Value::as_array_mut) {
             rows.iter_mut().for_each(&mut row);
@@ -218,11 +246,14 @@ impl Document {
         }
     }
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
+        let Rows::Observed(rows) = &self.0 else {
+            return Ok(());
+        };
         out.write(format_args!(
             "{}\n",
             CliText::new(locale).cli_workspace_worktrees_heading()
         ))?;
-        for (id, observation) in &self.0 {
+        for (id, observation) in rows {
             let (state, path) = match observation {
                 Observation::NoDirectory => {
                     (CliText::new(locale).cli_workspace_worktree_states()[0], "-")

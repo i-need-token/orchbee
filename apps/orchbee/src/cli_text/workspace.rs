@@ -2,14 +2,14 @@
 
 pub(super) const HELP_WORKSPACE_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee workspace list [--project <t>] [--client <id>] [--format text|json]",
-        "List all Workspaces, including ungrouped ones, or filter by the Project selected by\n--project (exact ID, @project:0x<hex>, or exact label). Fields: ids,\nlabel, primary directory\n(null means none), and terminal context.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
+        "orchbee workspace list [--project <t>] [--worktrees] [--client <id>] [--format text|json]",
+        "List all Workspaces, including ungrouped ones, or filter by the Project selected by\n--project (exact ID, @project:0x<hex>, or exact label). Fields: ids,\nlabel, primary directory\n(null means none), and terminal context.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows --worktrees adds each Workspace's live Git worktree observation: one query per Workspace with a directory, within the same 5000 ms total. Without it, JSON rows report worktreeObservation not-requested.",
     );
 
 pub(super) const HELP_WORKSPACE_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee workspace list [--project <t>] [--client <id>] [--format text|json]",
-        "列出所有工作区（包括未分组），或仅列 --project（精确 ID、@project:0x<hex> 或精确 label）所选\nProject 内的。字段：各 ID、label、主目录（null 表示无）与终端上下文。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
+        "orchbee workspace list [--project <t>] [--worktrees] [--client <id>] [--format text|json]",
+        "列出所有工作区（包括未分组），或仅列 --project（精确 ID、@project:0x<hex> 或精确 label）所选\nProject 内的。字段：各 ID、label、主目录（null 表示无）与终端上下文。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows --worktrees 附加每个工作区的实时 Git 工作树观察结果：每个有目录的工作区一次查询，共用同一个 5000 毫秒总时限。未指定时，JSON 行的 worktreeObservation 为 not-requested。",
     );
 
 pub(super) const HELP_WORKSPACE_GET_EN: crate::cli_text::HelpDetails =

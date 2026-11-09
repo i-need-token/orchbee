@@ -143,6 +143,7 @@ fn collect(
                 projection,
                 selected,
                 Some(member),
+                crate::cli::workbench_worktrees::ListJoin::Observe,
                 deadline,
                 signals,
             )

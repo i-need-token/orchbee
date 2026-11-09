@@ -34,15 +34,22 @@ fn workspace_numbers_survive_filtering_and_counts_exclude_child_presentations() 
         state.navigation.workspaces[1].workspace_id.clone(),
         state.navigation.workspaces[0].workspace_id.clone(),
     ];
-    let all = project(&QueryCommand::WorkspaceList { project: None }, &state)
-        .unwrap()
-        .result();
+    let all = project(
+        &QueryCommand::WorkspaceList {
+            project: None,
+            worktrees: false,
+        },
+        &state,
+    )
+    .unwrap()
+    .result();
     assert_eq!(all["workspaces"][0]["workspaceId"], hex(0x41));
     assert_eq!(all["workspaces"][0]["number"], 1);
     assert_eq!(all["workspaces"][1]["number"], 2);
     let filtered = project(
         &QueryCommand::WorkspaceList {
             project: Some(Target::Id(hex(0x10))),
+            worktrees: false,
         },
         &state,
     )
@@ -155,7 +162,10 @@ fn topology_documents_validate_and_text_escapes_labels_in_both_locales() {
     primary_presentation.custom_label =
         Some(orchbee_workbench_protocol::PanelCustomLabel::parse("中文\u{1b}[31m名").unwrap());
     for command in [
-        QueryCommand::WorkspaceList { project: None },
+        QueryCommand::WorkspaceList {
+            project: None,
+            worktrees: false,
+        },
         QueryCommand::WorkspaceGet(Target::Id(hex(0x40))),
         QueryCommand::TabList { workspace: None },
         QueryCommand::TabGet(Target::Id(hex(DUP_TABS[0]))),
@@ -270,9 +280,15 @@ fn workspace_grouping_is_nullable_metadata_and_global_scope_survives_regrouping(
     }
     state.navigation.projects.clear();
     assert_eq!(
-        project(&QueryCommand::WorkspaceList { project: None }, &state)
-            .unwrap()
-            .result()["workspaces"]
+        project(
+            &QueryCommand::WorkspaceList {
+                project: None,
+                worktrees: false
+            },
+            &state
+        )
+        .unwrap()
+        .result()["workspaces"]
             .as_array()
             .unwrap()
             .len(),

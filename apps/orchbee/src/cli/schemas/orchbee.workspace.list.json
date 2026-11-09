@@ -958,6 +958,16 @@
 					"additionalProperties": false,
 					"properties": {
 						"state": {
+							"const": "not-requested"
+						}
+					},
+					"required": ["state"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"state": {
 							"const": "no-directory"
 						}
 					},

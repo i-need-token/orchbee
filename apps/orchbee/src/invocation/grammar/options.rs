@@ -2118,6 +2118,22 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--worktrees",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::WorkspaceList],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.worktrees = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--include-ended",
         values: &[],
         closed_values: false,

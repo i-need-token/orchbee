@@ -519,7 +519,10 @@ fn accepts_every_query_path_with_default_text() {
         ),
         (
             &["workspace", "list"],
-            QueryCommand::WorkspaceList { project: None },
+            QueryCommand::WorkspaceList {
+                project: None,
+                worktrees: false,
+            },
         ),
         (
             &["workspace", "get", "main"],
@@ -1031,6 +1034,7 @@ fn filters_have_declared_scope_single_use_and_values() {
         Ok(query(
             QueryCommand::WorkspaceList {
                 project: Some(Target::Label("web".into())),
+                worktrees: false,
             },
             OutputFormat::Text
         ))
@@ -1122,6 +1126,7 @@ fn dash_leading_tokens_can_be_filter_values() {
         Ok(query(
             QueryCommand::WorkspaceList {
                 project: Some(Target::Label("--format".into())),
+                worktrees: false,
             },
             OutputFormat::Text
         ))

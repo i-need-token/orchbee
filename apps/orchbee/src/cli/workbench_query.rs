@@ -1,5 +1,6 @@
 //! Read-only Workbench queries with Agent facts and optional exact-Client memory.
 use super::client_control::{exchange as control, view_fence::ViewFence};
+use super::workbench_worktrees::ListJoin;
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
@@ -274,33 +275,49 @@ fn execute(
     let original = selected
         .map(|id| current(&mut client, &snapshot, id, deadline, signals, panel_read))
         .transpose()?;
+    let worktrees = match command {
+        QueryCommand::WorkspaceList {
+            worktrees: false, ..
+        } => ListJoin::NotRequested,
+        _ => ListJoin::Observe,
+    };
     collect(
         &mut client,
         &snapshot,
         projection,
         original,
         None,
+        worktrees,
         deadline,
         signals,
     )
 }
 
+/// Text lists print only the snapshot table; `--worktrees` asks for the joined form.
 fn snapshot_only_list_text(command: &QueryCommand, format: OutputFormat) -> bool {
     matches!(format, OutputFormat::Text)
         && matches!(
             command,
-            QueryCommand::WorkspaceList { .. } | QueryCommand::TabList { .. }
+            QueryCommand::WorkspaceList {
+                worktrees: false,
+                ..
+            } | QueryCommand::TabList { .. }
         )
 }
 
 /// Enrich an already resolved projection using its original snapshot and Client selection.
 /// The caller owns admission, the absolute deadline, and signal finalization.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each input is an independent read fact the caller already owns"
+)]
 pub(super) fn collect(
     client: &mut crate::local_client::LocalClient,
     snapshot: &Snapshot,
     projection: Projection,
     original: Option<ClientViewRecord>,
     current_member: Option<super::current_presentation::Resolved>,
+    worktrees: ListJoin,
     deadline: Instant,
     signals: &mut impl SignalWatch,
 ) -> Result<(Value, Document), Failure> {
@@ -377,6 +394,7 @@ pub(super) fn collect(
         client,
         snapshot,
         &document.projection,
+        worktrees,
         deadline,
         signals,
     )?;

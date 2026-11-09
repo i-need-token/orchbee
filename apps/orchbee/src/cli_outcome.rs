@@ -106,6 +106,9 @@ pub(crate) enum FailureDisplay {
     /// What an expired Agent wait was waiting for; the machine document keeps
     /// its own deadline details.
     Wait(WaitDisplay),
+    /// The total deadline of a wait for terminal text elapsed before the text
+    /// appeared; the machine document keeps its `wait` stage details.
+    TerminalTextWait,
 }
 
 /// The conditions an expired Agent wait was waiting for and, when one step's
@@ -190,6 +193,26 @@ impl Failure {
             Some(FailureDisplay::Wait(wait)) => Some(wait),
             _ => None,
         }
+    }
+
+    /// Mark an elapsed wait for terminal text, for the localized diagnostic only.
+    pub(crate) fn terminal_text_wait(mut self) -> Self {
+        self.display = Some(Box::new(FailureDisplay::TerminalTextWait));
+        self
+    }
+
+    /// Clear the terminal-text marker once the awaited text was observed.
+    pub(crate) fn clear_terminal_text_wait(&mut self) {
+        if self.awaited_terminal_text() {
+            self.display = None;
+        }
+    }
+
+    pub(crate) fn awaited_terminal_text(&self) -> bool {
+        matches!(
+            self.display.as_deref(),
+            Some(FailureDisplay::TerminalTextWait)
+        )
     }
 
     pub(crate) fn details(mut self, details: Map<String, Value>) -> Self {
