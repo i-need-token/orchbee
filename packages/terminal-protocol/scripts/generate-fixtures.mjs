@@ -650,6 +650,11 @@ function createControlConformanceFixture() {
 			{ attachmentId },
 			'ReadProcessInfo',
 		),
+		read_process_info_launch_kind: controlRequestText(
+			MessageKind.readProcessInfo,
+			{ attachmentId, includeLaunchKind: true },
+			'ReadProcessInfo with launch kind',
+		),
 
 		list_terminals: controlRequestText(
 			MessageKind.listTerminals,
@@ -1111,6 +1116,28 @@ function createControlConformanceFixture() {
 			},
 			'ReadProcessInfo response',
 		),
+		process_info_launch_kind: controlText(
+			TerminalProcessInfoSchema,
+			{
+				attachmentId,
+				terminalId,
+				kind: 'windows-job',
+				launchKind: 'cmd',
+				rootPid: 41,
+				processes: [
+					[
+						41,
+						17,
+						'133999999999999999',
+						'attached',
+						'C:\\Windows\\System32\\cmd.exe',
+						'cmd.exe',
+						null,
+					],
+				],
+			},
+			'ReadProcessInfo response with launch kind',
+		),
 		terminal_list: controlText(
 			TerminalListSchema,
 			{ inventoryGeneration: '9', nextCursor: null, terminals: terminalSummaries },
@@ -1159,6 +1186,12 @@ function createControlConformanceFixture() {
 			[
 				{ code: 'invalid-state', message: 'The command is not legal now.', retryable: false },
 				{ code: 'backpressure', message: 'Try again later.', retryable: true },
+				{
+					code: 'prompt-unconfirmed',
+					message: 'the shell is not confirmed at a fresh, empty prompt; nothing was typed',
+					retryable: false,
+					reason: 'not-at-prompt',
+				},
 			],
 			'TypedFailure',
 		),

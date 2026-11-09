@@ -65,6 +65,27 @@ pub struct TypedFailure {
     pub code: String,
     pub message: String,
     pub retryable: bool,
+    /// Present exactly when `code` is [`PROMPT_UNCONFIRMED_FAILURE_CODE`]; no other failure
+    /// carries a reason.
+    pub reason: Option<PromptUnconfirmedReason>,
+}
+
+/// The code of a `PromptLineInput` refusal: nothing was typed and no queue position was taken.
+pub const PROMPT_UNCONFIRMED_FAILURE_CODE: &str = "prompt-unconfirmed";
+
+/// The first rule a `PromptLineInput` refusal failed, in the Host's check order. Only
+/// `Settling` is retryable: the sender waits out the quiet period and asks once more.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PromptUnconfirmedReason {
+    NotShell,
+    Busy,
+    FullScreen,
+    Unmarked,
+    NotAtPrompt,
+    InputPending,
+    Changed,
+    Settling,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -204,6 +225,22 @@ struct TypedFailureWire {
     code: String,
     message: String,
     retryable: bool,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present_prompt_reason"
+    )]
+    reason: Option<PromptUnconfirmedReason>,
+}
+
+/// An absent `reason` is `None`; a present one, including `null`, must name a reason.
+fn present_prompt_reason<'de, D>(
+    deserializer: D,
+) -> Result<Option<PromptUnconfirmedReason>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    PromptUnconfirmedReason::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize, Serialize)]
@@ -577,6 +614,7 @@ fn typed_failure_from_wire(wire: TypedFailureWire) -> Result<ConnectionControl, 
         code: wire.code,
         message: wire.message,
         retryable: wire.retryable,
+        reason: wire.reason,
     };
     validate_typed_failure(&value)?;
     Ok(ConnectionControl::TypedFailure(value))
@@ -588,6 +626,7 @@ fn typed_failure_to_wire(value: &TypedFailure) -> Result<TypedFailureWire, Proto
         code: value.code.clone(),
         message: value.message.clone(),
         retryable: value.retryable,
+        reason: value.reason,
     })
 }
 
@@ -661,6 +700,12 @@ fn validate_typed_failure(value: &TypedFailure) -> Result<(), ProtocolError> {
         return Err(error(
             ProtocolErrorCode::InvalidField,
             "typed failure message exceeds its protocol bounds",
+        ));
+    }
+    if value.reason.is_some() != (value.code == PROMPT_UNCONFIRMED_FAILURE_CODE) {
+        return Err(error(
+            ProtocolErrorCode::InvalidField,
+            "only a prompt-unconfirmed typed failure carries a reason",
         ));
     }
     Ok(())

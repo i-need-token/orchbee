@@ -24,6 +24,7 @@ fn observed() -> Read {
             command_line: Some("cmd.exe".into()),
             current_directory: Some("C:\\root".into()),
         }],
+        launch_kind: None,
     };
     let terminal = TerminalRow {
         terminal_id: "1".repeat(32),

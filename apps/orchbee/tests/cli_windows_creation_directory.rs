@@ -166,6 +166,7 @@ fn observe(stream: &mut LocalStream, cut: Cut) -> bool {
                     },
                 ),
             ],
+            launch_kind: None,
         };
         sampled = Some(process.processes.clone());
         let payload =

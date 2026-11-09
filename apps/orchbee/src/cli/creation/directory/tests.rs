@@ -19,6 +19,7 @@ fn root_directory_never_guesses_a_child_or_relative_path() {
         terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 20,
         processes: vec![row(30, r"C:\child"), row(20, r"C:\项目 with spaces")],
+        launch_kind: None,
     };
     assert_eq!(
         root_directory(&info).unwrap().as_str(),

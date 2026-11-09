@@ -364,7 +364,8 @@ fn controlled_semantic_input(
         InputMessage::WriteInput(_)
         | InputMessage::InputAccepted(_)
         | InputMessage::PasteInput(_)
-        | InputMessage::PasteAutoInput(_) => return None,
+        | InputMessage::PasteAutoInput(_)
+        | InputMessage::PromptLineInput(_) => return None,
     }
     Some(message)
 }

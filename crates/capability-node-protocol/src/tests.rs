@@ -1434,8 +1434,138 @@ fn send_request(records: crate::SendRecords) -> crate::TerminalSendRequest {
             HostTerminalId::from_bytes([25; 16]).expect("id"),
         ),
         attachment_id: OperationId::from_bytes([26; 16]).expect("id"),
+        precondition: crate::SendPrecondition::None,
         records,
     }
+}
+
+fn stroke(key: crate::SendKey, modifiers: u8) -> crate::SendRecord {
+    crate::SendRecord::Stroke(
+        crate::SendKeyStroke::new(crate::SendStrokeKey::Named(key), modifiers).expect("stroke"),
+    )
+}
+
+fn paste(content: &[u8]) -> crate::SendRecord {
+    crate::SendRecord::Paste {
+        content: crate::SendPasteContent::new(content.to_vec()).expect("paste"),
+    }
+}
+
+#[test]
+fn idle_prompt_send_carries_its_flag_and_admits_only_one_prompt_line()
+-> Result<(), Box<dyn std::error::Error>> {
+    use crate::{SendKey, SendPrecondition, SendRecords};
+    let gated = |records: Vec<crate::SendRecord>| -> Result<_, ProtocolError> {
+        let mut request = send_request(SendRecords::new(records)?);
+        request.precondition = SendPrecondition::IdlePrompt;
+        Ok(CapabilityNodeMessage::TerminalSendRequest(request))
+    };
+    for records in [
+        vec![
+            paste("codex resume '中文'".as_bytes()),
+            stroke(SendKey::Right, 0),
+            stroke(SendKey::Enter, 0),
+        ],
+        vec![paste(b"claude"), stroke(SendKey::Enter, 0)],
+    ] {
+        let request = gated(records)?;
+        let encoded = encode_message(&request)?;
+        assert_eq!(&encoded[..8], b"OBNS\0\x01\0\x01");
+        assert_eq!(decode_message(&encoded)?, request);
+        assert_eq!(read_message(&mut ChunkedReader::new(encoded, 5))?, request);
+    }
+    for records in [
+        vec![text_record("claude", true)],
+        vec![paste(b"claude")],
+        vec![
+            paste(b"claude"),
+            stroke(SendKey::Enter, 0),
+            stroke(SendKey::Enter, 0),
+        ],
+        vec![
+            paste(b"claude"),
+            stroke(SendKey::Left, 0),
+            stroke(SendKey::Enter, 0),
+        ],
+        vec![paste(b"claude"), stroke(SendKey::Right, 0)],
+        vec![paste(b"claude"), stroke(SendKey::Enter, 1)],
+        vec![stroke(SendKey::Enter, 0)],
+        vec![paste(b"two\nlines"), stroke(SendKey::Enter, 0)],
+        vec![paste(b"del\x7f"), stroke(SendKey::Enter, 0)],
+        vec![paste(b"\xff"), stroke(SendKey::Enter, 0)],
+    ] {
+        let ungated = CapabilityNodeMessage::TerminalSendRequest(send_request(SendRecords::new(
+            records.clone(),
+        )?));
+        let mut flagged = encode_message(&ungated)?;
+        assert_eq!(
+            encode_message(&gated(records)?),
+            Err(ProtocolError::InvalidPayload)
+        );
+        flagged[7] = 1;
+        assert_eq!(decode_message(&flagged), Err(ProtocolError::InvalidPayload));
+    }
+    let mut unknown_flag = encode_message(&gated(vec![paste(b"x"), stroke(SendKey::Enter, 0)])?)?;
+    unknown_flag[7] = 3;
+    assert_eq!(
+        decode_message(&unknown_flag),
+        Err(ProtocolError::InvalidPayload)
+    );
+    Ok(())
+}
+
+#[test]
+fn prompt_refusals_carry_their_state_and_type_nothing() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::{
+        SendCleanupStatus, SendProgress, SendPromptState, SendRejection, TerminalSendOutcome,
+    };
+    let result = |reason, progress, cleanup| {
+        crate::TerminalSendResult::new(
+            OperationId::from_bytes([31; 16]).expect("id"),
+            TerminalSendOutcome::Rejected {
+                reason,
+                progress,
+                cleanup,
+            },
+        )
+    };
+    for (reason, cleanup) in [
+        (
+            SendRejection::PromptUnconfirmed(SendPromptState::NotShell),
+            SendCleanupStatus::Confirmed,
+        ),
+        (
+            SendRejection::PromptUnconfirmed(SendPromptState::Settling),
+            SendCleanupStatus::Unconfirmed,
+        ),
+        (
+            SendRejection::HostPromptGateUnsupported,
+            SendCleanupStatus::NotNeeded,
+        ),
+    ] {
+        let message = CapabilityNodeMessage::TerminalSendResult(result(
+            reason,
+            SendProgress::none(),
+            cleanup,
+        )?);
+        assert_eq!(decode_message(&encode_message(&message)?)?, message);
+        assert!(result(reason, SendProgress::stopped(0, 1), cleanup).is_err());
+        assert!(result(reason, SendProgress::complete(1, 1), cleanup).is_err());
+    }
+    let busy = CapabilityNodeMessage::TerminalSendResult(result(
+        SendRejection::PromptUnconfirmed(SendPromptState::Busy),
+        SendProgress::none(),
+        SendCleanupStatus::Confirmed,
+    )?);
+    let encoded = encode_message(&busy)?;
+    // The state follows the rejection code and is one of eight.
+    assert_eq!(&encoded[8 + 17..8 + 20], &[2, 10, 2]);
+    for state in [0, 9] {
+        let mut unknown = encoded.clone();
+        unknown[8 + 19] = state;
+        assert_eq!(decode_message(&unknown), Err(ProtocolError::InvalidPayload));
+    }
+    Ok(())
 }
 
 #[test]
@@ -1868,7 +1998,7 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
     );
 
     let mut unknown_reason = encoded.clone();
-    unknown_reason[8 + 18] = 10;
+    unknown_reason[8 + 18] = 12;
     assert_eq!(
         decode_message(&unknown_reason),
         Err(ProtocolError::InvalidPayload)

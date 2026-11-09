@@ -5,9 +5,9 @@
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
     HostTerminalIdentity, OperationId, ProtocolError, SendBytes, SendCleanupStatus,
-    SendPasteContent, SendProgress, SendRecord, SendRecords, SendRejection, SendText,
-    SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
-    WorkerGeneration, WorkerId,
+    SendPasteContent, SendPrecondition, SendProgress, SendRecord, SendRecords, SendRejection,
+    SendText, SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
+    TerminalSendResult, WorkerGeneration, WorkerId,
 };
 use std::io::Read;
 use std::num::NonZeroU64;
@@ -15,10 +15,13 @@ use std::num::NonZeroU64;
 /// The send request never rides the standard OBCN frame: a `bytes` record
 /// alone may carry a megabyte of opaque payload, so the whole request is one
 /// dedicated binary record — `OBNS` magic, record-encoding version 1, a
-/// reserved zero u16, and a big-endian u32 body length.
+/// big-endian u16 of precondition flags, and a big-endian u32 body length.
 pub(crate) const SEND_RECORD_MAGIC: [u8; 4] = *b"OBNS";
 const SEND_RECORD_HEADER: usize = 12;
 const SEND_RECORD_VERSION: u16 = 1;
+/// Flag bit 0 asks for [`SendPrecondition::IdlePrompt`]; every other bit is reserved zero, so
+/// a decoder that predates a flag refuses the record instead of ignoring it.
+const IDLE_PROMPT_FLAG: u16 = 1;
 /// request_id + worker_id + worker_generation + host identity (3×16) +
 /// attachment + record count.
 const SEND_RECORD_BODY_PREFIX: usize = 16 + 16 + 8 + 48 + 16 + 1;
@@ -128,6 +131,7 @@ fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, Prot
 pub(crate) fn encode_request_record(
     request: &TerminalSendRequest,
 ) -> Result<Vec<u8>, ProtocolError> {
+    request.validate()?;
     let records = request.records.as_slice();
     let mut body = Vec::with_capacity(SEND_RECORD_BODY_PREFIX + 64);
     body.extend(request.request_id.as_bytes());
@@ -148,7 +152,11 @@ pub(crate) fn encode_request_record(
     let mut frame = Vec::with_capacity(SEND_RECORD_HEADER + body.len());
     frame.extend_from_slice(&SEND_RECORD_MAGIC);
     frame.extend_from_slice(&SEND_RECORD_VERSION.to_be_bytes());
-    frame.extend_from_slice(&0_u16.to_be_bytes());
+    let flags = match request.precondition {
+        SendPrecondition::None => 0,
+        SendPrecondition::IdlePrompt => IDLE_PROMPT_FLAG,
+    };
+    frame.extend_from_slice(&flags.to_be_bytes());
     frame.extend_from_slice(
         &u32::try_from(body.len())
             .map_err(|_| ProtocolError::InvalidPayload)?
@@ -167,10 +175,11 @@ pub(crate) fn read_request_record(
     let mut header = [0_u8; SEND_RECORD_HEADER];
     header[..8].copy_from_slice(&prefix);
     reader.read_exact(&mut header[8..])?;
-    let length = decode_record_header(&header).map_err(crate::ReadMessageError::from)?;
+    let (length, precondition) =
+        decode_record_header(&header).map_err(crate::ReadMessageError::from)?;
     let mut body = vec![0_u8; length];
     reader.read_exact(&mut body)?;
-    decode_request_body(&body).map_err(Into::into)
+    decode_request_body(&body, precondition).map_err(Into::into)
 }
 
 /// Decode one complete in-memory `OBNS` frame.
@@ -180,23 +189,27 @@ pub(crate) fn decode_request_record(frame: &[u8]) -> Result<TerminalSendRequest,
         .ok_or(ProtocolError::InvalidPayload)?
         .try_into()
         .map_err(|_error| ProtocolError::InvalidPayload)?;
-    let length = decode_record_header(header)?;
+    let (length, precondition) = decode_record_header(header)?;
     if frame.len() != SEND_RECORD_HEADER + length {
         return Err(ProtocolError::InvalidPayload);
     }
-    decode_request_body(&frame[SEND_RECORD_HEADER..])
+    decode_request_body(&frame[SEND_RECORD_HEADER..], precondition)
 }
 
-fn decode_record_header(header: &[u8; SEND_RECORD_HEADER]) -> Result<usize, ProtocolError> {
+fn decode_record_header(
+    header: &[u8; SEND_RECORD_HEADER],
+) -> Result<(usize, SendPrecondition), ProtocolError> {
     if header[..4] != SEND_RECORD_MAGIC {
         return Err(ProtocolError::InvalidMagic);
     }
     if u16::from_be_bytes([header[4], header[5]]) != SEND_RECORD_VERSION {
         return Err(ProtocolError::IncompatibleVersion { received: 1 });
     }
-    if header[6..8] != [0, 0] {
-        return Err(ProtocolError::InvalidPayload);
-    }
+    let precondition = match u16::from_be_bytes([header[6], header[7]]) {
+        0 => SendPrecondition::None,
+        IDLE_PROMPT_FLAG => SendPrecondition::IdlePrompt,
+        _ => return Err(ProtocolError::InvalidPayload),
+    };
     let length = usize::try_from(u32::from_be_bytes(
         header[8..12]
             .try_into()
@@ -209,10 +222,13 @@ fn decode_record_header(header: &[u8; SEND_RECORD_HEADER]) -> Result<usize, Prot
             maximum: MAXIMUM_SEND_RECORD_BODY,
         });
     }
-    Ok(length)
+    Ok((length, precondition))
 }
 
-fn decode_request_body(body: &[u8]) -> Result<TerminalSendRequest, ProtocolError> {
+fn decode_request_body(
+    body: &[u8],
+    precondition: SendPrecondition,
+) -> Result<TerminalSendRequest, ProtocolError> {
     let mut reader = PayloadReader::whole(body);
     let request_id = OperationId::from_bytes(reader.read_array()?)?;
     let worker_id = WorkerId::from_bytes(reader.read_array()?)?;
@@ -230,14 +246,17 @@ fn decode_request_body(body: &[u8]) -> Result<TerminalSendRequest, ProtocolError
         records.push(decode_record_kind(&mut reader)?);
     }
     reader.finish()?;
-    Ok(TerminalSendRequest {
+    let request = TerminalSendRequest {
         request_id,
         worker_id,
         worker_generation,
         target,
         attachment_id,
+        precondition,
         records: SendRecords::new(records)?,
-    })
+    };
+    request.validate()?;
+    Ok(request)
 }
 
 fn encode_progress(bytes: &mut Vec<u8>, progress: SendProgress) {
@@ -278,7 +297,7 @@ pub(super) fn encode_result(result: &TerminalSendResult) -> Result<Vec<u8>, Prot
             cleanup,
         } => {
             bytes.push(REJECTED_INPUT);
-            bytes.push(reason.code());
+            reason.encode(&mut bytes);
             encode_progress(&mut bytes, progress);
             bytes.push(cleanup.code());
         }
@@ -306,7 +325,10 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalSendResult, Protocol
             cleanup: SendCleanupStatus::from_code(reader.read_u8()?)?,
         },
         REJECTED_INPUT => TerminalSendOutcome::Rejected {
-            reason: SendRejection::from_code(reader.read_u8()?)?,
+            reason: {
+                let code = reader.read_u8()?;
+                SendRejection::decode(code, || reader.read_u8())?
+            },
             progress: decode_progress(&mut reader)?,
             cleanup: SendCleanupStatus::from_code(reader.read_u8()?)?,
         },

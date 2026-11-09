@@ -1,6 +1,9 @@
 //! Executes an exact-physical-target send through a transient input attachment, retaining
 //! confirmed prefix progress and an independent bounded detach outcome. It does not claim
-//! child execution, atomicity, or permission to replay accepted or uncertain records.
+//! child execution, atomicity, or permission to replay accepted or uncertain records. An
+//! idle-prompt send is the one exception to per-record exchanges: its whole prompt line is one
+//! Host `PromptLineInput`, typed only at a confirmed fresh prompt, and a Host refusal is returned
+//! as is; the Worker never waits for a settling prompt and never falls back to an ungated send.
 
 mod stroke;
 
@@ -13,17 +16,18 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    SendAcceptedBytes, SendCleanupStatus, SendProgress, SendRecord, SendRejection, SendUnavailable,
-    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
+    SendAcceptedBytes, SendCleanupStatus, SendPrecondition, SendProgress, SendPromptLine,
+    SendPromptState, SendRecord, SendRejection, SendUnavailable, TerminalSendOutcome,
+    TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InputAccepted,
-    InputMessage, MessageRole, PasteAutoInput, PayloadEncoding, TerminalId, WriteInput,
-    decode_attachment_control, decode_connection_control, decode_input_message,
-    decode_transport_envelope, encode_attachment_control, encode_input_message,
-    encode_transport_envelope,
+    InputMessage, MessageRole, PasteAutoInput, PayloadEncoding, PromptLineInput,
+    PromptUnconfirmedReason, TerminalId, TypedFailure, WriteInput, decode_attachment_control,
+    decode_connection_control, decode_input_message, decode_transport_envelope,
+    encode_attachment_control, encode_input_message, encode_transport_envelope,
 };
 
 use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure};
@@ -121,6 +125,15 @@ pub(crate) fn execute(
         Some(SendRejection::StaleHostEpoch)
     } else if host.disposed_terminal(request.target.terminal_id()) {
         Some(SendRejection::TerminalUnavailable)
+    } else if request.precondition == SendPrecondition::IdlePrompt
+        && request.records.prompt_line().is_none()
+    {
+        // The codec admits only a prompt line; a hand-built request is refused the same way.
+        Some(SendRejection::HostInputInvalid)
+    } else if request.precondition == SendPrecondition::IdlePrompt && !host.prompt_gated_input() {
+        // A Host that cannot confirm the prompt is too old for this send: it is refused before
+        // any attachment, never typed ungated.
+        Some(SendRejection::HostPromptGateUnsupported)
     } else if negotiated_excess(&request, host) {
         // The negotiated-bound check runs before the attachment exists, so
         // the honest frontier is zero: no record was ever submitted.
@@ -259,13 +272,23 @@ fn apply(
         }
     };
 
-    // Ordered correlated exchanges, one per record. The frontier cursor moves
-    // only on a validated acknowledgement; the first stop ends the sequence
-    // and no record is ever replayed.
+    // Ordered correlated exchanges, one per step: a record, or the whole
+    // idle-prompt line. The frontier cursor moves only on a validated
+    // acknowledgement; the first stop ends the sequence and no step is ever
+    // replayed.
     let mut accepted_encoded_bytes = 0_u64;
     let record_count = request.records.len();
-    for index in 0..record_count {
-        let record = &request.records.as_slice()[index];
+    let steps = match request.precondition {
+        SendPrecondition::None => request.records.iter().map(Step::Record).collect(),
+        SendPrecondition::IdlePrompt => request
+            .records
+            .prompt_line()
+            .map(Step::PromptLine)
+            .into_iter()
+            .collect::<Vec<_>>(),
+    };
+    let mut index = 0;
+    for step in steps {
         let Some(budget) = step_budget(input_deadline) else {
             // The input deadline expired between records: a determinate stop.
             // The confirmed prefix stands, the stopped record provably never
@@ -282,7 +305,7 @@ fn apply(
                 host_failed,
             );
         };
-        let (command, expected_bytes) = input_command(record, attachment_id, capability_revision)?;
+        let (command, expected_bytes) = step_command(step, attachment_id, capability_revision)?;
         // Input messages ride the raw-bytes encoding while every response is
         // still ControlJson.
         match exchange_fresh(
@@ -294,9 +317,16 @@ fn apply(
             budget,
         )? {
             StepAnswer::Record(record) => {
-                match input_outcome(&record, attachment_id, capability_revision, expected_bytes)? {
+                match input_outcome(
+                    &record,
+                    attachment_id,
+                    capability_revision,
+                    expected_bytes,
+                    matches!(step, Step::PromptLine(_)),
+                )? {
                     InputOutcome::Accepted(bytes) => {
                         accepted_encoded_bytes += u64::from(bytes.get());
+                        index += step.records(record_count);
                     }
                     InputOutcome::Refused(reason) => {
                         let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
@@ -460,12 +490,16 @@ fn input_outcome(
     attachment_id: AttachmentId,
     capability_revision: NonZeroU64,
     expected_bytes: Option<u32>,
+    prompt_line: bool,
 ) -> Result<InputOutcome, Box<dyn Error>> {
     let envelope = decode_transport_envelope(record)?;
     if let Ok(ConnectionControl::TypedFailure(failure)) =
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)
     {
-        return Ok(InputOutcome::Refused(input_rejection(&failure.code)));
+        return Ok(InputOutcome::Refused(input_rejection(
+            &failure,
+            prompt_line,
+        )));
     }
     let Ok(InputMessage::InputAccepted(InputAccepted {
         accepted_bytes,
@@ -546,16 +580,48 @@ fn unreachable_detach(error: Box<dyn Error>) -> DetachOutcome {
     DetachOutcome::Unreachable
 }
 
-/// The Host input message for one record plus the byte-exactness expectation
+/// One Host input exchange: a single record, or an idle-prompt send's whole line.
+#[derive(Clone, Copy)]
+enum Step<'a> {
+    Record(&'a SendRecord),
+    PromptLine(SendPromptLine<'a>),
+}
+
+impl Step<'_> {
+    /// How many of the request's `record_count` records this step carries.
+    const fn records(self, record_count: usize) -> usize {
+        match self {
+            Self::Record(_) => 1,
+            Self::PromptLine(_) => record_count,
+        }
+    }
+}
+
+/// The Host input message for one step plus the byte-exactness expectation
 /// the acknowledgement must satisfy. `Text` and `Bytes` are raw writes, so
 /// the Host's accepted count must equal the exact encoded byte count;
-/// `Paste` content gets bracket markers from the terminal's own mode and
-/// key records are semantic encodings, so neither has a predictable count.
-fn input_command(
-    record: &SendRecord,
+/// `Paste` content and a prompt line get bracket markers from the terminal's
+/// own mode and key records are semantic encodings, so none of them has a
+/// predictable count.
+fn step_command(
+    step: Step<'_>,
     attachment_id: AttachmentId,
     capability_revision: NonZeroU64,
 ) -> Result<(orchbee_terminal_protocol::EncodedInputMessage, Option<u32>), Box<dyn Error>> {
+    let record = match step {
+        Step::Record(record) => record,
+        Step::PromptLine(line) => {
+            return Ok((
+                encode_input_message(&InputMessage::PromptLineInput(PromptLineInput {
+                    attachment_id,
+                    capability_revision,
+                    right_arrow: line.right_arrow,
+                    content: line.content.to_owned(),
+                }))?,
+                None,
+            ));
+        }
+    };
     match record {
         SendRecord::Text(input) => {
             let mut bytes = Vec::with_capacity(input.record_bytes());
@@ -612,8 +678,13 @@ fn attach_rejection(code: &str) -> SendRejection {
     }
 }
 
-fn input_rejection(code: &str) -> SendRejection {
-    match code {
+/// A typed input refusal. Only the prompt-line step may carry the Host's `prompt-unconfirmed`
+/// state, which types nothing; the same code on any other step is an ordinary refusal.
+fn input_rejection(failure: &TypedFailure, prompt_line: bool) -> SendRejection {
+    if prompt_line && let Some(reason) = failure.reason {
+        return SendRejection::PromptUnconfirmed(prompt_state(reason));
+    }
+    match failure.code.as_str() {
         "missing-resource" | "invalid-phase" | "stale-revision" | "stale-generation" => {
             SendRejection::HostInputUnavailable
         }
@@ -621,6 +692,19 @@ fn input_rejection(code: &str) -> SendRejection {
         "limit-exceeded" => SendRejection::HostInputLimitExceeded,
         "resource-exhausted" => SendRejection::HostInputBackpressure,
         _ => SendRejection::HostRejected,
+    }
+}
+
+const fn prompt_state(reason: PromptUnconfirmedReason) -> SendPromptState {
+    match reason {
+        PromptUnconfirmedReason::NotShell => SendPromptState::NotShell,
+        PromptUnconfirmedReason::Busy => SendPromptState::Busy,
+        PromptUnconfirmedReason::FullScreen => SendPromptState::FullScreen,
+        PromptUnconfirmedReason::Unmarked => SendPromptState::Unmarked,
+        PromptUnconfirmedReason::NotAtPrompt => SendPromptState::NotAtPrompt,
+        PromptUnconfirmedReason::InputPending => SendPromptState::InputPending,
+        PromptUnconfirmedReason::Changed => SendPromptState::Changed,
+        PromptUnconfirmedReason::Settling => SendPromptState::Settling,
     }
 }
 

@@ -5,21 +5,24 @@
 use crate::record_identities::{identity, identity_bytes};
 use crate::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, SendBytes, SendPasteContent,
-    SendRecord, SendRecords, SendText, SendTextInput, SessionId, TerminalId, TerminalSendRequest,
-    WorkerId,
+    SendPrecondition, SendRecord, SendRecords, SendText, SendTextInput, SessionId, TerminalId,
+    TerminalSendRequest, WorkerId,
 };
 use std::io::Read;
 
 /// The send request never rides the standard JSON frame: a `bytes` record
 /// alone may carry a megabyte of opaque payload, so the whole request is one
 /// dedicated binary record — `OBSN` magic, record-encoding version 1, a
-/// reserved zero u16, and a big-endian u32 body length. The record version
-/// is independent of the protocol version in OBCS JSON message bodies and
-/// the OBCS frame version.
+/// big-endian u16 of precondition flags, and a big-endian u32 body length.
+/// The record version is independent of the protocol version in OBCS JSON
+/// message bodies and the OBCS frame version.
 pub const SEND_RECORD_MAGIC: [u8; 4] = *b"OBSN";
 
 const HEADER: usize = 12;
-const PREFIX: [u8; 8] = *b"OBSN\0\x01\0\0";
+const PREFIX: [u8; 6] = *b"OBSN\0\x01";
+/// Flag bit 0 asks for [`SendPrecondition::IdlePrompt`]; every other bit is reserved zero, so a
+/// decoder that predates a flag refuses the record instead of ignoring it.
+const IDLE_PROMPT_FLAG: u16 = 1;
 /// request_id + session_id + worker_id + terminal_id + record count.
 const BODY_PREFIX: usize = 16 * 4 + 1;
 /// A semantic stroke uses kind, modifiers, key identity, and a u32 value.
@@ -36,6 +39,7 @@ const PASTE_RECORD: u8 = 5;
 const STROKE_RECORD: u8 = 6;
 
 pub(crate) fn encode(request: &TerminalSendRequest) -> Result<Vec<u8>, ProtocolError> {
+    request.validate()?;
     let records = request.records().as_slice();
     let mut body = Vec::with_capacity(BODY_PREFIX + 64);
     body.extend_from_slice(&identity_bytes(request.request_id())?);
@@ -54,6 +58,11 @@ pub(crate) fn encode(request: &TerminalSendRequest) -> Result<Vec<u8>, ProtocolE
     }
     let mut frame = Vec::with_capacity(HEADER + body.len());
     frame.extend_from_slice(&PREFIX);
+    let flags = match request.precondition() {
+        SendPrecondition::None => 0,
+        SendPrecondition::IdlePrompt => IDLE_PROMPT_FLAG,
+    };
+    frame.extend_from_slice(&flags.to_be_bytes());
     frame.extend_from_slice(
         &u32::try_from(body.len())
             .map_err(|_| ProtocolError::InvalidPayload)?
@@ -104,11 +113,11 @@ fn encode_record(body: &mut Vec<u8>, record: &SendRecord) -> Result<(), Protocol
 
 pub(crate) fn decode(frame: &[u8]) -> Result<ClientMessage, ProtocolError> {
     let header = frame.get(..HEADER).ok_or(ProtocolError::InvalidPayload)?;
-    let length = body_length(header)?;
+    let (length, precondition) = body_length(header)?;
     if frame.len() != HEADER + length {
         return Err(ProtocolError::InvalidPayload);
     }
-    decode_body(&frame[HEADER..])
+    decode_body(&frame[HEADER..], precondition)
 }
 
 pub(crate) fn read(
@@ -118,13 +127,13 @@ pub(crate) fn read(
     let mut header = [0; HEADER];
     header[..8].copy_from_slice(&prefix);
     reader.read_exact(&mut header[8..])?;
-    let length = body_length(&header)?;
+    let (length, precondition) = body_length(&header)?;
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
-    decode_body(&body).map_err(Into::into)
+    decode_body(&body, precondition).map_err(Into::into)
 }
 
-fn body_length(header: &[u8]) -> Result<usize, ProtocolError> {
+fn body_length(header: &[u8]) -> Result<(usize, SendPrecondition), ProtocolError> {
     if header[..4] != SEND_RECORD_MAGIC {
         return Err(ProtocolError::InvalidMagic);
     }
@@ -136,9 +145,11 @@ fn body_length(header: &[u8]) -> Result<usize, ProtocolError> {
     if version != 1 {
         return Err(ProtocolError::IncompatibleFrameVersion { received: version });
     }
-    if header[6..8] != [0, 0] {
-        return Err(ProtocolError::InvalidPayload);
-    }
+    let precondition = match u16::from_be_bytes([header[6], header[7]]) {
+        0 => SendPrecondition::None,
+        IDLE_PROMPT_FLAG => SendPrecondition::IdlePrompt,
+        _ => return Err(ProtocolError::InvalidPayload),
+    };
     let length = usize::try_from(u32::from_be_bytes(
         header[8..12]
             .try_into()
@@ -154,10 +165,13 @@ fn body_length(header: &[u8]) -> Result<usize, ProtocolError> {
             maximum: MAXIMUM_BODY,
         });
     }
-    Ok(length)
+    Ok((length, precondition))
 }
 
-fn decode_body(body: &[u8]) -> Result<ClientMessage, ProtocolError> {
+fn decode_body(
+    body: &[u8],
+    precondition: SendPrecondition,
+) -> Result<ClientMessage, ProtocolError> {
     let request_id = identity::<RequestId>(body.get(..16))?;
     let session_id = identity::<SessionId>(body.get(16..32))?;
     let worker_id = identity::<WorkerId>(body.get(32..48))?;
@@ -174,13 +188,19 @@ fn decode_body(body: &[u8]) -> Result<ClientMessage, ProtocolError> {
     if offset != body.len() {
         return Err(ProtocolError::InvalidPayload);
     }
-    Ok(ClientMessage::TerminalSend(TerminalSendRequest::new(
-        request_id,
-        session_id,
-        worker_id,
-        terminal_id,
-        SendRecords::new(records)?,
-    )))
+    let records = SendRecords::new(records)?;
+    Ok(ClientMessage::TerminalSend(match precondition {
+        SendPrecondition::None => {
+            TerminalSendRequest::new(request_id, session_id, worker_id, terminal_id, records)
+        }
+        SendPrecondition::IdlePrompt => TerminalSendRequest::idle_prompt(
+            request_id,
+            session_id,
+            worker_id,
+            terminal_id,
+            records,
+        )?,
+    }))
 }
 
 fn decode_record(

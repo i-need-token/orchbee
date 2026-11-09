@@ -1083,11 +1083,32 @@ const typedFailureMessageSchema = z
 		'Typed failure message contains an unpaired surrogate',
 	);
 
-export const TypedFailureSchema = z.strictObject({
-	code: typedFailureCodeSchema,
-	message: typedFailureMessageSchema,
-	retryable: z.boolean(),
-});
+/** The code of a `PromptLineInput` refusal: nothing was typed. */
+export const PROMPT_UNCONFIRMED_FAILURE_CODE = 'prompt-unconfirmed';
+
+/** The first rule a `PromptLineInput` refusal failed; only `settling` is retryable. */
+export const PromptUnconfirmedReasonSchema = z.enum([
+	'not-shell',
+	'busy',
+	'full-screen',
+	'unmarked',
+	'not-at-prompt',
+	'input-pending',
+	'changed',
+	'settling',
+]);
+
+export const TypedFailureSchema = z
+	.strictObject({
+		code: typedFailureCodeSchema,
+		message: typedFailureMessageSchema,
+		retryable: z.boolean(),
+		reason: PromptUnconfirmedReasonSchema.optional(),
+	})
+	.refine(
+		(value) => (value.reason !== undefined) === (value.code === PROMPT_UNCONFIRMED_FAILURE_CODE),
+		'Only a prompt-unconfirmed typed failure carries a reason',
+	);
 
 export const TerminalStartedSchema = z.strictObject({
 	creationId: CreationIdSchema,

@@ -194,6 +194,7 @@ fn a_sample_counts_only_what_holds_the_console() {
         terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 1,
         processes: std::iter::once(shell.clone()).chain(rows).collect(),
+        launch_kind: None,
     };
     let with = |image: Option<&str>, console| sample(vec![row(2, image, "helper", console)]);
 

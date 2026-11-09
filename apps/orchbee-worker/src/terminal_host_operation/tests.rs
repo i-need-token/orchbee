@@ -172,6 +172,7 @@ fn exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_re
             code: "rejected".to_owned(),
             message: "retry this operation".to_owned(),
             retryable: true,
+            reason: None,
         }))
         .map_err(io_error)?;
         wire(
@@ -252,6 +253,7 @@ fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> 
                             code: "rejected".to_owned(),
                             message: "wrong operation".to_owned(),
                             retryable: true,
+                            reason: None,
                         }))
                         .map_err(io_error)?;
                     record = wire(
@@ -411,6 +413,7 @@ fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> T
                         code: "denied".to_owned(),
                         message: "unclassified failure".to_owned(),
                         retryable: true,
+                        reason: None,
                     }))
                     .map_err(io_error)?;
                 (failure.kind, failure.role, failure.payload)

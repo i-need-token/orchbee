@@ -85,6 +85,7 @@ fn windows_host() -> Result<
     let host = HostBrokerConnection {
         endpoint: std::path::PathBuf::new(),
         host_epoch: HostEpoch::from_bytes([2; 16])?,
+        prompt_gated_input: true,
         negotiated_limits: NegotiatedHostLimits {
             frame_bytes: 1048576,
             input_bytes: 4096,

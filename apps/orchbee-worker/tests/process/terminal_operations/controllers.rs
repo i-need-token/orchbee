@@ -272,6 +272,7 @@ fn paste_auto_input_reaches_host_and_maps_typed_failures_without_replay() -> Tes
                             code: code.to_string(),
                             message: format!("scripted {code}"),
                             retryable: false,
+                            reason: None,
                         }))
                         .map_err(protocol_io)?;
                     (response.kind, response.payload)

@@ -8,7 +8,8 @@
   request pins a fixed 48-byte `HostTerminalIdentity` plus a Server-minted
   `attachment_id`; the model keeps a single `Target` and treats identity
   checking as exact. The pre-admission fence (wrong worker, stale generation,
-  stale epoch, disposed terminal, negotiated-limit excess) is a declared
+  stale epoch, disposed terminal, an idle-prompt request whose Host did not
+  negotiate `prompt-gated-input`, negotiated-limit excess) is a declared
   exclusion: it is a deterministic local decision that emits zero Host bytes
   and contains no interleaving, so its evidence stays with the scripted fence
   test (`send_fence_rejections_never_reach_the_host`). The model starts at the
@@ -21,7 +22,7 @@
 - The existing TUI controller attachment on the same terminal is modeled as
   `tui` inside `hostAttachments`; it shares the carrier, so carrier death
   legitimately releases it (fault sharing is real, not claimed as isolation).
-- Post-attach local abort (`?` propagation in `apply`/`input_command` after a
+- Post-attach local abort (`?` propagation in `apply`/`step_command` after a
   committed attach) is modeled as `PostAttachAbort` even though Server-side
   validation makes it unreachable in production — it is a deterministic local
   path, modeled rather than silently assumed away.
@@ -186,6 +187,21 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
 
 This model is registered in `scripts/tla/models.json` as
 `worker-send-transaction` (owner `orchbee-worker`).
+
+## Idle-prompt refinement
+
+An idle-prompt request (`SendPrecondition::IdlePrompt`) carries exactly one prompt line: a paste, an
+optional Right, and Enter. The Worker sends the whole line as one Host `PromptLineInput`, so the
+model's single abstract input action covers it unchanged: one attach, one input exchange, one detach.
+A Host answer whose `worker-host` handshake lacked `prompt-gated-input` is refused in the fence as
+`HostPromptGateUnsupported` with not-needed cleanup; the line is never split into ordinary records.
+The Host's `prompt-unconfirmed` refusal is `InputRefused`: it types nothing, so the result is
+`PromptUnconfirmed(state)` with zero progress, and the attachment is still detached. The Worker
+returns `settling` as is instead of waiting the quiet period: the Server carrier serves one request
+at a time and also carries interactive typing, so a wait would stall it. The caller that chose the
+precondition owns the single retry. Evidence is the in-crate scripted Host
+(`host_connection::tests::prompt_line_send`): the one-exchange line, the settling refusal, and the
+fence refusal with no Host bytes.
 
 ## Semantic stroke refinement
 

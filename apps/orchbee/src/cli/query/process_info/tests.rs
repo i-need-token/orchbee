@@ -18,6 +18,7 @@ fn info() -> TerminalProcessInfo {
             command_line: Some("cmd /C echo 中 😀\u{1b}]2;title\u{7}".into()),
             current_directory: None,
         }],
+        launch_kind: None,
     }
 }
 

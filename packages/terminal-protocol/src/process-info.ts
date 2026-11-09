@@ -16,11 +16,19 @@ const text = z
 		'Invalid process text',
 	);
 
-export const ReadProcessInfoSchema = z.strictObject({ attachmentId: AttachmentIdSchema });
+/** How the Host launched the Terminal root, from its own launch record. */
+export const TerminalLaunchKindSchema = z.enum(['managed-powershell', 'cmd', 'other']);
+
+/** Only `includeLaunchKind: true` adds `launchKind` to the response. */
+export const ReadProcessInfoSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+	includeLaunchKind: z.boolean().optional(),
+});
 export const TerminalProcessInfoSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	terminalId: TerminalIdSchema,
 	kind: z.literal('windows-job'),
+	launchKind: TerminalLaunchKindSchema.optional(),
 	rootPid: pid,
 	processes: z
 		.array(

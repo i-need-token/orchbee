@@ -227,6 +227,66 @@ impl SendRecords {
     pub fn iter(&self) -> impl Iterator<Item = &SendRecord> {
         self.0.iter()
     }
+    /// The one prompt line these records form, when they are exactly a paste of one line of
+    /// UTF-8 with no C0 control or DEL, an optional unmodified Right, and an unmodified Enter.
+    #[must_use]
+    pub fn prompt_line(&self) -> Option<SendPromptLine<'_>> {
+        let (content, keys) = match self.0.as_slice() {
+            [SendRecord::Paste { content }, keys @ ..] => (content, keys),
+            _ => return None,
+        };
+        let right_arrow = match keys {
+            [enter] => {
+                plain_key(enter, SendKey::Enter)?;
+                false
+            }
+            [right, enter] => {
+                plain_key(right, SendKey::Right)?;
+                plain_key(enter, SendKey::Enter)?;
+                true
+            }
+            _ => return None,
+        };
+        let content = std::str::from_utf8(content.as_bytes()).ok()?;
+        if content.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+            return None;
+        }
+        Some(SendPromptLine {
+            content,
+            right_arrow,
+        })
+    }
+}
+
+fn plain_key(record: &SendRecord, key: SendKey) -> Option<()> {
+    match record {
+        SendRecord::Stroke(stroke)
+            if stroke.key() == crate::SendStrokeKey::Named(key) && stroke.modifiers() == 0 =>
+        {
+            Some(())
+        }
+        _ => None,
+    }
+}
+
+/// The single shape an idle-prompt send admits: one line the Host types as a paste, then Right
+/// when `right_arrow` is set, then Enter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SendPromptLine<'a> {
+    pub content: &'a str,
+    pub right_arrow: bool,
+}
+
+/// What must hold before any record reaches the Host.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SendPrecondition {
+    /// None: every record is its own Host exchange, in order.
+    #[default]
+    None,
+    /// The records are one prompt line ([`SendRecords::prompt_line`]) that the Host types in a
+    /// single exchange, and only while the terminal's root shell waits at a confirmed fresh,
+    /// empty prompt. A Host that does not offer the gate refuses it; it never falls back.
+    IdlePrompt,
 }
 
 /// Encoded byte count the Host admitted into its bounded input queue for one
@@ -367,9 +427,18 @@ pub enum SendRejection {
     HostInputLimitExceeded,
     HostInputBackpressure,
     HostInputUnavailable,
+    /// The Host could not confirm an idle prompt and typed nothing.
+    PromptUnconfirmed(SendPromptState),
+    /// The terminal's Host did not negotiate `prompt-gated-input`, so an idle-prompt send was
+    /// refused before any attachment.
+    HostPromptGateUnsupported,
 }
 impl SendRejection {
-    pub(crate) fn from_code(code: u8) -> Result<Self, ProtocolError> {
+    /// The wire code, followed by the prompt state's code for `PromptUnconfirmed`.
+    pub(crate) fn decode(
+        code: u8,
+        state: impl FnOnce() -> Result<u8, ProtocolError>,
+    ) -> Result<Self, ProtocolError> {
         Ok(match code {
             1 => Self::WrongWorker,
             2 => Self::StaleWorkerGeneration,
@@ -380,11 +449,13 @@ impl SendRejection {
             7 => Self::HostInputLimitExceeded,
             8 => Self::HostInputBackpressure,
             9 => Self::HostInputUnavailable,
+            10 => Self::PromptUnconfirmed(SendPromptState::from_code(state()?)?),
+            11 => Self::HostPromptGateUnsupported,
             _ => return Err(ProtocolError::InvalidPayload),
         })
     }
-    pub(crate) const fn code(self) -> u8 {
-        match self {
+    pub(crate) fn encode(self, bytes: &mut Vec<u8>) {
+        bytes.push(match self {
             Self::WrongWorker => 1,
             Self::StaleWorkerGeneration => 2,
             Self::StaleHostEpoch => 3,
@@ -394,6 +465,59 @@ impl SendRejection {
             Self::HostInputLimitExceeded => 7,
             Self::HostInputBackpressure => 8,
             Self::HostInputUnavailable => 9,
+            Self::PromptUnconfirmed(_) => 10,
+            Self::HostPromptGateUnsupported => 11,
+        });
+        if let Self::PromptUnconfirmed(state) = self {
+            bytes.push(state.code());
+        }
+    }
+    /// Whether this refusal is decided before the Host types anything, so its progress is zero.
+    const fn types_nothing(self) -> bool {
+        matches!(
+            self,
+            Self::PromptUnconfirmed(_) | Self::HostPromptGateUnsupported
+        )
+    }
+}
+
+/// The first rule the Host found unmet when it refused an idle-prompt line, in its check
+/// order. Only `Settling` is worth asking again, after the quiet period.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SendPromptState {
+    NotShell,
+    Busy,
+    FullScreen,
+    Unmarked,
+    NotAtPrompt,
+    InputPending,
+    Changed,
+    Settling,
+}
+impl SendPromptState {
+    fn from_code(code: u8) -> Result<Self, ProtocolError> {
+        Ok(match code {
+            1 => Self::NotShell,
+            2 => Self::Busy,
+            3 => Self::FullScreen,
+            4 => Self::Unmarked,
+            5 => Self::NotAtPrompt,
+            6 => Self::InputPending,
+            7 => Self::Changed,
+            8 => Self::Settling,
+            _ => return Err(ProtocolError::InvalidPayload),
+        })
+    }
+    const fn code(self) -> u8 {
+        match self {
+            Self::NotShell => 1,
+            Self::Busy => 2,
+            Self::FullScreen => 3,
+            Self::Unmarked => 4,
+            Self::NotAtPrompt => 5,
+            Self::InputPending => 6,
+            Self::Changed => 7,
+            Self::Settling => 8,
         }
     }
 }
@@ -475,6 +599,11 @@ impl TerminalSendOutcome {
             } => {
                 return Err(ProtocolError::InvalidPayload);
             }
+            Self::Rejected { reason, .. } if reason.types_nothing() => {
+                if progress != SendProgress::none() {
+                    return Err(ProtocolError::InvalidPayload);
+                }
+            }
             Self::Rejected { .. } | Self::Unavailable { .. } | Self::OutcomeUnknown { .. } => {}
         }
         if progress.records_accepted() > 0 && self.cleanup() == SendCleanupStatus::NotNeeded {
@@ -507,7 +636,8 @@ impl TerminalSendOutcome {
 /// Server-assigned temporary input-only attachment identity the Worker must
 /// use verbatim. `records` is the ordered sequence — one temporary
 /// attachment serves the whole ordered exchange, and the sequence is never
-/// atomic across records or across other Clients' input.
+/// atomic across records or across other Clients' input, except that an
+/// [`SendPrecondition::IdlePrompt`] line is one Host exchange.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalSendRequest {
     pub request_id: OperationId,
@@ -515,7 +645,18 @@ pub struct TerminalSendRequest {
     pub worker_generation: WorkerGeneration,
     pub target: HostTerminalIdentity,
     pub attachment_id: OperationId,
+    pub precondition: SendPrecondition,
     pub records: SendRecords,
+}
+impl TerminalSendRequest {
+    /// An idle-prompt precondition admits only one prompt line; both codec boundaries check it.
+    pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
+        if self.precondition == SendPrecondition::IdlePrompt && self.records.prompt_line().is_none()
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(())
+    }
 }
 
 /// Worker report for one send request. Construction validates the outcome

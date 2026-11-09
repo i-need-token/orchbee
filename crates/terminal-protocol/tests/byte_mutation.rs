@@ -85,6 +85,7 @@ const CORPUS: &[Fixture] = &[
     fixture!("focus-input.bin", Codec::Input(37), &[]),
     fixture!("paste-input.bin", Codec::Input(38), &[]),
     fixture!("paste-auto-input.bin", Codec::Input(39), &[]),
+    fixture!("prompt-line-input.bin", Codec::Input(84), &[]),
 ];
 
 #[derive(Clone, Copy, Debug)]

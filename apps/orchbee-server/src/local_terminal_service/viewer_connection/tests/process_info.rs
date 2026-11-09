@@ -27,6 +27,7 @@ fn answer(request: WorkerRequest, reply: Reply) -> WorkerOutcome {
         terminal_id: TerminalId::from_bytes([4; 16]).unwrap(),
         root_pid: 41,
         processes: vec![],
+        launch_kind: None,
     };
     match reply {
         Reply::WrongEpoch => epoch = HostEpoch::from_bytes([90; 16]).unwrap(),
@@ -40,6 +41,7 @@ fn answer(request: WorkerRequest, reply: Reply) -> WorkerOutcome {
             code: "process-sample-unavailable".into(),
             message: "OS observation failed".into(),
             retryable: false,
+            reason: None,
         }))
         .unwrap();
         (value.kind, value.payload)

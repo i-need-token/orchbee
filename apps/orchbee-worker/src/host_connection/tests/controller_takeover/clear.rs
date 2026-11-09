@@ -78,6 +78,7 @@ fn clear_pipe_owns_one_input_attachment_preserves_controller_and_reports_effect_
                             code: "terminal-clear-alternate-screen".into(),
                             message: "primary required".into(),
                             retryable: false,
+                            reason: None,
                         }))
                         .unwrap();
                     respond(

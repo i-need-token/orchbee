@@ -415,6 +415,7 @@ fn buildTextRowWindow(
 
 const ControlCommandsFixture = struct {
     read_process_info: []const u8,
+    read_process_info_launch_kind: []const u8,
     apply_terminal_theme: []const u8,
     attach_terminal: []const u8,
     claim_resize_lease: []const u8,
@@ -448,6 +449,7 @@ const ControlCommandsFixture = struct {
 
 const ControlOutputsFixture = struct {
     process_info: []const u8,
+    process_info_launch_kind: []const u8,
     attachment_acknowledged: []const u8,
     attachment_capabilities: []const u8,
     empty: []const u8,
@@ -1377,6 +1379,15 @@ test "every TypeScript control command fixture crosses the native typed decoder"
     {
         var decoded = try control_decode.decodeReadProcessInfo(allocator, commands.read_process_info);
         defer decoded.deinit();
+        try std.testing.expect(!decoded.value.include_launch_kind);
+    }
+    {
+        var decoded = try control_decode.decodeReadProcessInfo(
+            allocator,
+            commands.read_process_info_launch_kind,
+        );
+        defer decoded.deinit();
+        try std.testing.expect(decoded.value.include_launch_kind);
     }
     {
         var decoded = try control_decode.decodeListTerminals(allocator, commands.list_terminals);
@@ -1618,6 +1629,20 @@ test "native control replies and events conform to TypeScript schemas" {
         .root_pid = @as(u32, 41),
         .processes = &process_rows,
     }));
+    const launch_row = .{
+        .pid = process_row.pid,
+        .parent_pid = process_row.parent_pid,
+        .creation_time = process_row.creation_time,
+        .console = process_row.console,
+        .image = process_row.image,
+        .command_line = @as(?[]const u8, "cmd.exe"),
+        .current_directory = process_row.current_directory,
+    };
+    const launch_rows = [_]@TypeOf(launch_row){launch_row};
+    try expectOwnedJson(allocator, outputs.process_info_launch_kind, try control_encode.processInfoWithLaunchKind(allocator, attachment_id, terminal_id, .{
+        .root_pid = @as(u32, 41),
+        .processes = &launch_rows,
+    }, "cmd"));
     try expectJsonEquivalent(allocator, outputs.empty, control_encode.empty_control);
     try expectOwnedJson(allocator, outputs.protocol_rejected, try control_encode.protocolRejected(
         allocator,
@@ -1642,17 +1667,25 @@ test "native control replies and events conform to TypeScript schemas" {
         code: []const u8,
         message: []const u8,
         retryable: bool,
+        reason: ?[]const u8 = null,
     }{
         .{ .code = "invalid-state", .message = "The command is not legal now.", .retryable = false },
         .{ .code = "backpressure", .message = "Try again later.", .retryable = true },
+        .{
+            .code = "prompt-unconfirmed",
+            .message = "the shell is not confirmed at a fresh, empty prompt; nothing was typed",
+            .retryable = false,
+            .reason = "not-at-prompt",
+        },
     };
     try std.testing.expectEqual(typed_failures.len, outputs.typed_failure.len);
     for (typed_failures, outputs.typed_failure) |failure, expected| {
-        try expectOwnedJson(allocator, expected, try control_encode.typedFailure(
+        try expectOwnedJson(allocator, expected, try control_encode.typedFailureWithReason(
             allocator,
             failure.code,
             failure.message,
             failure.retryable,
+            failure.reason,
         ));
     }
 

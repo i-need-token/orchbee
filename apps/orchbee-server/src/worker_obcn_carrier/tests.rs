@@ -2109,6 +2109,7 @@ fn send_request(
         target: host_identity(7)?,
         attachment_id: OperationId::from_bytes([attachment; 16])?,
         records,
+        precondition: orchbee_capability_node_protocol::SendPrecondition::None,
     })
 }
 

@@ -20,6 +20,7 @@ fn info() -> TerminalProcessInfo {
             command_line: Some("cmd /C echo 中 😀\u{1b}]2;title\u{7}".into()),
             current_directory: None,
         }],
+        launch_kind: None,
     }
 }
 
@@ -81,6 +82,7 @@ fn process_info_preserves_only_declared_host_failure_codes() {
             code: code.into(),
             message: "untrusted Host diagnostic".into(),
             retryable: false,
+            reason: None,
         }))
         .unwrap();
         let failure = read(&record(encoded.kind, &encoded.payload, |_| {})).unwrap_err();

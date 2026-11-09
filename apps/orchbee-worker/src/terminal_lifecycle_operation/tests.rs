@@ -400,6 +400,7 @@ fn typed_failures_remain_known_and_never_imply_disposal() -> TestResult {
                 code: code.into(),
                 message: "known refusal".into(),
                 retryable: true,
+                reason: None,
             },
         ))?;
         let record = wire(

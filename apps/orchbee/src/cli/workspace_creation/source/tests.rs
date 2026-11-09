@@ -9,6 +9,7 @@ fn an_absent_root_cwd_can_fall_back_but_a_missing_root_or_bad_path_cannot() {
         terminal_id: TerminalId::parse("00000000000000000000000000000002").unwrap(),
         root_pid: 10,
         processes: vec![],
+        launch_kind: None,
     };
     assert_eq!(
         root_directory(&sample).unwrap_err().kind,

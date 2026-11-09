@@ -26,6 +26,7 @@ fn host(row_window_bytes: u32) -> TestResult<(HostBrokerConnection, UnixStream)>
         HostBrokerConnection {
             endpoint: std::path::PathBuf::new(),
             host_epoch: HostEpoch::from_bytes([4; 16])?,
+            prompt_gated_input: true,
             negotiated_limits: NegotiatedHostLimits {
                 frame_bytes: 1_048_576,
                 input_bytes: 4096,

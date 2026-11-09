@@ -2,7 +2,7 @@
 	"negotiatedConnections": {
 		"client-server": {
 			"generations": { "lowest": 1, "highest": 1 },
-			"capabilities": [],
+			"capabilities": [{ "name": "prompt-gated-input", "addedIn": "0.1.0" }],
 			"fingerprintInputs": [
 				"crates/agent-observation-protocol/src",
 				"crates/client-server-protocol/src",
@@ -19,7 +19,7 @@
 		},
 		"worker-host": {
 			"generations": { "lowest": 1, "highest": 1 },
-			"capabilities": [],
+			"capabilities": [{ "name": "prompt-gated-input", "addedIn": "0.1.0" }],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/control",
 				"apps/terminal-host/src/handshake",

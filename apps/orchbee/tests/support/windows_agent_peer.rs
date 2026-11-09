@@ -986,6 +986,7 @@ pub(super) fn process_sample_for(
                     terminal_id: host_terminal,
                     root_pid: 10,
                     processes,
+                    launch_kind: None,
                 },
             ))
             .unwrap();
@@ -998,6 +999,7 @@ pub(super) fn process_sample_for(
                         code: code.into(),
                         message: "untrusted diagnostic".into(),
                         retryable: false,
+                        reason: None,
                     },
                 ),
             )

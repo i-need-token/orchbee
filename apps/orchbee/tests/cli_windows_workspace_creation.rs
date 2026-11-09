@@ -729,6 +729,7 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
             terminal_id: t::TerminalId::parse(&id(52)).unwrap(),
             root_pid: 40,
             processes: processes.clone(),
+            launch_kind: None,
         },
     ))
     .unwrap();

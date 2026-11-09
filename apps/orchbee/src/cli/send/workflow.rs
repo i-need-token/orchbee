@@ -787,6 +787,9 @@ fn rejected_reason(reason: SendRejectedReason) -> &'static str {
         SendRejectedReason::HostInputLimitExceeded => "host-input-limit-exceeded",
         SendRejectedReason::HostInputBackpressure => "host-input-backpressure",
         SendRejectedReason::HostInputUnavailable => "host-input-unavailable",
+        // Only an idle-prompt send carries these, and this command never sets that precondition.
+        SendRejectedReason::PromptUnconfirmed(_)
+        | SendRejectedReason::HostPromptGateUnsupported => "host-rejected",
     }
 }
 

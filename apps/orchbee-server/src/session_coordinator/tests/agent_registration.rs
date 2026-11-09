@@ -326,6 +326,7 @@ mod process_samples {
                     current_directory: None,
                 },
             ],
+            launch_kind: None,
         };
         (session, target, sample)
     }
@@ -833,6 +834,7 @@ mod process_samples {
                     .unwrap(),
                 root_pid: 10,
                 processes: vec![],
+                launch_kind: None,
             };
             let directory = WorkbenchDirectoryPath::parse(path).unwrap();
             assert!(session.observe_host_screen_with_directory(

@@ -9,7 +9,7 @@ use super::{
     decode_transport_envelope, encode_transport_envelope, invalid,
 };
 use orchbee_terminal_protocol::{
-    MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, decode_process_info_control,
+    MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, ReadProcessInfo, decode_process_info_control,
     encode_process_info_control,
 };
 
@@ -26,8 +26,9 @@ pub(super) fn read(
     };
     let id = AttachmentId::from_bytes(attachment.as_bytes())?;
     let command =
-        encode_process_info_control(&ProcessInfoControl::ReadProcessInfo(AttachmentTarget {
-            attachment_id: id,
+        encode_process_info_control(&ProcessInfoControl::ReadProcessInfo(ReadProcessInfo {
+            target: AttachmentTarget { attachment_id: id },
+            include_launch_kind: false,
         }))?;
     let record = encode_transport_envelope(&Envelope {
         correlation_id: Some(correlation),

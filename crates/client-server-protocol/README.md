@@ -282,7 +282,7 @@ duplicates, and no `ORCHBEE_*`, `TERM`, `COLORTERM` or `TERM_PROGRAM`. Empty val
 `=` remain literal. Values are omitted from Debug output. The complete request, including this
 overlay, participates in request identity. The Server converts it to the independent OBCN value.
 
-The v1 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all four OBSN input record kinds (including semantic strokes). Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
+The v1 schema/corpus covers launch selection, environment, profile provenance, send sequence progress, all four OBSN input record kinds (including semantic strokes), the idle-prompt precondition with its prompt-line shape, and the prompt refusals with their `promptState`. `TerminalSendRequest::new` builds an ungated send; `TerminalSendRequest::idle_prompt` builds the gated one and refuses records that are not one prompt line. Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
 
 Native v1 frames are bounded at 63 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.
 

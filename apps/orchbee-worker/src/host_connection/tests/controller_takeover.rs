@@ -124,6 +124,7 @@ fn fixture() -> Result<(HostBrokerConnection, UnixStream), Box<dyn Error>> {
     let host = HostBrokerConnection {
         endpoint: std::path::PathBuf::new(),
         host_epoch: HostEpoch::from_bytes([4; 16])?,
+        prompt_gated_input: true,
         negotiated_limits: NegotiatedHostLimits {
             frame_bytes: 1_048_576,
             input_bytes: 4096,
@@ -536,6 +537,7 @@ fn takeover_pipe_failure_never_restores_old_authority_or_grants_without_detach_p
                         code: "limit-exceeded".into(),
                         message: "test capacity".into(),
                         retryable: false,
+                        reason: None,
                     }))
                     .unwrap();
                 respond(

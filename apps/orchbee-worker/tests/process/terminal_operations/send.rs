@@ -1,8 +1,8 @@
 use super::*;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostTerminalIdentity, SendAcceptedBytes, SendCleanupStatus, SendKey,
-    SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput, SendUnavailable,
-    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
+    SendPrecondition, SendProgress, SendRecord, SendRecords, SendRejection, SendText,
+    SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilities, AttachmentCapabilityState, AttachmentControl,
@@ -39,6 +39,7 @@ fn send_request(
         worker_generation: WorkerGeneration::new(nonzero(generation)?),
         target,
         attachment_id: OperationId::from_bytes(ATTACHMENT)?,
+        precondition: SendPrecondition::None,
         records,
     })
 }
@@ -237,6 +238,7 @@ fn respond_failure(host: &mut UnixStream, correlation: CorrelationId, code: &str
         code: code.to_owned(),
         message: format!("scripted Host refusal: {code}"),
         retryable: false,
+        reason: None,
     }))?;
     host.write_all(&host_record(
         kind,

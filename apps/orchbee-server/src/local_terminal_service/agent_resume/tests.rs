@@ -35,6 +35,7 @@ fn sample(root: TerminalProcess, others: Vec<TerminalProcess>) -> TerminalProces
         terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 1,
         processes: std::iter::once(root).chain(others).collect(),
+        launch_kind: None,
     }
 }
 

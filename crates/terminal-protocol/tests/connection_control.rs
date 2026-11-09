@@ -4,9 +4,9 @@ use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, Envelope, Hello, HelloAccepted,
     MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_OPTIONAL_FEATURES, MAXIMUM_TERMINAL_FRAME_BYTES,
     MAXIMUM_TYPED_FAILURE_CODE_BYTES, MAXIMUM_TYPED_FAILURE_MESSAGE_BYTES, MessageRole,
-    PayloadEncoding, ProtocolError, ProtocolErrorCode, ProtocolRejected, ProtocolRejectionReason,
-    ProtocolVersion, TypedFailure, decode_connection_control, decode_transport_envelope,
-    encode_connection_control, encode_transport_envelope,
+    PayloadEncoding, PromptUnconfirmedReason, ProtocolError, ProtocolErrorCode, ProtocolRejected,
+    ProtocolRejectionReason, ProtocolVersion, TypedFailure, decode_connection_control,
+    decode_transport_envelope, encode_connection_control, encode_transport_envelope,
 };
 use serde_json::Value;
 
@@ -289,6 +289,7 @@ fn host_semantic_version_and_failure_text_boundaries_are_strict() -> Result<(), 
         code: "x".repeat(MAXIMUM_TYPED_FAILURE_CODE_BYTES),
         message: "😀".repeat(MAXIMUM_TYPED_FAILURE_MESSAGE_BYTES / 4),
         retryable: false,
+        reason: None,
     };
     assert!(encode_connection_control(&ConnectionControl::TypedFailure(failure.clone())).is_ok());
     failure.code.push('x');
@@ -383,10 +384,37 @@ fn public_values_are_revalidated_before_encoding() -> Result<(), Box<dyn Error>>
         code: String::new(),
         message: "message".to_owned(),
         retryable: true,
+        reason: None,
     };
     assert_code(
         encode_connection_control(&ConnectionControl::TypedFailure(invalid_failure)),
         ProtocolErrorCode::InvalidField,
+    );
+
+    // A reason belongs to a prompt-unconfirmed refusal and to nothing else.
+    let mut prompt = TypedFailure {
+        code: "prompt-unconfirmed".to_owned(),
+        message: "nothing was typed".to_owned(),
+        retryable: false,
+        reason: None,
+    };
+    assert_code(
+        encode_connection_control(&ConnectionControl::TypedFailure(prompt.clone())),
+        ProtocolErrorCode::InvalidField,
+    );
+    prompt.code = "invalid-state".to_owned();
+    prompt.reason = Some(PromptUnconfirmedReason::Busy);
+    assert_code(
+        encode_connection_control(&ConnectionControl::TypedFailure(prompt)),
+        ProtocolErrorCode::InvalidField,
+    );
+    assert!(
+        decode_connection_control(
+            5,
+            MessageRole::Response,
+            br#"{"code":"prompt-unconfirmed","message":"m","retryable":false,"reason":null}"#,
+        )
+        .is_err()
     );
     Ok(())
 }

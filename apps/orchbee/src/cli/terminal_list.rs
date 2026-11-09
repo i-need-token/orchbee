@@ -561,6 +561,7 @@ mod tests {
                     current_directory: None,
                 },
             ],
+            launch_kind: None,
         };
         observed_frame(Some((
             serde_json::json!({

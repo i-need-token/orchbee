@@ -410,6 +410,7 @@ pub(in crate::local_terminal_service::viewer_connection::tests) fn static_codex_
             command_line: Some("codex.exe".into()),
             current_directory: None,
         }],
+        launch_kind: None,
     }
 }
 

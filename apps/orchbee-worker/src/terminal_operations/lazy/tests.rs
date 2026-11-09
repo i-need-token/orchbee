@@ -1186,6 +1186,7 @@ fn send_apc(
             worker_generation: WorkerGeneration::new(GENERATION),
             target,
             attachment_id: OperationId::from_bytes([attempt.wrapping_add(100); 16])?,
+            precondition: orchbee_capability_node_protocol::SendPrecondition::None,
             records: SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
                 SendText::new(apc)?,
                 true,

@@ -405,6 +405,10 @@ and sends the line once more, and a second `settling` is a refusal like the othe
 reason is non-retryable. A root that has exited fails `invalid-phase` like other input. No other
 typed failure carries `reason`.
 
+A Host that serves `PromptLineInput` lists the capability `prompt-gated-input` in its `worker-host`
+handshake answer. A Worker whose Host answer lacks it refuses an idle-prompt send before any
+attachment; it never types the line as ordinary input.
+
 ## Message registry
 
 | Range   | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |

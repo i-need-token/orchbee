@@ -1,5 +1,6 @@
 //! Encodes and validates bounded attachment-scoped process samples as compact positional rows,
-//! preserving opaque rows, console attachment, unavailable process facts, and UTF-16 text limits. It does not query the operating system or turn
+//! preserving opaque rows, console attachment, unavailable process facts, the Host's own launch
+//! kind when asked, and UTF-16 text limits. It does not query the operating system or turn
 //! sampled process identity into control authority.
 
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,18 @@ pub enum TerminalProcessConsole {
     Unknown,
 }
 
+/// How the Host launched the Terminal root, from its own launch record rather than a command
+/// line. Every launch off Windows is `Other`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TerminalLaunchKind {
+    /// PowerShell given the managed startup, which marks its own prompt.
+    ManagedPowershell,
+    /// An interactive cmd given prompt marks.
+    Cmd,
+    Other,
+}
+
 /// One live Job member. A row without `image` is opaque: the member denied limited query
 /// rights, so only its identity and parent are known. Consumers never treat it as absent.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,13 +60,23 @@ pub struct TerminalProcess {
 pub struct TerminalProcessInfo {
     pub attachment_id: AttachmentId,
     pub terminal_id: TerminalId,
+    /// Present only when the request asked for it with `include_launch_kind`.
+    pub launch_kind: Option<TerminalLaunchKind>,
     pub root_pid: u32,
     pub processes: Vec<TerminalProcess>,
 }
 
+/// A process sample request. Without `include_launch_kind` the response keeps the shape that
+/// predates the launch kind.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReadProcessInfo {
+    pub target: AttachmentTarget,
+    pub include_launch_kind: bool,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProcessInfoControl {
-    ReadProcessInfo(AttachmentTarget),
+    ReadProcessInfo(ReadProcessInfo),
     ProcessInfo(TerminalProcessInfo),
 }
 
@@ -75,10 +98,13 @@ pub fn decode_process_info_control(
     }
     match role {
         MessageRole::Request => {
-            let wire: TargetWire = decode_wire(payload)?;
-            Ok(ProcessInfoControl::ReadProcessInfo(AttachmentTarget {
-                attachment_id: AttachmentId::parse(&wire.attachment_id)
-                    .map_err(|_| invalid("process attachment identity is invalid"))?,
+            let wire: ReadWire = decode_wire(payload)?;
+            Ok(ProcessInfoControl::ReadProcessInfo(ReadProcessInfo {
+                target: AttachmentTarget {
+                    attachment_id: AttachmentId::parse(&wire.attachment_id)
+                        .map_err(|_| invalid("process attachment identity is invalid"))?,
+                },
+                include_launch_kind: wire.include_launch_kind.unwrap_or(false),
             }))
         }
         MessageRole::Response => {
@@ -91,6 +117,7 @@ pub fn decode_process_info_control(
                     .map_err(|_| invalid("process attachment identity is invalid"))?,
                 terminal_id: TerminalId::parse(&wire.terminal_id)
                     .map_err(|_| invalid("process terminal identity is invalid"))?,
+                launch_kind: wire.launch_kind,
                 root_pid: pid(wire.root_pid)?,
                 processes: wire
                     .processes
@@ -109,10 +136,11 @@ pub fn encode_process_info_control(
     value: &ProcessInfoControl,
 ) -> Result<EncodedProcessInfoControl, ProtocolError> {
     let (role, payload) = match value {
-        ProcessInfoControl::ReadProcessInfo(target) => (
+        ProcessInfoControl::ReadProcessInfo(read) => (
             MessageRole::Request,
-            serialize_wire(&TargetWire {
-                attachment_id: target.attachment_id.to_text(),
+            serialize_wire(&ReadWire {
+                attachment_id: read.target.attachment_id.to_text(),
+                include_launch_kind: read.include_launch_kind.then_some(true),
             })?,
         ),
         ProcessInfoControl::ProcessInfo(info) => {
@@ -121,6 +149,7 @@ pub fn encode_process_info_control(
                 attachment_id: info.attachment_id.to_text(),
                 terminal_id: info.terminal_id.to_text(),
                 kind: "windows-job".into(),
+                launch_kind: info.launch_kind,
                 root_pid: SafeInteger::new(u64::from(info.root_pid)),
                 processes: info.processes.iter().map(to_wire).collect(),
             };
@@ -134,10 +163,18 @@ pub fn encode_process_info_control(
     })
 }
 
+/// `includeLaunchKind` is written only when true, so a request that does not ask keeps its
+/// earlier bytes; a reader accepts an explicit `false`.
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct TargetWire {
+struct ReadWire {
     attachment_id: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present"
+    )]
+    include_launch_kind: Option<bool>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -146,6 +183,12 @@ struct InfoWire {
     attachment_id: String,
     terminal_id: String,
     kind: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present"
+    )]
+    launch_kind: Option<TerminalLaunchKind>,
     root_pid: SafeInteger,
     processes: Vec<ProcessWire>,
 }
@@ -162,6 +205,15 @@ struct ProcessWire(
     Option<String>,
     Option<String>,
 );
+
+/// An absent optional member is `None`; a present one, including `null`, must hold a value.
+fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
 
 fn from_wire(wire: ProcessWire) -> Result<TerminalProcess, ProtocolError> {
     let ProcessWire(pid_value, parent_pid, creation_time, console, image, command, directory) =

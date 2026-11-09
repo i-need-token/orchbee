@@ -1801,8 +1801,23 @@
 				"host-input-invalid",
 				"host-input-limit-exceeded",
 				"host-input-backpressure",
-				"host-input-unavailable"
+				"host-input-unavailable",
+				"prompt-unconfirmed",
+				"host-prompt-gate-unsupported"
 			]
+		},
+		"sendPromptState": {
+			"enum": [
+				"not-shell",
+				"busy",
+				"full-screen",
+				"unmarked",
+				"not-at-prompt",
+				"input-pending",
+				"changed",
+				"settling"
+			],
+			"$comment": "The first idle-prompt rule the Host found unmet, in its check order; only settling is worth one retry after the quiet period."
 		},
 		"sendUnavailableReason": {
 			"enum": [
@@ -1844,11 +1859,30 @@
 						"reason": {
 							"$ref": "#/$defs/sendRejectedReason"
 						},
+						"promptState": {
+							"$ref": "#/$defs/sendPromptState"
+						},
 						"cleanup": {
 							"$ref": "#/$defs/sendCleanupStatus"
 						},
 						"progress": {
 							"$ref": "#/$defs/sendProgress"
+						}
+					},
+					"if": {
+						"properties": {
+							"reason": {
+								"const": "prompt-unconfirmed"
+							}
+						},
+						"required": ["reason"]
+					},
+					"then": {
+						"required": ["promptState"]
+					},
+					"else": {
+						"not": {
+							"required": ["promptState"]
 						}
 					}
 				},
@@ -1952,11 +1986,30 @@
 						"reason": {
 							"$ref": "#/$defs/sendRejectedReason"
 						},
+						"promptState": {
+							"$ref": "#/$defs/sendPromptState"
+						},
 						"cleanup": {
 							"const": "not-needed"
 						},
 						"progress": {
 							"$ref": "#/$defs/sendProgress"
+						}
+					},
+					"if": {
+						"properties": {
+							"reason": {
+								"const": "prompt-unconfirmed"
+							}
+						},
+						"required": ["reason"]
+					},
+					"then": {
+						"required": ["promptState"]
+					},
+					"else": {
+						"not": {
+							"required": ["promptState"]
 						}
 					}
 				},

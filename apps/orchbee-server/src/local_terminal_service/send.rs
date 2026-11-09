@@ -1,18 +1,20 @@
-//! Freezes an exposed send target, dispatches its ordered records to that Worker incarnation,
-//! and preserves prefix progress and cleanup in the Client result. It does not re-resolve an
-//! admitted target or replay partial and unknown input effects.
+//! Freezes an exposed send target, dispatches its ordered records and precondition to that Worker
+//! incarnation, and preserves prefix progress and cleanup in the Client result. It does not
+//! re-resolve an admitted target, replay partial and unknown input effects, or retry an
+//! unconfirmed prompt; the Worker owns the prompt gate's capability check.
 
 use std::num::NonZeroU64;
 
 use orchbee_capability_node_protocol::{
-    SendProgress as WorkerProgress, SendRejection as WorkerRejection,
+    SendPrecondition as WorkerPrecondition, SendProgress as WorkerProgress,
+    SendPromptState as WorkerPromptState, SendRejection as WorkerRejection,
     SendUnavailable as WorkerUnavailableReason, TerminalSendOutcome as WorkerOutcome,
     TerminalSendRequest as WorkerRequest,
 };
 use orchbee_client_server_protocol::{
-    RequestId, SendCleanupStatus as Cleanup, SendProgress, SendRejectedReason as Rejected,
-    SendTarget, SendUnavailableReason as Unavailable, ServerMessage,
-    TerminalSendOutcome as Outcome, TerminalSendRequest, TerminalSendResult,
+    RequestId, SendCleanupStatus as Cleanup, SendPrecondition, SendProgress, SendPromptState,
+    SendRejectedReason as Rejected, SendTarget, SendUnavailableReason as Unavailable,
+    ServerMessage, TerminalSendOutcome as Outcome, TerminalSendRequest, TerminalSendResult,
 };
 
 use crate::session_coordinator::{BindingViewerPreparationError, PreparedSendTarget};
@@ -139,6 +141,10 @@ fn send_request(
             worker_generation: prepared.target.worker.generation,
             target: prepared.target.identity,
             attachment_id: prepared.identities.attachment,
+            precondition: match request.precondition() {
+                SendPrecondition::None => WorkerPrecondition::None,
+                SendPrecondition::IdlePrompt => WorkerPrecondition::IdlePrompt,
+            },
             records: orchbee_capability_node_protocol::SendRecords::new(records).ok()?,
         },
         target,
@@ -306,6 +312,12 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
                     WorkerRejection::HostInputLimitExceeded => Rejected::HostInputLimitExceeded,
                     WorkerRejection::HostInputBackpressure => Rejected::HostInputBackpressure,
                     WorkerRejection::HostInputUnavailable => Rejected::HostInputUnavailable,
+                    WorkerRejection::PromptUnconfirmed(state) => {
+                        Rejected::PromptUnconfirmed(prompt_state(state))
+                    }
+                    WorkerRejection::HostPromptGateUnsupported => {
+                        Rejected::HostPromptGateUnsupported
+                    }
                     WorkerRejection::WrongWorker => unreachable!("handled above"),
                 },
                 progress: progress(cursor),
@@ -326,6 +338,19 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
             progress: progress(cursor),
             cleanup: cleanup(status),
         },
+    }
+}
+
+const fn prompt_state(state: WorkerPromptState) -> SendPromptState {
+    match state {
+        WorkerPromptState::NotShell => SendPromptState::NotShell,
+        WorkerPromptState::Busy => SendPromptState::Busy,
+        WorkerPromptState::FullScreen => SendPromptState::FullScreen,
+        WorkerPromptState::Unmarked => SendPromptState::Unmarked,
+        WorkerPromptState::NotAtPrompt => SendPromptState::NotAtPrompt,
+        WorkerPromptState::InputPending => SendPromptState::InputPending,
+        WorkerPromptState::Changed => SendPromptState::Changed,
+        WorkerPromptState::Settling => SendPromptState::Settling,
     }
 }
 

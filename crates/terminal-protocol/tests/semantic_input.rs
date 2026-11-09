@@ -5,9 +5,10 @@ use orchbee_terminal_protocol::{
     KeyAction, MAXIMUM_INPUT_BYTES, MAXIMUM_KEY_TEXT_BYTES, MAXIMUM_PASTE_AUTO_INPUT_BYTES,
     MAXIMUM_PASTE_AUTO_INPUT_PAYLOAD_BYTES, MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
     MOUSE_INPUT_BYTES, MessageRole, MouseAction, MouseButton, PASTE_AUTO_INPUT_HEADER_BYTES,
-    PASTE_INPUT_HEADER_BYTES, PasteAutoInput, PasteInput, PayloadEncoding, ProtocolError,
-    ProtocolErrorCode, TEXT_INPUT_HEADER_BYTES, TerminalKeyCode, TextInput, decode_input_message,
-    decode_transport_envelope, encode_input_message, encode_transport_envelope,
+    PASTE_INPUT_HEADER_BYTES, PROMPT_LINE_INPUT_HEADER_BYTES, PasteAutoInput, PasteInput,
+    PayloadEncoding, PromptLineInput, ProtocolError, ProtocolErrorCode, TEXT_INPUT_HEADER_BYTES,
+    TerminalKeyCode, TextInput, decode_input_message, decode_transport_envelope,
+    encode_input_message, encode_transport_envelope,
 };
 
 const KEY_FIXTURE: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/key-input.bin");
@@ -20,6 +21,8 @@ const PASTE_FIXTURE: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/paste-input.bin");
 const PASTE_AUTO_FIXTURE: &[u8] =
     include_bytes!("../../../schemas/terminal/v1/fixtures/paste-auto-input.bin");
+const PROMPT_LINE_FIXTURE: &[u8] =
+    include_bytes!("../../../schemas/terminal/v1/fixtures/prompt-line-input.bin");
 
 #[test]
 fn every_canonical_semantic_input_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>>
@@ -97,6 +100,15 @@ fn canonical_payloads_retain_complete_semantic_input_facts() -> Result<(), Box<d
     };
     assert_authority(paste.attachment_id.to_text(), paste.capability_revision);
     assert_eq!(paste.content, b"\x02\x80\xff\x1b\r\nraw-paste".as_slice());
+
+    let InputMessage::PromptLineInput(line) =
+        decode_input_message(84, MessageRole::Request, PROMPT_LINE_FIXTURE)?
+    else {
+        return Err(fixture_error("prompt-line fixture decoded to the wrong variant").into());
+    };
+    assert_authority(line.attachment_id.to_text(), line.capability_revision);
+    assert!(line.right_arrow);
+    assert_eq!(line.content, "codex resume '中文'");
     Ok(())
 }
 
@@ -497,6 +509,71 @@ fn paste_auto_input_carries_opaque_bytes_with_exact_bounds() -> Result<(), Box<d
 }
 
 #[test]
+fn prompt_line_input_admits_only_one_bounded_control_free_line() -> Result<(), Box<dyn Error>> {
+    let mut unknown_flag = PROMPT_LINE_FIXTURE.to_vec();
+    unknown_flag[24] |= 1 << 1;
+    assert_payload_code(84, &unknown_flag, ProtocolErrorCode::UnknownRequiredFlag);
+    for offset in 25..28 {
+        let mut reserved = PROMPT_LINE_FIXTURE.to_vec();
+        reserved[offset] = 1;
+        assert_payload_code(84, &reserved, ProtocolErrorCode::UnknownRequiredFlag);
+    }
+
+    let mut mismatched = PROMPT_LINE_FIXTURE.to_vec();
+    write_u32(&mut mismatched, 28, 0)?;
+    assert_payload_code(84, &mismatched, ProtocolErrorCode::LengthMismatch);
+    assert_code(
+        decode_input_message(84, MessageRole::Request, &PROMPT_LINE_FIXTURE[..31]),
+        ProtocolErrorCode::Truncated,
+    );
+
+    let mut malformed = PROMPT_LINE_FIXTURE.to_vec();
+    malformed[PROMPT_LINE_INPUT_HEADER_BYTES] = 0xff;
+    assert_payload_code(84, &malformed, ProtocolErrorCode::InvalidUtf8);
+    for control in [0x00, 0x09, 0x0d, 0x1b, 0x1f, 0x7f] {
+        let mut line = PROMPT_LINE_FIXTURE.to_vec();
+        line[PROMPT_LINE_INPUT_HEADER_BYTES] = control;
+        assert_payload_code(84, &line, ProtocolErrorCode::InvalidField);
+    }
+
+    let attachment_id = fixture_attachment_id()?;
+    let capability_revision =
+        NonZeroU64::new(7).ok_or_else(|| fixture_error("fixture revision is zero"))?;
+    let line = |content: String, right_arrow: bool| {
+        InputMessage::PromptLineInput(PromptLineInput {
+            attachment_id,
+            capability_revision,
+            right_arrow,
+            content,
+        })
+    };
+    for (length, right_arrow) in [(1, false), (MAXIMUM_PASTE_AUTO_INPUT_BYTES, true)] {
+        let value = line("a".repeat(length), right_arrow);
+        let encoded = encode_input_message(&value)?;
+        assert_eq!(
+            encoded.payload.len(),
+            PROMPT_LINE_INPUT_HEADER_BYTES + length
+        );
+        assert_eq!(encoded.payload[24], u8::from(right_arrow));
+        assert_eq!(
+            decode_input_message(84, MessageRole::Request, &encoded.payload)?,
+            value
+        );
+    }
+    for content in [
+        String::new(),
+        "a".repeat(MAXIMUM_PASTE_AUTO_INPUT_BYTES + 1),
+        "line\r".to_owned(),
+    ] {
+        assert_code(
+            encode_input_message(&line(content, false)),
+            ProtocolErrorCode::InvalidField,
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn semantic_input_composes_with_the_transport_envelope() -> Result<(), Box<dyn Error>> {
     for (kind, payload) in fixture_cases() {
         let value = decode_input_message(kind, MessageRole::Request, payload)?;
@@ -525,7 +602,7 @@ fn semantic_input_composes_with_the_transport_envelope() -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn fixture_cases() -> [(u16, &'static [u8]); 6] {
+fn fixture_cases() -> [(u16, &'static [u8]); 7] {
     [
         (34, KEY_FIXTURE),
         (35, TEXT_FIXTURE),
@@ -533,6 +610,7 @@ fn fixture_cases() -> [(u16, &'static [u8]); 6] {
         (37, FOCUS_FIXTURE),
         (38, PASTE_FIXTURE),
         (39, PASTE_AUTO_FIXTURE),
+        (84, PROMPT_LINE_FIXTURE),
     ]
 }
 

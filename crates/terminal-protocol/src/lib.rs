@@ -59,7 +59,8 @@ pub use cell_color::{
     COLOR_DEFAULT, COLOR_NONE, COLOR_PALETTE, COLOR_RGB_MASK, terminal_palette_index,
 };
 pub use control::{
-    ConnectionControl, EncodedConnectionControl, Hello, HelloAccepted, ProtocolRejected,
+    ConnectionControl, EncodedConnectionControl, Hello, HelloAccepted,
+    PROMPT_UNCONFIRMED_FAILURE_CODE, PromptUnconfirmedReason, ProtocolRejected,
     ProtocolRejectionReason, TypedFailure, decode_connection_control, encode_connection_control,
 };
 pub use creation::{
@@ -87,8 +88,8 @@ pub use identity::{
 };
 pub use input::{
     EncodedInputMessage, FOCUS_INPUT_KIND, InputAccepted, InputMessage, KEY_INPUT_KIND,
-    MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES, MOUSE_INPUT_KIND, TEXT_INPUT_KIND, WRITE_INPUT_HEADER_BYTES,
-    WriteInput, decode_input_message, encode_input_message,
+    MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES, MOUSE_INPUT_KIND, PROMPT_LINE_INPUT_KIND, TEXT_INPUT_KIND,
+    WRITE_INPUT_HEADER_BYTES, WriteInput, decode_input_message, encode_input_message,
 };
 pub use inventory::{
     ColorScheme, EncodedInventoryControl, FailureContainment, InventoryControl, ListTerminals,
@@ -124,8 +125,9 @@ pub use message::{
 };
 pub use process_info::{
     EncodedProcessInfoControl, MAXIMUM_PROCESS_SAMPLE_ROWS, MAXIMUM_PROCESS_TEXT_UTF16_UNITS,
-    ProcessInfoControl, READ_PROCESS_INFO_KIND, TerminalProcess, TerminalProcessConsole,
-    TerminalProcessInfo, decode_process_info_control, encode_process_info_control,
+    ProcessInfoControl, READ_PROCESS_INFO_KIND, ReadProcessInfo, TerminalLaunchKind,
+    TerminalProcess, TerminalProcessConsole, TerminalProcessInfo, decode_process_info_control,
+    encode_process_info_control,
 };
 pub use projection_buffer::{
     TerminalProjectionBuffer, TerminalProjectionCell, TerminalProjectionRow,
@@ -180,8 +182,8 @@ pub use selection_export_chunk::{
 pub use semantic_input::{
     FOCUS_INPUT_BYTES, FocusInput, KEY_INPUT_HEADER_BYTES, KeyAction, KeyInput, MOUSE_INPUT_BYTES,
     MouseAction, MouseButton, MouseInput, PASTE_AUTO_INPUT_HEADER_BYTES, PASTE_INPUT_HEADER_BYTES,
-    PasteAutoInput, PasteInput, TEXT_INPUT_HEADER_BYTES, TerminalKeyCode, TerminalModifiers,
-    TextInput,
+    PROMPT_LINE_INPUT_HEADER_BYTES, PasteAutoInput, PasteInput, PromptLineInput,
+    TEXT_INPUT_HEADER_BYTES, TerminalKeyCode, TerminalModifiers, TextInput,
 };
 pub use terminal_configuration::{
     EncodedTerminalConfigurationControl, SetTerminalDefaults, TerminalConfiguration,

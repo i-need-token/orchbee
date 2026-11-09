@@ -627,6 +627,21 @@
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"input-budget-exhausted\",\"progress\":{\"recordsAccepted\":2,\"firstStoppedRecord\":2,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
 		},
 		{
+			"direction": "server-to-client",
+			"name": "send-result-prompt-unconfirmed-settling",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"prompt-unconfirmed\",\"promptState\":\"settling\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-prompt-unconfirmed-not-at-prompt",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"prompt-unconfirmed\",\"promptState\":\"not-at-prompt\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"unconfirmed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-host-prompt-gate-unsupported",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-prompt-gate-unsupported\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}"
+		},
+		{
 			"direction": "client-to-server",
 			"name": "viewer-read-process-info",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
@@ -2250,6 +2265,42 @@
 			"boundary": "semantic"
 		},
 		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-prompt-unconfirmed-without-state",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"prompt-unconfirmed\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-prompt-state-null",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"prompt-unconfirmed\",\"promptState\":null,\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-prompt-state-unknown",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"prompt-unconfirmed\",\"promptState\":\"sleeping\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-prompt-state-on-other-reason",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"promptState\":\"busy\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "server-to-client",
+			"name": "send-result-prompt-unconfirmed-with-progress",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"prompt-unconfirmed\",\"promptState\":\"busy\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "server-to-client",
+			"name": "send-result-host-prompt-gate-unsupported-with-progress",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-prompt-gate-unsupported\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}"
+		},
+		{
 			"name": "viewer-process-info-missing-attachment",
 			"direction": "client-to-server",
 			"boundary": "schema",
@@ -2916,6 +2967,14 @@
 		{
 			"name": "send-stroke-unicode-super-then-enter",
 			"frameHex": "4f42534e000100000000004f11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020608040001f60006000100000001"
+		},
+		{
+			"name": "send-prompt-line-right-enter",
+			"frameHex": "4f42534e000100010000006911111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444030500000015636f64657820726573756d652027e4b8ade69687270600010000000906000100000001"
+		},
+		{
+			"name": "send-prompt-line-enter",
+			"frameHex": "4f42534e000100010000005311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020500000006636c6175646506000100000001"
 		}
 	],
 	"invalidSendRecords": [
@@ -2953,7 +3012,7 @@
 		},
 		{
 			"name": "reserved-header",
-			"frameHex": "4f42534e0001000100000048111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440106000100000001"
+			"frameHex": "4f42534e0001000200000048111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440106000100000001"
 		},
 		{
 			"name": "version-header",
@@ -2994,6 +3053,42 @@
 		{
 			"name": "send-stroke-invalid-truncated",
 			"frameHex": "4f42534e000100000000004611111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600040000"
+		},
+		{
+			"name": "prompt-line-without-enter",
+			"frameHex": "4f42534e000100010000004c11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010500000006636c61756465"
+		},
+		{
+			"name": "prompt-line-without-paste",
+			"frameHex": "4f42534e0001000100000048111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440106000100000001"
+		},
+		{
+			"name": "prompt-line-bytes-record",
+			"frameHex": "4f42534e000100010000005311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020400000006636c6175646506000100000001"
+		},
+		{
+			"name": "prompt-line-left-arrow",
+			"frameHex": "4f42534e000100010000005a11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444030500000006636c617564650600010000000806000100000001"
+		},
+		{
+			"name": "prompt-line-enter-twice",
+			"frameHex": "4f42534e000100010000005a11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444030500000006636c617564650600010000000106000100000001"
+		},
+		{
+			"name": "prompt-line-modified-enter",
+			"frameHex": "4f42534e000100010000005311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020500000006636c6175646506010100000001"
+		},
+		{
+			"name": "prompt-line-control-character",
+			"frameHex": "4f42534e00010001000000501111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444402050000000361096206000100000001"
+		},
+		{
+			"name": "prompt-line-delete-character",
+			"frameHex": "4f42534e000100010000004f11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020500000002617f06000100000001"
+		},
+		{
+			"name": "prompt-line-invalid-utf8",
+			"frameHex": "4f42534e000100010000004e11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020500000001ff06000100000001"
 		}
 	],
 	"controlObservationMessages": [

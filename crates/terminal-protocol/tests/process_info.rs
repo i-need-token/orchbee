@@ -1,14 +1,16 @@
 use orchbee_terminal_protocol::{
     AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch,
-    MessageRole, PayloadEncoding, ProcessInfoControl, TerminalId, TerminalProcess,
-    TerminalProcessConsole, TerminalProcessInfo, decode_process_info_control,
-    decode_transport_envelope, encode_process_info_control, encode_transport_envelope,
+    MessageRole, PayloadEncoding, ProcessInfoControl, ReadProcessInfo, TerminalId,
+    TerminalLaunchKind, TerminalProcess, TerminalProcessConsole, TerminalProcessInfo,
+    decode_process_info_control, decode_transport_envelope, encode_process_info_control,
+    encode_transport_envelope,
 };
 
 fn sample() -> TerminalProcessInfo {
     TerminalProcessInfo {
         attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
         terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
+        launch_kind: None,
         root_pid: 41,
         processes: vec![
             TerminalProcess {
@@ -41,7 +43,12 @@ fn typescript_process_fixtures_refine_to_the_same_typed_rust_contract() {
     .unwrap();
     for (pointer, role) in [
         ("/commands/read_process_info", MessageRole::Request),
+        (
+            "/commands/read_process_info_launch_kind",
+            MessageRole::Request,
+        ),
         ("/outputs/process_info", MessageRole::Response),
+        ("/outputs/process_info_launch_kind", MessageRole::Response),
     ] {
         let payload = fixture.pointer(pointer).unwrap().as_str().unwrap();
         let decoded = decode_process_info_control(79, role, payload.as_bytes()).unwrap();
@@ -56,10 +63,23 @@ fn typescript_process_fixtures_refine_to_the_same_typed_rust_contract() {
 #[test]
 fn correlated_process_request_and_owned_sample_round_trip_without_losing_filetime() {
     for value in [
-        ProcessInfoControl::ReadProcessInfo(AttachmentTarget {
-            attachment_id: sample().attachment_id,
+        ProcessInfoControl::ReadProcessInfo(ReadProcessInfo {
+            target: AttachmentTarget {
+                attachment_id: sample().attachment_id,
+            },
+            include_launch_kind: false,
+        }),
+        ProcessInfoControl::ReadProcessInfo(ReadProcessInfo {
+            target: AttachmentTarget {
+                attachment_id: sample().attachment_id,
+            },
+            include_launch_kind: true,
         }),
         ProcessInfoControl::ProcessInfo(sample()),
+        ProcessInfoControl::ProcessInfo(TerminalProcessInfo {
+            launch_kind: Some(TerminalLaunchKind::ManagedPowershell),
+            ..sample()
+        }),
     ] {
         let encoded = encode_process_info_control(&value).unwrap();
         let mut envelope = Envelope {

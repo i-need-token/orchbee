@@ -17,11 +17,13 @@ pub const KEY_INPUT_HEADER_BYTES: usize = 40;
 pub const TEXT_INPUT_HEADER_BYTES: usize = 28;
 pub const PASTE_INPUT_HEADER_BYTES: usize = 32;
 pub const PASTE_AUTO_INPUT_HEADER_BYTES: usize = 32;
+pub const PROMPT_LINE_INPUT_HEADER_BYTES: usize = 32;
 pub const MOUSE_INPUT_BYTES: usize = 40;
 pub const FOCUS_INPUT_BYTES: usize = 28;
 
 const KEY_FLAGS_MASK: u8 = 0b11;
 const PASTE_FLAGS_MASK: u8 = 0b1;
+const PROMPT_LINE_FLAGS_MASK: u8 = 0b1;
 const MODIFIER_FLAGS_MASK: u16 = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK: u16 = 0x07ff;
 const MAXIMUM_UNICODE_CODEPOINT: u32 = 0x10_ffff;
@@ -113,6 +115,18 @@ pub struct PasteAutoInput {
     pub attachment_id: AttachmentId,
     pub capability_revision: NonZeroU64,
     pub content: Vec<u8>,
+}
+
+/// One shell command line the Host types only at a confirmed idle prompt: the content as one
+/// paste under the terminal's own bracketed-paste mode, Right when `right_arrow` asks for it,
+/// then Enter, queued as one entry. The content is 1 byte through the paste maximum of UTF-8
+/// with no C0 control or DEL, so Enter is the line's only submission.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PromptLineInput {
+    pub attachment_id: AttachmentId,
+    pub capability_revision: NonZeroU64,
+    pub right_arrow: bool,
+    pub content: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -362,6 +376,69 @@ fn validate_paste_auto_content(content: &[u8]) -> Result<(), ProtocolError> {
     if content.is_empty() || content.len() > MAXIMUM_PASTE_AUTO_INPUT_BYTES {
         return Err(invalid_field(
             "semantic paste content must contain one byte through the paste maximum",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_prompt_line_input(payload: &[u8]) -> Result<PromptLineInput, ProtocolError> {
+    if payload.len() < PROMPT_LINE_INPUT_HEADER_BYTES {
+        return Err(truncated("PromptLineInput header is truncated"));
+    }
+    if payload.len() > PROMPT_LINE_INPUT_HEADER_BYTES + MAXIMUM_PASTE_AUTO_INPUT_BYTES {
+        return Err(limit_exceeded("PromptLineInput payload exceeds its limit"));
+    }
+    let authority = decode_input_authority(payload)?;
+    let flags = read_u8(payload, 24)?;
+    let reserved = bytes_at(payload, 25, 3)?;
+    if flags & !PROMPT_LINE_FLAGS_MASK != 0 || reserved.iter().any(|byte| *byte != 0) {
+        return Err(unknown_required_flag(
+            "PromptLineInput has unknown flags or reserved bytes",
+        ));
+    }
+    let content_length = usize::try_from(read_u32(payload, 28)?)
+        .map_err(|_error| length_mismatch("PromptLineInput length cannot fit this target"))?;
+    if content_length != payload.len() - PROMPT_LINE_INPUT_HEADER_BYTES {
+        return Err(length_mismatch(
+            "PromptLineInput length does not match payload",
+        ));
+    }
+    let content = decode_utf8(
+        bytes_at(payload, PROMPT_LINE_INPUT_HEADER_BYTES, content_length)?,
+        "PromptLineInput content is not UTF-8",
+    )?;
+    validate_prompt_line_content(&content)?;
+    Ok(PromptLineInput {
+        attachment_id: authority.attachment_id,
+        capability_revision: authority.capability_revision,
+        right_arrow: flags & PROMPT_LINE_FLAGS_MASK != 0,
+        content,
+    })
+}
+
+pub(crate) fn encode_prompt_line_input(value: &PromptLineInput) -> Result<Vec<u8>, ProtocolError> {
+    validate_prompt_line_content(&value.content)?;
+    let content_length = u32::try_from(value.content.len())
+        .map_err(|_error| invalid_field("PromptLineInput content exceeds its wire length field"))?;
+    let mut payload = Vec::with_capacity(PROMPT_LINE_INPUT_HEADER_BYTES + value.content.len());
+    append_authority(&mut payload, value.attachment_id, value.capability_revision);
+    payload.push(u8::from(value.right_arrow));
+    payload.extend_from_slice(&[0; 3]);
+    append_u32(&mut payload, content_length);
+    payload.extend_from_slice(value.content.as_bytes());
+    Ok(payload)
+}
+
+/// One line of text: Enter is appended by the Host, so no control byte may submit early.
+fn validate_prompt_line_content(content: &str) -> Result<(), ProtocolError> {
+    if content.is_empty() || content.len() > MAXIMUM_PASTE_AUTO_INPUT_BYTES {
+        return Err(invalid_field(
+            "prompt line content must contain one byte through the paste maximum",
+        ));
+    }
+    if content.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+        return Err(invalid_field(
+            "prompt line content must not contain a C0 control or DEL",
         ));
     }
     Ok(())

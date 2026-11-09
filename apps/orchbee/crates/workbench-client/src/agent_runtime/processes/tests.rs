@@ -19,6 +19,7 @@ fn sample(processes: Vec<TerminalProcess>) -> TerminalProcessInfo {
         terminal_id: TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 10,
         processes,
+        launch_kind: None,
     }
 }
 

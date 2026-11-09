@@ -232,6 +232,66 @@ impl SendRecords {
     pub fn iter(&self) -> impl Iterator<Item = &SendRecord> {
         self.0.iter()
     }
+    /// The one prompt line these records form, when they are exactly a paste of one line of
+    /// UTF-8 with no C0 control or DEL, an optional unmodified Right, and an unmodified Enter.
+    #[must_use]
+    pub fn prompt_line(&self) -> Option<SendPromptLine<'_>> {
+        let (content, keys) = match self.0.as_slice() {
+            [SendRecord::Paste { content }, keys @ ..] => (content, keys),
+            _ => return None,
+        };
+        let right_arrow = match keys {
+            [enter] => {
+                plain_key(enter, SendKey::Enter)?;
+                false
+            }
+            [right, enter] => {
+                plain_key(right, SendKey::Right)?;
+                plain_key(enter, SendKey::Enter)?;
+                true
+            }
+            _ => return None,
+        };
+        let content = std::str::from_utf8(content.as_bytes()).ok()?;
+        if content.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+            return None;
+        }
+        Some(SendPromptLine {
+            content,
+            right_arrow,
+        })
+    }
+}
+
+fn plain_key(record: &SendRecord, key: SendKey) -> Option<()> {
+    match record {
+        SendRecord::Stroke(stroke)
+            if stroke.key() == crate::SendStrokeKey::Named(key) && stroke.modifiers() == 0 =>
+        {
+            Some(())
+        }
+        _ => None,
+    }
+}
+
+/// The single shape an idle-prompt send admits: one line the Host types as a paste, then Right
+/// when `right_arrow` is set, then Enter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SendPromptLine<'a> {
+    pub content: &'a str,
+    pub right_arrow: bool,
+}
+
+/// What must hold before any record reaches the Host.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SendPrecondition {
+    /// None: the records go in order, each its own Host exchange.
+    #[default]
+    None,
+    /// The records are one prompt line ([`SendRecords::prompt_line`]) that the terminal's Host
+    /// types only while its root shell waits at a confirmed fresh, empty prompt. A path that
+    /// cannot confirm the prompt refuses; it never falls back to an ungated send.
+    IdlePrompt,
 }
 
 /// Encoded byte count the Host admitted into its bounded input queue for one
@@ -374,8 +434,7 @@ pub enum SendCleanupStatus {
 
 /// Closed typed-refusal vocabulary for a send; every variant means the
 /// stopped record provably did not reach the Host queue.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SendRejectedReason {
     TerminalUnavailable,
     StaleWorkerGeneration,
@@ -385,6 +444,89 @@ pub enum SendRejectedReason {
     HostInputLimitExceeded,
     HostInputBackpressure,
     HostInputUnavailable,
+    /// The Host could not confirm an idle prompt and typed nothing. The wire carries the state
+    /// as the sibling member `promptState`.
+    PromptUnconfirmed(SendPromptState),
+    /// The terminal's Host did not negotiate `prompt-gated-input`, so the idle-prompt send was
+    /// refused before any attachment.
+    HostPromptGateUnsupported,
+}
+impl SendRejectedReason {
+    /// Whether this refusal is decided before the Host types anything, so its progress is zero.
+    const fn types_nothing(self) -> bool {
+        matches!(
+            self,
+            Self::PromptUnconfirmed(_) | Self::HostPromptGateUnsupported
+        )
+    }
+}
+
+/// The first rule the Host found unmet when it refused an idle-prompt line, in its check
+/// order. Only `Settling` is worth asking again, after the quiet period.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SendPromptState {
+    NotShell,
+    Busy,
+    FullScreen,
+    Unmarked,
+    NotAtPrompt,
+    InputPending,
+    Changed,
+    Settling,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WireRejectedReason {
+    TerminalUnavailable,
+    StaleWorkerGeneration,
+    StaleHostEpoch,
+    HostRejected,
+    HostInputInvalid,
+    HostInputLimitExceeded,
+    HostInputBackpressure,
+    HostInputUnavailable,
+    PromptUnconfirmed,
+    HostPromptGateUnsupported,
+}
+impl WireRejectedReason {
+    const fn split(reason: SendRejectedReason) -> (Self, Option<SendPromptState>) {
+        match reason {
+            SendRejectedReason::TerminalUnavailable => (Self::TerminalUnavailable, None),
+            SendRejectedReason::StaleWorkerGeneration => (Self::StaleWorkerGeneration, None),
+            SendRejectedReason::StaleHostEpoch => (Self::StaleHostEpoch, None),
+            SendRejectedReason::HostRejected => (Self::HostRejected, None),
+            SendRejectedReason::HostInputInvalid => (Self::HostInputInvalid, None),
+            SendRejectedReason::HostInputLimitExceeded => (Self::HostInputLimitExceeded, None),
+            SendRejectedReason::HostInputBackpressure => (Self::HostInputBackpressure, None),
+            SendRejectedReason::HostInputUnavailable => (Self::HostInputUnavailable, None),
+            SendRejectedReason::PromptUnconfirmed(state) => (Self::PromptUnconfirmed, Some(state)),
+            SendRejectedReason::HostPromptGateUnsupported => {
+                (Self::HostPromptGateUnsupported, None)
+            }
+        }
+    }
+    /// `promptState` is present exactly for `prompt-unconfirmed`.
+    fn join(self, state: Option<SendPromptState>) -> Result<SendRejectedReason, ProtocolError> {
+        Ok(match (self, state) {
+            (Self::PromptUnconfirmed, Some(state)) => SendRejectedReason::PromptUnconfirmed(state),
+            (Self::PromptUnconfirmed, None) | (_, Some(_)) => {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            (Self::TerminalUnavailable, None) => SendRejectedReason::TerminalUnavailable,
+            (Self::StaleWorkerGeneration, None) => SendRejectedReason::StaleWorkerGeneration,
+            (Self::StaleHostEpoch, None) => SendRejectedReason::StaleHostEpoch,
+            (Self::HostRejected, None) => SendRejectedReason::HostRejected,
+            (Self::HostInputInvalid, None) => SendRejectedReason::HostInputInvalid,
+            (Self::HostInputLimitExceeded, None) => SendRejectedReason::HostInputLimitExceeded,
+            (Self::HostInputBackpressure, None) => SendRejectedReason::HostInputBackpressure,
+            (Self::HostInputUnavailable, None) => SendRejectedReason::HostInputUnavailable,
+            (Self::HostPromptGateUnsupported, None) => {
+                SendRejectedReason::HostPromptGateUnsupported
+            }
+        })
+    }
 }
 
 /// Closed not-submitted vocabulary: the stopped record provably never
@@ -451,12 +593,7 @@ impl SendTarget {
 /// `Confirmed` cleanup implies a completed exchange (never `OutcomeUnknown`),
 /// and any confirmed-accepted prefix implies a cleanup attempt ran.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "kebab-case",
-    rename_all_fields = "camelCase",
-    deny_unknown_fields
-)]
+#[serde(into = "WireSendOutcome", try_from = "WireSendOutcome")]
 pub enum TerminalSendOutcome {
     Accepted {
         progress: SendProgress,
@@ -477,6 +614,115 @@ pub enum TerminalSendOutcome {
         cleanup: SendCleanupStatus,
     },
 }
+
+/// The OBCS shape of [`TerminalSendOutcome`]: a refusal's prompt state rides beside `reason`.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum WireSendOutcome {
+    Accepted {
+        progress: SendProgress,
+        cleanup: SendCleanupStatus,
+    },
+    Rejected {
+        reason: WireRejectedReason,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "present_prompt_state"
+        )]
+        prompt_state: Option<SendPromptState>,
+        progress: SendProgress,
+        cleanup: SendCleanupStatus,
+    },
+    Unavailable {
+        reason: SendUnavailableReason,
+        progress: SendProgress,
+        cleanup: SendCleanupStatus,
+    },
+    OutcomeUnknown {
+        progress: SendProgress,
+        cleanup: SendCleanupStatus,
+    },
+}
+
+/// An absent `promptState` is `None`; a present one, including `null`, must name a state.
+fn present_prompt_state<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<SendPromptState>, D::Error> {
+    SendPromptState::deserialize(deserializer).map(Some)
+}
+
+impl From<TerminalSendOutcome> for WireSendOutcome {
+    fn from(outcome: TerminalSendOutcome) -> Self {
+        match outcome {
+            TerminalSendOutcome::Accepted { progress, cleanup } => {
+                Self::Accepted { progress, cleanup }
+            }
+            TerminalSendOutcome::Rejected {
+                reason,
+                progress,
+                cleanup,
+            } => {
+                let (reason, prompt_state) = WireRejectedReason::split(reason);
+                Self::Rejected {
+                    reason,
+                    prompt_state,
+                    progress,
+                    cleanup,
+                }
+            }
+            TerminalSendOutcome::Unavailable {
+                reason,
+                progress,
+                cleanup,
+            } => Self::Unavailable {
+                reason,
+                progress,
+                cleanup,
+            },
+            TerminalSendOutcome::OutcomeUnknown { progress, cleanup } => {
+                Self::OutcomeUnknown { progress, cleanup }
+            }
+        }
+    }
+}
+
+impl TryFrom<WireSendOutcome> for TerminalSendOutcome {
+    type Error = ProtocolError;
+
+    fn try_from(wire: WireSendOutcome) -> Result<Self, ProtocolError> {
+        Ok(match wire {
+            WireSendOutcome::Accepted { progress, cleanup } => Self::Accepted { progress, cleanup },
+            WireSendOutcome::Rejected {
+                reason,
+                prompt_state,
+                progress,
+                cleanup,
+            } => Self::Rejected {
+                reason: reason.join(prompt_state)?,
+                progress,
+                cleanup,
+            },
+            WireSendOutcome::Unavailable {
+                reason,
+                progress,
+                cleanup,
+            } => Self::Unavailable {
+                reason,
+                progress,
+                cleanup,
+            },
+            WireSendOutcome::OutcomeUnknown { progress, cleanup } => {
+                Self::OutcomeUnknown { progress, cleanup }
+            }
+        })
+    }
+}
 impl TerminalSendOutcome {
     pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
         let progress = self.progress();
@@ -495,6 +741,11 @@ impl TerminalSendOutcome {
                 ..
             } => {
                 return Err(ProtocolError::InvalidPayload);
+            }
+            Self::Rejected { reason, .. } if reason.types_nothing() => {
+                if *progress != SendProgress::none() {
+                    return Err(ProtocolError::InvalidPayload);
+                }
             }
             Self::Rejected { .. } | Self::Unavailable { .. } | Self::OutcomeUnknown { .. } => {}
         }
@@ -534,18 +785,20 @@ impl TerminalSendOutcome {
     }
 }
 
-/// One admitted send: the resolved binding addresses plus the ordered record
-/// sequence. The sequence is never atomic across records or across other
-/// Clients' input.
+/// One admitted send: the resolved binding addresses, the precondition, and the ordered record
+/// sequence. The sequence is never atomic across records or across other Clients' input, except
+/// that an idle-prompt line is typed as one Host entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalSendRequest {
     pub(crate) request_id: RequestId,
     pub(crate) session_id: SessionId,
     pub(crate) worker_id: WorkerId,
     pub(crate) terminal_id: TerminalId,
+    pub(crate) precondition: SendPrecondition,
     pub(crate) records: SendRecords,
 }
 impl TerminalSendRequest {
+    /// An ungated send.
     #[must_use]
     pub const fn new(
         request_id: RequestId,
@@ -559,8 +812,35 @@ impl TerminalSendRequest {
             session_id,
             worker_id,
             terminal_id,
+            precondition: SendPrecondition::None,
             records,
         }
+    }
+    /// A send typed only at a confirmed idle prompt; `records` must form one prompt line.
+    pub fn idle_prompt(
+        request_id: RequestId,
+        session_id: SessionId,
+        worker_id: WorkerId,
+        terminal_id: TerminalId,
+        records: SendRecords,
+    ) -> Result<Self, ProtocolError> {
+        let request = Self {
+            precondition: SendPrecondition::IdlePrompt,
+            ..Self::new(request_id, session_id, worker_id, terminal_id, records)
+        };
+        request.validate()?;
+        Ok(request)
+    }
+    pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
+        if self.precondition == SendPrecondition::IdlePrompt && self.records.prompt_line().is_none()
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(())
+    }
+    #[must_use]
+    pub const fn precondition(&self) -> SendPrecondition {
+        self.precondition
     }
     #[must_use]
     pub const fn request_id(&self) -> &RequestId {

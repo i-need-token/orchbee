@@ -446,6 +446,7 @@ fn refusing_selection_peer(mut peer: UnixStream, records: Sender<Vec<u8>>) {
                         code: code.to_owned(),
                         message: "refused".to_owned(),
                         retryable: false,
+                        reason: None,
                     }))
                     .unwrap();
                 let record =

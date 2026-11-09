@@ -61,6 +61,8 @@ pub(crate) struct HostBrokerConnection {
     endpoint: PathBuf,
     host_epoch: orchbee_terminal_protocol::HostEpoch,
     negotiated_limits: NegotiatedHostLimits,
+    /// The Host's answer listed `prompt-gated-input`.
+    prompt_gated_input: bool,
     stream: UnixStream,
     pub(crate) viewers: RefCell<HostViewers>,
     pub(crate) controllers: RefCell<controllers::HostControllers>,
@@ -88,12 +90,14 @@ impl HostBrokerConnection {
         drain: Rc<RefCell<AgentDrain>>,
     ) -> Result<Self, Box<dyn Error>> {
         let offer = offer::local()?;
-        let mut transport = loop {
+        let (mut transport, prompt_gated_input) = loop {
             let mut transport = admission::Admission::connect(endpoint, deadline)?;
             transport.set_deadline(deadline.min(Instant::now() + CANDIDATE_DEADLINE));
-            if offer::exchange(&mut transport, &offer)? == offer::Outcome::Answered {
+            if let offer::Outcome::Answered { prompt_gated_input } =
+                offer::exchange(&mut transport, &offer)?
+            {
                 transport.set_deadline(deadline);
-                break transport;
+                break (transport, prompt_gated_input);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= deadline {
                 return Err(offer::still_busy());
@@ -110,6 +114,7 @@ impl HostBrokerConnection {
             endpoint: endpoint.to_owned(),
             host_epoch,
             negotiated_limits,
+            prompt_gated_input,
             stream: transport.stream,
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
@@ -127,13 +132,15 @@ impl HostBrokerConnection {
         let offer = offer::local()?;
         // A Host still ending the previous Worker session asks this one to dial again.
         let busy_deadline = Instant::now() + CANDIDATE_DEADLINE;
-        let mut stream = loop {
+        let (mut stream, prompt_gated_input) = loop {
             let mut stream = UnixStream::connect(endpoint)?;
             require_same_effective_user(&stream)?;
             stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
             stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
-            if offer::exchange(&mut stream, &offer)? == offer::Outcome::Answered {
-                break stream;
+            if let offer::Outcome::Answered { prompt_gated_input } =
+                offer::exchange(&mut stream, &offer)?
+            {
+                break (stream, prompt_gated_input);
             }
             if Instant::now() + offer::RETRY_INTERVAL >= busy_deadline {
                 return Err(offer::still_busy());
@@ -154,6 +161,7 @@ impl HostBrokerConnection {
             endpoint: endpoint.to_owned(),
             host_epoch,
             negotiated_limits,
+            prompt_gated_input,
             stream,
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
@@ -179,6 +187,11 @@ impl HostBrokerConnection {
 
     pub(crate) const fn negotiated_limits(&self) -> NegotiatedHostLimits {
         self.negotiated_limits
+    }
+
+    /// Whether this Host types an idle-prompt line only at a confirmed fresh prompt.
+    pub(crate) const fn prompt_gated_input(&self) -> bool {
+        self.prompt_gated_input
     }
 
     pub(crate) fn receive_event(&self, record: Vec<u8>) -> io::Result<()> {

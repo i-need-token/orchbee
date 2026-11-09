@@ -17,6 +17,7 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
         terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
         root_pid: 1,
         processes: vec![process(1, "C:\\Windows\\cmd.exe", "cmd.exe /d")],
+        launch_kind: None,
     };
     assert!(idle_shell(&sample).is_ok());
     sample
@@ -63,6 +64,7 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
                 )),
                 current_directory: None,
             }],
+            launch_kind: None,
         };
         assert!(
             sample.processes[0]

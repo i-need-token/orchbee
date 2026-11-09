@@ -154,6 +154,7 @@ fn process_read(stream: &mut LocalStream, terminal: u64, unavailable: bool) {
                     command_line: Some("cmd.exe".into()),
                     current_directory: Some("C:\\项目".into()),
                 }],
+                launch_kind: None,
             },
         ))
         .unwrap();

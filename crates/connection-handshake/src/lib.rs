@@ -42,4 +42,4 @@ pub use query::{
     ConnectionEntry, MAXIMUM_PROCESS_CONNECTIONS, MAXIMUM_QUERY_PROCESSES, ProcessEntry,
     QueryResult,
 };
-pub use registry::{ConnectionKind, Delivery, FrameFormat};
+pub use registry::{ConnectionKind, Delivery, FrameFormat, PROMPT_GATED_INPUT};

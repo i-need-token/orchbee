@@ -778,6 +778,7 @@ fn typed_failure(retryable: bool) -> TypedFailure {
         .to_owned(),
         message: "terminal unavailable".to_owned(),
         retryable,
+        reason: None,
     }
 }
 

@@ -145,6 +145,7 @@ pub(crate) fn sample_for(
                     code: "process-sample-unavailable".into(),
                     message: "fixture".into(),
                     retryable: false,
+                    reason: None,
                 }))
                 .unwrap();
             (encoded.kind, encoded.payload)
@@ -154,6 +155,7 @@ pub(crate) fn sample_for(
                 terminal_id: TerminalId::from_bytes([7; 16]).unwrap(),
                 root_pid: 10,
                 processes: vec![process],
+                launch_kind: None,
             };
             let encoded =
                 encode_process_info_control(&ProcessInfoControl::ProcessInfo(info)).unwrap();

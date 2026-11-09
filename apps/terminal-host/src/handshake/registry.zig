@@ -11,7 +11,8 @@ const message = @import("message.zig");
 pub const worker_host = struct {
     pub const name = "worker-host";
     pub const generations: message.GenerationRange = .{ .lowest = 1, .highest = 1 };
-    pub const capabilities: []const []const u8 = &.{};
+    /// `prompt-gated-input`: this Host types a `PromptLineInput` only at a confirmed idle prompt.
+    pub const capabilities: []const []const u8 = &.{"prompt-gated-input"};
     pub const development_fingerprint: []const u8 = options.worker_host_fingerprint;
 };
 

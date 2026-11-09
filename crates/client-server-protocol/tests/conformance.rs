@@ -357,6 +357,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "start-unavailable-server-busy",
         "start-unavailable-terminal-runtime-unavailable",
         "message-terminal-send",
+        "send-precondition-idle-prompt",
         "send-payload-text-enter",
         "send-payload-text-plain",
         "send-payload-stroke",
@@ -367,6 +368,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "send-target-absent",
         "send-accepted",
         "send-rejected",
+        "send-rejected-prompt-unconfirmed",
         "send-unavailable",
         "send-outcome-unknown",
         "send-cleanup-not-needed",
@@ -896,6 +898,11 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
         DecodedMessage::Client(ClientMessage::TerminalSend(request)) => {
             use orchbee_client_server_protocol::SendRecord;
             reached.insert("message-terminal-send");
+            if request.precondition()
+                == orchbee_client_server_protocol::SendPrecondition::IdlePrompt
+            {
+                reached.insert("send-precondition-idle-prompt");
+            }
             for record in request.records().iter() {
                 reached.insert(match record {
                     SendRecord::Text(input) => {
@@ -926,6 +933,13 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 TerminalSendOutcome::Unavailable { .. } => "send-unavailable",
                 TerminalSendOutcome::OutcomeUnknown { .. } => "send-outcome-unknown",
             });
+            if let TerminalSendOutcome::Rejected {
+                reason: orchbee_client_server_protocol::SendRejectedReason::PromptUnconfirmed(_),
+                ..
+            } = outcome
+            {
+                reached.insert("send-rejected-prompt-unconfirmed");
+            }
             let cleanup = match outcome {
                 TerminalSendOutcome::Accepted { cleanup, .. }
                 | TerminalSendOutcome::Rejected { cleanup, .. }

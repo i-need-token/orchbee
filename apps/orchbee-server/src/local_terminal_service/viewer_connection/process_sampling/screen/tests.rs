@@ -19,6 +19,7 @@ fn checkpoint_directory_prefers_terminal_report_then_root_and_never_child_direct
             command_line: None,
             current_directory: Some("C:/child".into()),
         }],
+        launch_kind: None,
     };
     assert_eq!(checkpoint_directory(None, &sample), None);
     sample.processes.push(TerminalProcess {
