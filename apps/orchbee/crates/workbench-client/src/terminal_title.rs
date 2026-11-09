@@ -41,7 +41,13 @@ impl<'a> ChromeName<'a> {
     /// program sets a title, and cmd extends it to `<path> - <command>` while it runs a command.
     /// The path is launch identity rather than a task name, so chrome names the program instead.
     pub(crate) fn of_title(title: &'a str) -> Option<Self> {
-        let title = strip_terminal_title(title)?;
+        strip_terminal_title(title).map(Self::of_stripped)
+    }
+
+    /// The same naming for a title already stripped, as the Server publishes every title and as
+    /// this Client records a frame's title: a console default title still names its program, and
+    /// nothing is stripped again.
+    pub(crate) fn of_stripped(title: &'a str) -> Self {
         let console = console_program(title)
             .map(|program| Self::Program {
                 program,
@@ -57,7 +63,7 @@ impl<'a> ChromeName<'a> {
                     })
                 })
             });
-        Some(console.unwrap_or(Self::Text(title)))
+        console.unwrap_or(Self::Text(title))
     }
 }
 

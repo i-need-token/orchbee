@@ -279,6 +279,8 @@ pub(crate) struct PresentationIndex {
     /// index must wait for one, never conclude `Gone` from an empty map.
     ready: bool,
     placements: std::collections::HashMap<String, PresentationPlacement>,
+    /// Every bound Presentation in canonical Workspace, Tab, Panel and member order.
+    bound: Vec<orchbee_workbench_protocol::TerminalPresentationId>,
 }
 
 impl PresentationIndex {
@@ -343,6 +345,9 @@ impl PresentationIndex {
                     continue;
                 };
                 for member in panel.presentations() {
+                    if member.binding().is_some() {
+                        self.bound.push(member.presentation_id().clone());
+                    }
                     self.placements.insert(
                         member.presentation_id().as_str().to_owned(),
                         PresentationPlacement {
@@ -378,6 +383,25 @@ impl PresentationIndex {
         presentation_id: &str,
     ) -> Option<&PresentationPlacement> {
         self.placements.get(presentation_id)
+    }
+
+    /// Every bound Presentation of every indexed Workspace, in canonical order: the ones whose
+    /// terminal titles the Server publishes.
+    pub(crate) fn bound_presentations(
+        &self,
+    ) -> &[orchbee_workbench_protocol::TerminalPresentationId] {
+        &self.bound
+    }
+
+    /// A Presentation's binding: `None` when no indexed Workspace holds it, `Some(None)` while it
+    /// is unbound.
+    pub(crate) fn binding(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+    ) -> Option<Option<&crate::workbench_projection::ClientTerminalBinding>> {
+        self.placements
+            .get(presentation.as_str())
+            .map(|placement| placement.presentation_name.binding.as_ref())
     }
 
     #[cfg(test)]

@@ -25,9 +25,10 @@ Native Tab-strip, navigator, status, Tab-menu, close-confirmation and Agent boar
 exact. An automatic name comes from one Panel of the Tab: the focused Panel while the Tab is selected,
 otherwise the Panel selecting it would focus, which is the one this Client last left focused, else the first.
 Selecting another Tab therefore never changes a Tab's name; moving focus inside the selected Tab does.
-Automatic names prefer that Panel's selected Presentation's custom label, then the title its program set:
-the valid live OSC title, or for inactive Tabs the last observed title from the bounded frame cache
-only while the exact Session/context/Tab/Panel/Presentation/binding remains canonical. A console
+Automatic names prefer that Panel's selected Presentation's custom label, then the title its program set
+for the Presentation's current binding, by the [background title rule](#background-terminal-titles):
+the live OSC title of a frame this Client draws or the title the Server publishes, whichever changed
+last. A console
 host's default title is the absolute path of the launched Windows executable, which cmd extends to
 `<path> - <command>` while it runs a command; that is launch identity rather than a program title, so
 chrome names the program instead and keeps the command. Without a title, the program the Server
@@ -36,6 +37,7 @@ program from this Client's failed-creation record, then from the Presentation's 
 the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Titles are
 stripped as in [Panel terminal observations](native-cli-query.md#panel-terminal-observations), which
 removes one Windows elevation prefix and one activity prefix, and all displayed text is sanitized.
+A title the Server published arrives stripped and is never stripped again.
 This presentation never renames canonical state or claims an observed title is authoritative process
 identity; raw title observations remain unchanged. Canonical ordinal labels, CLI selectors, and
 launch-profile selection keep their existing semantics.
@@ -85,6 +87,36 @@ These controls never forward input.
 text is a real change: it clears automatic naming and advances one revision. Repeating that
 rename on the fixed Tab is unchanged. Blank-name reset is not part of this contract.
 
+## Background terminal titles
+
+A Tab keeps naming its terminal by the title its program set while this Client draws no frame for
+it. The Server publishes each bound Presentation's title on the `panel-agent` `presentation-titles`
+State stream, which the [Server README](../../orchbee-server/README.md) and the
+[Workbench schema](../../../schemas/workbench/README.md) define: already stripped and bounded to
+1 KiB, within about 250 ms of a commit or title change. The native TUI follows every bound
+Presentation of the Session, across all Workspaces, in canonical Workspace, Tab, Panel and member
+order, as groups of at most 64 with one stream each, and reopens only a group whose members changed.
+A failed outcome, a gap or an ended stream clears no title, and an ended stream opens again 5 seconds
+later. The [GUI README](../../web/README.md) records the GUI's own subscription.
+
+Both Clients name each Presentation by one rule:
+
+- Of the title a live frame this Client draws reports and the title the stream publishes, the one
+  that changed last wins. A value arrives only when it differs from the previous value of its
+  source, so a group republished for another member never overrides a newer frame title.
+- The latest row of each Presentation is kept and applies only while its binding equals the
+  snapshot's current binding. A row that arrives before its snapshot applies once the snapshot
+  catches up; a row without a binding never applies.
+- A cleared title shows the program. `unavailable` keeps the title last shown for that binding, or
+  the program when none was shown, so a Server restart never flashes a Tab back to its program.
+- When the snapshot binds the Presentation to another terminal, it shows the program until that
+  terminal reports a title. Otherwise a Tab keeps the title it last showed, including while its
+  own frame is pending, blocked or faulted.
+- A title marks nothing unread and changes no notification or Agent state.
+
+The window title's `{tab}` and terminal title placeholders still read the live frame only. The
+Agent board names other Workspaces' Presentations by the same titles.
+
 ## Consumers and model
 
 CLI Tab rows, Workspace Tab references, and all Tab label selectors use the effective display
@@ -101,9 +133,9 @@ creation text until a rename switches it to fixed mode. Completion
 cannot overwrite an intervening rename. Close confirmation names a live Tab as the strip does and
 otherwise keeps the name captured when it opened. An Agent board row names its attached
 Presentation and that Presentation's Tab by the same rule: for a Tab of the current context it
-uses the strip's own names, including program titles; for another context it applies the rule to
-snapshot facts (custom label, then committed or failed launch program, then position), because
-this Client observes no titles there. A Presentation with no name of its own takes its Tab's name,
+uses the strip's own names; for another context it applies the rule to snapshot facts and the
+titles the Server publishes there (custom label, then title, then committed or failed launch
+program, then position). A Presentation with no name of its own takes its Tab's name,
 and the row omits a Tab name equal to its title. Selection, input
 ownership, geometry and terminal controller rights are independent of naming.
 

@@ -430,6 +430,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                     configuration: None,
                     notifications: None,
                     window_title: None,
+                    terminal_titles: None,
                     client_control: None,
                     backend: ClientBackend::Native(Box::new(ui)),
                     task: None,

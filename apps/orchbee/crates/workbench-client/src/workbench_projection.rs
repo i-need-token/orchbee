@@ -577,6 +577,16 @@ impl ClientTerminalBinding {
     }
 }
 
+/// The snapshot's binding and the one a `presentation-titles` row names compare as this value.
+impl From<&orchbee_workbench_protocol::PresentationBinding> for ClientTerminalBinding {
+    fn from(binding: &orchbee_workbench_protocol::PresentationBinding) -> Self {
+        Self {
+            worker_id: binding.worker_id.clone(),
+            terminal_id: binding.terminal_id.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct CreatedTabExpectation {
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,

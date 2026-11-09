@@ -22,10 +22,7 @@ impl ClientPresentation {
             presentation_label: WorkbenchLabel::parse(&value.label)
                 .map_err(|_| ClientProjectionError)?,
             custom_label: value.custom_label.clone(),
-            binding: value.binding.as_ref().map(|binding| ClientTerminalBinding {
-                worker_id: binding.worker_id.clone(),
-                terminal_id: binding.terminal_id.clone(),
-            }),
+            binding: value.binding.as_ref().map(ClientTerminalBinding::from),
             launch_failure: value.launch_failure.clone(),
             launch_program: value.launch_program.clone(),
         })

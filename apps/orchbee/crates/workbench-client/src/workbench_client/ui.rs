@@ -75,6 +75,7 @@ mod move_membership;
 mod navigator;
 mod panel;
 mod panel_close;
+mod presentation_titles;
 mod presentations;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
@@ -82,6 +83,7 @@ mod retained_frames;
 pub struct RetainedFrameBank {
     frames: retained_frames::RetainedFrames,
     history: history_positions::Bank,
+    titles: presentation_titles::PresentationTitles,
 }
 
 #[cfg(test)]
@@ -90,6 +92,7 @@ impl From<retained_frames::RetainedFrames> for RetainedFrameBank {
         Self {
             frames,
             history: history_positions::Bank::default(),
+            titles: presentation_titles::PresentationTitles::default(),
         }
     }
 }
@@ -323,6 +326,7 @@ pub struct WorkbenchClientView<'a> {
     state: Option<ClientStateView<'a>>,
     panes: &'a [KeyedProjection],
     retained_frames: Option<retained_frames::RetainedView<'a>>,
+    titles: Option<&'a presentation_titles::PresentationTitles>,
     history_positions: Option<&'a history_positions::Coordinator>,
     normal_exits: Option<&'a super::normal_exit_hold::NormalExitHolds<PaneRef>>,
     focus: Option<&'a WorkbenchPanelId>,
@@ -583,21 +587,17 @@ impl<'a> WorkbenchClientView<'a> {
         self.state.as_ref()?.tab(index).map(|inner| ClientTabView {
             automatic_name: inner
                 .naming_panel()
-                .and_then(|panel| self.automatic_name(&inner, panel)),
+                .and_then(|panel| self.automatic_name(panel)),
             inner,
             resize: self.resize,
         })
     }
 
-    /// The selected Presentation's custom label, then the title its program set, live or retained,
-    /// then the program the Server committed with its binding, then the launched program from this
-    /// Client's failed-creation record or the Server's launch failure.
-    fn automatic_name(
-        &self,
-        tab: &StateTabView<'a>,
-        panel: &'a super::ClientPanel,
-    ) -> Option<ChromeName<'a>> {
-        self.presentation_name(tab, panel, self.selected_presentation(panel))
+    /// The selected Presentation's custom label, then the title its program set by the shared
+    /// title rule, then the program the Server committed with its binding, then the launched
+    /// program from this Client's failed-creation record or the Server's launch failure.
+    fn automatic_name(&self, panel: &'a super::ClientPanel) -> Option<ChromeName<'a>> {
+        self.presentation_name(panel, self.selected_presentation(panel))
     }
 
     pub(crate) fn panel_label(
@@ -613,29 +613,21 @@ impl<'a> WorkbenchClientView<'a> {
             })
             .unwrap_or(0)
             + 1;
-        panel_label(self.panel_name(&tab.inner, panel), position, locale)
+        panel_label(self.panel_name(panel), position, locale)
     }
 
     /// Panel chrome preserves the guarded metadata title above the shared automatic rule.
     /// The observation owner qualifies metadata by the selected Presentation and exact binding;
     /// custom labels and the automatic terminal fallback still belong to the primary.
-    fn panel_name(
-        &self,
-        tab: &StateTabView<'a>,
-        panel: &'a super::ClientPanel,
-    ) -> Option<ChromeName<'a>> {
+    fn panel_name(&self, panel: &'a super::ClientPanel) -> Option<ChromeName<'a>> {
         panel
             .primary()
             .custom_label()
             .map(ChromeName::Text)
-            .or_else(|| self.panel_fallback(tab, panel))
+            .or_else(|| self.panel_fallback(panel))
     }
 
-    fn panel_fallback(
-        &self,
-        tab: &StateTabView<'a>,
-        panel: &'a super::ClientPanel,
-    ) -> Option<ChromeName<'a>> {
+    fn panel_fallback(&self, panel: &'a super::ClientPanel) -> Option<ChromeName<'a>> {
         let metadata = match self.panel_report(panel) {
             super::PanelReportView::Ready(row) => row
                 .metadata
@@ -644,78 +636,127 @@ impl<'a> WorkbenchClientView<'a> {
                 .map(|title| ChromeName::Text(title.as_str())),
             _ => None,
         };
-        metadata.or_else(|| self.presentation_fallback(tab, panel, panel.primary()))
+        metadata.or_else(|| self.presentation_fallback(panel, panel.primary()))
     }
 
     fn presentation_name(
         &self,
-        tab: &StateTabView<'a>,
         panel: &'a super::ClientPanel,
         member: &'a crate::workbench_projection::ClientPresentation,
     ) -> Option<ChromeName<'a>> {
         member
             .custom_label()
             .map(ChromeName::Text)
-            .or_else(|| self.presentation_fallback(tab, panel, member))
+            .or_else(|| self.presentation_fallback(panel, member))
     }
 
+    /// The title by the rule both Clients share, then the launched program.
     fn presentation_fallback(
         &self,
-        tab: &StateTabView<'a>,
         panel: &'a super::ClientPanel,
         member: &'a crate::workbench_projection::ClientPresentation,
     ) -> Option<ChromeName<'a>> {
-        let selected =
-            self.selected_presentation(panel).presentation_id() == member.presentation_id();
-        let status = self.pane_projection_status(panel.panel_id());
-        (selected && self.retirement.is_none() && status == ClientProjectionStatus::FrameAvailable)
-            .then(|| self.pane_projection(panel.panel_id()))
-            .flatten()
-            .and_then(|projection| projection.frame())
-            .and_then(|frame| frame.title.as_deref())
-            .and_then(ChromeName::of_title)
-            .or_else(|| {
-                (self.retirement.is_none()
-                    && (!selected
-                        || !tab.active()
-                        || matches!(
-                            status,
-                            ClientProjectionStatus::Empty
-                                | ClientProjectionStatus::WaitingForFullFrame
-                        )))
-                .then(|| {
-                    self.retained_frames.as_ref()?.title(
-                        tab.tab_id(),
-                        panel,
-                        member,
-                        selected
-                            .then(|| {
-                                self.pane_projection(panel.panel_id())
-                                    .map(TerminalProjection::epoch)
-                            })
-                            .flatten(),
-                        selected && self.normal_exit_held(panel.panel_id()),
-                    )
+        self.terminal_title_name(
+            member.presentation_id(),
+            member.binding(),
+            self.live_title(panel, member),
+        )
+        .or_else(|| {
+            member
+                .launch_program()
+                .or_else(|| {
+                    self.state
+                        .as_ref()?
+                        .presentation_launch_description(member)
+                        .and_then(|description| description.executable.as_deref())
                 })
-                .flatten()
-                .and_then(ChromeName::of_title)
+                .or_else(|| member.launch_failure()?.executable.as_deref())
+                .and_then(Program::from_path)
+                .map(|program| ChromeName::Program {
+                    program,
+                    command: None,
+                })
+        })
+    }
+
+    /// What the title of a Presentation's terminal names it, given the raw title of a live frame
+    /// this Client holds for that terminal; `None` when its program names it.
+    pub(super) fn terminal_title_name(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        binding: Option<&crate::workbench_projection::ClientTerminalBinding>,
+        live: Option<Option<&'a str>>,
+    ) -> Option<ChromeName<'a>> {
+        if self.retirement.is_some() {
+            return None;
+        }
+        let shown = match self.titles {
+            Some(titles) => titles.shown(presentation, binding, live),
+            None => match live {
+                Some(Some(title)) => presentation_titles::ShownTitle::Live(title),
+                _ => presentation_titles::ShownTitle::Program,
+            },
+        };
+        match shown {
+            presentation_titles::ShownTitle::Program => None,
+            presentation_titles::ShownTitle::Live(title) => ChromeName::of_title(title),
+            presentation_titles::ShownTitle::Projected(title) => {
+                Some(ChromeName::of_stripped(title))
+            }
+        }
+    }
+
+    /// The raw title of the live frame this Client holds for `member`'s current terminal:
+    /// `Some(None)` when that frame has no title, `None` without such a frame.
+    fn live_title(
+        &self,
+        panel: &'a super::ClientPanel,
+        member: &'a crate::workbench_projection::ClientPresentation,
+    ) -> Option<Option<&'a str>> {
+        let state = self.state.as_ref()?;
+        let current = state
+            .pane_by_panel(panel.panel_id())
+            .is_some_and(|record| Some(record.binding()) == member.binding());
+        if self.retirement.is_some()
+            || !current
+            || self.selected_presentation(panel).presentation_id() != member.presentation_id()
+            || self.pane_projection_status(panel.panel_id())
+                != ClientProjectionStatus::FrameAvailable
+        {
+            return None;
+        }
+        let frame = self.pane_projection(panel.panel_id())?.frame()?;
+        Some(frame.title.as_deref())
+    }
+
+    /// The live frame titles of the current Tab's Panels, for this Client to record.
+    fn live_titles(
+        &self,
+    ) -> Vec<(
+        orchbee_workbench_protocol::TerminalPresentationId,
+        Option<crate::workbench_projection::ClientTerminalBinding>,
+        Option<String>,
+    )> {
+        let Some(tab) = self.state.as_ref().and_then(|state| {
+            state
+                .active_position()
+                .and_then(|position| position.checked_sub(1))
+                .and_then(|index| state.tab(index))
+        }) else {
+            return Vec::new();
+        };
+        (0..tab.panel_count())
+            .filter_map(|index| tab.panel(index))
+            .filter_map(|panel| {
+                let member = self.selected_presentation(panel);
+                let title = self.live_title(panel, member)?;
+                Some((
+                    member.presentation_id().clone(),
+                    member.binding().cloned(),
+                    title.map(str::to_owned),
+                ))
             })
-            .or_else(|| {
-                member
-                    .launch_program()
-                    .or_else(|| {
-                        self.state
-                            .as_ref()?
-                            .presentation_launch_description(member)
-                            .and_then(|description| description.executable.as_deref())
-                    })
-                    .or_else(|| member.launch_failure()?.executable.as_deref())
-                    .and_then(Program::from_path)
-                    .map(|program| ChromeName::Program {
-                        program,
-                        command: None,
-                    })
-            })
+            .collect()
     }
 
     pub fn active_position(&self) -> Option<usize> {
@@ -1313,6 +1354,7 @@ impl<'a> WorkbenchClientView<'a> {
             resize: None,
             panes: &[],
             retained_frames: None,
+            titles: None,
             history_positions: None,
             normal_exits: None,
             focus: None,
@@ -1356,6 +1398,7 @@ impl<'a> WorkbenchClientView<'a> {
             resize: None,
             panes,
             retained_frames: None,
+            titles: None,
             history_positions: None,
             normal_exits: None,
             focus: state.focus_panel_id(),
@@ -1514,6 +1557,8 @@ pub(super) struct WorkbenchClientUi {
     agent_index: crate::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
+    /// What each Presentation's terminal title names it, by the rule both Clients share.
+    presentation_titles: presentation_titles::PresentationTitles,
     normal_exits: super::normal_exit_hold::NormalExitHolds<PaneRef>,
     navigation_draw: navigation_draw::NavigationDraw,
     history_positions: history_positions::Coordinator,
@@ -1670,6 +1715,7 @@ impl WorkbenchClientUi {
             focus_control: control_takeover::FocusControl::default(),
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
+            presentation_titles: presentation_titles::PresentationTitles::default(),
             normal_exits: super::normal_exit_hold::NormalExitHolds::default(),
             navigation_draw: navigation_draw::NavigationDraw::default(),
             history_positions: history_positions::Coordinator::default(),
@@ -1732,6 +1778,7 @@ impl WorkbenchClientUi {
             state: state.map(WorkbenchClientState::view),
             panes: &self.projections,
             retained_frames: state.map(|state| self.retained_frames.view(state)),
+            titles: Some(&self.presentation_titles),
             history_positions: Some(&self.history_positions),
             normal_exits: Some(&self.normal_exits),
             focus,
@@ -1770,11 +1817,17 @@ impl WorkbenchClientUi {
         RetainedFrameBank {
             frames: self.retained_frames.clone(),
             history: self.history_positions.bank.clone(),
+            titles: self.presentation_titles.clone(),
         }
     }
 
     pub(super) fn inherit_retained_frame_bank(&mut self, older: RetainedFrameBank) {
         if let Some(state) = &self.state {
+            self.presentation_titles.inherit_older(older.titles);
+            self.presentation_titles
+                .follow(state.cache().session_id(), |presentation| {
+                    self.agent_index.binding(presentation)
+                });
             self.retained_frames.inherit_older(older.frames, state);
             {
                 self.history_positions
@@ -1782,6 +1835,63 @@ impl WorkbenchClientUi {
                     .inherit_older(older.history, state);
                 self.history_positions.projections_cleared();
             }
+        }
+    }
+
+    /// Adopts the index of a newly accepted snapshot; each Presentation's title then follows the
+    /// terminal that snapshot binds it to.
+    fn install_agent_index(&mut self, index: crate::agent_board::PresentationIndex) {
+        self.agent_index = index;
+        if let Some(state) = &self.state {
+            self.presentation_titles
+                .follow(state.cache().session_id(), |presentation| {
+                    self.agent_index.binding(presentation)
+                });
+        }
+    }
+
+    /// Every bound Presentation of the Session, in canonical order, whose published title this
+    /// Client follows.
+    pub(super) fn title_presentations(
+        &self,
+    ) -> &[orchbee_workbench_protocol::TerminalPresentationId] {
+        self.agent_index.bound_presentations()
+    }
+
+    /// Rows of the Server's `presentation-titles` streams. Reports whether a shown title changed;
+    /// a title never marks anything unread, notifies or changes an Agent state.
+    pub(super) fn receive_presentation_titles(
+        &mut self,
+        rows: Vec<orchbee_workbench_protocol::PresentationTitleRow>,
+    ) -> bool {
+        if rows.is_empty() || self.retirement.is_some() {
+            return false;
+        }
+        let Some(state) = &self.state else {
+            return false;
+        };
+        self.presentation_titles
+            .receive(state.cache().session_id(), rows, |presentation| {
+                self.agent_index.binding(presentation).flatten()
+            })
+    }
+
+    /// Records the live frame titles this draw used, so a Tab keeps its name after it leaves.
+    fn record_live_titles(&mut self) {
+        let Some(session) = self
+            .state
+            .as_ref()
+            .map(|state| state.cache().session_id().clone())
+        else {
+            return;
+        };
+        for (presentation, binding, title) in self.view().live_titles() {
+            self.presentation_titles.observe_surface(
+                &session,
+                &presentation,
+                binding.as_ref(),
+                title.as_deref(),
+            );
         }
     }
 
@@ -1977,6 +2087,7 @@ impl WorkbenchClientUi {
             .unwrap_or(failure);
         self.retirement_failure = Some(failure);
         self.retained_frames.clear();
+        self.presentation_titles.clear();
         {
             self.history_positions = history_positions::Coordinator::default();
         }
@@ -2160,6 +2271,7 @@ impl WorkbenchClientUi {
             self.retained_frames
                 .after_draw(state, self.projections.iter().map(KeyedProjection::drawn));
         }
+        self.record_live_titles();
         self.dispatch_effect_after_draw();
         self.settle_pending_polls(true);
     }
@@ -4027,10 +4139,11 @@ impl WorkbenchClientUi {
                     self.state = installed;
                     // The accepted bootstrap seeds the board's index —
                     // only installed canonical state may feed it.
-                    self.agent_index = crate::agent_board::PresentationIndex::default();
+                    let mut index = crate::agent_board::PresentationIndex::default();
                     if let Some(state) = self.state.as_ref() {
-                        self.agent_index.install_context(state.cache());
+                        index.install_context(state.cache());
                     }
+                    self.install_agent_index(index);
                     return self.validate_state();
                 }
                 Ok(MutationResult::Stale) => return false,
@@ -4303,11 +4416,12 @@ impl WorkbenchClientUi {
         }
     }
 
-    /// Adopts an accepted canonical snapshot as the Agent board's index and shows the resume facts
-    /// it brings: every path that accepts a snapshot passes here.
+    /// Adopts an accepted canonical snapshot as the Agent board's index, shows the resume facts it
+    /// brings and moves each Presentation's title to its binding: every path that accepts a
+    /// snapshot passes here.
     fn adopt_snapshot_index(&mut self, snapshot: &orchbee_workbench_protocol::Snapshot) {
         self.observe_agent_not_resumed(snapshot);
-        self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+        self.install_agent_index(crate::agent_board::PresentationIndex::rebuild(snapshot));
     }
 
     fn apply_refresh_event(
@@ -5004,6 +5118,7 @@ impl WorkbenchClientUi {
 
     fn retire(&mut self, failure: CarrierFailure) {
         self.retained_frames.clear();
+        self.presentation_titles.clear();
         {
             self.history_positions = history_positions::Coordinator::default();
         }

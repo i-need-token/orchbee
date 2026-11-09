@@ -73,7 +73,7 @@ impl<'a> WorkbenchClientView<'a> {
             let panel = (0..tab.panel_count())
                 .filter_map(|index| tab.panel(index))
                 .find(|panel| panel.panel_id() == inner.panel_id())?;
-            self.panel_name(&tab.inner, panel)
+            self.panel_name(panel)
         });
         Some(PanelCloseConfirmationView {
             inner,

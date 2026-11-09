@@ -13,6 +13,7 @@ mod configuration;
 mod integration_lane;
 mod settings_lane;
 mod settings_notice;
+mod terminal_titles;
 mod window_title;
 mod worktree_lane;
 #[cfg(test)]
@@ -125,6 +126,7 @@ pub struct WorkbenchClient {
     configuration: Option<configuration::Watcher>,
     notifications: Option<crate::notifications::subscription::Subscription>,
     window_title: Option<window_title::Subscription>,
+    terminal_titles: Option<terminal_titles::Subscription>,
     client_control: Option<ui::control_steps::ClientControl>,
     backend: ClientBackend,
     task: Option<ClientTask>,
@@ -211,6 +213,9 @@ impl WorkbenchClient {
         }
         if let Some(mut watcher) = self.window_title.take() {
             watcher.close();
+        }
+        if let Some(mut titles) = self.terminal_titles.take() {
+            titles.close();
         }
         focus
     }
@@ -351,6 +356,7 @@ impl WorkbenchClient {
             configuration: None,
             notifications: None,
             window_title: None,
+            terminal_titles: None,
             client_control,
             backend: ClientBackend::Native(Box::new(native)),
             task: Some(ClientTask::Native(task)),
@@ -561,6 +567,23 @@ impl WorkbenchClient {
                     )
                 {
                     view.window_title = Some(snapshot);
+                }
+                if let Some(origin) = &self.origin
+                    && let Some((session, _)) = native.control_observation(false)
+                    && self
+                        .terminal_titles
+                        .as_ref()
+                        .is_none_or(|titles| titles.follows_another(&session))
+                {
+                    self.terminal_titles = Some(terminal_titles::Subscription::spawn(
+                        origin.clone(),
+                        native.configuration_clock(),
+                        session,
+                    ));
+                }
+                if let Some(titles) = &mut self.terminal_titles {
+                    let rows = titles.poll(native.title_presentations());
+                    configuration_changed |= native.receive_presentation_titles(rows);
                 }
                 let accepting = (!view.notifications.card_delivery()
                     || ui::notification_available(view, Some(native.view())))
@@ -1166,6 +1189,9 @@ impl WorkbenchClient {
     pub fn request_stop(&mut self) {
         if let Some(watcher) = &mut self.window_title {
             watcher.close();
+        }
+        if let Some(titles) = &mut self.terminal_titles {
+            titles.close();
         }
         if let Some(listener) = &mut self.notifications {
             listener.close();

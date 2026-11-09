@@ -584,14 +584,22 @@ impl crate::agent_board::LivePlacementNames for super::WorkbenchClientView<'_> {
             .find(|member| member.presentation_id().as_str() == presentation_id)?;
         let tab_name = tab.display_label(locale).into_owned();
         let title = if std::ptr::eq(self.selected_presentation(panel), member) {
-            self.automatic_name(&tab.inner, panel)
+            self.automatic_name(panel)
                 .map(|name| locale.chrome_name(name).into_owned())
         } else {
             let facts = crate::agent_board::NameFacts::of(member);
             facts
-                .chrome()
+                .chrome(Some(self))
                 .map(|name| locale.chrome_name(name).into_owned())
         };
         Some((title.unwrap_or_else(|| tab_name.clone()), tab_name))
+    }
+
+    fn terminal_title(
+        &self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        binding: Option<&crate::workbench_projection::ClientTerminalBinding>,
+    ) -> Option<crate::terminal_title::ChromeName<'_>> {
+        self.terminal_title_name(presentation, binding, None)
     }
 }

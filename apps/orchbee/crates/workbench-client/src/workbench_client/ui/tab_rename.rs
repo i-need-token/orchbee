@@ -85,7 +85,7 @@ impl<'a> WorkbenchClientView<'a> {
                         .is_some_and(|panel| panel.panel_id() == id)
                 })?;
                 let panel = tab.panel(index)?;
-                (self.panel_fallback(&tab.inner, panel), index + 1)
+                (self.panel_fallback(panel), index + 1)
             } else {
                 (tab.automatic_name, draft.position())
             };

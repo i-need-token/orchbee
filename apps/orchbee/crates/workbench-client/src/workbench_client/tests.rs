@@ -147,6 +147,7 @@ fn unsupported_reload_without_a_watcher_reports_before_dispatch() -> TestResult 
         configuration: None,
         notifications: None,
         window_title: None,
+        terminal_titles: None,
         client_control: None,
         backend: ClientBackend::Native(Box::new(
             ui::WorkbenchClientUi::with_capabilities(

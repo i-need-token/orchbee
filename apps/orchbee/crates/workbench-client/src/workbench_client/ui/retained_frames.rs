@@ -223,43 +223,6 @@ pub(super) struct RetainedView<'a> {
 }
 
 impl<'a> RetainedView<'a> {
-    /// A last observed title, fenced by its canonical binding and the attached Host epoch. A
-    /// `held` normal exit keeps its title after its viewer settles or is lost.
-    pub(super) fn title(
-        &self,
-        tab: &WorkbenchTabId,
-        panel: &crate::workbench_projection::ClientPanel,
-        member: &crate::workbench_projection::ClientPresentation,
-        epoch: Option<&orchbee_terminal_protocol::HostEpoch>,
-        held: bool,
-    ) -> Option<&'a str> {
-        if !held
-            && self.state.selected_presentation(panel).presentation_id() == member.presentation_id()
-            && self
-                .state
-                .pane_by_panel(panel.panel_id())
-                .is_some_and(|record| record.fault().is_some())
-        {
-            return None;
-        }
-        self.frames
-            .entries
-            .iter()
-            .rev()
-            .find(|pixels| {
-                let id = &pixels.identity;
-                &id.tab == tab
-                    && &id.panel == panel.panel_id()
-                    && &id.presentation == member.presentation_id()
-                    && Some(&id.binding) == member.binding()
-                    && id.remains_member(self.state)
-                    && epoch.is_none_or(|epoch| *epoch == pixels.frame.route.host_epoch)
-            })?
-            .frame
-            .title
-            .as_deref()
-    }
-
     /// Retained pixels for a connecting pane. A `held` normal exit keeps its final pixels in any
     /// phase until it leaves membership; they are never live content.
     pub(super) fn frame(

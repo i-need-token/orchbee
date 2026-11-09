@@ -499,6 +499,7 @@ pub(super) fn workbench_client_with_identity(
             configuration: None,
             notifications: None,
             window_title: None,
+            terminal_titles: None,
             client_control: None,
             backend: ClientBackend::Native(Box::new(ui::WorkbenchClientUi::new(
                 Arc::clone(&mailbox),

@@ -221,8 +221,9 @@ impl WorkbenchClientUi {
                 Some(view.panel_label(tab, panel, locale))
             });
             let panel_label = live.unwrap_or_else(|| {
+                let titles: &dyn crate::agent_board::LivePlacementNames = &view;
                 super::panel_label(
-                    placement.panel_name.chrome(),
+                    placement.panel_name.chrome(Some(titles)),
                     placement.panel_position,
                     locale,
                 )

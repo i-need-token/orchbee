@@ -317,6 +317,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     configuration: None,
                     notifications: None,
                     window_title: None,
+                    terminal_titles: None,
                     client_control: None,
                     backend: ClientBackend::Native(Box::new(ui)),
                     task: None,

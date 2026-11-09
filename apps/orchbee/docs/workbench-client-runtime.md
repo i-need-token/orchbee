@@ -2264,6 +2264,23 @@ composed CLI-to-TUI journey belongs to the workspace-close integration record.
 
 The [Tab label contract](native-tab-labels.md) refines the label facts above: projection retains raw text and naming mode, and display derives from context position. Create checks the requested mode at its commit; reordering preserves metadata. Rename clears automatic mode, so an equal-text automatic rename is a commit and only a fixed equal-text rename is a no-op. The strip, rename draft, close confirmation and Agent board use the strip's display name for a live Tab.
 
+## Background terminal titles
+
+`workbench_client/terminal_titles.rs` owns the UI's `presentation-titles` State streams on the
+shared connection, with no bridge thread, as the window-title stream does. Each control tick polls
+them with the bound Presentations of the latest accepted snapshot, in the canonical order the
+Agent index keeps; they open once the control observation names the Session, close when the
+Machine suspends or the Client stops, and keep no title. A record that does not answer its request,
+or answers with another outcome, closes them all, since a Server of this cohort sends neither.
+`ui/presentation_titles.rs` applies the [shared naming rule](native-tab-labels.md#background-terminal-titles):
+one cursor per Presentation of the latest snapshot, created by its first frame title or row and
+dropped when a snapshot no longer holds the Presentation, so each holds at most a few projected
+titles of at most 1 KiB. A frame title is recorded after each successful draw; before that, the
+view shows what recording it would show. A frame title is compared after projection, so a
+spinner frame in an activity prefix is no arrival. Cursors belong to one Session, ride in the
+retained bank across a targeted surface replacement, and are released when the Client retires.
+Naming no longer reads retained frames, which keep only pixels.
+
 ## Native grouped and pinned Tab projection
 
 The selected-context projection retains every canonical group record, including unused groups,

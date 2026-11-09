@@ -353,9 +353,9 @@ and its input-unavailable notice ends the hold so the refusal is visible when it
 Once the first live frame is visible, its pending draw acknowledgement alone does not display a
 connection status footer.
 
-Automatic Tab titles can reuse their last observed title while the active Tab waits for a frame,
-under the same canonical binding and attached Host epoch. A fresh live title, including a cleared
-title, takes precedence; blocked or faulted projections do not regain an old title.
+Automatic Tab titles keep the title last shown for the same canonical binding while the active Tab
+waits for a frame, by the [background title rule](native-tab-labels.md#background-terminal-titles).
+A fresh live title, including a cleared title, takes precedence.
 
 The controlled witnesses are `machine_picker/tests/sidebar.rs`,
 `terminal_input/dispatcher/tests/action_menu/sidebar_prefix.rs`,
