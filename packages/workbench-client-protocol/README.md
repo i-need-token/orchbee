@@ -107,7 +107,8 @@ required cwd and explicit placement; native-only profile catalog operations rema
 Workspace primary Directory acceptance carries only Workspace and exact path input.
 Its accepted result carries revision plus the Server-selected Directory and Worker identities.
 The binding keeps `workspace-directory-unavailable` and `workspace-directory-conflict` in the
-rejection domain and `directory-unavailable` in the command-unavailable domain. It validates the
+rejection domain and `directory-unavailable`, `directory-missing`, `not-a-directory` and
+`directory-inaccessible` in the command-unavailable domain. It validates the
 closed wire and projection values; filesystem observation, Worker selection, authorization,
 set-once admission, commit, and replay remain Server responsibilities.
 

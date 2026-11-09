@@ -205,8 +205,9 @@ impl Locale {
             (Self::ZhCn, A::Help) => "帮助",
             (Self::EnUs, A::Mouse) => "mouse",
             (Self::ZhCn, A::Mouse) => "鼠标",
-            (Self::EnUs, A::Detach) => "detach",
-            (Self::ZhCn, A::Detach) => "分离",
+            // Leaving is also what people call quitting or exiting; the title stays Leave view.
+            (Self::EnUs, A::Detach) => "detach quit exit",
+            (Self::ZhCn, A::Detach) => "分离 退出 关闭",
             (Self::EnUs, A::History) => "history restore",
             (Self::ZhCn, A::History) => "历史 恢复",
         }

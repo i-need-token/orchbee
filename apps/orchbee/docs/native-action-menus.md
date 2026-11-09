@@ -148,8 +148,10 @@ grant no execution authority. Search aliases find only admitted actions in the g
 searchable child menus; they do not expose command identities or hidden configuration commands.
 
 Shortcut Help and the global Detach action share localized wording: only the current Client
-detaches, and terminal programs keep running. This differs from closing a Panel, Tab or Workspace;
-the existing detach/reconnect behavior and confirmation policy remain unchanged.
+detaches, and terminal programs keep running. Its search aliases add the words people use for
+leaving, quit and exit (退出 and 关闭 in Chinese), so both surfaces find it without renaming it.
+This differs from closing a Panel, Tab or Workspace; the existing detach/reconnect behavior and
+confirmation policy remain unchanged.
 
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;

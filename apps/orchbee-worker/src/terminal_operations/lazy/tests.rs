@@ -83,7 +83,7 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
         (
             2,
             missing.as_path(),
-            TerminalCwdValidationOutcome::DirectoryUnavailable,
+            TerminalCwdValidationOutcome::DirectoryMissing,
         ),
     ] {
         let request = request(operation, path)?;

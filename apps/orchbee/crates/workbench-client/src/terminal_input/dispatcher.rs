@@ -1756,13 +1756,17 @@ impl InputDispatcher {
         if Self::tab_list_owns(view, &item) {
             return self.tab_list_item(view, port, now, item, after_layout, mode);
         }
-        // The mobile list covers the terminal, so a key or paste reaching it returns to the list's
-        // navigation instead of reaching the terminal hidden beneath, after a pointer press or a
-        // closed dialog left that navigation.
+        // The mobile list and the narrow overlay cover the terminal, so a key or paste reaching
+        // them returns to the sidebar's navigation instead of reaching the terminal hidden beneath,
+        // after a pointer press or a closed dialog left that navigation. The prefix and its binding
+        // never reach the terminal, so they decide from where the keyboard is: focusing the
+        // sidebar then enters its navigation instead of leaving navigation this key re-entered.
+        let binding_key = matches!(item.kind, DecodedKind::Key(key)
+            if view.prefix_active() || view.bindings().prefix.matches(key));
         if !self.sidebar_packet
             && !matches!(item.kind, DecodedKind::Mouse(_))
-            && view.sidebar_screen()
-            && view.overlay() == Some(crate::client_view::Overlay::BusinessSidebar)
+            && !binding_key
+            && view.sidebar_covers_terminal()
             && !view.machines.sidebar_navigation_active()
         {
             mode(ModeRequest::BracketedPaste(true))?;
@@ -1794,11 +1798,9 @@ impl InputDispatcher {
                     }
                     _ => crate::machine_picker::SidebarIntent::None,
                 };
-                // Leaving the mobile list's navigation, as Esc does, closes the list.
-                if !view.machines.sidebar_navigation_active()
-                    && view.overlay() == Some(crate::client_view::Overlay::BusinessSidebar)
-                    && view.sidebar_screen()
-                {
+                // Leaving a covering sidebar's navigation, as Esc does, closes it and returns the
+                // keyboard to the Panel it covered.
+                if !view.machines.sidebar_navigation_active() && view.sidebar_covers_terminal() {
                     view.dismiss_overlay();
                     after_layout(view, port)?;
                 }

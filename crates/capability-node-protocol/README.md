@@ -212,8 +212,9 @@ OBCN kind 11 `TerminalCwdValidationRequest` and kind 12 `TerminalCwdValidationRe
 read-only, generation-pinned directory observation on the existing serialized Server-Worker
 carrier. A request contains operation ID (16 bytes), Worker ID (16), positive Worker generation
 (`u64`), cwd byte length (`u16`) and one required `AbsoluteCwd`. A result echoes that complete
-request and adds one outcome tag: 1 `DirectoryAvailable`, 2 `DirectoryUnavailable`, or 3
-`WorkerUnavailable`. All integers retain the existing unsigned big-endian encoding.
+request and adds one outcome tag: 1 `DirectoryAvailable`, 2 `DirectoryMissing`, 3
+`WorkerUnavailable`, 4 `NotADirectory`, or 5 `DirectoryInaccessible`. All integers retain the
+existing unsigned big-endian encoding; old cohorts reject tags 4 and 5.
 
 The accepted [Workspace terminal directory contract](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
 owns the association that consumes this observation.

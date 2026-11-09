@@ -51,6 +51,11 @@ fn visible_view(width: u16, height: u16, preferred: u16) -> ClientView {
     if view.sidebar_surface() == SidebarSurface::Hidden {
         let transition = view.decide_action(ClientAction::ToggleBusinessSidebar);
         view.commit(transition, ClientActionDisposition::KeepNavigator);
+        // Opening the narrow overlay gives it the keyboard; a pointer press leaves that navigation,
+        // the state these paint checks draw, without the keyboard cursor and its hints.
+        if !view.sidebar_screen() {
+            view.machines.leave_sidebar_navigation();
+        }
     }
     view.machines.observe_agent_sidebar(true);
     let preferred = SidebarWidth::new(preferred).unwrap();

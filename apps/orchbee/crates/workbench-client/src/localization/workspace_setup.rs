@@ -24,6 +24,35 @@ pub(crate) enum FieldError {
     PathRequired,
     PathInvalid,
     PathTooLong,
+    /// The Server refused the directory: nothing exists at the path.
+    DirectoryMissing,
+    /// The Server refused the directory: the path names something other than a folder.
+    NotADirectory,
+    /// The Server refused the directory: the path cannot be read.
+    DirectoryInaccessible,
+    /// The Server refused the directory without naming a cause.
+    DirectoryUnavailable,
+}
+
+impl FieldError {
+    /// The field error for a Server refusal of a requested directory, when the reason is one.
+    pub(crate) const fn refused_directory(
+        reason: orchbee_workbench_protocol::WorkbenchCommandUnavailableReason,
+    ) -> Option<Self> {
+        use orchbee_workbench_protocol::WorkbenchCommandUnavailableReason as R;
+        match reason {
+            R::DirectoryMissing => Some(Self::DirectoryMissing),
+            R::NotADirectory => Some(Self::NotADirectory),
+            R::DirectoryInaccessible => Some(Self::DirectoryInaccessible),
+            R::DirectoryUnavailable => Some(Self::DirectoryUnavailable),
+            R::RequestLedgerFull
+            | R::NoCompatibleWorker
+            | R::TerminalBusy
+            | R::TerminalRuntimeUnavailable
+            | R::ServerBusy
+            | R::ServiceUnavailable => None,
+        }
+    }
 }
 
 /// Observed setup outcome, including facts retained after loss of publication.
@@ -231,6 +260,14 @@ impl Locale {
             (Self::ZhCn, FieldError::PathInvalid) => "请使用文件夹的完整路径。",
             (Self::EnUs, FieldError::PathTooLong) => "Use a shorter path.",
             (Self::ZhCn, FieldError::PathTooLong) => "请使用更短的路径。",
+            (Self::EnUs, FieldError::DirectoryMissing) => "This folder does not exist.",
+            (Self::ZhCn, FieldError::DirectoryMissing) => "此文件夹不存在。",
+            (Self::EnUs, FieldError::NotADirectory) => "This path is not a folder.",
+            (Self::ZhCn, FieldError::NotADirectory) => "此路径不是文件夹。",
+            (Self::EnUs, FieldError::DirectoryInaccessible) => "This folder cannot be accessed.",
+            (Self::ZhCn, FieldError::DirectoryInaccessible) => "无法访问此文件夹。",
+            (Self::EnUs, FieldError::DirectoryUnavailable) => "This folder cannot be used.",
+            (Self::ZhCn, FieldError::DirectoryUnavailable) => "无法使用此文件夹。",
         }
     }
     pub(crate) const fn quick_workspace_name(self) -> &'static str {

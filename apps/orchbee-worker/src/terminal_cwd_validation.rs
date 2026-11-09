@@ -1,8 +1,8 @@
 //! Checks the requested Worker incarnation before probing whether a literal launch directory
-//! exists as a directory and returning a typed outcome. A successful probe neither reserves
-//! the path nor grants terminal creation authority.
+//! exists as a directory and returning a typed outcome that names why it cannot be used. A
+//! successful probe neither reserves the path nor grants terminal creation authority.
 
-use std::{fs, num::NonZeroU64, path::Path};
+use std::{fs, io::ErrorKind, num::NonZeroU64, path::Path};
 
 use orchbee_capability_node_protocol::{
     TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
@@ -18,11 +18,18 @@ pub(crate) fn validate(
         || request.worker_generation.get() != generation.get()
     {
         TerminalCwdValidationOutcome::WorkerUnavailable
-    } else if fs::metadata(Path::new(request.cwd.as_str())).is_ok_and(|metadata| metadata.is_dir())
-    {
-        TerminalCwdValidationOutcome::DirectoryAvailable
     } else {
-        TerminalCwdValidationOutcome::DirectoryUnavailable
+        match fs::metadata(Path::new(request.cwd.as_str())) {
+            Ok(metadata) if metadata.is_dir() => TerminalCwdValidationOutcome::DirectoryAvailable,
+            Ok(_) => TerminalCwdValidationOutcome::NotADirectory,
+            // A file standing for a parent component means the named directory cannot exist.
+            Err(error)
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
+            {
+                TerminalCwdValidationOutcome::DirectoryMissing
+            }
+            Err(_) => TerminalCwdValidationOutcome::DirectoryInaccessible,
+        }
     };
     TerminalCwdValidationResult { request, outcome }
 }

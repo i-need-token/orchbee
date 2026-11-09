@@ -12,6 +12,7 @@ import type { WorkbenchProjectCreationMessages } from '../../types/workbench-pro
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';
 import { ResourceDialogHeader } from '../../../resource-dialog-header/ResourceDialogHeader';
+import styles from './CreateProjectDialog.module.css';
 
 interface CreateProjectDialogProps {
 	readonly messages: WorkbenchProjectCreationMessages;
@@ -19,6 +20,8 @@ interface CreateProjectDialogProps {
 	readonly onPathChange: (path: string) => void;
 	readonly onSubmit: (path: string) => void;
 	readonly path: string;
+	/** Why the Server refused the folder the field holds; it takes the help's place, as in the TUI. */
+	readonly refusal: string | null;
 	readonly title?: string | undefined;
 }
 
@@ -28,9 +31,11 @@ export function CreateProjectDialog({
 	onPathChange,
 	onSubmit,
 	path,
+	refusal,
 	title,
 }: CreateProjectDialogProps): React.ReactNode {
 	const formId = 'workbench-project-create-form';
+	const descriptionId = 'project-create-path-description';
 	const normalizedPath = path.trim();
 	return (
 		<Dialog
@@ -52,7 +57,8 @@ export function CreateProjectDialog({
 					<Field>
 						<FieldLabel htmlFor='project-create-path'>{messages.projectCreatePath}</FieldLabel>
 						<Input
-							aria-describedby='project-create-path-description'
+							aria-describedby={descriptionId}
+							aria-invalid={refusal !== null || undefined}
 							autoCapitalize='none'
 							autoComplete='off'
 							autoCorrect='off'
@@ -65,9 +71,15 @@ export function CreateProjectDialog({
 							value={path}
 							onChange={(event) => onPathChange(event.currentTarget.value)}
 						/>
-						<FieldDescription id='project-create-path-description'>
-							{messages.projectCreatePathDescription}
-						</FieldDescription>
+						{refusal === null ? (
+							<FieldDescription id={descriptionId}>
+								{messages.projectCreatePathDescription}
+							</FieldDescription>
+						) : (
+							<p className={styles['error']} id={descriptionId} role='alert'>
+								{refusal}
+							</p>
+						)}
 					</Field>
 				</ResourceDialogForm>
 				<ResourceDialogFooter

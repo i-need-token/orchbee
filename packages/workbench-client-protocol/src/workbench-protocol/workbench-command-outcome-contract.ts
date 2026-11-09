@@ -68,6 +68,9 @@ const WorkbenchCommandUnavailableReasonSchema = z.enum([
 	'server-busy',
 	'service-unavailable',
 	'directory-unavailable',
+	'directory-missing',
+	'not-a-directory',
+	'directory-inaccessible',
 ]);
 export const WorkbenchSnapshotUnavailableReasonSchema = z.enum(['service-unavailable']);
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();

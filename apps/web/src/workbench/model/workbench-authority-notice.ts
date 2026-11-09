@@ -5,6 +5,7 @@ import { collectPanelLeaves } from '../components/workbench-panel-workspace/mode
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
+	WorkbenchAuthorityCreation,
 	WorkbenchEarlierLayoutOutcome,
 	WorkbenchTabCloseStop,
 	WorkbenchTabDuplicationStop,
@@ -18,6 +19,10 @@ import type {
 	WorkbenchWorktreeOutcome,
 } from '../types/workbench-worktrees';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
+import {
+	readWorkbenchDirectoryRefusal,
+	type WorkbenchDirectoryRefusal,
+} from './readWorkbenchDirectoryRefusal';
 import { workbenchWorktreeFailureDescriptor } from './workbench-worktree-failure';
 
 export interface WorkbenchAuthorityNotice {
@@ -400,6 +405,43 @@ export function workbenchFailureNotice(
 		result,
 		workbenchMessages.workspaceSetupNotApplied,
 		workbenchMessages.workspaceSetupStale,
+	);
+}
+
+const DIRECTORY_REFUSAL_NOTICES = {
+	'directory-inaccessible': workbenchMessages.workspaceSetupDirectoryRefusedNoticeInaccessible,
+	'directory-missing': workbenchMessages.workspaceSetupDirectoryRefusedNoticeMissing,
+	'directory-unavailable': workbenchMessages.workspaceSetupDirectoryRefusedNoticeUnavailable,
+	'not-a-directory': workbenchMessages.workspaceSetupDirectoryRefusedNoticeNotADirectory,
+} as const satisfies Record<WorkbenchDirectoryRefusal, WorkbenchAuthorityNotice['descriptor']>;
+
+/**
+ * A creation's refusal. A folder the person named that the Server would not use says why and which
+ * folder, in the words the TUI shows under its folder field; a folder field that reopens with the
+ * reason withdraws it. A creation that names no folder keeps the TUI's not-applied words.
+ */
+export function workbenchCreationFailureNotice(
+	creation: WorkbenchAuthorityCreation,
+	result: ActionResult<unknown>,
+): WorkbenchAuthorityNotice | null {
+	const refusal = readWorkbenchDirectoryRefusal(result);
+	if (
+		refusal === null ||
+		(creation.type !== 'project-created' && creation.type !== 'workspace-created-at-path')
+	) {
+		return workbenchFailureNotice(result);
+	}
+	return {
+		descriptor: DIRECTORY_REFUSAL_NOTICES[refusal],
+		lifetime: 'until-press',
+		values: { path: creation.path },
+	};
+}
+
+/** Whether the notice says why a named folder was refused. */
+export function isWorkbenchDirectoryRefusalNotice(notice: WorkbenchAuthorityNotice): boolean {
+	return Object.values<WorkbenchAuthorityNotice['descriptor']>(DIRECTORY_REFUSAL_NOTICES).includes(
+		notice.descriptor,
 	);
 }
 

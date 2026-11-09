@@ -459,6 +459,7 @@ impl MailboxState {
         let valid_result = match outcome {
             SetupResult::Committed { known, .. } => flight.known.as_ref() == Some(known.as_ref()),
             SetupResult::NotApplied
+            | SetupResult::DirectoryRefused(_)
             | SetupResult::LaunchRequestTooLarge
             | SetupResult::Stale
             | SetupResult::ConfirmationRequired => flight.not_applied

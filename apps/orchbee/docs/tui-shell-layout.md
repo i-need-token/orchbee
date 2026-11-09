@@ -744,7 +744,9 @@ included. It is hidden by default, so a Client opens on the current terminal. `C
 (`ToggleBusinessSidebar`) or the strip's show toggle opens it, and the list takes the keyboard as
 sidebar focus does; a key or paste that reaches the open list while its navigation is idle, after a
 pointer press or a closed dialog, returns to that navigation instead of reaching the covered
-terminal. The hide toggle, Esc or choosing a row closes it; a chosen row opens its terminal even
+terminal. The `Ctrl+B` prefix and its binding never reach the terminal, so they decide from that
+idle state: `Ctrl+B B` focuses the navigation rather than leaving it. The hide toggle, Esc or
+choosing a row closes it; a chosen row opens its terminal even
 when it is already current. Crossing 60 columns keeps an open list open as the narrow overlay, and an
 open overlay open as the list; crossing 90 columns closes either, so wide hosts return to their
 docked visibility and narrower hosts start hidden. The list draws no divider and keeps the right padding cell. Row density follows the
@@ -898,7 +900,13 @@ confirmation gate. The sidebar's Settings action remains outside this rectangle.
 An unconnected workbench paints its localized connection guidance and header in the area still
 visible beside an overlay sidebar. This authored guidance uses a separate paint rectangle;
 canonical shell areas and terminal geometry remain unchanged. While an overlay sidebar is shown,
-the panes beneath it are covered: their cursor, graphics and attention cues stay hidden.
+the panes beneath it are covered: their cursor, graphics and attention cues stay hidden. Typed
+input would otherwise reach a Panel whose cursor is hidden, so the narrow overlay takes the keyboard
+as the [mobile list](#mobile-sidebar-list) does: opening it with `Ctrl+B b` or the show toggle
+focuses its navigation, and a key or paste that reaches it while its navigation is idle returns to
+that navigation instead of reaching the covered Panel. Esc closes it as the hide toggle and
+`Ctrl+B b` do, and the keyboard returns to the Panel it covered, whose focus the sidebar never
+changed. Choosing a row with Enter also closes it.
 
 The [Workbench navigator](native-context-selection.md#capturing-navigator)
 uses the existing centered surface with two labeled columns and a window around local focus.

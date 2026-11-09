@@ -62,6 +62,9 @@ struct SetupDraft {
     /// refused submission has exposed its error. An untouched field shows none.
     touched: [bool; 2],
     parent: Option<Box<draft::SetupParent>>,
+    /// The Server's reason for refusing the directory text this draft last submitted. It shows
+    /// beside the directory field while the field still holds that text.
+    refused: Option<(crate::localization::FieldError, String)>,
 }
 
 use super::line_editor::LineEditor;
@@ -96,6 +99,9 @@ pub(super) struct SetupState {
     status: Option<SetupStatus>,
     deadlines: Option<OperationDeadlines>,
     presentation: PresentationPhase,
+    /// A submitted draft that carries a directory, kept with its flight generation so a
+    /// directory refusal reopens it with the typed text.
+    submitted: Option<(u64, SetupDraft)>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SetupOperation {
@@ -120,6 +126,8 @@ pub(crate) enum SetupWorkerEvidence {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SetupResult {
     NotApplied,
+    /// A definite Server refusal of the submitted directory, with the field error naming why.
+    DirectoryRefused(crate::localization::FieldError),
     LaunchRequestTooLarge,
     /// A definite refusal proving this session's baseline is behind the Server.
     Stale,
@@ -472,7 +480,12 @@ impl WorkbenchClientState {
                 .map(|_| quick::ProjectQuickEntry::Submitted(operation.generation));
         }
         self.remember_current_navigation();
-        self.setup.draft = None;
+        self.setup.submitted = self
+            .setup
+            .draft
+            .take()
+            .filter(|draft| draft.quick.is_some() || draft.stage == SetupStage::DirectoryPath)
+            .map(|draft| (operation.generation, draft));
         self.setup.deadlines = Some(operation.deadlines);
         self.pending_refresh = Some(super::PendingRefreshFlight::recovery(operation.generation));
         self.adopt_publication_debt();
@@ -546,6 +559,43 @@ impl WorkbenchClientState {
     }
     pub(crate) fn setup_launch_too_large(&mut self) {
         self.setup.status = Some(SetupStatus::LaunchRequestTooLarge);
+    }
+    /// Reopens the draft whose directory the Server refused, keeping every typed field and
+    /// naming the reason beside the directory. A draft whose baseline has since moved stays
+    /// closed, leaving the settled not-applied status.
+    pub(crate) fn reopen_refused_directory(
+        &mut self,
+        operation: &SetupOperation,
+        error: crate::localization::FieldError,
+    ) {
+        let Some((generation, mut draft)) = self.setup.submitted.take() else {
+            return;
+        };
+        let Some(token) = self.setup.last_token.checked_add(1) else {
+            return;
+        };
+        if generation != operation.generation
+            || draft.baseline != self.cache
+            || self.setup.draft.is_some()
+        {
+            return;
+        }
+        let directory = match &draft.quick {
+            Some(fields) => {
+                draft.stage = SetupStage::QuickDirectory;
+                fields.directory().to_owned()
+            }
+            None => draft.editor.text().to_owned(),
+        };
+        self.setup.last_token = token;
+        draft.token = SetupToken(token);
+        draft.shown = false;
+        draft.continuation = None;
+        draft.touched = [true; 2];
+        draft.refused = Some((error, directory));
+        self.setup.presentation = PresentationPhase::Pending;
+        self.setup.status = None;
+        self.setup.draft = Some(draft);
     }
     pub(super) fn setup_target_matches(&self, target: &ClientContextLocation) -> bool {
         self.setup

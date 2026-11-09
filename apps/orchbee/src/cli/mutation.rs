@@ -2567,7 +2567,12 @@ mod workflow {
             }
             WorkbenchCommandUnavailableReason::ServerBusy => "server-busy",
             WorkbenchCommandUnavailableReason::ServiceUnavailable => "service-unavailable",
-            WorkbenchCommandUnavailableReason::DirectoryUnavailable => "directory-unavailable",
+            // The CLI's closed failure vocabulary keeps one directory reason; the Server's named
+            // causes reach interactive Clients, which show them beside the typed path.
+            WorkbenchCommandUnavailableReason::DirectoryUnavailable
+            | WorkbenchCommandUnavailableReason::DirectoryMissing
+            | WorkbenchCommandUnavailableReason::NotADirectory
+            | WorkbenchCommandUnavailableReason::DirectoryInaccessible => "directory-unavailable",
         }
     }
 

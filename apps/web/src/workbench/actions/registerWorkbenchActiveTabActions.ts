@@ -40,6 +40,7 @@ interface RegisterWorkbenchActiveTabActionsOptions {
 }
 
 type ActiveTabActionId =
+	| typeof WORKBENCH_ACTION_IDS.closeActiveTab
 	| typeof WORKBENCH_ACTION_IDS.closeTabsAfterActive
 	| typeof WORKBENCH_ACTION_IDS.createTabAfterActive
 	| typeof WORKBENCH_ACTION_IDS.createTabInRecentGroup
@@ -117,6 +118,14 @@ export function registerWorkbenchActiveTabActions({
 		typedRuntime.register(
 			scope,
 			definition(
+				WORKBENCH_ACTION_IDS.closeActiveTab,
+				workbenchTabMessages.closeActiveTab,
+				closureOfActive,
+			),
+		),
+		typedRuntime.register(
+			scope,
+			definition(
 				WORKBENCH_ACTION_IDS.closeTabsAfterActive,
 				vertical ? workbenchTabMessages.closeTabsBelow : workbenchTabMessages.closeTabsToRight,
 				closureAfterActive,
@@ -164,6 +173,13 @@ function duplication(snapshot: ActiveTabSnapshot): ActiveTabCommand | null {
 	return tabIds.length === 0
 		? null
 		: { actionId: TAB_STRIP_ACTION_IDS.duplicateTabs, input: { tabIds } };
+}
+
+/** The TUI's Close Tab…: the active Tab alone, whatever else is selected. */
+function closureOfActive(snapshot: ActiveTabSnapshot): ActiveTabCommand | null {
+	if (snapshot.activeTabId === null) return null;
+	const input: TabCloseInput = { closeSource: 'non-ui', tabIds: [snapshot.activeTabId] };
+	return { actionId: TAB_STRIP_ACTION_IDS.closeTabs, input };
 }
 
 /** The Tab menu's own trailing set: pinned and selected Tabs stay, and the selection's last Tab bounds it. */

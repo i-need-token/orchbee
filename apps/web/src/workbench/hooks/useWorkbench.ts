@@ -718,10 +718,10 @@ export function useWorkbench({
 		acquisition: projectFolderAcquisition,
 		activateCreatedProject,
 		createProject,
-		createWorkspaceAtDirectory: (projectId, path) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { projectId, path }, 'menu');
-		},
+		createWorkspaceAtDirectory: (projectId, path) =>
+			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { projectId, path }, 'menu'),
 		isCreatedProjectActive,
+		onDirectoryRefusalShown: authorityNotice.withdrawDirectoryRefusal,
 		runtime: actionRuntime,
 		scope: actions.scope,
 	});
@@ -1123,6 +1123,20 @@ export function useWorkbench({
 			folderAcquisitionFailureTitle: intl.formatMessage(
 				workbenchMessages.projectFolderAcquisitionTitle,
 			),
+			folderRefusalMessages: {
+				'directory-inaccessible': intl.formatMessage(
+					workbenchMessages.workspaceSetupDirectoryRefusedInaccessible,
+				),
+				'directory-missing': intl.formatMessage(
+					workbenchMessages.workspaceSetupDirectoryRefusedMissing,
+				),
+				'directory-unavailable': intl.formatMessage(
+					workbenchMessages.workspaceSetupDirectoryRefusedUnavailable,
+				),
+				'not-a-directory': intl.formatMessage(
+					workbenchMessages.workspaceSetupDirectoryRefusedNotADirectory,
+				),
+			},
 			newFolderCreating: intl.formatMessage(workbenchMessages.projectNewFolderCreating),
 			newFolderDescription: intl.formatMessage(workbenchMessages.projectNewFolderDescription),
 			newFolderName: intl.formatMessage(workbenchMessages.projectNewFolderName),

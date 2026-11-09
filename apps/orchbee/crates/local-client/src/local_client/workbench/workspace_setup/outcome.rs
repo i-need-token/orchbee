@@ -363,7 +363,10 @@ fn compatible_unavailable(
         | WorkbenchCommandUnavailableReason::ServiceUnavailable => true,
         WorkbenchCommandUnavailableReason::NoCompatibleWorker
         | WorkbenchCommandUnavailableReason::ServerBusy
-        | WorkbenchCommandUnavailableReason::DirectoryUnavailable => matches!(
+        | WorkbenchCommandUnavailableReason::DirectoryUnavailable
+        | WorkbenchCommandUnavailableReason::DirectoryMissing
+        | WorkbenchCommandUnavailableReason::NotADirectory
+        | WorkbenchCommandUnavailableReason::DirectoryInaccessible => matches!(
             action,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),

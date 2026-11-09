@@ -760,6 +760,45 @@
 			}
 		},
 		{
+			"name": "directory-missing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "directory-missing"
+				}
+			}
+		},
+		{
+			"name": "not-a-directory",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "not-a-directory"
+				}
+			}
+		},
+		{
+			"name": "directory-inaccessible",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "directory-inaccessible"
+				}
+			}
+		},
+		{
 			"name": "snapshot",
 			"direction": "response",
 			"document": {

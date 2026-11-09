@@ -765,9 +765,10 @@ viewer/controller cleanup. The lazy Linux loop handles it before resolving launc
 a Terminal Host. Worker first compares the request's exact logical Worker ID and generation with its
 admitted OBLW identity. A mismatch returns `WorkerUnavailable` without observing the path. A match
 uses one synchronous `std::fs::metadata` lookup, follows symbolic links, preserves the supplied path
-spelling, and returns `DirectoryAvailable` only for an existing directory. Missing paths, regular
-files and every metadata error return `DirectoryUnavailable`; arbitrary OS error details do not
-cross OBCN.
+spelling, and returns `DirectoryAvailable` only for an existing directory. A missing path, or one
+whose parent component is not a directory, returns `DirectoryMissing`; an existing non-directory
+returns `NotADirectory`; every other metadata error, such as denied access, returns
+`DirectoryInaccessible`. Arbitrary OS error details do not cross OBCN.
 
 Validation is a point-in-time read. It creates no directory, terminal, Host, attachment, controller,
 lease, launch binding or replay cache entry and sends no Terminal Protocol record. Its response uses

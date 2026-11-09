@@ -6,6 +6,7 @@ import {
 	createTypedActionRuntime,
 	defineAction,
 	noActionInput,
+	type ActionExecution,
 	type ActionResult,
 	type ActionSignature,
 } from '@orchbee/actions';
@@ -28,7 +29,9 @@ it.each([true, false])(
 	async (native) => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('workspace-directory');
-		const createWorkspaceAtDirectory = vi.fn<(projectId: string, path: string) => void>();
+		const createWorkspaceAtDirectory = vi.fn<
+			(projectId: string, path: string) => ActionExecution<unknown>
+		>(() => testAction<void>({ kind: 'completed' }).execute());
 		const project = testAction<WorkbenchProjectCreationReceipt>({
 			kind: 'blocked',
 			code: 'unexpected-project',
@@ -43,6 +46,7 @@ it.each([true, false])(
 				createProject,
 				createWorkspaceAtDirectory,
 				isCreatedProjectActive: () => false,
+				onDirectoryRefusalShown: () => {},
 				runtime,
 				scope,
 			}),

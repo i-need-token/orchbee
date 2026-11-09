@@ -981,6 +981,61 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Accessible words for the down-arrow count on a sidebar Workspace row: upstream commits its Git branch has not pulled.',
 	},
+	workspaceSetupDirectoryRefusedInaccessible: {
+		id: 'workbench.workspaces.setup.directoryRefused.inaccessible',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefused.inaccessible'],
+		description:
+			'Reason under the folder field of a new Workspace or Project when the Server could not read the folder, as when access is denied; the TUI shows the same words.',
+	},
+	workspaceSetupDirectoryRefusedMissing: {
+		id: 'workbench.workspaces.setup.directoryRefused.missing',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefused.missing'],
+		description:
+			'Reason under the folder field of a new Workspace or Project when nothing exists at the path; the TUI shows the same words.',
+	},
+	workspaceSetupDirectoryRefusedNotADirectory: {
+		id: 'workbench.workspaces.setup.directoryRefused.notADirectory',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefused.notADirectory'],
+		description:
+			'Reason under the folder field of a new Workspace or Project when the path names something other than a folder; the TUI shows the same words.',
+	},
+	workspaceSetupDirectoryRefusedUnavailable: {
+		id: 'workbench.workspaces.setup.directoryRefused.unavailable',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefused.unavailable'],
+		description:
+			'Reason under the folder field of a new Workspace or Project when the Server refused the folder without naming why; the TUI shows the same words.',
+	},
+	workspaceSetupDirectoryRefusedNoticeInaccessible: {
+		id: 'workbench.workspaces.setup.directoryRefusedNotice.inaccessible',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefusedNotice.inaccessible'],
+		description:
+			'Status notice when the Server could not read a folder picked for a new Workspace or Project. {path} is the folder.',
+	},
+	workspaceSetupDirectoryRefusedNoticeMissing: {
+		id: 'workbench.workspaces.setup.directoryRefusedNotice.missing',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefusedNotice.missing'],
+		description:
+			'Status notice when nothing exists at a folder picked for a new Workspace or Project. {path} is the folder.',
+	},
+	workspaceSetupDirectoryRefusedNoticeNotADirectory: {
+		id: 'workbench.workspaces.setup.directoryRefusedNotice.notADirectory',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefusedNotice.notADirectory'],
+		description:
+			'Status notice when a path picked for a new Workspace or Project is not a folder. {path} is the path.',
+	},
+	workspaceSetupDirectoryRefusedNoticeUnavailable: {
+		id: 'workbench.workspaces.setup.directoryRefusedNotice.unavailable',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.workspaces.setup.directoryRefusedNotice.unavailable'],
+		description:
+			'Status notice when the Server refused a folder picked for a new Workspace or Project without naming why. {path} is the folder.',
+	},
 	workspaceSetupNotApplied: {
 		id: 'workbench.workspaces.setup.notApplied',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.setup.notApplied'],

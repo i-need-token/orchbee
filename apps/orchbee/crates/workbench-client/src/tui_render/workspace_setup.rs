@@ -220,7 +220,7 @@ fn render_form(
 ) -> (Rect, ModalPresentation<SetupToken>) {
     let stage = draft.stage();
     let class = DialogClass::Narrow;
-    let [error, _] = draft.field_errors();
+    let [error, _] = draft.shown_field_errors();
     let tab_group_rename = stage == SetupStage::TabGroupName && draft.renames_tab_group();
     let (title, submit) = if tab_group_rename {
         (
@@ -520,7 +520,7 @@ fn render_quick(
     let class = DialogClass::Medium;
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
     let directory_active = draft.stage() == SetupStage::QuickDirectory;
-    let errors = draft.field_errors();
+    let errors = draft.shown_field_errors();
     let count = draft.directory_choices().len();
     // The directory's empty help row separates the field from its list; an error takes its place.
     let mut rows = vec![

@@ -3,11 +3,13 @@ import { useOrchbeeIntl, workbenchMessages, type IntlShape } from '@orchbee/i18n
 import * as React from 'react';
 
 import {
+	isWorkbenchDirectoryRefusalNotice,
 	readWorkbenchCloseSubject,
 	workbenchCloseProgressNotice,
 	workbenchCloseResultNotice,
 	workbenchCloseWithdrawnNotice,
 	workbenchConfiguredCommandNotice,
+	workbenchCreationFailureNotice,
 	workbenchEarlierLayoutNotice,
 	workbenchFailureNotice,
 	workbenchPanelsFailureNotice,
@@ -41,6 +43,8 @@ export interface WorkbenchAuthorityNoticeView {
 		stop: WorkbenchTabDuplicationStop,
 		counts: { readonly created: number; readonly total: number },
 	) => void;
+	/** A folder field now shows why its folder was refused, so the status line no longer says it. */
+	readonly withdrawDirectoryRefusal: () => void;
 }
 
 /** The same lifetime a TUI status line gives a transient notice. */
@@ -293,7 +297,7 @@ export function useWorkbenchAuthorityNotice(
 			create: async (context, creation) => {
 				setNotice(null);
 				const result = await authority.create(context, creation);
-				setNotice(workbenchFailureNotice(result));
+				setNotice(workbenchCreationFailureNotice(creation, result));
 				return result;
 			},
 			createPanelTerminal: async (context, creation) => {
@@ -356,6 +360,11 @@ export function useWorkbenchAuthorityNotice(
 			lifetime: 'timed',
 		});
 	});
+	const withdrawDirectoryRefusal = useMemoizedFn(() => {
+		setNotice((current) =>
+			current !== null && isWorkbenchDirectoryRefusalNotice(current) ? null : current,
+		);
+	});
 	React.useEffect(() => {
 		if (notice === null || notice.lifetime === 'until-replaced') return undefined;
 		if (notice.lifetime === 'timed') {
@@ -381,5 +390,6 @@ export function useWorkbenchAuthorityNotice(
 					},
 		reportAgentNavigationUnavailable,
 		reportDuplicationStopped,
+		withdrawDirectoryRefusal,
 	};
 }

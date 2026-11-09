@@ -274,8 +274,16 @@ fn negative_observations_preserve_snapshot_and_same_command_can_retry_with_fresh
     let mut previous = None;
     for (outcome, reason) in [
         (
-            TerminalCwdValidationOutcome::DirectoryUnavailable,
-            WorkbenchCommandUnavailableReason::DirectoryUnavailable,
+            TerminalCwdValidationOutcome::DirectoryMissing,
+            WorkbenchCommandUnavailableReason::DirectoryMissing,
+        ),
+        (
+            TerminalCwdValidationOutcome::NotADirectory,
+            WorkbenchCommandUnavailableReason::NotADirectory,
+        ),
+        (
+            TerminalCwdValidationOutcome::DirectoryInaccessible,
+            WorkbenchCommandUnavailableReason::DirectoryInaccessible,
         ),
         (
             TerminalCwdValidationOutcome::WorkerUnavailable,
@@ -371,7 +379,7 @@ fn concurrent_exact_commit_wins_over_later_negative_validation() {
                 WorkerId::parse("09090909090909090909090909090909").unwrap(),
             );
         let settled = snapshot(&service);
-        peer.reply(request, TerminalCwdValidationOutcome::DirectoryUnavailable);
+        peer.reply(request, TerminalCwdValidationOutcome::DirectoryMissing);
         assert_eq!(pending.join().unwrap(), accepted);
         assert_eq!(snapshot(&service), settled);
     });
@@ -499,7 +507,7 @@ fn workspace_launch_directory_failure_or_stale_probe_never_publishes_partial_res
                 if stale {
                     TerminalCwdValidationOutcome::DirectoryAvailable
                 } else {
-                    TerminalCwdValidationOutcome::DirectoryUnavailable
+                    TerminalCwdValidationOutcome::DirectoryMissing
                 },
             );
             pending.join().unwrap().unwrap()
@@ -517,7 +525,7 @@ fn workspace_launch_directory_failure_or_stale_probe_never_publishes_partial_res
                 result,
                 unavailable(
                     &command,
-                    WorkbenchCommandUnavailableReason::DirectoryUnavailable
+                    WorkbenchCommandUnavailableReason::DirectoryMissing
                 )
             );
         }

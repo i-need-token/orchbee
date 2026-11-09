@@ -2522,7 +2522,10 @@
 				"service-unavailable",
 				"terminal-busy",
 				"terminal-runtime-unavailable",
-				"directory-unavailable"
+				"directory-unavailable",
+				"directory-missing",
+				"not-a-directory",
+				"directory-inaccessible"
 			]
 		},
 		"wc_terminalUnavailableReason": {

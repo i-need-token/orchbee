@@ -222,6 +222,21 @@ impl<'a> SetupDraftView<'a> {
         }
         errors
     }
+    /// The errors a field shows: its own input error, else the Server's reason for refusing
+    /// the directory text it still holds. A refusal never blocks resubmitting that text.
+    pub(crate) fn shown_field_errors(&self) -> [Option<crate::localization::FieldError>; 2] {
+        let mut errors = self.field_errors();
+        if let Some((error, refused)) = &self.draft.refused {
+            let (index, text) = match &self.draft.quick {
+                Some(fields) => (1, fields.directory()),
+                None => (0, self.draft.editor.text()),
+            };
+            if text == refused && errors[index].is_none() {
+                errors[index] = Some(*error);
+            }
+        }
+        errors
+    }
     #[cfg(test)]
     pub(crate) fn faulted(&self) -> bool {
         self.draft.faulted
@@ -460,6 +475,7 @@ impl WorkbenchClientState {
             quick: None,
             continuation: None,
             parent: None,
+            refused: None,
         });
         Some(token)
     }

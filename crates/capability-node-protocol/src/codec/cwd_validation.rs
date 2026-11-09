@@ -33,8 +33,10 @@ pub(super) fn encode_result(result: &TerminalCwdValidationResult) -> Vec<u8> {
     encode_request_body(&mut bytes, &result.request);
     bytes.push(match result.outcome {
         TerminalCwdValidationOutcome::DirectoryAvailable => 1,
-        TerminalCwdValidationOutcome::DirectoryUnavailable => 2,
+        TerminalCwdValidationOutcome::DirectoryMissing => 2,
         TerminalCwdValidationOutcome::WorkerUnavailable => 3,
+        TerminalCwdValidationOutcome::NotADirectory => 4,
+        TerminalCwdValidationOutcome::DirectoryInaccessible => 5,
     });
     bytes
 }
@@ -44,8 +46,10 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalCwdValidationResult,
     let request = decode_request_body(&mut reader)?;
     let outcome = match reader.read_u8()? {
         1 => TerminalCwdValidationOutcome::DirectoryAvailable,
-        2 => TerminalCwdValidationOutcome::DirectoryUnavailable,
+        2 => TerminalCwdValidationOutcome::DirectoryMissing,
         3 => TerminalCwdValidationOutcome::WorkerUnavailable,
+        4 => TerminalCwdValidationOutcome::NotADirectory,
+        5 => TerminalCwdValidationOutcome::DirectoryInaccessible,
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;

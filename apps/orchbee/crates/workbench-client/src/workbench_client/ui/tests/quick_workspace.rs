@@ -120,6 +120,73 @@ fn directory_review_prepares_without_launching_and_submits_only_the_visible_edit
     assert!(ui.view().setup_draft().is_none());
 }
 
+/// The Worker names why it refused a directory, so the review reopens with the typed fields and
+/// shows that cause beside the directory until the text changes, without blocking a retry.
+#[test]
+fn refused_directory_reopens_the_review_with_the_typed_text_and_the_server_cause() {
+    use crate::localization::FieldError;
+    use crate::workbench_state::workspace_setup::SetupResult;
+    use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+    let (mut ui, mailbox, clock, snapshot) = no_workspace();
+    ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory);
+    finish_preparation_with_directory(
+        &mut ui,
+        &mailbox,
+        &clock,
+        &snapshot,
+        false,
+        Some(WorkbenchDirectoryPath::parse("C:/旧目录 项目").unwrap()),
+    );
+    let token = ui.view().setup_draft().unwrap().token();
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    ui.edit_setup_draft(
+        token,
+        SetupEdit::Line(crate::terminal_text::line_editor::LineKey::KillToStart),
+    );
+    ui.edit_setup_draft(token, SetupEdit::Paste("C:/missing"));
+    ui.submit_setup_draft(token);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("single Workspace launch")
+    };
+    let operation = marker.0.clone();
+    assert!(ui.view().setup_draft().is_none());
+    assert_eq!(
+        mailbox.mark_setup_in_flight(&operation).unwrap(),
+        MutationResult::Applied
+    );
+    assert!(mailbox.retain_setup_not_applied(&operation));
+    let wait = mailbox
+        .publish_setup_result_before(
+            operation,
+            SetupResult::DirectoryRefused(FieldError::DirectoryMissing),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+
+    let draft = ui.view().setup_draft().expect("the refused review reopens");
+    assert_eq!(draft.stage(), SetupStage::QuickDirectory);
+    assert_eq!(draft.quick_text(true), "C:/missing");
+    assert_eq!(
+        draft.shown_field_errors()[1],
+        Some(FieldError::DirectoryMissing)
+    );
+    assert_eq!(
+        draft.field_errors()[1],
+        None,
+        "the cause never blocks a retry"
+    );
+    let token = draft.token();
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    ui.edit_setup_draft(token, SetupEdit::Append("2"));
+    assert_eq!(
+        ui.view().setup_draft().unwrap().shown_field_errors()[1],
+        None
+    );
+}
+
 #[test]
 fn cancelling_directory_review_keeps_the_source_and_submits_nothing() {
     let (mut ui, mailbox, clock, snapshot) = no_workspace();

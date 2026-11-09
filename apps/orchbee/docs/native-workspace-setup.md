@@ -180,6 +180,15 @@ created. An automatic name follows path edits until the user edits the name. A P
 menu retains its exact Project target. The edited directory and name belong only to this launch.
 One-click creation and its existing shortcuts continue to submit immediately.
 
+When the Server refuses the submitted directory, the draft reopens with every typed field and
+directory focus, and the Directory field's error row names the Worker's cause: the folder does not
+exist, the path is not a folder, or the folder cannot be accessed, or that the folder cannot be used
+when the Server names no cause. The Client never probes the path itself, since the Worker may be on
+another machine. The error shows while the field still holds the refused text; it does not block
+submitting that text again, so a folder created meanwhile can be retried. A directory draft for an
+existing Workspace reopens the same way. A draft whose baseline moved during the flight stays
+closed and leaves the not-applied status.
+
 The review lists these choices under the Directory field's help row, below a `Recent` heading, at
 most three rows at a time. A row shows the folder name and, right-aligned in `text-secondary`, the
 folder that holds it, spelled from `~` inside the home folder that the field itself expands. The row

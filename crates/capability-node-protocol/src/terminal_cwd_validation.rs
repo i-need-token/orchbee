@@ -15,7 +15,12 @@ pub struct TerminalCwdValidationRequest {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalCwdValidationOutcome {
     DirectoryAvailable,
-    DirectoryUnavailable,
+    /// Nothing exists at the path, or a component of it is not a directory.
+    DirectoryMissing,
+    /// Something other than a directory exists at the path.
+    NotADirectory,
+    /// The path's metadata could not be read, as when access is denied.
+    DirectoryInaccessible,
     WorkerUnavailable,
 }
 

@@ -18,7 +18,9 @@ fn cwd_validation_round_trips_every_outcome_and_preserves_path_spelling() -> Tes
 
     for outcome in [
         TerminalCwdValidationOutcome::DirectoryAvailable,
-        TerminalCwdValidationOutcome::DirectoryUnavailable,
+        TerminalCwdValidationOutcome::DirectoryMissing,
+        TerminalCwdValidationOutcome::NotADirectory,
+        TerminalCwdValidationOutcome::DirectoryInaccessible,
         TerminalCwdValidationOutcome::WorkerUnavailable,
     ] {
         let message =

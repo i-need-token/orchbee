@@ -80,6 +80,10 @@ impl ClientExecutor {
                     ..
                 }) {
                     SetupResult::LaunchRequestTooLarge
+                } else if let WorkbenchSetupPrecommit::Unavailable { reason } = &reason
+                    && let Some(error) = crate::localization::FieldError::refused_directory(*reason)
+                {
+                    SetupResult::DirectoryRefused(error)
                 } else {
                     SetupResult::NotApplied
                 }

@@ -94,6 +94,7 @@ impl UiDriver {
                         self.state().prepare_refresh(operation.generation, *outcome)
                     }
                     result @ (SetupResult::NotApplied
+                    | SetupResult::DirectoryRefused(_)
                     | SetupResult::LaunchRequestTooLarge
                     | SetupResult::Stale
                     | SetupResult::ConfirmationRequired) => {
@@ -101,6 +102,9 @@ impl UiDriver {
                         assert!(self.state_mut().settle_setup_refusal(&operation, stale));
                         if matches!(result, SetupResult::LaunchRequestTooLarge) {
                             self.state_mut().setup_launch_too_large();
+                        }
+                        if let SetupResult::DirectoryRefused(error) = result {
+                            self.state_mut().reopen_refused_directory(&operation, error);
                         }
                         PreparedRefresh::DefiniteFailure {
                             generation: operation.generation,

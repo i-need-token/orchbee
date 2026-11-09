@@ -162,6 +162,18 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.git.behind':
 		'{count, plural, one {# commit to pull} other {# commits to pull}}',
 	'workbench.workspaces.names.default': 'Workspace',
+	'workbench.workspaces.setup.directoryRefused.inaccessible': 'This folder cannot be accessed.',
+	'workbench.workspaces.setup.directoryRefused.missing': 'This folder does not exist.',
+	'workbench.workspaces.setup.directoryRefused.notADirectory': 'This path is not a folder.',
+	'workbench.workspaces.setup.directoryRefused.unavailable': 'This folder cannot be used.',
+	'workbench.workspaces.setup.directoryRefusedNotice.inaccessible':
+		'This folder cannot be accessed · {path}',
+	'workbench.workspaces.setup.directoryRefusedNotice.missing':
+		'This folder does not exist · {path}',
+	'workbench.workspaces.setup.directoryRefusedNotice.notADirectory':
+		'This path is not a folder · {path}',
+	'workbench.workspaces.setup.directoryRefusedNotice.unavailable':
+		'This folder cannot be used · {path}',
 	'workbench.workspaces.setup.notApplied':
 		'Workspace setup not applied · check the target and input before trying again',
 	'workbench.workspaces.setup.outcomeUnknown':
@@ -313,6 +325,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.newToRight': 'New Tab to right',
 	'workbench.tabs.actions.openVertical': 'Open vertical tabs',
 	'workbench.tabs.actions.close': 'Close',
+	'workbench.tabs.actions.closeActive': 'Close Tab…',
 	'workbench.tabs.actions.closeBelow': 'Close Tabs below…',
 	'workbench.tabs.actions.closeToRight': 'Close Tabs to the right…',
 	'workbench.tabs.actions.closeVertical': 'Close vertical tabs',

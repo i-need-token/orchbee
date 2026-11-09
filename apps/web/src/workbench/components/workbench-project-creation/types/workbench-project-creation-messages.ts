@@ -1,3 +1,4 @@
+import type { WorkbenchDirectoryRefusal } from '../../../model/readWorkbenchDirectoryRefusal';
 import type { WorkbenchProjectFolderAcquisitionFailureCode } from '../../../types/workbench-project-folder-acquisition';
 
 /** What the Project creation dialogs say, prepared in the window's language. */
@@ -10,6 +11,8 @@ export interface WorkbenchProjectCreationMessages {
 		Record<WorkbenchProjectFolderAcquisitionFailureCode, string>
 	>;
 	readonly folderAcquisitionFailureTitle: string;
+	/** Why the Server refused a typed folder, in the words the TUI shows under its folder field. */
+	readonly folderRefusalMessages: Readonly<Record<WorkbenchDirectoryRefusal, string>>;
 	readonly newFolderCreating: string;
 	readonly newFolderDescription: string;
 	readonly newFolderName: string;

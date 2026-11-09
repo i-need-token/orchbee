@@ -275,7 +275,8 @@ that pool. Missing required nullable fields, dangling references, duplicate or
 unordered Directory identities, invalid paths, unknown fields, and collection overflow are invalid.
 
 The rejection reason domain adds `workspace-directory-unavailable` and
-`workspace-directory-conflict`; the command-unavailable domain adds `directory-unavailable`.
+`workspace-directory-conflict`; the command-unavailable domain adds `directory-unavailable` and the
+Worker-named causes `directory-missing`, `not-a-directory` and `directory-inaccessible`.
 The [Server Directory authority](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
 owns authorization, Worker validation, set-once/empty-context admission, atomic commit, replay and
 runtime behavior. These schema and binding contracts neither validate the filesystem nor select a

@@ -416,8 +416,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert!(matches!(
         unavailable_association.outcome,
         WorkbenchCommandOutcome::Unavailable {
-            reason:
-                orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::DirectoryUnavailable,
+            reason: orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::DirectoryMissing,
         }
     ));
     assert!(!fixture.marker.exists());

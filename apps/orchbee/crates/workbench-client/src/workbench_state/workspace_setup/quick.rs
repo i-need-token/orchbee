@@ -483,6 +483,7 @@ impl WorkbenchClientState {
             quick: None,
             continuation: None,
             parent: None,
+            refused: None,
         });
         Some(preparation)
     }
@@ -605,6 +606,7 @@ impl WorkbenchClientState {
             quick: Some(fields),
             continuation: (!preparation.review_directory).then_some(preparation.deadlines),
             parent: None,
+            refused: None,
         });
     }
     pub(crate) fn quick_continuation(&self) -> Option<(SetupToken, OperationDeadlines)> {

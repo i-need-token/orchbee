@@ -1189,6 +1189,25 @@ pub enum WorkbenchCommandUnavailableReason {
     ServerBusy,
     ServiceUnavailable,
     DirectoryUnavailable,
+    /// The Worker found nothing at a requested directory path.
+    DirectoryMissing,
+    /// The Worker found something other than a directory at a requested directory path.
+    NotADirectory,
+    /// The Worker could not read a requested directory path, as when access is denied.
+    DirectoryInaccessible,
+}
+
+impl WorkbenchCommandUnavailableReason {
+    /// Every reason that refuses a requested directory, generic or named by the Worker.
+    pub const fn refuses_directory(self) -> bool {
+        matches!(
+            self,
+            Self::DirectoryUnavailable
+                | Self::DirectoryMissing
+                | Self::NotADirectory
+                | Self::DirectoryInaccessible
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

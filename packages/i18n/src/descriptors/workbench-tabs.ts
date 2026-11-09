@@ -11,6 +11,12 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.close',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.close'],
 	},
+	closeActiveTab: {
+		id: 'workbench.tabs.actions.closeActive',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.closeActive'],
+		description:
+			'Search Action that closes the active Tab, the counterpart of Close Tab… in the TUI global action menu.',
+	},
 	closeTabsBelow: {
 		id: 'workbench.tabs.actions.closeBelow',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.closeBelow'],

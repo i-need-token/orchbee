@@ -684,6 +684,11 @@ fn view(width: u16, height: u16, count: u64) -> ClientView {
             let transition = view.decide(PrefixInput::Key(key));
             view.commit(transition, ClientActionDisposition::KeepNavigator);
         }
+        // Opening the narrow overlay gives it the keyboard; a pointer press leaves that navigation,
+        // the state these paint checks draw, without the keyboard cursor and its hints.
+        if !view.sidebar_screen() {
+            view.machines.leave_sidebar_navigation();
+        }
     }
     view.machines.observe_agent_sidebar(
         project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface())

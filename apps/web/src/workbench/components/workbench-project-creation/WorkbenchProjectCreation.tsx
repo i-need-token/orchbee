@@ -34,6 +34,9 @@ export function WorkbenchProjectCreation({
 					onPathChange={pathForm.setPath}
 					onSubmit={pathForm.submit}
 					path={pathForm.path}
+					refusal={
+						pathForm.refusal === null ? null : messages.folderRefusalMessages[pathForm.refusal]
+					}
 					title={pathForm.title}
 				/>
 			)}

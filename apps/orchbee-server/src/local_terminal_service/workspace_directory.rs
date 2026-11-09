@@ -187,7 +187,9 @@ fn validate_observation(
     observed: Result<TerminalCwdValidationResult, WorkerRequestError>,
     current: Option<&crate::terminal_coordinator::WorkerPlacement>,
 ) -> Result<WorkerId, WorkbenchCommandUnavailableReason> {
-    use WorkbenchCommandUnavailableReason::{DirectoryUnavailable, NoCompatibleWorker, ServerBusy};
+    use WorkbenchCommandUnavailableReason::{
+        DirectoryInaccessible, DirectoryMissing, NoCompatibleWorker, NotADirectory, ServerBusy,
+    };
     if current.is_none_or(|worker| {
         worker.worker_id != request.worker_id || worker.generation != request.worker_generation
     }) {
@@ -200,7 +202,9 @@ fn validate_observation(
                 u128::from_be_bytes(request.worker_id.as_bytes())
             ))
             .map_err(|_| NoCompatibleWorker),
-            TerminalCwdValidationOutcome::DirectoryUnavailable => Err(DirectoryUnavailable),
+            TerminalCwdValidationOutcome::DirectoryMissing => Err(DirectoryMissing),
+            TerminalCwdValidationOutcome::NotADirectory => Err(NotADirectory),
+            TerminalCwdValidationOutcome::DirectoryInaccessible => Err(DirectoryInaccessible),
             TerminalCwdValidationOutcome::WorkerUnavailable => Err(NoCompatibleWorker),
         },
         Err(WorkerRequestError::Backpressure) => Err(ServerBusy),

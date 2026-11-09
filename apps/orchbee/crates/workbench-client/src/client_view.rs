@@ -821,6 +821,13 @@ impl ClientView {
         self.viewport == ViewportClass::Mobile && self.sidebar_surface() != SidebarSurface::Hidden
     }
 
+    /// Whether the on-demand sidebar, the Mobile list or the Narrow overlay, covers the terminal.
+    /// Typed input would otherwise reach a Panel whose cursor it hides, so the sidebar takes the
+    /// keyboard while it shows and closing it returns the keyboard to that Panel.
+    pub(crate) fn sidebar_covers_terminal(&self) -> bool {
+        self.viewport.on_demand() && self.overlay == Some(Overlay::BusinessSidebar)
+    }
+
     /// Consumes the original sidebar intent before applying an exact Ready return.
     pub(crate) fn complete_project_quick_entry(&mut self) -> bool {
         let eligible = self.project_quick_entry_eligible.take();
@@ -1347,8 +1354,7 @@ impl ClientView {
             ClientAction::ToggleBusinessSidebar => {
                 self.machines.leave_sidebar_navigation();
                 self.toggle_sidebar();
-                // The mobile list covers the terminal, so it takes the keyboard while it shows.
-                if self.sidebar_screen() {
+                if self.sidebar_covers_terminal() {
                     self.machines.enter_sidebar_navigation();
                 }
                 (action, ShellCommand::None)

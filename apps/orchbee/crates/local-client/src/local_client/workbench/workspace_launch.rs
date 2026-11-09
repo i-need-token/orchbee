@@ -233,15 +233,15 @@ fn classify_outcome(
             ));
         }
         WorkbenchCommandOutcome::Unavailable { reason }
-            if matches!(
-                reason,
-                WorkbenchCommandUnavailableReason::RequestLedgerFull
-                    | WorkbenchCommandUnavailableReason::NoCompatibleWorker
-                    | WorkbenchCommandUnavailableReason::ServerBusy
-                    | WorkbenchCommandUnavailableReason::ServiceUnavailable
-                    | WorkbenchCommandUnavailableReason::DirectoryUnavailable
-                    | WorkbenchCommandUnavailableReason::TerminalBusy
-            ) =>
+            if reason.refuses_directory()
+                || matches!(
+                    reason,
+                    WorkbenchCommandUnavailableReason::RequestLedgerFull
+                        | WorkbenchCommandUnavailableReason::NoCompatibleWorker
+                        | WorkbenchCommandUnavailableReason::ServerBusy
+                        | WorkbenchCommandUnavailableReason::ServiceUnavailable
+                        | WorkbenchCommandUnavailableReason::TerminalBusy
+                ) =>
         {
             return Ok(WorkspaceLaunchSubmission::DefinitePrecommit(
                 Precommit::Unavailable { reason },

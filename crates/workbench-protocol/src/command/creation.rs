@@ -103,7 +103,10 @@ impl WorkbenchCommand {
                     Unavailable::NoCompatibleWorker
                     | Unavailable::ServerBusy
                     | Unavailable::TerminalRuntimeUnavailable
-                    | Unavailable::DirectoryUnavailable => !structure,
+                    | Unavailable::DirectoryUnavailable
+                    | Unavailable::DirectoryMissing
+                    | Unavailable::NotADirectory
+                    | Unavailable::DirectoryInaccessible => !structure,
                 };
             }
             // Failure classes above are shared; success receipts still require exact action echoes.

@@ -47,9 +47,19 @@ fn validates_directory_metadata_without_a_host_and_preserves_path_spelling() -> 
             .ok_or_else(|| io::Error::other("non-UTF8 test path"))?
     );
 
-    for path in [
-        fixture.path().join("regular-file"),
-        fixture.path().join("missing"),
+    for (path, expected) in [
+        (
+            fixture.path().join("regular-file"),
+            TerminalCwdValidationOutcome::NotADirectory,
+        ),
+        (
+            fixture.path().join("missing"),
+            TerminalCwdValidationOutcome::DirectoryMissing,
+        ),
+        (
+            fixture.path().join("regular-file").join("child"),
+            TerminalCwdValidationOutcome::DirectoryMissing,
+        ),
     ] {
         assert_eq!(
             validate(
@@ -58,7 +68,9 @@ fn validates_directory_metadata_without_a_host_and_preserves_path_spelling() -> 
                 GENERATION
             )
             .outcome,
-            TerminalCwdValidationOutcome::DirectoryUnavailable
+            expected,
+            "{}",
+            path.display()
         );
     }
     Ok(())
