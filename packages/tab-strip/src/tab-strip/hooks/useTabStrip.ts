@@ -1,5 +1,6 @@
 import type { ActionExecution } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
+import { holdDragCursor } from '@orchbee/ui/components';
 import {
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
@@ -351,6 +352,13 @@ export function useTabStrip(
 		verticalCollapsed,
 		verticalExpandOnHover,
 	});
+
+	// A started drag shows grabbing wherever the pointer goes until it lets go.
+	const dragHeld = drag?.started === true && !drag.settling;
+	useEffect(() => {
+		if (!dragHeld) return undefined;
+		return holdDragCursor(stripRef.current?.ownerDocument ?? document);
+	}, [dragHeld, stripRef]);
 
 	useEffect(() => {
 		if (dragStartAnimationRequestRef.current !== null) {

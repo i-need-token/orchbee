@@ -4,6 +4,7 @@
 	--ob-ref-color-agent-working-dark: #e5e5e5;
 	--ob-ref-color-agent-working-light: #383a42;
 	--ob-ref-color-groknight-gray: #585858;
+	--ob-ref-color-overlay-scrollbar-gray: rgb(128 128 128);
 	--ob-ref-color-traffic-light-green: #28c840;
 	--ob-ref-color-traffic-light-red: #ff5f57;
 	--ob-ref-color-traffic-light-yellow: #febc2e;
@@ -644,6 +645,7 @@
 		var(--ob-ref-color-orchbee-light-text) 64%,
 		transparent
 	);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: var(--ob-ref-color-orchbee-accent);
 	--ob-sys-color-action-primary-hover: color-mix(
 		in srgb,
@@ -846,8 +848,9 @@
 	--ob-comp-workbench-navigation-reorder-inline-start: 0px;
 	--ob-comp-workbench-navigation-reorder-translate-y: 0px;
 	--ob-comp-workbench-sidebar-overlay-inline-size: 15.625rem;
-	--ob-comp-workbench-sidebar-thumb-size: 0%;
-	--ob-comp-workbench-sidebar-thumb-start: 0%;
+	--ob-comp-workbench-sidebar-thumb-size: 0px;
+	--ob-comp-workbench-sidebar-thumb-start: 0px;
+	--ob-comp-workbench-sidebar-thumb-opacity: 0;
 	--ob-comp-settings-color-theme-swatch-inline-size: 3.5rem;
 
 	--ob-comp-tab-strip-length-negative-14: -14px;
@@ -1006,6 +1009,7 @@
 		var(--ob-ref-color-neutral-0) 52%,
 		transparent
 	);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: var(--ob-ref-color-neutral-100);
 	--ob-sys-color-action-primary-hover: var(--ob-ref-color-neutral-50);
 	--ob-sys-color-action-primary-pressed: var(--ob-ref-color-neutral-200);

@@ -17,7 +17,7 @@ import { NameDialog } from '../name-dialog/NameDialog';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useSidebarDrag } from './hooks/useSidebarDrag';
-import { useSidebarScrollEdges } from './hooks/useSidebarScrollEdges';
+import { useSidebarScrollbar } from './hooks/useSidebarScrollbar';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
 import { useWorkbenchSidebarWorkspaceLocations } from './hooks/useWorkbenchSidebarWorkspaceLocations';
@@ -211,7 +211,7 @@ export function WorkbenchSidebar({
 		returnToTerminal,
 		state: projectWorkspaceState,
 	});
-	const scrollEdgesReference = useSidebarScrollEdges(keyboard.listReference);
+	const scrollbar = useSidebarScrollbar(keyboard.listReference);
 	const workspaceWorktrees = useWorkspaceWorktrees({
 		beginWorkspaceActivation: workspaceActivation.begin,
 		commands: worktreeCommands,
@@ -268,7 +268,7 @@ export function WorkbenchSidebar({
 						</li>
 					)}
 				</ul>
-				<div ref={scrollEdgesReference} className={styles['projectSection']}>
+				<div ref={scrollbar.sectionReference} className={styles['projectSection']}>
 					<div
 						ref={keyboard.listReference}
 						className={styles['projectRegion']}
@@ -341,7 +341,14 @@ export function WorkbenchSidebar({
 					</div>
 					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='start' />
 					<span aria-hidden='true' className={styles['scrollEdge']} data-edge='end' />
-					<span aria-hidden='true' className={styles['scrollThumb']} />
+					<div
+						ref={scrollbar.scrollbarReference}
+						aria-hidden='true'
+						className={styles['scrollbar']}
+						data-slot='workbench-sidebar-scrollbar'
+					>
+						<span className={styles['scrollThumb']} />
+					</div>
 				</div>
 				{/* Holds the raised copy of a dragged row, so it outlives the row's move between lists. */}
 				<div aria-hidden='true' className={styles['dragLayer']} data-sidebar-drag-layer='true' />

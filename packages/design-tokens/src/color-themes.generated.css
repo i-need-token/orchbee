@@ -52,6 +52,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #ebdbb2 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #ebdbb2 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #ebdbb2 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #519192;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #519192 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #519192 85%, black);
@@ -164,6 +165,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #e0def4 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #e0def4 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #e0def4 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #9ccfd8;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #9ccfd8 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #9ccfd8 85%, black);
@@ -276,6 +278,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #cdd6f4 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #cdd6f4 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #cdd6f4 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #89b4fa;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #89b4fa 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #89b4fa 85%, black);
@@ -388,6 +391,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #cecdc3 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #cecdc3 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #cecdc3 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #4385be;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #4385be 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #4385be 85%, black);
@@ -500,6 +504,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #cdcecf 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #cdcecf 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #cdcecf 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #719cd6;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #719cd6 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #719cd6 85%, black);
@@ -612,6 +617,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #f8f8f2 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #f8f8f2 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #f8f8f2 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #bd93f9;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #bd93f9 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #bd93f9 85%, black);
@@ -724,6 +730,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #c0caf5 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #c0caf5 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #c0caf5 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #7aa2f7;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #7aa2f7 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #7aa2f7 85%, black);
@@ -836,6 +843,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #c5c8c6 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #c5c8c6 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #c5c8c6 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #81a2be;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #81a2be 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #81a2be 85%, black);
@@ -948,6 +956,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #dcd7ba 28%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #dcd7ba 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #dcd7ba 52%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #7e9cd8;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #7e9cd8 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #7e9cd8 85%, black);
@@ -1060,6 +1069,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #3d2b5a 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #3d2b5a 52%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #3d2b5a 64%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #2848a9;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #2848a9 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #2848a9 85%, black);
@@ -1172,6 +1182,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #3c3836 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #3c3836 52%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #3c3836 64%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #3d7d82;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #3d7d82 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #3d7d82 85%, black);
@@ -1284,6 +1295,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #100f0f 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #100f0f 52%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #100f0f 64%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #205ea6;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #205ea6 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #205ea6 85%, black);
@@ -1396,6 +1408,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #575279 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #575279 52%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #575279 64%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #45828d;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #45828d 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #45828d 85%, black);
@@ -1508,6 +1521,7 @@
 	--ob-sys-color-scrollbar-thumb: color-mix(in srgb, #000000 40%, transparent);
 	--ob-sys-color-scrollbar-thumb-hover: color-mix(in srgb, #000000 52%, transparent);
 	--ob-sys-color-scrollbar-thumb-pressed: color-mix(in srgb, #000000 64%, transparent);
+	--ob-sys-color-scrollbar-overlay-thumb: var(--ob-ref-color-overlay-scrollbar-gray);
 	--ob-sys-color-action-primary: #3465a4;
 	--ob-sys-color-action-primary-hover: color-mix(in oklab, #3465a4 85%, white);
 	--ob-sys-color-action-primary-pressed: color-mix(in oklab, #3465a4 85%, black);

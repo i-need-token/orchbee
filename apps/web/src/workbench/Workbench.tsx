@@ -519,7 +519,13 @@ export function Workbench({
 										terminalSurface={terminalSurface}
 									/>
 								) : (
-									<div className={styles['emptyWindow']} data-slot='workbench-empty-window'>
+									<div
+										className={styles['emptyWindow']}
+										data-slot='workbench-empty-window'
+										onDoubleClick={
+											terminalContext === null ? undefined : view.onEmptyContentDoubleClick
+										}
+									>
 										{view.emptyWorkspace === null ? null : (
 											<WorkbenchEmptyWorkspace
 												fact={view.emptyWorkspace.fact}

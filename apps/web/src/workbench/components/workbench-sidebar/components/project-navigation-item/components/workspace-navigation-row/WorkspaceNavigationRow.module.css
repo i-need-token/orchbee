@@ -22,11 +22,6 @@
 	cursor: default;
 }
 
-/* Only a drag holds the list: its rows keep the grab hand while the drag lasts. */
-:global([data-sidebar-dragging]) .row {
-	cursor: grab;
-}
-
 .row:hover,
 .row[data-popup-open],
 .row:has(.tool[aria-expanded='true']) {
@@ -74,7 +69,6 @@
 		var(--ob-ref-space-2),
 		var(--ob-comp-workbench-navigation-reorder-translate-y)
 	);
-	cursor: grabbing;
 	pointer-events: none;
 	will-change: transform;
 }

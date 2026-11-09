@@ -64,3 +64,38 @@
 		var(--ob-comp-workbench-window-inline-size) - env(titlebar-area-x) - env(titlebar-area-width)
 	);
 }
+
+/* The window's own controls sit in the top chrome: the macOS traffic lights at its start, the Windows
+   caption buttons at its end. A dialog or sheet that can reach the window's top keeps that band
+   clear. Settings, which fills a narrow window, starts below it; Search starts no higher than its
+   end; and a dialog centered over the window never grows into it. */
+.root[data-window-controls] :global([data-slot='terminal-settings-surface']) {
+	padding-block-start: var(--ob-comp-workbench-horizontal-chrome-height);
+}
+
+:global(body:has([data-slot='desktop-workbench'][data-window-controls]))
+	:global([data-slot='workbench-search-surface']) {
+	inset-block-start: max(
+		var(--ob-comp-workbench-search-block-start),
+		var(--ob-comp-workbench-horizontal-chrome-height)
+	);
+	max-height: calc(
+		100% -
+			max(
+				var(--ob-comp-workbench-search-block-start),
+				var(--ob-comp-workbench-horizontal-chrome-height)
+			) -
+			var(--ob-ref-space-8)
+	);
+}
+
+:global(body:has([data-slot='desktop-workbench'][data-window-controls]))
+	:global(
+		:is([role='dialog'], [role='alertdialog'])[data-open]:not(
+			[data-slot='desktop-workbench'] *,
+			[data-slot='workbench-search-surface']
+		)
+	) {
+	max-height: calc(100% - 2 * var(--ob-comp-workbench-horizontal-chrome-height));
+	overflow-y: auto;
+}

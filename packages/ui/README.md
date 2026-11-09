@@ -44,6 +44,8 @@ Product code consumes `ProductIcon` through the package API and uses its Orchbee
 
 The product allowlist is the `ProductIconName` union; each name maps to one Codicons glyph in the component's stylesheet, and a name joins with its first product consumer. Generated shadcn sources retain their upstream Lucide dependencies inside the generated compatibility boundary. See the repository [frontend styling standard](../../docs/frontend/styling.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
+`holdDragCursor(document)` shows the `grabbing` pointer on every element of that document until its returned release runs; drag owners call it as a drag starts, and the package stylesheet's base layer applies it over any element's own cursor.
+
 The resizable component facade exports `ResizablePanelGroupHandle` for product adapters that need to constrain live layouts through the group imperative API.
 
 ## Refresh components

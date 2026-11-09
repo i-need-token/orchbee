@@ -153,8 +153,8 @@ themes and fails when either is stale:
 A block takes surfaces, text, frames, accents, and statuses from the resolver: canvas, chrome as
 `surface-raised`, overlay, the text steps, the frame steps as borders, `accent-action` and
 `accent-link`, and the four status roles. States follow the hand-authored mapping's proportions,
-with hover lighter and pressed darker in both polarities. The brand honey, the scrim, and every
-Agent status glyph color keep their polarity's hand-authored reference; `pnpm lint:styles` checks
+with hover lighter and pressed darker in both polarities. The brand honey, the scrim, the overlay
+scrollbar thumb, and every Agent status glyph color keep their polarity's hand-authored reference; `pnpm lint:styles` checks
 that each block declares exactly its polarity's system colors and keeps those fixed values.
 
 Regenerate after changing a theme file or the generator, and review an unshipped theme file

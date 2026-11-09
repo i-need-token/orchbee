@@ -26,7 +26,7 @@
 	z-index: var(--ob-ref-layer-base);
 	inset-block-start: var(--ob-ref-space-0);
 	inset-inline: var(--ob-ref-space-0);
-	height: var(--ob-ref-space-6);
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
 	-webkit-app-region: drag;
 	app-region: drag;
 }

@@ -363,7 +363,8 @@ belong to the outer shell and transient surfaces rather than ordinary setting se
 profile management, and shell setup may retain the semantic boundaries required by
 their task states without turning every setting into a card. Behavior and architecture follow Orchbee's shared settings contract.
 
-At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
+In a Desktop window, Settings starts below the `36px` top chrome, where the window's own controls
+sit. At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
 selecting a category or search result shows content, and the content-level Back affordance restores
 the list. Controls stack below their copy when the trailing column no longer fits. Host appearance,
 input and shortcut changes apply immediately, and shared values apply on confirmation; shell-profile drafts require

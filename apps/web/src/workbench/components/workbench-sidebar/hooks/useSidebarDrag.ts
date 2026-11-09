@@ -1,4 +1,5 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
+import { holdDragCursor } from '@orchbee/ui/components';
 import * as React from 'react';
 import { flushSync } from 'react-dom';
 
@@ -186,7 +187,7 @@ export function useSidebarDrag({
 		let latestClientX = session.clientX;
 		let latestClientY = session.clientY;
 		let refreshAfterActivation = false;
-		const initialCursor = ownerDocument.documentElement.style.cursor;
+		let releaseDragCursor: (() => void) | null = null;
 
 		const releaseCapture = () => {
 			if (
@@ -205,7 +206,8 @@ export function useSidebarDrag({
 		const clearVisual = () => {
 			copy?.remove();
 			copy = null;
-			ownerDocument.documentElement.style.cursor = initialCursor;
+			releaseDragCursor?.();
+			releaseDragCursor = null;
 			if (animationFrame !== null) ownerWindow?.cancelAnimationFrame(animationFrame);
 			animationFrame = null;
 		};
@@ -270,7 +272,7 @@ export function useSidebarDrag({
 			}
 			rowSize = session.source.getBoundingClientRect().height;
 			copy = raiseCopy(session);
-			ownerDocument.documentElement.style.cursor = 'grabbing';
+			releaseDragCursor = holdDragCursor(ownerDocument);
 			refreshAfterActivation = true;
 			if (session.item.kind === 'workspace') commandsRef.current.holdWorkspace(session.item.id);
 		};

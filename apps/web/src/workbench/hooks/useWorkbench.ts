@@ -314,6 +314,8 @@ interface WorkbenchView {
 	readonly hasVisibleTerminalTabs: boolean;
 	/** Only a shared Workbench says anything in place of a Workspace's missing Tabs. */
 	readonly emptyWorkspace: WorkbenchEmptyWorkspace | null;
+	/** Double-clicking the content of a Workspace with no Tab starts one, as the New Tab control does. */
+	readonly onEmptyContentDoubleClick: (event: React.MouseEvent<HTMLElement>) => void;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly tabStripFocusRequest: number;
 	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
@@ -1271,6 +1273,10 @@ export function useWorkbench({
 		hasVisibleTerminalTabs: tabCount > 0,
 		emptyWorkspace:
 			tabCount > 0 ? null : projectWorkbenchEmptyWorkspace(projectWorkspaceState, intl),
+		onEmptyContentDoubleClick: (event) => {
+			if (!isPlainPrimaryPress(event) || tabCount > 0) return;
+			actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null }, 'pointer');
+		},
 		tabStripOrientation,
 		tabStripFocusRequest: focusRouting.tabStripFocusRequest,
 		onTabStripOrientationChange: (orientation) => {
@@ -1304,6 +1310,11 @@ export function useWorkbench({
 							actions.invoke(WORKBENCH_ACTION_IDS.resumeWorktreeRemoval, input, 'menu'),
 					},
 	};
+}
+
+/** A plain primary-button press, as the TUI's double-click shortcuts take. */
+function isPlainPrimaryPress(event: React.MouseEvent<HTMLElement>): boolean {
+	return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
 
 /** Esc that no menu, field or drag inside the surface has already taken. */

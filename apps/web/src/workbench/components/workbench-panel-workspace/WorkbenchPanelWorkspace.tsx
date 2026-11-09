@@ -1,4 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
+import { holdDragCursor } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { WorkbenchSharedPanelTerminalCreate } from '../../actions/createSharedPanelTerminal';
@@ -77,6 +78,8 @@ export function WorkbenchPanelWorkspace({
 	React.useLayoutEffect(() => {
 		if (heldRevision !== null && !holdShown) releasePanelDragHold(heldRevision);
 	}, [heldRevision, holdShown, releasePanelDragHold]);
+	const panelDragging = view.panelDrag.ghost !== null;
+	React.useEffect(() => (panelDragging ? holdDragCursor(document) : undefined), [panelDragging]);
 
 	return (
 		<div

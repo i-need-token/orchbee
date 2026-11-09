@@ -27,12 +27,6 @@
 	cursor: default;
 }
 
-/* Only a drag holds the list: a Project heading keeps the grab hand while the drag lasts. Recents is
-   never held, so it stays the default arrow. */
-:global([data-sidebar-dragging]) .heading:not([data-recents-row]) {
-	cursor: grab;
-}
-
 .heading:has(.chevron:focus-visible) {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
@@ -54,7 +48,6 @@
 		var(--ob-ref-space-2),
 		var(--ob-comp-workbench-navigation-reorder-translate-y)
 	);
-	cursor: grabbing;
 	pointer-events: none;
 	will-change: transform;
 }

@@ -125,3 +125,11 @@ export type {
 	TerminalInteractionConfigurationSource,
 	TerminalInteractionConfigurationValidationResult,
 } from './interaction-configuration';
+
+export {
+	beginHistoryScrollbarDrag,
+	HISTORY_SCROLLBAR_FADE_DELAY_MS,
+	projectHistoryScrollbar,
+	resolveHistoryScrollbarDrag,
+} from './history-scrollbar';
+export type { HistoryScrollbarDrag, HistoryScrollbarProjection } from './history-scrollbar';

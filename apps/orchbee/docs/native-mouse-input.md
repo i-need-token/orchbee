@@ -25,7 +25,9 @@ same default Tab creation owner as `[+]`. A single click is inert. Two complete 
 must address the same cell and painted source, with at most 350 ms from the first release to the
 second press. Dragging, another press, changed source/geometry/occlusion, focus loss or capture
 release cancels the pair. Pane content with a current Tab keeps its program/selection owner.
-This is a native pointer shortcut; the GUI retains its existing New Tab control and keyboard action.
+The GUI offers the same shortcut on its blank horizontal Tab strip and on a Workspace's content with
+no Tab, through the browser's own double-click; the Desktop window's blank Tab bar stays its native
+drag region, where the operating system's double-click maximizes the window instead.
 
 Native [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navigation) owns
 press/drag/release, selected membership, group boundaries and static feedback. InputDispatcher

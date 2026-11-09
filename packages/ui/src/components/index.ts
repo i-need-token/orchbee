@@ -1,3 +1,4 @@
+export { holdDragCursor } from '../drag-cursor';
 export { ProductIcon } from '../product-icon';
 export type { ProductIconName } from '../product-icon';
 

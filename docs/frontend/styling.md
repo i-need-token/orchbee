@@ -43,7 +43,7 @@ Inline style objects may contain only registered `--ob-comp-*` keys for measured
 
 ## Pointer cursors
 
-At rest every Orchbee control shows the default arrow, including rows, headings, panel titles, tabs, and buttons. `grab` and `grabbing` appear only while a drag is in progress: a draggable keeps its own `grab` under its surface's drag attribute, and `grabbing` comes from the drag's document cursor or its surface's drag rule. Text inputs and terminal text keep the text cursor, resize splitters keep their resize cursors, and `pointer` belongs only to links.
+At rest every Orchbee control shows the default arrow, including rows, headings, panel titles, tabs, and buttons. A held drag of a Tab, Panel, sidebar row, or any other item shows `grabbing` on every element from the moment it starts until its release or cancellation, whatever the pointer crosses: its owner calls `holdDragCursor` from `@orchbee/ui/components`, and the package stylesheet's document rule overrides every element's own cursor. Surfaces never add their own `grab` or `grabbing` rules. Text inputs and terminal text keep the text cursor, resize splitters keep their resize cursors, and `pointer` belongs only to links.
 
 ## Product icons
 

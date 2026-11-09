@@ -216,13 +216,14 @@ export function validateRegistrySource({ path, source, publicTokens }) {
 	return diagnostics;
 }
 
-// System colors a named theme never changes: the brand honey, the scrim, and every Agent status
-// glyph color keep their polarity's hand-authored value.
+// System colors a named theme never changes: the brand honey, the scrim, the overlay scrollbar
+// thumb, and every Agent status glyph color keep their polarity's hand-authored value.
 const FIXED_THEME_COLORS = [
 	'--ob-sys-color-brand-accent',
 	'--ob-sys-color-brand-accent-hover',
 	'--ob-sys-color-brand-on-accent',
 	'--ob-sys-color-surface-scrim',
+	'--ob-sys-color-scrollbar-overlay-thumb',
 	'--ob-sys-color-status-attention',
 	'--ob-sys-color-status-working',
 	'--ob-sys-color-status-agent-idle',

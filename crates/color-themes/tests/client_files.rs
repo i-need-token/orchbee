@@ -170,8 +170,9 @@ fn declaration(text: &mut String, name: &str, value: &str) {
 
 /// Every system color of a named theme, in the registry's order. Surfaces, text, frames, accents,
 /// and statuses come from the resolver; states mix those roles as the hand-authored mapping does,
-/// with hover lighter and pressed darker in both polarities. The brand honey, the scrim, and every
-/// Agent status glyph color keep their polarity's hand-authored reference.
+/// with hover lighter and pressed darker in both polarities. The brand honey, the scrim, the Panels'
+/// overlay scrollbar thumb, and every Agent status glyph color keep their polarity's hand-authored
+/// reference.
 fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     let roles = Roles::resolve(theme);
     let dark = theme.polarity() == Polarity::Dark;
@@ -261,6 +262,10 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
         ("scrollbar-thumb", alpha(thumb)),
         ("scrollbar-thumb-hover", alpha(thumb_hover)),
         ("scrollbar-thumb-pressed", alpha(thumb_pressed)),
+        (
+            "scrollbar-overlay-thumb",
+            fixed("overlay-scrollbar-gray", "overlay-scrollbar-gray"),
+        ),
         ("action-primary", action.to_string()),
         ("action-primary-hover", lighter(action)),
         ("action-primary-pressed", darker(action)),

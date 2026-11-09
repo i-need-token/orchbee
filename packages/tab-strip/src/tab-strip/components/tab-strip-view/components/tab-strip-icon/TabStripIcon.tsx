@@ -6,7 +6,6 @@ type TabStripIconName =
 	| 'camera'
 	| 'chevron'
 	| 'collapse-sidebar'
-	| 'default-favicon'
 	| 'desktop-capture'
 	| 'device'
 	| 'expand-sidebar'
@@ -152,18 +151,6 @@ export function TabStripIcon({ name, variantClass }: TabStripIconProps): ReactNo
 		return (
 			<TabStripIconSvg iconName={name} variantClass={variantClass}>
 				<circle cx='12' cy='12' r='7' fill='currentColor' stroke='none' />
-			</TabStripIconSvg>
-		);
-	if (name === 'default-favicon')
-		return (
-			<TabStripIconSvg iconName={name} variantClass={variantClass} viewBox='0 0 20 20'>
-				<circle cx='10' cy='10' r='8' fill='#e8f0fe' stroke='#5f6368' strokeWidth='1.4' />
-
-				<path
-					d='M2.5 10h15M10 2c2.1 2.2 3.1 4.9 3.1 8S12.1 15.8 10 18M10 2C7.9 4.2 6.9 6.9 6.9 10s1 5.8 3.1 8'
-					stroke='#5f6368'
-					strokeWidth='1.1'
-				/>
 			</TabStripIconSvg>
 		);
 	if (name === 'spinner')

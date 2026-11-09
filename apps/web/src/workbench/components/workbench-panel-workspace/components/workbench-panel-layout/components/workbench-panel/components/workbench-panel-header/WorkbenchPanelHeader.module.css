@@ -13,7 +13,7 @@
 	cursor: default;
 }
 
-/* A Panel drag's grabbing cursor comes from its workspace, which covers the header. */
+/* A Panel drag's grabbing cursor comes from the document while the drag is held. */
 .root[data-drag-enabled='true'] {
 	touch-action: none;
 	user-select: none;

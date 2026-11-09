@@ -103,6 +103,13 @@
 }
 
 @layer base {
+	/* A held drag owns the pointer: every element reads grabbing until the release, over any cursor
+	   an element sets for itself. `holdDragCursor` sets the attribute. */
+	:root[data-ob-drag-cursor],
+	:root[data-ob-drag-cursor] * {
+		cursor: grabbing !important;
+	}
+
 	@supports not selector(::-webkit-scrollbar) {
 		* {
 			scrollbar-color: var(--ob-sys-color-scrollbar-thumb) var(--ob-sys-color-scrollbar-track);

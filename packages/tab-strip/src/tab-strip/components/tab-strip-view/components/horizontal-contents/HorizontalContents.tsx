@@ -184,6 +184,21 @@ export function HorizontalContents({
 				className={styles['ct-horizontal-track']}
 				data-horizontal-track=''
 				data-source-layout=''
+				onDoubleClick={(event) => {
+					// Only the strip's own blank space: Tabs, groups and the New Tab control keep theirs.
+					if (
+						event.target !== event.currentTarget ||
+						event.button !== 0 ||
+						event.altKey ||
+						event.ctrlKey ||
+						event.metaKey ||
+						event.shiftKey ||
+						!newTabCreationEnabled
+					) {
+						return;
+					}
+					addTab();
+				}}
 			>
 				{dragPresentation && drag ? (
 					<div

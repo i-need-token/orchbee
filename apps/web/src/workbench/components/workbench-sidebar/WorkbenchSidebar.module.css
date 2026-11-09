@@ -94,7 +94,7 @@
 }
 
 /* Rows keep the sidebar's full width at every scroll position, so the native scrollbar gives way
-   to the overlay thumb. */
+   to the overlay scrollbar. */
 .projectRegion {
 	flex: 1;
 	min-height: var(--ob-ref-space-0);
@@ -104,8 +104,7 @@
 	scrollbar-width: none;
 }
 
-/* A hairline shows only where rows have scrolled out of sight. The thumb stands in for the hidden
-   native scrollbar while the list overflows and the pointer or the keyboard is in it. */
+/* A hairline shows only where rows have scrolled out of sight. */
 .scrollEdge {
 	position: absolute;
 	inset-inline: 0;
@@ -129,21 +128,33 @@
 	visibility: visible;
 }
 
+/* The Panels' scrollbar, only while the list overflows: its thumb shows as the list scrolls and fades
+   once it is still. Its gutter reaches only the rows' inset, so their end tools keep their clicks;
+   the thumb keeps the Panels' 8 px width 2 px from the edge. */
+.scrollbar {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	z-index: var(--ob-ref-layer-raised);
+	display: none;
+	width: var(--ob-ref-space-3);
+	touch-action: none;
+}
+
+.projectSection[data-overflowing] .scrollbar {
+	display: block;
+}
+
 .scrollThumb {
 	position: absolute;
 	inset-block-start: var(--ob-comp-workbench-sidebar-thumb-start);
 	inset-inline-end: var(--ob-ref-space-0-5);
-	z-index: var(--ob-ref-layer-raised);
-	width: var(--ob-ref-space-1);
+	width: var(--ob-ref-space-2);
 	height: var(--ob-comp-workbench-sidebar-thumb-size);
-	border-radius: var(--ob-ref-radius-ui-sm);
-	background: var(--ob-sys-color-border-strong);
-	visibility: hidden;
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-scrollbar-overlay-thumb);
+	opacity: var(--ob-comp-workbench-sidebar-thumb-opacity);
 	pointer-events: none;
-}
-
-.projectSection[data-overflowing]:is(:hover, :focus-within) .scrollThumb {
-	visibility: visible;
 }
 
 .footer {

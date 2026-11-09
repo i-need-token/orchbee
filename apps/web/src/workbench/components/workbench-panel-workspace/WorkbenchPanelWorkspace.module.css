@@ -29,8 +29,3 @@
 	pointer-events: none;
 	z-index: var(--ob-ref-layer-raised);
 }
-
-.root[data-dragging='true'],
-.root[data-dragging='true'] * {
-	cursor: grabbing;
-}

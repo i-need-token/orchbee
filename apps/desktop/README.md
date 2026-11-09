@@ -97,7 +97,9 @@ with.
   | Vertical Tab Strip or content outside the horizontal chrome                             | Unset          | Retains its existing non-window-drag interaction |
 
 - **Invariants and transitions:** Native window controls and rendered Workbench controls always
-  take precedence over a background drag region; no Desktop drag projection extends below the
+  take precedence over a background drag region. Because the blank Tab bar is a drag region, a
+  double-click there maximizes or restores the window, as the operating system does, and never
+  reaches the Tab Strip's blank-track New Tab double-click; no Desktop drag projection extends below the
   `36px` boundary. Showing or hiding the sidebar and switching Tab Strip orientation recompute the
   projection without starting, committing, or cancelling a native drag. Unsupported or absent
   horizontal chrome is an intentional no-op.

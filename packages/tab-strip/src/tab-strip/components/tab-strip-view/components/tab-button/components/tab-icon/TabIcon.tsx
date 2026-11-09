@@ -1,4 +1,5 @@
 import styles from './TabIcon.module.css';
+import { ProductIcon } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 import type { TabData } from '../../../../../../model/tab-model';
 import { TabStripIcon } from '../../../tab-strip-icon/TabStripIcon';
@@ -34,7 +35,12 @@ export function TabIcon(props: TabIconProps): ReactNode {
 			/>
 		);
 	} else {
-		favicon = <TabStripIcon name='default-favicon' variantClass='ct-tab-icon__favicon' />;
+		// A plain shell Tab shows a terminal, drawn where an Agent's identity icon would be.
+		favicon = (
+			<span className={styles['ct-tab-icon__status-icon']} data-tab-icon-default=''>
+				<ProductIcon name='terminal' />
+			</span>
+		);
 	}
 	const statusMark = props.statusAdornment?.mark;
 	// A mark or glyph takes the favicon's place; the status dot stands in only when neither draws.

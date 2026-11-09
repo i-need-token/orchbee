@@ -1383,7 +1383,10 @@ export class ProjectedTerminal {
 			historyScrollbarThumb.style.right = '2px';
 			historyScrollbarThumb.style.width = '8px';
 			historyScrollbarThumb.style.borderRadius = '9999px';
-			historyScrollbarThumb.style.background = 'rgb(128, 128, 128)';
+			// The registry's fixed overlay thumb, shared with the Workbench sidebar; the fallback keeps a
+			// standalone terminal's look.
+			historyScrollbarThumb.style.background =
+				'var(--ob-sys-color-scrollbar-overlay-thumb, rgb(128, 128, 128))';
 			historyScrollbarThumb.style.pointerEvents = 'none';
 			historyScrollbarThumb.style.opacity = '0';
 			historyScrollbar.appendChild(historyScrollbarThumb);
