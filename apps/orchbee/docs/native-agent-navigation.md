@@ -97,7 +97,9 @@ Windows acceptance; they do not by themselves prove multi-Client or authenticate
 Agent focus is an effectful intent that can be delivered while the Client reports Busy. Ordinary
 navigation and passive-read classification do not change. Before cancelling modes, the Client
 checks the exact Agent source, usable terminal geometry, Ready or Empty session state, and absence
-of pending refresh, submitted or uncertain structural operations and close recovery. A failed
+of its own pending refresh, submitted or uncertain structural operations and close recovery. A
+background publication read is waited out first under the original operation deadline, as the
+[Windows Client control](windows-client-control.md#tui-execution) contract states. A failed
 preflight leaves modes intact. Unsubmitted rename/setup drafts, close confirmations and the Agent
 board can be cancelled through their owners; retained operation receipts cannot be discarded.
 

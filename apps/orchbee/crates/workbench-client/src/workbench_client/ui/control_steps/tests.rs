@@ -1281,5 +1281,6 @@ fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
 
 mod split_ratios;
 
+mod background_read;
 mod divider;
 mod keyboard;

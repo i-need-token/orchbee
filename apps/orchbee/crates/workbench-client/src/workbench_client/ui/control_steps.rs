@@ -50,6 +50,8 @@ pub(in crate::workbench_client) struct StepProgress {
     pub(in crate::workbench_client) tab_attempted: bool,
     pub(in crate::workbench_client) had_effect: bool,
     pub(in crate::workbench_client) toggle_origin: Option<bool>,
+    /// This step's wait for a background read paused further background reads.
+    pub(super) reads_yielded: bool,
     focus_modes: FocusModes,
 }
 pub(in crate::workbench_client) enum ControlStep {
@@ -131,6 +133,9 @@ impl Execution {
                     native.control_history(),
                 ) {
                     ModeStep::Prepare => {
+                        if native.control_awaits_background_read(progress) {
+                            return ControlStep::Waiting;
+                        }
                         let changed = match native.dismiss_focus_modes(target) {
                             Ok(changed) => changed,
                             Err(reason) => return ControlStep::Failed(reason),

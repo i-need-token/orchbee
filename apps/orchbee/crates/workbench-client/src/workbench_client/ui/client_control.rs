@@ -150,7 +150,32 @@ impl WorkbenchClientUi {
         Ok(())
     }
 
+    /// Whether a background publication read holds the refresh slot that a control's next step
+    /// needs: mode exit, a Context, Tab, Panel, member or zoom step, or the read a minimum revision
+    /// asks for. That read keeps the view Ready and settles on its own, so the step waits for it
+    /// under the operation's original deadline instead of failing Busy, then revalidates its exact
+    /// target against what the read installed. While the step waits no further background read
+    /// starts ahead of it; each attempt re-decides that, as a retried local navigation does, and
+    /// the pause ends once the slot is free so the step's own read is not held back.
+    pub(super) fn control_awaits_background_read(&mut self, progress: &mut StepProgress) -> bool {
+        let yielded = std::mem::take(&mut progress.reads_yielded);
+        let waits = self
+            .state
+            .as_ref()
+            .is_some_and(WorkbenchClientState::background_refresh_only);
+        // A lapsed pause that another navigation left behind must not stand in for this one.
+        if yielded || waits {
+            self.end_navigation_yield();
+        }
+        if waits {
+            self.yield_background_reads_to_navigation();
+            progress.reads_yielded = true;
+        }
+        waits
+    }
+
     /// One preflight precedes every cancellation. Pending operations keep their owners/receipts.
+    /// Any pending refresh refuses; the controller waits out a background read before calling.
     pub(in crate::workbench_client) fn dismiss_focus_modes(
         &mut self,
         command: &ClientViewControl,
@@ -355,7 +380,8 @@ impl WorkbenchClientUi {
         if matches!(
             view.phase,
             ClientViewPhase::Starting | ClientViewPhase::Busy
-        ) {
+        ) || self.control_awaits_background_read(progress)
+        {
             return ControlStep::Waiting;
         }
         if view.workbench_revision < command.minimum_workbench_revision {
@@ -511,12 +537,6 @@ impl WorkbenchClientUi {
             else {
                 return ControlStep::Failed(Reason::TargetUnavailable);
             };
-            // A background read holds the refresh slot only briefly; the step waits for it
-            // within its own deadline instead of failing Busy.
-            if state.context_selection_awaits_background_read() {
-                self.yield_background_reads_to_navigation();
-                return ControlStep::Waiting;
-            }
             self.select_context_at(index);
             if self
                 .state
