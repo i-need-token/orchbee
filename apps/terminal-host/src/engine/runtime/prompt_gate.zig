@@ -164,7 +164,8 @@ pub const Tracker = struct {
 };
 
 /// The cursor is still where the input started, on the same screen, and the
-/// text from there to the end of the logical line is unchanged.
+/// text from there to the end of the logical line is unchanged, trailing empty
+/// cells aside.
 fn anchorHolds(terminal: *ghostty_vt.Terminal, anchor: Anchor) bool {
     const key = terminal.screens.active_key;
     if (key != anchor.screen_key or
@@ -177,22 +178,38 @@ fn anchorHolds(terminal: *ghostty_vt.Terminal, anchor: Anchor) bool {
     return lineDigest(anchor.pin.*) == anchor.line_digest;
 }
 
+/// Trailing cells without text do not count: a width change adds or removes
+/// them, and a console host leaves resized cells empty rather than repainting
+/// them. A written character, a space included, always counts.
 fn lineDigest(start: ghostty_vt.Pin) u64 {
     var hasher = std.hash.Wyhash.init(0);
     var row_pin = start;
     var subset: ghostty_vt.Pin.CellSubset = .right;
+    var pending_blanks: usize = 0;
     while (true) {
         for (row_pin.cells(subset)) |*cell| {
-            const codepoint: u32 = cell.codepoint();
-            hasher.update(std.mem.asBytes(&codepoint));
-            hasher.update(&.{@intFromEnum(cell.wide)});
-            if (cell.content_tag == .codepoint_grapheme) {
-                if (row_pin.grapheme(cell)) |extra| hasher.update(std.mem.sliceAsBytes(extra));
+            if (!cell.hasText() and cell.wide == .narrow) {
+                pending_blanks += 1;
+                continue;
             }
+            for (0..pending_blanks) |_| hashCell(&hasher, row_pin, &blank_cell);
+            pending_blanks = 0;
+            hashCell(&hasher, row_pin, cell);
         }
         if (!row_pin.rowAndCell().row.wrap) break;
         row_pin = row_pin.down(1) orelse break;
         subset = .all;
     }
     return hasher.final();
+}
+
+const blank_cell: ghostty_vt.Cell = .{};
+
+fn hashCell(hasher: *std.hash.Wyhash, row_pin: ghostty_vt.Pin, cell: *const ghostty_vt.Cell) void {
+    const codepoint: u32 = cell.codepoint();
+    hasher.update(std.mem.asBytes(&codepoint));
+    hasher.update(&.{@intFromEnum(cell.wide)});
+    if (cell.content_tag == .codepoint_grapheme) {
+        if (row_pin.grapheme(cell)) |extra| hasher.update(std.mem.sliceAsBytes(extra));
+    }
 }

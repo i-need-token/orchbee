@@ -56,6 +56,24 @@ test "prompt gate witness: cmd admits a line only at an idle prompt" {
     try session.expectAbsent(&.{ "wrong-2", "wrong-3", "wrong-4" });
 }
 
+// A resize adds or removes empty cells after an idle prompt; while the prompt
+// line fits both widths the prompt stays confirmable. Narrowing below the line
+// re-wraps it, and the console host and Ghostty may then disagree on the
+// cursor row, so that is not covered.
+test "prompt gate witness: cmd keeps an idle prompt confirmable after a resize" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const comspec = try pty_process.environmentVariableOwned(allocator, "ComSpec");
+    defer allocator.free(comspec);
+    var session = try Session.startSized(comspec, &.{"/D"}, &cmd_environment, .cmd, 80, 24);
+    defer session.deinit();
+
+    try session.idle("echo resize-ok-1", "resize-ok-1");
+    try session.resize(109, 39);
+    try session.idle("echo resize-ok-2", "resize-ok-2");
+    try session.resize(90, 30);
+    try session.idle("echo resize-ok-3", "resize-ok-3");
+}
+
 // After `echo off` cmd draws no prompt and no marks, so no later line is admitted.
 test "prompt gate witness: cmd with echo off admits no line" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
@@ -143,14 +161,25 @@ const Session = struct {
         environment: []const pty_process.EnvironmentDelta,
         shell: Shell,
     ) !Session {
+        return startSized(executable, arguments, environment, shell, 120, 30);
+    }
+
+    fn startSized(
+        executable: []const u8,
+        arguments: []const []const u8,
+        environment: []const pty_process.EnvironmentDelta,
+        shell: Shell,
+        columns: u16,
+        rows: u16,
+    ) !Session {
         const host: Host = if (try platform.testing.conpty.initializedFromBundle()) .bundled else .system;
         const runtime = try TerminalRuntime.createWithOptions(allocator, .{
             .arguments = arguments,
-            .columns = 120,
+            .columns = columns,
             .current_directory = null,
             .environment = environment,
             .executable = executable,
-            .rows = 30,
+            .rows = rows,
         }, .{});
         errdefer runtime.destroy();
         var session: Session = .{ .runtime = runtime, .host = host, .shell = shell, .marked = false, .prompts = 0, .serial = 0 };
@@ -164,6 +193,13 @@ const Session = struct {
 
     fn deinit(self: *Session) void {
         self.runtime.destroy();
+    }
+
+    /// Resizes the terminal, then waits out the console host's repaint, as a
+    /// later start would.
+    fn resize(self: *Session, columns: u16, rows: u16) !void {
+        _ = try self.runtime.resizeGeometry(columns, rows, 0, 0);
+        platform.monotonic.sleep(500 * std.time.ns_per_ms);
     }
 
     /// Submits one gated line as its caller does: a prompt still settling is

@@ -232,7 +232,8 @@ pub(super) fn agent_wait_timeout_option(
 
 /// `agent doctor --provider <id>`: each repeatable value must be one
 /// canonical provider id — an unknown id is a typed parse failure, never a
-/// silently empty selection.
+/// silently empty selection. A canonical Agent that Orchbee can only start
+/// gets the start-only refusal, which names the Agents with an integration.
 pub(super) fn doctor_providers_option(
     options: &Options,
     context: UsageContext,
@@ -247,12 +248,17 @@ pub(super) fn doctor_providers_option(
             {
                 Ok(provider.as_str().to_owned())
             } else {
+                let expected = if grammar::values::start_only_provider(value) {
+                    ExpectedValue::StartOnlyProvider
+                } else {
+                    ExpectedValue::ProviderId
+                };
                 Err(usage_with(
                     UsageReason::InvalidValue {
                         context,
                         option: "--provider",
                         value: value.clone(),
-                        expected: ExpectedValue::ProviderId,
+                        expected,
                     },
                     envelope,
                 ))

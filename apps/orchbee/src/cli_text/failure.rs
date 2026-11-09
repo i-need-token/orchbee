@@ -247,7 +247,7 @@ impl super::CliText {
                     .and_then(|details| details.get("target"))
                     .and_then(|value| value.as_str())
                     .unwrap_or("");
-                self.cli_invalid_identifier(resource, target)
+                self.cli_invalid_identifier(resource, target, failure_list_command(failure))
             }
             FailureKind::NotFound => {
                 let (resource, target) = failure_target(failure);
@@ -405,14 +405,13 @@ impl super::CliText {
         }
     }
 
-    fn cli_invalid_identifier(self, resource: &str, target: &str) -> String {
+    fn cli_invalid_identifier(self, resource: &str, target: &str, list: &str) -> String {
         let escaped = crate::cli_text::escape::quoted(target);
-        match self.locale {
-            Locale::EnUs => {
-                format!("Invalid {resource} identifier {escaped}.\n")
-            }
-            Locale::ZhCn => format!("无效的 {resource} 标识符 {escaped}。\n"),
-        }
+        let refusal = match self.locale {
+            Locale::EnUs => format!("Invalid {resource} identifier {escaped}."),
+            Locale::ZhCn => format!("无效的 {resource} 标识符 {escaped}。"),
+        };
+        self.cli_with_list_hint(&refusal, list)
     }
 
     fn cli_not_found(self, resource: &str, target: &str, list: &str) -> String {
@@ -424,8 +423,8 @@ impl super::CliText {
         self.cli_with_list_hint(&refusal, list)
     }
 
-    /// Every not-found refusal ends with the one command that lists the
-    /// valid targets, so the next step is always visible.
+    /// Every not-found and invalid-identifier refusal ends with the one command
+    /// that lists the valid targets, so the next step is always visible.
     pub(super) fn cli_with_list_hint(self, refusal: &str, list: &str) -> String {
         match self.locale {
             Locale::EnUs => format!("{refusal} Run '{list}' to see valid targets.\n"),

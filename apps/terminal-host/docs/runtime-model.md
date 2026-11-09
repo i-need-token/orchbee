@@ -2112,10 +2112,15 @@ record each OSC 133 mark in stream order before Ghostty applies it: a primary pr
 `N`, or `P` with no kind or `k=i`) starts a candidate, and its input start (`B` or `I`) anchors it.
 The anchor is a tracked Ghostty pin at the cursor, its pending-wrap state, the screen key and
 generation, a digest of the cells from the pin to the end of the logical line, the monotonic mark
-time, and the client input facts read under the input mutex. A command start or end, a newer
-prompt start, a continuation or secondary prompt, or an input start without a candidate leaves the
-prompt; a right prompt before the input start does not. Every transition releases the previous
-pin and advances a serial.
+time, and the client input facts read under the input mutex. Trailing cells without text stay out
+of the digest: a resize adds or removes them, and the pinned bundle and system ConHost leave
+resized cells empty rather than repainting them, so an idle prompt stays confirmable after a
+resize while its line fits both widths. Every written character counts, a space included.
+Narrowing below the prompt line re-wraps it; OpenConsole and Ghostty may then disagree on the
+cursor row, and the gate refuses while the cursor does not match the anchor. A command start or
+end, a newer prompt start, a continuation or secondary prompt, or an input start without a
+candidate leaves the prompt; a right prompt before the input start does not. Every transition
+releases the previous pin and advances a serial.
 
 Client input facts are a published-input sequence and the count of client queue entries reserved
 or not yet written. The sequence advances when any client entry other than a focus report is
@@ -2158,7 +2163,8 @@ after every other rule, and publication-time refusal.
 `src/engine/__tests__/prompt_gate_witness_test.zig` runs the same real-shell witness on system
 ConHost in the engine suite and on the pinned bundle in the bundled-ConPTY suite: cmd,
 managed Windows PowerShell and, when installed, PowerShell 7 admit only an idle prompt and refuse
-during `set /p`, `pause`, `Read-Host`, `Start-Sleep`, a half-typed line, and after `echo off`. A
+during `set /p`, `pause`, `Read-Host`, `Start-Sleep`, a half-typed line, and after `echo off`;
+cmd created at 80x24 still admits a line after widening to 109x39 and narrowing to 90x30. A
 host whose first prompt shows no marks must refuse every line; the pinned bundle must show them.
 The witness submits each line as its sender does, waiting out one `settling` refusal off the Host.
 PowerShell starts with `-NoProfile`, every line the test types carries the Orchbee run marker, and

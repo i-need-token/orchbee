@@ -1249,7 +1249,8 @@ traversal order plus the true `totalCount`. Resolution uses the command's comple
 snapshot scope without an extra fetch. A filter naming an absent entity is `not-found`;
 an existing entity with an empty result set is a successful empty list. Every `not-found` text
 diagnostic — Project, Workspace, Tab, Panel, terminal, schema, directory, launch profile and
-Agent alike — ends with its one hint: the command that lists that resource's valid targets
+Agent alike — and every `invalid-identifier` text diagnostic for Project, Workspace, Tab, Panel,
+terminal or schema — ends with its one hint: the command that lists that resource's valid targets
 (for example `Run 'orchbee tab list' to see valid targets.`).
 
 ## Query state machine and budgets
