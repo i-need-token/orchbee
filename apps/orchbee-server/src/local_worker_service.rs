@@ -122,6 +122,7 @@ pub(crate) fn run(
         .map_err(|_| io::Error::other("Settings scope is unavailable"))?,
     )?;
     terminals.start_close_maintenance()?;
+    terminals.start_title_reads()?;
     #[cfg(windows)]
     {
         let configuration =

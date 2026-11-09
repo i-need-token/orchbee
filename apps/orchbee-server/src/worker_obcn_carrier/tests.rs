@@ -13,6 +13,7 @@ use std::{
 };
 
 mod lifecycle;
+mod title_changes;
 mod worktree_mutation;
 
 use orchbee_capability_node_protocol::{

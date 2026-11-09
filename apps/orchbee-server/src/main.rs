@@ -38,6 +38,8 @@ mod terminal_coordinator;
 #[cfg(windows)]
 mod terminal_output;
 #[cfg(any(unix, windows))]
+mod terminal_titles;
+#[cfg(any(unix, windows))]
 mod viewer_ready;
 #[cfg(any(unix, windows))]
 mod window_title_registry;

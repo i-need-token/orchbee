@@ -1,5 +1,5 @@
-//! Commit and output invalidation fanout. A listener owns its wait; publishers never wait for
-//! delivery.
+//! Commit, output and published-title invalidation fanout. A listener owns its wait; publishers
+//! never wait for delivery.
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::Duration;
 
@@ -19,6 +19,9 @@ impl SessionChangeSource {
     }
     pub fn notify_output(&self) {
         self.each(|listener| listener.notify_output());
+    }
+    pub fn notify_titles(&self) {
+        self.each(|listener| listener.notify_titles());
     }
     fn each(&self, mut signal: impl FnMut(&SessionChangeSignal)) {
         let listeners = self
@@ -40,6 +43,7 @@ pub struct SessionChangeSignal {
 struct SignalState {
     revision: u64,
     commits: u64,
+    titles: u64,
     wake: u64,
 }
 impl SessionChangeSignal {
@@ -64,6 +68,17 @@ impl SessionChangeSignal {
         state.wake = state.wake.wrapping_add(1);
         self.changed.notify_all();
     }
+    /// A published terminal title changed. It is no commit and no output, so only the streams that
+    /// follow titles reevaluate; the Workbench revision and every other stream stay quiet.
+    pub fn notify_titles(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.titles = state.titles.wrapping_add(1);
+        state.wake = state.wake.wrapping_add(1);
+        self.changed.notify_all();
+    }
     /// Carrier mailbox activity is a wakeup, never a semantic publication.
     pub fn wake(&self) {
         let mut state = self
@@ -84,6 +99,12 @@ impl SessionChangeSignal {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .commits
+    }
+    pub fn titles_revision(&self) -> u64 {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .titles
     }
     pub fn wake_revision(&self) -> u64 {
         self.state

@@ -44,9 +44,7 @@ impl CarrierQueue {
                     admission.pending = true;
                 }
             }
-            let mut drained: Vec<_> = state.high.drain(..).collect();
-            drained.extend(state.low.drain(..));
-            drained.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
+            let drained = state.drain_queued();
             state.high.push_back(request);
             self.publish_change();
             drained

@@ -758,6 +758,19 @@ route withdraws it. The wire owner delivers each hint to the route's connection,
 dispatcher; the dispatcher writes pending hints at the top of its loop. A hint for an attachment with
 no route is dropped, which is how a Server-owned sampling viewer stays silent. Hints carry no
 authority, stream or reservation, and Poll stays the only way to take a frame.
+
+A Worker's `TerminalTitlesChanged` note reaches the Session title registry (`terminal_titles`) for
+the note's own generation. One read pump, started by Session composition, reads the
+[physical title changes](../../crates/capability-node-protocol/README.md#physical-title-changes):
+at most one read starts per 250 ms, an incomplete page continues at once, a reset rereads from 0,
+and a failed read retries 250 ms later. Each read waits in the carrier's idle lane, so it never goes
+ahead of input. The registry keeps the last title of at most 1024 terminals of the registered
+generation, projected by `project_terminal_title`; registering a new generation or retiring the
+carrier makes every title unavailable until the next fresh read. `presentation-titles` answers each
+Presentation with its committed Workbench binding and this title, observed only when the retained
+physical identity and generation match. Ingesting and publishing titles never commits, advances the
+Workbench or report revision, writes the semantic journal, or raises unread state, notifications or
+Agent state; a change wakes only the streams that follow titles.
 Retained request/response reservations share a 32 MiB budget; they conservatively include
 encoded copies. Individual inner records are at most 24 MiB plus their 12-byte header. Decoder
 storage and one currently decoded record have separate bounded transient allocations; the
@@ -789,7 +802,8 @@ a newer signal revision, so the dispatcher reevaluates before sleeping. State st
 snapshot followed by changed full values; the Client coalesces pending state to one value.
 Invalidation streams send the initial semantic snapshot then coalesced eight-byte commit hints.
 A hint counts commits only: a terminal output frame wakes just the streams that deliver semantic
-values, so a printing terminal never makes a Client reread its checkpoints.
+values, so a printing terminal never makes a Client reread its checkpoints. A published title change
+wakes only `presentation-titles` streams, which follow commits and title changes but never output.
 Event streams retain at most 32 pending records per Client stream. Semantic journal subscriptions
 retain their Subscribe definition separately from the Read continuation, immediately drain pages
 whose `more` flag is set, and use the existing journal epoch/cursor. A live stream exclusively
@@ -860,14 +874,15 @@ ownership, or end-to-end liveness. `Overflow` is a required positive reachabilit
 maintained negative controls set FenceGeneration or FenceCancellation to FALSE and require the
 corresponding invariant counterexample. Existing relay/ownership models do not cover this new
 connection/subscription boundary. A stream follows one monotone counter chosen by its mode: commits
-for an invalidation stream, every publication otherwise. The single modeled revision abstracts that
+for an invalidation stream, commits plus title changes for a published-title read, every other
+publication otherwise. The single modeled revision abstracts that
 counter, because no checked property relates the revisions of two Clients.
 
 Controlled implementation traces in `local_client_service/multiplex/tests.rs` check a commit during
 capture, an undrained peer alongside a progressing peer, exclusive event cursors, and late lane
 cleanup preserving a sibling, idle metadata expiry after a same-value earlier-TTL report,
-maintenance failure without a past-deadline retry loop, and a terminal output frame waking a value
-stream without an invalidation hint.
+maintenance failure without a past-deadline retry loop, a terminal output frame waking a value
+stream without an invalidation hint, and a title change waking only the published-title read.
 The preferences carrier trace writes the actual shared store without a commit notification,
 checks that unrelated request traffic neither accelerates nor starves file sampling, and then
 observes a second external write while the peer sends no requests.

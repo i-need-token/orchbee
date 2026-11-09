@@ -404,6 +404,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
         // requests submitted here; it exists for the Agent drain pump.
         Ok(WorkerOperationResult::EditorCommand(_))
         | Ok(WorkerOperationResult::Titles(_))
+        | Ok(WorkerOperationResult::TitleChanges(_))
         | Ok(WorkerOperationResult::HostQuery(_))
         | Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,

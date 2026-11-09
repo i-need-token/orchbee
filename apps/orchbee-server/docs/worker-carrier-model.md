@@ -38,6 +38,7 @@ The lane follows producer semantics, not the wire variant alone:
 | `cleanup_control()`                                          | Control Release                                                      | high | FIFO wait; priority over try-admit                 |
 | `enqueue_detach()`                                           | Viewer Detach                                                        | high | FIFO wait; priority over try-admit                 |
 | `admit_agent_drain()`                                        | AgentDrain                                                           | low  | try-admit; full → `Backpressure`                   |
+| `admit_title_changes()`                                      | TitleChanges                                                         | idle | try-admit; one slot, full → `Backpressure`         |
 
 The identical Viewer Detach variant is high when produced by session-drop cleanup and low when
 produced by ordinary observation. Only the two existing cleanup producers block; every ordinary
@@ -46,7 +47,8 @@ producer try-admits and receives the existing typed `Backpressure` busy result. 
 AgentDrain request
 through the same worker/generation fence and receives a `PendingExchange` whose bounded
 `recv_deadline` wait keeps the attempt alive when it elapses, so the pump
-waits with its own deadline instead of `submit`'s blocking receive.
+waits with its own deadline instead of `submit`'s blocking receive. The Server's title read pump
+admits its one outstanding change read the same way, with discardable completion.
 
 ## Admission
 
@@ -68,7 +70,13 @@ The wire owner picks under the same lock:
 if consecutive_high < 4 and high non-empty → pop high; consecutive_high += 1
 elif low non-empty                          → pop low;  consecutive_high = 0
 else (low empty, high non-empty)            → pop high; consecutive_high += 1
+else (both empty)                           → take idle
 ```
+
+The idle lane holds at most one title change read and is taken only when both lanes and the
+high waiters are empty, so a title read never goes ahead of input, a viewer poll or an Agent
+drain, and leaves their bounds unchanged. Once taken it occupies the wire for one bounded
+exchange: the Worker answers it from memory, at most 256 rows and 1 MiB of titles.
 
 Popping `high` frees its lane slot immediately (in-flight is counted separately) and transfers
 the oldest `high_waiters` entry into the freed tail slot atomically, waking that producer.
@@ -81,10 +89,10 @@ pending flag is cleared only after its bytes are read, so a signal during that r
 owner's next queue inspection. A carrier without a wake bounds this wait at 2 milliseconds.
 
 The only unsolicited kinds are `TerminalViewerRecordReady` and `TerminalTitlesChanged`, read while
-idle and while a response is awaited. The owner routes each viewer hint and keeps waiting; no title
-registry reads changes yet, so it drops each title note, which costs only latency. A hint never
-completes a request and changes no dispatch position, so the bounds above are unchanged; any other
-unsolicited bytes still retire the carrier.
+idle and while a response is awaited. The owner routes each viewer hint, and each title note to the
+Session title registry for its own generation, and keeps waiting; a wire without a registry drops
+the note, which costs only latency. A hint never completes a request and changes no dispatch
+position, so the bounds above are unchanged; any other unsolicited bytes still retire the carrier.
 
 ## Drain and tombstone
 

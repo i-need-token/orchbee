@@ -4,6 +4,7 @@ use orchbee_workbench_protocol::{
     PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, PanelAgentResult, ProtocolVersion,
 };
 mod explanation;
+mod presentation_titles;
 mod titles;
 impl LocalTerminalService {
     pub(crate) fn execute_panel_agent(&self, request: PanelAgentRequest) -> PanelAgentResult {
@@ -18,6 +19,12 @@ impl LocalTerminalService {
             orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
         ) {
             return self.read_panel_titles(&request);
+        }
+        if let orchbee_workbench_protocol::PanelAgentAction::PresentationTitles {
+            presentation_ids,
+        } = &request.action
+        {
+            return self.read_presentation_titles(&request, presentation_ids);
         }
         if matches!(
             request.action,

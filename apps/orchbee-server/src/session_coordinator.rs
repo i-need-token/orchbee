@@ -57,6 +57,7 @@ mod agent_resume;
 pub(crate) use agent_resume::ResumeTarget;
 mod directory_label;
 mod pane_graphics;
+mod presentation_titles;
 mod process_observation;
 mod semantic_events;
 #[cfg(all(test, windows))]

@@ -274,4 +274,4 @@ pub(super) fn agent_drain_finish<R>(
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

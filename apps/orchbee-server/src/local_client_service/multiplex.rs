@@ -448,7 +448,7 @@ fn dispatch(
                     }
                     // Registration precedes capture: publication during capture changes the signal
                     // revision and forces another evaluation before this connection can sleep.
-                    let captured_at = stream_revision(signal, mode);
+                    let captured_at = stream_revision(signal, mode, &parsed);
                     let record = match execute(lane_id, &parsed) {
                         Ok(record) => record,
                         // A drain refuses this intent alone; the connection keeps serving reads.
@@ -593,7 +593,7 @@ fn dispatch(
         for (stream_id, subscription) in &mut subscriptions {
             // Domain journals retain ordered events and report their own cursor gaps. A commit
             // count is only invalidation: unrelated commits must never imply event loss.
-            let observed = stream_revision(signal, subscription.mode);
+            let observed = stream_revision(signal, subscription.mode, &subscription.request);
             let backlog = observed.wrapping_sub(subscription.observed);
             let file_sample_due = subscription
                 .next_file_sample
@@ -696,8 +696,18 @@ fn dispatch(
 
 /// Invalidation streams count commits. A terminal output frame only concerns the streams that
 /// deliver semantic values, so a printing terminal cannot make one Client reread its checkpoints.
-fn stream_revision(signal: &SessionChangeSignal, mode: StreamMode) -> u64 {
-    if mode == StreamMode::Invalidations {
+/// A published-title read follows commits, which move bindings, and title changes, never output;
+/// no other stream follows title changes.
+fn stream_revision(
+    signal: &SessionChangeSignal,
+    mode: StreamMode,
+    request: &ApplicationRequest,
+) -> u64 {
+    if request.follows_titles() {
+        signal
+            .commit_revision()
+            .wrapping_add(signal.titles_revision())
+    } else if mode == StreamMode::Invalidations {
         signal.commit_revision()
     } else {
         signal.revision()
@@ -731,7 +741,7 @@ fn resnapshot(
     ) {
         cancel(&subscription.request);
     }
-    let observed = stream_revision(signal, subscription.mode);
+    let observed = stream_revision(signal, subscription.mode, &subscription.request);
     let fresh = subscription.request.fresh_snapshot();
     let record = execute(subscription.lane, &fresh).map_err(io::Error::other)?;
     if subscription.next_file_sample.is_some() {

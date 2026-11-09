@@ -238,6 +238,17 @@ impl ApplicationRequest {
             ApplicationRequestKind::Terminal(_) => false,
         }
     }
+    /// A published-title read, whose value changes with titles the Server ingests as well as with
+    /// commits.
+    pub(super) fn follows_titles(&self) -> bool {
+        matches!(
+            self.workbench(),
+            Some(WorkbenchRequest::PanelAgent(request)) if matches!(
+                request.action,
+                orchbee_workbench_protocol::PanelAgentAction::PresentationTitles { .. }
+            )
+        )
+    }
     pub(super) fn requires_sampling(&self) -> bool {
         // Host output and external filesystem/process state currently expose snapshot reads,
         // not change notifications. Commit-backed state uses notifications; shared-preference

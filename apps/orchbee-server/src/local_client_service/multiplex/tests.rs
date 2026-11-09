@@ -526,6 +526,84 @@ fn terminal_output_wakes_value_streams_without_an_invalidation_hint() {
     let _closed = task.join().unwrap();
 }
 
+/// A published-title read follows title changes and commits; every other stream ignores title
+/// changes, and output never reevaluates the title read.
+#[test]
+fn title_changes_wake_only_the_published_title_read() {
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentRequest, SessionId, TerminalPresentationId,
+    };
+    let (mut peer, server) = bounded_pair();
+    let signal = Arc::new(SessionChangeSignal::default());
+    let publisher = Arc::clone(&signal);
+    let task = thread::spawn(move || {
+        let mut value = 0u8;
+        run(
+            &server,
+            open(1, 1, StreamMode::State),
+            signal,
+            |_, _| {
+                value += 1;
+                Ok(vec![value])
+            },
+            Vec::new,
+            no_job_read,
+            |_| {},
+            |_| {},
+            || Ok(None),
+        )
+    });
+    fn frame(peer: &mut LocalStream, expected: u64, kind: StreamFrameKind) {
+        let MultiplexMessage::StreamFrame {
+            stream_id,
+            kind: found,
+            ..
+        } = read_multiplex_message(peer).unwrap()
+        else {
+            panic!("stream frame");
+        };
+        assert_eq!((stream_id.value(), found), (expected, kind));
+    }
+    frame(&mut peer, 1, StreamFrameKind::Snapshot);
+    let mut request = Vec::new();
+    write_workbench_request(
+        &mut request,
+        &WorkbenchRequest::PanelAgent(PanelAgentRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
+            session_id: SessionId::parse(&format!("{:032x}", 3)).unwrap(),
+            action: PanelAgentAction::PresentationTitles {
+                presentation_ids: vec![
+                    TerminalPresentationId::parse(&format!("{:032x}", 4)).unwrap(),
+                ],
+            },
+        }),
+    )
+    .unwrap();
+    write_multiplex_message(
+        &mut peer,
+        &MultiplexMessage::StreamOpen {
+            stream_id: MultiplexStreamId::new(2).unwrap(),
+            lane_id: MultiplexLaneId::new(1).unwrap(),
+            mode: StreamMode::State,
+            request,
+        },
+    )
+    .unwrap();
+    frame(&mut peer, 2, StreamFrameKind::Snapshot);
+    // Streams evaluate in identity order and every evaluation yields a new value, so the first
+    // frame after each signal names the first stream that reevaluated.
+    publisher.notify_titles();
+    frame(&mut peer, 2, StreamFrameKind::Update);
+    publisher.notify_output();
+    frame(&mut peer, 1, StreamFrameKind::Update);
+    publisher.notify();
+    frame(&mut peer, 1, StreamFrameKind::Update);
+    frame(&mut peer, 2, StreamFrameKind::Update);
+    peer.shutdown(std::net::Shutdown::Both).unwrap();
+    let _closed = task.join().unwrap();
+}
+
 #[test]
 fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
     let (mut peer, server) = bounded_pair();

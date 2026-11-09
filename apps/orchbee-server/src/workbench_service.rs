@@ -1075,6 +1075,7 @@ impl WorkbenchClientConnection<'_> {
             journal.watch(signal);
         }
         self.service.terminals.watch_configuration(signal);
+        self.service.terminals.watch_titles(signal);
     }
     /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
     pub(crate) fn maintain_subscription_deadline(

@@ -20,10 +20,10 @@ use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::AgentService;
-use crate::viewer_ready::ViewerReadyRoutes;
 use crate::worker_obcn_carrier::{
     WorkerCarrier, WorkerCarrierShutdown, WorkerRequestHandle, WorkerWireExit, WorkerWireOwner,
 };
+use crate::{terminal_titles::TerminalTitles, viewer_ready::ViewerReadyRoutes};
 
 #[derive(Debug)]
 struct ActiveCarrier {
@@ -124,6 +124,7 @@ impl Drop for WorkerGenerationRegistration {
             }
             // The generation check makes delayed guard destruction harmless to a replacement.
             let _retired = registry.retire_carrier(self.generation);
+            registry.titles.retire(self.generation);
         }
     }
 }
@@ -133,6 +134,7 @@ pub(crate) struct WorkerRegistry {
     active: Option<ActiveWorker>,
     next_generation: Option<NonZeroU64>,
     viewer_ready: Arc<ViewerReadyRoutes>,
+    titles: Arc<TerminalTitles>,
 }
 
 impl WorkerRegistry {
@@ -141,11 +143,17 @@ impl WorkerRegistry {
             active: None,
             next_generation: Some(NonZeroU64::MIN),
             viewer_ready: Arc::default(),
+            titles: Arc::default(),
         }
     }
 
     pub(crate) fn viewer_ready_routes(&self) -> Arc<ViewerReadyRoutes> {
         Arc::clone(&self.viewer_ready)
+    }
+
+    /// The Session's published terminal titles, which follow the registered generation.
+    pub(crate) fn terminal_titles(&self) -> Arc<TerminalTitles> {
+        Arc::clone(&self.titles)
     }
 
     pub(crate) fn admit(
@@ -205,6 +213,7 @@ impl WorkerRegistry {
     ) -> Option<RegisteredWorkerWireOwner> {
         let mut registry_guard = registry.lock().ok()?;
         let viewer_ready = registry_guard.viewer_ready_routes();
+        let titles = registry_guard.terminal_titles();
         let active = registry_guard.active.as_mut()?;
         if active.generation != generation
             || carrier.generation() != generation
@@ -217,6 +226,8 @@ impl WorkerRegistry {
         // Allocating pieces are constructed before the leaf fold so nothing
         // between the fold and the record install below can panic.
         let drain_mint = Arc::new(AgentDrainMint::new());
+        // A Worker the title wire cannot name keeps no titles; registration is unaffected.
+        let title_worker = CapabilityWorkerId::from_bytes(active.worker_id.as_bytes()).ok();
         let leaf = match agents {
             Some(agents) => {
                 // The identity is derived under the guard from the SAME
@@ -243,7 +254,9 @@ impl WorkerRegistry {
             None => None,
         };
         let (request_handle, shutdown, wire_owner) = carrier.into_parts();
-        let wire_owner = wire_owner.with_viewer_ready(viewer_ready);
+        let wire_owner = wire_owner
+            .with_viewer_ready(viewer_ready)
+            .with_titles(Arc::clone(&titles), generation);
         // The carrier matched this admitted generation above, so its handle carries this
         // generation's reported shell and no other.
         let request_handle = request_handle.with_system_shell(active.system_shell.take());
@@ -253,6 +266,10 @@ impl WorkerRegistry {
             drain_mint,
         });
         drop(registry_guard);
+        // Before the wire owner runs, so no note of this generation precedes it.
+        if let Some(worker) = title_worker {
+            titles.begin(worker, generation);
+        }
         Some(RegisteredWorkerWireOwner {
             registration: Some(WorkerGenerationRegistration {
                 generation,

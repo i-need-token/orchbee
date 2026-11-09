@@ -28,7 +28,7 @@ use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_workbench_protocol::PresentationLaunchProgram;
 
-use crate::viewer_ready::ViewerReadyRoutes;
+use crate::{terminal_titles::TerminalTitles, viewer_ready::ViewerReadyRoutes};
 
 mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
@@ -65,6 +65,7 @@ pub(crate) enum WorkerOperationRequest {
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
+    TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesRequest),
     EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandRequest),
     HostQuery(orchbee_capability_node_protocol::HostQueryRequest),
 }
@@ -111,6 +112,7 @@ impl WorkerOperationRequest {
             Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
+            Self::TitleChanges(request) => (request.worker_id, request.worker_generation),
             Self::EditorCommand(request) => (request.worker_id, request.worker_generation),
             Self::HostQuery(request) => (request.worker_id, request.worker_generation),
         }
@@ -124,6 +126,7 @@ impl WorkerOperationRequest {
                 RequestLane::Low
             }
             Self::Viewer(_) | Self::GraphicsDecode(_) => RequestLane::Low,
+            Self::TitleChanges(_) => RequestLane::Idle,
             #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
             Self::CwdValidation(_)
@@ -173,6 +176,9 @@ impl WorkerOperationRequest {
             }
             Self::AgentDrain(request) => CapabilityNodeMessage::AgentDrainRequest(*request),
             Self::Titles(request) => CapabilityNodeMessage::TerminalTitlesRequest(request.clone()),
+            Self::TitleChanges(request) => {
+                CapabilityNodeMessage::TerminalTitleChangesRequest(*request)
+            }
             Self::EditorCommand(request) => {
                 CapabilityNodeMessage::TerminalEditorCommandRequest(*request)
             }
@@ -201,6 +207,7 @@ pub(crate) enum WorkerOperationResult {
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
     Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
+    TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesResult),
     EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandResult),
     HostQuery(orchbee_capability_node_protocol::HostQueryResult),
 }
@@ -410,6 +417,16 @@ impl WorkerRequestHandle {
         self.admit(WorkerOperationRequest::HostQuery(request), false)
     }
 
+    /// A title change read waits in the idle lane until no other request or admission waiter is
+    /// queued, so it never goes ahead of input or a viewer poll. Admission never waits; a second
+    /// outstanding read is backpressure.
+    pub(crate) fn admit_title_changes(
+        &self,
+        request: orchbee_capability_node_protocol::TerminalTitleChangesRequest,
+    ) -> Result<PendingExchange, WorkerRequestError> {
+        self.admit(WorkerOperationRequest::TitleChanges(request), false)
+    }
+
     /// Admit one request through the existing worker/generation fence and lane
     /// rules, returning the exchange that receives its result. Completion
     /// ownership is fixed by the admitted request kind.
@@ -537,7 +554,7 @@ enum CompletionDelivery {
 
 impl CompletionDelivery {
     /// Completion ownership is derived from the admitted request kind, never
-    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob and HostQuery
+    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob, HostQuery and title change
     /// requests get discardable completion; effects still require a live receiver.
     fn for_request(
         request: &WorkerOperationRequest,
@@ -546,7 +563,8 @@ impl CompletionDelivery {
         match request {
             WorkerOperationRequest::AgentDrain(_)
             | WorkerOperationRequest::WorktreeJob(_)
-            | WorkerOperationRequest::HostQuery(_) => Self::DiscardableRead(completion),
+            | WorkerOperationRequest::HostQuery(_)
+            | WorkerOperationRequest::TitleChanges(_) => Self::DiscardableRead(completion),
             _ => Self::Required(completion),
         }
     }
@@ -623,6 +641,9 @@ pub(crate) enum ExchangeWait {
 enum RequestLane {
     High,
     Low,
+    /// Holds the one title change read its single reader keeps outstanding, dispatched only when
+    /// the high and low lanes are empty.
+    Idle,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -658,6 +679,7 @@ struct QueueState {
     high: VecDeque<PendingRequest>,
     high_waiters: VecDeque<HighWaiter>,
     low: VecDeque<PendingRequest>,
+    idle: Option<PendingRequest>,
     open_handles: usize,
 }
 
@@ -673,7 +695,10 @@ impl QueueState {
             } else {
                 (self.high.pop_front(), RequestLane::High)
             };
-        let pending = popped?;
+        let Some(pending) = popped else {
+            // Both lanes are empty, and waiters only queue behind a full high lane.
+            return self.idle.take();
+        };
         match lane {
             RequestLane::High => {
                 self.consecutive_high += 1;
@@ -682,9 +707,24 @@ impl QueueState {
                     waiter.admitted.store(true, Ordering::Release);
                 }
             }
-            RequestLane::Low => self.consecutive_high = 0,
+            RequestLane::Low | RequestLane::Idle => self.consecutive_high = 0,
         }
         Some(pending)
+    }
+
+    /// Takes every queued request and admission waiter.
+    fn drain_queued(&mut self) -> Vec<PendingRequest> {
+        let mut drained = Vec::with_capacity(
+            self.high.len()
+                + self.low.len()
+                + self.high_waiters.len()
+                + usize::from(self.idle.is_some()),
+        );
+        drained.extend(self.high.drain(..));
+        drained.extend(self.low.drain(..));
+        drained.extend(self.high_waiters.drain(..).map(|waiter| waiter.request));
+        drained.extend(self.idle.take());
+        drained
     }
 }
 
@@ -744,6 +784,7 @@ impl CarrierQueue {
                 high: VecDeque::new(),
                 high_waiters: VecDeque::new(),
                 low: VecDeque::new(),
+                idle: None,
                 open_handles: 1,
             }),
             wake: OwnerWake::new().ok(),
@@ -825,6 +866,7 @@ impl CarrierQueue {
                 !state.high_waiters.is_empty() || state.high.len() >= HIGH_LANE_CAPACITY
             }
             RequestLane::Low => state.low.len() >= LOW_LANE_CAPACITY,
+            RequestLane::Idle => state.idle.is_some(),
         };
         if full {
             return AdmitOutcome::Full;
@@ -832,6 +874,7 @@ impl CarrierQueue {
         match lane {
             RequestLane::High => state.high.push_back(request),
             RequestLane::Low => state.low.push_back(request),
+            RequestLane::Idle => state.idle = Some(request),
         }
         self.publish_change();
         AdmitOutcome::Admitted
@@ -918,9 +961,7 @@ impl CarrierQueue {
                 return AdmitOutcome::Full;
             }
             state.stopping = true;
-            let mut pending: Vec<_> = state.high.drain(..).collect();
-            pending.extend(state.low.drain(..));
-            pending.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
+            let pending = state.drain_queued();
             state.high.push_back(request);
             self.publish_change();
             pending
@@ -934,11 +975,7 @@ impl CarrierQueue {
     fn close_and_drain(&self) -> Vec<PendingRequest> {
         let mut state = self.lock();
         state.closed = true;
-        let mut drained =
-            Vec::with_capacity(state.high.len() + state.low.len() + state.high_waiters.len());
-        drained.extend(state.high.drain(..));
-        drained.extend(state.low.drain(..));
-        drained.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
+        let drained = state.drain_queued();
         self.publish_change();
         drained
     }
@@ -1003,6 +1040,13 @@ pub(crate) struct WorkerWireOwner {
     limits: WorkerCarrierLimits,
     queue: Arc<CarrierQueue>,
     viewer_ready: Option<Arc<ViewerReadyRoutes>>,
+    titles: Option<TitleNotes>,
+}
+
+/// Where this wire's Worker notes title changes: the Session registry, for this generation.
+struct TitleNotes {
+    titles: Arc<TerminalTitles>,
+    generation: NonZeroU64,
 }
 
 #[derive(Clone, Copy)]
@@ -1047,6 +1091,7 @@ fn create_worker_carrier_with_limits(
             limits,
             queue: Arc::clone(&queue),
             viewer_ready: None,
+            titles: None,
         },
         shutdown: WorkerCarrierShutdown {
             active: Arc::clone(&active),
@@ -1065,6 +1110,16 @@ fn create_worker_carrier_with_limits(
 impl WorkerWireOwner {
     pub(crate) fn with_viewer_ready(mut self, routes: Arc<ViewerReadyRoutes>) -> Self {
         self.viewer_ready = Some(routes);
+        self
+    }
+
+    /// Routes this generation's title notes to the Session registry.
+    pub(crate) fn with_titles(
+        mut self,
+        titles: Arc<TerminalTitles>,
+        generation: NonZeroU64,
+    ) -> Self {
+        self.titles = Some(TitleNotes { titles, generation });
         self
     }
 
@@ -1101,6 +1156,7 @@ impl WorkerWireOwner {
                     match drain_idle_stream(
                         stream,
                         self.viewer_ready.as_deref(),
+                        self.titles.as_ref(),
                         self.limits.io_timeout,
                     ) {
                         Ok(IdleStreamState::Open) => {}
@@ -1136,6 +1192,7 @@ impl WorkerWireOwner {
                     match drain_idle_stream(
                         stream,
                         self.viewer_ready.as_deref(),
+                        self.titles.as_ref(),
                         self.limits.io_timeout,
                     ) {
                         Ok(IdleStreamState::Open) => {}
@@ -1184,8 +1241,9 @@ impl WorkerWireOwner {
                 Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
                     deliver_hint(self.viewer_ready.as_deref(), hint);
                 }
-                // No title registry reads changes yet; a dropped note costs only latency.
-                Ok(CapabilityNodeMessage::TerminalTitlesChanged(_)) => {}
+                Ok(CapabilityNodeMessage::TerminalTitlesChanged(note)) => {
+                    deliver_note(self.titles.as_ref(), note);
+                }
                 Ok(message) => {
                     let pending = self.in_flight.as_ref().unwrap_or_else(|| {
                         unreachable!("result validation requires one in-flight request")
@@ -1368,11 +1426,22 @@ fn deliver_hint(routes: Option<&ViewerReadyRoutes>, hint: TerminalViewerRecordRe
     }
 }
 
+/// A wire without a registry drops the note, which costs only latency.
+fn deliver_note(
+    titles: Option<&TitleNotes>,
+    note: orchbee_capability_node_protocol::TerminalTitlesChanged,
+) {
+    if let Some(route) = titles {
+        route.titles.note(route.generation, note.through);
+    }
+}
+
 /// Between requests a Worker may only hint; anything else, or a record that never completes, is a
 /// peer breaking the exchange.
 fn drain_idle_stream<Stream>(
     stream: &mut Stream,
     routes: Option<&ViewerReadyRoutes>,
+    titles: Option<&TitleNotes>,
     record_timeout: Duration,
 ) -> Result<IdleStreamState, WorkerTransportFailure>
 where
@@ -1395,8 +1464,9 @@ where
                     Ok(CapabilityNodeMessage::TerminalViewerRecordReady(hint)) => {
                         deliver_hint(routes, hint);
                     }
-                    // No title registry reads changes yet; a dropped note costs only latency.
-                    Ok(CapabilityNodeMessage::TerminalTitlesChanged(_)) => {}
+                    Ok(CapabilityNodeMessage::TerminalTitlesChanged(note)) => {
+                        deliver_note(titles, note);
+                    }
                     Ok(_) | Err(_) => return Ok(IdleStreamState::UnexpectedData),
                 }
             }
@@ -1664,6 +1734,15 @@ fn validate_response(
             Ok(WorkerOperationResult::Titles(actual))
         }
         (
+            WorkerOperationRequest::TitleChanges(expected),
+            CapabilityNodeMessage::TerminalTitleChangesResult(actual),
+        ) => {
+            if !actual.answers(expected) {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            Ok(WorkerOperationResult::TitleChanges(actual))
+        }
+        (
             WorkerOperationRequest::EditorCommand(expected),
             CapabilityNodeMessage::TerminalEditorCommandResult(actual),
         ) => {
@@ -1816,6 +1895,7 @@ fn validate_response(
         }
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
         | (WorkerOperationRequest::Titles(_), _)
+        | (WorkerOperationRequest::TitleChanges(_), _)
         | (WorkerOperationRequest::EditorCommand(_), _)
         | (WorkerOperationRequest::WorktreeJob(_), _)
         | (WorkerOperationRequest::PluginJob(_), _)

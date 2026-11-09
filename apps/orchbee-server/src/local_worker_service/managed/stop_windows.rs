@@ -70,6 +70,7 @@ pub(super) fn run(
     let started = (|| {
         owners.terminals.bind_agent_names(&owners.agents)?;
         owners.terminals.start_close_maintenance()?;
+        owners.terminals.start_title_reads()?;
         let resumes = restored.take_agent_resume();
         // Restored launches read their kept output through the same store.
         let output_store: Arc<dyn crate::terminal_output::TerminalOutputStore> =
@@ -402,6 +403,7 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
     owners.terminals.stop_tab_duplicates_before(deadline)?;
     // A Tab set waits on its members' Closes, so it stops before Close maintenance freezes them.
     owners.terminals.stop_tab_sets_before(deadline)?;
+    owners.terminals.stop_title_reads_before(deadline)?;
     owners.terminals.stop_close_before(deadline)?;
     owners.terminals.stop_graphics_before(deadline)
 }
@@ -532,6 +534,7 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
             saver.stop_before(deadline)?;
         }
         owners.terminals.stop_process_observer_before(deadline)?;
+        owners.terminals.stop_title_reads_before(deadline)?;
         owners.terminals.stop_close_before(deadline)?;
         owners.terminals.stop_graphics_before(deadline)?;
         let mut bytes = [0; 16];

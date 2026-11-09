@@ -179,6 +179,8 @@ pub(super) fn run(
     )?;
     #[cfg(not(windows))]
     terminals.start_close_maintenance()?;
+    #[cfg(not(windows))]
+    terminals.start_title_reads()?;
     // Hosts here cannot sample processes, so the observer refuses before reading settings.
     #[cfg(not(windows))]
     match terminals.start_process_observer(

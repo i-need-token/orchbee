@@ -77,7 +77,7 @@ fn carrier(generation: NonZeroU64) -> CarrierIdentity {
 /// The one host identity shared by the launch completion and the drained
 /// event — the binding reconciliation keys on it. Oracle literals: the
 /// creation id "01"*16 surfaces as the attachment generation.
-fn host_identity() -> HostTerminalIdentity {
+pub(in crate::local_terminal_service) fn host_identity() -> HostTerminalIdentity {
     HostTerminalIdentity::new(
         HostCreationId::from_bytes([0x01; 16]).unwrap(),
         HostEpoch::from_bytes([0x11; 16]).unwrap(),
@@ -165,18 +165,20 @@ fn unavailable(result: AgentReadResult) -> AgentUnavailableReason {
     reason
 }
 
-fn registry() -> Arc<Mutex<WorkerRegistry>> {
+pub(in crate::local_terminal_service) fn registry() -> Arc<Mutex<WorkerRegistry>> {
     Arc::new(Mutex::new(WorkerRegistry::new()))
 }
 
-fn admit_generation(workers: &Arc<Mutex<WorkerRegistry>>) -> NonZeroU64 {
+pub(in crate::local_terminal_service) fn admit_generation(
+    workers: &Arc<Mutex<WorkerRegistry>>,
+) -> NonZeroU64 {
     match workers.lock().unwrap().admit(lsp_worker(), None) {
         WorkerAdmission::Accepted { generation } => generation,
         other => panic!("worker was not admitted: {other:?}"),
     }
 }
 
-fn register(
+pub(in crate::local_terminal_service) fn register(
     workers: &Arc<Mutex<WorkerRegistry>>,
     generation: NonZeroU64,
 ) -> RegisteredWorkerWireOwner {
@@ -192,7 +194,10 @@ fn register(
 /// `prepare_terminal_tab_create` dispatch -> `AuthorizedTerminalLaunch` command ->
 /// `Completion::Launch` with the shared host identity. Returns the
 /// presentation id the REAL registration projection recorded.
-fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String {
+pub(in crate::local_terminal_service) fn open_member(
+    service: &LocalTerminalService,
+    generation: NonZeroU64,
+) -> String {
     let worker = WorkerPlacement {
         worker_id: cnp_worker(),
         generation: WorkerGeneration::new(generation),
@@ -263,7 +268,9 @@ fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String
 /// Runs the real registered wire owner on one socketpair end through the
 /// production `run()` entry and returns the peer end plus the owner
 /// thread.
-fn spawn_owner(owner: RegisteredWorkerWireOwner) -> (UnixStream, JoinHandle<WorkerWireExit>) {
+pub(in crate::local_terminal_service) fn spawn_owner(
+    owner: RegisteredWorkerWireOwner,
+) -> (UnixStream, JoinHandle<WorkerWireExit>) {
     let (server, peer) = UnixStream::pair().unwrap();
     (peer, thread::spawn(move || owner.run(server)))
 }
