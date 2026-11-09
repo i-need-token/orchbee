@@ -247,7 +247,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     tab: "Tab",
     tab_id: "Tab ID",
     tabs: "Tab",
-    tabs_word: "标签",
+    tabs_word: "标签页",
     terminal: "终端",
     terminal_context: "上下文 ID",
     worker: "Worker",

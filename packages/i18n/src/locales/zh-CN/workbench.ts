@@ -455,7 +455,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.worktrees.failure.checkoutNotFound':
 		'Git 已不再将此检出登记为工作树。请检查该目录和 git worktree list。',
 	'workbench.worktrees.failure.closeIncomplete':
-		'终端未能全部关闭。请检查子终端、固定标签页和标签组。',
+		'终端未能全部关闭。请检查子终端、固定标签页和标签页组。',
 	'workbench.worktrees.failure.configurationUnavailable':
 		'无法读取工作树配置。请运行 orchbee config check。',
 	'workbench.worktrees.failure.denied': '此客户端无权更改工作树。',

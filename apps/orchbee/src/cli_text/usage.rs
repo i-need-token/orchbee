@@ -625,7 +625,7 @@ impl super::CliText {
             } => (
                 match self.locale {
                     Locale::EnUs => format!("Invalid '{option}' (expected {}).", expected(ExpectedValue::LaunchEnvironment)),
-                    Locale::ZhCn => format!("'{option}' 无效（应为 {}）。", expected(ExpectedValue::LaunchEnvironment)),
+                    Locale::ZhCn => format!("'{option}' 无效（应为{}）。", expected(ExpectedValue::LaunchEnvironment)),
                 },
                 hint(*ctx),
             ),
@@ -663,7 +663,7 @@ impl super::CliText {
                         expected(*shape)
                     ),
                     Locale::ZhCn => format!(
-                        "'{option}' 的值 {} 无效（应为 {}）。",
+                        "'{option}' 的值 {} 无效（应为{}）。",
                         echo(value),
                         expected(*shape)
                     ),

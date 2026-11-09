@@ -51,7 +51,7 @@ pub(super) const HELP_TAB_MOVE_EN: crate::cli_text::HelpDetails = crate::cli_tex
 
 pub(super) const HELP_TAB_MOVE_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee tab move <target> (--order <previous|next|first|last> | --insert-index <N>) [--format text|json]",
-    "在标签条内移动一个标签页。committed 结果携带新修订；unchanged 表示标签页\n本已在目标位置。\nWindows --insert-index 使用原顺序的边界：0 为首位，标签页总数为末尾；源位置及其后一边界无变化。超出当前数量会拒绝。",
+    "在标签栏内移动一个标签页。committed 结果携带新修订；unchanged 表示标签页\n本已在目标位置。\nWindows --insert-index 使用原顺序的边界：0 为首位，标签页总数为末尾；源位置及其后一边界无变化。超出当前数量会拒绝。",
 );
 
 pub(super) const HELP_TAB_CLOSE_EN: crate::cli_text::HelpDetails =

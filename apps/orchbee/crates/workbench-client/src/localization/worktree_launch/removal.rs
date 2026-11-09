@@ -95,7 +95,7 @@ impl Locale {
                 "Terminals could not all close. Check child terminals, pinned Tabs and Tab groups."
             }
             (Self::ZhCn, F::CloseIncomplete { .. }) => {
-                "终端未能全部关闭。请检查子终端、固定标签页和标签组。"
+                "终端未能全部关闭。请检查子终端、固定标签页和标签页组。"
             }
             (Self::EnUs, F::SourceChanged { .. }) => {
                 "The checkout or Workspace changed. Check it before you continue."
