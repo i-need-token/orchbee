@@ -1154,6 +1154,11 @@ export class ProjectedTerminal {
 		return !this.#isDisposed() && this.#inputEnabled;
 	}
 
+	/** Clear and Reset are Server screen operations that any viewer may run without terminal control. */
+	get canControlScreen(): boolean {
+		return !this.#isDisposed() && !this.#terminalControlSealed && !this.#disposalStarted;
+	}
+
 	get injectedInputReadiness(): ProjectedTerminalInjectedInputReadiness {
 		return this.#phase === ProjectedTerminalPhase.open &&
 			this.#inputEnabled &&
@@ -2545,7 +2550,7 @@ export class ProjectedTerminal {
 	}
 
 	clear(): boolean {
-		if (!this.canControlTerminal) return false;
+		if (!this.canControlScreen) return false;
 		return this.#send({
 			kind: 'clear-terminal',
 			payload: { attachmentId: this.#attachmentId, preservePrompt: false },
@@ -2559,7 +2564,7 @@ export class ProjectedTerminal {
 		this.#cancelTouchGesture(true);
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#finishHistoryScrollbarGesture(true);
-		if (!this.canControlTerminal) {
+		if (!this.canControlScreen) {
 			this.#dispatchInputRepair();
 			return;
 		}
@@ -2569,7 +2574,7 @@ export class ProjectedTerminal {
 		this.#invalidateLinkCache();
 		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
 		this.#dispatchInputRepair(() => {
-			if (this.#inputAdmission !== ProjectedInputAdmission.repairing || !this.canControlTerminal) {
+			if (this.#inputAdmission !== ProjectedInputAdmission.repairing || !this.canControlScreen) {
 				return;
 			}
 			this.#send({

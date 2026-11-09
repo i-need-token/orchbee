@@ -18,7 +18,7 @@ export const UNKNOWN_PROJECTED_TERMINAL_ACTION_CONDITIONS: ProjectedTerminalActi
 	inputBlocker: () => null,
 };
 
-/** Why an action that sends input or a terminal command cannot run. */
+/** Why an action that sends input cannot run. */
 export function terminalInputUnavailableReason(
 	conditions: ProjectedTerminalActionConditions,
 ): ActionMessageDescriptor {
@@ -34,6 +34,19 @@ export function terminalInputUnavailableReason(
 		case null:
 			return projectedTerminalMessages.unavailableInputClosed;
 	}
+}
+
+/**
+ * Why a screen operation (Clear, Reset) cannot run, or `null` when nothing the surface knows stops
+ * it. Another Client holding control does not: the Server runs these for any viewer.
+ */
+export function terminalScreenUnavailableReason(
+	conditions: ProjectedTerminalActionConditions,
+): ActionMessageDescriptor | null {
+	const blocker = conditions.inputBlocker();
+	return blocker === null || blocker === 'view-only'
+		? null
+		: terminalInputUnavailableReason(conditions);
 }
 
 /** Why an action that needs a drawn terminal cannot run while the terminal accepts input. */

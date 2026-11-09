@@ -343,10 +343,10 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 				return;
 			}
 			case 'clear-terminal':
-				this.#controlAction(command, () => ({ attachmentId, kind: 'clear' }));
+				this.#screenAction(command, 'clear');
 				return;
 			case 'reset-terminal':
-				this.#controlAction(command, () => ({ attachmentId, kind: 'reset' }));
+				this.#screenAction(command, 'reset');
 				return;
 			case 'clipboard-write-decision':
 				if (!this.#effects.decide(command.payload)) {
@@ -801,16 +801,43 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		command: ProjectedTerminalCommand,
 		encode: (controllerId: string, sequence: bigint) => Uint8Array,
 	): void {
+		this.#queueControl(command, () => {
+			const controllerId = this.#controllerId;
+			// Input raced a capability change that the renderer has not applied yet.
+			if (controllerId === null) return null;
+			return () => encode(controllerId, this.#nextControlSequence++);
+		});
+	}
+
+	/**
+	 * Clear and Reset are screen operations the Server runs for any viewer before it checks
+	 * control, so they carry no controller identity or sequence and run without control.
+	 */
+	#screenAction(command: ProjectedTerminalCommand, kind: 'clear' | 'reset'): void {
+		const { attachmentId } = this.#bootstrap;
+		this.#queueControl(
+			command,
+			() => () =>
+				encodeClientServerRequest({
+					action: { attachmentId, kind },
+					kind: 'terminal.control',
+					requestId: createClientServerRequestId(),
+				}),
+		);
+	}
+
+	/** Runs one control-lane request in order; `prepare` returns `null` when it no longer applies. */
+	#queueControl(command: ProjectedTerminalCommand, prepare: () => (() => Uint8Array) | null): void {
 		if (this.#controlSteps.length >= MAXIMUM_QUEUED_COMMANDS) {
 			this.#fail(command, 'renderer-backpressure', 'Too many terminal commands are queued.', true);
 			return;
 		}
 		this.#controlSteps.push(async () => {
-			const controllerId = this.#controllerId;
-			// Input raced a capability change that the renderer has not applied yet.
-			if (this.#closed || controllerId === null) return;
+			if (this.#closed) return;
+			const encode = prepare();
+			if (encode === null) return;
 			try {
-				this.#settleControl(command, await this.#submitControl(controllerId, encode));
+				this.#settleControl(command, await this.#submitControl(encode));
 			} catch (error) {
 				this.#report(command, error);
 			}
@@ -818,22 +845,15 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		});
 	}
 
-	/** A busy Server consumed the sequence, so each retry takes a new one and a new request ID. */
-	async #submitControl(
-		controllerId: string,
-		encode: (controllerId: string, sequence: bigint) => Uint8Array,
-	): Promise<ClientServerControlOutcome> {
+	/** A busy Server consumed any sequence, so each retry encodes again with a new request ID. */
+	async #submitControl(encode: () => Uint8Array): Promise<ClientServerControlOutcome> {
 		for (const wait of BUSY_RETRY_DELAYS_MILLISECONDS) {
-			const outcome = this.#controlOutcome(
-				await this.#exchange(encode(controllerId, this.#nextControlSequence++)),
-			);
+			const outcome = this.#controlOutcome(await this.#exchange(encode()));
 			if (outcome.kind !== 'unavailable' || outcome.reason !== 'server-busy') return outcome;
 			await delay(wait);
 			if (this.#closed) return outcome;
 		}
-		return this.#controlOutcome(
-			await this.#exchange(encode(controllerId, this.#nextControlSequence++)),
-		);
+		return this.#controlOutcome(await this.#exchange(encode()));
 	}
 
 	#settleControl(command: ProjectedTerminalCommand, outcome: ClientServerControlOutcome): void {
@@ -918,17 +938,17 @@ class ServerProjectedTerminalTransport implements ProjectedTerminalTransport {
 		const { attachmentId } = this.#bootstrap;
 		let outcome: ClientServerControlOutcome;
 		try {
-			outcome = await this.#submitControl(controllerId, (id, sequence) =>
+			outcome = await this.#submitControl(() =>
 				encodeClientServerRequest({
 					action: {
 						attachmentId,
 						background,
-						controllerId: id,
+						controllerId,
 						foreground,
 						cursor,
 						palette,
 						kind: 'host-colors',
-						sequence: sequence.toString(),
+						sequence: (this.#nextControlSequence++).toString(),
 					},
 					kind: 'terminal.control',
 					requestId: createClientServerRequestId(),

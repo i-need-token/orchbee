@@ -37,6 +37,7 @@ import {
 	terminalHistoryUnavailableReason,
 	terminalInputUnavailableReason,
 	terminalNotDrawnReason,
+	terminalScreenUnavailableReason,
 	UNKNOWN_PROJECTED_TERMINAL_ACTION_CONDITIONS,
 	type ProjectedTerminalActionConditions,
 } from './projected-terminal-action-conditions';
@@ -47,7 +48,10 @@ import {
 } from './projected-terminal-action-ids';
 
 export interface ProjectedTerminalActionTarget {
+	/** Input needs terminal control. */
 	readonly canControlTerminal: boolean;
+	/** Clear and Reset are screen operations any viewer may run without terminal control. */
+	readonly canControlScreen: boolean;
 	readonly canShowHints: boolean;
 	readonly canNavigatePrompts: boolean;
 	readonly canShowCommandOutput: boolean;
@@ -130,6 +134,15 @@ export function registerProjectedTerminalActions({
 		terminal.canControlTerminal
 			? { kind: 'enabled' }
 			: { kind: 'disabled', reason: terminalInputUnavailableReason(conditions) };
+	const screenAvailability = (): ActionAvailability => {
+		const reason = terminalScreenUnavailableReason(conditions);
+		return terminal.canControlScreen && reason === null
+			? { kind: 'enabled' }
+			: {
+					kind: 'disabled',
+					reason: reason ?? projectedTerminalMessages.unavailableInputClosed,
+				};
+	};
 	const clipboardWriteAvailability = (): ActionAvailability =>
 		clipboardWriteIsAvailable(platformEffects)
 			? { kind: 'enabled' }
@@ -535,7 +548,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-clear',
 					mode: 'foreground',
 				},
-				getAvailability: inputAvailability,
+				getAvailability: screenAvailability,
 				handler: {
 					execute: (context) => commitBooleanResult(context, terminal.clear()),
 				},
@@ -553,7 +566,7 @@ export function registerProjectedTerminalActions({
 					concurrencyKey: () => 'terminal-reset',
 					mode: 'foreground',
 				},
-				getAvailability: inputAvailability,
+				getAvailability: screenAvailability,
 				handler: {
 					execute: (context) => {
 						terminal.reset();

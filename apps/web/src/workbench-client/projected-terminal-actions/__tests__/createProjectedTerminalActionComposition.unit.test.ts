@@ -92,48 +92,41 @@ describe('createProjectedTerminalActionComposition', () => {
 		runtime.dispose();
 	});
 
-	it('re-resolves live input capability while local output Actions remain available', () => {
+	it('keeps screen operations and local Actions for a viewer while input needs control', () => {
 		let canControlTerminal = true;
 		const terminal = terminalTarget();
 		Object.defineProperty(terminal, 'canControlTerminal', {
 			get: () => canControlTerminal,
 		});
+		const readClipboardText = vi.fn<
+			NonNullable<ProjectedTerminalPlatformEffects['readClipboardText']>
+		>(() => ({ kind: 'completed', text: 'clipboard text' }));
 		const controller = findController();
-		const { composition, runtime } = createComposition(terminal, controller);
+		const { composition, runtime } = createComposition(terminal, controller, {
+			platformEffects: { readClipboardText },
+		});
 		canControlTerminal = false;
 
 		expect(
 			composition.invokeShortcut(
-				PROJECTED_TERMINAL_ACTION_IDS.reset,
+				PROJECTED_TERMINAL_ACTION_IDS.paste,
 				undefined,
 				composition.terminalScope,
 			),
 		).toBe(false);
-		expect(
-			composition.invokeShortcut(
-				PROJECTED_TERMINAL_ACTION_IDS.findOpen,
-				undefined,
-				composition.terminalScope,
-			),
-		).toBe(true);
-		expect(
-			composition.invokeShortcut(
-				PROJECTED_TERMINAL_ACTION_IDS.selectAll,
-				undefined,
-				composition.terminalScope,
-			),
-		).toBe(true);
-		expect(
-			composition.invokeShortcut(
-				PROJECTED_TERMINAL_ACTION_IDS.copySelection,
-				undefined,
-				composition.terminalScope,
-			),
-		).toBe(true);
-		expect(terminal.reset).not.toHaveBeenCalled();
-		expect(terminal.selectAll).toHaveBeenCalledOnce();
-		expect(terminal.copySelectionAsync).toHaveBeenCalledOnce();
-		expect(controller.getSnapshot().isOpen).toBe(true);
+		for (const actionId of [
+			PROJECTED_TERMINAL_ACTION_IDS.clear,
+			PROJECTED_TERMINAL_ACTION_IDS.reset,
+			PROJECTED_TERMINAL_ACTION_IDS.findOpen,
+			PROJECTED_TERMINAL_ACTION_IDS.selectAll,
+			PROJECTED_TERMINAL_ACTION_IDS.copySelection,
+		] as const) {
+			expect(composition.invokeShortcut(actionId, undefined, composition.terminalScope)).toBe(true);
+		}
+		expect(readClipboardText).not.toHaveBeenCalled();
+		expect(terminal.paste).not.toHaveBeenCalled();
+		expect(terminal.clear).toHaveBeenCalledOnce();
+		expect(terminal.reset).toHaveBeenCalledOnce();
 		composition.dispose();
 		runtime.dispose();
 	});
@@ -206,6 +199,7 @@ function terminalTarget(
 	selectionState: ProjectedTerminalActionTarget['selection']['state'] = 'active',
 ): ProjectedTerminalActionTarget {
 	return {
+		canControlScreen: true,
 		canControlTerminal: true,
 		canNavigatePrompts: true,
 		canScrollHistory: true,

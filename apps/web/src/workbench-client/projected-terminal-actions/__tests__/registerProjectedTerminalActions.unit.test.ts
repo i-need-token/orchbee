@@ -982,6 +982,7 @@ function terminalTarget(
 	},
 ): ProjectedTerminalActionTarget {
 	return {
+		canControlScreen: true,
 		canControlTerminal: true,
 		canNavigatePrompts: true,
 		canScrollHistory: true,

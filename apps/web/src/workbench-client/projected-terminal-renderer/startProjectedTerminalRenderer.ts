@@ -86,6 +86,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'applyFrame'
 	| 'applyInputCapability'
 	| 'applyRows'
+	| 'canControlScreen'
 	| 'canControlTerminal'
 	| 'canNavigatePrompts'
 	| 'canScrollHistory'

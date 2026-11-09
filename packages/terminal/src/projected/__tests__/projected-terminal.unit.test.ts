@@ -7592,7 +7592,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('repairs read-only scrollbar capture before reset rejects Host control', async () => {
+	it('repairs read-only scrollbar capture on reset', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -7636,7 +7636,6 @@ describe('ProjectedTerminal', () => {
 		terminal.reset();
 
 		expect(scrollbar.capturedPointers.has(44)).toBe(false);
-		expect(commands.some((command) => command.kind === 'reset-terminal')).toBe(false);
 		const preventDefault = vi.fn<() => void>();
 		scrollbar.dispatch('pointerup', {
 			altKey: false,
@@ -11436,7 +11435,7 @@ describe('ProjectedTerminal', () => {
 		},
 	);
 
-	it('exposes clear and reset only while the attachment owns input capability', () => {
+	it('runs clear and reset until the terminal is disposed', () => {
 		const commands: ProjectedTerminalCommand[] = [];
 		const terminal = new ProjectedTerminal({
 			attachmentId,
@@ -11471,26 +11470,6 @@ describe('ProjectedTerminal', () => {
 		terminal.clear();
 		terminal.reset();
 		expect(commands).toHaveLength(commandCount);
-
-		const readOnlyCommands: ProjectedTerminalCommand[] = [];
-		const readOnly = new ProjectedTerminal({
-			attachmentId,
-			creationId,
-			hostEpoch,
-			inputEnabled: false,
-			labels: { input: 'input', screen: 'screen' },
-			port: {
-				send: (command) => {
-					readOnlyCommands.push(command);
-				},
-			},
-			terminalId,
-		});
-		expect(readOnly.canControlTerminal).toBe(false);
-		readOnly.clear();
-		readOnly.reset();
-		expect(readOnlyCommands).toHaveLength(0);
-		readOnly.dispose();
 	});
 
 	it('repairs live input ownership on downgrade and admits only fresh revision input after upgrade', async () => {

@@ -201,6 +201,7 @@ describe('startProjectedTerminalRenderer', () => {
 						applyFrame,
 						applyInputCapability,
 						applyRows,
+						canControlScreen: true,
 						canControlTerminal: true,
 						canNavigatePrompts: true,
 						canScrollHistory: true,
