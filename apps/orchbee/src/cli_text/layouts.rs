@@ -2,11 +2,11 @@
 use super::Locale;
 pub(super) const EXPORT_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee layout export [--tab <target>|--panel <target>|--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-    "Export a reusable layout as JSON, including observed split ratios, manual labels,\ndirectories and immutable launch argv. Explicit --tab/--panel without --client exports shared structure without a TUI.\nAdd --client for its focus/zoom observations; omitted targets require a Ready Client. An omitted target uses the validated\ncaller or selected Client Panel. Does not change focus or terminal control.\nDefault total timeout: 30000 ms. At most 24 Panels and depth 16. Environment\nvalues are never exported. Primary/child order and empty terminal slots are\npreserved, with at most 16 children per Panel. Both formats produce JSON on success.",
+    "Export a reusable layout as JSON, including observed split ratios, manual labels,\ndirectories and immutable launch argv. Explicit --tab/--panel without --client exports shared structure without a TUI.\nAdd --client for its focus and maximized-state observations; omitted targets require a Ready Client. An omitted target uses the validated\ncaller or selected Client Panel. Does not change focus or terminal control.\nDefault total timeout: 30000 ms. At most 24 Panels and depth 16. Environment\nvalues are never exported. Primary/child order and empty terminal slots are\npreserved, with at most 16 children per Panel. Both formats produce JSON on success.",
 );
 pub(super) const EXPORT_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee layout export [--tab <target>|--panel <target>|--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-    "导出可复用 JSON 布局，包含观测比例、手工标签、目录和不可变启动参数。显式 --tab／--panel 且省略 --client 时无头导出共享结构。添加 --client 可包含其焦点／缩放观察；省略目标需要 Ready 客户端。省略目标使用已验证调用者或所选客户端面板，不改变焦点或终端控制权。总超时默认 30000 ms，最多 24 个面板、深度 16。不导出环境变量值。保留主／子终端顺序和空终端位，每个面板最多 16 个子终端。两种格式成功时均输出 JSON。",
+    "导出可复用 JSON 布局，包含观测比例、手工标签、目录和不可变启动参数。显式 --tab／--panel 且省略 --client 时无头导出共享结构。添加 --client 可包含其焦点及最大化状态观察；省略目标需要 Ready 客户端。省略目标使用已验证调用者或所选客户端面板，不改变焦点或终端控制权。总超时默认 30000 ms，最多 24 个面板、深度 16。不导出环境变量值。保留主／子终端顺序和空终端位，每个面板最多 16 个子终端。两种格式成功时均输出 JSON。",
 );
 
 pub(super) const APPLY_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(

@@ -498,13 +498,13 @@ impl super::CliText {
                     "Keep the client's current selection.",
                     "保持客户端当前选中项。",
                 ),
-                "--off" => ("", "Turn panel zoom off.", "关闭面板放大。"),
+                "--off" => ("", "Turn panel maximization off.", "关闭面板最大化。"),
                 "--offset-from-bottom" => (
                     "<n>",
                     "Row offset from the bottom of terminal output.",
                     "相对终端输出底部的行偏移。",
                 ),
-                "--on" => ("", "Turn panel zoom on.", "开启面板放大。"),
+                "--on" => ("", "Turn panel maximization on.", "开启面板最大化。"),
                 "--outdated-only" => (
                     "",
                     "Select only clients using an older version.",
@@ -678,7 +678,7 @@ impl super::CliText {
                     "毫秒时限；默认值和范围见下方说明。",
                 ),
                 "--title" => ("<text>", "Title to display.", "要显示的标题。"),
-                "--toggle" => ("", "Toggle panel zoom.", "切换面板放大状态。"),
+                "--toggle" => ("", "Toggle panel maximization.", "切换面板最大化状态。"),
                 "--token" => (
                     "<name=value>",
                     "Report a named metadata token.",

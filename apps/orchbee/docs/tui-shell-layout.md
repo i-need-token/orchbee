@@ -95,13 +95,13 @@ Width and height are classified independently and the lower tier wins, except th
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                             | Compact                                                                       | Minimal        | Mobile                                                                      | TooSmall      |
-| ------------ | -------------------------------- | ----------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------- | ------------- |
-| Top strip    | 1 row (tabs)                     | 1 row (tabs)                                                                  | none           | [Tab bar](#mobile-tab-bar): 3 rows at >= 24 rows, 1 row at >= 12, else none | none          |
-| Status       | chip, last row                   | chip, last row                                                                | chip, last row | chip, last row; on the list screen the row above Settings                   | full last row |
-| Side panel   | docked, bounded preference       | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | [list screen](#mobile-sidebar-list) over the window, on demand              | hidden        |
-| Panel chrome | split/zoom frame and leaf titles | split/zoom frame and leaf titles                                              | not drawn      | not drawn                                                                   | not drawn     |
-| Content      | remainder                        | remainder                                                                     | remainder      | remainder                                                                   | notice only   |
+| Chrome       | Full                                  | Compact                                                                       | Minimal        | Mobile                                                                      | TooSmall      |
+| ------------ | ------------------------------------- | ----------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------- | ------------- |
+| Top strip    | 1 row (tabs)                          | 1 row (tabs)                                                                  | none           | [Tab bar](#mobile-tab-bar): 3 rows at >= 24 rows, 1 row at >= 12, else none | none          |
+| Status       | chip, last row                        | chip, last row                                                                | chip, last row | chip, last row; on the list screen the row above Settings                   | full last row |
+| Side panel   | docked, bounded preference            | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | [list screen](#mobile-sidebar-list) over the window, on demand              | hidden        |
+| Panel chrome | split/maximized frame and leaf titles | split/maximized frame and leaf titles                                         | not drawn      | not drawn                                                                   | not drawn     |
+| Content      | remainder                             | remainder                                                                     | remainder      | remainder                                                                   | notice only   |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -376,12 +376,12 @@ are added around leaves and divider rectangles stay unchanged. Divider
 ends update the existing outer boundary's junction glyphs, leaving no half-cell
 gap and preserving the frame's corner style. A hovered or dragged divider takes the bold focused
 frame role without filling the canvas. A single pane is bare: no frame and no title, so its terminal
-fills the panel and moves inward when the first split appears. Zoom keeps the outer frame and titles
-the zoomed pane on its top line, with a localized badge naming how many panes the zoom hides. Each pane
+fills the panel and moves inward when the first split appears. Maximization keeps the outer frame and titles
+the maximized pane on its top line, with a localized badge naming how many panes maximization hides. Each pane
 reserves one right chrome column for its [history scrollbar](native-terminal-viewport.md#scrollbar-interaction).
 The column stays reserved when history is empty or pending, so output never changes PTY width.
 It is disjoint from the content, title and split-divider hit regions. A one-column pane omits
-the gutter; a track shorter than two rows has no thumb. Split leaves and zoom use the same
+the gutter; a track shorter than two rows has no thumb. Split leaves and maximized Panels use the same
 content-width deduction in native geometry, drawing, input coordinates and layout queries.
 Leaf titles sit on the frame or divider line above each leaf, after one rule cell, so they take no
 terminal row. They prefer custom metadata, then the stable creation label. Numeric creation labels
@@ -389,7 +389,7 @@ use the localized Terminal prefix and never a current layout ordinal. A reported
 leads the title and an unread dot follows it. The focused title uses the bold focus accent without a
 marker; its complete perimeter is emphasized after divider glyphs are painted, including shared
 edges, and every title paints after that emphasis. Sidebar navigation suppresses terminal focus cues.
-Multiple-Presentation arrows and their count end the leaf's title line in split and zoomed views; a
+Multiple-Presentation arrows and their count end the leaf's title line in split and maximized views; a
 bare pane's selector ends the Tab strip instead. Selectors on a divider line take pointer precedence
 over that divider; other title cells keep the divider's drag target. A pointer resting on a title's
 text opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) that gives
@@ -397,7 +397,7 @@ a cut name in full; its state glyph names its state and its unread dot unread ac
 while the pointer rests on its cells, and the rest of the title names no glyph. The title records no
 target for them, so those cells still drag the divider.
 The renderer, PTY dimensions, popups and read-only layout queries share
-this geometry; zoomed hidden leaves retain their canonical unzoomed dimensions.
+this geometry; maximized hidden leaves retain their canonical unmaximized dimensions.
 Inactive terminal content retains normal text contrast; focus is expressed by
 pane chrome and the cursor, without applying DIM to another program's content.
 The shell paints the terminal canvas first, then persistent chrome backgrounds
@@ -877,7 +877,7 @@ fits, such as `Ctrl+B c` to create a Tab for an ended terminal. Every retired co
 Disconnected, including one whose last operation has an unknown outcome; the pane keeps that full
 fact. An exit that does not fit in two words uses the localized compact exit copy; the full exit
 result remains with `Locale::native_status` and the pane title. A transient notice leads the exact primary fact and carries no hints; a persistent
-state yields to it. Ready and zoom context is available with prefix hints; ordinary controlling status
+state yields to it. Ready and maximized context is available with prefix hints; ordinary controlling status
 is omitted, while read-only input remains explicit.
 Segments follow `docs/tui/overlays-and-status.md`. Prefix hints start with cancel, help and
 `Tab` sidebar; trailing hints drop as whole records. The prefix badge shortens its cancellation hint
@@ -949,12 +949,12 @@ and the whole leaf receives the terminal cells. An inactive leaf paints a locali
 and the focus binding — it never paints fabricated live content. Divider cells are collected during
 the walk and drawn once with junction glyphs (`├ ┤ ┬ ┴ ┼`) resolved from neighboring divider cells.
 
-Under a Client-local zoom (`Ctrl+B z`; the session contract lives in `workbench-client-runtime.md`),
+Under a Client-local maximized state (`Ctrl+B z`; the session contract lives in `workbench-client-runtime.md`),
 the drawn set narrows to the focused leaf: it renders across the whole content area and records
 the only pane hit region, while undrawn leaves still report their canonical leaf rectangles so
 their viewers stay alive. The focused leaf reports the whole content area to the wire so its
-terminal converges to the zoomed size; divider cells are not drawn while zoomed. This split
-between the drawn/hit set and the observed set is the only zoom geometry effect — the canonical
+terminal converges to the maximized size; divider cells are not drawn while maximized. This split
+between the drawn/hit set and the observed set is the only maximization geometry effect — the canonical
 projection itself is unchanged.
 
 Capturing surfaces replace the pane's focus emphasis with the unfocused frame and secondary title
@@ -992,13 +992,13 @@ display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
 independently of keyboard focus, ordinary sidebars expose only Settings and Help at the bottom, complete lists show no
-scrollbar, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
-both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
+scrollbar, a single pane fills its panel, and split/maximized views share their frame and border titles. Review the default theme together with
+both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/maximized.
 `workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
 occlusion, a status chip hiding only a cursor it covers, the first content row directly below the Tab strip, stable geometry and exact restoration in both
 locales and native/RGB themes. The [empty-workspace witnesses](../crates/workbench-client/src/workbench_client/ui/tests/quick_workspace.rs)
 check blank content, retained creation, Search and Settings targets, and absence of the Actions button across tiers.
-The [layout query witnesses](../crates/workbench-client/src/workbench_client/ui/client_layout/tests.rs) pin bare, zoomed
+The [layout query witnesses](../crates/workbench-client/src/workbench_client/ui/client_layout/tests.rs) pin bare, maximized
 and split content geometry. The [report witnesses](../crates/workbench-client/src/workbench_client/ui/tests/panel_reports.rs)
 retain exact-scope reports in each leaf; the
 [Presentation witnesses](../crates/workbench-client/src/workbench_client/ui/presentations/tests.rs) check the relocated arrows,

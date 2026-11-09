@@ -1082,10 +1082,11 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
 
 #[test]
 fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
-    for (locale, context, hint) in [
-        (Locale::EnUs, "Zoomed", "Ctrl+b z restore"),
-        (Locale::ZhCn, "已放大", "Ctrl+b z 恢复"),
-    ] {
+    // Expectations come from the locale catalog, so the copy can change without editing this test.
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let copy = locale.status();
+        let context = copy.zoomed;
+        let hint = format!("Ctrl+b z {}", copy.restore);
         let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
         let view = ClientView::new(120);
         infallible(terminal.draw(|frame| {
@@ -1118,7 +1119,7 @@ fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
             "{locale:?} missing context: {text:?}"
         );
         assert!(
-            without_cell_padding(&text).contains(&without_cell_padding(hint)),
+            without_cell_padding(&text).contains(&without_cell_padding(&hint)),
             "{locale:?} missing effective restore hint: {text:?}"
         );
     }

@@ -80,7 +80,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     pinned_tab: "Pinned",
     unnamed_tab_group: "Unnamed group",
     workspaces: "Workspaces",
-    zoom_badge: "zoomed · Ctrl+B z restores",
+    zoom_badge: "maximized · Ctrl+B z restores",
 };
 
 const ZH_CN_SHELL: ShellText<'static> = ShellText {
@@ -113,7 +113,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     pinned_tab: "固定",
     unnamed_tab_group: "未命名分组",
     workspaces: "工作区",
-    zoom_badge: "已放大 · Ctrl+B z 恢复",
+    zoom_badge: "已最大化 · Ctrl+B z 还原",
 };
 
 /// Effective labels selected by the binding owner; text only substitutes these frozen strings.

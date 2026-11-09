@@ -4,7 +4,7 @@
 
 `panel swap [source] --with <target>` exchanges two leaf Panels in one Tab. The alternative
 `panel swap [source] --direction left|right|up|down` resolves one neighbor using a Windows TUI's
-unzoomed cell geometry. `--with` and `--direction` are exclusive; one is required. `--panel`
+unmaximized cell geometry. `--with` and `--direction` are exclusive; one is required. `--panel`
 and `--current` are alternate source selectors and conflict with a positional source and each
 other. Panel operands use exact IDs or `@panel:0x<hex>`, never labels. Explicit source and `--with` without `--client` use the headless shared path. An omitted source uses
 validated caller context, then the selected Client's current Panel. Explicit `--client` or the
@@ -14,7 +14,7 @@ This is an existing-Session Windows workflow. Its default total timeout is 30000
 admits 1 through 3600000 ms. There is no detached mode or caller-supplied workflow request ID.
 The CLI does not start a Session, create a terminal, or own durable workflow state.
 
-The Server owns canonical positions and ratios. The TUI owns focus and zoom. The CLI owns the finite
+The Server owns canonical positions and ratios. The TUI owns focus and the maximized state. The CLI owns the finite
 sequence connecting those operations and its receipts. `local_client/workbench/panel_placement.rs`
 owns one structural command exchange; the Server's `terminal_panel_placement` authority owns
 shared move/swap admission. The existing Client control protocol carries layout reads and focus.
@@ -45,15 +45,15 @@ An explicit pair without `--client` resolves the snapshot and exchanges once wit
 lookup, control or focus. Known commit completes this shared workflow. The following table describes
 the Client workflow used by directional/implicit targets or explicit `--client`.
 
-| Phase          | Guard, effect and next result                                                                                                                                                                                                      |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preflight      | Validate all grammar, arm interruption, admit one existing session, read one canonical snapshot and select one current, ready Client. Freeze its selection and exact source.                                                       |
-| Resolve        | An explicit pair uses that snapshot. Direction reads the same Client's unzoomed layout without changing selection. Its canonical revision must equal the snapshot. Pin one exact neighbor; do not resolve it again after a change. |
-| No-op          | Same Panel, cross-Tab pair or no neighbor returns an explicit unchanged reason. No canonical command or focus is submitted. A missing or unavailable source is a refusal, not a no-neighbor success.                               |
-| Exchange       | Submit exactly one `panel.swap` at the frozen revision. A definite refusal or unknown outcome stops the workflow. A known unchanged result does not focus.                                                                         |
-| Observe Client | After a known commit, read the original Client until it is ready at the committed revision. A changed selection, unavailable Client, cancellation or deadline stops here with the commit preserved.                                |
-| Focus          | Submit source-Panel focus once using that freshly observed Client view revision. Existing UI admission, interruption, attachment convergence and draw acknowledgment apply.                                                        |
-| Finish         | Only a known canonical commit and applied focus are complete success. Preserve canonical and focus facts independently for every other result. Never compensate or retry.                                                          |
+| Phase          | Guard, effect and next result                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preflight      | Validate all grammar, arm interruption, admit one existing session, read one canonical snapshot and select one current, ready Client. Freeze its selection and exact source.                                                          |
+| Resolve        | An explicit pair uses that snapshot. Direction reads the same Client's unmaximized layout without changing selection. Its canonical revision must equal the snapshot. Pin one exact neighbor; do not resolve it again after a change. |
+| No-op          | Same Panel, cross-Tab pair or no neighbor returns an explicit unchanged reason. No canonical command or focus is submitted. A missing or unavailable source is a refusal, not a no-neighbor success.                                  |
+| Exchange       | Submit exactly one `panel.swap` at the frozen revision. A definite refusal or unknown outcome stops the workflow. A known unchanged result does not focus.                                                                            |
+| Observe Client | After a known commit, read the original Client until it is ready at the committed revision. A changed selection, unavailable Client, cancellation or deadline stops here with the commit preserved.                                   |
+| Focus          | Submit source-Panel focus once using that freshly observed Client view revision. Existing UI admission, interruption, attachment convergence and draw acknowledgment apply.                                                           |
+| Finish         | Only a known canonical commit and applied focus are complete success. Preserve canonical and focus facts independently for every other result. Never compensate or retry.                                                             |
 
 All reads and submissions share the original absolute deadline. Polling never renews it. Signals
 stop this invocation's waiting and future phases; they do not undo an accepted swap or cancel an
@@ -62,7 +62,7 @@ when interruption determines the exit code. Each submitted phase has its own cor
 Read-only layout failure cannot be reported as an unknown canonical mutation.
 
 Focus uses the original Client and the existing Panel focus operation. It does not change another
-Client's selection. Same-Tab swap retains local zoom and shared ratios. Selecting an inactive target
+Client's selection. Same-Tab swap retains the local maximized state and shared ratios. Selecting an inactive target
 uses the existing context/Tab selection lifecycle. Canonical exchange and Client focus are separate
 commits: there is no cross-owner atomicity claim. Selection is compared at observations; an ABA
 selection change between those observations is not detected. The final focus submission additionally
@@ -98,4 +98,4 @@ preserve unknown outcomes. Receipt-state matrices check terminal error/cancellat
 wake after request admission proves cancellation retires an uncertain exchange without replay. Windows process tests
 exercise actual parser, output/schema, ordered phases, lost replies, stale layout/selection, refusal,
 no-op and total deadline; two real TUIs check nested exchange,
-unchanged terminal identities, ratios, zoom and source focus without affecting the other Client.
+unchanged terminal identities, ratios, the maximized state and source focus without affecting the other Client.

@@ -757,8 +757,8 @@ impl Locale {
     /// Names how many panes a zoomed pane hides behind it.
     pub(crate) fn zoomed_panes(self, count: usize) -> String {
         match self {
-            Self::EnUs => format!("zoomed · {count} panes"),
-            Self::ZhCn => format!("已放大 · 共 {count} 个窗格"),
+            Self::EnUs => format!("maximized · {count} panes"),
+            Self::ZhCn => format!("已最大化 · 共 {count} 个窗格"),
         }
     }
 

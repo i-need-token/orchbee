@@ -53,7 +53,7 @@ requests a machine or context switch on opening or cancellation.
 
 An Agent row's menu holds Rename, which only a Panel's primary terminal offers, then a separated Close. Both name the row's Panel rather than its terminal: Rename edits the primary Presentation's shared override as the Panel menu does, and Close ends the whole Panel, asking first when one of its terminals runs something. The Panel actions act only on the focused Panel, so the menu first focuses the Agent's Panel, as a click on the row does, and offers the action once that Panel holds focus. An Agent in a child terminal has no Rename row.
 
-A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Zoom; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
+A context menu's frame title names its target, and a `+` creation menu names what it creates; a Tab menu uses the Tab's shared displayed name, and a Workspace menu follows the Workspace's name as it changes under the open menu. A row that acts on that target alone shows only its verb in both locales, such as Rename, Close, Dissolve, Pin or Maximize; Close drops its ellipsis with the noun. Rows that name another object or a counted set keep their full text. The global menu, dialog titles, tooltips and shortcut help keep each action's full name, which the prose of these documents also uses. Each row kind has one shared menu. A Project menu holds New Workspace ▸ and Rename, then a separated Dissolve. A Workspace menu holds Move to Project ▸, Rename and, while the Workspace has no directory, Set Directory…, then a separated New Worktree… and Open Worktree ▸, unless discovery shows its first terminal is outside Git, then a separated Close. Availability reasons take the frame's bottom edge; a Git refusal removes Git-only rows under a fresh draw token.
 
 A pointer-opened menu follows the press: its frame starts at the pressed column on the row below the complete painted trigger (a sidebar row, Tab or group header, otherwise the pressed cell), else ends on the row above it, and shifts left to stay inside the viewport. Height yields to scrolling before covering the trigger row; fewer than three rows on both sides keeps the existing recovery surface. A keyboard-opened sidebar row menu opens beside its row, top edge level with it, moving up only to fit; other keyboard menus stay centered. While a pointer-opened row menu is open, its row keeps the hover fill; a keyboard-opened one keeps the sidebar focus on its row. Placement changes no target or focus. `docs/tui/layout.md` owns the general geometry.
 
@@ -80,7 +80,7 @@ default first and marked Default; with a single profile it opens no menu, becaus
 creates a Tab with the default. These menus open through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 A pane menu, titled with the panel's name, leads with Copy selection for the focused panel, then holds
-Clear terminal, Edit scrollback, Rename, Split right and Split down, Zoom only beside another panel and Take control only while another Client
+Clear terminal, Edit scrollback, Rename, Split right and Split down, Toggle panel maximization only beside another panel and Take control only while another Client
 holds that panel's size, then the red Close; dragging a divider resizes, and keyboard resize and copy
 mode keep their keys and global menu rows. The global menu also exposes the new-Tab submenu for keyboard
 users.
@@ -345,14 +345,13 @@ right, to the start or to the end, Select all Tabs, Keep only current Tab select
 Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
 Close Tab… is the current-Tab close request that `Ctrl+B x` makes, with that key and its confirmation
 rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
-includes directional split and move, close, zoom, keyboard resize and copy mode. Workspace includes
+includes directional split and move, close, maximize, keyboard resize and copy mode. Workspace includes
 creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing
 ClientAction. Pane and Tab actions require a focused pane and show the localized
 focused-panel-required reason when none is available; Close Tabs to the right… shows the
 no-matching-Tabs reason when nothing would close. A Move panel row shows the GUI's reasons for the
-same state: no Panel on that side of the focused one, or a zoomed Tab, which the GUI calls
-maximized. The move admission refuses by that same rule, so an enabled row always moves a Panel,
+same state: no Panel on that side of the focused one, or a maximized Tab. The move admission refuses by that same rule, so an enabled row always moves a Panel,
 and a move key the row would not offer moves nothing and shows nothing. Other global actions
 follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar
 conditional Delete follows the authority admission above. Settings delegates to its existing editor;
@@ -541,7 +540,7 @@ equal numeric values cannot settle each other's menu intent.
 The opening right press precedes ordinary pointer focus/selection. Its matching
 release remains captured after cancellation or handoff. The entire decoded decision
 packet, including fragmented sequences and paste, remains captured after the menu
-closes. Pointer release and zoom verify their frozen prerequisite before handoff.
+closes. Pointer release and maximize verify their frozen prerequisite before handoff.
 Every menu close or handoff also captures already-polled input until a fresh frame
 publishes. A pre-existing pane press, selection, link, divider drag, pending focus or queued wheel
 stream refuses menu admission and remains with its original owner.

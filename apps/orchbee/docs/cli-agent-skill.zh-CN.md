@@ -161,7 +161,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 以及 `panel swap <panel> --with <other-panel>`。共享回执保留规范身份及结果，不声明视口或焦点。
 `layout apply --file layout.json --workspace <workspace>` 也可无头运行；支持显式 Workspace 和已确认的 Tab 目的地。
 添加 `--client` 可获取 Client 几何／观察，应用时添加 `--focus` 可请求 Client 聚焦。
-方向邻居、resize 和 zoom 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
+方向邻居、resize 和 `panel zoom` 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
 修改结果未知时，先检查回执再重新提交。
 
 ## 一致的命令词汇

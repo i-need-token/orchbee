@@ -254,7 +254,7 @@ open menu omits the Worktree rows once Git refuses it, and a checkout every Work
 | Newer input, hide or source change   | Revoke entry permission permanently for this operation; retain facts                            |
 | Failed/unknown terminal or lost read | Preserve checkout/Workspace evidence; never recreate or compensate                              |
 
-Preparation judges the source by the origin's own facts: its Context member, zoom, geometry and
+Preparation judges the source by the origin's own facts: its Context member, maximized state, geometry and
 primary pane. A commit elsewhere in the Workbench advances only the revision and leaves the source
 current. Entry waits for an in-flight publication refresh and then rechecks the origin. Missing
 membership allows at most one extra read-only refresh within the original entry deadline. For an

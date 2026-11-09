@@ -2883,7 +2883,7 @@ Windows `project close-all <target> --confirm` explicitly closes captured member
 
 ## Windows Client navigation
 
-[Windows Client view control](windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel zoom has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added.
+[Windows Client view control](windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel maximize has an explicit no-op receipt. The current catalog includes `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`; view/control are v1, routing failure is v1 and composed Agent Client read failure is v1. No operating-system window activation or Mac/Linux control runtime is added.
 
 ## Windows offline schema export
 
@@ -2908,11 +2908,11 @@ Maintained Windows process checks cover Unicode/space and relative paths, full a
 
 ## Windows Panel layout queries
 
-`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unzoomed neighbors, physical-edge results and the operation receipt. See the [geometry contract](windows-client-layout.md). The offline catalog lists the current documents and command paths.
+`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unmaximized neighbors, physical-edge results and the operation receipt. See the [geometry contract](windows-client-layout.md). The offline catalog lists the current documents and command paths.
 
-`panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unzoomed cell layout and preserves zoom. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
+`panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unmaximized cell layout and preserves the maximized state. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
 
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and zoom. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Ratios belong to that TUI session and are not restored after restart. See the [layout contract](windows-client-layout.md).
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and the maximized state. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Ratios belong to that TUI session and are not restored after restart. See the [layout contract](windows-client-layout.md).
 
 ## Shared Panel titles
 
@@ -3041,9 +3041,9 @@ and are clamped to 0.1–0.9. New Tab labels are optional.
 
 Resolve one snapshot and an explicit, caller-associated or sole current Client. Ambiguity fails
 before effects. Without a Client, only `--no-focus` without an explicit ratio may proceed: choose
-the first target leaf and native default ratio, without claiming Client geometry or zoom state.
-With a Client, read-only source/target layouts determine zoom and the default target leaf.
-Zoomed source/target Tabs return unchanged without mutation. Same-Tab placement submits the existing Panel move effect. An explicit
+the first target leaf and native default ratio, without claiming Client geometry or maximized state.
+With a Client, read-only source/target layouts determine the maximized state and the default target leaf.
+Maximized source/target Tabs return unchanged without mutation. Same-Tab placement submits the existing Panel move effect. An explicit
 target Panel must belong to the target Tab.
 
 A new Workspace joins an existing Project only through explicit `--project`; omission is ungrouped and never inherits the source Project or creates a default Project. Its directory follows observed terminal root cwd, falling back to invoking process cwd only when absent. Invalid observations fail. Validate path and label before effects.

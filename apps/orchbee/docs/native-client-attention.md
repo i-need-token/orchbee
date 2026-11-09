@@ -35,7 +35,7 @@ A background read lane drains retained changes and obtains a coherent session li
 | Failed, stale, overlaid, zero-sized or scrollback paint | No acknowledgement.                                                                                                              |
 | Known outer focus loss                                  | No acknowledgement even if output is painted.                                                                                    |
 
-When outer focus is unknown, a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; hidden zoom siblings and Agent board summaries do not count as viewed panes. Only the focused Panel and its selected presentation may acknowledge, independently in each Client; visible split siblings stay unread. Query consumers must distinguish unavailable observation from seen or unseen.
+When outer focus is unknown, a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; siblings hidden by maximization and Agent board summaries do not count as viewed panes. Only the focused Panel and its selected presentation may acknowledge, independently in each Client; visible split siblings stay unread. Query consumers must distinguish unavailable observation from seen or unseen.
 
 The renderer returns bounded concrete paint proofs; a receipt for an earlier snapshot cannot acknowledge a newer event. Acknowledgement may request one follow-up redraw to remove the unseen indicator, without starting an unbounded redraw loop. Evidence covers two independent Clients, rapid intervening transitions, metadata-only changes, resets, focus loss, stale receipts, hidden/overlaid panes and reader shutdown. The Client query below exposes this observation without acknowledging it.
 
@@ -77,7 +77,7 @@ unavailable canonical observations cannot be used as physical evidence or vice v
 | Older read failure, retirement or shutdown                      | Disable acknowledgement; interrupt and join owned readers.                                                  |
 | Successful visible paint                                        | Acknowledge only the exact binding/sequence, Host frame route and paint serial still current after drawing. |
 
-The existing overlay, scrollback, zoom, geometry and outer-focus gates apply to physical paint too.
+The existing overlay, scrollback, maximization, geometry and outer-focus gates apply to physical paint too.
 An old Host frame cannot acknowledge a replacement terminal. Canonical and physical observations of
 one presentation do not create duplicate unseen badges. An ordinary terminal without a reported
 Agent does not create an Agent badge. A read never counts as a paint.

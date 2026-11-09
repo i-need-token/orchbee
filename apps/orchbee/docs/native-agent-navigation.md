@@ -79,7 +79,7 @@ with parent content; their navigable surface remains a separate lifecycle obliga
 
 The Client applies ordinary ordered navigation and completes after a successful draw, including an
 already-focused target. Successful explicit Agent focus acknowledges the current known Agent
-versions in the selected Tab, including zoom-hidden primary panes, even when outer focus is false.
+versions in the selected Tab, including primary panes hidden by maximization, even when outer focus is false.
 This acknowledgement is an explicit command effect. Read-only attention and ordinary paint keep their existing restrictions.
 Current snapshots are consumed at one UI boundary; later state changes remain unseen. Unreadable
 target state prevents a success claim; an unavailable unrelated observation source supplies no

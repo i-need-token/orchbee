@@ -79,7 +79,7 @@ geometry, locale, data and input
 ownership; review changed regions together with surrounding navigation, content and status.
 Check current-context recognition, focus distinction, text hierarchy, duplicate labels and actions,
 empty states, grouping, and the space available to primary content. Include the affected ordinary,
-navigation and split/zoom states; a component render alone does not establish whole-screen quality.
+navigation and split/maximized states; a component render alone does not establish whole-screen quality.
 Review at-rest action affordance, hover without focus movement, stable label tracks, complete
 primary and exit hints at narrow geometry, and the identity of the operation's target.
 

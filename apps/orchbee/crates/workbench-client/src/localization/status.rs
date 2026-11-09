@@ -41,7 +41,7 @@ pub(crate) struct StatusText {
 const EN_US: StatusText = StatusText {
     prefix: "PREFIX",
     pointer_released: "Mouse released",
-    zoomed: "Zoomed",
+    zoomed: "Maximized",
     navigator: "Navigator",
     sidebar: "Sidebar",
     focus_sidebar: "sidebar",
@@ -76,7 +76,7 @@ const EN_US: StatusText = StatusText {
 const ZH_CN: StatusText = StatusText {
     prefix: "前缀",
     pointer_released: "鼠标已释放",
-    zoomed: "已放大",
+    zoomed: "已最大化",
     navigator: "导航器",
     sidebar: "边栏",
     focus_sidebar: "边栏",

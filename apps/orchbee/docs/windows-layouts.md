@@ -11,7 +11,7 @@ format on success; failures follow the requested format. The default total timeo
 Ctrl+C exits 130 and releases owned temporary viewers and the admitted session.
 
 An explicit Tab/Panel without `--client` reads canonical shared structure without a TUI.
-Its source has `scope:shared`, null `clientId`/`viewRevision`, and null zoom/focus observations.
+Its source has `scope:shared`, null `clientId`/`viewRevision`, and null maximized-state and focus observations.
 With `--client` or an omitted target, select the explicit, caller-matched or sole Ready Client; its source uses `scope:client`.
 Missing or ambiguous required Client observations fail. Ratios always come from the shared tree. An omitted target uses the validated caller Panel or
 selected Client Panel. Explicit targets ignore caller metadata. Tab targets admit ID, suffix or
@@ -49,7 +49,7 @@ and the export bounds. Accept only current v1 native export envelopes, descripti
 nodes. Native envelopes require all fields and exact current shapes; other versions/shapes return a
 typed layout-input error with an expected-version-1 diagnostic. No migration occurs. Flat `type:panel` templates describe one starting primary with numeric fallback names;
 layout identity fields use camelCase. Structured members preserve their fallback names, labels and start intent.
-Description IDs and focus/zoom remain descriptive; new layouts start unzoomed. Mixing flat launch
+Description IDs and focus and maximized state remain descriptive; new layouts start unmaximized. Mixing flat launch
 fields with structured members, duplicate/unknown fields and malformed nested children is invalid.
 A non-starting member cannot supply cwd, command or nonempty env. Ratios are finite and clamped
 to 0.1..0.9. Validate every cwd, literal argv and environment overlay and resolve every intended
@@ -120,6 +120,6 @@ Headless process cases cover export, topology reads, ratio changes, pair swaps a
 controlled peer that refuses any Client observation/control request. These reuse existing Server
 transitions; no virtual viewport, new canonical mutation or hidden Client registration is introduced.
 
-Server shares and persists split ratios. Export records the current nominal ratios; apply uses the same canonical mutation path. Each window retains its own focus, zoom and control. See the [shared ratio contract](../../orchbee-server/docs/shared-split-ratios.md) for compatibility.
+Server shares and persists split ratios. Export records the current nominal ratios; apply uses the same canonical mutation path. Each window retains its own focus, maximized state and control. See the [shared ratio contract](../../orchbee-server/docs/shared-split-ratios.md) for compatibility.
 
 Each known shared-ratio receipt advances the workflow-owned Tab copy by exactly that identified ratio change. The next Server read still fences the complete new and replaced Tabs, including every other ratio, label, binding and ordered identity. Unknown results do not widen or refresh ownership; no concurrent edit is adopted as part of the workflow.

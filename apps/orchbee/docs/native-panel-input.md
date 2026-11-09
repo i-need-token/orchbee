@@ -35,7 +35,7 @@ coordinates and the cell-input fallback; see [mouse input](native-mouse-input.md
 | Lost reply | The Client retires an ambiguous submission and reports unknown; no automatic retry or compensation.                                                                          |
 | Split      | The new Panel policy is committed with its topology and identities, before terminal-start settlement. There is no second policy-setting mutation.                            |
 
-The setter never changes focus, zoom, ratios, attachments, controller ownership or terminal bytes.
+The setter never changes focus, the maximized state, ratios, attachments, controller ownership or terminal bytes.
 Its `orchbee.panel.input` v1 receipt records request/Session/base, exact target, requested policy,
 known revision and `configured` or `unchanged`. It acknowledges canonical state, not that every
 Client has refreshed or drawn it. Panel reads expose the effective policy. Creation keeps its

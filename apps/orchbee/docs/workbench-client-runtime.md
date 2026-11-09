@@ -308,7 +308,7 @@ identity immutable. Session allocators, rather than this two-snapshot comparison
 lifetime non-reuse.
 
 Replacement of any Panel in the active Tab uses the existing whole-anchor membership
-cleanup and install path, retaining the selected Panel and zoom while minting a new
+cleanup and install path, retaining the selected Panel and maximized state while minting a new
 attachment generation. Old Viewer and
 controller effects finish or are disposal-proven before attaching the fresh binding.
 Replacement clears old Tab launch provenance; failed or unknown old startup never
@@ -542,7 +542,7 @@ consults only the Client's own refresh. An invocation that needs the single refr
 publication refresh holds it — a confirmed Workspace or Project Close, a conditional Workspace
 close, a Worktree form or listing, or a Context step — is held for at most five seconds and
 replayed through its ordinary entry point when that refresh settles, before the next publication
-refresh is admitted. A Tab or Panel action of the current Workspace (zoom, Panel focus, Tab
+refresh is admitted. A Tab or Panel action of the current Workspace (maximize, Panel focus, Tab
 selection or move, split, Panel move, new Tab) needs a settled projection, so a publication
 refresh or the user's own landing Workspace switch holds it the same way instead of refusing it;
 a Client control that addresses the same handlers is answered by the Client's state and is never

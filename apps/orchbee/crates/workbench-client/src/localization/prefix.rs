@@ -126,7 +126,7 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::SelectTabDigit => "Select ordered Tab (requires connection)",
         PrefixDesc::PanelFocus => "Move between Panels (requires connection)",
         PrefixDesc::PresentationSelect => "Select previous / next terminal in this Panel",
-        PrefixDesc::PanelZoom => "Zoom the focused Panel (requires connection)",
+        PrefixDesc::PanelZoom => "Maximize or restore the focused Panel (requires connection)",
         PrefixDesc::SplitPanel => {
             "Split focused Panel below/above/left/right (requires connection)"
         }
@@ -199,7 +199,7 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::SelectTabDigit => "选择对应顺序的标签页（需要连接）",
         PrefixDesc::PanelFocus => "在面板之间移动（需要连接）",
         PrefixDesc::PresentationSelect => "选择当前面板中的上一个 / 下一个终端",
-        PrefixDesc::PanelZoom => "放大焦点面板（需要连接）",
+        PrefixDesc::PanelZoom => "最大化或还原焦点面板（需要连接）",
         PrefixDesc::SplitPanel => "将焦点面板向下/上/左/右分屏（需要连接）",
         PrefixDesc::ClosePanel => "关闭焦点面板（需要连接）",
         PrefixDesc::RenamePanel => "重命名焦点面板",

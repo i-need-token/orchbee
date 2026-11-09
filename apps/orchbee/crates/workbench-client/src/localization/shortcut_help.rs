@@ -370,8 +370,8 @@ impl Locale {
             }
             .to_owned(),
             ShortcutLabel::ZoomPanel => match self {
-                Self::EnUs => "Zoom panel",
-                Self::ZhCn => "缩放面板",
+                Self::EnUs => "Toggle panel maximization",
+                Self::ZhCn => "切换面板最大化",
             }
             .to_owned(),
             ShortcutLabel::ClosePanel => match self {

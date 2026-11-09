@@ -16,8 +16,8 @@ impl super::CliText {
         let mut text = format!("{outcome}\n");
         if document["reason"].as_str().is_some() {
             text.push_str(match self.locale {
-                Locale::EnUs => "The source or target Tab is zoomed.\n",
-                Locale::ZhCn => "来源或目标标签页处于缩放状态。\n",
+                Locale::EnUs => "The source or target Tab is maximized.\n",
+                Locale::ZhCn => "来源或目标标签页处于最大化状态。\n",
             });
         }
         for phase in ["movement"] {

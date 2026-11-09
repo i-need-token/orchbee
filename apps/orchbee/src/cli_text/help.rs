@@ -158,8 +158,8 @@ impl super::CliText {
                 ("Apply a saved terminal layout.", "应用已保存的终端布局。")
             }
             HelpTopic::Command(CommandPath::PanelZoom) => (
-                "Toggle or set a panel's zoom state.",
-                "切换或设置面板的放大状态。",
+                "Toggle or set a panel's maximized state.",
+                "切换或设置面板的最大化状态。",
             ),
             HelpTopic::Command(CommandPath::PanelLayout) => {
                 ("Show the panel layout tree.", "显示面板布局树。")

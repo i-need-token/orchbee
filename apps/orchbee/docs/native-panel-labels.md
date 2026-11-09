@@ -65,7 +65,7 @@ reference with those owners and the independent TypeScript contracts and JSON sc
 
 The action changes only the primary Presentation's optional override. Fallback text, all identities,
 bindings, topology, order, directories and lifecycle facts remain exact. It neither acquires a
-terminal controller nor changes focus, zoom, ratios or attachments. A later split, move or terminal
+terminal controller nor changes focus, the maximized state, ratios or attachments. A later split, move or terminal
 creation settlement must preserve an existing override on the surviving Presentation.
 
 The CLI's dedicated `orchbee.panel.rename` version-1 result records the original request/Session/base,

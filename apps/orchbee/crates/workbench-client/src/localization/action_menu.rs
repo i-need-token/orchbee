@@ -431,8 +431,8 @@ impl Locale {
             (Self::ZhCn, SplitPanel(PanelDirection::Up)) => "向上分屏",
             (Self::EnUs, SplitPanel(PanelDirection::Right)) => "Split right",
             (Self::ZhCn, SplitPanel(PanelDirection::Right)) => "向右分屏",
-            (Self::EnUs, Zoom) => "Zoom panel",
-            (Self::ZhCn, Zoom) => "切换面板缩放",
+            (Self::EnUs, Zoom) => "Toggle panel maximization",
+            (Self::ZhCn, Zoom) => "切换面板最大化",
             (Self::EnUs, Resize) => "Resize panes",
             (Self::ZhCn, Resize) => "调整面板大小",
             (Self::EnUs, Copy) => "Keyboard copy mode",
@@ -627,8 +627,8 @@ impl Locale {
             (Self::ZhCn, ManageGroups) => Some("加入分组"),
             (Self::EnUs, RemoveFromGroup) => Some("Remove from group"),
             (Self::ZhCn, RemoveFromGroup) => Some("移出分组"),
-            (Self::EnUs, Zoom) => Some("Zoom"),
-            (Self::ZhCn, Zoom) => Some("切换缩放"),
+            (Self::EnUs, Zoom) => Some("Maximize"),
+            (Self::ZhCn, Zoom) => Some("切换最大化"),
             _ => None,
         };
         match (verb, scope) {
