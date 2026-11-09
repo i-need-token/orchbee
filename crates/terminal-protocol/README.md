@@ -58,7 +58,7 @@ The transport registry has unique, strictly increasing numeric kinds, checked at
 before binary-search lookup. Kind 79 admits the existing correlated `ReadProcessInfo` request and
 response as control JSON; kinds 80/81 retain their graphics-image contracts. Kinds 82/83 carry
 `StageTerminalOutput` and its `TerminalOutputStaged` receipt as raw bytes; `output_staging` encodes
-the request and decodes the receipt for the Worker, and the Host owns the output grammar. Kind 84 registers `PromptLineInput` as a raw-bytes request answered by `InputAccepted`; this crate does not encode it yet, and its `TypedFailure` decoder does not yet admit the `reason` member that only a `prompt-unconfirmed` refusal carries. Process-info payload
+the request and decodes the receipt for the Worker, and the Host owns the output grammar. Kind 84 registers `PromptLineInput` as a raw-bytes request answered by `InputAccepted`; this crate does not encode it yet, and its `TypedFailure` decoder does not yet admit the `reason` member that only a `prompt-unconfirmed` refusal carries. `PROMPT_LINE_QUIET_MILLISECONDS` mirrors the registry's quiet period: the Host refuses a younger prompt as retryable `settling` instead of waiting, so a sender waits that long and retries once. Process-info payload
 round trips also pass through transport encoding and decoding with correlation and Host epoch,
 so a registered payload cannot silently become an unknown required transport message. Event roles
 remain rejected and the existing payload bounds remain unchanged.

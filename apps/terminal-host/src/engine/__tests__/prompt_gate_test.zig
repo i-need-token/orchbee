@@ -20,17 +20,12 @@ const Observation = enum { inactive, active, failed };
 const GateProbe = struct {
     observation: Observation = .inactive,
     now: u64 = 0,
-    slept: u64 = 0,
-    runtime: *TerminalRuntime = undefined,
-    /// Output the shell writes while the gate waits out the quiet period.
-    output_during_wait: ?[]const u8 = null,
 
     pub fn hooks(self: *GateProbe) RuntimeTestingHooks {
         return .{
             .context = self,
             .has_active_command = hasActiveCommand,
             .monotonic_time_nanoseconds = monotonic,
-            .sleep_nanoseconds = sleep,
             .write_pty = swallow,
         };
     }
@@ -49,17 +44,6 @@ const GateProbe = struct {
         return self.now;
     }
 
-    /// The output, when set, arrives halfway through the wait.
-    fn sleep(context: *anyopaque, nanoseconds: u64) void {
-        const self: *GateProbe = @ptrCast(@alignCast(context));
-        self.slept += nanoseconds;
-        self.now += nanoseconds / 2;
-        if (self.output_during_wait) |bytes| {
-            std.debug.assert(commitReaderBatch(self.runtime, bytes) == .committed);
-        }
-        self.now += nanoseconds - nanoseconds / 2;
-    }
-
     /// Accepted lines never reach the test's real child process.
     fn swallow(_: *anyopaque, bytes: []const u8) anyerror!usize {
         return bytes.len;
@@ -73,7 +57,6 @@ const Fixture = struct {
     fn init(self: *Fixture) !void {
         self.runtime = try createRuntimeWithHooks(self.probe.hooks());
         self.probe.runtime = self.runtime;
-        self.probe.probe.runtime = self.runtime;
         self.probe.reader.wait();
         runtimeState(self.runtime).process.interactive_shell = true;
     }
@@ -282,32 +265,52 @@ test "any input or screen change after the input start refuses" {
     }
 }
 
-test "a young prompt is waited out once and a prompt replaced meanwhile refuses" {
+test "a young prompt refuses as settling without waiting, and only when every other rule holds" {
     {
+        // The Host never waits: the caller retries once the quiet period has passed.
         var fixture: Fixture = .{};
         try fixture.init();
         defer fixture.deinit();
         try fixture.output(prompt);
         fixture.after(40 * ms);
+        try fixture.expectRefused(error.PromptSettling);
+        fixture.after(60 * ms);
         try fixture.expectAccepted(line, "echo hi\r");
-        try std.testing.expectEqual(@as(u64, 60 * ms), fixture.probe.probe.slept);
     }
     {
+        // A prompt replaced while the caller waited is a new, young prompt.
         var fixture: Fixture = .{};
         try fixture.init();
         defer fixture.deinit();
         try fixture.output(prompt);
-        fixture.probe.probe.output_during_wait = "\r\n" ++ prompt;
-        try fixture.expectRefused(error.PromptChanged);
+        fixture.after(40 * ms);
+        try fixture.expectRefused(error.PromptSettling);
+        fixture.after(60 * ms);
+        try fixture.output("\r\n" ++ prompt);
+        try fixture.expectRefused(error.PromptSettling);
     }
     {
-        // Type-ahead echoed during the wait moves the cursor off the anchor.
+        // Type-ahead echoed while the caller waited moves the cursor off the anchor.
         var fixture: Fixture = .{};
         try fixture.init();
         defer fixture.deinit();
         try fixture.output(prompt);
-        fixture.probe.probe.output_during_wait = "dir";
+        try fixture.expectRefused(error.PromptSettling);
+        try fixture.output("dir");
+        fixture.after(100 * ms);
         try fixture.expectRefused(error.PromptChanged);
+    }
+    {
+        // Settling is the last rule: a young prompt that fails another rule names that rule.
+        var fixture: Fixture = .{};
+        try fixture.init();
+        defer fixture.deinit();
+        try fixture.output(prompt);
+        fixture.probe.probe.observation = .active;
+        try fixture.expectRefused(error.PromptBusy);
+        fixture.probe.probe.observation = .inactive;
+        try fixture.publishTyped("a");
+        try fixture.expectRefused(error.PromptInputPending);
     }
 }
 

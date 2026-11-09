@@ -4,9 +4,10 @@
 //! queue slot and again when it publishes.
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
+const protocol = @import("terminal-protocol");
 
 /// A prompt's input start must be at least this old before gated input writes.
-pub const quiet_nanoseconds: u64 = 100 * std.time.ns_per_ms;
+pub const quiet_nanoseconds: u64 = protocol.Limits.prompt_line_quiet_milliseconds * std.time.ns_per_ms;
 
 /// Each refusal names the first rule the terminal fails, in rule order.
 pub const Refusal = error{
@@ -17,6 +18,9 @@ pub const Refusal = error{
     PromptNotAtPrompt,
     PromptInputPending,
     PromptChanged,
+    /// Every other rule holds, but the input start is younger than the quiet
+    /// period. Only this refusal is worth retrying once the period has passed.
+    PromptSettling,
 };
 
 /// A, N, or P with no kind or the initial kind is primary; P may also name a

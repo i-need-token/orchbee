@@ -2,10 +2,8 @@
 //! confirm that its root shell waits at a fresh, empty prompt. Otherwise no
 //! queue slot is reserved and no byte is written.
 const std = @import("std");
-const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const terminal_input = @import("terminal-input");
-const monotonic = @import("terminal-host-platform").monotonic;
 const terminal_input_encoding = @import("../input_encoding.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
@@ -39,9 +37,10 @@ pub fn observeLocked(
     }
 }
 
-/// Checks the launch, process, screen, mark, input and anchor rules, waits
-/// once for a prompt younger than the quiet period, and reserves the encoded
-/// line. Publication repeats every rule except the process sample.
+/// Checks the launch, process, screen, mark, input and anchor rules, then the
+/// quiet period, and reserves the encoded line. It never waits: the Host
+/// applies requests one at a time, so a young prompt is refused as settling and
+/// the caller retries. Publication repeats every rule except the process sample.
 pub fn prepare(
     self: *state.State,
     input: terminal_input.PromptLineInput,
@@ -49,29 +48,6 @@ pub fn prepare(
 ) !prepared_input.Internal {
     if (input.content.len == 0) return error.EmptyInput;
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
-    var waited = false;
-    while (true) {
-        switch (try attempt(self, input, maximum_bytes)) {
-            .prepared => |prepared| return prepared,
-            .quiet_remaining => |remaining| {
-                if (waited) return error.PromptChanged;
-                waited = true;
-                sleep(self, remaining);
-            },
-        }
-    }
-}
-
-const Attempt = union(enum) {
-    prepared: prepared_input.Internal,
-    quiet_remaining: u64,
-};
-
-fn attempt(
-    self: *state.State,
-    input: terminal_input.PromptLineInput,
-    maximum_bytes: usize,
-) !Attempt {
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
@@ -81,14 +57,11 @@ fn attempt(
     const ready = try self.prompt_gate.check(&self.terminal, inputFacts(self), 0);
     const marked_at = ready.marked_at_nanoseconds orelse return error.PromptChanged;
     const now = clock.monotonicTimeNanoseconds(self) orelse return error.PromptChanged;
-    const age = now -| marked_at;
-    if (age < prompt_gate.quiet_nanoseconds) {
-        return .{ .quiet_remaining = prompt_gate.quiet_nanoseconds - age };
-    }
+    if (now -| marked_at < prompt_gate.quiet_nanoseconds) return error.PromptSettling;
     const encoded = try encodeLocked(self, input, maximum_bytes);
     var prepared = try input_admission_ops.prepareOwnedInputLocked(self, encoded, maximum_bytes);
     prepared.prompt_gate_serial = ready.serial;
-    return .{ .prepared = prepared };
+    return prepared;
 }
 
 /// The paste follows the terminal's bracketed-paste mode; each key is a press
@@ -139,13 +112,4 @@ fn inputFacts(self: *state.State) prompt_gate.InputFacts {
         .pending_entries = self.input_queue.charge(.client).entries,
         .sequence = self.typed_input_sequence,
     };
-}
-
-fn sleep(self: *state.State, nanoseconds: u64) void {
-    if (comptime target_builtin.is_test) {
-        if (self.testing_hooks.sleep_nanoseconds) |wait| {
-            return wait(self.testing_hooks.context.?, nanoseconds);
-        }
-    }
-    monotonic.sleep(nanoseconds);
 }

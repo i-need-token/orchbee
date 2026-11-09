@@ -19,6 +19,7 @@ const step_timeout_ns = 30 * std.time.ns_per_s;
 /// How long a visible prompt may wait for its marks before the host counts as unmarked.
 const mark_grace_ns = 3 * std.time.ns_per_s;
 const run_marker = "<#orchbee-run:0123456789abcdef0123456789abcdef#> ";
+const quiet_ns = harness.protocol.Limits.prompt_line_quiet_milliseconds * std.time.ns_per_ms;
 
 const Host = enum { system, bundled };
 /// A recognizable prompt; the Host wraps it in its marks like any user PROMPT.
@@ -165,8 +166,17 @@ const Session = struct {
         self.runtime.destroy();
     }
 
-    /// Submits one gated line.
+    /// Submits one gated line as its caller does: a prompt still settling is
+    /// waited out once, off the Host, and the line is submitted again.
     fn submit(self: *Session, content: []const u8) !void {
+        self.submitOnce(content) catch |err| {
+            if (err != error.PromptSettling) return err;
+            platform.monotonic.sleep(quiet_ns);
+            return self.submitOnce(content);
+        };
+    }
+
+    fn submitOnce(self: *Session, content: []const u8) !void {
         var prepared = try self.runtime.preparePromptLineInput(.{ .content = content, .right_arrow = false }, std.math.maxInt(usize));
         defer prepared.deinit();
         _ = try prepared.commit();
@@ -197,6 +207,7 @@ const Session = struct {
             error.PromptInputPending,
             error.PromptChanged,
             => {},
+            // Settling twice, or any other failure, is not a refusal by the gate's rules.
             else => return err,
         }
     }

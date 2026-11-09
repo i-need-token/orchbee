@@ -1,6 +1,7 @@
 //! Defines the hard size, count, and geometry ceilings used by Terminal Host payload
-//! validators and carrier readers. These protocol bounds do not choose negotiated connection
-//! limits, queue capacity, or runtime scheduling policy.
+//! validators and carrier readers, plus the one prompt-age floor of prompt-gated input. These
+//! protocol bounds do not choose negotiated connection limits, queue capacity, or runtime
+//! scheduling policy.
 
 pub const TRANSPORT_ENVELOPE_HEADER_BYTES: usize = 64;
 pub const MAXIMUM_CONTROL_JSON_BYTES: usize = 64 * 1024;
@@ -12,6 +13,9 @@ pub const MAXIMUM_TERMINAL_METADATA_TEXT_BYTES: usize = MAXIMUM_CONTROL_JSON_BYT
 pub const MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES: usize = 32 + MAXIMUM_INPUT_BYTES;
 pub const MAXIMUM_PASTE_AUTO_INPUT_BYTES: usize = 256 * 1024;
 pub const MAXIMUM_PASTE_AUTO_INPUT_PAYLOAD_BYTES: usize = 32 + MAXIMUM_PASTE_AUTO_INPUT_BYTES;
+/// A `PromptLineInput` needs its prompt's input start this old. The Host refuses a younger one as
+/// retryable `settling` instead of waiting, so the sender waits this long and retries once.
+pub const PROMPT_LINE_QUIET_MILLISECONDS: u64 = 100;
 pub const MAXIMUM_RAW_PAYLOAD_BYTES: usize = MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES;
 pub const MAXIMUM_TERMINAL_FRAME_BYTES: usize = 36 * 1024 * 1024;
 pub const MAXIMUM_ROW_WINDOW_BYTES: usize = 44 * 1024 * 1024;

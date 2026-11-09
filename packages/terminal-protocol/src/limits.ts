@@ -22,6 +22,8 @@ export const PROTOCOL_LIMITS = {
 	maxOptionalFeatureNameBytes: 64,
 	maxOptionalFeatures: 64,
 	maxPendingInputBytes: 4 * 1024 * 1024,
+	// A PromptLineInput needs its prompt this old; a younger one is refused as retryable `settling`.
+	promptLineQuietMilliseconds: 100,
 	maxPtyReadBatchBytes: 256 * 1024,
 	maxRowWindowBytes: 44 * 1024 * 1024,
 	maxRowWindowRows: 4096,

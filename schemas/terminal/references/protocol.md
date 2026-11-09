@@ -387,20 +387,23 @@ The Host admits the line only when all of these hold:
 6. No client input other than a focus report was published after the input start, no client
    queue entry was pending at the input start, and none is pending now. Host terminal replies do
    not count.
-7. The input start is at least 100 ms old. The Host waits once for a younger prompt, then judges
-   again.
+7. The input start is at least the quiet period old: `prompt_line_quiet_milliseconds` in the
+   constant registry's `protocol_limits`, 100 ms. The Host never waits for a younger prompt; it
+   applies requests one at a time, so a wait would stall every terminal it serves.
 
 Publication repeats every rule except the process sample and also requires that no prompt mark
 arrived after preparation. Marks printed by any program other than a root shell the Host started
 fail rules 1 or 2.
 
-A refusal types nothing and reserves no queue position. It is a non-retryable `TypedFailure` whose
-code is `prompt-unconfirmed` and which adds one member, `reason`, after `retryable`. Reasons in
-check order are `not-shell` (rule 1), `busy` (rule 2), `full-screen` (rule 3), `unmarked` (no
-primary prompt has started since launch), `not-at-prompt` (rule 4), `input-pending`
-(rule 6), and `changed` (rule 5, a mark after preparation, or a prompt still younger than 100 ms
-after the wait). A root that has exited fails `invalid-phase` like other input. No other typed
-failure carries `reason`.
+A refusal types nothing and reserves no queue position. It is a `TypedFailure` whose code is
+`prompt-unconfirmed` and which adds one member, `reason`, after `retryable`. Reasons in check order
+are `not-shell` (rule 1), `busy` (rule 2), `full-screen` (rule 3), `unmarked` (no primary prompt
+has started since launch), `not-at-prompt` (rule 4), `input-pending` (rule 6), `changed` (rule 5,
+a mark after preparation, or a prompt without a mark time), and `settling` (rule 7, reported only
+when every other rule holds). Only `settling` is retryable: its sender waits out the quiet period
+and sends the line once more, and a second `settling` is a refusal like the others. Every other
+reason is non-retryable. A root that has exited fails `invalid-phase` like other input. No other
+typed failure carries `reason`.
 
 ## Message registry
 

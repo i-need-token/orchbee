@@ -727,6 +727,7 @@
 		"optional_feature_name_bytes": 64,
 		"optional_features": 64,
 		"pending_input_bytes": 4194304,
+		"prompt_line_quiet_milliseconds": 100,
 		"pty_read_batch_bytes": 262144,
 		"row_window_bytes": 46137344,
 		"row_window_rows": 4096,

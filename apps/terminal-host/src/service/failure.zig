@@ -28,13 +28,14 @@ pub const InputFailure = struct {
     reason: ?[]const u8 = null,
 };
 
-/// Nothing was typed; the caller decides whether to ask again.
-fn promptUnconfirmed(reason: []const u8) InputFailure {
+/// Nothing was typed. Only a prompt still settling is worth retrying, once
+/// the quiet period has passed; every other reason needs the user.
+fn promptUnconfirmed(reason: []const u8, retryable: bool) InputFailure {
     return .{
         .code = "prompt-unconfirmed",
         .message = "the shell is not confirmed at a fresh, empty prompt; nothing was typed",
         .reason = reason,
-        .retryable = false,
+        .retryable = retryable,
     };
 }
 
@@ -60,13 +61,14 @@ pub fn fromInput(rejection: host_input_admission.Rejection) InputFailure {
         .input_limit_exceeded => .{ .code = "limit-exceeded", .retryable = false },
         .invalid_input => .{ .code = "invalid-field", .retryable = false },
         .input_mode_changed => .{ .code = "input-mode-changed", .retryable = false },
-        .prompt_not_shell => promptUnconfirmed("not-shell"),
-        .prompt_busy => promptUnconfirmed("busy"),
-        .prompt_full_screen => promptUnconfirmed("full-screen"),
-        .prompt_unmarked => promptUnconfirmed("unmarked"),
-        .prompt_not_at_prompt => promptUnconfirmed("not-at-prompt"),
-        .prompt_input_pending => promptUnconfirmed("input-pending"),
-        .prompt_changed => promptUnconfirmed("changed"),
+        .prompt_not_shell => promptUnconfirmed("not-shell", false),
+        .prompt_busy => promptUnconfirmed("busy", false),
+        .prompt_full_screen => promptUnconfirmed("full-screen", false),
+        .prompt_unmarked => promptUnconfirmed("unmarked", false),
+        .prompt_not_at_prompt => promptUnconfirmed("not-at-prompt", false),
+        .prompt_input_pending => promptUnconfirmed("input-pending", false),
+        .prompt_changed => promptUnconfirmed("changed", false),
+        .prompt_settling => promptUnconfirmed("settling", true),
     };
 }
 

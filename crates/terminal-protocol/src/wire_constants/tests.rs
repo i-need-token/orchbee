@@ -6,8 +6,8 @@ use crate::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, GRAPHICS_DECODE_RESULT_HEADER_BYTES,
     HostEpoch, MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_GRAPHICS_RGBA_BYTES, MAXIMUM_RAW_PAYLOAD_BYTES,
     MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES, MAXIMUM_TRANSPORT_RECORD_BYTES,
-    MESSAGE_CONTRACTS, MessageRole, PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES,
-    encode_transport_envelope, message_contract,
+    MESSAGE_CONTRACTS, MessageRole, PROMPT_LINE_QUIET_MILLISECONDS, PayloadEncoding,
+    TRANSPORT_ENVELOPE_HEADER_BYTES, encode_transport_envelope, message_contract,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -74,6 +74,8 @@ struct FixtureProtocolLimits {
     raw_payload_bytes: usize,
     row_window_bytes: usize,
     transport_record_bytes: usize,
+
+    prompt_line_quiet_milliseconds: u64,
 }
 
 fn message_contracts_match_registry() -> Result<(), Box<dyn Error>> {
@@ -170,6 +172,10 @@ fn envelope_limits_match_registry() -> Result<(), Box<dyn Error>> {
     assert_eq!(
         MAXIMUM_TRANSPORT_RECORD_BYTES,
         TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_ROW_WINDOW_BYTES
+    );
+    assert_eq!(
+        PROMPT_LINE_QUIET_MILLISECONDS,
+        limits.prompt_line_quiet_milliseconds
     );
     Ok(())
 }

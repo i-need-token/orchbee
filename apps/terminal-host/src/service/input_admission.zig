@@ -27,6 +27,7 @@ pub const Rejection = enum {
     prompt_not_at_prompt,
     prompt_input_pending,
     prompt_changed,
+    prompt_settling,
     resource_exhausted,
     sequence_exhausted,
     terminal_exited,
@@ -50,6 +51,7 @@ pub fn fromRuntimeError(err: anyerror) Rejection {
         error.PromptNotAtPrompt => .prompt_not_at_prompt,
         error.PromptInputPending => .prompt_input_pending,
         error.PromptChanged => .prompt_changed,
+        error.PromptSettling => .prompt_settling,
         else => .encoding_failed,
     };
 }

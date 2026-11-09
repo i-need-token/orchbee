@@ -539,6 +539,7 @@ const ProtocolLimitsFixture = struct {
     paste_auto_input_bytes: u64,
     paste_auto_input_payload_bytes: u64,
     pending_input_bytes: u64,
+    prompt_line_quiet_milliseconds: u64,
     pty_read_batch_bytes: u64,
     raw_payload_bytes: u64,
     row_window_bytes: u64,

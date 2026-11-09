@@ -82,6 +82,9 @@ pub const Limits = struct {
     pub const optional_features = 64;
     pub const paste_auto_input_bytes: usize = 256 * 1024;
     pub const pending_input_bytes: usize = 4 * 1024 * 1024;
+    /// A prompt's input start must be this old before a prompt line may be
+    /// typed; a younger one is refused as retryable `settling`.
+    pub const prompt_line_quiet_milliseconds: usize = 100;
     pub const pty_read_batch_bytes: usize = 256 * 1024;
     pub const row_window_bytes: usize = 44 * 1024 * 1024;
     pub const row_window_rows = 4096;
