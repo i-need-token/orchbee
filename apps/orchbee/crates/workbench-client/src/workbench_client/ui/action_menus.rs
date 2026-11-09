@@ -175,6 +175,7 @@ fn action_availability(
                 | MenuAction::MoveTabLast
                 | MenuAction::SelectAllTabs
                 | MenuAction::ClearTabSelection
+                | MenuAction::CloseTab
                 | MenuAction::CloseTrailingTabs
                 | MenuAction::SplitPanel(_)
                 | MenuAction::Zoom

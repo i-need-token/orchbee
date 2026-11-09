@@ -529,6 +529,7 @@ fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu
         ) => Some(MenuAction::NewWorkspace),
         PrefixAction::Client(ClientAction::MovePreviousTab) => Some(MenuAction::MoveTabPrevious),
         PrefixAction::Client(ClientAction::MoveNextTab) => Some(MenuAction::MoveTabNext),
+        PrefixAction::Client(ClientAction::RequestCloseTab) => Some(MenuAction::CloseTab),
         _ => None,
     };
     if let Some(preferred) = preferred {

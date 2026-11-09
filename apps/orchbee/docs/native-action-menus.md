@@ -339,8 +339,10 @@ owns the entry geometry and direct Tab-strip create gesture.
 
 The global menu groups its existing actions under Tab, Panel, Workspace and Session sections. Tab
 includes new-Tab options, New Tab to right, Duplicate Tab, Rename Tab, moving the current Tab left,
-right, to the start or to the end, Select all Tabs, Keep only current Tab selected and Close Tabs
-to the right…; these act on the current Tab and name the selected set where it applies. Panel
+right, to the start or to the end, Select all Tabs, Keep only current Tab selected, Close Tab… and
+Close Tabs to the right…; these act on the current Tab and name the selected set where it applies.
+Close Tab… is the current-Tab close request that `Ctrl+B x` makes, with that key and its confirmation
+rules: the Server decides whether closing asks first, as it does when terminals still run. Panel
 includes directional split and move, close, zoom, keyboard resize and copy mode. Workspace includes
 creation and Worktree actions; Session includes Detach. A row whose keyboard action has the same
 meaning shows the current binding registry's shortcut and dispatches that same existing

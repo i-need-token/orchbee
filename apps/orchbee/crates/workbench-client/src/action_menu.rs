@@ -149,6 +149,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::MoveTabLast,
     MenuAction::SelectAllTabs,
     MenuAction::ClearTabSelection,
+    MenuAction::CloseTab,
     MenuAction::CloseTrailingTabs,
     MenuAction::LastPanel,
     MenuAction::ClearTerminal,
@@ -210,6 +211,7 @@ pub(crate) fn menu_binding_action(
         }
         (T::Global, M::SplitPanel(direction)) => PrefixAction::Client(A::SplitPanel(direction)),
         (T::Global, M::ClosePane) => PrefixAction::Client(A::ClosePanel),
+        (T::Global, M::CloseTab) => PrefixAction::Client(A::RequestCloseTab),
         (T::Global, M::Zoom) => PrefixAction::Client(A::ToggleZoom),
         (T::Global, M::MovePanel(direction)) => PrefixAction::Client(A::MovePanel(direction)),
         (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
@@ -438,6 +440,7 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::MoveTabLast
         | MenuAction::SelectAllTabs
         | MenuAction::ClearTabSelection
+        | MenuAction::CloseTab
         | MenuAction::CloseTrailingTabs => GlobalMenuGroup::Tab,
         MenuAction::SplitPanel(_)
         | MenuAction::Zoom

@@ -382,6 +382,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             | A::CloseOtherTabs
             | A::CloseTrailingTabs
             | A::CloseGroup
+            | A::CloseTab
             | A::ResumeTabClose
     ) {
         ActionTone::Destructive
@@ -439,9 +440,11 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::EditScrollback => built_in("terminal.scrollback.edit", C::Pane, PANE),
         A::LastPanel => last_panel(),
         A::ResumeTabClose => built_in("orchbee.native.tab-close.resume", C::Tab, CLOSE_TAB),
-        A::CloseSelectedTabs | A::CloseOtherTabs | A::CloseTrailingTabs | A::CloseGroup => {
-            built_in("tabs.tab.close", C::Tab, CLOSE_TAB)
-        }
+        A::CloseSelectedTabs
+        | A::CloseOtherTabs
+        | A::CloseTrailingTabs
+        | A::CloseGroup
+        | A::CloseTab => built_in("tabs.tab.close", C::Tab, CLOSE_TAB),
         A::QuickWorkspace | A::WorkspaceInFolder(_) => built_in(
             "orchbee.native.workspace.quick-create",
             C::Workspace,
