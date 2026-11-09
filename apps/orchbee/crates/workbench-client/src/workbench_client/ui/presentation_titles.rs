@@ -68,9 +68,8 @@ impl Cursor {
         }
     }
 
-    /// Another terminal shows its program until a title arrives for it. Unlike the GUI, which
-    /// keeps the old frame title while no row ever arrived, this Client never carried a title
-    /// across a binding, so it resets either way.
+    /// Another terminal shows its program until a title arrives for it, whether or not a row ever
+    /// arrived; the GUI resets the same way.
     fn follow(&mut self, terminal: Option<&ClientTerminalBinding>) {
         if self.terminal.as_ref() != terminal {
             *self = Self {
