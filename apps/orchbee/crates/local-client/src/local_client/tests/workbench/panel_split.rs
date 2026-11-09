@@ -571,6 +571,7 @@ fn panel_split_command(expected_revision: u64) -> WorkbenchCommand {
             panel_id: WorkbenchPanelId::parse(&id(32)).unwrap(),
             direction: orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Right,
             label: workbench_label(),
+            custom_label: None,
             geometry: terminal_geometry(),
             launch: None,
             profile: None,

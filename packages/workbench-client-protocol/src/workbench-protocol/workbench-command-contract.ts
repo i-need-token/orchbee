@@ -160,6 +160,7 @@ import {
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
 	WorkbenchTabGroupLabelSchema,
+	WorkbenchPanelCustomLabelSchema,
 	WorkbenchPanelLabelUpdateSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchPanelSlotIdSchema,
@@ -518,10 +519,12 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		panelId: WorkbenchPanelIdSchema,
 		direction: WorkbenchPanelSplitDirectionSchema,
 		label: WorkbenchLabelSchema,
+		customLabel: WorkbenchPanelCustomLabelSchema.nullish(),
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
-		.transform(({ rightClick, ...action }) => ({
+		.transform(({ rightClick, customLabel, ...action }) => ({
 			...normalizeWorkbenchTerminalLaunch(action),
+			...(customLabel === undefined || customLabel === null ? {} : { customLabel }),
 			...(rightClick === 'panel' ? { rightClick } : {}),
 		}))
 		.readonly(),

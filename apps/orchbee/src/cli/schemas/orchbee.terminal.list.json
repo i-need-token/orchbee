@@ -121,6 +121,7 @@
 			}
 		},
 		"notSampled": {
+			"description": "Observations are best effort. A row is not sampled beyond the 64-row prefix, when its observation did not finish before the deadline, or when it could not be verified against the snapshot whose rows the result returns.",
 			"type": "object",
 			"required": ["kind"],
 			"additionalProperties": false,

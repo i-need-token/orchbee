@@ -787,6 +787,11 @@ pub enum WorkbenchAction {
         )]
         right_click: crate::PanelRightClickTarget,
         label: WorkbenchLabel,
+        /// The visible Panel name a person chose at creation, stored as
+        /// `panel.rename` stores it; absent leaves the Panel automatically
+        /// named. Serialized only when present.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        custom_label: Option<crate::PanelCustomLabel>,
         geometry: WorkbenchTerminalGeometry,
         /// An explicit launch program; absent runs the resolved default
         /// shell. Serialized only when present — a default launch emits

@@ -63,6 +63,7 @@ impl ClientExecutor {
                         panel_id: operation.panel_id().clone(),
                         direction: *direction,
                         label: label.clone(),
+                        custom_label: None,
                         geometry: *geometry,
                         launch: None,
                         profile: None,

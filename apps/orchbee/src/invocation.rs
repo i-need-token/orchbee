@@ -581,6 +581,9 @@ pub(crate) enum MutationCommand {
         right_click: orchbee_workbench_protocol::PanelRightClickTarget,
         direction: WorkbenchPanelSplitDirection,
         label: WorkbenchLabel,
+        /// The visible name `--label` gives the new Panel, as `panel rename`
+        /// would set it; absent when the label is the automatic default.
+        custom_label: Option<orchbee_workbench_protocol::PanelCustomLabel>,
         geometry: WorkbenchTerminalGeometry,
         launch: Option<LaunchSelection>,
         /// `--profile <selector>`: a catalog launch resolved Server-side;

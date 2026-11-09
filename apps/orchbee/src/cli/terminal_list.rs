@@ -1,4 +1,8 @@
 //! Terminal-list observation on one admitted Session and deadline, for text and JSON alike.
+//!
+//! The identity snapshot answers the listing; observations are best effort. Only cancellation,
+//! a local fault or a failed snapshot read fails the command. Every returned observation was
+//! verified against the snapshot whose rows are returned, and every other row is not sampled.
 use super::{
     Failure, FailureKind, Output,
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
@@ -28,9 +32,28 @@ use std::{
 /// after this prefix are reported as not sampled.
 const MAXIMUM_ENRICHED_TERMINALS: usize = 64;
 
+/// Observation stops this long before the command deadline, leaving time to verify what it read.
+const VERIFICATION_RESERVE: Duration = Duration::from_secs(1);
+
 struct Reports {
     rows: BTreeMap<String, PanelAgentView>,
     revision: WorkbenchRevision,
+}
+
+/// The Agent reports of one sampled prefix, or proof that the Workbench moved under them.
+enum ReportRead {
+    Read(Option<Reports>),
+    Changed,
+}
+
+/// One observation pass over one snapshot.
+enum Attempt {
+    /// Every observation it returns was verified against the snapshot it observed.
+    Verified(Vec<TerminalListDetails>),
+    /// The Workbench or its reports moved; carries the newer snapshot when it could be read.
+    Changed(Option<Snapshot>),
+    /// What it observed could not be verified.
+    Unverified,
 }
 
 fn sampled_rows(rows: &[results::TerminalRow]) -> &[results::TerminalRow] {
@@ -78,60 +101,151 @@ fn execute(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(serde_json::Value, Projection), Failure> {
-    let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
-    signals.check_before(deadline)?;
-    let Projection::TerminalList(results::TerminalListDocument { rows, details }) =
-        results::project(command, &snapshot)
-            .map_err(|failure| failure.source(results::snapshot_source(&snapshot)))?
-    else {
-        return Err(Failure::new(FailureKind::InternalFailure));
-    };
-    let details = observe_rows(&mut client, &snapshot, &rows, details, deadline, signals)?;
-    let refreshed = query::refresh_snapshot(
-        &mut client,
-        &snapshot.session_id,
-        snapshot.revision,
-        deadline,
-        signals,
-    )?;
-    if refreshed.revision != snapshot.revision {
-        return Err(super::query::workbench_failure("workbench-changed"));
+    let (mut client, mut snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
+    check_cancelled(signals)?;
+    let (mut rows, mut details) = list(command, &snapshot)?;
+    // A moved Workbench is observed once more on the newer snapshot, under the same deadline.
+    for retry in [true, false] {
+        match observe(
+            &mut client,
+            &snapshot,
+            &rows,
+            details.clone(),
+            deadline,
+            signals,
+        )? {
+            Attempt::Verified(observed) => return Ok(listing(&snapshot, rows, observed)),
+            Attempt::Changed(Some(newer)) => {
+                // A newer snapshot that no longer answers a filter keeps the last one that did.
+                let Ok((newer_rows, newer_details)) = list(command, &newer) else {
+                    break;
+                };
+                (snapshot, rows, details) = (newer, newer_rows, newer_details);
+                if !retry {
+                    break;
+                }
+            }
+            Attempt::Changed(None) | Attempt::Unverified => break,
+        }
     }
-    signals.check_before(deadline)?;
-    Ok((
-        results::snapshot_source(&snapshot),
-        Projection::TerminalList(results::TerminalListDocument { rows, details }),
-    ))
+    let details = unobserved(rows.len(), details);
+    Ok(listing(&snapshot, rows, details))
 }
 
-fn observe_rows(
+fn list(
+    command: &QueryCommand,
+    snapshot: &Snapshot,
+) -> Result<(Vec<results::TerminalRow>, Vec<TerminalListDetails>), Failure> {
+    match results::project(command, snapshot)
+        .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?
+    {
+        Projection::TerminalList(results::TerminalListDocument { rows, details }) => {
+            Ok((rows, details))
+        }
+        // `terminal list` projects only its own document.
+        _ => Err(Failure::new(FailureKind::InternalFailure)),
+    }
+}
+
+fn listing(
+    snapshot: &Snapshot,
+    rows: Vec<results::TerminalRow>,
+    details: Vec<TerminalListDetails>,
+) -> (serde_json::Value, Projection) {
+    (
+        results::snapshot_source(snapshot),
+        Projection::TerminalList(results::TerminalListDocument { rows, details }),
+    )
+}
+
+/// Every row keeps its snapshot placement and carries no observation.
+fn unobserved(rows: usize, mut details: Vec<TerminalListDetails>) -> Vec<TerminalListDetails> {
+    details.resize_with(rows, TerminalListDetails::default);
+    for row in &mut details {
+        *row = TerminalListDetails {
+            placement: row.placement.take(),
+            observation: TerminalListObservation::NotSampled,
+            ..TerminalListDetails::default()
+        };
+    }
+    details
+}
+
+/// Fails only on cancellation; an expired deadline only ends optional observation.
+fn check_cancelled(signals: &mut ArmedSignals) -> Result<(), Failure> {
+    let requested = SignalWatch::take(signals)
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+        .is_some();
+    if requested {
+        Err(Failure::new(FailureKind::Cancelled))
+    } else {
+        Ok(())
+    }
+}
+
+/// An observation read that fails for any reason but cancellation or a local fault answers
+/// nothing.
+fn best_effort<T>(result: Result<T, Failure>) -> Result<Option<T>, Failure> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(failure)
+            if matches!(
+                failure.kind,
+                FailureKind::Cancelled | FailureKind::InternalFailure
+            ) =>
+        {
+            Err(failure)
+        }
+        Err(_) => Ok(None),
+    }
+}
+
+fn observe(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     rows: &[results::TerminalRow],
-    mut details: Vec<TerminalListDetails>,
+    details: Vec<TerminalListDetails>,
     deadline: Instant,
     signals: &mut ArmedSignals,
-) -> Result<Vec<TerminalListDetails>, Failure> {
+) -> Result<Attempt, Failure> {
+    let mut details = unobserved(rows.len(), details);
     let sampled = sampled_rows(rows);
-    let reports = read_reports(client, snapshot, sampled, deadline, signals)?;
-    details.resize_with(rows.len(), TerminalListDetails::default);
-    for row in &mut details {
-        row.observation = TerminalListObservation::NotSampled;
+    if sampled.is_empty() {
+        return Ok(Attempt::Verified(details));
     }
+    let observe_until = deadline
+        .checked_sub(VERIFICATION_RESERVE)
+        .unwrap_or(deadline);
+    let read = read_reports(client, snapshot, sampled, observe_until, signals);
+    check_cancelled(signals)?;
+    let reports = match best_effort(read)? {
+        Some(ReportRead::Read(reports)) => reports,
+        Some(ReportRead::Changed) => {
+            return Ok(Attempt::Changed(newer_snapshot(
+                client, snapshot, deadline, signals,
+            )?));
+        }
+        // Without its reports a row's Agent facts are unknown, so nothing is observed.
+        None => return Ok(Attempt::Verified(details)),
+    };
 
     for (index, row) in sampled.iter().enumerate() {
-        signals.check_before(deadline)?;
+        check_cancelled(signals)?;
+        if Instant::now() >= observe_until {
+            break;
+        }
         let outcome = query::terminal_metadata::read(
             client,
             snapshot,
             &Target::Id(row.terminal_id.clone()),
-            deadline,
+            observe_until,
             signals.poll_fd(),
         );
-        // Local I/O can surface cancellation or expiry as a transport error;
-        // preserve the command's own total-deadline decision on that path.
-        signals.check_before(deadline)?;
-        let observation = observation_for(outcome)?;
+        // Local I/O can surface cancellation as a transport error.
+        check_cancelled(signals)?;
+        let Some(observation) = best_effort(observation_for(outcome))? else {
+            continue;
+        };
         let fields = observation.fields();
         let report = reports
             .as_ref()
@@ -154,10 +268,51 @@ fn observe_rows(
             .or_else(|| process_agent(&observation));
         details_row.state = terminal_list_state(report, details_row.agent.is_some(), observed);
     }
+
     if let Some(reports) = &reports {
-        verify_reports(client, snapshot, reports, deadline, signals)?;
+        let verified = verify_reports(client, snapshot, reports, deadline, signals);
+        check_cancelled(signals)?;
+        match best_effort(verified)? {
+            Some(true) => {}
+            Some(false) => {
+                return Ok(Attempt::Changed(newer_snapshot(
+                    client, snapshot, deadline, signals,
+                )?));
+            }
+            None => return Ok(Attempt::Unverified),
+        }
     }
-    Ok(details)
+    let refreshed = query::refresh_snapshot(
+        client,
+        &snapshot.session_id,
+        snapshot.revision,
+        deadline,
+        signals,
+    );
+    check_cancelled(signals)?;
+    Ok(match best_effort(refreshed)? {
+        Some(refreshed) if refreshed.revision == snapshot.revision => Attempt::Verified(details),
+        Some(refreshed) => Attempt::Changed(Some(refreshed)),
+        None => Attempt::Unverified,
+    })
+}
+
+/// The Session's current snapshot after `snapshot`, when it can still be read.
+fn newer_snapshot(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Option<Snapshot>, Failure> {
+    let refreshed = query::refresh_snapshot(
+        client,
+        &snapshot.session_id,
+        snapshot.revision,
+        deadline,
+        signals,
+    );
+    check_cancelled(signals)?;
+    best_effort(refreshed)
 }
 
 fn process_agent(observation: &super::terminal_observation::Observation) -> Option<String> {
@@ -194,10 +349,7 @@ fn read_reports(
     rows: &[results::TerminalRow],
     deadline: Instant,
     signals: &mut ArmedSignals,
-) -> Result<Option<Reports>, Failure> {
-    if rows.is_empty() {
-        return Ok(None);
-    }
+) -> Result<ReportRead, Failure> {
     let mut reports = BTreeMap::new();
     let mut report_revision = None;
     for chunk in rows.chunks(MAXIMUM_PANEL_AGENT_READ_ROWS) {
@@ -224,7 +376,7 @@ fn read_reports(
             PanelAgentOutcome::Failed {
                 reason: PanelAgentFailure::Unavailable,
             } if optional_report_unavailable(PanelAgentFailure::Unavailable) => {
-                return Ok(None);
+                return Ok(ReportRead::Read(None));
             }
             PanelAgentOutcome::Failed { reason } => {
                 return Err(panel_agent_failure(reason));
@@ -234,11 +386,11 @@ fn read_reports(
                 report_revision: current_report_revision,
                 presentations,
             } => {
-                if workbench_revision != snapshot.revision || presentations.len() != chunk.len() {
-                    return Err(super::query::workbench_failure("workbench-changed"));
-                }
-                if report_revision.is_some_and(|revision| revision != current_report_revision) {
-                    return Err(super::query::workbench_failure("metadata-changed"));
+                if workbench_revision != snapshot.revision
+                    || presentations.len() != chunk.len()
+                    || report_revision.is_some_and(|revision| revision != current_report_revision)
+                {
+                    return Ok(ReportRead::Changed);
                 }
                 report_revision = Some(current_report_revision);
                 let expected: BTreeMap<_, _> = chunk
@@ -275,19 +427,20 @@ fn read_reports(
             _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
         }
     }
-    Ok(Some(Reports {
+    Ok(ReportRead::Read(Some(Reports {
         rows: reports,
         revision: report_revision.ok_or_else(|| Failure::new(FailureKind::InternalFailure))?,
-    }))
+    })))
 }
 
+/// Whether the Workbench and its reports still stand where `reports` read them.
 fn verify_reports(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     reports: &Reports,
     deadline: Instant,
     signals: &mut ArmedSignals,
-) -> Result<(), Failure> {
+) -> Result<bool, Failure> {
     signals.check_before(deadline)?;
     let request = PanelAgentRequest {
         protocol_version: snapshot.protocol_version,
@@ -309,14 +462,15 @@ fn verify_reports(
             && report_revision == reports.revision
             && presentations.is_empty() =>
         {
-            Ok(())
+            Ok(true)
         }
+        PanelAgentOutcome::PresentationsRead { .. } => Ok(false),
         PanelAgentOutcome::Failed {
             reason: PanelAgentFailure::Unavailable,
         } => Err(Failure::new(FailureKind::ServiceUnavailable)),
         PanelAgentOutcome::Failed { reason } => Err(panel_agent_failure(reason)),
         // This query consumes only its requested metadata/report payload; other receipt classes cannot answer that query.
-        _ => Err(super::query::workbench_failure("metadata-changed")),
+        _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
     }
 }
 

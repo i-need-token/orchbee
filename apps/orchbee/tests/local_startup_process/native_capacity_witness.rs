@@ -1362,6 +1362,7 @@ fn provision(
                     panel_id: target.clone(),
                     direction,
                     label: WorkbenchLabel::parse(label).map_err(|error| error.to_string())?,
+                    custom_label: None,
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)
                         .map_err(|error| error.to_string())?,
                     launch: None,
@@ -1441,6 +1442,7 @@ fn provision(
                     panel_id: panel_d1.clone(),
                     direction: WorkbenchPanelSplitDirection::Below,
                     label: WorkbenchLabel::parse("D2").map_err(|error| error.to_string())?,
+                    custom_label: None,
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)
                         .map_err(|error| error.to_string())?,
                     launch: None,

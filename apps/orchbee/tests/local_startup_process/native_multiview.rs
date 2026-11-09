@@ -59,6 +59,7 @@ fn split_panel(
             panel_id: panel.clone(),
             direction,
             label: WorkbenchLabel::parse(label)?,
+            custom_label: None,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,

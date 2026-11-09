@@ -8,6 +8,12 @@ it. The two flags are exclusive and one is required. Targets keep the existing P
 `@panel:0x<hex>` grammar; labels, implicit selection and current-Panel routing are not targets
 of this operation. Windows is the runtime acceptance platform.
 
+`panel split --label <label>` names the new Panel the same way inside its creation commit. The
+`panel.split` action carries an optional nullable `customLabel` with the override grammar below;
+the Server stores it on the new primary Presentation, and omission or `null` leaves no override.
+The CLI sends the explicit label as both the creation label and the trimmed override, so the
+result equals a split followed by a rename. TUI and GUI splits and configured commands omit it.
+
 The native Panel context menu and the global action menu offer Rename Panel without a new
 default key. The context row uses Rename because its frame already names the Panel. Both open
 the existing identity-bound name editor, prefilled with the primary Presentation's override.

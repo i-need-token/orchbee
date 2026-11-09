@@ -149,6 +149,7 @@ impl Fixture {
                 panel_id: source.panel_id().clone(),
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: WorkbenchLabel::parse("second").unwrap(),
+                custom_label: None,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
                 profile: None,

@@ -17,6 +17,7 @@ fn request() -> WorkbenchCommand {
             panel_id: WorkbenchPanelId::parse(&id(5)).unwrap(),
             direction: orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Right,
             label: orchbee_workbench_protocol::WorkbenchLabel::parse("new").unwrap(),
+            custom_label: None,
             geometry: WorkbenchTerminalGeometry::new(120, 40, 10, 20).unwrap(),
             launch: None,
             profile: None,

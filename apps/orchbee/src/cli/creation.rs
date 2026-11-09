@@ -130,6 +130,12 @@ fn canonical(
             target: target.expect("creation preflight resolves a Panel"),
             direction: *direction,
             label,
+            // A chosen label names the Panel the way `panel rename` does.
+            custom_label: command.label.as_ref().and_then(|label| {
+                orchbee_workbench_protocol::PanelLabelUpdate::parse(Some(label.as_str()))
+                    .ok()
+                    .and_then(|update| update.custom_label().cloned())
+            }),
             geometry: command.geometry,
             launch: command.launch.clone(),
             profile: command.profile.clone(),

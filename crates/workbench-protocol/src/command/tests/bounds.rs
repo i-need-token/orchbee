@@ -164,7 +164,7 @@ fn maximum_command(action: WorkbenchAction) -> WorkbenchRequest {
 
 #[test]
 fn maximum_legal_launch_commands_fit_the_intent_bound() {
-    // Worst legal encoding: a 512-character label of control characters
+    // Worst legal encoding: 512-character labels of control characters
     // (six wire bytes each) plus a full 30-KiB escaped-content launch selection of
     // escapes. Both actions must serialize inside the shared intent bound
     // — a legal typed command may never fail the envelope limit.
@@ -214,6 +214,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             panel_id: WorkbenchPanelId::parse("ffffffffffffffffffffffffffffffff").unwrap(),
             direction: WorkbenchPanelSplitDirection::Below,
             label: label.clone(),
+            custom_label: Some(crate::PanelCustomLabel::parse(label.as_str()).unwrap()),
             geometry,
             launch: Some(maximum_escape_launch()),
             profile: None,

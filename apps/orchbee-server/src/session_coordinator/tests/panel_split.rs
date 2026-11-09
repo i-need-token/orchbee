@@ -38,6 +38,7 @@ pub(super) fn split_command(
             panel_id,
             direction,
             label: WorkbenchLabel::parse("split").unwrap(),
+            custom_label: None,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,

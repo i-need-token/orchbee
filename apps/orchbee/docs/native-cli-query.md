@@ -905,7 +905,7 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   performs no directory-membership precheck — membership is the running Session's authority, and
   a well-formed but absent directory answers `not-found` with `{resource:"directory"}` under
   the worktree failure envelope.
-- `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
+- `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. An explicit `panel split` label also becomes the new Panel's custom label in the same creation commit, trimmed as `panel rename` trims it, so it is the visible name; omission keeps automatic naming. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
 - `--path <path>`: single-use value flag. On `workspace accept-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
   Windows Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
@@ -1879,7 +1879,9 @@ tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process
   `observation` is what this command observed of the row, tagged by `kind`: `observed`
   `{title,cwd,agent,state}` after a Host frame read; `frame-unavailable` `{agent,state}` when the
   row was sampled but its Host frame could not be read, so title and directory are unknown;
-  `not-sampled` beyond the 64-row sampled prefix; and the shared `{kind:"unsupported"}` on
+  `not-sampled` beyond the 64-row sampled prefix, when its observation did not finish before the
+  deadline, or when it could not be verified against the returned snapshot; and the shared
+  `{kind:"unsupported"}` on
   platforms without terminal observation. `title` is the raw Host frame title, unnamed and
   lossless; `cwd`, `agent` and `state` are the facts behind the `CWD`, `AGENT` and `STATE` cells,
   with `null` where those sources name none. `state` is a presentation report state (`idle`,
@@ -1892,7 +1894,13 @@ tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process
   `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
   changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The enrichment, for text and JSON alike, shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
-  reads; later rows retain `-` for enrichment. `TITLE` names the Host frame title by the TUI Tab
+  reads; later rows retain `-` for enrichment. Observations are best effort: once the snapshot
+  read succeeds, the listing succeeds with every row of the snapshot it returns. Observation stops
+  one second before the deadline, leaving that second to verify the reports and the Workbench
+  revision. If either moved, the command reads the newer snapshot and observes it once more; if
+  that still cannot be verified, it returns the newest snapshot's rows with every observation
+  `not-sampled`. A returned observation is always verified against the snapshot named in
+  `source`. `TITLE` names the Host frame title by the TUI Tab
   rule: an absolute drive or UNC path to an `.exe`, `.com`, `.cmd` or `.bat` program shows the
   program in the display language (for example `PowerShell` or `Command Prompt`), keeping cmd's
   ` - <command>` suffix, and any other title shows its stripped text. The
@@ -1904,8 +1912,8 @@ tabId,terminalContextId},observation}]}`; the rows carry no lifecycle or process
   then bounded foreground-process detection; `STATE` preserves a known presentation report state.
   An identified Agent with no known report state displays `unknown`. Otherwise, when a Host frame
   was observed, it displays `observed`, which does not mean the Shell is ready to accept input; with
-  neither fact it displays `-`. Missing optional observations render as `-`; denial, transport,
-  timeout, cancellation, and protocol failures remain query failures. Each attached viewer gets a
+  neither fact it displays `-`. Missing or unverified observations render as `-`. Only a failed
+  snapshot read, a filter member that does not resolve, and cancellation fail the listing. Each attached viewer gets a
   best-effort detach attempt on both successful and failed
   observation paths. Text preserves printable path characters and escapes terminal controls.
   `terminal get` returns the same identity facts under

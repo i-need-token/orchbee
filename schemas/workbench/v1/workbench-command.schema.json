@@ -363,6 +363,16 @@
 						"label": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						},
+						"customLabel": {
+							"anyOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelCustomLabel"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
 						"geometry": {
 							"$ref": "#/$defs/terminalGeometry"
 						},

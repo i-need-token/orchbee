@@ -341,6 +341,7 @@ impl LocalTerminalService {
                         )
                         .or_else(|_| WorkbenchLabel::parse("Command"))
                         .map_err(|_| Failure::InvalidIntent)?,
+                        custom_label: None,
                         geometry,
                         launch: Some(launch(&prepared.command.command, &prepared.environment)?),
                         profile: None,

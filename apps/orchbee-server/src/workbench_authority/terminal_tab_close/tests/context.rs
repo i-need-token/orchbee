@@ -597,6 +597,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
             panel_id: member.panel_id().clone(),
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("fenced split").unwrap(),
+            custom_label: None,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,

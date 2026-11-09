@@ -17,13 +17,13 @@ pub(super) const HELP_TERMINAL_OBSERVE_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_TERMINAL_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
-        "List every terminal bound by a Presentation, optionally only those inside\none Workspace, Tab or Panel (exact ID, selector, or label where the resource\nhas one). Unbound terminals are not visible; a binding is structural\nevidence, not proof a process is alive. Text shows each terminal's\nWorkspace and Panel handles and its full working directory. On Windows,\ntext and JSON also carry the title, Agent and state of the first 64.",
+        "List every terminal bound by a Presentation, optionally only those inside\none Workspace, Tab or Panel (exact ID, selector, or label where the resource\nhas one). Unbound terminals are not visible; a binding is structural\nevidence, not proof a process is alive. Text shows each terminal's\nWorkspace and Panel handles and its full working directory. On Windows,\ntext and JSON also carry the title, Agent and state of the first 64 when\nthey can be observed and verified in time; the listing never fails for them.",
     );
 
 pub(super) const HELP_TERMINAL_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
-        "列出所有被 Presentation 绑定的终端，或仅列出某个工作区、标签页或面板内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。文本显示每个终端所在的工作区与面板句柄及完整工作目录。Windows 上文本与 JSON 还包含前 64 个终端的标题、智能体与状态。",
+        "列出所有被 Presentation 绑定的终端，或仅列出某个工作区、标签页或面板内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。文本显示每个终端所在的工作区与面板句柄及完整工作目录。Windows 上文本与 JSON 还会在能及时观察并核实时包含前 64 个终端的标题、智能体与状态；列表不会因这些信息失败。",
     );
 
 pub(super) const HELP_TERMINAL_GET_EN: crate::cli_text::HelpDetails =

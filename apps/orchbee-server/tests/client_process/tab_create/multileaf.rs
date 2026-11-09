@@ -108,6 +108,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             panel_id: first_tuple.panel_id.clone(),
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("split peer")?,
+            custom_label: None,
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,

@@ -938,6 +938,7 @@ struct PanelSplitReplacement<'a> {
     second_slot_id: &'a WorkbenchPanelSlotId,
     presentation_id: &'a orchbee_workbench_protocol::TerminalPresentationId,
     label: &'a str,
+    custom_label: Option<&'a orchbee_workbench_protocol::PanelCustomLabel>,
     right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     binding: PresentationBinding,
     launch_program: Option<PresentationLaunchProgram>,
@@ -952,7 +953,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
                 child_presentations: Vec::new(),
                 panel_id: replacement.new_panel_id.clone(),
                 primary_presentation: Presentation {
-                    custom_label: None,
+                    custom_label: replacement.custom_label.cloned(),
                     binding: Some(replacement.binding.clone()),
                     label: replacement.label.to_owned(),
                     presentation_id: replacement.presentation_id.clone(),

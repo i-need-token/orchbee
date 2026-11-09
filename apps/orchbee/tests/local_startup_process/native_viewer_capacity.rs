@@ -118,6 +118,7 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
                 panel_id,
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: WorkbenchLabel::parse(label)?,
+                custom_label: None,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
                 launch: None,
                 profile: None,

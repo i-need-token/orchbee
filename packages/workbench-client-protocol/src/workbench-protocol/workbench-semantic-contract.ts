@@ -72,7 +72,7 @@ export const WorkbenchLabelSchema = WorkbenchTabGroupLabelSchema.refine(
 	'Label must not be empty or whitespace-only',
 );
 
-const WorkbenchPanelCustomLabelSchema = WorkbenchLabelSchema.refine(
+export const WorkbenchPanelCustomLabelSchema = WorkbenchLabelSchema.refine(
 	(value) => !/^\p{White_Space}|\p{White_Space}$/u.test(value),
 	'Panel custom label must already be trimmed',
 );
