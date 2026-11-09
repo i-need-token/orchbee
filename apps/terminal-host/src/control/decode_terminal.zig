@@ -333,6 +333,29 @@ pub fn decodeDetachTerminal(
     };
 }
 
+pub const ReadProcessInfo = struct {
+    attachment_id: identifiers.AttachmentId,
+    include_launch_kind: bool,
+};
+
+pub fn decodeReadProcessInfo(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) decode_common.Error!decode_common.Decoded(control_wire.ReadProcessInfo, ReadProcessInfo) {
+    const parsed = try control_wire.decode(control_wire.ReadProcessInfo, allocator, payload);
+    errdefer parsed.deinit();
+    return .{
+        .parsed = parsed,
+        .value = .{
+            .attachment_id = try identifiers.parseLowerHex(
+                identifiers.AttachmentId,
+                parsed.value.attachmentId,
+            ),
+            .include_launch_kind = parsed.value.includeLaunchKind,
+        },
+    };
+}
+
 pub fn decodeUpdateAttachmentInputCapability(
     allocator: std.mem.Allocator,
     payload: []const u8,

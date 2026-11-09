@@ -141,11 +141,20 @@ pub const TextInput = struct {
     text: []const u8,
 };
 
+/// One shell command line that the Host types only at a confirmed fresh, empty
+/// prompt: the content as a paste, an optional Right press, then Enter.
+pub const PromptLineInput = struct {
+    /// UTF-8 text without control characters; Enter is the only submission.
+    content: []const u8,
+    right_arrow: bool,
+};
+
 pub const SemanticInput = union(enum) {
     focus: FocusInput,
     key: KeyInput,
     mouse: MouseInput,
     paste: PasteInput,
     paste_auto: PasteAutoInput,
+    prompt_line: PromptLineInput,
     text: TextInput,
 };

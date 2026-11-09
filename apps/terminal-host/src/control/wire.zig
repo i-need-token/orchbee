@@ -281,6 +281,11 @@ pub const Attach = struct {
 
 pub const Detach = struct { attachmentId: []const u8 };
 
+pub const ReadProcessInfo = struct {
+    attachmentId: []const u8,
+    includeLaunchKind: bool = false,
+};
+
 pub const UpdateAttachmentInputCapability = struct {
     attachmentId: []const u8,
     capabilityRevision: []const u8,

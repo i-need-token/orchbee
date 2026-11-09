@@ -18,6 +18,7 @@ const mouse_input_fixture = options.mouse_input_fixture;
 const focus_input_fixture = options.focus_input_fixture;
 const paste_input_fixture = options.paste_input_fixture;
 const paste_auto_input_fixture = options.paste_auto_input_fixture;
+const prompt_line_input_fixture = options.prompt_line_input_fixture;
 const row_window_fixture = options.row_window_fixture;
 const terminal_failed_fixture = options.terminal_failed_fixture;
 const control_fixture = options.control_fixture;
@@ -2212,6 +2213,18 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
         "\x02\x80\xff\x1b\r\nraw-paste",
         paste_auto.content,
     );
+
+    const decoded_prompt_line = try protocol.validateSemanticInput(
+        protocol.MessageKind.prompt_line_input,
+        prompt_line_input_fixture,
+    );
+    const prompt_line = switch (decoded_prompt_line.input) {
+        .prompt_line => |value| value,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqual(@as(u64, 7), decoded_prompt_line.capability_revision);
+    try std.testing.expect(prompt_line.right_arrow);
+    try std.testing.expectEqualStrings("codex resume '中文'", prompt_line.content);
 
     const decoded_mouse = try protocol.validateSemanticInput(
         protocol.MessageKind.mouse_input,

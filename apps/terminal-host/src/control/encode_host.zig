@@ -72,9 +72,19 @@ pub fn typedFailure(
     message: []const u8,
     retryable: bool,
 ) ![]u8 {
+    return typedFailureWithReason(allocator, code, message, retryable, null);
+}
+
+pub fn typedFailureWithReason(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    message: []const u8,
+    retryable: bool,
+    reason: ?[]const u8,
+) ![]u8 {
     var writer: std.Io.Writer.Allocating = .init(allocator);
     defer writer.deinit();
-    try writeTypedFailure(&writer.writer, code, message, retryable);
+    try writeTypedFailureWithReason(&writer.writer, code, message, retryable, reason);
     return writer.toOwnedSlice();
 }
 
@@ -84,6 +94,18 @@ pub fn writeTypedFailure(
     message: []const u8,
     retryable: bool,
 ) !void {
+    return writeTypedFailureWithReason(writer, code, message, retryable, null);
+}
+
+/// A present `reason` refines the code with one closed kebab-case name and is
+/// written after `retryable`; today only `prompt-unconfirmed` carries one.
+pub fn writeTypedFailureWithReason(
+    writer: *std.Io.Writer,
+    code: []const u8,
+    message: []const u8,
+    retryable: bool,
+    reason: ?[]const u8,
+) !void {
     if (code.len == 0 or code.len > maximum_failure_code_bytes or
         message.len == 0 or message.len > maximum_failure_message_bytes or
         !std.unicode.utf8ValidateSlice(code) or
@@ -91,11 +113,20 @@ pub fn writeTypedFailure(
     {
         return error.InvalidControlValue;
     }
+    if (reason) |value| {
+        if (value.len == 0 or value.len > maximum_failure_code_bytes or
+            !std.unicode.utf8ValidateSlice(value)) return error.InvalidControlValue;
+    }
     try writer.writeAll("{\"code\":");
     try std.json.Stringify.value(code, .{}, writer);
     try writer.writeAll(",\"message\":");
     try std.json.Stringify.value(message, .{}, writer);
-    try writer.print(",\"retryable\":{}}}", .{retryable});
+    try writer.print(",\"retryable\":{}", .{retryable});
+    if (reason) |value| {
+        try writer.writeAll(",\"reason\":");
+        try std.json.Stringify.value(value, .{}, writer);
+    }
+    try writer.writeAll("}");
 }
 
 pub fn terminalIdentity(

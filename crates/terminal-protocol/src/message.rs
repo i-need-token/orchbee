@@ -611,6 +611,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         Some(PayloadEncoding::RawBytes)
     ),
+    contract!(
+        84,
+        "PromptLineInput",
+        None,
+        Some(request(PayloadEncoding::RawBytes, 31)),
+        None
+    ),
 ];
 
 const _: () = {

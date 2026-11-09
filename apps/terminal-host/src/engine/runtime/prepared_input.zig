@@ -14,9 +14,13 @@ const PreparedInputState = enum {
 pub fn Type(comptime Runtime: type) type {
     return struct {
         bytes: ?[]u8,
+        /// A focus report is not typed input for the prompt gate.
+        focus_report: bool = false,
         focus_reporting_enabled: ?bool = null,
         mouse_input_epoch: ?u64 = null,
         ownership: ?contracts.PreparedInputOwnership = null,
+        /// Prompt-gated input publishes only while this gate serial still holds.
+        prompt_gate_serial: ?u64 = null,
         reservation: ?contracts.InputReservation,
         runtime: *Runtime,
         state: PreparedInputState = .pending,
@@ -36,14 +40,20 @@ pub fn Type(comptime Runtime: type) type {
             std.debug.assert(self.state == .pending);
             const byte_count = self.byteCount();
             const bytes = self.bytes;
-            const focus_reporting_enabled = self.focus_reporting_enabled;
-            const mouse_input_epoch = self.mouse_input_epoch;
+            const expectations: input_commit_ops.Expectations = .{
+                .focus_report = self.focus_report,
+                .focus_reporting_enabled = self.focus_reporting_enabled,
+                .mouse_input_epoch = self.mouse_input_epoch,
+                .prompt_gate_serial = self.prompt_gate_serial,
+            };
             var ownership = self.ownership;
             const reservation = self.reservation;
             self.bytes = null;
+            self.focus_report = false;
             self.focus_reporting_enabled = null;
             self.mouse_input_epoch = null;
             self.ownership = null;
+            self.prompt_gate_serial = null;
             self.reservation = null;
             self.state = .consumed;
             const runtime = self.runtimeState();
@@ -53,19 +63,19 @@ pub fn Type(comptime Runtime: type) type {
                     reservation.?,
                     owned,
                     &ownership,
-                    focus_reporting_enabled,
-                    mouse_input_epoch,
+                    expectations,
                 ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;
                 };
             } else {
                 std.debug.assert(reservation == null);
+                std.debug.assert(expectations.prompt_gate_serial == null);
                 input_commit_ops.validatePreparedInputCommit(
                     runtime,
                     &ownership,
-                    focus_reporting_enabled,
-                    mouse_input_epoch,
+                    expectations.focus_reporting_enabled,
+                    expectations.mouse_input_epoch,
                 ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;

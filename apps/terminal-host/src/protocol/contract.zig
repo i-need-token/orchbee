@@ -340,6 +340,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.focus_input => requestOnly("FocusInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.paste_input => requestOnly("PasteInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.paste_auto_input => requestOnly("PasteAutoInput", .semantic_input, .raw_bytes, M.input_accepted),
+        M.prompt_line_input => requestOnly("PromptLineInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.snapshot_frame => eventOnly("SnapshotFrame", .terminal_frame),
         M.delta_frame => eventOnly("DeltaFrame", .terminal_frame),
         M.frame_applied => requestAndResponse(

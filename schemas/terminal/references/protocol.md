@@ -159,7 +159,7 @@ or leading zero except the value `0`. Packed binary uses little-endian unsigned 
 
 ### Process samples
 
-`ReadProcessInfo` (kind 79, control JSON request and response) is scoped to one read-capable `attachmentId`. The response echoes `attachmentId` and its exact `terminalId`, with `kind: "windows-job"`, positive uint32 `rootPid`, and a PID-sorted `processes` array of at most 256 unique rows. Each row is a compact seven-element array `[pid, parentPid, creationTime, console, image, commandLine, currentDirectory]`: positive uint32 `pid`, nullable positive uint32 `parentPid`, positive canonical decimal uint64 `creationTime` (Windows FILETIME) string, `console` one of `attached`, `detached`, `none`, or `unknown`, and nullable `image`, `commandLine`, and `currentDirectory`; an array of any other length is invalid. A row with a null `image` is opaque: the member is live but denied limited query rights, so only its identity and parent are known. Every row is a member that was live when read, so a consumer's anchor is live exactly when a row matches its PID and creation time. Each text is strict Unicode without NUL, bounded to 4096 UTF-16 code units; the entire reply remains within the 64 KiB control limit. A root that has exited can be absent from the process rows while its retained identity still supplies `rootPid`.
+`ReadProcessInfo` (kind 79, control JSON request and response) is scoped to one read-capable `attachmentId`. The response echoes `attachmentId` and its exact `terminalId`, with `kind: "windows-job"`, positive uint32 `rootPid`, and a PID-sorted `processes` array of at most 256 unique rows. Each row is a compact seven-element array `[pid, parentPid, creationTime, console, image, commandLine, currentDirectory]`: positive uint32 `pid`, nullable positive uint32 `parentPid`, positive canonical decimal uint64 `creationTime` (Windows FILETIME) string, `console` one of `attached`, `detached`, `none`, or `unknown`, and nullable `image`, `commandLine`, and `currentDirectory`; an array of any other length is invalid. A row with a null `image` is opaque: the member is live but denied limited query rights, so only its identity and parent are known. Every row is a member that was live when read, so a consumer's anchor is live exactly when a row matches its PID and creation time. Each text is strict Unicode without NUL, bounded to 4096 UTF-16 code units; the entire reply remains within the 64 KiB control limit. A root that has exited can be absent from the process rows while its retained identity still supplies `rootPid`. The request may carry the optional member `includeLaunchKind`; only when it is `true` does the response add `launchKind` after `kind`. It names how the Host launched the root: `managed-powershell` for PowerShell given the managed startup, `cmd` for an interactive cmd given prompt marks, and `other` for every other launch and for every launch off Windows. Without the member, or with `false`, the response is unchanged, so decoders that predate it keep working.
 
 The Host owns sampling and attachment authorization. Unknown or non-readable attachments fail `missing-resource`; unsupported platforms fail `process-sample-unsupported`; membership change is never a failure; OS/budget failure fails `process-sample-unavailable`; capacity or encoded-size excess fails `limit-exceeded`. No failure becomes empty success. The sample describes sequential observations of one retained Windows Job, not an atomic tree, foreground process group, input permit, or readiness guarantee. Optional fields may be absent when remote inspection is unavailable. Consumers must correlate both the actual response and attachment/terminal identities before using the facts.
 
@@ -362,6 +362,46 @@ UTF-8 requirement and no client-declared bracketed expectation: the Host snapsho
 bracketed-paste mode under the same terminal lock used for encoding and wraps the content itself.
 Opaque paste content is bounded at 256 KiB, below the general semantic-input body bound.
 
+`PromptLineInput` (kind 84, raw-bytes request answered by `InputAccepted`) types one shell command
+line only while the Host confirms that the terminal's root shell waits at a fresh, empty prompt.
+It carries the same 24-byte authority header and a 32-byte header: byte `24` carries Right in bit
+`0`, bytes `25-27` are reserved zero, and bytes `28-31` carry the little-endian content byte length.
+Unknown flag bits or nonzero reserved bytes are rejected. The content is 1 byte to 256 KiB of valid
+UTF-8 with no C0 control or DEL, so Enter is the line's only submission. The Host encodes the
+content as one paste under the authoritative bracketed-paste mode, then Right when requested, then
+Enter, each key as a press and its release, and queues the result as one client entry;
+`acceptedBytes` reports its length. The Worker is its only intended sender; no TypeScript producer
+exists.
+
+The Host admits the line only when all of these hold:
+
+1. Its own launch record names the root an interactive shell.
+2. A synchronous process sample finds no other console program; a failed sample refuses.
+3. The primary screen is active.
+4. The latest primary prompt went from its start (`A`, `N`, or `P` with no kind or `k=i`) to its
+   input start (`B` or `I`). No command start or end (`C`, `D`), newer prompt start, or
+   continuation or secondary prompt (`k=c`, `k=s`) followed. A right prompt (`k=r`) drawn before
+   the input start belongs to that prompt.
+5. The cursor is still at the position anchored at the input start, on the same screen
+   generation, and the text from that anchor to the end of its logical line is unchanged.
+6. No client input other than a focus report was published after the input start, no client
+   queue entry was pending at the input start, and none is pending now. Host terminal replies do
+   not count.
+7. The input start is at least 100 ms old. The Host waits once for a younger prompt, then judges
+   again.
+
+Publication repeats every rule except the process sample and also requires that no prompt mark
+arrived after preparation. Marks printed by any program other than a root shell the Host started
+fail rules 1 or 2.
+
+A refusal types nothing and reserves no queue position. It is a non-retryable `TypedFailure` whose
+code is `prompt-unconfirmed` and which adds one member, `reason`, after `retryable`. Reasons in
+check order are `not-shell` (rule 1), `busy` (rule 2), `full-screen` (rule 3), `unmarked` (no
+primary prompt has started since launch), `not-at-prompt` (rule 4), `input-pending`
+(rule 6), and `changed` (rule 5, a mark after preparation, or a prompt still younger than 100 ms
+after the wait). A root that has exited fails `invalid-phase` like other input. No other typed
+failure carries `reason`.
+
 ## Message registry
 
 | Range   | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -373,7 +413,7 @@ Opaque paste content is bounded at 256 KiB, below the general semantic-input bod
 | `41-58` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
 | `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
 | `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
-| `79-83` | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`                                                                                                                                                                                                                                                                                                        |
+| `79-84` | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`                                                                                                                                                                                                                                                                                  |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment
@@ -910,9 +950,11 @@ The handshake may select smaller transport payload bounds. It never raises these
 | Terminals in one inventory page        |                128 |
 | One raw, text, or paste input body     |              1 MiB |
 | One `PasteAutoInput` content body      |            256 KiB |
+| One `PromptLineInput` content body     |            256 KiB |
 | One key text                           |              4 KiB |
 | `WriteInput` raw payload               |       1 MiB + 24 B |
 | `PasteAutoInput` raw payload           |     256 KiB + 32 B |
+| `PromptLineInput` raw payload          |     256 KiB + 32 B |
 | Largest semantic input payload         |       1 MiB + 32 B |
 | Pending ordered input per terminal     |              4 MiB |
 | Scrollback configuration per terminal  |    1,000,000,000 B |

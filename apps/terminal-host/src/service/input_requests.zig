@@ -165,8 +165,9 @@ const Handler = struct {
                 const failure = inputFailure(err);
                 response.commitFailure(.{
                     .code = failure.code,
-                    .message = "semantic input could not enter the bounded write queue",
+                    .message = failure.message orelse "semantic input could not enter the bounded write queue",
                     .retryable = failure.retryable,
+                    .reason = failure.reason,
                 });
             },
             .core_rejected => |err| response.commitFailure(host_failure.fromCore(err)),

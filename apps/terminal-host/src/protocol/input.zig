@@ -259,6 +259,34 @@ pub fn validatePasteAutoInput(bytes: []const u8) ProtocolError!DecodedSemanticIn
     };
 }
 
+/// Uses the PasteAutoInput layout: flag bit 0 asks for Right between the paste
+/// and Enter. The content is one line of text, so control characters are refused.
+pub fn validatePromptLineInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
+    if (bytes.len < 32) return error.Truncated;
+    if (bytes.len > 32 + contract.Limits.paste_auto_input_bytes) return error.LimitExceeded;
+    var reader = Reader.init(bytes, 0);
+    const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
+    const flags = try reader.readInt(u8);
+    const reserved_byte = try reader.readInt(u8);
+    const reserved_word = try reader.readInt(u16);
+    const content_length = try reader.readInt(u32);
+    if (flags & ~@as(u8, 1) != 0 or reserved_byte != 0 or reserved_word != 0) {
+        return error.UnknownRequiredFlag;
+    }
+    if (content_length != bytes.len - 32) return error.LengthMismatch;
+    if (content_length == 0) return error.InvalidField;
+    const content = try reader.readBytes(content_length);
+    if (!std.unicode.utf8ValidateSlice(content)) return error.InvalidUtf8;
+    for (content) |byte| if (byte < 0x20 or byte == 0x7f) return error.InvalidField;
+    return .{
+        .attachment_id = attachment_id,
+        .capability_revision = capability_revision,
+        .input = .{ .prompt_line = .{ .content = content, .right_arrow = flags & 1 != 0 } },
+    };
+}
+
 pub fn validateMouseInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     if (bytes.len < 40) return error.Truncated;
     if (bytes.len != 40) return error.LengthMismatch;
@@ -356,6 +384,7 @@ pub fn validateSemanticInput(kind: u16, bytes: []const u8) ProtocolError!Decoded
         MessageKind.focus_input => validateFocusInput(bytes),
         MessageKind.paste_input => validatePasteInput(bytes),
         MessageKind.paste_auto_input => validatePasteAutoInput(bytes),
+        MessageKind.prompt_line_input => validatePromptLineInput(bytes),
         else => error.UnknownRequiredMessage,
     };
 }

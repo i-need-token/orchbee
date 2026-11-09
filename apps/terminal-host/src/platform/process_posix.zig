@@ -30,6 +30,8 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     child_id: posix.pid_t,
     interactive_shell: bool = false,
+    /// POSIX shells receive no Host integration yet.
+    launch_kind: process_types.LaunchKind = .other,
     exit_reaped: bool = false,
     exit_result: ?ExitResult = null,
     pty: pty_module.Pty,

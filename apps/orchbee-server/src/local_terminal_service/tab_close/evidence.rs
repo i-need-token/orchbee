@@ -4,8 +4,9 @@
 //!
 //! A command the shell reports as running, or a program holding the terminal's console, asks. A
 //! shell that reports its prompt closes even when the sample cannot answer: a refused, unavailable
-//! or late sample is an unknown fact, not a running program. A shell that reports nothing, such as
-//! `cmd`, is judged by its sample alone and asks when that cannot answer.
+//! or late sample is an unknown fact, not a running program. A shell that reports nothing is judged
+//! by its sample alone and asks when that cannot answer. An Orchbee `cmd` marks only its prompt,
+//! so a cursor below that prompt reads as running.
 use crate::session_coordinator::decoded_argv;
 use orchbee_agent_observation_protocol::{ShellRoot, classify_shell_root, is_console_host};
 use orchbee_terminal_protocol::{

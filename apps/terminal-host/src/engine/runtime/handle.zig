@@ -34,6 +34,7 @@ const ScheduleHandle = schedule_handle.Type(TerminalRuntime);
 
 pub const TerminalRuntime = opaque {
     pub const sampleProcesses = ProcessHandle.sampleProcesses;
+    pub const launchKind = ProcessHandle.launchKind;
     pub const completion = ProcessHandle.completion;
     pub const waitForCompletion = ProcessHandle.waitForCompletion;
     pub const terminate = ProcessHandle.terminate;
@@ -150,6 +151,7 @@ pub const TerminalRuntime = opaque {
     pub const enqueuePasteInputWithLimit = InputHandle.enqueuePasteInputWithLimit;
     pub const preparePasteInput = InputHandle.preparePasteInput;
     pub const preparePasteAutoInput = InputHandle.preparePasteAutoInput;
+    pub const preparePromptLineInput = InputHandle.preparePromptLineInput;
     pub const prepareSemanticInput = InputHandle.prepareSemanticInput;
     pub const prepareAttachmentSemanticInput = InputHandle.prepareAttachmentSemanticInput;
     pub const prepareAttachmentInputRepair = InputHandle.prepareAttachmentInputRepair;

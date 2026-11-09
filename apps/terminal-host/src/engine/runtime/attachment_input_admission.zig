@@ -82,6 +82,7 @@ fn prepareFocusInput(
     if (bytes != null) scrollback_compression_ops.noteInteractionLocked(self);
     return .{
         .bytes = bytes,
+        .focus_report = true,
         .focus_reporting_enabled = terminal_input_encoding.reportsFocus(&self.terminal),
         .ownership = ownership,
         .reservation = reservation,

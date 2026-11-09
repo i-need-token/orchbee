@@ -73,4 +73,5 @@ pub const MessageKind = struct {
     pub const read_process_info: u16 = 79;
     pub const stage_terminal_output: u16 = 82;
     pub const terminal_output_staged: u16 = 83;
+    pub const prompt_line_input: u16 = 84;
 };

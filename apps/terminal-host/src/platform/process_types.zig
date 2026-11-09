@@ -17,6 +17,16 @@ pub const Launch = struct {
     stdin_fd: ?isize = null,
 };
 
+/// How the Host started the root process. Clients choose a command format from
+/// it instead of matching the root's command line.
+pub const LaunchKind = enum {
+    /// PowerShell with the Host's integration bootstrap.
+    managed_powershell,
+    /// Interactive cmd with the Host's prompt marks.
+    cmd,
+    other,
+};
+
 pub const ExitResult = union(enum) {
     exit_code: u32,
     signal: u32,

@@ -8,6 +8,7 @@ const clock = @import("clock.zig");
 const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
 const program_status_feed = @import("program_status_feed.zig");
+const prompt_line_input_ops = @import("prompt_line_input.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
 const max_application_signal_bytes = protocol.Limits.terminal_application_signal_bytes;
@@ -115,6 +116,7 @@ pub fn semanticPromptEffect(
     std.debug.assert(self.reader_commit_in_progress);
     std.debug.assert(self.command_batch_active);
     program_status_feed.shellPromptLocked(self, command);
+    prompt_line_input_ops.observeLocked(self, command);
     switch (command.action) {
         .end_input_start_output => {
             self.command_observation.staged.ready = false;
@@ -303,6 +305,7 @@ pub fn commitClipboardWriteRequest(
 
 pub fn deinit(self: *state.State) void {
     self.command_observation.deinit(&self.terminal);
+    self.prompt_gate.deinit(&self.terminal);
     abortReaderBatch(self);
     for (0..self.application_signal_pending_count) |offset| {
         const index = (self.application_signal_pending_head + offset) %

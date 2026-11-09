@@ -2,6 +2,20 @@ const std = @import("std");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 
+/// Facts a prepared input must still match when it publishes.
+pub const Expectations = struct {
+    focus_report: bool = false,
+    focus_reporting_enabled: ?bool = null,
+    mouse_input_epoch: ?u64 = null,
+    prompt_gate_serial: ?u64 = null,
+
+    /// These facts are terminal state, so publication also holds terminal_mutex.
+    fn needsTerminal(self: Expectations) bool {
+        return self.focus_reporting_enabled != null or self.mouse_input_epoch != null or
+            self.prompt_gate_serial != null;
+    }
+};
+
 pub fn cancelPreparedInputOwnership(
     self: *state.State,
     pending: *contracts.PreparedInputOwnership,
@@ -17,8 +31,12 @@ pub fn validatePreparedInputCommit(
     focus_reporting_enabled: ?bool,
     mouse_input_epoch: ?u64,
 ) !void {
-    lockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
-    defer unlockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
+    const expectations: Expectations = .{
+        .focus_reporting_enabled = focus_reporting_enabled,
+        .mouse_input_epoch = mouse_input_epoch,
+    };
+    lockPreparedInputCommit(self, expectations);
+    defer unlockPreparedInputCommit(self, expectations);
     if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
     // Zero-byte prepared semantic inputs share the same post-exit client
     // admission gate so every PreparedInput.commit has one phase boundary.
@@ -32,7 +50,7 @@ pub fn validatePreparedInputCommit(
 
 pub fn publishInput(self: *state.State, reservation: contracts.InputReservation, bytes: []u8) !void {
     var ownership: ?contracts.PreparedInputOwnership = null;
-    return publishPreparedInput(self, reservation, bytes, &ownership, null, null);
+    return publishPreparedInput(self, reservation, bytes, &ownership, .{});
 }
 
 pub fn publishPreparedInput(
@@ -40,11 +58,10 @@ pub fn publishPreparedInput(
     reservation: contracts.InputReservation,
     bytes: []u8,
     ownership: *?contracts.PreparedInputOwnership,
-    focus_reporting_enabled: ?bool,
-    mouse_input_epoch: ?u64,
+    expectations: Expectations,
 ) !void {
-    lockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
-    defer unlockPreparedInputCommit(self, focus_reporting_enabled, mouse_input_epoch);
+    lockPreparedInputCommit(self, expectations);
+    defer unlockPreparedInputCommit(self, expectations);
     const source = self.input_queue.reservationSource(reservation.identifier) orelse {
         self.allocator.free(bytes);
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
@@ -67,13 +84,19 @@ pub fn publishPreparedInput(
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         return error.TerminalExited;
     }
-    validateFocusModeLocked(self, focus_reporting_enabled) catch |err| {
+    validateFocusModeLocked(self, expectations.focus_reporting_enabled) catch |err| {
         std.debug.assert(self.input_queue.cancel(reservation.identifier));
         self.allocator.free(bytes);
         self.input_condition.broadcast();
         return err;
     };
-    validateMouseInputEpochLocked(self, mouse_input_epoch) catch |err| {
+    validateMouseInputEpochLocked(self, expectations.mouse_input_epoch) catch |err| {
+        std.debug.assert(self.input_queue.cancel(reservation.identifier));
+        self.allocator.free(bytes);
+        self.input_condition.broadcast();
+        return err;
+    };
+    validatePromptGateLocked(self, expectations.prompt_gate_serial) catch |err| {
         std.debug.assert(self.input_queue.cancel(reservation.identifier));
         self.allocator.free(bytes);
         self.input_condition.broadcast();
@@ -86,29 +109,36 @@ pub fn publishPreparedInput(
         return err;
     };
     std.debug.assert(self.input_queue.publish(reservation, bytes));
+    if (source == .client and !expectations.focus_report) self.typed_input_sequence +%= 1;
     commitPreparedInputOwnershipLocked(self, ownership);
     self.input_condition.broadcast();
 }
 
-/// Mouse and focus input validate terminal mode under terminal -> input, so
-/// their publication commits with the mode they were encoded for. Other input
-/// needs only input.
-fn lockPreparedInputCommit(
-    self: *state.State,
-    focus_reporting_enabled: ?bool,
-    mouse_input_epoch: ?u64,
-) void {
-    if (focus_reporting_enabled != null or mouse_input_epoch != null) self.terminal_mutex.lock();
+/// Mouse, focus and prompt-gated input validate terminal state under
+/// terminal -> input, so their publication commits with the state they were
+/// prepared for. Other input needs only input.
+fn lockPreparedInputCommit(self: *state.State, expectations: Expectations) void {
+    if (expectations.needsTerminal()) self.terminal_mutex.lock();
     self.input_mutex.lock();
 }
 
-fn unlockPreparedInputCommit(
-    self: *state.State,
-    focus_reporting_enabled: ?bool,
-    mouse_input_epoch: ?u64,
-) void {
+fn unlockPreparedInputCommit(self: *state.State, expectations: Expectations) void {
     self.input_mutex.unlock();
-    if (focus_reporting_enabled != null or mouse_input_epoch != null) self.terminal_mutex.unlock();
+    if (expectations.needsTerminal()) self.terminal_mutex.unlock();
+}
+
+/// Repeats the prompt gate's terminal and input rules at publication. A reader
+/// batch in progress, any new prompt mark, or any other client input refuses.
+/// The process rule was sampled at preparation and is not sampled again here.
+fn validatePromptGateLocked(self: *state.State, expected: ?u64) !void {
+    const serial = expected orelse return;
+    if (self.reader_commit_in_progress or self.prompt_gate.serial != serial) {
+        return error.PromptChanged;
+    }
+    _ = try self.prompt_gate.check(&self.terminal, .{
+        .pending_entries = self.input_queue.charge(.client).entries,
+        .sequence = self.typed_input_sequence,
+    }, 1);
 }
 
 fn validateMouseInputEpochLocked(self: *const state.State, expected: ?u64) !void {

@@ -9,6 +9,11 @@ const options = @import("conpty_resize_test_options");
 const capture_limit_bytes = 512 * 1024;
 const marker_timeout_ns = 20 * std.time.ns_per_s;
 
+test {
+    // The same real-shell prompt gate witness also runs on system ConHost in the engine suite.
+    _ = @import("prompt_gate_witness_test.zig");
+}
+
 test "bundled Windows ConPTY keeps Windows PowerShell input on its prompt line" {
     if (builtin.os.tag != .windows or builtin.cpu.arch != .x86_64) return error.SkipZigTest;
     const directory = try pty_process.environmentVariableOwned(std.testing.allocator, "SystemRoot");

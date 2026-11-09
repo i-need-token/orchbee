@@ -8,6 +8,7 @@ const windows_process = @import("process_windows.zig");
 pub const EnvironmentDelta = process_types.EnvironmentDelta;
 pub const Launch = process_types.Launch;
 pub const ExitResult = process_types.ExitResult;
+pub const LaunchKind = process_types.LaunchKind;
 pub const ProcessSample = @import("process_sample.zig").Sample;
 pub const ProcessConsole = @import("process_sample.zig").Console;
 pub const environmentVariableOwned = process_common.environmentVariableOwned;
@@ -29,6 +30,8 @@ pub const Process = switch (builtin.os.tag) {
 
 pub const testing = if (builtin.is_test) struct {
     pub const interactiveShellLaunchFn = @import("interactive_shell.zig").isInteractive;
+    pub const cmdPromptFn = @import("cmd_integration.zig").prompt;
+    pub const launchKindFn = @import("interactive_shell.zig").launchKind;
     pub const powershellArgumentsFn = @import("powershell_integration.zig").arguments;
     pub const process_query = @import("process_query_windows.zig").testing;
     pub const foregroundCommandActiveFn = posix_process.foregroundCommandActive;

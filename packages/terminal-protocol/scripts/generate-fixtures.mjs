@@ -78,6 +78,7 @@ const mouseInputPath = path.join(fixturesDirectory, `mouse-input.bin`);
 const focusInputPath = path.join(fixturesDirectory, `focus-input.bin`);
 const pasteInputPath = path.join(fixturesDirectory, `paste-input.bin`);
 const pasteAutoInputPath = path.join(fixturesDirectory, `paste-auto-input.bin`);
+const promptLineInputPath = path.join(fixturesDirectory, `prompt-line-input.bin`);
 const selectionExportChunkPath = path.join(fixturesDirectory, `selection-export-chunk.bin`);
 const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed.json`);
 const controlConformancePath = path.join(fixturesDirectory, `control-conformance.json`);
@@ -94,6 +95,23 @@ const otherGenerationConformancePath = path.join(
 	`other-generation-conformance.json`,
 );
 const checkOnly = process.argv.includes('--check');
+
+/**
+ * PromptLineInput has no TypeScript codec: only the Worker sends it. This writes the reference
+ * layout directly: attachment ID, capability revision, flags with bit 0 for Right, three
+ * reserved zero bytes, the content length, then the UTF-8 content.
+ */
+function promptLineInputFixture(record) {
+	const content = new TextEncoder().encode(record.content);
+	const bytes = new Uint8Array(32 + content.byteLength);
+	const view = new DataView(bytes.buffer);
+	bytes.set(Buffer.from(record.attachmentId, 'hex'), 0);
+	view.setBigUint64(16, BigInt(record.capabilityRevision), true);
+	view.setUint8(24, record.rightArrow ? 1 : 0);
+	view.setUint32(28, content.byteLength, true);
+	bytes.set(content, 32);
+	return bytes;
+}
 
 function bytesFromBase64(value) {
 	return new Uint8Array(Buffer.from(value, 'base64'));
@@ -2401,6 +2419,7 @@ const pasteAutoInputBytes = encodeOrThrow(
 	}),
 	'paste auto input',
 );
+const promptLineInputBytes = promptLineInputFixture(canonical.promptLineInput);
 const selectionExportChunkBytes = encodeOrThrow(
 	encodeSelectionExportChunk({
 		attachmentId: canonical.selectionExportChunk.attachmentId,
@@ -2461,6 +2480,7 @@ if (checkOnly) {
 	await compareFile(focusInputPath, focusInputBytes);
 	await compareFile(pasteInputPath, pasteInputBytes);
 	await compareFile(pasteAutoInputPath, pasteAutoInputBytes);
+	await compareFile(promptLineInputPath, promptLineInputBytes);
 	await compareFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await compareFile(terminalFailedPath, terminalFailedBytes);
 	await compareFile(controlConformancePath, controlConformanceBytes);
@@ -2481,6 +2501,7 @@ if (checkOnly) {
 	await writeFile(focusInputPath, focusInputBytes);
 	await writeFile(pasteInputPath, pasteInputBytes);
 	await writeFile(pasteAutoInputPath, pasteAutoInputBytes);
+	await writeFile(promptLineInputPath, promptLineInputBytes);
 	await writeFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await writeFile(terminalFailedPath, terminalFailedBytes);
 	await writeFile(controlConformancePath, controlConformanceBytes);

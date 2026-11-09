@@ -205,9 +205,10 @@ unavailable or late; a silent shell is judged by its sample alone. A fact the bu
 counts as silence or as unknown, so at expiry an unread terminal closes only on its shell's prompt
 report. A busy or stopped sampler, a refused observation attach, an uncertain viewer cleanup, or a
 missing or failed inventory page asks. Only Windows Hosts sample processes, so elsewhere every live
-terminal asks. A program the sample cannot see and the shell does not report still closes unasked:
-`pause` in `cmd`, or under the system ConHost a cmdlet whose output scrolled its own prompt off the
-screen.
+terminal asks. A program the sample cannot see and the shell does not report still closes unasked,
+such as a cmdlet under the system ConHost whose output scrolled its own prompt off the screen. An
+Orchbee `cmd` marks its prompt but never its commands, so `pause` or `set /p` leaves the cursor
+below the marked prompt and asks.
 
 An accepted conditional Close is the ordinary Close of its scope from then on: it installs the
 ordinary reservation and fences, terminates live members because the Server's own evidence already

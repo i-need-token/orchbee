@@ -19,7 +19,7 @@ pub fn handleReadProcessInfo(
     var observed = self.context.runtime_aggregate.sampleTerminalProcesses(
         self.context.allocator,
         connection_id,
-        decoded.value,
+        decoded.value.attachment_id,
     ) catch |err| {
         const code: []const u8 = switch (err) {
             error.InteractionAccessUnavailable, error.TerminalRuntimeMissing => "missing-resource",
@@ -32,11 +32,12 @@ pub fn handleReadProcessInfo(
         return;
     };
     defer observed.sample.deinit();
-    const payload = control.encode.processInfo(
+    const payload = control.encode.processInfoWithLaunchKind(
         self.context.allocator,
-        decoded.value,
+        decoded.value.attachment_id,
         observed.terminal_id,
         observed.sample,
+        if (decoded.value.include_launch_kind) launchKindName(observed.launch_kind) else null,
     ) catch |err| switch (err) {
         error.ProcessInfoTooLarge => {
             try self.context.addFailure(outgoing, correlation_id, "limit-exceeded", "terminal process sample exceeds the control payload bound", false);
@@ -46,4 +47,12 @@ pub fn handleReadProcessInfo(
     };
     defer self.context.allocator.free(payload);
     _ = try response.appendControlSuccess(outgoing, self.success, payload, response.responseDelivery(correlation_id, self.context.hostEpoch()));
+}
+
+fn launchKindName(value: @import("terminal-host-engine").runtime.LaunchKind) []const u8 {
+    return switch (value) {
+        .managed_powershell => "managed-powershell",
+        .cmd => "cmd",
+        .other => "other",
+    };
 }

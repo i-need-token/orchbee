@@ -135,6 +135,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     reader_stopped: ?*const fn (*anyopaque) void = null,
     monotonic_time_nanoseconds: ?*const fn (*anyopaque) u64 = null,
     resize_effect_returned: ?*const fn (*anyopaque) void = null,
+    sleep_nanoseconds: ?*const fn (*anyopaque, u64) void = null,
     resize_pty: ?*const fn (
         *anyopaque,
         terminal_geometry.Geometry,

@@ -4,6 +4,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const attachment_input_admission_ops = @import("attachment_input_admission.zig");
 const input_admission_ops = @import("input_admission.zig");
+const prompt_line_input_ops = @import("prompt_line_input.zig");
 const prepared_input = @import("prepared_input.zig");
 
 pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
@@ -146,6 +147,14 @@ pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
             return exposePreparedInput(try input_admission_ops.preparePasteAutoInput(stateFrom(self), content, max_output_bytes));
         }
 
+        pub fn preparePromptLineInput(
+            self: *Runtime,
+            input: terminal_input.PromptLineInput,
+            max_output_bytes: usize,
+        ) !PreparedInput {
+            return exposePreparedInput(try prompt_line_input_ops.prepare(stateFrom(self), input, max_output_bytes));
+        }
+
         pub fn prepareSemanticInput(
             self: *Runtime,
             input: terminal_input.SemanticInput,
@@ -196,9 +205,11 @@ pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
         fn exposePreparedInput(internal: prepared_input.Internal) PreparedInput {
             return .{
                 .bytes = internal.bytes,
+                .focus_report = internal.focus_report,
                 .focus_reporting_enabled = internal.focus_reporting_enabled,
                 .mouse_input_epoch = internal.mouse_input_epoch,
                 .ownership = internal.ownership,
+                .prompt_gate_serial = internal.prompt_gate_serial,
                 .reservation = internal.reservation,
                 .runtime = @ptrCast(internal.runtime),
             };

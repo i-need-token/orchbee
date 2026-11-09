@@ -11,6 +11,7 @@ pub const FailureDetails = struct {
     code: []const u8,
     message: []const u8,
     retryable: bool,
+    reason: ?[]const u8 = null,
 };
 
 pub const SuccessResponse = struct {
@@ -124,11 +125,12 @@ pub const PreparedResponse = struct {
         failure: FailureDetails,
     ) void {
         var output = self.writer();
-        control_encode.writeTypedFailure(
+        control_encode.writeTypedFailureWithReason(
             &output,
             failure.code,
             failure.message,
             failure.retryable,
+            failure.reason,
         ) catch unreachable;
         _ = self.commitControl(MessageKind.typed_failure, &output);
     }
@@ -175,11 +177,12 @@ pub const PreparedOwnedResponse = struct {
         const allocation = self.failure_allocation.?;
         const payload_buffer = allocation[host_outgoing.owned_payload_prefix_bytes..];
         var output: std.Io.Writer = .fixed(payload_buffer);
-        control_encode.writeTypedFailure(
+        control_encode.writeTypedFailureWithReason(
             &output,
             failure.code,
             failure.message,
             failure.retryable,
+            failure.reason,
         ) catch unreachable;
         _ = self.record.commitOwnedPayload(
             MessageKind.typed_failure,
@@ -225,11 +228,12 @@ pub fn appendFailure(
     failure: FailureDetails,
     delivery: host_outgoing.Delivery,
 ) !void {
-    const payload = try control_encode.typedFailure(
+    const payload = try control_encode.typedFailureWithReason(
         allocator,
         failure.code,
         failure.message,
         failure.retryable,
+        failure.reason,
     );
     defer allocator.free(payload);
     _ = try appendRequired(

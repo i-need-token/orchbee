@@ -12,6 +12,11 @@ pub fn Type(comptime Runtime: type) type {
             return pty_process.sampleProcesses(&stateFromConst(self).process, allocator);
         }
 
+        /// How the Host started the root process; fixed for the runtime's life.
+        pub fn launchKind(self: *const Runtime) pty_process.LaunchKind {
+            return stateFromConst(self).process.launch_kind;
+        }
+
         pub fn completion(self: *const Runtime) contracts.Completion {
             return completion_ops.completion(stateFromConst(self));
         }

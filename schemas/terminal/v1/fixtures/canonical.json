@@ -379,6 +379,12 @@
 		"capabilityRevision": "7",
 		"contentBase64": "AoD/Gw0KcmF3LXBhc3Rl"
 	},
+	"promptLineInput": {
+		"attachmentId": "22222222222222222222222222222222",
+		"capabilityRevision": "7",
+		"content": "codex resume '中文'",
+		"rightArrow": true
+	},
 	"selectionExportChunk": {
 		"attachmentId": "22222222222222222222222222222222",
 		"bytesBase64": "AP+AYQ==",

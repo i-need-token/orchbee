@@ -7,6 +7,7 @@ const prepared_input = @import("prepared_input.zig");
 const failure_ops = @import("failure.zig");
 const input_commit_ops = @import("input_commit.zig");
 const linefeed = @import("linefeed.zig");
+const prompt_line_input_ops = @import("prompt_line_input.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 
 pub fn enqueueInput(self: *state.State, bytes: []const u8) !void {
@@ -191,6 +192,7 @@ pub fn prepareFocusInput(
     else
         "";
     var prepared = try prepareEncodedInputLocked(self, encoded, max_output_bytes);
+    prepared.focus_report = true;
     prepared.focus_reporting_enabled = reporting_enabled;
     return prepared;
 }
@@ -267,6 +269,7 @@ pub fn prepareSemanticInput(
         .mouse => |value| prepareMouseInput(self, value, maximum_bytes),
         .paste => |value| preparePasteInput(self, value.text, value.bracketed, maximum_bytes),
         .paste_auto => |value| preparePasteAutoInput(self, value.content, maximum_bytes),
+        .prompt_line => |value| prompt_line_input_ops.prepare(self, value, maximum_bytes),
         .text => |value| prepareTextInput(self, value.text, maximum_bytes),
     };
 }

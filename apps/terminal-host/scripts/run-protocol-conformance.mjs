@@ -40,6 +40,9 @@ const pasteInputFixture = fileURLToPath(
 const pasteAutoInputFixture = fileURLToPath(
 	new URL('../../../schemas/terminal/v1/fixtures/paste-auto-input.bin', import.meta.url),
 );
+const promptLineInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/prompt-line-input.bin', import.meta.url),
+);
 const terminalFailedFixture = fileURLToPath(
 	new URL('../../../schemas/terminal/v1/fixtures/terminal-failed.json', import.meta.url),
 );
@@ -76,6 +79,7 @@ const child = spawn(
 		`-Dfocus-input-fixture=${focusInputFixture}`,
 		`-Dpaste-input-fixture=${pasteInputFixture}`,
 		`-Dpaste-auto-input-fixture=${pasteAutoInputFixture}`,
+		`-Dprompt-line-input-fixture=${promptLineInputFixture}`,
 		`-Dterminal-failed-fixture=${terminalFailedFixture}`,
 		`-Dcontrol-fixture=${controlFixture}`,
 		`-Dutf8-bom-fixture=${utf8BomFixture}`,

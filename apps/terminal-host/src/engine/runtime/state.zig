@@ -108,6 +108,8 @@ pub const State = struct {
     process: pty_process.Process,
     profile: contracts.OwnedProfile,
     progress: contracts.TerminalProgress = .{},
+    // terminal_mutex owns the latest OSC 133 prompt evidence for prompt-gated input.
+    prompt_gate: @import("prompt_gate.zig").Tracker = .{},
     progress_staged: ?contracts.TerminalProgress = null,
     /// The committed OSC 7501 root record; staged with each reader batch.
     program_status: ?contracts.TerminalProgramStatus = null,
@@ -163,6 +165,9 @@ pub const State = struct {
     terminal_resize_failure_pending: bool = false,
     testing_hooks: contracts.RuntimeTestingHooks = .{},
     threads_joined: bool = false,
+    // input_mutex protects this count of published client inputs other than
+    // focus reports; the prompt gate compares it with its anchor.
+    typed_input_sequence: u64 = 0,
     wait_thread: ?std.Thread = null,
     writer_stop: bool = false,
     writer_stopped: std.atomic.Value(bool) = .init(false),

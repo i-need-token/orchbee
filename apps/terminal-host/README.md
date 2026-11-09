@@ -433,6 +433,9 @@ The same bundled-runtime suite launches Windows PowerShell and, when installed i
 location, PowerShell 7 without user profiles. It requires the initial cursor and typed draft to
 stay immediately after the prompt, including after a geometry change; semantic reader markers
 must not insert a fresh line.
+It also runs the prompt-gate witness, which the engine suite repeats on system ConHost: cmd and
+managed PowerShell must admit a prompt line only at an idle prompt, as the
+[runtime model](docs/runtime-model.md#prompt-gated-input) describes.
 Windows preserves prompt cells during resize by default; RIS and ResetTerminal restore that
 default, while explicit OSC 133 redraw options remain authoritative until reset.
 

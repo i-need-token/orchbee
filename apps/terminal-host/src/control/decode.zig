@@ -33,7 +33,8 @@ pub const decodeUpdateTerminalConfiguration = terminal.decodeUpdateTerminalConfi
 pub const decodeTerminalTarget = terminal.decodeTerminalTarget;
 pub const decodeAttachTerminal = terminal.decodeAttachTerminal;
 pub const decodeDetachTerminal = terminal.decodeDetachTerminal;
-pub const decodeReadProcessInfo = terminal.decodeDetachTerminal;
+pub const ReadProcessInfo = terminal.ReadProcessInfo;
+pub const decodeReadProcessInfo = terminal.decodeReadProcessInfo;
 pub const decodeUpdateAttachmentInputCapability =
     terminal.decodeUpdateAttachmentInputCapability;
 pub const decodeClaimResizeLease = terminal.decodeClaimResizeLease;

@@ -18,6 +18,15 @@ pub const Rejection = enum {
     input_limit_exceeded,
     invalid_input,
     input_mode_changed,
+    /// The prompt gate could not confirm a fresh, empty prompt; each value
+    /// names the first rule the terminal failed.
+    prompt_not_shell,
+    prompt_busy,
+    prompt_full_screen,
+    prompt_unmarked,
+    prompt_not_at_prompt,
+    prompt_input_pending,
+    prompt_changed,
     resource_exhausted,
     sequence_exhausted,
     terminal_exited,
@@ -34,6 +43,13 @@ pub fn fromRuntimeError(err: anyerror) Rejection {
         error.InputLimitExceeded => .input_limit_exceeded,
         error.FocusModeChanged, error.MouseModeChanged, error.PasteModeChanged => .input_mode_changed,
         error.InvalidKey, error.EmptyInput => .invalid_input,
+        error.PromptNotShell => .prompt_not_shell,
+        error.PromptBusy => .prompt_busy,
+        error.PromptFullScreen => .prompt_full_screen,
+        error.PromptUnmarked => .prompt_unmarked,
+        error.PromptNotAtPrompt => .prompt_not_at_prompt,
+        error.PromptInputPending => .prompt_input_pending,
+        error.PromptChanged => .prompt_changed,
         else => .encoding_failed,
     };
 }

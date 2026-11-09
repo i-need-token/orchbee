@@ -128,12 +128,16 @@ pub const Context = struct {
             .runtime_missing => unreachable,
             .runtime_rejected => |err| {
                 const failure = host_failure.fromInput(err);
-                try self.addFailure(
+                try host_response.appendFailure(
+                    self.allocator,
                     outgoing,
-                    correlation_id,
-                    failure.code,
-                    runtime_message,
-                    failure.retryable,
+                    .{
+                        .code = failure.code,
+                        .message = failure.message orelse runtime_message,
+                        .retryable = failure.retryable,
+                        .reason = failure.reason,
+                    },
+                    host_response.responseDelivery(correlation_id, self.hostEpoch()),
                 );
             },
             .prepared, .consumed => unreachable,

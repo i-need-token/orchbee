@@ -3,6 +3,7 @@ export const MessageKind = {
 	graphicsPngDecoded: 81,
 	stageTerminalOutput: 82,
 	terminalOutputStaged: 83,
+	promptLineInput: 84,
 	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
@@ -136,6 +137,12 @@ export const MESSAGE_CONTRACTS = {
 		name: 'TerminalOutputStaged',
 		request: null,
 		responseEncoding: raw,
+	},
+	[MessageKind.promptLineInput]: {
+		eventEncoding: null,
+		name: 'PromptLineInput',
+		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
+		responseEncoding: null,
 	},
 	[MessageKind.readProcessInfo]: {
 		eventEncoding: null,
@@ -565,10 +572,11 @@ type RequestKindForEncoding<Encoding extends PayloadEncoding> = {
 }[MessageKind];
 
 type ControlRequestKind = RequestKindForEncoding<typeof PayloadEncoding.controlJson>;
-// Staged output is raw bytes too, but only the Worker sends it before a creation; it is never input.
+// Staged output and prompt lines are raw bytes too, but only the Worker sends them; no
+// TypeScript producer encodes either, so neither is a client input request here.
 type InputRequestKind = Exclude<
 	RequestKindForEncoding<typeof PayloadEncoding.rawBytes>,
-	typeof MessageKind.stageTerminalOutput
+	typeof MessageKind.stageTerminalOutput | typeof MessageKind.promptLineInput
 >;
 
 export function isKnownMessageKind(value: number): value is MessageKind {
@@ -582,6 +590,7 @@ export function isControlRequestKind(kind: MessageKind): kind is ControlRequestK
 export function isInputRequestKind(kind: MessageKind): kind is InputRequestKind {
 	return (
 		kind !== MessageKind.stageTerminalOutput &&
+		kind !== MessageKind.promptLineInput &&
 		MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.rawBytes
 	);
 }

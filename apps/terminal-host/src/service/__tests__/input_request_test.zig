@@ -1393,6 +1393,70 @@ test "semantic input preparation commits to a terminal-exited rejection after cl
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
 }
+test "a prompt line refused by the gate names its reason and types nothing" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload("5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d", executable, arguments);
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c");
+    var created = try testRequest(&service, &connection, MessageKind.create_terminal, .control_json, create_payload, [_]u8{0x5d} ** 16);
+    defer created.deinit();
+    const terminal_id = serviceCore(&service).terminalKeys()[0];
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x5e} ** 16);
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(attach_payload);
+    var attached = try testRequest(&service, &connection, MessageKind.attach_terminal, .control_json, attach_payload, [_]u8{0x5e} ** 16);
+    defer attached.deinit();
+    const runtime = findRuntime(&service, terminal_id).?;
+
+    // The root is a command, not an interactive shell: the line is refused
+    // before any queue position is reserved.
+    const content = "echo typed";
+    var payload: [32 + content.len]u8 = @splat(0);
+    @memcpy(payload[0..16], &attachment_id.bytes);
+    std.mem.writeInt(u64, payload[16..24], 1, .little);
+    std.mem.writeInt(u32, payload[28..32], content.len, .little);
+    @memcpy(payload[32..], content);
+    var refused = try testRequest(&service, &connection, MessageKind.prompt_line_input, .raw_bytes, &payload, [_]u8{0x5f} ** 16);
+    defer refused.deinit();
+    try std.testing.expectEqual(@as(usize, 1), refused.records().len);
+    const envelope = try protocol.validateTransportEnvelope(refused.records()[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, envelope.kind);
+    const Failure = struct { code: []const u8, message: []const u8, retryable: bool, reason: []const u8 };
+    const failure = try control_wire.decode(Failure, std.testing.allocator, envelope.payload);
+    defer failure.deinit();
+    try std.testing.expectEqualStrings("prompt-unconfirmed", failure.value.code);
+    try std.testing.expectEqualStrings("not-shell", failure.value.reason);
+    try std.testing.expect(!failure.value.retryable);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
+}
 test "InputAccepted stays queue-admission-only while terminal replies queue ahead of the client entry" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
         try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")

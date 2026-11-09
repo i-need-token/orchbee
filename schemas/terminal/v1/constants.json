@@ -691,6 +691,16 @@
 			"name": "TerminalOutputStaged",
 			"request": null,
 			"response_encoding": "raw-bytes"
+		},
+		{
+			"event_encoding": null,
+			"kind": 84,
+			"name": "PromptLineInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
 		}
 	],
 	"protocol_limits": {

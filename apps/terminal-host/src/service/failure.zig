@@ -23,7 +23,20 @@ pub const runtime_state_diverged: Details = .{
 pub const InputFailure = struct {
     code: []const u8,
     retryable: bool,
+    /// Replaces the request's generic message when the code has its own.
+    message: ?[]const u8 = null,
+    reason: ?[]const u8 = null,
 };
+
+/// Nothing was typed; the caller decides whether to ask again.
+fn promptUnconfirmed(reason: []const u8) InputFailure {
+    return .{
+        .code = "prompt-unconfirmed",
+        .message = "the shell is not confirmed at a fresh, empty prompt; nothing was typed",
+        .reason = reason,
+        .retryable = false,
+    };
+}
 
 pub fn semanticInputMessage(kind: u16) []const u8 {
     return switch (kind) {
@@ -32,6 +45,7 @@ pub fn semanticInputMessage(kind: u16) []const u8 {
         MessageKind.mouse_input => "MouseInput payload is invalid",
         MessageKind.paste_input => "PasteInput payload is invalid",
         MessageKind.paste_auto_input => "PasteAutoInput payload is invalid",
+        MessageKind.prompt_line_input => "PromptLineInput payload is invalid",
         MessageKind.text_input => "TextInput payload is invalid",
         else => "semantic input payload is invalid",
     };
@@ -46,6 +60,13 @@ pub fn fromInput(rejection: host_input_admission.Rejection) InputFailure {
         .input_limit_exceeded => .{ .code = "limit-exceeded", .retryable = false },
         .invalid_input => .{ .code = "invalid-field", .retryable = false },
         .input_mode_changed => .{ .code = "input-mode-changed", .retryable = false },
+        .prompt_not_shell => promptUnconfirmed("not-shell"),
+        .prompt_busy => promptUnconfirmed("busy"),
+        .prompt_full_screen => promptUnconfirmed("full-screen"),
+        .prompt_unmarked => promptUnconfirmed("unmarked"),
+        .prompt_not_at_prompt => promptUnconfirmed("not-at-prompt"),
+        .prompt_input_pending => promptUnconfirmed("input-pending"),
+        .prompt_changed => promptUnconfirmed("changed"),
     };
 }
 

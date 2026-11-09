@@ -162,6 +162,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     job_handle: windows.HANDLE,
     process_handle: windows.HANDLE,
     interactive_shell: bool = false,
+    launch_kind: process_types.LaunchKind = .other,
     pty: pty_module.Pty,
     termination: termination_module.Termination = .{},
     console: ConsoleTree = .{},
@@ -191,6 +192,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             try windowsCommandLine(arena, arguments);
         const command_line_template = try std.unicode.utf8ToUtf16LeAllocZ(arena, command_line);
         const command_line_w = try arena.allocSentinel(u16, command_line_template.len, 0);
+        try @import("cmd_integration.zig").markPrompt(arena, &environment, launch.executable, launch.arguments);
         const environment_w = try environment.createWindowsBlock(arena, .{});
         const directory_w = if (launch.current_directory) |directory|
             try std.unicode.utf8ToUtf16LeAllocZ(arena, directory)
@@ -295,6 +297,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             .job_handle = job_handle,
             .process_handle = process_information.hProcess,
             .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments),
+            .launch_kind = @import("interactive_shell.zig").launchKind(launch.executable, launch.arguments),
             .pty = pty,
         };
     }

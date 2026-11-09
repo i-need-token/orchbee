@@ -50,6 +50,7 @@ pub fn sampleTerminalProcesses(
 ) !contracts.TerminalProcessSample {
     const binding = try resolveAccess(self, connection_id, attachment_id);
     return .{
+        .launch_kind = binding.runtime.launchKind(),
         .terminal_id = binding.terminal_id,
         .sample = try binding.runtime.sampleProcesses(allocator),
     };

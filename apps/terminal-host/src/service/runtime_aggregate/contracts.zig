@@ -20,6 +20,7 @@ pub const TerminalIdentity = struct {
 };
 
 pub const TerminalProcessSample = struct {
+    launch_kind: terminal_runtime.LaunchKind,
     terminal_id: core_module.TerminalId,
     sample: terminal_runtime.ProcessSample,
 };
