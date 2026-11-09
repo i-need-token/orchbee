@@ -21,16 +21,24 @@ const EXECUTABLE_EXTENSIONS: ReadonlySet<string> = new Set(['exe', 'com', 'bat',
  */
 export function nameServerTerminalTitle(title: string, intl: IntlShape): string | null {
 	const stripped = stripTerminalTitle(title);
-	if (stripped === null) return null;
-	const program = nameConsoleProgram(stripped, intl);
+	return stripped === null ? null : nameServerPublishedTitle(stripped, intl);
+}
+
+/**
+ * Names a terminal by a title the Server published, which it has already stripped, cleaned of
+ * control characters and bounded: only the console host's launch path is named, as
+ * {@link nameServerTerminalTitle} names it.
+ */
+export function nameServerPublishedTitle(title: string, intl: IntlShape): string {
+	const program = nameConsoleProgram(title, intl);
 	if (program !== null) return program;
-	for (const separator of stripped.matchAll(/ - /gu)) {
-		const name = nameConsoleProgram(stripped.slice(0, separator.index), intl);
+	for (const separator of title.matchAll(/ - /gu)) {
+		const name = nameConsoleProgram(title.slice(0, separator.index), intl);
 		if (name === null) continue;
-		const command = stripped.slice(separator.index + separator[0].length).trim();
+		const command = title.slice(separator.index + separator[0].length).trim();
 		return command.length === 0 ? name : `${name} - ${command}`;
 	}
-	return stripped;
+	return title;
 }
 
 /**
@@ -40,11 +48,16 @@ export function nameServerTerminalTitle(title: string, intl: IntlShape): string 
  */
 export function readServerTerminalTask(title: string): string | null {
 	const stripped = stripTerminalTitle(title);
-	if (stripped === null || consoleProgramPath(stripped)) return null;
-	for (const separator of stripped.matchAll(/ - /gu)) {
-		if (consoleProgramPath(stripped.slice(0, separator.index))) return null;
+	return stripped === null ? null : readServerPublishedTask(stripped);
+}
+
+/** What a title the Server published, already stripped, names for its Agent, by the same rule. */
+export function readServerPublishedTask(title: string): string | null {
+	if (consoleProgramPath(title)) return null;
+	for (const separator of title.matchAll(/ - /gu)) {
+		if (consoleProgramPath(title.slice(0, separator.index))) return null;
 	}
-	return stripped;
+	return title;
 }
 
 /**

@@ -25,6 +25,7 @@ export type {
 } from './types/workbench-configured-commands';
 
 export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
+export type { WorkbenchTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
 export { WorkbenchTerminalBellEffectCoordinator } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type { WorkbenchTerminalBellEffect } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type {

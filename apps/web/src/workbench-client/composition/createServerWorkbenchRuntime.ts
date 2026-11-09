@@ -46,7 +46,11 @@ import {
 	createServerWorkspaceLocations,
 	findServerPresentation,
 	findServerTerminalBinding,
+	listServerTerminalBindings,
+	mergeServerTerminalTitle,
+	nameServerPublishedTitle,
 	nameServerTerminalTitle,
+	readServerPublishedTask,
 	readServerTerminalTask,
 	presentServerTerminalColors,
 	projectServerSnapshot,
@@ -59,7 +63,10 @@ import {
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
 	ServerTerminalProjectionClient,
+	ServerTerminalTitleSource,
 	type ServerLaunchProfileSource,
+	type ServerTerminalTitle,
+	type ServerTerminalTitleCursor,
 	type ServerTerminalColorsSource,
 	type ServerWorkbenchSession,
 } from '../server-workbench';
@@ -73,6 +80,9 @@ import {
 type ServerTerminalMetadata = Parameters<
 	ProjectedTerminalSurfaceCapability['observeTerminalMetadata']
 >[1];
+type TerminalCurrentDirectory = ReturnType<
+	typeof resolveTerminalMetadataObservation
+>['currentDirectory'];
 
 export interface ServerWorkbenchRuntime {
 	readonly actionRuntime: ActionRuntime;
@@ -177,6 +187,59 @@ export function createServerWorkbenchRuntime({
 		const binding = findServerTerminalBinding(session.snapshot, presentationId);
 		return binding === null ? null : serverTerminalBindingKey(binding);
 	};
+	// Each Presentation's title, from its mounted surface or from the titles the Server publishes for
+	// every terminal, whichever arrived last for the terminal it shows.
+	const titleCursors = new Map<TerminalPresentationId, ServerTerminalTitleCursor>();
+	const applyTerminalTitle = (
+		presentationId: TerminalPresentationId,
+		currentDirectory: TerminalCurrentDirectory,
+		title: ServerTerminalTitle | null,
+	): void => {
+		let naturalTask: string | null = null;
+		let naturalTitle: string | null = null;
+		// The Server already stripped what it published, so only a surface's own title is stripped.
+		if (title?.published === true) {
+			naturalTask = readServerPublishedTask(title.text);
+			naturalTitle = nameServerPublishedTitle(title.text, intl);
+		} else if (title !== null) {
+			naturalTask = readServerTerminalTask(title.text);
+			naturalTitle = nameServerTerminalTitle(title.text, intl);
+		}
+		projectWorkspaceRuntime.applyTerminalMetadataObservation(presentationId, {
+			currentDirectory,
+			naturalTask,
+			naturalTitle,
+		});
+	};
+	const mergeTerminalTitle = (
+		presentationId: TerminalPresentationId,
+		terminal: string | null,
+		arrival: Parameters<typeof mergeServerTerminalTitle>[2],
+	): void => {
+		const { applied, cursor } = mergeServerTerminalTitle(
+			titleCursors.get(presentationId),
+			terminal,
+			arrival,
+		);
+		if (cursor === undefined) return;
+		titleCursors.set(presentationId, cursor);
+		if (applied !== null) {
+			applyTerminalTitle(presentationId, applied.currentDirectory, applied.title);
+		}
+	};
+	// A publication can move a Presentation to another terminal, or remove it.
+	const followTerminalTitles = (snapshot: WorkbenchSnapshot): void => {
+		if (titleCursors.size === 0) return;
+		const terminals = listServerTerminalBindings(snapshot);
+		for (const presentationId of titleCursors.keys()) {
+			const terminal = terminals.get(presentationId);
+			if (terminal === undefined) {
+				titleCursors.delete(presentationId);
+			} else {
+				mergeTerminalTitle(presentationId, terminal, { kind: 'terminal' });
+			}
+		}
+	};
 	const terminalEnds = new ServerTerminalEndObserver(
 		() => session.snapshot,
 		() => adoptPublication(session.snapshot),
@@ -198,7 +261,9 @@ export function createServerWorkbenchRuntime({
 			);
 		} catch (error) {
 			onPublicationFailure(error);
+			return;
 		}
+		followTerminalTitles(snapshot);
 	};
 	const stopPublication = session.subscribe(adoptPublication);
 	// Registered after the publication's own adoption, so each view it reports holds that publication.
@@ -286,26 +351,29 @@ export function createServerWorkbenchRuntime({
 			readonly terminal: string | null;
 		}
 	>();
-	const applyTerminalMetadata = (
-		presentationId: TerminalPresentationId,
-		metadata: ServerTerminalMetadata,
-	): void => {
-		const observation = resolveTerminalMetadataObservation(metadata, terminalHostName);
-		projectWorkspaceRuntime.applyTerminalMetadataObservation(presentationId, {
-			...observation,
-			naturalTask:
-				observation.naturalTitle === null ? null : readServerTerminalTask(observation.naturalTitle),
-			naturalTitle:
-				observation.naturalTitle === null
-					? null
-					: nameServerTerminalTitle(observation.naturalTitle, intl),
-		});
-	};
 	const reapplyTerminalMetadata = (): void => {
-		for (const [presentationId, { metadata }] of metadataCursors) {
-			applyTerminalMetadata(presentationId, metadata);
+		for (const [presentationId, { shown }] of titleCursors) {
+			const cursor = metadataCursors.get(presentationId);
+			applyTerminalTitle(
+				presentationId,
+				cursor === undefined
+					? { kind: 'ignored' }
+					: resolveTerminalMetadataObservation(cursor.metadata, terminalHostName).currentDirectory,
+				shown,
+			);
 		}
 	};
+	const titleSource = new ServerTerminalTitleSource(connection, session, (rows) => {
+		if (disposed) return;
+		const terminals = listServerTerminalBindings(session.snapshot);
+		for (const { incarnation, presentationId, title } of rows) {
+			mergeTerminalTitle(presentationId, terminals.get(presentationId) ?? null, {
+				incarnation,
+				kind: 'stream',
+				title,
+			});
+		}
+	});
 	const windowTitle =
 		titleWindow === undefined
 			? null
@@ -361,7 +429,15 @@ export function createServerWorkbenchRuntime({
 			const previous = metadataCursors.get(presentationId);
 			if (previous?.terminal === terminal && previous.revision > metadata.revision) return;
 			metadataCursors.set(presentationId, { metadata, revision: metadata.revision, terminal });
-			applyTerminalMetadata(presentationId, metadata);
+			const { currentDirectory, naturalTitle } = resolveTerminalMetadataObservation(
+				metadata,
+				terminalHostName,
+			);
+			mergeTerminalTitle(presentationId, terminal, {
+				currentDirectory,
+				kind: 'surface',
+				title: naturalTitle,
+			});
 			windowTitle?.terminalTitleChanged(presentationId);
 		},
 		platformEffects: terminalPlatformEffects,
@@ -404,6 +480,7 @@ export function createServerWorkbenchRuntime({
 			if (disposed) return;
 			disposed = true;
 			metadataCursors.clear();
+			titleCursors.clear();
 			presentationSnapshots.clear();
 			runApplicationCleanup(
 				[
@@ -421,6 +498,7 @@ export function createServerWorkbenchRuntime({
 					() => actionRuntime.dispose(),
 					() => agentNameSource.dispose(),
 					() => agentObservationSource.dispose(),
+					() => titleSource.dispose(),
 					() => workspaceLocationSource.dispose(),
 					() => projectionClient.dispose(),
 				],

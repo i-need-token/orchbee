@@ -216,6 +216,17 @@ current CWD remain transient. The Server holds each Tab's fallback and chosen na
 shows the chosen name, or else the focused terminal's natural title, launched program, or
 fallback. The page never derives terminal trust from its own URL hostname.
 
+Terminals without a mounted surface take their natural titles from `ServerTerminalTitleSource`,
+which reads the Server's `panel-agent` `presentation-titles` State streams: every bound
+Presentation of the Session, across all Workspaces, in groups of at most 64 in topology order,
+reopened only when a group's membership changes and retried 5 seconds after a capacity close. The Server has already stripped, cleaned, and bounded those titles, so the
+Client only names a console launch path. For one Presentation and terminal, the title that changed
+last wins, whether the surface or the stream reported it; a row for another terminal is ignored, a
+cleared title shows the launched program, and an unreadable title, a failed stream, or a Server
+that does not publish titles keeps the last title shown. A rebound terminal shows its launched
+program until a title arrives for it. Stream rows never change the current CWD, unread state,
+notifications, or Agent state.
+
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
 surface. It presents a bounded, control-visible preview of the retained original text and identifies
 multiline input, controls that will be replaced, and an embedded bracketed-paste terminator. Cancel

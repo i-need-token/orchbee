@@ -18,6 +18,7 @@ export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';
 export { ServerTerminalDefaultSettingsClient } from './ServerTerminalDefaultSettingsClient';
 export { ServerTerminalLaunchProfileClient } from './ServerTerminalLaunchProfileClient';
 export { ServerTerminalProjectionClient } from './ServerTerminalProjectionClient';
+export { ServerTerminalTitleSource } from './ServerTerminalTitleSource';
 export { ServerUserPreferencesClient } from './ServerUserPreferencesClient';
 export { ServerWindowTitle } from './ServerWindowTitle';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
@@ -27,7 +28,11 @@ export { createServerWorkspaceLocations } from './createServerWorkspaceLocations
 export { findServerPresentation } from './findServerPresentation';
 export { projectServerSnapshot } from './projectServerSnapshot';
 export { getServerAgentSession, listServerAgentSessions } from './server-agent-sessions';
-export { findServerTerminalBinding, serverTerminalBindingKey } from './server-terminal-binding';
+export {
+	findServerTerminalBinding,
+	listServerTerminalBindings,
+	serverTerminalBindingKey,
+} from './server-terminal-binding';
 export {
 	createServerTerminalColorsSource,
 	presentServerTerminalColors,
@@ -35,5 +40,12 @@ export {
 } from './server-terminal-colors';
 export type { ServerTerminalColorsSource } from './server-terminal-colors';
 export { ServerTerminalEndObserver, settledServerTerminalLifecycle } from './server-terminal-ends';
-export { nameServerTerminalTitle, readServerTerminalTask } from './server-terminal-names';
+export {
+	nameServerPublishedTitle,
+	nameServerTerminalTitle,
+	readServerPublishedTask,
+	readServerTerminalTask,
+} from './server-terminal-names';
+export { mergeServerTerminalTitle } from './mergeServerTerminalTitle';
+export type { ServerTerminalTitle, ServerTerminalTitleCursor } from './mergeServerTerminalTitle';
 export { admitsAutomaticWorkspace, workspaceLaunchAction } from './workspace-launch';
