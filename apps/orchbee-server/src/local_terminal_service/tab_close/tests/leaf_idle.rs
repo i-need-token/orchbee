@@ -2,7 +2,7 @@
 //! that evidence only for the exact runtime and revision it was read from.
 use super::*;
 use crate::local_terminal_service::tab_close::evidence::{CloseFacts, ShellReport};
-use orchbee_capability_node_protocol::LifecycleHostFailure;
+use orchbee_capability_node_protocol::{LifecycleHostFailure, LifecycleInventoryCursor};
 use orchbee_server::{WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget};
 use orchbee_workbench_protocol::{PanelNode, WorkbenchRejectionReason};
 
@@ -191,6 +191,69 @@ fn a_tab_or_panel_closes_unasked_only_on_the_servers_own_evidence() {
         drop(peer);
         let _exit = worker_thread.join().unwrap();
     }
+}
+
+#[test]
+fn a_conditional_close_walks_every_inventory_page_before_it_decides() {
+    // One summary per page puts the ended target far beyond any fixed page allowance.
+    const LENGTH: u64 = 40;
+    let Fixture {
+        service,
+        mut peer,
+        worker_thread,
+        close,
+    } = fixture();
+    let command = conditional(&service, &close, 3050, false);
+    service.start_close_maintenance().unwrap();
+    let peer_thread = thread::spawn(move || {
+        for _ in 0..LENGTH {
+            let request = lifecycle(&mut peer);
+            let TerminalLifecycleAction::InspectInventoryPage { cursor } = request.action else {
+                panic!("inventory page")
+            };
+            let offset = cursor.map_or(0, |cursor| cursor.offset);
+            let last = offset + 1 == LENGTH;
+            reply(
+                &mut peer,
+                request,
+                TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
+                    inventory_generation: NonZeroU64::MIN,
+                    next_cursor: (!last).then_some(LifecycleInventoryCursor {
+                        inventory_generation: NonZeroU64::MIN,
+                        offset: offset + 1,
+                    }),
+                    returned_count: 1,
+                    target: last.then_some(LifecycleTargetObservation {
+                        revision: 1,
+                        phase: LifecycleTerminalPhase::Exited {
+                            terminate_requested: false,
+                        },
+                    }),
+                }),
+            );
+        }
+        // The accepted close continues as an ordinary one; its first step is parked here.
+        let request = lifecycle(&mut peer);
+        let action = request.action;
+        reply(
+            &mut peer,
+            request,
+            TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused),
+        );
+        (peer, action)
+    });
+    let result = service.execute_close_if_idle_with(command, |_, _| {
+        unreachable!("an ended terminal is not read")
+    });
+    let (peer, step) = peer_thread.join().unwrap();
+    assert!(matches!(
+        result.unwrap().outcome,
+        WorkbenchCommandOutcome::TabCloseAccepted { .. }
+    ));
+    assert_eq!(step, TerminalLifecycleAction::Dispose);
+    service.stop_close_maintenance();
+    drop(peer);
+    let _exit = worker_thread.join().unwrap();
 }
 
 #[test]

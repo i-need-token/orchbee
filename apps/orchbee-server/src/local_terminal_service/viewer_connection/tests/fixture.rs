@@ -23,7 +23,7 @@ use std::thread;
 mod worker;
 pub(super) use worker::Effect;
 #[cfg(windows)]
-pub(super) use worker::static_codex_process;
+pub(super) use worker::{POPUP_INVENTORY_PAGES, static_codex_process};
 
 pub(super) struct Fixture {
     pub(super) service: Arc<LocalTerminalService>,

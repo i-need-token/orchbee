@@ -43,6 +43,9 @@ const OPERATION_IO_TIMEOUT: Duration = Duration::from_secs(2);
 const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(250);
 // Without a wake channel, an idle wait must still notice a queued request promptly.
 const UNWOKEN_OWNER_POLL_INTERVAL: Duration = Duration::from_millis(2);
+// A shutdown may spend its whole budget before it answers; its reply wait adds this margin.
+#[cfg(any(windows, test))]
+const SHUTDOWN_REPLY_MARGIN: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
@@ -1223,7 +1226,15 @@ impl WorkerWireOwner {
         }
         pending.complete_write.store(true, Ordering::Release);
 
-        let response_deadline = match Instant::now().checked_add(self.limits.response_timeout) {
+        let response_window = match &pending.request {
+            #[cfg(any(windows, test))]
+            WorkerOperationRequest::Shutdown(request) => self.limits.response_timeout.max(
+                Duration::from_millis(u64::from(request.budget.milliseconds()))
+                    + SHUTDOWN_REPLY_MARGIN,
+            ),
+            _ => self.limits.response_timeout,
+        };
+        let response_deadline = match Instant::now().checked_add(response_window) {
             Some(deadline) => deadline,
             None => {
                 self.complete_in_flight(Err(WorkerRequestError::PostDeliveryOutcomeUnknown(

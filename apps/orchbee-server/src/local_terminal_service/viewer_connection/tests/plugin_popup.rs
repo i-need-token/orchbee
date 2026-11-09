@@ -1,4 +1,4 @@
-use super::fixture::{Effect, Fixture, read_snapshot};
+use super::fixture::{Effect, Fixture, POPUP_INVENTORY_PAGES, read_snapshot};
 use orchbee_workbench_protocol::{
     PanelNode, PluginAction, PluginFailure, PluginOutcome, PluginPopupSpec, PluginRequest,
     ProtocolVersion, WorkbenchRequestId, WorkbenchTerminalGeometry,
@@ -341,6 +341,66 @@ fn popup_lost_launch_or_force_receipt_retains_ownership_without_replaying() {
         assert!(!effects.iter().any(|e| matches!(e, Effect::Dispose(_))));
         assert_eq!(read_snapshot(&fixture.service), snapshot);
     }
+}
+
+#[test]
+fn popup_close_walks_every_inventory_page_before_it_disposes() {
+    if !super::plugin_overlays::enter_isolated_catalog() {
+        return;
+    }
+    let fixture = Fixture::new();
+    fixture.service.start_close_maintenance().unwrap();
+    fixture
+        .popup_fault
+        .store(12, std::sync::atomic::Ordering::Release);
+    let request = open(&fixture);
+    assert!(matches!(
+        fixture
+            .service
+            .execute_popup(NonZeroU64::MIN, request.clone())
+            .outcome,
+        PluginOutcome::PopupOpened { .. }
+    ));
+    let mut close = read(&request);
+    let PluginAction::PopupRead { popup_id } = close.action else {
+        panic!()
+    };
+    close.action = PluginAction::PopupClose { popup_id };
+    assert!(matches!(
+        fixture
+            .service
+            .execute_popup(NonZeroU64::MIN, close)
+            .outcome,
+        PluginOutcome::PopupClosing { .. }
+    ));
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !matches!(
+        fixture
+            .service
+            .execute_popup(NonZeroU64::MIN, read(&request))
+            .outcome,
+        PluginOutcome::PopupClosed { .. }
+    ) {
+        assert!(Instant::now() < deadline, "popup disposal did not settle");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // The target arrives on the inventory's last page; every page before it was read in turn.
+    let effects = fixture.barrier().unwrap();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| matches!(e, Effect::PopupInventory(10, _)))
+            .count(),
+        usize::try_from(POPUP_INVENTORY_PAGES).unwrap()
+    );
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| matches!(e, Effect::Dispose(10)))
+            .count(),
+        1
+    );
+    fixture.service.disconnect_popup(NonZeroU64::MIN);
 }
 
 #[test]

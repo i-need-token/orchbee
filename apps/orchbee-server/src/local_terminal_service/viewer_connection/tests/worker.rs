@@ -1,11 +1,15 @@
 use super::*;
 use orchbee_capability_node_protocol::{
-    LifecycleInventoryPage, LifecycleTargetObservation, LifecycleTerminalPhase,
-    TerminalControlAction, TerminalControlOutcome, TerminalControlResult, TerminalLifecycleAction,
-    TerminalLifecycleOutcome, TerminalLifecycleResult, TerminalViewerResult, read_message,
-    write_message,
+    LifecycleInventoryCursor, LifecycleInventoryPage, LifecycleTargetObservation,
+    LifecycleTerminalPhase, TerminalControlAction, TerminalControlOutcome, TerminalControlResult,
+    TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleResult,
+    TerminalViewerResult, read_message, write_message,
 };
 use std::collections::BTreeMap;
+
+/// More pages than any fixed allowance, within a popup's lifecycle step ceiling.
+pub(in crate::local_terminal_service::viewer_connection::tests) const POPUP_INVENTORY_PAGES: u64 =
+    12;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::local_terminal_service::viewer_connection::tests) enum Effect {
@@ -256,18 +260,27 @@ pub(super) fn run(
                         }
                         TerminalLifecycleOutcome::ForceAccepted
                     }
-                    TerminalLifecycleAction::InventoryPage { .. } => {
+                    TerminalLifecycleAction::InventoryPage { cursor } => {
                         if target >= 10 {
                             effects
                                 .lock()
                                 .unwrap()
                                 .push(Effect::PopupInventory(target, request.step_ordinal.get()));
                         }
+                        // Fault 12 spreads a popup's inventory over `POPUP_INVENTORY_PAGES` pages of
+                        // one entry, its target on the last.
+                        let offset = cursor.map_or(0, |cursor| cursor.offset);
+                        let pending = target >= 10
+                            && popup_fault.load(std::sync::atomic::Ordering::Acquire) == 12
+                            && offset + 1 < POPUP_INVENTORY_PAGES;
                         TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
                             inventory_generation: NonZeroU64::MIN,
-                            next_cursor: None,
+                            next_cursor: pending.then_some(LifecycleInventoryCursor {
+                                inventory_generation: NonZeroU64::MIN,
+                                offset: offset + 1,
+                            }),
                             returned_count: 1,
-                            target: Some(LifecycleTargetObservation {
+                            target: (!pending).then_some(LifecycleTargetObservation {
                                 revision: 3,
                                 phase: if popup_fault.load(std::sync::atomic::Ordering::Acquire)
                                     == 9

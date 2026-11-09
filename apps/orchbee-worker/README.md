@@ -124,7 +124,7 @@ and recovery remain excluded.
 The managed Windows Worker retains its exact Host child handle until completion. A generation-fenced
 shutdown request permanently closes ordinary operation admission; unmanaged and wrong-generation
 requests refuse before effects. Shutdown first stops every [background job owner](#background-job-owners-and-exit), then uses the
-existing Host inventory, force and dispose contracts under one request deadline (at most 15 seconds).
+existing Host inventory, force and dispose contracts under one request deadline (at most 60 seconds).
 Each inventory request selects the first remaining terminal; force is sent once per selected active
 terminal in an attempt, and disposal requires a disposable observed phase and an exact acknowledgement.
 The inventory read that observes a settled phase can leave its outcome unpublished until the Host's
@@ -237,7 +237,7 @@ joins only already-finished tasks; it never waits for an unfinished one.
 `terminal_operations::background_jobs` applies one contract to every exit path. It
 requests stop from all owners before waiting, observes each owner against one shared
 deadline even after another fails, and reports the first failure. Explicit shutdown uses
-the request deadline (at most 15 seconds for the whole shutdown). Every other loop exit,
+the request deadline (at most 60 seconds for the whole shutdown). Every other loop exit,
 including Server disconnection, protocol failure and Host start failure, uses one
 six-second window, which exceeds each owner's five-second cleanup bound. Unproven cleanup
 takes precedence over the loop's own error. A task still running when the window closes

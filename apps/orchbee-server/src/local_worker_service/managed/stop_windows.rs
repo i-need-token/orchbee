@@ -26,6 +26,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// One stop attempt's cooperative deadline.
+const STOP_ATTEMPT_BUDGET: Duration = Duration::from_secs(60);
+/// The most of an attempt the Worker may spend disposing terminals and stopping its Host. The rest
+/// of the attempt stays for the stages before and after it.
+const WORKER_STOP_BUDGET: Duration = Duration::from_secs(45);
+
 pub(super) struct Owners {
     pub(super) session: ModeCheckedLocalSessionRendezvous,
     pub(super) lifetime: ModeCheckedSessionLock,
@@ -125,7 +131,7 @@ pub(super) fn run(
             Work::Stop(attempt) => attempt,
             Work::Exit => return exit(owners, clients, &shutdown),
         };
-        let deadline = Instant::now() + Duration::from_secs(60);
+        let deadline = Instant::now() + STOP_ATTEMPT_BUDGET;
         let result = settle(
             &mut owners,
             &shutdown,
@@ -225,8 +231,8 @@ fn settle(
         shutdown.phase(attempt, StopPhase::Worker);
         let budget = deadline
             .saturating_duration_since(Instant::now())
-            .as_millis()
-            .min(15_000) as u32;
+            .min(WORKER_STOP_BUDGET)
+            .as_millis() as u32;
         let request = WorkerShutdownRequest {
             operation_id: OperationId::from_bytes(attempt.id.bytes())
                 .expect("nonzero stop identity"),

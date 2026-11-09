@@ -102,7 +102,10 @@ The owner retains the exact Worker child, drains and joins its single checkpoint
 periodic process sampler and the retained Worktree/Workspace-group owners, then stops Close and
 graphics maintenance. It takes the fresh final capture/publication only after those writers and
 samplers settle, freezes the Worker carrier to shutdown-only traffic (settling queued unsent work as unavailable), and sends one bounded Worker
-shutdown request. Uncertain sampler viewer cleanup remains owned until the matching Worker/Host stop and actual Worker exit. A known no-Host/Host-stopped result and exact Worker exit must precede stopping
+shutdown request. Its budget is the attempt's remaining time, at most 45 seconds, which leaves at
+least 15 seconds of the attempt for the stages before and after it; the carrier waits for the
+reply for that budget plus five seconds, never less than its ordinary 20 seconds. At the 34–38 ms
+per terminal measured on Windows, 45 seconds dispose about 1,200 terminals. Uncertain sampler viewer cleanup remains owned until the matching Worker/Host stop and actual Worker exit. A known no-Host/Host-stopped result and exact Worker exit must precede stopping
 Agent observation and Client listeners, waking and joining retained Client handlers, and publishing
 the stopped activation record. An activation guard excludes concurrent restart during publication
 and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts

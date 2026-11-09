@@ -1,14 +1,17 @@
 //! Managed lifetime shutdown is separate from per-terminal lifecycle grants.
 use crate::{HostEpoch, OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
-/// Cooperative per-attempt cleanup budget, bounded to 1..=15000 milliseconds.
+/// Cooperative per-attempt cleanup budget, bounded to 1..=[`ShutdownBudget::MAXIMUM_MILLISECONDS`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ShutdownBudget(u32);
 
 impl ShutdownBudget {
+    /// The longest budget a shutdown may carry: one whole Server stop attempt.
+    pub const MAXIMUM_MILLISECONDS: u32 = 60_000;
+
     /// Rejects zero and budgets beyond the protocol maximum.
     pub fn new(milliseconds: u32) -> Result<Self, ProtocolError> {
-        if !(1..=15_000).contains(&milliseconds) {
+        if !(1..=Self::MAXIMUM_MILLISECONDS).contains(&milliseconds) {
             return Err(ProtocolError::InvalidPayload);
         }
         Ok(Self(milliseconds))

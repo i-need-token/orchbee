@@ -89,11 +89,17 @@ fn closed_shutdown_wire_preserves_identity_progress_and_failure() {
         assert!(decode_message(&invalid).is_err());
     }
     let mut over = bytes;
-    over[49..53].copy_from_slice(&15_001_u32.to_be_bytes());
+    over[49..53].copy_from_slice(&(ShutdownBudget::MAXIMUM_MILLISECONDS + 1).to_be_bytes());
     assert!(decode_message(&over).is_err());
     assert!(ShutdownBudget::new(0).is_err());
-    assert!(ShutdownBudget::new(15_001).is_err());
+    assert!(ShutdownBudget::new(ShutdownBudget::MAXIMUM_MILLISECONDS + 1).is_err());
     assert_eq!(ShutdownBudget::new(1).unwrap().milliseconds(), 1);
+    assert_eq!(
+        ShutdownBudget::new(ShutdownBudget::MAXIMUM_MILLISECONDS)
+            .unwrap()
+            .milliseconds(),
+        ShutdownBudget::MAXIMUM_MILLISECONDS
+    );
     let bytes = encode_message(&result(WorkerShutdownOutcome::Incomplete {
         host_epoch: None,
         disposed_terminals: 0,

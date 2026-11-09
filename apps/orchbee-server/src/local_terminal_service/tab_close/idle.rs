@@ -16,7 +16,6 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 
-const MAXIMUM_INSPECTION_PAGES: usize = 32;
 /// How long a conditional Tab or Panel Close reads before it decides with what it has. This
 /// matches the Worker's own bound on one process sample, so a slow answer still arrives.
 pub(in crate::local_terminal_service) const LEAF_EVIDENCE_BUDGET: Duration = Duration::from_secs(1);
@@ -117,7 +116,6 @@ impl LocalTerminalService {
     ) -> Vec<WorkbenchTabCloseMemberRuntime> {
         let mut proof = Vec::with_capacity(members.len());
         let mut live = Vec::new();
-        let mut remaining_pages = MAXIMUM_INSPECTION_PAGES;
         let mut inspected = true;
         for (member, observation) in members {
             let index = proof.len();
@@ -126,15 +124,7 @@ impl LocalTerminalService {
                 continue;
             };
             let Some(phase) = inspected
-                .then(|| {
-                    self.inspect_close_target(
-                        handle?,
-                        close_id,
-                        target,
-                        deadline,
-                        &mut remaining_pages,
-                    )
-                })
+                .then(|| self.inspect_close_target(handle?, close_id, target, deadline))
                 .flatten()
                 .map(|observed| observed.phase)
             else {
@@ -176,23 +166,23 @@ impl LocalTerminalService {
         proof
     }
 
+    /// Walks the inventory page by page until it ends, or reports nothing once `deadline` passes.
+    /// A page is accepted only when it advances from its request's cursor, so the walk always ends.
     fn inspect_close_target(
         &self,
         handle: &WorkerRequestHandle,
         close_id: &WorkbenchRequestId,
         target: WorkbenchTabCloseRuntimeTarget,
         deadline: Instant,
-        remaining_pages: &mut usize,
     ) -> Option<LifecycleTargetObservation> {
         let expiry = lease_expiry()?;
         let mut cursor = None;
         let mut generation = None;
         let mut found = None;
         loop {
-            if Instant::now() >= deadline || *remaining_pages == 0 {
+            if Instant::now() >= deadline {
                 return None;
             }
-            *remaining_pages -= 1;
             let request = self
                 .coordinator
                 .lock()

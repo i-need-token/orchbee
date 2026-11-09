@@ -631,11 +631,13 @@ pnpm lint:projects
 The Windows managed Session lifecycle adds kinds 19/20 under frame version 1 and the
 existing 40 KiB bound. The request contains operation ID and Worker ID (16 nonzero
 bytes each), positive Worker generation (u64), a cooperative budget (u32,
-1..15000 ms), all integers big-endian, and a terminal disposition byte: 1 Dispose
+1..60000 ms, one whole Server stop attempt), all integers big-endian, and a terminal disposition byte: 1 Dispose
 contains and disposes every terminal, 2 Keep leaves the Host and every terminal running
 for a Server `exit`. Only the exact admitted managed Worker may
-act; unmanaged or mismatched identity is a pre-effect refusal. The existing 20-second
-carrier reply window is unchanged. A reply echoes the complete request.
+act; unmanaged or mismatched identity is a pre-effect refusal. A shutdown may spend its whole
+budget before it answers, so the Server carrier waits for its reply for the budget plus five
+seconds, and never less than the ordinary 20-second reply window. A reply echoes the complete
+request.
 
 Outcome tags are 1 NoHost, 2 Stopped (Host epoch, u32 disposed count), 3 Refused
 (1 wrong Worker, 2 unmanaged), 4 Incomplete (optional Host epoch, u32 disposed

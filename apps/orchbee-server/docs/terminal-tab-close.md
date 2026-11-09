@@ -119,8 +119,10 @@ decides by the same rule, as a conditional [Tab or Panel Close](#tab-and-panel):
 read-only `InspectInventoryPage` walk, then one on-demand read of every live member through the
 process observer. Every target pins Worker generation, binding fence and full Host
 creation/epoch/terminal identity. Because a Workspace reads every Tab's terminals in turn, one
-four-second budget and 32-page allowance cover its whole scope; slow outstanding transport keeps
-its existing carrier response bound and cannot renew this budget. Every target requires complete
+four-second budget covers its whole scope; slow outstanding transport keeps its existing carrier
+response bound and cannot renew this budget. A walk reads page after page until its inventory ends,
+and every accepted page advances from its request's cursor, so the budget alone bounds it; a walk
+the budget ends leaves its member unproven, which asks. Every target requires complete
 generation-consistent inventory and exactly one match. The inventory reports only phase, so a scope
 whose terminals the Server cannot read asks. Final admission repeats ordinary guards and exact
 runtime matching under the Session gate.
@@ -751,9 +753,8 @@ with equal context, members, condition and expected revision observes the existi
 under the same operation ID is a `conflict`.
 
 An `if-idle` Start decides like a conditional [Workspace Close](#conditional-idle-admission): the
-gates capture every member's runtimes and reserve nothing, then one four-second budget and 32-page
-allowance cover every member's inventory walk and the read of every live member, outside the
-gates. Final admission repeats every guard and counts each proof only for the exact runtime it was
+gates capture every member's runtimes and reserve nothing, then one four-second budget covers every
+member's inventory walk and the read of every live member, outside the gates. Final admission repeats every guard and counts each proof only for the exact runtime it was
 read from. When any member asks, the answer is `confirmation-required`: nothing is retained or
 closed, and the operation ID stays free. A `confirmed` Start is admitted at once.
 

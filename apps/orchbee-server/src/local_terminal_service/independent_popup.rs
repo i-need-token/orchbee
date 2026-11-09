@@ -155,7 +155,6 @@ struct Popup {
     connected: bool,
     ordinal: u8,
     cursor: Option<node::LifecycleInventoryCursor>,
-    pages: u8,
     deadline: Option<Instant>,
     next: Instant,
 }
@@ -193,7 +192,6 @@ impl LocalTerminalService {
                 connected: true,
                 ordinal: 1,
                 cursor: None,
-                pages: 0,
                 deadline: None,
                 next: Instant::now(),
             },
@@ -588,8 +586,9 @@ impl LocalTerminalService {
                         ),
                     ),
                 ) => Phase::Waiting,
+                // A walk continues until the inventory ends; the settlement window ends one that
+                // has not, and every accepted page advances from its request's cursor.
                 (Phase::Waiting, Some(node::TerminalLifecycleOutcome::InventoryPage(page))) => {
-                    popup.pages += 1;
                     match page.target {
                         Some(observed)
                             if matches!(
@@ -603,10 +602,9 @@ impl LocalTerminalService {
                         }
                         Some(_) => {
                             popup.cursor = None;
-                            popup.pages = 0;
                             Phase::Waiting
                         }
-                        None if page.next_cursor.is_some() && popup.pages < 8 => {
+                        None if page.next_cursor.is_some() => {
                             popup.cursor = page.next_cursor;
                             Phase::Waiting
                         }

@@ -648,6 +648,54 @@ fn rejects_mismatched_correlation_authorization_echo_and_start_target() -> TestR
 }
 
 #[test]
+fn a_shutdown_reply_is_awaited_for_its_whole_budget() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        ShutdownBudget, ShutdownTerminals, WorkerShutdownOutcome, WorkerShutdownRequest,
+        WorkerShutdownResult,
+    };
+    // The Worker answers after the ordinary reply window has passed, within the shutdown's budget.
+    let answer_after = TEST_IO_TIMEOUT * 3;
+    let request = WorkerShutdownRequest {
+        operation_id: OperationId::from_bytes([8; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        budget: ShutdownBudget::new(u32::try_from((answer_after * 2).as_millis())?)?,
+        terminals: ShutdownTerminals::Dispose,
+    };
+    let result = WorkerShutdownResult {
+        request,
+        outcome: WorkerShutdownOutcome::NoHost,
+    };
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::WorkerShutdownRequest(request)
+        );
+        thread::sleep(answer_after);
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::WorkerShutdownResult(result),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Shutdown(request)),
+        Ok(WorkerOperationResult::Shutdown(result))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    let _exit = exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?;
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
 fn distinguishes_response_timeout_and_disconnect_after_complete_delivery() -> TestResult {
     let request = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
