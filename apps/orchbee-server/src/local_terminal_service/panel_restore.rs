@@ -87,16 +87,15 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_poison| PostcommitCoordinationError)?;
         let completed = coordinator.complete_held_restore(pending, completion, current)?;
-        // Started under the gate Client views are noted under, so the first view of the started
-        // shell reaches the driver. A driver that already ran this Server lifetime refuses a new
-        // run; the reference then stays pending and the next checkpoint carries it.
+        // Handed over under the gate Client views and input are noted under, so the driver sees
+        // every one that reaches the started shell. It joins the running driver or starts a new
+        // run; only a stopping Server refuses, and the final checkpoint then carries the reference.
         if let Some((presentation, directory)) = completed.agent_resume
             && resume
             && coordinator.has_pending_agent_session(&presentation)
         {
-            let mut candidates = super::agent_resume::AgentResumeCandidates::default();
-            candidates.push(presentation, directory);
-            let _kept_pending = self.start_agent_resume(candidates);
+            let _kept_pending =
+                self.resume_retried_agent(&coordinator, current, presentation, directory);
         }
         drop(coordinator);
         drop(workers);

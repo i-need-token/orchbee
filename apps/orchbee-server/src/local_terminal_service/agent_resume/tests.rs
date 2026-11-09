@@ -1,17 +1,19 @@
 //! The delivery rule's decisions: a resume is typed only into an idle interactive shell at its
-//! prompt in the retained directory, and never into a busy or foreign terminal. Timing, ordering
-//! and wiring are witnessed end to end by `cli_windows_agent_resume`.
+//! prompt in the retained directory, and never into a busy or foreign terminal; and the handover of
+//! a retried reference to the driver at any point of its run. Timing, ordering and wiring are
+//! witnessed end to end by `cli_windows_agent_resume`.
 use super::{
-    Reason,
+    Admitted, Candidate, Reason,
     admission::{Readiness, ResumeFacts, readiness, same_directory},
     plan::ResumeShell,
+    signals::{Offer, Signals},
 };
 use crate::local_terminal_service::tab_close::evidence::ShellReport;
 use orchbee_terminal_protocol::{
     AttachmentId, MAXIMUM_PROCESS_SAMPLE_ROWS, TerminalId, TerminalProcess, TerminalProcessConsole,
     TerminalProcessInfo,
 };
-use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+use orchbee_workbench_protocol::{TerminalPresentationId, WorkbenchDirectoryPath};
 
 const RETAINED: &str = "C:\\work\\project";
 
@@ -295,4 +297,57 @@ fn directories_compare_case_insensitively_with_one_trailing_separator() {
     ));
     assert!(!same_directory("C:\\work\\project", "C:\\work\\projects"));
     assert!(same_directory("\\\\server\\share\\", "\\\\SERVER\\share"));
+}
+
+fn retried(seed: u8) -> Admitted {
+    Admitted {
+        candidate: Candidate {
+            presentation: TerminalPresentationId::parse(&format!("{seed:032x}")).unwrap(),
+            directory: WorkbenchDirectoryPath::parse(RETAINED).unwrap(),
+        },
+        committed: None,
+        retried: Some(std::time::Instant::now()),
+    }
+}
+
+fn presentation(admitted: Option<Admitted>) -> Option<TerminalPresentationId> {
+    admitted.map(|admitted| admitted.candidate.presentation)
+}
+
+#[test]
+fn a_retried_reference_is_attempted_whether_or_not_a_driver_already_ran() {
+    let signals = Signals::default();
+    // The startup driver runs: a Retry joins it, and it takes the reference before it ends.
+    assert!(signals.activate());
+    assert!(matches!(signals.offer(retried(1)), Offer::Queued));
+    assert_eq!(
+        presentation(signals.next_retried()),
+        Some(retried(1).candidate.presentation)
+    );
+    assert!(signals.next_retried().is_none());
+    // That driver ended: the next Retry starts a run of its own instead of waiting for a restart.
+    let Offer::Start(started) = signals.offer(retried(2)) else {
+        panic!("a Retry after the driver ended must start a run");
+    };
+    assert_eq!(
+        started.candidate.presentation,
+        retried(2).candidate.presentation
+    );
+    assert!(matches!(signals.offer(retried(3)), Offer::Queued));
+    assert_eq!(
+        presentation(signals.next_retried()),
+        Some(retried(3).candidate.presentation)
+    );
+    assert!(signals.next_retried().is_none());
+}
+
+#[test]
+fn a_stopping_server_attempts_no_retried_reference_and_keeps_it_pending() {
+    let signals = Signals::default();
+    assert!(signals.activate());
+    assert!(matches!(signals.offer(retried(1)), Offer::Queued));
+    signals.stop();
+    // The driver returns early: the waiting reference is left to the final checkpoint.
+    assert_eq!(signals.finish(), 1);
+    assert!(matches!(signals.offer(retried(2)), Offer::Refused));
 }

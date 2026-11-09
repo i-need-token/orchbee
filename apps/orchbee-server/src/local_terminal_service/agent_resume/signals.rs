@@ -1,14 +1,18 @@
 //! What Clients did to restored terminals while resumes are pending: the first Client view of this
-//! Server lifetime, which terminals a Client viewed, and which received Client input. Notes are
-//! taken while the noting path holds the coordinator lock, and the driver's final check reads them
-//! under the same lock, so an input either precedes a delivery's admission or follows its send.
-//! The state lock is a leaf: nothing is acquired while it is held. It does not decide delivery.
+//! Server lifetime, which terminals a Client viewed, and which received Client input; and the
+//! retried candidates waiting for the running driver. Notes are taken while the noting path holds
+//! the coordinator lock, and the driver's final check reads them under the same lock, so an input
+//! either precedes a delivery's admission or follows its send. A run ends in the same critical
+//! section that finds no retried candidate waiting, so each one either joins the running driver or
+//! starts the next run. The state lock is a leaf: nothing is acquired while it is held. It does not
+//! decide delivery.
+use super::Admitted;
 use crate::{
     local_terminal_service::controller_connection::ControlTarget,
     terminal_coordinator::BindingViewerTarget,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, VecDeque},
     sync::{Condvar, Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
@@ -21,6 +25,19 @@ struct State {
     first_view: Option<Instant>,
     viewed: BTreeSet<ControlTarget>,
     touched: BTreeSet<ControlTarget>,
+    /// Retried candidates for the running driver, in Retry order. Each Retry releases its hold, so
+    /// the held Presentations bound it.
+    retried: VecDeque<Admitted>,
+}
+
+/// Where a retried candidate goes.
+pub(super) enum Offer {
+    /// The running driver takes it after its current work.
+    Queued,
+    /// No driver runs: notes are kept from now, and the caller starts a run with it.
+    Start(Admitted),
+    /// The Server is stopping; the reference stays pending for the final checkpoint.
+    Refused,
 }
 
 #[derive(Default)]
@@ -42,12 +59,43 @@ impl Signals {
         state.active
     }
 
-    /// Stops keeping notes and drops what was noted.
-    pub(super) fn finish(&self) {
+    /// Stops keeping notes and drops what was noted. Returns the retried candidates no run will
+    /// attempt; their references stay pending.
+    pub(super) fn finish(&self) -> usize {
         let mut state = self.state();
+        Self::end(&mut state);
+        std::mem::take(&mut state.retried).len()
+    }
+
+    fn end(state: &mut State) {
         state.active = false;
         state.viewed.clear();
         state.touched.clear();
+    }
+
+    /// Hands a retried candidate to the running driver, or starts keeping notes for a new run.
+    pub(super) fn offer(&self, candidate: Admitted) -> Offer {
+        let mut state = self.state();
+        if state.stop {
+            Offer::Refused
+        } else if state.active {
+            state.retried.push_back(candidate);
+            Offer::Queued
+        } else {
+            state.active = true;
+            Offer::Start(candidate)
+        }
+    }
+
+    /// The next retried candidate, or none, which ends the run: notes stop, and the next Retry
+    /// starts a new run.
+    pub(super) fn next_retried(&self) -> Option<Admitted> {
+        let mut state = self.state();
+        let next = state.retried.pop_front();
+        if next.is_none() {
+            Self::end(&mut state);
+        }
+        next
     }
 
     pub(super) fn stop(&self) {

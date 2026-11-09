@@ -254,11 +254,24 @@ command's start and finish markers and keeps the line out of history, as for an 
 ### Startup
 
 Startup reads the preference once, after the Session's preference scope is frozen. Off discards
-every pending reference and starts no driver. A pending reference whose retained directory is
-missing, or not a directory, is discarded without a notice: the shell starts in the Worker's home,
-as any restore does. The remaining Presentations, in restoration order with their retained
-directories, are the driver's candidates. The driver starts after the restored terminals launch
-and the process observer starts, before any Client listener opens.
+every pending reference and starts no driver. A Presentation whose directory is unavailable is
+held without launching and keeps its reference
+([held restore](workbench-checkpoint.md#held-restore)); see [Retry](#retry). The remaining
+Presentations with a pending reference, in restoration order with their retained directories, are
+the driver's candidates. The driver starts after the restored terminals launch and the process
+observer starts, before any Client listener opens.
+
+### Retry
+
+While the preference is on, a Retry that starts a held Panel's shell in its saved directory hands a
+still pending reference to the driver under the registry and coordinator locks it committed the
+new binding under. The candidate queues behind the running driver, which takes it after its other
+candidates, or, when the driver already ended in this Server lifetime, starts a new run. A run
+ends in the same critical section that finds no queued candidate, so a handed-over reference is
+never left unattempted while the Server runs. Its attempt waits one second from the Retry so the
+Client can size the new terminal, then follows the same gate, spacing, readiness, guards and
+consumption as a startup candidate. Start in home folder consumes the reference instead. A
+stopping Server refuses the handover, and the final capture carries the reference.
 
 ### Gate, order and spacing
 
@@ -279,9 +292,9 @@ and the process observer starts, before any Client listener opens.
 ### Guards
 
 Before every read, under the registry and coordinator locks, the reference must still be pending,
-the Presentation must keep the binding it had when the driver started and the started Terminal
-generation of its first attempt, no Client input may have reached that terminal since the driver
-started, and its shell must not have echoed any command. Client input is typed bytes, key and text
+the Presentation must keep the binding it had when the driver took the candidate (at the driver's
+start, or at the Retry) and the started Terminal generation of its first attempt, no Client input
+may have reached that terminal since then, and its shell must not have echoed any command. Client input is typed bytes, key and text
 input and pastes on a controller, and every Client send; focus, mouse reports and resizes are not.
 Notes about Client views and input are taken while their paths hold the coordinator lock.
 
@@ -323,7 +336,7 @@ capture carries every reference not yet attempted.
 
 | Case                                       | Behavior                                                                          |
 | ------------------------------------------ | --------------------------------------------------------------------------------- |
-| Retained directory missing at restore      | Discarded; the shell starts in the Worker's home; nothing typed; no notice.       |
+| Retained directory missing at restore      | Held with its reference; Retry resumes it, Start in home folder consumes it.      |
 | Directory differs when ready               | Skipped and consumed.                                                             |
 | Provider not on `PATH`                     | The shell prints its own error and stays; no run binds, so no capture writes it.  |
 | Session gone, such as a deleted transcript | The provider errors and exits, or opens an empty or new session; the shell stays. |
@@ -379,7 +392,9 @@ gone anchor, a reused process id with a new creation time and a run that is no l
 the provider drop; a living bound run is written; an unbound reference is kept but never written)
 and the delivery readiness table (a running command, another program, unsupported roots, every
 undecidable sample, each shell at its prompt, silence for marked and unmarked shells, and directory
-equality). Candidate joining, lock order, the gate, ordering, spacing, the observer lane, saver
+equality), and the Retry handover (a reference handed over while the driver runs is taken before
+it ends, one handed over after it ended starts a new run, and a stopping Server refuses it and
+leaves it pending). Candidate joining, lock order, the gate, ordering, spacing, the observer lane, saver
 wiring and carry-forward's record, bind and prune wiring are not claimed by unit tests.
 
 `apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts in

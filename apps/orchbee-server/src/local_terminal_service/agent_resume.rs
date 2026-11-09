@@ -2,13 +2,15 @@
 //! restored shell after a managed Windows restart. It waits for the first Client view of this
 //! Server lifetime, then attempts each pending reference once, viewed terminals first, and types
 //! only into an idle shell of the restored Terminal generation in the retained directory that no
-//! Client input or command has touched. A reference is consumed by every refutation and by every
-//! attempted send, and stays pending only while its terminal is unavailable or the Server stops.
-//! It never retries, never shows Clients anything, and never logs a session id.
+//! Client input or command has touched. A held Panel's reference joins when a Retry starts its
+//! shell: behind the running driver, or in a new run once the last one ended. A reference is
+//! consumed by every refutation and by every attempted send, and stays pending only while its
+//! terminal is unavailable or the Server stops. It never retries, never shows Clients anything,
+//! and never logs a session id.
 use super::{LocalTerminalService, create_reference, placement};
 use crate::{
     session_coordinator::{ProcessObservationTarget, ResumeTarget, SessionCoordinator},
-    terminal_coordinator::BindingViewerTarget,
+    terminal_coordinator::{BindingViewerTarget, WorkerPlacement},
 };
 use orchbee_client_server_protocol::{
     ServerMessage, SessionId as ObcsSessionId, TerminalId as ClientTerminalId, TerminalSendOutcome,
@@ -19,6 +21,7 @@ use orchbee_workbench_protocol::{
     PresentationBinding, TerminalPresentationId, WorkbenchDirectoryPath,
 };
 use std::{
+    collections::VecDeque,
     io,
     sync::{Arc, Mutex, Weak},
     thread::{self, JoinHandle},
@@ -35,7 +38,7 @@ pub(super) use admission::ResumeFacts;
 use admission::{Readiness, readiness};
 use plan::ResumeShell;
 
-/// Clients size what they show before the first delivery.
+/// Clients size what they show before the first delivery, and a retried shell's Client sizes it.
 const SETTLE: Duration = Duration::from_secs(1);
 /// The least time between two deliveries.
 const SPACING: Duration = Duration::from_millis(250);
@@ -104,6 +107,15 @@ struct Candidate {
     directory: WorkbenchDirectoryPath,
 }
 
+/// A candidate with the binding its Presentation had when the driver took it, which every guard
+/// compares against.
+pub(super) struct Admitted {
+    candidate: Candidate,
+    committed: Option<PresentationBinding>,
+    /// When a Retry started its shell; its attempt waits `SETTLE` from then.
+    retried: Option<Instant>,
+}
+
 /// The restored Presentations whose reference survived startup, in restoration order, each with
 /// the retained directory its resume must find.
 #[derive(Default)]
@@ -136,8 +148,9 @@ impl Drop for AgentResume {
 }
 
 impl LocalTerminalService {
-    /// Starts the resume driver for `candidates`; an empty list starts nothing. The driver keeps
-    /// Client notes from now until it ends, so it starts before any Client can connect.
+    /// Starts the resume driver for the startup `candidates`; an empty list starts nothing. The
+    /// driver keeps Client notes from now until it ends, so it starts before any Client can
+    /// connect. The caller holds no registry or coordinator lock.
     pub(crate) fn start_agent_resume(
         self: &Arc<Self>,
         candidates: AgentResumeCandidates,
@@ -145,23 +158,74 @@ impl LocalTerminalService {
         if candidates.0.is_empty() {
             return Ok(());
         }
-        let mut slot = self
+        if self
             .agent_resume
             .handle
             .lock()
-            .map_err(|_| io::Error::other("Agent resume owner poisoned"))?;
-        if slot.is_some() {
+            .map_err(|_| io::Error::other("Agent resume owner poisoned"))?
+            .is_some()
+        {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
-        let signals = Arc::clone(&self.agent_resume.signals);
-        if !signals.activate() {
+        let initial = candidates
+            .0
+            .into_iter()
+            .map(|candidate| Admitted {
+                committed: self.committed_binding(&candidate.presentation),
+                candidate,
+                retried: None,
+            })
+            .collect();
+        if !self.agent_resume.signals.activate() {
             return Err(io::ErrorKind::NotConnected.into());
+        }
+        self.spawn_agent_resume(initial)
+    }
+
+    /// Hands the pending reference of a Presentation a Retry just started in `directory` to the
+    /// driver: behind the running one, or as a new run when none runs. The caller holds the
+    /// registry and coordinator locks it committed the new binding under, so notes about the new
+    /// terminal start before any Client can reach it. A refusal leaves the reference pending.
+    pub(super) fn resume_retried_agent(
+        self: &Arc<Self>,
+        coordinator: &SessionCoordinator,
+        current: Option<WorkerPlacement>,
+        presentation: TerminalPresentationId,
+        directory: WorkbenchDirectoryPath,
+    ) -> io::Result<()> {
+        let admitted = Admitted {
+            committed: binding(coordinator.agent_resume_target(&presentation, current)),
+            candidate: Candidate {
+                presentation,
+                directory,
+            },
+            retried: Some(Instant::now()),
+        };
+        match self.agent_resume.signals.offer(admitted) {
+            signals::Offer::Queued => Ok(()),
+            signals::Offer::Refused => Err(io::ErrorKind::NotConnected.into()),
+            signals::Offer::Start(admitted) => self.spawn_agent_resume(vec![admitted]),
+        }
+    }
+
+    /// Spawns a run whose note keeping the caller already started. A previous run already ended
+    /// its note keeping and takes no lock after that, so joining it returns at once.
+    fn spawn_agent_resume(self: &Arc<Self>, initial: Vec<Admitted>) -> io::Result<()> {
+        let signals = Arc::clone(&self.agent_resume.signals);
+        let Ok(mut slot) = self.agent_resume.handle.lock() else {
+            signals.finish();
+            return Err(io::Error::other("Agent resume owner poisoned"));
+        };
+        if let Some(previous) = slot.take()
+            && previous.join().is_err()
+        {
+            eprintln!("orchbee-server diagnostic component=agent-resume outcome=driver-panicked");
         }
         let service = Arc::downgrade(self);
         let thread_signals = Arc::clone(&signals);
         let spawned = thread::Builder::new()
             .name("orchbee-agent-resume".into())
-            .spawn(move || run(&service, &thread_signals, candidates.0));
+            .spawn(move || run(&service, &thread_signals, initial));
         match spawned {
             Ok(handle) => *slot = Some(handle),
             Err(error) => {
@@ -225,13 +289,10 @@ impl LocalTerminalService {
     ) -> Option<PresentationBinding> {
         let workers = self.workers.lock().ok()?;
         let coordinator = self.coordinator.lock().ok()?;
-        match coordinator
-            .agent_resume_target(presentation, placement(workers.request_handle().as_ref()))
-        {
-            ResumeTarget::Gone => None,
-            ResumeTarget::Unavailable(binding) => Some(binding),
-            ResumeTarget::Started(target) => Some(target.binding),
-        }
+        binding(
+            coordinator
+                .agent_resume_target(presentation, placement(workers.request_handle().as_ref())),
+        )
     }
 
     /// Whether a Client viewed the candidate's current terminal.
@@ -439,11 +500,29 @@ impl LocalTerminalService {
     }
 }
 
-/// Ends note keeping however the driver returns.
-struct Finish<'a>(&'a signals::Signals);
+/// The binding a resume target names, if its Presentation is still a bound member.
+fn binding(target: ResumeTarget) -> Option<PresentationBinding> {
+    match target {
+        ResumeTarget::Gone => None,
+        ResumeTarget::Unavailable(binding) => Some(binding),
+        ResumeTarget::Started(target) => Some(target.binding),
+    }
+}
+
+/// Ends note keeping however the driver returns early; the retried candidates it leaves stay
+/// pending. Disarmed when the run ended by finding no retried candidate, so a run a later Retry
+/// already started keeps its notes.
+struct Finish<'a> {
+    signals: &'a signals::Signals,
+    armed: bool,
+}
 impl Drop for Finish<'_> {
     fn drop(&mut self) {
-        self.0.finish();
+        if self.armed {
+            for _ in 0..self.signals.finish() {
+                report(Outcome::Kept(Kept::Stopping));
+            }
+        }
     }
 }
 
@@ -454,53 +533,44 @@ fn report(outcome: Outcome) {
     );
 }
 
-fn run(
-    service: &Weak<LocalTerminalService>,
-    signals: &signals::Signals,
-    candidates: Vec<Candidate>,
-) {
-    let _finish = Finish(signals);
-    let keep = |rest: &[Candidate]| {
-        for _ in rest {
+fn run(service: &Weak<LocalTerminalService>, signals: &signals::Signals, initial: Vec<Admitted>) {
+    let mut finish = Finish {
+        signals,
+        armed: true,
+    };
+    let keep = |rest: usize| {
+        for _ in 0..rest {
             report(Outcome::Kept(Kept::Stopping));
         }
     };
-    let committed: Vec<_> = match service.upgrade() {
-        Some(service) => candidates
-            .iter()
-            .map(|candidate| service.committed_binding(&candidate.presentation))
-            .collect(),
-        None => return keep(&candidates),
-    };
     if !signals.wait_for_view(SETTLE) {
-        return keep(&candidates);
+        return keep(initial.len());
     }
     let Some(viewed) = service.upgrade().map(|service| {
-        candidates
+        initial
             .iter()
-            .map(|candidate| service.viewed(candidate))
+            .map(|admitted| service.viewed(&admitted.candidate))
             .collect::<Vec<_>>()
     }) else {
-        return keep(&candidates);
+        return keep(initial.len());
     };
-    let mut order: Vec<usize> = (0..candidates.len()).collect();
-    order.sort_by_key(|&index| !viewed[index]);
+    let mut ordered: Vec<_> = viewed.into_iter().zip(initial).collect();
+    ordered.sort_by_key(|(viewed, _)| !viewed);
+    let mut queue: VecDeque<Admitted> = ordered.into_iter().map(|(_, admitted)| admitted).collect();
     let mut last_send: Option<Instant> = None;
-    for (position, &index) in order.iter().enumerate() {
-        let remaining = || {
-            order[position..]
-                .iter()
-                .for_each(|_| report(Outcome::Kept(Kept::Stopping)));
+    loop {
+        let Some(admitted) = queue.pop_front().or_else(|| signals.next_retried()) else {
+            finish.armed = false;
+            return;
         };
-        if let Some(last) = last_send
-            && !signals.sleep_until(last + SPACING)
-        {
-            return remaining();
-        }
-        let Some(service) = service.upgrade() else {
-            return remaining();
+        let settled = admitted
+            .retried
+            .is_none_or(|retried| signals.sleep_until(retried + SETTLE));
+        let spaced = settled && last_send.is_none_or(|last| signals.sleep_until(last + SPACING));
+        let Some(service) = spaced.then(|| service.upgrade()).flatten() else {
+            return keep(1 + queue.len());
         };
-        let outcome = service.attempt(signals, &candidates[index], committed[index].as_ref());
+        let outcome = service.attempt(signals, &admitted.candidate, admitted.committed.as_ref());
         drop(service);
         if outcome.sent() {
             last_send = Some(Instant::now());

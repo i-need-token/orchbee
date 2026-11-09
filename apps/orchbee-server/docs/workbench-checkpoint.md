@@ -150,9 +150,9 @@ Worker home applies and the next capture records what the new shell reports. A r
 longer names a held Presentation is rejected with `panel-unavailable`. Closing a held Panel is an
 ordinary Panel close.
 
-The resume driver runs once per Server lifetime: a Retry after it already ran leaves the reference
-pending, and the next checkpoint and restart resume it. See
-[Agent session resume](agent-session-resume.md).
+The handed-over reference joins the running resume driver, or starts a new run when the driver
+already ended, so a successful Retry resumes the Agent at once under the same rules as startup. See
+[Agent session resume](agent-session-resume.md#retry).
 
 ## Terminal rebind preparation
 
