@@ -63,7 +63,8 @@ with.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)
   describes.
 - On Windows, Save Diagnostic Bundle… in the Help menu and in the taskbar's Jump List of a packaged
-  build, since the title bar overlay hides the menu bar. It asks where to save, runs
+  build, since the title bar overlay hides the menu bar. It asks where to save, starting in the
+  Desktop folder, or in the home folder when the system cannot name the Desktop, runs
   `orchbee diagnostics create`, shows the bundle in its folder, and says in a dialog when it failed;
   one save runs at a time and cancelling the dialog writes nothing. The bundle's contents belong to
   the [CLI command](../orchbee/README.md#windows-diagnostic-bundle).
@@ -164,8 +165,12 @@ development server. To run the built entry without the development runtime, run
 | `ORCHBEE_DESKTOP_SESSION`                 | Optional Session name                                                     |
 | `ORCHBEE_DESKTOP_WINDOW_HIDDEN`           | Optional; for automation, a window never shown, restored, or recorded     |
 
-A packaged application ignores all but the last two: it runs its bundled cohort and serves its
-bundled renderer through the secure `orchbee:` scheme. A window that stays hidden produces no
+Main runs as development exactly when Electron's default app loaded its entry, as `pnpm desktop`
+and `electron dist/main/main.cjs` both do, whatever the executable is named; Electron's
+`app.isPackaged` only compares that name with `electron`, so Main never reads it. A packaged
+application ships no default app, so no environment variable makes it run as development. It
+ignores all but the last two variables: it runs its bundled cohort and serves its bundled renderer
+through the secure `orchbee:` scheme. A window that stays hidden produces no
 frames; automation that needs pixels shows it off-screen with `showInactive`.
 
 On Windows, the command mirrors Electron's distribution, by hard links where the volume allows,

@@ -55,7 +55,7 @@ export class DesktopDiagnosticsRuntime implements DesktopDiagnosticsTarget {
 	async chooseBundlePath(): Promise<string | undefined> {
 		const { intl } = this.#options;
 		const options = {
-			defaultPath: path.join(app.getPath('desktop'), defaultBundleName(new Date())),
+			defaultPath: defaultBundlePath(new Date()),
 			filters: [
 				{ extensions: ['zip'], name: intl.formatMessage(desktopDiagnosticsMessages.zipFilter) },
 			],
@@ -112,16 +112,33 @@ export class DesktopDiagnosticsRuntime implements DesktopDiagnosticsTarget {
 	}
 }
 
+/**
+ * The default name in the Desktop folder, or in the home folder when the system cannot name the
+ * Desktop: Electron throws for a profile whose Desktop folder is missing, and the dialog still has to
+ * open, in a folder that exists.
+ */
+function defaultBundlePath(now: Date): string {
+	const name = defaultBundleName(now);
+	for (const folder of ['desktop', 'home'] as const) {
+		try {
+			return path.join(app.getPath(folder), name);
+		} catch {
+			// The next folder, and at last the name alone, in whatever folder the dialog picks.
+		}
+	}
+	return name;
+}
+
 /** `orchbee-diagnostics-YYYY-MM-DD-HHMM.zip` in local time. */
 function defaultBundleName(now: Date): string {
 	return `orchbee-diagnostics-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}-${two(now.getHours())}${two(now.getMinutes())}.zip`;
 }
 
-/** The written path, or a closed failure code: the failed write's stage, never the failure text. */
 function two(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
+/** The written path, or a closed failure code: the failed write's stage, never the failure text. */
 function readOutcome(error: Error | null, stdout: string): DesktopDiagnosticBundleOutcome {
 	let document: unknown;
 	try {

@@ -45,6 +45,7 @@ import {
 } from '../window-state';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
+import { isPackagedDesktop } from './isPackagedDesktop';
 import { type DesktopDataRoot, prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
 
@@ -59,11 +60,12 @@ const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
 const PACKAGED_COHORT_DIRECTORY = 'cohort';
 const PACKAGED_RENDERER_DIRECTORY = 'dist';
 
+const packaged = isPackagedDesktop(process);
 registerDesktopRendererScheme(protocol);
 const distribution = resolveDesktopApplicationDistribution({
 	applicationPath: app.getAppPath(),
 	environment: process.env,
-	packaged: app.isPackaged,
+	packaged,
 	platform: process.platform,
 });
 app.setName(distribution.applicationName);
@@ -162,7 +164,7 @@ function requiredEnvironment(key: string): string {
 
 /** The bundled cohort's Client, or in a checkout the one its development runtime staged. */
 function resolveClientExecutable(): string {
-	if (!app.isPackaged) return requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY);
+	if (!packaged) return requiredEnvironment(CLIENT_EXECUTABLE_ENVIRONMENT_KEY);
 	const stem = resolveDesktopCohortArtifactStem(distribution, process.platform);
 	return path.join(
 		process.resourcesPath,
@@ -172,11 +174,11 @@ function resolveClientExecutable(): string {
 }
 
 async function resolveRendererUrl(): Promise<URL> {
-	const developmentUrl = app.isPackaged ? undefined : process.env[RENDERER_URL_ENVIRONMENT_KEY];
+	const developmentUrl = packaged ? undefined : process.env[RENDERER_URL_ENVIRONMENT_KEY];
 	if (developmentUrl !== undefined) return new URL(developmentUrl);
 	await installDesktopRendererScheme(
 		protocol,
-		app.isPackaged
+		packaged
 			? path.join(process.resourcesPath, PACKAGED_RENDERER_DIRECTORY)
 			: requiredEnvironment(RENDERER_ROOT_ENVIRONMENT_KEY),
 		(fileUrl) => net.fetch(fileUrl),
@@ -204,7 +206,7 @@ function installPlatformActions(application: DesktopServerClientApplication): ()
 	saveDiagnosticBundle = () => diagnosticsActions.invokeSaveBundle('menu');
 	// The title bar overlay hides the Windows menu bar, so the taskbar's Jump List holds the same
 	// Action; a checkout's Electron has no identity of its own to hold one.
-	if (process.platform === 'win32' && app.isPackaged) {
+	if (process.platform === 'win32' && packaged) {
 		app.setUserTasks([
 			{
 				arguments: SAVE_DIAGNOSTIC_BUNDLE_SWITCH,
@@ -357,7 +359,7 @@ app.on('window-all-closed', () => {
 
 // The development runtime restarts Main after a rebuild through an ordinary quit, which records the
 // window's place first; the Session keeps running, as it does after any quit.
-if (!app.isPackaged && process.send !== undefined) {
+if (!packaged && process.send !== undefined) {
 	process.on('message', (message: unknown) => {
 		if (DesktopDevelopmentRestartRequestSchema.safeParse(message).success) app.quit();
 	});
