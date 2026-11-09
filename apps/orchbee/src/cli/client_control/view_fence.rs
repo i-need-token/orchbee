@@ -1,9 +1,11 @@
 //! Fence a selected Client on the facts a multi-step read depends on.
 //!
-//! A Client's view revision also steps when nothing such a read depends on changed: a background
-//! refresh briefly reports `busy`, including the refresh that the read's own terminal requests
-//! cause on the Server. Under the selection fence, a step the Client refused only for that reason
-//! runs again at the Client's current view revision, while a selection change still fails it.
+//! A Client's view revision also steps when nothing such a read depends on changed: the view
+//! carries the canonical Workbench revision, so any snapshot commit, including one the read's own
+//! requests cause, steps it once the Client installs that commit. A background refresh itself keeps
+//! the view `ready`, but a transient step can still make the Client refuse as `busy`. Under the
+//! selection fence, a step the Client refused only as stale or busy runs again at the Client's
+//! current view revision, while a selection change still fails it.
 use super::exchange::exchange;
 use crate::{
     cli::{Failure, console_interrupt::SignalWatch, query},

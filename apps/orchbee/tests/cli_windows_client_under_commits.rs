@@ -267,7 +267,7 @@ fn drags(fixture: &Fixture, tui: &Tui) -> Vec<String> {
         thread::sleep(GAP);
     }
     // A Client refuses control steps as busy while its own resize settles; the next phase reads a
-    // Client that only background refreshes keep busy.
+    // Client whose view only background refreshes step.
     let deadline = Instant::now() + SETTLE;
     while screen(fixture, tui)
         .iter()

@@ -24,7 +24,7 @@ const STARTUP: Duration = Duration::from_secs(40);
 /// Bounds each wait for an observation of the Client.
 pub const OBSERVATION: Duration = Duration::from_secs(10);
 /// A modal state is settled once the Client reports one phase on this many reads in a row,
-/// 200 ms apart; a background refresh holds it busy only for moments.
+/// 200 ms apart; the Client's own transient work holds it busy only for moments.
 const SETTLED_READS: usize = 4;
 /// Bounds one controlling attachment, well past any test that holds one.
 const CONTROL_TIMEOUT_MILLISECONDS: &str = "120000";
@@ -506,7 +506,7 @@ impl Fixture {
     }
 
     /// Waits until the Client reports `phase` on consecutive reads: a mode holds it, not one
-    /// background refresh.
+    /// transient step.
     pub fn settle(&self, client: &str, phase: &str) {
         let deadline = Instant::now() + OBSERVATION;
         let mut reads = 0;
