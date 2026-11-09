@@ -143,7 +143,7 @@ impl WorkbenchClientUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if snapshot_consumed && let Some(snapshot) = &index_snapshot {
-                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.adopt_snapshot_index(snapshot);
                 }
                 if clear {
                     self.clear_projections();

@@ -1380,6 +1380,7 @@ fn snapshot() -> Snapshot {
                         label: "presentation".into(),
                         presentation_id: TerminalPresentationId::parse(&id(6)).unwrap(),
                         launch_failure: None,
+                        agent_not_resumed: None,
                         launch_program: None,
                     },
                 },

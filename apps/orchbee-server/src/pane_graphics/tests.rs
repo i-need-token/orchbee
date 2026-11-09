@@ -161,6 +161,7 @@ fn fixture() -> (Snapshot, PaneGraphicsTarget) {
                         custom_label: None,
                         label: "Panel".into(),
                         launch_failure: None,
+                        agent_not_resumed: None,
                         launch_program: None,
                     },
                 },

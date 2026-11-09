@@ -616,6 +616,7 @@ impl Graft<'_> {
             custom_label: saved.custom_label.clone(),
             label: saved.label.clone(),
             launch_failure: None,
+            agent_not_resumed: None,
             launch_program: None,
             presentation_id,
         })

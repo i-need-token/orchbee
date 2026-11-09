@@ -520,6 +520,10 @@ export const enUSWorkbenchMessages = {
 	'workbench.heldRestore.directoryUnavailable': 'Directory still unavailable',
 	'workbench.heldRestore.agentNotResumed': 'Agent conversation not resumed',
 	'workbench.heldRestore.notStarted': 'Terminal not started',
+	'workbench.agentResume.promptUnconfirmed':
+		'{agent} conversation not resumed: the shell was not at its prompt, so nothing was typed.',
+	'workbench.agentResume.terminalTooOld':
+		'{agent} conversation not resumed: this terminal was started by an older Orchbee, so nothing was typed.',
 	'workbench.earlierLayouts.action': 'Earlier layouts…',
 	'workbench.earlierLayouts.reading': 'Reading earlier layouts…',
 	'workbench.earlierLayouts.empty': 'No earlier layouts yet',

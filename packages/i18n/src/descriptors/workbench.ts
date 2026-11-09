@@ -1760,6 +1760,18 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Status notice when a held Panel started in the home folder, so its Agent conversation was not resumed.',
 	},
+	agentResumePromptUnconfirmed: {
+		id: 'workbench.agentResume.promptUnconfirmed',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentResume.promptUnconfirmed'],
+		description:
+			'Status notice when the Server gave up resuming an Agent conversation after a restart because the Host never confirmed the shell at its prompt. {agent} is the Agent product name.',
+	},
+	agentResumeTerminalTooOld: {
+		id: 'workbench.agentResume.terminalTooOld',
+		defaultMessage: enUSWorkbenchMessages['workbench.agentResume.terminalTooOld'],
+		description:
+			'Status notice when the Server gave up resuming an Agent conversation after a restart because the terminal was started by an Orchbee that cannot confirm a prompt. {agent} is the Agent product name.',
+	},
 	heldRestoreNotStarted: {
 		id: 'workbench.heldRestore.notStarted',
 		defaultMessage: enUSWorkbenchMessages['workbench.heldRestore.notStarted'],

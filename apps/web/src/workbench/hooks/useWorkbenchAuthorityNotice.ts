@@ -25,6 +25,7 @@ import { formatWorkbenchConfiguredCommandName } from '../model/workbench-configu
 import { workbenchActiveLocationsEqual } from '../model/workbench-terminal-location-activation';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
+	WorkbenchAgentNotResumed,
 	WorkbenchAuthority,
 	WorkbenchAuthorityClosure,
 	WorkbenchEarlierLayouts,
@@ -33,6 +34,7 @@ import type {
 } from '../types/workbench-authority';
 import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
+import { formatWorkbenchAgentProvider } from '../utils/workbench-agent-names';
 
 export interface WorkbenchAuthorityNoticeView {
 	readonly authority: WorkbenchAuthority;
@@ -140,6 +142,34 @@ function reportingHeldRestores(
 	};
 }
 
+/** A resume the Server gave up after a restart, worded as the TUI's status line words it. */
+function agentNotResumedNotice(
+	intl: IntlShape,
+	{ providerId, reason }: WorkbenchAgentNotResumed,
+): WorkbenchAuthorityNotice {
+	return {
+		descriptor:
+			reason === 'terminal-too-old'
+				? workbenchMessages.agentResumeTerminalTooOld
+				: workbenchMessages.agentResumePromptUnconfirmed,
+		lifetime: 'timed',
+		values: { agent: formatWorkbenchAgentProvider(intl, providerId) },
+	};
+}
+
+/** Whether `current` already says what `next` says, so `next` would only restart its time. */
+function sameWords(
+	current: WorkbenchAuthorityNotice | null,
+	next: WorkbenchAuthorityNotice,
+): boolean {
+	if (current?.descriptor !== next.descriptor) return false;
+	const values = Object.entries(next.values ?? {});
+	return (
+		values.length === Object.keys(current.values ?? {}).length &&
+		values.every(([key, value]) => current.values?.[key] === value)
+	);
+}
+
 /** Reopening an earlier layout says what it reopened or why nothing came back, as the TUI does. */
 function reportingEarlierLayouts(
 	layouts: WorkbenchEarlierLayouts,
@@ -162,7 +192,8 @@ function reportingEarlierLayouts(
  * Closing ends terminals for every Client, so it also says how it is going and how it ended: a
  * Workspace or Project close says Closed once its Workspaces leave at the Server's acceptance, and
  * one Tab's close says Closing only while it runs slow after its Tab left. Dissolving a Project
- * says that its Workspaces remain.
+ * says that its Workspaces remain. A resume the Server gave up after a restart is said once, and
+ * the same words already showing keep their time.
  */
 export function useWorkbenchAuthorityNotice(
 	authority: WorkbenchAuthority,
@@ -360,6 +391,17 @@ export function useWorkbenchAuthorityNotice(
 			lifetime: 'timed',
 		});
 	});
+	const agentResumeNotices = authority.agentResumeNotices;
+	React.useEffect(
+		() =>
+			agentResumeNotices?.subscribe((resume) => {
+				const next = agentNotResumedNotice(intl, resume);
+				setNotice((current) =>
+					current?.lifetime === 'until-press' || sameWords(current, next) ? current : next,
+				);
+			}),
+		[agentResumeNotices, intl],
+	);
 	const withdrawDirectoryRefusal = useMemoizedFn(() => {
 		setNotice((current) =>
 			current !== null && isWorkbenchDirectoryRefusalNotice(current) ? null : current,

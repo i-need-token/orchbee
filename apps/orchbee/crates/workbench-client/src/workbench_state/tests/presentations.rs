@@ -18,6 +18,7 @@ fn source() -> Snapshot {
             terminal_id: terminal_id(9002),
         }),
         launch_failure: None,
+        agent_not_resumed: None,
         launch_program: None,
     });
     source

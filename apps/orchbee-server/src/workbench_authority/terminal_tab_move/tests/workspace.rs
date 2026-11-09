@@ -322,6 +322,7 @@ fn workspace_unbound_primary_child_and_split_preserve_missing_target_and_boundar
                             label: "child".to_owned(),
                             binding: None,
                             launch_failure: None,
+                            agent_not_resumed: None,
                             launch_program: None,
                         });
                     }

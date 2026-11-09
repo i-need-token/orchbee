@@ -199,6 +199,7 @@ pub fn create_terminal_tab(
                     custom_label: None,
                     binding: Some(fresh.binding),
                     launch_failure: None,
+                    agent_not_resumed: None,
                     launch_program: fresh.launch_program,
                 },
             },

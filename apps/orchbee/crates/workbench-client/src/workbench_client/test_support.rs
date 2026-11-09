@@ -225,6 +225,7 @@ pub(crate) fn available_snapshot(binding: Option<PresentationBinding>) -> Workbe
                             label: "terminal".into(),
                             presentation_id: TerminalPresentationId::parse(ID).unwrap(),
                             launch_failure: None,
+                            agent_not_resumed: None,
                             launch_program: None,
                         },
                     },

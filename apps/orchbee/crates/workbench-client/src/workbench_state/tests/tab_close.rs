@@ -472,6 +472,7 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
                         label: "peer".into(),
                         presentation_id: TerminalPresentationId::parse(&super::id(2_013)).unwrap(),
                         launch_failure: None,
+                        agent_not_resumed: None,
                         launch_program: None,
                     },
                 },

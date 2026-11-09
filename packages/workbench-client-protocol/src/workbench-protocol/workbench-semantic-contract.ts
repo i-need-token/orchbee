@@ -195,8 +195,24 @@ const WorkbenchPresentationLaunchProgramSchema = z
 		'Launch program must be a bounded file name without a separator or control character',
 	);
 
+/**
+ * The Server gave up resuming a retained Agent conversation in the current binding's terminal and
+ * typed nothing, at `at` Unix milliseconds. It names the provider, never the session.
+ */
+const WorkbenchPresentationAgentNotResumedSchema = z
+	.strictObject({
+		at: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+		providerId: z
+			.string()
+			.max(64)
+			.regex(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u),
+		reason: z.enum(['prompt-unconfirmed', 'terminal-too-old']),
+	})
+	.readonly();
+
 export const WorkbenchPresentationSchema = z
 	.strictObject({
+		agentNotResumed: WorkbenchPresentationAgentNotResumedSchema.optional(),
 		binding: WorkbenchPresentationBindingSchema.nullable(),
 		customLabel: WorkbenchPanelCustomLabelSchema.nullable(),
 		label: WorkbenchLabelSchema,
@@ -720,6 +736,12 @@ function validatePresentation(
 			context.addIssue({
 				code: 'custom',
 				message: 'A launched program names only a bound Terminal Presentation',
+			});
+		}
+		if (presentation.agentNotResumed !== undefined) {
+			context.addIssue({
+				code: 'custom',
+				message: 'A resume that typed nothing names only a bound Terminal Presentation',
 			});
 		}
 	}

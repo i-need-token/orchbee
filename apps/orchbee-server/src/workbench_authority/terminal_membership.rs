@@ -187,6 +187,7 @@ pub(super) fn append_simple_tab(
                 label: label.to_owned(),
                 binding: Some(binding),
                 launch_failure: None,
+                agent_not_resumed: None,
                 launch_program: None,
             },
             child_presentations: Vec::new(),

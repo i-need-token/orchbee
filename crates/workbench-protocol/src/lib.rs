@@ -202,8 +202,9 @@ pub use identity::{
     WorkerId,
 };
 pub use model::{
-    Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation, PanelNode, PanelOrientation,
-    PanelRightClickTarget, PanelSlot, Presentation, PresentationBinding, PresentationLaunchFailure,
+    AgentNotResumedReason, Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation,
+    PanelNode, PanelOrientation, PanelRightClickTarget, PanelSlot, Presentation,
+    PresentationAgentNotResumed, PresentationBinding, PresentationLaunchFailure,
     PresentationLaunchFailureReason, Project, Snapshot, SnapshotReadIntent, Tab, TabGroup,
     TabGroupColor, TerminalContext, WorkbenchProtocolDocument, WorkbenchPublicationDocument,
     Workspace, tab_display_label,

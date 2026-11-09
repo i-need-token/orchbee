@@ -4,7 +4,11 @@
 //! restore runtime; a retained reference never carries command text.
 use super::directories::{StoredDirectory, members};
 use super::{WorkbenchAuthority, WorkbenchCheckpointError as Error};
-use orchbee_workbench_protocol::{PresentationBinding, Snapshot, TerminalPresentationId, WorkerId};
+use orchbee_agent_observation_protocol::AgentProviderId;
+use orchbee_workbench_protocol::{
+    AgentNotResumedReason, PresentationAgentNotResumed, PresentationBinding, Snapshot,
+    TerminalPresentationId, WorkerId,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -353,5 +357,49 @@ impl WorkbenchAuthority {
         presentation_id: &TerminalPresentationId,
     ) -> Option<RetainedAgentSession> {
         self.restart_agent_sessions.remove(presentation_id)
+    }
+
+    /// Puts back a reference a delivery took when the Host then typed nothing, so later attempts
+    /// and captures see it again. A slot that holds a reference keeps it. Never changes the
+    /// Workbench revision.
+    pub fn return_pending_agent_session(
+        &mut self,
+        presentation_id: &TerminalPresentationId,
+        session: RetainedAgentSession,
+    ) {
+        self.restart_agent_sessions
+            .entry(presentation_id.clone())
+            .or_insert(session);
+    }
+
+    /// Consumes the pending reference and publishes, in exactly one revision on the Presentation
+    /// still bound as `binding`, that its resume typed nothing for `reason` at `at` Unix
+    /// milliseconds. The fact names the provider only. Returns whether a fact was published;
+    /// nothing later clears it except a rebinding, a removal or the end of this Server lifetime.
+    pub fn give_up_agent_resume(
+        &mut self,
+        presentation_id: &TerminalPresentationId,
+        binding: Option<&PresentationBinding>,
+        reason: AgentNotResumedReason,
+        at: u64,
+    ) -> bool {
+        let Some(session) = self.restart_agent_sessions.remove(presentation_id) else {
+            return false;
+        };
+        let (Some(binding), Ok(provider_id)) = (
+            binding,
+            AgentProviderId::parse(session.provider().provider_id()),
+        ) else {
+            return false;
+        };
+        let fact = PresentationAgentNotResumed {
+            at,
+            provider_id,
+            reason,
+        };
+        self.commit_presentation_fact(presentation_id, binding, |presentation| {
+            presentation.agent_not_resumed = Some(Box::new(fact));
+            true
+        })
     }
 }

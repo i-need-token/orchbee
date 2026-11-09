@@ -351,6 +351,7 @@ pub(in crate::workbench_client) fn snapshot(count: usize, revision: u64) -> Snap
                                         .unwrap(),
                                 }),
                                 launch_failure: None,
+                                agent_not_resumed: None,
                                 launch_program: None,
                             },
                         },

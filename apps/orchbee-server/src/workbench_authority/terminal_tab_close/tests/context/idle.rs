@@ -559,6 +559,7 @@ fn child_only_bindings_cannot_be_omitted_from_idle_proof() {
             binding: primary_presentation.binding.take(),
             label: "child only".into(),
             launch_failure: None,
+            agent_not_resumed: None,
             launch_program: None,
         });
         owner.projection = WorkbenchProjectionStore::load(

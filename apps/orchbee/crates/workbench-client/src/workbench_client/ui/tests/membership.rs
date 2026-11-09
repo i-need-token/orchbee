@@ -701,6 +701,7 @@ fn split_snapshot() -> Snapshot {
                         presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 7_013))
                             .unwrap(),
                         launch_failure: None,
+                        agent_not_resumed: None,
                         launch_program: None,
                     },
                 },

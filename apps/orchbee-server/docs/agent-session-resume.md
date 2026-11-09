@@ -1,7 +1,8 @@
 # Agent session resume
 
 Status: implemented for the managed Windows Session: the preference, the retained format, capture,
-delivery after a restart and carry-forward of a delivered reference.
+delivery after a restart at a prompt the Host confirms, the one-shot notice when a resume is given
+up, and carry-forward of a delivered reference.
 
 ## Outcome and scope
 
@@ -138,8 +139,10 @@ Not in the table:
   Presentation. The [checkpoint contract](workbench-checkpoint.md#per-presentation-agent-session-references)
   owns its validation, carry-over and order.
 - `WorkbenchAuthority` keeps restored rows as pending restart intent keyed by Presentation.
-  `pending_agent_session` reads an entry and `take_pending_agent_session` consumes it; neither
-  changes the Workbench revision.
+  `pending_agent_session` reads an entry, `take_pending_agent_session` consumes it and
+  `return_pending_agent_session` puts back one a refused send took; none changes the Workbench
+  revision. `give_up_agent_resume` consumes an entry and publishes the
+  [notice fact](#what-clients-show), one revision.
 - The Session coordinator owns carried references: each delivered reference, with the exact
   Terminal generation its delivery reached, the tokens it typed and, once bound, its run anchor.
   They live only in memory, for one Server lifetime.
@@ -238,13 +241,19 @@ the run prefix gives the resumed run a token, so the next capture finds it like 
 keeps the delivered reference while the provider stays silent ([carry-forward](#carry-forward)).
 Launch programs and the restored-program policy stay unchanged.
 
-| Restored shell                                                                                      | Typed line                                                                                                                                          |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Managed PowerShell: `powershell` or `pwsh` whose last argument is the Worker's fixed initialization | `<#orchbee-run:<token>#> & (Get-Command '<program>' -CommandType Application,ExternalScript -ErrorAction Stop \| Select-Object -First 1) '<arg>' …` |
-| Other interactive PowerShell                                                                        | The same without the prefix.                                                                                                                        |
-| Interactive cmd                                                                                     | `<program> <arg> …`                                                                                                                                 |
-| Any other shell                                                                                     | Nothing: the reference is skipped.                                                                                                                  |
+The Host's own launch record for the terminal's root, the `launchKind` of its process sample,
+chooses the line; the root's command line is never read.
 
+| Launch kind                                                  | Typed line                                                                                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Managed PowerShell: `powershell` or `pwsh` with prompt marks | `<#orchbee-run:<token>#> & (Get-Command '<program>' -CommandType Application,ExternalScript -ErrorAction Stop \| Select-Object -First 1) '<arg>' …` |
+| Interactive cmd with prompt marks                            | `<program> <arg> …`                                                                                                                                 |
+| Any other shell, unmanaged PowerShell included               | Nothing: the reference is given up.                                                                                                                 |
+| None: the Host predates the prompt gate                      | Nothing: the reference is given up as `terminal-too-old`.                                                                                           |
+
+The line is an idle-prompt send, as an Agent start's is: the Host types it only while the root
+shell waits at a fresh, empty, marked prompt, and otherwise refuses with `prompt-unconfirmed`,
+having typed nothing ([prompt-gated input](../../orchbee/docs/windows-agent-start.md#prompt-gated-input)).
 The records are one paste of the line, then Right for PowerShell, then Enter, as an Agent start
 types them. The token is 16 bytes of operating-system entropy as 32 lowercase hex digits; without
 entropy the reference is skipped. Managed PowerShell strips the prefix, echoes the token in the
@@ -284,7 +293,9 @@ stopping Server refuses the handover, and the final capture carries the referenc
   the terminal every 250 ms through the process observer's on-demand lane, which keeps every
   temporary viewer serialized with the periodic samples: one fresh frame for the shell's report and
   reported directory, then one process sample, whose root directory stands in when the shell
-  reports none.
+  reports none. Every wait, a refused send's included, sleeps on the driver's own thread, which
+  holds no lock and no shared channel, so neither the Server's dispatch, the Worker channel nor
+  anyone's typing waits for it; stop wakes it.
 - **Not viewed.** A Panel no Client viewed resumes at its current geometry, 80x24 if no Client sized
   it. The Agent redraws its live region at the next resize; transcript already printed stays
   wrapped.
@@ -300,16 +311,19 @@ Notes about Client views and input are taken while their paths hold the coordina
 
 Each read then decides:
 
-| Shell report | Process sample                                             | Decision                                     |
-| ------------ | ---------------------------------------------------------- | -------------------------------------------- |
-| Running      | Any                                                        | Skip: not idle.                              |
-| Any          | Another program beside the shell and its console host      | Skip: not idle.                              |
-| Any          | Root is not an interactive cmd, powershell or pwsh         | Skip: unsupported shell.                     |
-| Any          | Row limit reached, an unreadable row or root, or no sample | Wait.                                        |
-| At prompt    | Shell only                                                 | Deliver.                                     |
-| Silent       | Shell only, managed PowerShell                             | Wait: it marks its prompt.                   |
-| Silent       | Shell only, cmd or other PowerShell                        | Deliver on the second consecutive such read. |
-| No frame     | Shell only                                                 | Wait.                                        |
+| Shell report       | Process sample                                        | Decision                                  |
+| ------------------ | ----------------------------------------------------- | ----------------------------------------- |
+| Running            | Any                                                   | Give up: not idle.                        |
+| Any                | No sample                                             | Wait.                                     |
+| Any                | Another program beside the shell and its console host | Give up: not idle.                        |
+| Any                | Launch kind is another shell                          | Give up: unsupported shell.               |
+| Any                | No launch kind                                        | Give up: terminal too old.                |
+| Any                | Row limit reached or an unreadable row                | Wait.                                     |
+| At prompt          | Shell only                                            | Try the gated send.                       |
+| Silent or no frame | Shell only                                            | Wait: only the Host can confirm a prompt. |
+
+A shell's report is only a sign that a send is worth trying; the Host's gate decides. Silence never
+admits a send, since a silent shell may be a program waiting for input.
 
 The shell-only rule is the strict idle-shell rule an Agent start uses, shared in
 `orchbee-agent-observation-protocol`. The directory, the reported one else the root's, must equal
@@ -318,17 +332,31 @@ drive root's. Another directory skips: resuming elsewhere fails for Claude Code,
 lookup is per project, misplaces Codex, and for other providers changes the outcome where the
 [table](#rows) says so. No directory evidence waits.
 
-On a deliver, the send's own admission checks every guard again under its locks and takes the
+On a try, the send's own admission checks every guard again under its locks and takes the
 pending reference before any record leaves, so an input admitted before that point refutes the
 delivery and one admitted after it follows the typed line.
+
+The Host answers the gated send:
+
+| Answer                                 | Then                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Accepted                               | Sent; the reference is carried.                                                                          |
+| `prompt-unconfirmed`, `settling`       | The reference goes back to pending; after the Host's 100 ms quiet period the guards and reads run again. |
+| `prompt-unconfirmed`, any other state  | The reference goes back to pending; after 250 ms the guards and reads run again.                         |
+| The Host lacks the gate                | Given up as `terminal-too-old` at once; never retried and never sent ungated.                            |
+| Any other failure, or partial progress | Skipped and consumed.                                                                                    |
+
+A refusal typed nothing, so retrying within the deadline is safe. A deadline that a refusal reached
+gives up as `prompt-unconfirmed`; one that no read decided gives up as not ready.
 
 ### Consumption
 
 A reference is consumed, without retry in this Server lifetime, by Client input, an observed
 command, a changed binding or generation, a Presentation that is gone, a directory mismatch, a
-busy terminal, an unsupported shell, a read still undecided at the deadline, unavailable entropy,
-and every attempted send, whatever its outcome. It stays pending, for the next checkpoint to
-carry, when its terminal has no started physical target or the Server stops first. The driver
+busy terminal, an unsupported or too-old shell, a deadline, unavailable entropy, and every
+attempted send except a gate refusal that typed nothing, which puts it back for the next read
+within the deadline. It stays pending, for the next checkpoint to carry, when its terminal has no
+started physical target or the Server stops first. The driver
 stops and joins early in clean stop and startup abort, while the Worker still runs, so the final
 capture carries every reference not yet attempted.
 
@@ -341,13 +369,33 @@ capture carries every reference not yet attempted.
 | Provider not on `PATH`                     | The shell prints its own error and stays; no run binds, so no capture writes it.  |
 | Session gone, such as a deleted transcript | The provider errors and exits, or opens an empty or new session; the shell stays. |
 | Busy, unknown or touched terminal          | Skipped and consumed.                                                             |
+| Prompt never confirmed within the deadline | Given up with a notice; nothing typed.                                            |
+| Terminal started by an older Orchbee       | Given up with a notice; nothing typed.                                            |
 | No Client before stop                      | Nothing typed; the references carry over.                                         |
 
 ### What Clients show
 
-Nothing new: no notice, toast or pending status on success or failure. The Panel shows the typed
-line and the provider's own output or error, and sidebar Agent rows appear through ordinary hook
-observation once the Agent starts.
+A success shows nothing new: the Panel shows the typed line and the provider's own output or error,
+and sidebar Agent rows appear through ordinary hook observation once the Agent starts.
+
+A give-up the person could not tell from the screen publishes a one-shot fact on the Presentation,
+`agentNotResumed { at, providerId, reason }` in the
+[Workbench snapshot](../../../schemas/workbench/README.md): the give-up's Unix milliseconds, the
+provider and the reason. Both Clients show it as a 4-second status notice, the TUI's status line
+and the GUI's notice with the same words, an identical notice already showing keeping its time:
+
+| Reason               | Given up for                                                                | Notice                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `prompt-unconfirmed` | A gate refusal at the deadline, a busy terminal, another shell, no decision | "{Agent} conversation not resumed: the shell was not at its prompt, so nothing was typed."               |
+| `terminal-too-old`   | No launch kind, or a Host without the gate                                  | "{Agent} conversation not resumed: this terminal was started by an older Orchbee, so nothing was typed." |
+
+Client input, an observed command, a changed binding, a gone Presentation, a directory mismatch,
+unavailable entropy and a failed send stay quiet: the person caused or sees them, or no notice can
+help. The fact is runtime-only, never checkpointed, and leaves only with its binding: a rebind,
+the Presentation's removal or a Server restart. No timer clears it, so each published fact advances
+the revision exactly once and a refusal or a returned reference never does. A Client shows each fact
+once, keyed by Presentation and time, and only within 60 seconds of `at` by its own clock, so a
+Client that connects later says nothing.
 
 ## Preference
 
@@ -370,8 +418,11 @@ on, the built-in default; a Session without a preference store reads as off. The
 - With the preference off, no row is written and nothing is typed.
 - Delivery happens only when all of these hold: the preference was on at startup, the binding and
   Terminal generation are unchanged, no Client input reached that terminal, no command was
-  observed, the directory equals the retained one, the strict idle-shell rule holds, and the shell
-  is at its prompt or, for an unmarked shell, silent and shell-only on two consecutive reads.
+  observed, the directory equals the retained one, the strict idle-shell rule holds, the shell
+  reports its prompt, and the Host confirms the prompt and types the line itself. No resume is
+  ever sent ungated.
+- A give-up with a notice costs one Workbench revision; a quiet give-up, a refusal, a retry and a
+  returned reference cost none. The notice names the provider and the reason, never the session.
 - Native session ids never reach the wire, logs or notices. They live only in the private
   checkpoint store and in the line typed into the user's own Panel. Each attempt writes one
   diagnostic line, `component=agent-resume outcome=sent|skipped:<reason>|kept:<reason>`, with no
@@ -390,12 +441,14 @@ ambiguity and invalid ids), the carry-forward decision table (its own run binds;
 provider, a manual start, unreadable arguments and a run not yet an `Agent` drop; a candidate, a
 gone anchor, a reused process id with a new creation time and a run that is no longer `Agent` of
 the provider drop; a living bound run is written; an unbound reference is kept but never written)
-and the delivery readiness table (a running command, another program, unsupported roots, every
-undecidable sample, each shell at its prompt, silence for marked and unmarked shells, and directory
-equality), and the Retry handover (a reference handed over while the driver runs is taken before
+and the delivery readiness table (a running command, another program, another launch kind, no
+launch kind, every undecidable sample, each marked shell at its prompt, silence and no frame for
+each, and directory equality), the Clients' notice selection (once per fact, only while fresh),
+and the Retry handover (a reference handed over while the driver runs is taken before
 it ends, one handed over after it ended starts a new run, and a stopping Server refuses it and
 leaves it pending). Candidate joining, lock order, the gate, ordering, spacing, the observer lane, saver
-wiring and carry-forward's record, bind and prune wiring are not claimed by unit tests.
+wiring, carry-forward's record, bind and prune wiring, the refusal retry and the give-up's commit
+are not claimed by unit tests.
 
 `apps/orchbee/tests/cli_windows_agent_resume.rs` witnesses them across real stops and restarts in
 one Session, with one Panel per [table](#rows) row: every provider, and Letta's conversation and
@@ -434,10 +487,14 @@ pinned ConPTY that carries the hook's correlation, in about 90 seconds. Its shel
 restored terminal's `PATH` comes from the registry, where the user's real provider may sit, and
 only cmd resolves a command from its current directory first, where every provider's stub sits.
 
+Every delivery it sees passes the Host's prompt gate at cmd's marked prompt.
+
 It does not prove:
 
 - the managed PowerShell line, which has no end-to-end witness that keeps a real provider out of
   reach;
+- a refused send's retry, a give-up or its notice, which no CLI read can provoke or observe; they
+  rest on the decision tables and the end batch's real-window checks;
 - any real provider: that its hook key is the id it resumes, that it parses the typed form, or
   where it looks up a session. Same-id and directory evidence rests on the table's sources, and
   where that is documentation only (Cursor, Droid, Devin, Copilot and Antigravity) a resume may

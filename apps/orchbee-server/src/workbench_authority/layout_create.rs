@@ -79,6 +79,7 @@ fn member(
         presentation_id: TerminalPresentationId::parse(&take(cursor))
             .map_err(|_| PlanFailure::Internal)?,
         launch_failure: None,
+        agent_not_resumed: None,
         launch_program: None,
     })
 }

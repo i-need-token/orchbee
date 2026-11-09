@@ -222,7 +222,25 @@ impl Locale {
             crate::localization::WorkbenchClientNotice::RecordUnusable(record, problem) => {
                 Some(self.record_status(record, problem))
             }
+            crate::localization::WorkbenchClientNotice::AgentNotResumed(agent, _) => {
+                Some(self.agent_not_resumed(agent))
+            }
             _ => None,
+        }
+    }
+
+    /// The headline of a resume that typed nothing, naming the Agent when it is known.
+    fn agent_not_resumed(self, agent: Option<crate::agent_provider::IntegrationId>) -> String {
+        match (self, agent) {
+            (Self::EnUs, Some(id)) => {
+                format!(
+                    "{} conversation not resumed",
+                    self.agent_integration_name(id)
+                )
+            }
+            (Self::EnUs, None) => "Agent conversation not resumed".into(),
+            (Self::ZhCn, Some(id)) => format!("未续接 {} 对话", self.agent_integration_name(id)),
+            (Self::ZhCn, None) => "未续接智能体对话".into(),
         }
     }
 
@@ -382,6 +400,24 @@ impl Locale {
                 Self::EnUs => "Terminal not started".into(),
                 Self::ZhCn => "终端未启动".into(),
             },
+            WorkbenchClientNotice::AgentNotResumed(agent, reason) => {
+                use orchbee_workbench_protocol::AgentNotResumedReason as R;
+                let headline = self.agent_not_resumed(agent);
+                match (self, reason) {
+                    (Self::EnUs, R::PromptUnconfirmed) => format!(
+                        "{headline}: the shell was not at its prompt, so nothing was typed."
+                    ),
+                    (Self::EnUs, R::TerminalTooOld) => format!(
+                        "{headline}: this terminal was started by an older Orchbee, so nothing was typed."
+                    ),
+                    (Self::ZhCn, R::PromptUnconfirmed) => {
+                        format!("{headline}：shell 不在提示符上，未输入任何内容。")
+                    }
+                    (Self::ZhCn, R::TerminalTooOld) => {
+                        format!("{headline}：这个终端由旧版 Orchbee 启动，未输入任何内容。")
+                    }
+                }
+            }
             WorkbenchClientNotice::EarlierLayout(notice) => self.earlier_layout_notice(notice),
             WorkbenchClientNotice::LinkOpened => match self {
                 Self::EnUs => "Link opened".into(),

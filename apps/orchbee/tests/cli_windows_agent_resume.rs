@@ -22,6 +22,10 @@
 //! exits, so its reference drops, and a last restart with the preference off types nothing. A Panel
 //! whose directory was deleted, or that a Client typed into first, receives nothing.
 //!
+//! Every resume is an idle-prompt send that the Host types only at cmd's marked prompt, so each
+//! delivery seen here passed the Host's prompt gate. A refused send, its retry and the notice of a
+//! give-up cannot be provoked or read through the CLI, and stay with the Server's decision tables.
+//!
 //! A restored terminal carries no launch environment: the Host projects `PATH` from the registry,
 //! where a real provider may be installed. cmd resolves a command from its current directory
 //! first, a resume is typed only in the retained directory, and every work directory holds every
@@ -54,8 +58,9 @@ use std::{
 /// Collective waits scale with the table: 30 s plus 1 s per row bounds every prompt, start,
 /// listing and round of resumes.
 const OBSERVED: Duration = Duration::from_secs(30 + TABLE.len() as u64);
-/// Well past the settle, readiness reads and spacing of any resume, so nothing typed by then
-/// means nothing will be.
+/// Well past the settle, first readiness reads and spacing of a resume that cmd's marked prompt
+/// admits at once. Every case waited out holds or consumes its reference without a retry, so
+/// nothing typed by then means nothing will be.
 const QUIET: Duration = Duration::from_secs(6);
 /// Controller and creation geometry, wide enough that no typed line in the long temporary path
 /// wraps.

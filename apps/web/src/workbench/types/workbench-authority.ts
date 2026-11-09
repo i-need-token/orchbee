@@ -291,6 +291,19 @@ export type WorkbenchHeldRestoreOutcome =
 	/** Nothing started: the hold changed, the Server refused, or the outcome is unknown. */
 	| { readonly kind: 'not-started' };
 
+/** The Server gave up resuming an Agent conversation after a restart and typed nothing. */
+export interface WorkbenchAgentNotResumed {
+	/** The provider-registry ID, such as `claude-code`; never a session. */
+	readonly providerId: string;
+	readonly reason: 'prompt-unconfirmed' | 'terminal-too-old';
+}
+
+/** The Server's resume facts as news: each one once, only while it is fresh. */
+export interface WorkbenchAgentResumeNotices {
+	/** Calls `listener` with the newest fact each snapshot brings that this Client has not seen. */
+	subscribe(listener: (notice: WorkbenchAgentNotResumed) => void): () => void;
+}
+
 /** Starts the terminal of a held restore in its saved directory or the home folder, once. */
 export interface WorkbenchHeldRestores {
 	restore(
@@ -349,6 +362,8 @@ export interface WorkbenchAuthority {
 	readonly minimumSplitPercent: number;
 	/** Absent where this authority cannot read the Server's Agent sessions. */
 	readonly agentBoard?: WorkbenchAgentBoard | undefined;
+	/** Absent where no Server resumes Agent conversations after a restart. */
+	readonly agentResumeNotices?: WorkbenchAgentResumeNotices | undefined;
 	/** Absent where this authority runs no configured commands. */
 	readonly configuredCommands?: WorkbenchConfiguredCommands | undefined;
 	change(

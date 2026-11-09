@@ -29,6 +29,11 @@ pub struct PresentationBinding {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Presentation {
+    /// The Server's one-shot fact that it gave up resuming a retained Agent conversation in the
+    /// current binding's terminal, typing nothing. Never persisted or carried across a rebinding.
+    /// Boxed so a Panel's inline primary Presentation stays small.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_not_resumed: Option<Box<PresentationAgentNotResumed>>,
     pub binding: Option<PresentationBinding>,
     #[serde(deserialize_with = "Option::deserialize")]
     pub custom_label: Option<crate::PanelCustomLabel>,
@@ -103,6 +108,28 @@ impl PresentationLaunchFailure {
 pub enum PresentationLaunchFailureReason {
     TerminalCreateFailed,
     DirectoryUnavailable,
+}
+
+/// The Server gave up resuming a retained Agent conversation after a restart and typed nothing.
+/// It names the provider and why, never the session. Clients show it once, near `at`.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresentationAgentNotResumed {
+    /// When the Server gave up, in Unix milliseconds: at least 1 and at most 2^53 - 1.
+    pub at: u64,
+    pub provider_id: orchbee_agent_observation_protocol::AgentProviderId,
+    pub reason: AgentNotResumedReason,
+}
+
+/// Why a resume typed nothing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentNotResumedReason {
+    /// The shell's prompt could not be confirmed before the attempt's deadline: it was busy, not
+    /// an interactive shell Orchbee marks, or never at a fresh empty prompt.
+    PromptUnconfirmed,
+    /// The terminal's Host predates the prompt gate.
+    TerminalTooOld,
 }
 
 impl Presentation {

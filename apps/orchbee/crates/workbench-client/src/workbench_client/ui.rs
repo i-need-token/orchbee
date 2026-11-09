@@ -5,6 +5,7 @@
 
 mod action_menus;
 mod agent_attention;
+mod agent_not_resumed;
 mod captured_actions;
 mod earlier_layouts;
 mod held_restore;
@@ -1471,6 +1472,8 @@ pub(super) struct WorkbenchClientUi {
     settings: settings::Coordinator,
     duplication: tab_duplication::Duplication,
     held_restore: held_restore::HeldRestore,
+    /// The Server's resume facts this Client already decided to show or not.
+    agent_not_resumed: agent_not_resumed::AgentNotResumedNotices,
     /// The earlier-layout listing, picker rows and reopen in flight.
     earlier_layouts: earlier_layouts::EarlierLayouts,
     launch_profiles: launch_profiles::Coordinator,
@@ -1639,6 +1642,7 @@ impl WorkbenchClientUi {
             settings: settings::Coordinator::new(capabilities.login_shell),
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),
+            agent_not_resumed: agent_not_resumed::AgentNotResumedNotices::default(),
             earlier_layouts: earlier_layouts::EarlierLayouts::default(),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
@@ -4299,6 +4303,13 @@ impl WorkbenchClientUi {
         }
     }
 
+    /// Adopts an accepted canonical snapshot as the Agent board's index and shows the resume facts
+    /// it brings: every path that accepts a snapshot passes here.
+    fn adopt_snapshot_index(&mut self, snapshot: &orchbee_workbench_protocol::Snapshot) {
+        self.observe_agent_not_resumed(snapshot);
+        self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+    }
+
     fn apply_refresh_event(
         &mut self,
         mailbox: &Arc<CommandMailbox>,
@@ -4467,7 +4478,7 @@ impl WorkbenchClientUi {
                 }
                 if rebuild_index && let Some(snapshot) = &index_snapshot {
                     self.observe_worktree_entry_snapshot(snapshot);
-                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.adopt_snapshot_index(snapshot);
                     if let Some(state) = self.state.as_mut() {
                         state.observe_overlay_snapshot(snapshot);
                     }

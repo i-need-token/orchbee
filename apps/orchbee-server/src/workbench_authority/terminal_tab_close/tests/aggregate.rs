@@ -41,6 +41,7 @@ fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
                         label: "right".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
                         launch_failure: None,
+                        agent_not_resumed: None,
                         launch_program: None,
                     },
                 },

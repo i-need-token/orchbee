@@ -51,6 +51,12 @@ home folder submit `panel.restore-terminal` through the authority's held restore
 "Directory still unavailable", "Agent conversation not resumed" or "Terminal not started" on the
 status line; nothing retries by itself.
 
+A Presentation's `agentNotResumed` fact says the Server gave up resuming its Agent conversation
+after a restart. The authority's resume notices read it from each snapshot and the status line says
+it once, for four seconds, only within 60 seconds of the fact's time and in the TUI's words; the
+same words already showing keep their time. The
+[resume owner](../../orchbee-server/docs/agent-session-resume.md#what-clients-show) defines the fact.
+
 Members a progressing close the window follows are withheld from the projection until that close
 settles, from the Server's acceptance of it. A Tab leaves the published Tabs, and a Group that holds
 only withheld Tabs leaves with them; every other Tab keeps the place its automatic name carries. A

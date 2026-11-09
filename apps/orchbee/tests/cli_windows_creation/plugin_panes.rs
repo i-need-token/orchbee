@@ -45,6 +45,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
                     custom_label: None,
                     binding: None,
                     launch_failure: None,
+                    agent_not_resumed: None,
                     launch_program: None,
                 });
             }

@@ -19,6 +19,8 @@ use crate::{
     },
 };
 
+/// The largest integer every JSON binding reads exactly.
+const MAXIMUM_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 pub const MAXIMUM_ENCODED_INTENT_BYTES: usize = 16 * 1024;
 pub const MAXIMUM_ENCODED_PROJECTION_BYTES: usize = 1024 * 1024;
 pub const MAXIMUM_LABEL_LENGTH: usize = 512;
@@ -539,6 +541,12 @@ fn validate_presentation_structure(presentation: &Presentation) -> Result<(), Va
     validate_label(&presentation.label)?;
     // The launched program names the current binding's launch and appears only beside it.
     if presentation.launch_program.is_some() && presentation.binding.is_none() {
+        return Err(ValidationError);
+    }
+    // A resume that typed nothing reached the current binding's terminal, at a safe-integer time.
+    if let Some(fact) = &presentation.agent_not_resumed
+        && (presentation.binding.is_none() || fact.at == 0 || fact.at > MAXIMUM_SAFE_INTEGER)
+    {
         return Err(ValidationError);
     }
     let Some(failure) = &presentation.launch_failure else {

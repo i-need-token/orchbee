@@ -476,6 +476,10 @@ export const zhCNWorkbenchMessages = {
 	'workbench.heldRestore.directoryUnavailable': '目录仍不可用',
 	'workbench.heldRestore.agentNotResumed': '未续接智能体对话',
 	'workbench.heldRestore.notStarted': '终端未启动',
+	'workbench.agentResume.promptUnconfirmed':
+		'未续接 {agent} 对话：shell 不在提示符上，未输入任何内容。',
+	'workbench.agentResume.terminalTooOld':
+		'未续接 {agent} 对话：这个终端由旧版 Orchbee 启动，未输入任何内容。',
 	'workbench.earlierLayouts.action': '早先的布局…',
 	'workbench.earlierLayouts.reading': '正在读取早先的布局…',
 	'workbench.earlierLayouts.empty': '还没有早先的布局',

@@ -227,6 +227,7 @@ fn replace_presentation(
     // A failure describes only the binding it was recorded for; the program arrives with its own.
     presentation.launch_failure = None;
     presentation.launch_program = launch_program.cloned();
+    presentation.agent_not_resumed = None;
     presentation.presentation_id = presentation_id.clone();
     true
 }

@@ -22,6 +22,7 @@ import { handOverServerWorkbenchAction } from './handOverServerWorkbenchAction';
 import { readServerWorkbenchAction } from './readServerWorkbenchAction';
 import { createServerWorkbenchClose } from './createServerWorkbenchClose';
 import { createServerWorktrees } from './createServerWorktrees';
+import { createServerAgentResumeNotices } from './createServerAgentResumeNotices';
 import { createServerHeldRestores } from './createServerHeldRestores';
 import { createServerEarlierLayouts } from './createServerEarlierLayouts';
 import { duplicateServerTabs } from './duplicateServerTabs';
@@ -376,6 +377,7 @@ export function createServerWorkbenchAuthority({
 			);
 		},
 		duplicateTabs: (context, duplication) => duplicateServerTabs(session, context, duplication),
+		agentResumeNotices: createServerAgentResumeNotices(session),
 		earlierLayouts: createServerEarlierLayouts(session),
 		heldRestores: createServerHeldRestores(session),
 		worktrees: createServerWorktrees(session),

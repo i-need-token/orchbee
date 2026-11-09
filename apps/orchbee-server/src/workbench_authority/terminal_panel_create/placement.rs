@@ -112,6 +112,7 @@ impl TerminalPlacement {
                     custom_label: None,
                     binding: Some(binding),
                     launch_failure: None,
+                    agent_not_resumed: None,
                     launch_program,
                 });
                 true
@@ -144,6 +145,7 @@ impl TerminalPlacement {
                 // A restore hold describes only the unbound member; the new binding replaces it.
                 member.launch_failure = None;
                 member.launch_program = launch_program;
+                member.agent_not_resumed = None;
                 true
             }
             // This adapter owns a specific Workbench action subset; other commands use their own admission and receipt paths.

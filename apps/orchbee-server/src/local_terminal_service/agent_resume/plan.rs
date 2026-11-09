@@ -5,21 +5,19 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 
-/// The restored shell a resume line is written for.
+/// The restored shell a resume line is written for: one the Host launched with prompt marks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ResumeShell {
     /// `powershell` or `pwsh` running the Worker's fixed initialization, which strips the run
     /// prefix and echoes its token in the command's start and finish markers.
     ManagedPowerShell,
-    /// Any other interactive `powershell` or `pwsh`.
-    PowerShell,
-    /// An interactive `cmd`.
+    /// An interactive `cmd` whose prompt the Host marks.
     Cmd,
 }
 
 impl ResumeShell {
     pub(super) const fn powershell(self) -> bool {
-        matches!(self, Self::ManagedPowerShell | Self::PowerShell)
+        matches!(self, Self::ManagedPowerShell)
     }
 }
 
@@ -119,8 +117,8 @@ pub(super) fn run_token() -> Option<String> {
     Some(format!("{:032x}", u128::from_be_bytes(bytes)))
 }
 
-/// Paste, then Right for PowerShell, then Enter, in one submission: the same records an Agent
-/// start types into the same shells.
+/// Paste, then Right for PowerShell, then Enter, in one submission: the one prompt line the Host's
+/// gate admits, and the same records an Agent start types into the same shells.
 pub(super) fn records(text: &str, powershell: bool) -> Option<SendRecords> {
     let mut records = vec![SendRecord::Paste {
         content: SendPasteContent::new(text.as_bytes().to_vec()).ok()?,

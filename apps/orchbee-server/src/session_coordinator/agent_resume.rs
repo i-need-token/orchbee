@@ -397,6 +397,50 @@ impl super::SessionCoordinator {
             .take_pending_agent_session(presentation)
     }
 
+    /// Undoes one admitted delivery the Host then refused with nothing typed: the reference is
+    /// pending again for the next attempt or capture, and `target` no longer carries it. Never
+    /// changes the Workbench revision.
+    pub(crate) fn return_agent_session(
+        &mut self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        target: &super::ProcessObservationTarget,
+        session: RetainedAgentSession,
+    ) {
+        let key = target.key();
+        if self
+            .carried_agent_sessions
+            .get(&key)
+            .is_some_and(|(_, carried)| carried.session == session && carried.anchor.is_none())
+        {
+            self.carried_agent_sessions.remove(&key);
+        }
+        if let Some(workbench) = self.workbench.as_mut() {
+            workbench.return_pending_agent_session(presentation, session);
+        }
+    }
+
+    /// Consumes the pending reference of a resume that typed nothing and, when `at` is known,
+    /// publishes that on the Presentation still bound as `binding`, in one Workbench revision.
+    pub(crate) fn give_up_agent_resume(
+        &mut self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        binding: Option<&orchbee_workbench_protocol::PresentationBinding>,
+        reason: orchbee_workbench_protocol::AgentNotResumedReason,
+        at: Option<u64>,
+    ) {
+        let Some(workbench) = self.workbench.as_mut() else {
+            return;
+        };
+        match at {
+            Some(at) => {
+                workbench.give_up_agent_resume(presentation, binding, reason, at);
+            }
+            None => {
+                workbench.take_pending_agent_session(presentation);
+            }
+        }
+    }
+
     /// The Presentation's current binding and, when the current Worker has started it and no
     /// lifecycle fence covers it, the exact physical terminal a delivery may reach.
     pub(crate) fn agent_resume_target(

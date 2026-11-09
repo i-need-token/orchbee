@@ -182,7 +182,7 @@ impl WorkbenchClientUi {
         match result {
             Ok(MutationResult::Applied) if installed => {
                 if let Some(snapshot) = &index_snapshot {
-                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.adopt_snapshot_index(snapshot);
                 }
                 self.retired_peer = None;
                 self.retired_peer_attempt = None;

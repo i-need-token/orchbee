@@ -1,31 +1,36 @@
 //! Owns the one thread that types each retained Agent session reference's resume command into its
 //! restored shell after a managed Windows restart. It waits for the first Client view of this
-//! Server lifetime, then attempts each pending reference once, viewed terminals first, and types
-//! only into an idle shell of the restored Terminal generation in the retained directory that no
-//! Client input or command has touched. A held Panel's reference joins when a Retry starts its
-//! shell: behind the running driver, or in a new run once the last one ended. A reference is
-//! consumed by every refutation and by every attempted send, and stays pending only while its
-//! terminal is unavailable or the Server stops. It never retries, never shows Clients anything,
-//! and never logs a session id.
+//! Server lifetime, then attempts each pending reference once, viewed terminals first. An attempt
+//! sends only through the Host's prompt gate, into a shell the Host launched with prompt marks, of
+//! the restored Terminal generation in the retained directory that no Client input or command has
+//! touched. A Host refusal typed nothing, so it puts the reference back and the attempt reads and
+//! sends again until its deadline; every wait runs on this thread. A held Panel's reference joins
+//! when a Retry starts its shell: behind the running driver, or in a new run once the last one
+//! ended. An attempt consumes its reference when it ends, by a refutation, an accepted or otherwise
+//! failed send, or its deadline, and leaves it pending only while its terminal is unavailable or
+//! the Server stops. An attempt that ends because the prompt could not be confirmed publishes one
+//! not-resumed fact on its Presentation, the only thing Clients are shown; no session id is ever
+//! logged or published.
 use super::{LocalTerminalService, create_reference, placement};
 use crate::{
     session_coordinator::{ProcessObservationTarget, ResumeTarget, SessionCoordinator},
     terminal_coordinator::{BindingViewerTarget, WorkerPlacement},
 };
 use orchbee_client_server_protocol::{
-    ServerMessage, SessionId as ObcsSessionId, TerminalId as ClientTerminalId, TerminalSendOutcome,
-    TerminalSendRequest, WorkerId as ClientWorkerId,
+    SendPromptState, SendRejectedReason, ServerMessage, SessionId as ObcsSessionId,
+    TerminalId as ClientTerminalId, TerminalSendOutcome, TerminalSendRequest,
+    WorkerId as ClientWorkerId,
 };
 use orchbee_server::RetainedAgentSession;
 use orchbee_workbench_protocol::{
-    PresentationBinding, TerminalPresentationId, WorkbenchDirectoryPath,
+    AgentNotResumedReason, PresentationBinding, TerminalPresentationId, WorkbenchDirectoryPath,
 };
 use std::{
     collections::VecDeque,
     io,
     sync::{Arc, Mutex, Weak},
     thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 mod admission;
@@ -44,8 +49,14 @@ const SETTLE: Duration = Duration::from_secs(1);
 const SPACING: Duration = Duration::from_millis(250);
 /// The time between two reads of one candidate.
 const POLL: Duration = Duration::from_millis(250);
-/// How long one candidate may take to read as ready, from the start of its attempt.
+/// How long one candidate may take to read as ready and pass the Host's prompt gate, from the
+/// start of its attempt.
 const READINESS: Duration = Duration::from_secs(10);
+/// The wait before sending again after the Host found the prompt younger than its quiet period.
+const SETTLING: Duration =
+    Duration::from_millis(orchbee_terminal_protocol::PROMPT_LINE_QUIET_MILLISECONDS);
+/// The largest Unix millisecond time the Workbench protocol carries.
+const MAXIMUM_UNIX_MILLISECONDS: u64 = 9_007_199_254_740_991;
 
 /// Why a pending reference was consumed without a delivery.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,9 +68,35 @@ pub(super) enum Reason {
     NotIdle,
     UnsupportedShell,
     NotReady,
+    /// The Host refused every gated send until the deadline, typing nothing.
+    PromptUnconfirmed,
+    /// The terminal's Host predates the prompt gate.
+    TerminalTooOld,
     TokenUnavailable,
     Gone,
     SendFailed,
+}
+
+impl Reason {
+    /// The fact a give-up publishes: only where the prompt could not be confirmed, so the person
+    /// expected the conversation back and nothing came. Client input, an observed command, a
+    /// changed or gone Presentation and a moved directory say the person or the layout already
+    /// moved on, and an unavailable token or a failed send stays a diagnostic.
+    const fn notice(self) -> Option<AgentNotResumedReason> {
+        match self {
+            Self::NotIdle | Self::UnsupportedShell | Self::NotReady | Self::PromptUnconfirmed => {
+                Some(AgentNotResumedReason::PromptUnconfirmed)
+            }
+            Self::TerminalTooOld => Some(AgentNotResumedReason::TerminalTooOld),
+            Self::ClientInput
+            | Self::CommandObserved
+            | Self::BindingChanged
+            | Self::DirectoryMismatch
+            | Self::TokenUnavailable
+            | Self::Gone
+            | Self::SendFailed => None,
+        }
+    }
 }
 
 /// Why a pending reference stays pending for the next checkpoint.
@@ -88,6 +125,8 @@ impl Outcome {
             Self::Skipped(Reason::NotIdle) => "skipped:not-idle",
             Self::Skipped(Reason::UnsupportedShell) => "skipped:unsupported-shell",
             Self::Skipped(Reason::NotReady) => "skipped:not-ready",
+            Self::Skipped(Reason::PromptUnconfirmed) => "skipped:prompt-unconfirmed",
+            Self::Skipped(Reason::TerminalTooOld) => "skipped:terminal-too-old",
             Self::Skipped(Reason::TokenUnavailable) => "skipped:token-unavailable",
             Self::Skipped(Reason::Gone) => "skipped:gone",
             Self::Skipped(Reason::SendFailed) => "skipped:send-failed",
@@ -100,6 +139,14 @@ impl Outcome {
     const fn sent(self) -> bool {
         matches!(self, Self::Sent | Self::Skipped(Reason::SendFailed))
     }
+}
+
+/// What one gated send came to.
+enum Delivery {
+    /// The attempt ended.
+    Done(Outcome),
+    /// The Host typed nothing and the reference is pending again.
+    Refused(SendPromptState),
 }
 
 struct Candidate {
@@ -282,6 +329,29 @@ impl LocalTerminalService {
         Outcome::Skipped(reason)
     }
 
+    /// Ends the attempt for `reason`: consumes the reference and, when the prompt could not be
+    /// confirmed, publishes that nothing was typed on the Presentation still bound as `committed`,
+    /// in one Workbench revision.
+    fn give_up(
+        &self,
+        candidate: &Candidate,
+        committed: Option<&PresentationBinding>,
+        reason: Reason,
+    ) -> Outcome {
+        let Some(notice) = reason.notice() else {
+            return self.consume(candidate, reason);
+        };
+        if let Ok(mut coordinator) = self.coordinator.lock() {
+            coordinator.give_up_agent_resume(
+                &candidate.presentation,
+                committed,
+                notice,
+                unix_milliseconds(),
+            );
+        }
+        Outcome::Skipped(reason)
+    }
+
     /// The Presentation's current binding, if it is still a bound member.
     fn committed_binding(
         &self,
@@ -363,7 +433,8 @@ impl LocalTerminalService {
         Ok(target)
     }
 
-    /// One candidate's whole attempt: guards, reads until ready or the deadline, then delivery.
+    /// One candidate's whole attempt: guards and a read, then a gated send when the read is worth
+    /// it, again and again until the Host accepts, a guard or read refutes, or the deadline.
     fn attempt(
         &self,
         signals: &signals::Signals,
@@ -372,8 +443,8 @@ impl LocalTerminalService {
     ) -> Outcome {
         let deadline = Instant::now() + READINESS;
         let mut restored = None;
-        let mut previous = None;
-        let (target, shell) = loop {
+        let mut refused = false;
+        loop {
             if signals.stopping() {
                 return Outcome::Kept(Kept::Stopping);
             }
@@ -385,59 +456,74 @@ impl LocalTerminalService {
             let facts = self
                 .request_resume_facts(target.clone())
                 .unwrap_or_default();
-            match readiness(&facts, previous, &candidate.directory) {
-                Readiness::Deliver(shell) => break (target, shell),
-                Readiness::Skip(reason) => return self.consume(candidate, reason),
-                waiting @ (Readiness::Wait | Readiness::Quiet(_)) => previous = Some(waiting),
+            let mut pause = POLL;
+            match readiness(&facts, &candidate.directory) {
+                Readiness::Try(shell) => match self.deliver(candidate, committed, &target, shell) {
+                    Delivery::Done(outcome) => return outcome,
+                    Delivery::Refused(state) => {
+                        refused = true;
+                        if state == SendPromptState::Settling {
+                            pause = SETTLING;
+                        }
+                    }
+                },
+                Readiness::Skip(reason) => return self.give_up(candidate, committed, reason),
+                Readiness::Wait => {}
             }
-            let next = Instant::now() + POLL;
+            let next = Instant::now() + pause;
             if next >= deadline {
-                return self.consume(candidate, Reason::NotReady);
+                let reason = if refused {
+                    Reason::PromptUnconfirmed
+                } else {
+                    Reason::NotReady
+                };
+                return self.give_up(candidate, committed, reason);
             }
             if !signals.sleep_until(next) {
                 return Outcome::Kept(Kept::Stopping);
             }
-        };
-        self.deliver(candidate, committed, &target, shell)
+        }
     }
 
-    /// Builds the line, then admits and sends it in one critical section: the guards are checked
-    /// again under the send's own locks, and the reference is taken before the records leave.
+    /// Builds the line, then admits and sends it through the Host's prompt gate in one critical
+    /// section: the guards are checked again under the send's own locks, and the reference is
+    /// taken before the records leave.
     fn deliver(
         &self,
         candidate: &Candidate,
         committed: Option<&PresentationBinding>,
         target: &ProcessObservationTarget,
         shell: ResumeShell,
-    ) -> Outcome {
+    ) -> Delivery {
         let Some(session) = self
             .coordinator
             .lock()
             .ok()
             .and_then(|coordinator| coordinator.pending_agent_session(&candidate.presentation))
         else {
-            return Outcome::Skipped(Reason::Gone);
+            return Delivery::Done(Outcome::Skipped(Reason::Gone));
         };
         let token = if shell == ResumeShell::ManagedPowerShell {
             match plan::run_token() {
                 Some(token) => Some(token),
-                None => return self.consume(candidate, Reason::TokenUnavailable),
+                None => return Delivery::Done(self.consume(candidate, Reason::TokenUnavailable)),
             }
         } else {
             None
         };
         let text = plan::text(&session, shell, token.as_deref());
         let request = plan::records(&text, shell.powershell()).and_then(|records| {
-            Some(TerminalSendRequest::new(
+            TerminalSendRequest::idle_prompt(
                 create_reference()?,
                 ObcsSessionId::parse(target.session_id.as_str()).ok()?,
                 ClientWorkerId::parse(target.binding.worker_id.as_str()).ok()?,
                 ClientTerminalId::parse(target.binding.terminal_id.as_str()).ok()?,
                 records,
-            ))
+            )
+            .ok()
         });
         let Some(request) = request else {
-            return self.consume(candidate, Reason::SendFailed);
+            return Delivery::Done(self.consume(candidate, Reason::SendFailed));
         };
         let mut admission = None;
         let message = self.deliver_send(&request, |coordinator, sent| {
@@ -448,16 +534,45 @@ impl LocalTerminalService {
         });
         match admission {
             // The send's own admission refused before the guards: the terminal is unavailable.
-            None => Outcome::Kept(Kept::Unavailable),
-            Some(Some(outcome)) => outcome,
-            Some(None) => match message {
-                ServerMessage::TerminalSendResult(result)
-                    if matches!(result.outcome(), TerminalSendOutcome::Accepted { .. }) =>
-                {
-                    Outcome::Sent
-                }
-                _ => Outcome::Skipped(Reason::SendFailed),
-            },
+            None => Delivery::Done(Outcome::Kept(Kept::Unavailable)),
+            Some(Some(outcome)) => Delivery::Done(outcome),
+            Some(None) => self.settle(candidate, committed, target, session, &message),
+        }
+    }
+
+    /// Reads an admitted send's result. Accepted input is sent. A Host refusal that typed nothing
+    /// puts the reference back for the next try, and a Host without the gate gives up at once,
+    /// since trying again cannot change that. Any other result consumed the reference.
+    fn settle(
+        &self,
+        candidate: &Candidate,
+        committed: Option<&PresentationBinding>,
+        target: &ProcessObservationTarget,
+        session: RetainedAgentSession,
+        message: &ServerMessage,
+    ) -> Delivery {
+        let ServerMessage::TerminalSendResult(result) = message else {
+            return Delivery::Done(Outcome::Skipped(Reason::SendFailed));
+        };
+        let refusal = match result.outcome() {
+            TerminalSendOutcome::Accepted { .. } => return Delivery::Done(Outcome::Sent),
+            TerminalSendOutcome::Rejected {
+                reason:
+                    reason @ (SendRejectedReason::PromptUnconfirmed(_)
+                    | SendRejectedReason::HostPromptGateUnsupported),
+                progress,
+                ..
+            } if progress.records_accepted() == 0 && progress.accepted_encoded_bytes() == 0 => {
+                *reason
+            }
+            _ => return Delivery::Done(Outcome::Skipped(Reason::SendFailed)),
+        };
+        if let Ok(mut coordinator) = self.coordinator.lock() {
+            coordinator.return_agent_session(&candidate.presentation, target, session);
+        }
+        match refusal {
+            SendRejectedReason::PromptUnconfirmed(state) => Delivery::Refused(state),
+            _ => Delivery::Done(self.give_up(candidate, committed, Reason::TerminalTooOld)),
         }
     }
 
@@ -524,6 +639,14 @@ impl Drop for Finish<'_> {
             }
         }
     }
+}
+
+/// Now in Unix milliseconds, when the clock reads within the range the Workbench protocol carries.
+fn unix_milliseconds() -> Option<u64> {
+    let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).ok()?;
+    u64::try_from(elapsed.as_millis())
+        .ok()
+        .filter(|milliseconds| (1..=MAXIMUM_UNIX_MILLISECONDS).contains(milliseconds))
 }
 
 fn report(outcome: Outcome) {

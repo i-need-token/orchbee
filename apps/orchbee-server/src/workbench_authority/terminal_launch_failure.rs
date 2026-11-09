@@ -1,4 +1,5 @@
-//! Publishes a known terminal launch failure on the Presentation still bound to that terminal.
+//! Publishes a known terminal launch failure, or another one-shot Server fact, on the Presentation
+//! still bound to that terminal.
 use super::WorkbenchAuthority;
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, PresentationBinding, PresentationLaunchFailure,
@@ -16,6 +17,26 @@ impl WorkbenchAuthority {
         binding: &PresentationBinding,
         executable: Option<&str>,
     ) -> bool {
+        self.commit_presentation_fact(presentation_id, binding, |presentation| {
+            if presentation.launch_failure.is_some() {
+                return false;
+            }
+            presentation.launch_failure = Some(PresentationLaunchFailure::terminal_create(
+                executable.map(str::to_owned),
+            ));
+            true
+        })
+    }
+
+    /// Advances the projection by exactly one revision with `apply`'s change to the Presentation
+    /// still bound as `binding`. Nothing advances when the authority is retired, the Presentation
+    /// is gone or rebound, `apply` declines, or the projection budget refuses the candidate.
+    pub(super) fn commit_presentation_fact(
+        &mut self,
+        presentation_id: &TerminalPresentationId,
+        binding: &PresentationBinding,
+        apply: impl FnOnce(&mut Presentation) -> bool,
+    ) -> bool {
         if self.retired {
             return false;
         }
@@ -28,12 +49,9 @@ impl WorkbenchAuthority {
         else {
             return false;
         };
-        if presentation.binding.as_ref() != Some(binding) || presentation.launch_failure.is_some() {
+        if presentation.binding.as_ref() != Some(binding) || !apply(presentation) {
             return false;
         }
-        presentation.launch_failure = Some(PresentationLaunchFailure::terminal_create(
-            executable.map(str::to_owned),
-        ));
         let Some(revision) = candidate.revision.value().checked_add(1) else {
             return false;
         };

@@ -111,6 +111,12 @@ pub(crate) enum WorkbenchClientNotice {
     RestoreAgentNotResumed,
     /// A held restore's terminal did not start for another reason.
     RestoreNotStarted,
+    /// The Server gave up resuming an Agent conversation after a restart and typed nothing. The
+    /// Agent is `None` when this Client does not know the provider.
+    AgentNotResumed(
+        Option<crate::agent_provider::IntegrationId>,
+        orchbee_workbench_protocol::AgentNotResumedReason,
+    ),
     /// What an earlier-layout list or reopen did.
     EarlierLayout(super::super::EarlierLayoutNotice),
     LinkOpened,

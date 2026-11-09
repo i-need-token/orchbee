@@ -53,6 +53,8 @@ export type {
 	WorkbenchWorktrees,
 } from './types/workbench-worktrees';
 export type {
+	WorkbenchAgentNotResumed,
+	WorkbenchAgentResumeNotices,
 	WorkbenchAuthority,
 	WorkbenchAuthorityChange,
 	WorkbenchAuthorityClosure,

@@ -126,6 +126,7 @@ fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_or
                 worker_id: worker_id(9102),
             }),
             launch_failure: None,
+            agent_not_resumed: None,
             launch_program: None,
         });
         let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());

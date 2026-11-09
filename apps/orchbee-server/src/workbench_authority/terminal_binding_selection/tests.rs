@@ -118,6 +118,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                 presentation_id: TerminalPresentationId::parse(&identity(104))
                                     .unwrap(),
                                 launch_failure: None,
+                                agent_not_resumed: None,
                                 launch_program: None,
                             }],
                             panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
@@ -128,6 +129,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                 presentation_id: TerminalPresentationId::parse(&identity(103))
                                     .unwrap(),
                                 launch_failure: None,
+                                agent_not_resumed: None,
                                 launch_program: None,
                             },
                         },
@@ -151,6 +153,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                             )
                                             .unwrap(),
                                             launch_failure: None,
+                                            agent_not_resumed: None,
                                             launch_program: None,
                                         },
                                     },
@@ -170,6 +173,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                             )
                                             .unwrap(),
                                             launch_failure: None,
+                                            agent_not_resumed: None,
                                             launch_program: None,
                                         },
                                     },

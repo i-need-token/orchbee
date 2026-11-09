@@ -28,6 +28,7 @@ fn leaf(panel: u128, presentation: u128, worker: u128, terminal: u128, label: &s
             label: label.to_owned(),
             presentation_id: TerminalPresentationId::parse(&id(presentation)).unwrap(),
             launch_failure: None,
+            agent_not_resumed: None,
             launch_program: None,
         },
     }

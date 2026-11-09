@@ -93,7 +93,7 @@ impl WorkbenchClientUi {
                 // The snapshot that drove this accepted recovery is the
                 // freshest canonical feed the board's index may see.
                 if let Some(snapshot) = &index_snapshot {
-                    self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+                    self.adopt_snapshot_index(snapshot);
                 }
                 if installed {
                     self.clear_projections();
@@ -203,7 +203,7 @@ impl WorkbenchClientUi {
             return match result {
                 Ok(MutationResult::Applied) => {
                     if let Some(snapshot) = &index_snapshot {
-                        self.agent_index = crate::agent_board::PresentationIndex::rebuild(snapshot);
+                        self.adopt_snapshot_index(snapshot);
                     }
                     if installed {
                         self.clear_projections();

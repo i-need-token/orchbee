@@ -193,6 +193,7 @@ impl WorkbenchAuthority {
             presentation.binding = Some(binding);
             presentation.launch_program = launch_program;
             presentation.launch_failure = None;
+            presentation.agent_not_resumed = None;
         })?;
         Ok(PreparedWorkbenchRestoreBinding {
             authority: self,

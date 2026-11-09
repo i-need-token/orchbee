@@ -133,6 +133,9 @@
 			"additionalProperties": false,
 			"required": ["binding", "label", "presentationId", "customLabel"],
 			"properties": {
+				"agentNotResumed": {
+					"$ref": "#/$defs/presentationAgentNotResumed"
+				},
 				"customLabel": {
 					"oneOf": [
 						{
@@ -164,6 +167,27 @@
 				},
 				"presentationId": {
 					"$ref": "#/$defs/presentationId"
+				}
+			}
+		},
+		"presentationAgentNotResumed": {
+			"$comment": "The Server gave up resuming a retained Agent conversation in the current binding's terminal and typed nothing. Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that. It names the provider, never the session.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["at", "providerId", "reason"],
+			"properties": {
+				"at": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				},
+				"providerId": {
+					"type": "string",
+					"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+					"maxLength": 64
+				},
+				"reason": {
+					"enum": ["prompt-unconfirmed", "terminal-too-old"]
 				}
 			}
 		},

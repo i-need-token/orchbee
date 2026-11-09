@@ -5028,6 +5028,7 @@ impl Authority {
                 label: label.as_str().to_owned(),
                 presentation_id: presentation_id.clone(),
                 launch_failure: None,
+                agent_not_resumed: None,
                 launch_program: None,
             },
         };
@@ -5127,6 +5128,7 @@ fn leaf_node(
             label: label.to_owned(),
             presentation_id: presentation_id(presentation),
             launch_failure: None,
+            agent_not_resumed: None,
             launch_program: None,
         },
     }
