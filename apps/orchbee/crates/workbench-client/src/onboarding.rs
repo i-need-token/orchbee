@@ -7,6 +7,11 @@ const MAX_BYTES: usize = 1024;
 /// Whether this build offers the welcome card. Launch withholds it (ORC-402); the card, its
 /// rendering, dismissal and the record stay compiled so that setting this offers it again.
 const WELCOME_CARD_OFFERED: bool = false;
+/// Whether this build offers the welcome card. While it does not, its actions are hidden from
+/// every discovery surface rather than offered for a card that never shows.
+pub(crate) const fn offered() -> bool {
+    WELCOME_CARD_OFFERED
+}
 #[cfg(test)]
 const DISMISSED: &[u8] = b"{\"version\":1,\"dismissed\":true}\n";
 

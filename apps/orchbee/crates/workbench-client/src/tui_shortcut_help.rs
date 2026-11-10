@@ -64,6 +64,14 @@ pub(crate) fn entries(
         ) {
             continue;
         }
+        // A withheld welcome card is hidden, so help never offers to dismiss it (ORC-402).
+        if matches!(
+            binding.action,
+            PrefixAction::Client(ClientAction::DismissOnboarding)
+        ) && !crate::onboarding::offered()
+        {
+            continue;
+        }
         let group = if common_action(&binding.action) {
             ShortcutHelpGroup::Common
         } else {

@@ -2,7 +2,7 @@
 
 ## Current status
 
-The card is withheld for now, and its code is kept (ORC-402). `WELCOME_CARD_OFFERED` in the onboarding state owner is `false`, so no Client shows the card and the Sidebar keeps the layout it has after dismissal. A withheld card reads and writes nothing: `internal/state/onboarding.json` stays exactly as an earlier build left it and remains readable with no migration. The card, its rendering, dismissal and the record code stay compiled, and setting the switch offers the card again. The rest of this document describes the card when it is offered.
+The card is withheld for now, and its code is kept (ORC-402). `WELCOME_CARD_OFFERED` in the onboarding state owner is `false`, so no Client shows the card and the Sidebar keeps the layout it has after dismissal. A withheld card reads and writes nothing: `internal/state/onboarding.json` stays exactly as an earlier build left it and remains readable with no migration. Shortcut help omits the dismissal entry while the card is withheld, because a hidden card has no action to offer; the binding stays registered and does nothing. The card, its rendering, dismissal and the record code stay compiled, and setting the switch offers the card again. The rest of this document describes the card when it is offered.
 
 ## Ownership and scope
 
